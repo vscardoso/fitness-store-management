@@ -99,13 +99,13 @@ async def list_customers(
         - Busca é case-insensitive
         - Busca parcial (LIKE) em múltiplos campos
     """
-    customer_repo = CustomerRepository(db)
+    customer_repo = CustomerRepository()
     
     try:
         if search:
-            customers = await customer_repo.search(search, skip, limit)
+            customers = await customer_repo.search(db, search, skip=skip, limit=limit)
         else:
-            customers = await customer_repo.get_multi(skip, limit)
+            customers = await customer_repo.get_multi(db, skip=skip, limit=limit)
         
         return customers
         
@@ -170,10 +170,10 @@ async def get_customer(
             "updated_at": "2025-10-28T10:00:00"
         }
     """
-    customer_repo = CustomerRepository(db)
+    customer_repo = CustomerRepository()
     
     try:
-        customer = await customer_repo.get(customer_id)
+        customer = await customer_repo.get(db, customer_id)
         
         if not customer:
             raise HTTPException(
@@ -440,10 +440,10 @@ async def delete_customer(
         - Cliente não aparece mais em listagens normais
         - Pode ser reativado posteriormente se necessário
     """
-    customer_repo = CustomerRepository(db)
+    customer_repo = CustomerRepository()
     
     try:
-        customer = await customer_repo.get(customer_id)
+        customer = await customer_repo.get(db, customer_id)
         
         if not customer:
             raise HTTPException(
@@ -452,7 +452,7 @@ async def delete_customer(
             )
         
         # Soft delete
-        await customer_repo.update(customer_id, {'is_active': False})
+        await customer_repo.update(db, customer_id, {'is_active': False})
         await db.commit()
         
     except HTTPException:
@@ -542,11 +542,11 @@ async def get_customer_purchases(
     """
     from app.repositories.sale_repository import SaleRepository
     
-    customer_repo = CustomerRepository(db)
+    customer_repo = CustomerRepository()
     
     try:
         # Verificar se cliente existe
-        customer = await customer_repo.get(customer_id)
+        customer = await customer_repo.get(db, customer_id)
         
         if not customer:
             raise HTTPException(
