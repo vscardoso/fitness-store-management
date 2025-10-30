@@ -778,10 +778,10 @@ async def get_top_customers(
         
         # Buscar nomes dos clientes
         from app.repositories.customer_repository import CustomerRepository
-        customer_repo = CustomerRepository(db)
+        customer_repo = CustomerRepository()
         
         for item in result:
-            customer = await customer_repo.get(item["customer_id"])
+            customer = await customer_repo.get(db, item["customer_id"])
             item["customer_name"] = customer.full_name if customer else "Cliente Desconhecido"
         
         return result

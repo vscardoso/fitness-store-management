@@ -24,6 +24,24 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         """Wrapper para criar venda."""
         return await super().create(self.db, obj_in)
     
+    async def get_multi(
+        self,
+        *,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[Sale]:
+        """
+        Wrapper para get_multi usando self.db.
+        
+        Args:
+            skip: Número de registros para pular
+            limit: Limite de registros
+            
+        Returns:
+            Lista de vendas
+        """
+        return await super().get_multi(self.db, skip=skip, limit=limit)
+    
     async def get_by_date_range(
         self, 
         start_date: date, 
