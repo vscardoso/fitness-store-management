@@ -452,7 +452,7 @@ async def delete_customer(
             )
         
         # Soft delete
-        await customer_repo.update(db, customer_id, {'is_active': False})
+        await customer_repo.update(db, id=customer_id, obj_in={'is_active': False})
         await db.commit()
         
     except HTTPException:
