@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.schemas.user import UserCreate, UserLogin, UserResponse, Token
+from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, TokenResponse
 from app.services.auth_service import AuthService
 from app.api.deps import get_current_active_user
 from app.models.user import User
@@ -56,57 +56,57 @@ async def register(
 
 @router.post(
     "/login",
-    response_model=Token,
+    response_model=TokenResponse,
     summary="Login de usuário",
-    description="Autentica usuário e retorna token JWT de acesso"
+    description="Autentica usuário e retorna token JWT de acesso com dados do usuário"
 )
 async def login(
     credentials: UserLogin,
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Login e obter token JWT.
-    
+    Login e obter token JWT com dados do usuário.
+
     Args:
         credentials: Email e senha do usuário
         db: Sessão do banco de dados
-        
+
     Returns:
-        Token: Token de acesso JWT e refresh token
-        
+        TokenResponse: Token de acesso JWT e dados do usuário
+
     Raises:
         HTTPException 401: Se credenciais forem inválidas
         HTTPException 403: Se usuário estiver inativo
     """
     auth_service = AuthService(db)
-    
+
     # Validar credenciais
     if not credentials.email or not credentials.password:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email e senha são obrigatórios"
         )
-    
+
     # Autenticar usuário
     user = await auth_service.authenticate(
-        credentials.email, 
+        credentials.email,
         credentials.password
     )
-    
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email ou senha incorretos",
             headers={"WWW-Authenticate": "Bearer"}
         )
-    
+
     # Verificar se usuário está ativo
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Usuário inativo. Entre em contato com o administrador."
         )
-    
+
     # Criar token de acesso
     try:
         access_token = await auth_service.create_token(user)
@@ -115,11 +115,11 @@ async def login(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao criar token de acesso: {str(e)}"
         )
-    
+
     return {
         "access_token": access_token,
-        "refresh_token": access_token,  # Por enquanto, mesmo token
-        "token_type": "bearer"
+        "token_type": "bearer",
+        "user": user
     }
 
 

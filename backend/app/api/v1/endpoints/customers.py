@@ -14,7 +14,8 @@ Endpoints:
     - GET /customers/{customer_id}/purchases: Histórico de compras
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
@@ -27,6 +28,7 @@ from app.models.user import User
 
 
 router = APIRouter(prefix="/customers", tags=["Clientes"])
+logger = logging.getLogger(__name__)
 
 
 # ============================================================================
@@ -39,6 +41,11 @@ router = APIRouter(prefix="/customers", tags=["Clientes"])
     response_model=List[CustomerResponse],
     summary="Listar clientes",
     description="Lista todos os clientes com paginação e busca opcional"
+)
+@router.get(
+    "",
+    response_model=List[CustomerResponse],
+    include_in_schema=False
 )
 async def list_customers(
     skip: int = Query(0, ge=0, description="Número de registros a pular"),
@@ -197,6 +204,12 @@ async def get_customer(
     summary="Criar novo cliente",
     description="Cadastra um novo cliente no sistema"
 )
+@router.post(
+    "",
+    response_model=CustomerResponse,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False
+)
 async def create_customer(
     customer_data: CustomerCreate,
     db: AsyncSession = Depends(get_db),
@@ -265,7 +278,9 @@ async def create_customer(
     customer_service = CustomerService(db)
     
     try:
+        logger.info("[customers] create_customer START user_id=%s name=%s", getattr(current_user, 'id', None), customer_data.full_name)
         customer = await customer_service.create_customer(customer_data)
+        logger.info("[customers] create_customer OK id=%s", getattr(customer, 'id', None))
         return customer
         
     except ValueError as e:
@@ -275,6 +290,7 @@ async def create_customer(
             detail=str(e)
         )
     except Exception as e:
+        logger.exception("[customers] create_customer ERROR: %s", str(e))
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao criar cliente: {str(e)}"

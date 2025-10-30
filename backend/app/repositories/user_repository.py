@@ -11,11 +11,28 @@ from app.repositories.base import BaseRepository
 
 class UserRepository(BaseRepository[User, Any, Any]):
     """Repositório para operações específicas de usuários."""
-    
+
     def __init__(self, db: AsyncSession):
         super().__init__(User)
         self.db = db
-    
+
+    async def get(self, user_id: int) -> Optional[User]:
+        """Wrapper para buscar usuário por ID."""
+        return await super().get(self.db, user_id)
+
+    async def get_multi(
+        self,
+        skip: int = 0,
+        limit: int = 100,
+        filters: Optional[dict] = None
+    ) -> Sequence[User]:
+        """Wrapper para buscar múltiplos usuários."""
+        return await super().get_multi(self.db, skip=skip, limit=limit, filters=filters)
+
+    async def update(self, user_id: int, obj_in: dict) -> Optional[User]:
+        """Wrapper para atualizar usuário."""
+        return await super().update(self.db, id=user_id, obj_in=obj_in)
+
     async def create(self, obj_in: dict) -> User:
         """Wrapper para criar usuário."""
         return await super().create(self.db, obj_in)

@@ -60,11 +60,11 @@ async def get_current_user(
     
     # Buscar usuário no banco de dados
     user_repo = UserRepository(db)
-    user = await user_repo.get(db, int(user_id))
-    
+    user = await user_repo.get(int(user_id))
+
     if user is None:
         raise credentials_exception
-    
+
     return user
 
 
