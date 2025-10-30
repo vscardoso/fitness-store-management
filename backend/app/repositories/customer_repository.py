@@ -13,36 +13,15 @@ from app.repositories.base import BaseRepository
 class CustomerRepository(BaseRepository[Customer, Any, Any]):
     """Repositório para operações específicas de clientes."""
 
-    def __init__(self, db: AsyncSession):
+    def __init__(self):
         super().__init__(Customer)
-        self.db = db
-
-    async def get(self, customer_id: int) -> Optional[Customer]:
-        """Wrapper para buscar cliente por ID."""
-        return await super().get(self.db, customer_id)
-
-    async def get_multi(
-        self,
-        skip: int = 0,
-        limit: int = 100,
-        filters: Optional[dict] = None
-    ) -> Sequence[Customer]:
-        """Wrapper para buscar múltiplos clientes."""
-        return await super().get_multi(self.db, skip=skip, limit=limit, filters=filters)
-
-    async def update(self, customer_id: int, obj_in: dict) -> Optional[Customer]:
-        """Wrapper para atualizar cliente."""
-        return await super().update(self.db, id=customer_id, obj_in=obj_in)
-
-    async def create(self, obj_in: dict) -> Customer:
-        """Wrapper para criar cliente."""
-        return await super().create(self.db, obj_in)
     
-    async def get_by_email(self, email: str) -> Optional[Customer]:
+    async def get_by_email(self, db: AsyncSession, email: str) -> Optional[Customer]:
         """
         Busca um cliente pelo email.
 
         Args:
+            db: Database session
             email: Email do cliente
 
         Returns:
@@ -52,14 +31,15 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
             Customer.email == email,
             Customer.is_active == True
         )
-        result = await self.db.execute(query)
+        result = await db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_by_phone(self, phone: str) -> Optional[Customer]:
+    async def get_by_phone(self, db: AsyncSession, phone: str) -> Optional[Customer]:
         """
         Busca um cliente pelo telefone.
 
         Args:
+            db: Database session
             phone: Telefone do cliente
 
         Returns:
@@ -69,14 +49,15 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
             Customer.phone == phone,
             Customer.is_active == True
         )
-        result = await self.db.execute(query)
+        result = await db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_by_cpf(self, cpf: str) -> Optional[Customer]:
+    async def get_by_cpf(self, db: AsyncSession, cpf: str) -> Optional[Customer]:
         """
         Busca um cliente pelo CPF.
 
         Args:
+            db: Database session
             cpf: CPF do cliente
 
         Returns:
@@ -86,11 +67,12 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
             Customer.document_number == cpf,
             Customer.is_active == True
         )
-        result = await self.db.execute(query)
+        result = await db.execute(query)
         return result.scalar_one_or_none()
     
     async def search(
         self,
+        db: AsyncSession,
         query: str,
         skip: int = 0,
         limit: int = 100
@@ -99,6 +81,7 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
         Busca clientes por nome, email ou telefone.
 
         Args:
+            db: Database session
             query: Termo de busca
             skip: Número de registros a pular
             limit: Número máximo de registros
@@ -123,14 +106,15 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
             .limit(limit)
         )
 
-        result = await self.db.execute(sql_query)
+        result = await db.execute(sql_query)
         return result.scalars().all()
     
-    async def get_with_sales(self, customer_id: int) -> Optional[Customer]:
+    async def get_with_sales(self, db: AsyncSession, customer_id: int) -> Optional[Customer]:
         """
         Busca um cliente específico com histórico de vendas carregado.
 
         Args:
+            db: Database session
             customer_id: ID do cliente
 
         Returns:
@@ -140,26 +124,30 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
             selectinload(Customer.sales)
         )
 
-        result = await self.db.execute(query)
+        result = await db.execute(query)
         return result.scalar_one_or_none()
     
-    async def get_active_customers(self) -> Sequence[Customer]:
+    async def get_active_customers(self, db: AsyncSession) -> Sequence[Customer]:
         """
         Busca todos os clientes ativos.
+
+        Args:
+            db: Database session
 
         Returns:
             Lista de clientes ativos
         """
         query = select(Customer).where(Customer.is_active == True).order_by(Customer.full_name)
 
-        result = await self.db.execute(query)
+        result = await db.execute(query)
         return result.scalars().all()
     
-    async def get_customers_by_city(self, city: str) -> Sequence[Customer]:
+    async def get_customers_by_city(self, db: AsyncSession, city: str) -> Sequence[Customer]:
         """
         Busca clientes por cidade.
 
         Args:
+            db: Database session
             city: Nome da cidade
 
         Returns:
@@ -174,14 +162,15 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
             .order_by(Customer.full_name)
         )
 
-        result = await self.db.execute(query)
+        result = await db.execute(query)
         return result.scalars().all()
     
-    async def get_customers_by_state(self, state: str) -> Sequence[Customer]:
+    async def get_customers_by_state(self, db: AsyncSession, state: str) -> Sequence[Customer]:
         """
         Busca clientes por estado.
 
         Args:
+            db: Database session
             state: Sigla ou nome do estado
 
         Returns:
@@ -196,14 +185,15 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
             .order_by(Customer.full_name)
         )
 
-        result = await self.db.execute(query)
+        result = await db.execute(query)
         return result.scalars().all()
     
-    async def exists_by_email(self, email: str, exclude_id: Optional[int] = None) -> bool:
+    async def exists_by_email(self, db: AsyncSession, email: str, exclude_id: Optional[int] = None) -> bool:
         """
         Verifica se existe um cliente ativo com o email especificado.
 
         Args:
+            db: Database session
             email: Email a verificar
             exclude_id: ID do cliente a excluir da verificação (para updates)
 
@@ -219,14 +209,15 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
             conditions.append(Customer.id != exclude_id)
 
         query = select(Customer.id).where(*conditions)
-        result = await self.db.execute(query)
+        result = await db.execute(query)
         return result.scalar_one_or_none() is not None
     
-    async def exists_by_cpf(self, cpf: str, exclude_id: Optional[int] = None) -> bool:
+    async def exists_by_cpf(self, db: AsyncSession, cpf: str, exclude_id: Optional[int] = None) -> bool:
         """
         Verifica se existe um cliente ativo com o CPF especificado.
 
         Args:
+            db: Database session
             cpf: CPF a verificar
             exclude_id: ID do cliente a excluir da verificação (para updates)
 
@@ -242,14 +233,15 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
             conditions.append(Customer.id != exclude_id)
 
         query = select(Customer.id).where(*conditions)
-        result = await self.db.execute(query)
+        result = await db.execute(query)
         return result.scalar_one_or_none() is not None
     
-    async def exists_by_phone(self, phone: str, exclude_id: Optional[int] = None) -> bool:
+    async def exists_by_phone(self, db: AsyncSession, phone: str, exclude_id: Optional[int] = None) -> bool:
         """
         Verifica se existe um cliente ativo com o telefone especificado.
 
         Args:
+            db: Database session
             phone: Telefone a verificar
             exclude_id: ID do cliente a excluir da verificação (para updates)
 
@@ -265,12 +257,15 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
             conditions.append(Customer.id != exclude_id)
 
         query = select(Customer.id).where(*conditions)
-        result = await self.db.execute(query)
+        result = await db.execute(query)
         return result.scalar_one_or_none() is not None
     
-    async def get_customers_with_sales(self) -> Sequence[Customer]:
+    async def get_customers_with_sales(self, db: AsyncSession) -> Sequence[Customer]:
         """
         Busca clientes que fizeram pelo menos uma compra.
+
+        Args:
+            db: Database session
 
         Returns:
             Lista de clientes com vendas
@@ -285,14 +280,15 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
             .order_by(Customer.full_name)
         )
 
-        result = await self.db.execute(query)
+        result = await db.execute(query)
         return result.scalars().all()
     
-    async def get_top_customers(self, limit: int = 10) -> Sequence[Customer]:
+    async def get_top_customers(self, db: AsyncSession, limit: int = 10) -> Sequence[Customer]:
         """
         Busca os melhores clientes por valor total de compras.
 
         Args:
+            db: Database session
             limit: Número máximo de clientes a retornar
 
         Returns:
@@ -319,39 +315,41 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
             .limit(limit)
         )
 
-        result = await self.db.execute(query)
+        result = await db.execute(query)
         return result.scalars().all()
     
-    async def deactivate_customer(self, customer_id: int) -> bool:
+    async def deactivate_customer(self, db: AsyncSession, customer_id: int) -> bool:
         """
         Desativa um cliente (soft delete).
         
         Args:
+            db: Database session
             customer_id: ID do cliente
             
         Returns:
             True se o cliente foi desativado com sucesso
         """
-        customer = await self.get(customer_id)
+        customer = await self.get(db, customer_id)
         if customer:
             customer.is_active = False
-            await self.db.commit()
+            await db.commit()
             return True
         return False
     
-    async def activate_customer(self, customer_id: int) -> bool:
+    async def activate_customer(self, db: AsyncSession, customer_id: int) -> bool:
         """
         Ativa um cliente.
         
         Args:
+            db: Database session
             customer_id: ID do cliente
             
         Returns:
             True se o cliente foi ativado com sucesso
         """
-        customer = await self.get(customer_id)
+        customer = await self.get(db, customer_id)
         if customer:
             customer.is_active = True
-            await self.db.commit()
+            await db.commit()
             return True
         return False

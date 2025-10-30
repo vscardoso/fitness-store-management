@@ -22,7 +22,7 @@ class CustomerService:
             db: Sessão assíncrona do banco de dados
         """
         self.db = db
-        self.customer_repo = CustomerRepository(db)
+        self.customer_repo = CustomerRepository()
         self.sale_repo = SaleRepository(db)
     
     async def create_customer(self, customer_data: CustomerCreate) -> Customer:
@@ -41,13 +41,13 @@ class CustomerService:
         try:
             # Validar email único
             if customer_data.email:
-                existing = await self.customer_repo.get_by_email(customer_data.email)
+                existing = await self.customer_repo.get_by_email(self.db, customer_data.email)
                 if existing:
                     raise ValueError(f"Email {customer_data.email} já cadastrado")
             
             # Validar CPF/documento único
             if customer_data.document_number:
-                existing = await self.customer_repo.get_by_cpf(customer_data.document_number)
+                existing = await self.customer_repo.get_by_cpf(self.db, customer_data.document_number)
                 if existing:
                     raise ValueError(f"CPF/Documento {customer_data.document_number} já cadastrado")
             
@@ -64,7 +64,7 @@ class CustomerService:
             if 'is_active' not in customer_dict:
                 customer_dict['is_active'] = True
             
-            customer = await self.customer_repo.create(customer_dict)
+            customer = await self.customer_repo.create(self.db, customer_dict)
             
             await self.db.commit()
             await self.db.refresh(customer)
@@ -103,14 +103,14 @@ class CustomerService:
             # Validar email único se alterado
             if 'email' in update_dict and update_dict['email']:
                 if update_dict['email'] != customer.email:
-                    existing = await self.customer_repo.get_by_email(update_dict['email'])
+                    existing = await self.customer_repo.get_by_email(self.db, update_dict['email'])
                     if existing and existing.id != customer_id:
                         raise ValueError(f"Email {update_dict['email']} já cadastrado")
             
             # Validar CPF único se alterado
             if 'document_number' in update_dict and update_dict['document_number']:
                 if update_dict['document_number'] != customer.document_number:
-                    existing = await self.customer_repo.get_by_cpf(update_dict['document_number'])
+                    existing = await self.customer_repo.get_by_cpf(self.db, update_dict['document_number'])
                     if existing and existing.id != customer_id:
                         raise ValueError(f"CPF/Documento {update_dict['document_number']} já cadastrado")
             
@@ -187,7 +187,7 @@ class CustomerService:
         Returns:
             Optional[Customer]: Cliente encontrado ou None
         """
-        return await self.customer_repo.get_by_email(email)
+        return await self.customer_repo.get_by_email(self.db, email)
     
     async def get_customer_by_cpf(self, document_number: str) -> Optional[Customer]:
         """
@@ -199,7 +199,7 @@ class CustomerService:
         Returns:
             Optional[Customer]: Cliente encontrado ou None
         """
-        return await self.customer_repo.get_by_cpf(document_number)
+        return await self.customer_repo.get_by_cpf(self.db, document_number)
     
     async def search_customers(
         self, 
@@ -220,7 +220,7 @@ class CustomerService:
         Returns:
             List[Customer]: Lista de clientes encontrados
         """
-        return await self.customer_repo.search(query)
+        return await self.customer_repo.search(self.db, query)
     
     async def list_customers(
         self,
@@ -389,7 +389,7 @@ class CustomerService:
         Returns:
             List[Customer]: Lista de melhores clientes
         """
-        return await self.customer_repo.get_top_customers(limit)
+        return await self.customer_repo.get_top_customers(self.db, limit)
     
     async def get_customer_stats(self) -> Dict:
         """

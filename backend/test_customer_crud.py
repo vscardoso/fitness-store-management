@@ -1,9 +1,7 @@
-"""
-Script para testar CRUD completo de clientes via API
-"""
 import asyncio
 import sys
 from pathlib import Path
+from datetime import datetime
 
 # Adicionar o diretório backend ao path
 backend_dir = Path(__file__).parent
@@ -26,6 +24,9 @@ async def test_customer_crud():
     # Inicializar banco
     await init_db()
     
+    # Gerar timestamp único para evitar duplicatas
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    
     # Obter sessão do banco
     async for db in get_db():
         try:
@@ -34,10 +35,10 @@ async def test_customer_crud():
             # 1. Criar cliente
             print("\n1. Criando novo cliente...")
             customer_data = CustomerCreate(
-                full_name="João da Silva Teste",
-                email="joao.teste@email.com",
-                phone="11987654321",
-                document_number="12345678901",
+                full_name=f"João da Silva Teste {timestamp}",
+                email=f"joao.teste{timestamp}@email.com",
+                phone=f"119876543{timestamp[-2:]}",
+                document_number=f"123456789{timestamp[-2:]}",
                 address="Rua Teste",
                 address_number="123",
                 city="São Paulo",
