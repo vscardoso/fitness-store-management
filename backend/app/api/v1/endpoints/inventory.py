@@ -196,16 +196,16 @@ async def remove_stock(
         - Movimentação é registrada no histórico
         - Para vendas, use o endpoint de vendas (não este)
     """
+    # Validar quantidade
+    if movement.quantity <= 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Quantidade deve ser maior que zero"
+        )
+    
     inventory_service = InventoryService(db)
     
     try:
-        # Validar quantidade
-        if movement.quantity <= 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Quantidade deve ser maior que zero"
-            )
-        
         # Remover estoque
         inventory = await inventory_service.remove_stock(
             product_id=movement.product_id,
@@ -217,16 +217,20 @@ async def remove_stock(
         
     except ValueError as e:
         # Erros de validação (estoque insuficiente, produto não encontrado)
+        error_detail = str(e)
+        print(f"❌ Erro de validação ao remover estoque: {error_detail}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=error_detail
         )
     except HTTPException:
         raise
     except Exception as e:
+        error_msg = f"Erro ao remover estoque: {str(e)}"
+        print(f"❌ {error_msg}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao remover estoque: {str(e)}"
+            detail=error_msg
         )
 
 
