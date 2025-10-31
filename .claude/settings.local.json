@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(python reactivate_user.py:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

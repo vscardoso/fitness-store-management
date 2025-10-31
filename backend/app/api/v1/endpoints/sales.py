@@ -539,12 +539,12 @@ async def get_daily_report(
         # Total do dia
         daily_total = await sale_service.get_daily_total(report_date)
         
-        # Buscar todas as vendas do dia
-        sales = await sale_repo.get_by_date_range(report_date, report_date)
+        # Buscar todas as vendas do dia (sem carregar relacionamentos para evitar erro)
+        sales = await sale_repo.get_by_date_range(report_date, report_date, include_relationships=False)
         
         # Calcular ticket médio (apenas vendas não canceladas)
         active_sales = [s for s in sales if s.status != "CANCELLED"]
-        active_total = sum(float(s.total_amount) for s in active_sales)
+        active_total = sum(float(s.total_amount) for s in active_sales) if active_sales else 0.0
         
         # Breakdown por status
         status_breakdown = {}
@@ -558,10 +558,15 @@ async def get_daily_report(
             "sales_count": len(sales),
             "active_sales_count": len(active_sales),
             "average_ticket": active_total / len(active_sales) if active_sales else 0.0,
-            "status_breakdown": status_breakdown
+            "status_breakdown": status_breakdown if status_breakdown else {}
         }
         
     except Exception as e:
+        # Log do erro para debug
+        import traceback
+        print(f"❌ Erro no relatório diário: {str(e)}")
+        print(traceback.format_exc())
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao gerar relatório diário: {str(e)}"
