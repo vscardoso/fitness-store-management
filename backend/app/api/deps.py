@@ -85,8 +85,9 @@ async def get_current_active_user(
     """
     if not current_user.is_active:
         raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Usuário inativo"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Usuário inativo",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     return current_user
 

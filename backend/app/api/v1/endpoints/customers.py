@@ -99,7 +99,7 @@ async def list_customers(
         - Busca é case-insensitive
         - Busca parcial (LIKE) em múltiplos campos
     """
-    customer_repo = CustomerRepository()
+    customer_repo = CustomerRepository(db)
     
     try:
         if search:
@@ -170,7 +170,7 @@ async def get_customer(
             "updated_at": "2025-10-28T10:00:00"
         }
     """
-    customer_repo = CustomerRepository()
+    customer_repo = CustomerRepository(db)
     
     try:
         customer = await customer_repo.get(db, customer_id)
@@ -440,7 +440,7 @@ async def delete_customer(
         - Cliente não aparece mais em listagens normais
         - Pode ser reativado posteriormente se necessário
     """
-    customer_repo = CustomerRepository()
+    customer_repo = CustomerRepository(db)
     
     try:
         customer = await customer_repo.get(db, customer_id)
@@ -542,7 +542,7 @@ async def get_customer_purchases(
     """
     from app.repositories.sale_repository import SaleRepository
     
-    customer_repo = CustomerRepository()
+    customer_repo = CustomerRepository(db)
     
     try:
         # Verificar se cliente existe

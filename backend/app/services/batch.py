@@ -30,99 +30,28 @@ class BatchService:
         Raises:
             ValueError: If batch number already exists
         """
-        # Check if batch number already exists
-        existing = await self.batch_repo.get_by_batch_number(db, batch_data.batch_number)
+        # Garantir unicidade do código do lote
+        existing = await self.batch_repo.get_by_batch_code(db, batch_data.batch_code)
         if existing:
-            raise ValueError(f"Batch number '{batch_data.batch_number}' already exists")
+            raise ValueError(f"Batch code '{batch_data.batch_code}' already exists")
 
-        # Validate dates
-        if batch_data.expiration_date and batch_data.expiration_date <= batch_data.production_date:
-            raise ValueError("Expiration date must be after production date")
-
+        # Criar registro
         batch = await self.batch_repo.create(db, obj_in=batch_data.model_dump())
         return batch
 
     async def get_batch(self, db: AsyncSession, batch_id: int) -> Optional[Batch]:
         """
-        Get batch by ID.
+        DEPRECATED MODULE: app.services.batch
 
-        Args:
-            db: Database session
-            batch_id: Batch ID
-
-        Returns:
-            Batch if found, None otherwise
+        Substituído por serviços de StockEntry/EntryItem. Removido do pipeline.
         """
-        return await self.batch_repo.get(db, id=batch_id)
 
-    async def get_batch_by_number(self, db: AsyncSession, batch_number: str) -> Optional[Batch]:
-        """
-        Get batch by batch number.
-
-        Args:
-            db: Database session
-            batch_number: Batch number
-
-        Returns:
-            Batch if found, None otherwise
-        """
-        return await self.batch_repo.get_by_batch_number(db, batch_number)
-
-    async def get_all_batches(
-        self,
-        db: AsyncSession,
-        skip: int = 0,
-        limit: int = 100,
-        search: Optional[str] = None
-    ) -> List[Batch]:
-        """
-        Get all batches with optional search.
-
-        Args:
-            db: Database session
-            skip: Number of records to skip
-            limit: Maximum number of records to return
-            search: Optional search query
-
-        Returns:
-            List of batches
-        """
-        if search:
-            return await self.batch_repo.search(db, search)
-
-        return await self.batch_repo.get_multi(db, skip=skip, limit=limit)
-
-    async def update_batch(self, db: AsyncSession, batch_id: int, batch_data: BatchUpdate) -> Optional[Batch]:
-        """
-        Update batch.
-
-        Args:
-            db: Database session
-            batch_id: Batch ID
-            batch_data: Updated batch data
-
-        Returns:
-            Updated batch if found, None otherwise
-
-        Raises:
-            ValueError: If validation fails
-        """
-        batch = await self.batch_repo.get(db, id=batch_id)
-        if not batch:
-            return None
-
-        # Check if new batch number conflicts
-        if batch_data.batch_number and batch_data.batch_number != batch.batch_number:
-            existing = await self.batch_repo.get_by_batch_number(db, batch_data.batch_number)
+        raise RuntimeError(
+            "app.services.batch foi descontinuado. Use services de stock_entry/entry_item."
+        )
+            existing = await self.batch_repo.get_by_batch_code(db, batch_data.batch_code)
             if existing:
-                raise ValueError(f"Batch number '{batch_data.batch_number}' already exists")
-
-        # Validate dates
-        production_date = batch_data.production_date or batch.production_date
-        expiration_date = batch_data.expiration_date or batch.expiration_date
-
-        if expiration_date and expiration_date <= production_date:
-            raise ValueError("Expiration date must be after production date")
+                raise ValueError(f"Batch code '{batch_data.batch_code}' already exists")
 
         return await self.batch_repo.update(db, id=batch_id, obj_in=batch_data.model_dump(exclude_unset=True))
 
@@ -162,7 +91,9 @@ class BatchService:
         Returns:
             List of expired batches
         """
-        return await self.batch_repo.get_expired_batches(db)
+        # Sem campo de expiração no modelo atual; manter compat ou retornar vazio se necessário
+        # Placeholder: por enquanto retorna lista vazia
+        return []
 
     async def get_expiring_soon(self, db: AsyncSession, days: int = 30) -> List[Batch]:
         """
@@ -175,7 +106,8 @@ class BatchService:
         Returns:
             List of batches expiring soon
         """
-        return await self.batch_repo.get_expiring_soon(db, days)
+        # Sem campo de expiração no modelo atual; manter compat ou retornar vazio
+        return []
 
     async def get_by_supplier(self, db: AsyncSession, supplier: str) -> List[Batch]:
         """

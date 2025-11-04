@@ -15,6 +15,7 @@ from app.repositories.inventory_repository import InventoryRepository
 from app.repositories.product_repository import ProductRepository
 from app.repositories.sale_repository import SaleRepository
 from app.schemas.sale import SaleCreate
+from app.services.fifo_service import FIFOService
 
 
 class SaleService:
@@ -32,6 +33,7 @@ class SaleService:
         self.inventory_repo = InventoryRepository(db)
         self.customer_repo = CustomerRepository(db)
         self.product_repo = ProductRepository(db)
+        self.fifo_service = FIFOService(db)
     
     async def create_sale(
         self,
@@ -140,6 +142,21 @@ class SaleService:
                     Decimal(str(item_data.unit_price)) * item_data.quantity
                 ) - Decimal(str(item_data.discount_amount))
                 
+                # ✨ FIFO: Processar venda e obter fontes (de quais entradas saiu)
+                print(f"   🔄 Processando FIFO para produto {item_data.product_id}...")
+                try:
+                    fifo_sources = await self.fifo_service.process_sale(
+                        product_id=item_data.product_id,
+                        quantity=item_data.quantity
+                    )
+                    print(f"   ✅ FIFO processado: {len(fifo_sources)} fonte(s)")
+                except ValueError as fifo_error:
+                    print(f"   ❌ Erro FIFO: {str(fifo_error)}")
+                    raise ValueError(
+                        f"Erro ao processar FIFO para produto {item_data.product_id}: {str(fifo_error)}"
+                    )
+                
+                # Criar SaleItem com rastreabilidade FIFO
                 sale_item = SaleItem(
                     sale_id=sale.id,
                     product_id=item_data.product_id,
@@ -147,6 +164,7 @@ class SaleService:
                     unit_price=float(item_data.unit_price),
                     subtotal=float(item_subtotal),
                     discount_amount=float(item_data.discount_amount),
+                    sale_sources={"sources": fifo_sources},  # 🎯 Salvar fontes FIFO
                     is_active=True
                 )
                 self.db.add(sale_item)
@@ -169,21 +187,9 @@ class SaleService:
             
             await self.db.flush()
             
-            # 8. Criar StockMovements e atualizar Inventory
-            print("📉 Movimentando estoque...")
-            for item_data in sale_data.items:
-                inventory = await self.inventory_repo.get_by_product(item_data.product_id)
-                
-                # Remover estoque com movimento
-                await self.inventory_repo.remove_stock(
-                    inventory.id,
-                    quantity=item_data.quantity,
-                    movement_type=MovementType.SALE,
-                    reference_id=sale_number,
-                    notes=f'Venda {sale_number} - Item {item_data.product_id}'
-                )
-            
-            # 9. Atualizar fidelidade do cliente
+            # 8. Atualizar fidelidade do cliente
+            # Nota: Movimentação de estoque agora é feita pelo FIFOService.process_sale()
+            # não sendo mais necessário chamar inventory_repo.remove_stock()
             loyalty_points_earned = Decimal('0')
             if sale_data.customer_id:
                 print("⭐ Atualizando pontos de fidelidade...")
@@ -255,22 +261,37 @@ class SaleService:
             
             print(f"🔄 Cancelando venda {sale.sale_number}...")
             
-            # 1. Reverter estoque
-            print("📈 Revertendo estoque...")
+            # 1. Reverter estoque usando FIFO
+            print("📈 Revertendo estoque via FIFO...")
             # Buscar itens da venda através de refresh com relationships
             await self.db.refresh(sale, ['items'])
             
             for item in sale.items:
-                inventory = await self.inventory_repo.get_by_product(item.product_id)
-                if inventory:
-                    # Devolver ao estoque
-                    await self.inventory_repo.add_stock(
-                        inventory.id,
-                        quantity=item.quantity,
-                        movement_type=MovementType.RETURN,
-                        reference_id=f"CANCEL-{sale.sale_number}",
-                        notes=f"Cancelamento da venda {sale.sale_number}. Motivo: {reason}"
-                    )
+                # ✨ FIFO: Reverter usando as fontes salvas no sale_sources
+                if item.sale_sources and 'sources' in item.sale_sources:
+                    print(f"   🔄 Revertendo FIFO para produto {item.product_id}...")
+                    try:
+                        await self.fifo_service.reverse_sale(
+                            sources=item.sale_sources['sources']
+                        )
+                        print(f"   ✅ FIFO revertido com sucesso")
+                    except ValueError as fifo_error:
+                        print(f"   ❌ Erro ao reverter FIFO: {str(fifo_error)}")
+                        raise ValueError(
+                            f"Erro ao reverter FIFO para produto {item.product_id}: {str(fifo_error)}"
+                        )
+                else:
+                    # Fallback: venda antiga sem FIFO tracking
+                    print(f"   ⚠️ Item {item.id} sem sale_sources, usando método legado")
+                    inventory = await self.inventory_repo.get_by_product(item.product_id)
+                    if inventory:
+                        await self.inventory_repo.add_stock(
+                            inventory.id,
+                            quantity=item.quantity,
+                            movement_type=MovementType.RETURN,
+                            reference_id=f"CANCEL-{sale.sale_number}",
+                            notes=f"Cancelamento da venda {sale.sale_number}. Motivo: {reason}"
+                        )
             
             # 2. Reverter pontos de fidelidade
             if sale.customer_id:

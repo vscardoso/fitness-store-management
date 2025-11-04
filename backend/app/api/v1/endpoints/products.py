@@ -354,27 +354,45 @@ async def create_product(
             "min_stock": 5
         }
     """
+    import logging
+    logger = logging.getLogger(__name__)
+    
     product_service = ProductService(db)
     
     try:
-        # Extrair dados de estoque
-        initial_stock = product_data.initial_stock if hasattr(product_data, 'initial_stock') else 0
-        min_stock = product_data.min_stock if hasattr(product_data, 'min_stock') else 5
+        # Log dos dados recebidos
+        logger.info(f"📥 Dados recebidos: {product_data.model_dump()}")
+        
+        # Extrair dados de estoque do schema
+        initial_stock = product_data.initial_stock or 0
+        min_stock = product_data.min_stock or 5
+        
+        logger.info(f"📊 Estoque extraído - initial_stock: {initial_stock}, min_stock: {min_stock}")
+        logger.info(f"🔧 Chamando service.create_product com initial_quantity={initial_stock}")
         
         product = await product_service.create_product(
             product_data, 
             initial_quantity=initial_stock,
             min_stock=min_stock
         )
+        
+        logger.info(f"✅ Produto criado com sucesso - ID: {product.id}, initial_quantity: {product.initial_quantity}")
         return product
         
     except ValueError as e:
         # Erros de validação (SKU duplicado, categoria inválida, etc)
+        logger.warning(f"⚠️ Erro de validação: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
     except Exception as e:
+        # Erro genérico com log detalhado
+        import traceback
+        logger.error(f"❌ ERRO ao criar produto: {str(e)}")
+        logger.error(f"❌ Tipo do erro: {type(e).__name__}")
+        logger.error(f"❌ Traceback completo:\n{traceback.format_exc()}")
+        
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao criar produto: {str(e)}"

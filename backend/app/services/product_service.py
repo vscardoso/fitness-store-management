@@ -57,8 +57,20 @@ class ProductService:
                 raise ValueError(f"Código de barras {product_data.barcode} já existe")
         
         # Criar produto - excluir campos que não pertencem ao modelo Product
-        product_dict = product_data.model_dump(exclude_unset=True, exclude={'initial_stock', 'min_stock'})
+        import logging
+        logger = logging.getLogger(__name__)
+        
+        # Usar exclude (sem exclude_unset) para garantir que todos os campos sejam incluídos
+        product_dict = product_data.model_dump(exclude={'initial_stock', 'min_stock'})
+        logger.info(f"🔍 product_dict ANTES de adicionar initial_quantity: {product_dict}")
+        
+        # Adicionar initial_quantity que é obrigatório no modelo
+        product_dict['initial_quantity'] = initial_quantity
+        logger.info(f"🔍 product_dict DEPOIS de adicionar initial_quantity: {product_dict}")
+        logger.info(f"🔍 Valor de initial_quantity sendo passado: {initial_quantity} (tipo: {type(initial_quantity)})")
+        
         product = await self.product_repo.create(product_dict)
+        logger.info(f"✅ Produto criado no repository - ID: {product.id}")
         
         # Criar registro de estoque inicial
         inventory_data = {

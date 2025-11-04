@@ -131,6 +131,8 @@ temp/
 *.tmp
 *.bak
 *.backup
+*.zip
+backend/nul
 
 # ========================================
 # UPLOADS / MEDIA

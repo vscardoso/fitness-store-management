@@ -189,7 +189,7 @@ async def list_sales(
             sales = await sale_repo.get_by_seller(seller_id, skip, limit)
         else:
             # Sem filtro - todas as vendas
-            sales = await sale_repo.get_multi(skip, limit)
+            sales = await sale_repo.get_multi(skip=skip, limit=limit)
         
         return sales
         
@@ -783,7 +783,7 @@ async def get_top_customers(
         
         # Buscar nomes dos clientes
         from app.repositories.customer_repository import CustomerRepository
-        customer_repo = CustomerRepository()
+        customer_repo = CustomerRepository(db)
         
         for item in result:
             customer = await customer_repo.get(db, item["customer_id"])

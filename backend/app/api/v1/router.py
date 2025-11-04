@@ -25,7 +25,9 @@ from app.api.v1.endpoints import (
     sales,
     inventory,
     customers,
-    categories
+    categories,
+    trips,
+    stock_entries
 )
 
 
@@ -71,4 +73,18 @@ api_router.include_router(
 api_router.include_router(
     categories.router,
     tags=["Categorias"]
+)
+
+
+
+# Gerenciamento de viagens
+api_router.include_router(
+    trips.router,
+    tags=["Viagens"]
+)
+
+# Gerenciamento de entradas de estoque
+api_router.include_router(
+    stock_entries.router,
+    tags=["Entradas de Estoque"]
 )

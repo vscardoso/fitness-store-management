@@ -1,11 +1,11 @@
 """
 Modelo de vendas com itens e pagamentos.
 """
-from sqlalchemy import String, ForeignKey, Numeric, Enum as SQLEnum, Text
+from sqlalchemy import String, ForeignKey, Numeric, Enum as SQLEnum, Text, JSON
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from enum import Enum
 from decimal import Decimal
-from typing import List, TYPE_CHECKING
+from typing import List, Dict, Any, TYPE_CHECKING
 from .base import BaseModel
 
 if TYPE_CHECKING:
@@ -226,6 +226,13 @@ class SaleItem(BaseModel):
         Numeric(10, 2),
         default=Decimal(0),
         comment="Discount applied to this item"
+    )
+    
+    # FIFO Tracking - Rastreabilidade de origem (de quais entradas saiu)
+    sale_sources: Mapped[Dict[str, Any] | None] = mapped_column(
+        JSON,
+        nullable=True,
+        comment="JSON with FIFO sources: [{entry_id, entry_item_id, quantity_taken, unit_cost, total_cost, entry_code, entry_date}]"
     )
     
     # Chaves estrangeiras

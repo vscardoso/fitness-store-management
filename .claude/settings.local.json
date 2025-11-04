@@ -3,7 +3,10 @@
     "allow": [
       "Bash(python reactivate_user.py:*)",
       "Bash(python:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(npx expo start:*)",
+      "Bash(alembic revision:*)",
+      "Bash(.venvScriptsActivate.ps1)"
     ],
     "deny": [],
     "ask": []

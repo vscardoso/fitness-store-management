@@ -251,6 +251,8 @@ npx expo start
 npx expo start -c
 ```
 
+⚠️ **IMPORTANTE**: Se aparecer erro `NOT NULL constraint failed: products.initial_quantity`, reinicie o backend - a correção já foi aplicada!
+
 #### Passo 5: Escolher onde rodar
 - **a** - Android Emulator
 - **i** - iOS Simulator (Mac)

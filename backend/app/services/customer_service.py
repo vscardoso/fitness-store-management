@@ -22,7 +22,7 @@ class CustomerService:
             db: Sessão assíncrona do banco de dados
         """
         self.db = db
-        self.customer_repo = CustomerRepository()
+        self.customer_repo = CustomerRepository(db)
         self.sale_repo = SaleRepository(db)
     
     async def create_customer(self, customer_data: CustomerCreate) -> Customer:

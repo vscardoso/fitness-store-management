@@ -118,13 +118,14 @@ async def sqlalchemy_exception_handler(
     request: Request,
     exc: SQLAlchemyError
 ):
-    """Handle database errors."""
-    logger.error(f"Database error: {str(exc)}")
+    """Handle database errors with full detail to ease debugging."""
+    logger.error(f"Database error: {str(exc)}", exc_info=True)
+    # Sempre retornar o detalhe do erro para diagnóstico em ambiente de dev
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
-            "detail": "Erro no banco de dados",
-            "message": str(exc) if settings.DEBUG else "Erro interno do servidor"
+            "detail": str(exc),
+            "message": str(exc) if settings.DEBUG else "Erro no banco de dados"
         }
     )
 

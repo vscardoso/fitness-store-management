@@ -13,8 +13,9 @@ from app.repositories.base import BaseRepository
 class CustomerRepository(BaseRepository[Customer, Any, Any]):
     """Repositório para operações específicas de clientes."""
 
-    def __init__(self):
+    def __init__(self, db: AsyncSession):
         super().__init__(Customer)
+        self.db = db
     
     async def get_by_email(self, db: AsyncSession, email: str) -> Optional[Customer]:
         """

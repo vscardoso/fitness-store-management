@@ -1,7 +1,7 @@
 """
 Modelo de produto com variações e preços.
 """
-from sqlalchemy import String, Text, Numeric, ForeignKey, Boolean
+from sqlalchemy import String, Text, Numeric, ForeignKey, Boolean, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from decimal import Decimal
 from typing import List, TYPE_CHECKING
@@ -94,18 +94,20 @@ class Product(BaseModel):
         comment="Whether it's activewear/fitness clothing"
     )
     
-    # Chave estrangeira
+    # Chaves estrangeiras
     category_id: Mapped[int] = mapped_column(
         ForeignKey("categories.id", ondelete="RESTRICT"),
         comment="Product category ID"
     )
+
+    # Campos de Batch foram removidos: batch_id, initial_quantity, batch_position
     
     # Relacionamentos
     category: Mapped["Category"] = relationship(
         "Category",
         back_populates="products"
     )
-    
+
     inventory: Mapped[List["Inventory"]] = relationship(
         "Inventory",
         back_populates="product",
