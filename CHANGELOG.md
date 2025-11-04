@@ -56,6 +56,34 @@ e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 - Guias de setup e arquitetura
 - Documentação da API
 
+## [1.0.1] - 2025-11-04
+
+### ✨ Adicionado
+- Máscaras de entrada no mobile: CNPJ, telefone e data (dateMask consolidada)
+- Seletor de produtos na entrada de estoque usando Modal estilo bottom-sheet
+- Endpoints de Entradas e Viagens na API (FastAPI) com serviços e repositórios dedicados
+- Scripts utilitários: reset_and_seed.py e create_customers.py para popular ambiente de teste
+
+### 🎨 Interface
+- Tabs principais enxutas: Início, Produtos, PDV central elevado, Clientes e Mais
+- Inventário e Lotes fora da TabBar (acesso por navegação), evitando poluição visual
+- Badges de estoque baixo nos Produtos
+
+### 🐛 Correções
+- Rotas backend padronizadas com barra final para evitar redirecionamentos 307
+- Ajustes de cálculo de KPIs do inventário e correções de layout (SafeArea e headers)
+- Removido anchor inválido em menu de produtos (substituído por Modal)
+
+### 🔧 Técnico
+- Backend organizado por camadas (API → Services → Repositories) com operações assíncronas
+- Novos modelos e repositórios: StockEntry, EntryItem, Trip e afins
+- Alembic migrations para novo domínio (001…003)
+- .gitignore atualizado para ignorar artefatos .zip e arquivo reservado do Windows (backend/nul)
+
+### 📚 Documentação
+- Relatórios e guias de migração de batches para entradas
+- Documentos de verificação e implementação adicionados na pasta docs e backend/scripts
+
 ## [Unreleased]
 
 ### 🚧 Em Desenvolvimento
