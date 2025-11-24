@@ -1,0 +1,813 @@
+import React, { useState } from 'react';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+  Dimensions,
+  FlatList,
+  Alert
+} from 'react-native';
+import { Text, Card, Badge, IconButton, Portal, Modal } from 'react-native-paper';
+import { useQuery } from '@tanstack/react-query';
+import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useAuth } from '@/hooks/useAuth';
+import { getActiveProducts, getLowStockProducts } from '@/services/productService';
+import { getDailySalesTotal, getSales } from '@/services/saleService';
+import { getCustomers } from '@/services/customerService';
+import { formatCurrency } from '@/utils/format';
+import { Colors, theme } from '@/constants/Colors';
+import FAB from '@/components/FAB';
+
+const { width } = Dimensions.get('window');
+
+// Interface para as métricas do dashboard
+interface DashboardMetric {
+  id: string;
+  title: string;
+  value: string;
+  subtitle: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  colors: [string, string];
+  onPress: () => void;
+  trend?: {
+    value: string;
+    isPositive: boolean;
+  };
+}
+
+// Interface para ações rápidas
+interface QuickAction {
+  id: string;
+  title: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  colors: [string, string];
+  onPress: () => void;
+}
+
+export default function DashboardScreen() {
+  const { user } = useAuth();
+  const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
+  const [quickActionsVisible, setQuickActionsVisible] = useState(false);
+
+  // Queries principais do dashboard
+  const { data: products, refetch: refetchProducts } = useQuery({
+    queryKey: ['active-products'],
+    queryFn: () => getActiveProducts({ limit: 1000 }),
+    enabled: !!user,
+  });
+
+  const { data: dailySales, refetch: refetchSales } = useQuery({
+    queryKey: ['daily-sales'],
+    queryFn: () => getDailySalesTotal(),
+    enabled: !!user,
+  });
+
+  const { data: lowStockProducts, refetch: refetchLowStock } = useQuery({
+    queryKey: ['low-stock'],
+    queryFn: () => getLowStockProducts(),
+    enabled: !!user,
+  });
+
+  const { data: customers, refetch: refetchCustomers } = useQuery({
+    queryKey: ['customers'],
+    queryFn: () => getCustomers(),
+    enabled: !!user,
+  });
+
+  // Query para últimas vendas
+  const { data: recentSales, refetch: refetchRecentSales } = useQuery({
+    queryKey: ['recent-sales'],
+    queryFn: () => getSales({ limit: 5, skip: 0 }),
+    enabled: !!user,
+  });
+
+  // Função de refresh completa
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([
+      refetchProducts(),
+      refetchSales(),
+      refetchLowStock(),
+      refetchCustomers(),
+      refetchRecentSales(),
+    ]);
+    setRefreshing(false);
+  };
+
+  // Cálculos das métricas
+  const totalProducts = products?.length || 0;
+  const totalCustomers = customers?.length || 0;
+  const totalSalesToday = dailySales?.total || 0;
+  const lowStockCount = lowStockProducts?.length || 0;
+
+  const stockValue = products?.reduce((total, product) => {
+    const quantity = product.current_stock || 0;
+    const cost = product.cost_price || 0;
+    return total + (quantity * cost);
+  }, 0) || 0;
+
+  const potentialProfit = products?.reduce((total, product) => {
+    const quantity = product.current_stock || 0;
+    const cost = product.cost_price || 0;
+    const price = product.price || 0;
+    const profit = price - cost;
+    return total + (quantity * profit);
+  }, 0) || 0;
+
+  // Ações rápidas
+  const quickActions: QuickAction[] = [
+    {
+      id: 'new-sale',
+      title: 'Nova Venda',
+      icon: 'cart',
+      colors: ['#11998e', '#38ef7d'],
+      onPress: () => {
+        setQuickActionsVisible(false);
+        router.push('/(tabs)/sale');
+      },
+    },
+    {
+      id: 'new-customer',
+      title: 'Novo Cliente',
+      icon: 'person-add',
+      colors: ['#667eea', '#764ba2'],
+      onPress: () => {
+        setQuickActionsVisible(false);
+        router.push('/customers/add');
+      },
+    },
+    {
+      id: 'new-product',
+      title: 'Novo Produto',
+      icon: 'cube',
+      colors: ['#4776e6', '#8e54e9'],
+      onPress: () => {
+        setQuickActionsVisible(false);
+        router.push('/products/add');
+      },
+    },
+    {
+      id: 'new-entry',
+      title: 'Nova Entrada',
+      icon: 'layers',
+      colors: ['#667eea', '#764ba2'],
+      onPress: () => {
+        setQuickActionsVisible(false);
+        router.push('/entries/add');
+      },
+    },
+  ];
+
+  // Métricas do dashboard
+  const metrics: DashboardMetric[] = [
+    {
+      id: 'sales-today',
+      title: 'Vendas Hoje',
+      value: formatCurrency(totalSalesToday),
+      subtitle: 'faturamento',
+      icon: 'trending-up',
+      colors: ['#11998e', '#38ef7d'],
+      onPress: () => router.push('/(tabs)/sale'),
+      trend: {
+        value: '+12%',
+        isPositive: true,
+      },
+    },
+    {
+      id: 'products',
+      title: 'Produtos',
+      value: totalProducts.toString(),
+      subtitle: 'cadastrados',
+      icon: 'cube',
+      colors: ['#667eea', '#764ba2'],
+      onPress: () => router.push('/(tabs)/products'),
+    },
+    {
+      id: 'customers',
+      title: 'Clientes',
+      value: totalCustomers.toString(),
+      subtitle: 'ativos',
+      icon: 'people',
+      colors: ['#30cfd0', '#330867'],
+      onPress: () => router.push('/(tabs)/customers'),
+    },
+    {
+      id: 'stock-value',
+      title: 'Valor Estoque',
+      value: formatCurrency(stockValue),
+      subtitle: 'investido',
+      icon: 'wallet',
+      colors: ['#4776e6', '#8e54e9'],
+      onPress: () => router.push('/(tabs)/products'),
+    },
+  ];
+
+  // Função para obter saudação baseada no horário
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Bom dia';
+    if (hour < 18) return 'Boa tarde';
+    return 'Boa noite';
+  };
+
+  // Componente de Header Premium
+  const PremiumHeader = () => (
+    <View style={styles.headerContainer}>
+      <LinearGradient
+        colors={['#667eea', '#764ba2']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.headerGradient}
+      >
+        <View style={styles.headerContent}>
+          <View style={styles.headerInfo}>
+            <Text style={styles.greeting}>
+              {getGreeting()}, {user?.full_name?.split(' ')[0] || 'Usuário'}! 👋
+            </Text>
+            <Text style={styles.headerSubtitle}>
+              {user?.store_name ? `${user.store_name} - Fitness Store` : 'Fitness Store Management'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={styles.profileButton}
+            onPress={() => router.push('/(tabs)/more')}
+          >
+            <View style={styles.profileIcon}>
+              <Ionicons name="person" size={24} color="#fff" />
+            </View>
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+    </View>
+  );
+
+  // Componente de Quick Actions
+  const QuickActionsSection = () => (
+    <View style={styles.quickActionsContainer}>
+      <Text style={styles.sectionTitle}>Ações Rápidas</Text>
+      <View style={styles.quickActionsGrid}>
+        {quickActions.map((action) => (
+          <TouchableOpacity
+            key={action.id}
+            style={styles.quickActionButton}
+            onPress={action.onPress}
+            activeOpacity={0.7}
+          >
+            <LinearGradient
+              colors={action.colors}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.quickActionGradient}
+            >
+              <Ionicons name={action.icon} size={24} color="#fff" />
+              <Text style={styles.quickActionText}>{action.title}</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  );
+
+  // Componente de Métrica
+  const MetricCard = ({ metric }: { metric: DashboardMetric }) => (
+    <TouchableOpacity
+      style={styles.metricCard}
+      onPress={metric.onPress}
+      activeOpacity={0.7}
+    >
+      <Card style={styles.metricCardInner}>
+        <LinearGradient
+          colors={metric.colors}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.metricGradient}
+        >
+          <View style={styles.metricHeader}>
+            <Ionicons name={metric.icon} size={28} color="#fff" />
+            {metric.trend && (
+              <View style={styles.trendContainer}>
+                <Text style={styles.trendText}>{metric.trend.value}</Text>
+                <Ionicons
+                  name={metric.trend.isPositive ? 'arrow-up' : 'arrow-down'}
+                  size={12}
+                  color="#fff"
+                />
+              </View>
+            )}
+          </View>
+          <Text style={styles.metricTitle}>{metric.title}</Text>
+          <Text style={styles.metricValue}>{metric.value}</Text>
+          <Text style={styles.metricSubtitle}>{metric.subtitle}</Text>
+        </LinearGradient>
+      </Card>
+    </TouchableOpacity>
+  );
+
+  // Componente de Insights
+  const InsightsSection = () => (
+    <View style={styles.insightsContainer}>
+      <Text style={styles.sectionTitle}>Insights do Negócio</Text>
+
+      {/* Card de Produtos em Destaque */}
+      <Card style={styles.insightCard}>
+        <Card.Content style={styles.insightContent}>
+          <View style={styles.insightHeader}>
+            <Ionicons name="star" size={20} color={Colors.light.warning} />
+            <Text style={styles.insightTitle}>Produtos em Destaque</Text>
+          </View>
+          <Text style={styles.insightText}>
+            {totalProducts > 0
+              ? `Você possui ${totalProducts} produtos cadastrados com potencial de lucro de ${formatCurrency(potentialProfit)}`
+              : 'Cadastre seus primeiros produtos para começar a vender'
+            }
+          </Text>
+        </Card.Content>
+      </Card>
+
+      {/* Card de Alertas */}
+      {lowStockCount > 0 && (
+        <Card style={styles.alertCard}>
+          <Card.Content style={styles.insightContent}>
+            <View style={styles.insightHeader}>
+              <Ionicons name="warning" size={20} color={Colors.light.error} />
+              <Text style={styles.alertTitle}>Atenção ao Estoque</Text>
+            </View>
+            <Text style={styles.alertText}>
+              {lowStockCount} produto{lowStockCount > 1 ? 's' : ''} com estoque baixo.
+              Reponha para não perder vendas!
+            </Text>
+            <TouchableOpacity
+              style={styles.alertButton}
+              onPress={() => router.push('/(tabs)/products')}
+            >
+              <Text style={styles.alertButtonText}>Ver Produtos</Text>
+            </TouchableOpacity>
+          </Card.Content>
+        </Card>
+      )}
+    </View>
+  );
+
+  // Componente de Atividades Recentes
+  const RecentActivitySection = () => (
+    <View style={styles.activityContainer}>
+      <View style={styles.activityHeader}>
+        <Text style={styles.sectionTitle}>Atividade Recente</Text>
+        <TouchableOpacity onPress={() => router.push('/(tabs)/sale')}>
+          <Text style={styles.seeAllText}>Ver todas</Text>
+        </TouchableOpacity>
+      </View>
+
+      {recentSales && recentSales.length > 0 ? (
+        <View style={styles.activityList}>
+          {recentSales.slice(0, 3).map((sale, index) => (
+            <View key={sale.id} style={styles.activityItem}>
+              <View style={styles.activityIcon}>
+                <Ionicons name="receipt" size={16} color={Colors.light.primary} />
+              </View>
+              <View style={styles.activityInfo}>
+                <Text style={styles.activityTitle}>
+                  Venda #{sale.id}
+                </Text>
+                <Text style={styles.activitySubtitle}>
+                  {formatCurrency(sale.total)}
+                </Text>
+              </View>
+              <Text style={styles.activityTime}>
+                {new Date(sale.created_at).toLocaleDateString('pt-BR')}
+              </Text>
+            </View>
+          ))}
+        </View>
+      ) : (
+        <Card style={styles.emptyActivityCard}>
+          <Card.Content style={styles.emptyActivityContent}>
+            <Ionicons name="receipt-outline" size={48} color={Colors.light.textTertiary} />
+            <Text style={styles.emptyActivityText}>Nenhuma venda registrada hoje</Text>
+            <TouchableOpacity
+              style={styles.emptyActivityButton}
+              onPress={() => router.push('/(tabs)/sale')}
+            >
+              <Text style={styles.emptyActivityButtonText}>Fazer primeira venda</Text>
+            </TouchableOpacity>
+          </Card.Content>
+        </Card>
+      )}
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
+      {/* Header Premium */}
+      <PremiumHeader />
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.light.primary]}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Seção de Ações Rápidas */}
+        <QuickActionsSection />
+
+        {/* Seção de Métricas */}
+        <View style={styles.metricsContainer}>
+          <Text style={styles.sectionTitle}>Métricas do Negócio</Text>
+          <View style={styles.metricsGrid}>
+            {metrics.map((metric) => (
+              <MetricCard key={metric.id} metric={metric} />
+            ))}
+          </View>
+        </View>
+
+        {/* Seção de Insights */}
+        <InsightsSection />
+
+        {/* Seção de Atividade Recente */}
+        <RecentActivitySection />
+
+        {/* Espaçamento final */}
+        <View style={styles.bottomSpacing} />
+      </ScrollView>
+
+      {/* FAB - Botão de Ações Rápidas */}
+      <FAB />
+
+      {/* Modal de Ações Rápidas */}
+      <Portal>
+        <Modal
+          visible={quickActionsVisible}
+          onDismiss={() => setQuickActionsVisible(false)}
+          contentContainerStyle={styles.modalContainer}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Escolha uma ação</Text>
+            {quickActions.map((action) => (
+              <TouchableOpacity
+                key={action.id}
+                style={styles.modalActionButton}
+                onPress={action.onPress}
+              >
+                <View style={styles.modalActionIcon}>
+                  <Ionicons name={action.icon} size={24} color={Colors.light.primary} />
+                </View>
+                <Text style={styles.modalActionText}>{action.title}</Text>
+                <Ionicons name="chevron-forward" size={20} color={Colors.light.textSecondary} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        </Modal>
+      </Portal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: Colors.light.backgroundSecondary,
+  },
+  scrollView: {
+    flex: 1,
+  },
+  content: {
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.lg,
+  },
+
+  // Header Premium
+  headerContainer: {
+    marginBottom: theme.spacing.md,
+  },
+  headerGradient: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.lg,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerInfo: {
+    flex: 1,
+  },
+  greeting: {
+    fontSize: theme.fontSize.xxl,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: theme.spacing.xs,
+  },
+  headerSubtitle: {
+    fontSize: theme.fontSize.md,
+    color: '#fff',
+    opacity: 0.9,
+  },
+  profileButton: {
+    marginLeft: theme.spacing.md,
+  },
+  profileIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+
+  // Quick Actions
+  quickActionsContainer: {
+    marginBottom: theme.spacing.lg,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  quickActionButton: {
+    flex: 1,
+  },
+  quickActionGradient: {
+    paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: theme.borderRadius.lg,
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    elevation: theme.elevation.sm,
+  },
+  quickActionText: {
+    color: '#fff',
+    fontSize: theme.fontSize.sm,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+
+  // Métricas
+  metricsContainer: {
+    marginBottom: theme.spacing.lg,
+  },
+  metricsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.sm,
+  },
+  metricCard: {
+    width: (width - theme.spacing.md * 2 - theme.spacing.sm) / 2,
+  },
+  metricCardInner: {
+    borderRadius: theme.borderRadius.xl,
+    elevation: theme.elevation.md,
+  },
+  metricGradient: {
+    padding: theme.spacing.md,
+    minHeight: 140,
+    justifyContent: 'space-between',
+    borderRadius: theme.borderRadius.xl,
+  },
+  metricHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: theme.spacing.sm,
+  },
+  trendContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.md,
+    gap: 2,
+  },
+  trendText: {
+    color: '#fff',
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+  },
+  metricTitle: {
+    color: '#fff',
+    fontSize: theme.fontSize.sm,
+    fontWeight: '500',
+    opacity: 0.9,
+    marginBottom: theme.spacing.xs,
+  },
+  metricValue: {
+    color: '#fff',
+    fontSize: theme.fontSize.xl,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  metricSubtitle: {
+    color: '#fff',
+    fontSize: theme.fontSize.xs,
+    opacity: 0.8,
+  },
+
+  // Insights
+  insightsContainer: {
+    marginBottom: theme.spacing.lg,
+  },
+  insightCard: {
+    marginBottom: theme.spacing.sm,
+    elevation: theme.elevation.sm,
+    borderRadius: theme.borderRadius.lg,
+  },
+  insightContent: {
+    paddingVertical: theme.spacing.md,
+  },
+  insightHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.sm,
+    gap: theme.spacing.sm,
+  },
+  insightTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
+  insightText: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
+    lineHeight: 20,
+  },
+
+  // Alertas
+  alertCard: {
+    backgroundColor: Colors.light.errorLight,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.light.error,
+    marginBottom: theme.spacing.sm,
+    elevation: theme.elevation.sm,
+    borderRadius: theme.borderRadius.lg,
+  },
+  alertTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '600',
+    color: Colors.light.error,
+  },
+  alertText: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.error,
+    marginBottom: theme.spacing.sm,
+    lineHeight: 20,
+  },
+  alertButton: {
+    backgroundColor: Colors.light.error,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    alignSelf: 'flex-start',
+  },
+  alertButtonText: {
+    color: '#fff',
+    fontSize: theme.fontSize.sm,
+    fontWeight: '500',
+  },
+
+  // Atividade Recente
+  activityContainer: {
+    marginBottom: theme.spacing.lg,
+  },
+  activityHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  activityList: {
+    backgroundColor: '#fff',
+    borderRadius: theme.borderRadius.lg,
+    elevation: theme.elevation.sm,
+    padding: theme.spacing.md,
+    gap: theme.spacing.md,
+  },
+  activityItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  activityIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: Colors.light.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  activityInfo: {
+    flex: 1,
+  },
+  activityTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '500',
+    color: Colors.light.text,
+  },
+  activitySubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
+  },
+  activityTime: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textTertiary,
+  },
+  emptyActivityCard: {
+    elevation: theme.elevation.sm,
+    borderRadius: theme.borderRadius.lg,
+  },
+  emptyActivityContent: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.xl,
+  },
+  emptyActivityText: {
+    fontSize: theme.fontSize.md,
+    color: Colors.light.textSecondary,
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
+    textAlign: 'center',
+  },
+  emptyActivityButton: {
+    backgroundColor: Colors.light.primary,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+  },
+  emptyActivityButtonText: {
+    color: '#fff',
+    fontSize: theme.fontSize.sm,
+    fontWeight: '500',
+  },
+
+  // Títulos de Seção
+  sectionTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginBottom: theme.spacing.md,
+  },
+  seeAllText: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.primary,
+    fontWeight: '500',
+  },
+
+  // Modal
+  modalContainer: {
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    flex: 1,
+    justifyContent: 'center',
+    paddingHorizontal: theme.spacing.lg,
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.lg,
+    elevation: theme.elevation.xl,
+  },
+  modalTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginBottom: theme.spacing.lg,
+    textAlign: 'center',
+  },
+  modalActionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+    gap: theme.spacing.md,
+  },
+  modalActionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: Colors.light.primaryLight,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalActionText: {
+    flex: 1,
+    fontSize: theme.fontSize.md,
+    fontWeight: '500',
+    color: Colors.light.text,
+  },
+
+  // Espaçamento
+  bottomSpacing: {
+    height: 100,
+  },
+});

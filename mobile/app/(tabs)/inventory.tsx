@@ -1,0 +1,661 @@
+/**
+ * Inventory Dashboard - Dashboard de Inventário
+ * 
+ * Funcionalidades:
+ * - Total em estoque (valor)
+ * - Produtos encalhados (>60 dias)
+ * - Últimas entradas
+ * - Taxa média de venda
+ * - Alertas: produtos com estoque baixo
+ * - Gráficos: entradas por mês
+ */
+
+import { useState } from 'react';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  RefreshControl,
+  TouchableOpacity,
+  Dimensions,
+} from 'react-native';
+import { Text, Card, Chip, Button, Surface, ProgressBar, FAB } from 'react-native-paper';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
+import { getStockEntries, getSlowMovingProducts } from '@/services/stockEntryService';
+import { getLowStockProducts, getProducts } from '@/services/productService';
+import { formatCurrency, formatDate } from '@/utils/format';
+import { Colors, theme } from '@/constants/Colors';
+import { EntryType } from '@/types';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
+const { width } = Dimensions.get('window');
+
+/**
+ * Componente: Card de Estatística
+ */
+interface StatCardProps {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string | number;
+  trend?: number; // % de mudança
+  iconColor?: string;
+  iconBg?: string;
+}
+
+function StatCard({ icon, label, value, trend, iconColor, iconBg }: StatCardProps) {
+  return (
+    <Card style={styles.statCard}>
+      <Card.Content style={styles.statCardContent}>
+        <View style={[styles.statIconContainer, { backgroundColor: iconBg || Colors.light.primaryLight }]}>
+          <Ionicons name={icon} size={24} color={iconColor || Colors.light.primary} />
+        </View>
+        <View style={styles.statTextContainer}>
+          <Text style={styles.statLabel}>{label}</Text>
+          <Text style={styles.statValue}>{value}</Text>
+          {trend !== undefined && (
+            <View style={styles.trendContainer}>
+              <Ionicons
+                name={trend >= 0 ? 'trending-up' : 'trending-down'}
+                size={14}
+                color={trend >= 0 ? Colors.light.success : Colors.light.error}
+              />
+              <Text style={[
+                styles.trendText,
+                { color: trend >= 0 ? Colors.light.success : Colors.light.error }
+              ]}>
+                {Math.abs(trend)}%
+              </Text>
+            </View>
+          )}
+        </View>
+      </Card.Content>
+    </Card>
+  );
+}
+
+/**
+ * Componente: Alert Card
+ */
+interface AlertCardProps {
+  type: 'warning' | 'error' | 'info';
+  title: string;
+  message: string;
+  onPress?: () => void;
+}
+
+function AlertCard({ type, title, message, onPress }: AlertCardProps) {
+  const config = {
+    warning: {
+      icon: 'warning' as keyof typeof Ionicons.glyphMap,
+      color: Colors.light.warning,
+      bg: Colors.light.warningLight,
+    },
+    error: {
+      icon: 'alert-circle' as keyof typeof Ionicons.glyphMap,
+      color: Colors.light.error,
+      bg: Colors.light.errorLight,
+    },
+    info: {
+      icon: 'information-circle' as keyof typeof Ionicons.glyphMap,
+      color: Colors.light.info,
+      bg: Colors.light.infoLight,
+    },
+  };
+
+  const { icon, color, bg } = config[type];
+
+  return (
+    <TouchableOpacity onPress={onPress} disabled={!onPress}>
+      <Surface style={[styles.alertCard, { backgroundColor: bg }]}>
+        <Ionicons name={icon} size={24} color={color} />
+        <View style={styles.alertContent}>
+          <Text style={[styles.alertTitle, { color }]}>{title}</Text>
+          <Text style={styles.alertMessage}>{message}</Text>
+        </View>
+        {onPress && (
+          <Ionicons name="chevron-forward" size={20} color={Colors.light.textSecondary} />
+        )}
+      </Surface>
+    </TouchableOpacity>
+  );
+}
+
+export default function InventoryDashboard() {
+  const router = useRouter();
+  const [refreshing, setRefreshing] = useState(false);
+
+  // Queries
+  const { data: entries = [], refetch: refetchEntries } = useQuery({
+    queryKey: ['stock-entries'],
+    queryFn: () => getStockEntries({ limit: 10 }),
+  });
+
+  const { data: products = [], refetch: refetchProducts } = useQuery({
+    queryKey: ['products-inventory'],
+    queryFn: () => getProducts({ limit: 1000 }),
+  });
+
+  const { data: slowMovingProducts = [], refetch: refetchSlow } = useQuery({
+    queryKey: ['slow-moving-products'],
+    queryFn: () => getSlowMovingProducts({ days_threshold: 60, depletion_threshold: 30 }),
+  });
+
+  const { data: lowStockProducts = [], refetch: refetchLow } = useQuery({
+    queryKey: ['low-stock'],
+    queryFn: getLowStockProducts,
+  });
+
+  /**
+   * Refresh handler
+   */
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await Promise.all([
+      refetchEntries(),
+      refetchProducts(),
+      refetchSlow(),
+      refetchLow(),
+    ]);
+    setRefreshing(false);
+  };
+
+  /**
+   * Calcular métricas do dashboard baseado no inventário
+   */
+  const calculateMetrics = () => {
+    // Calcular total em estoque (quantidade) e valor baseado nos produtos
+    const totalQuantity = products.reduce((sum, product) => {
+      return sum + (product.current_stock || 0);
+    }, 0);
+
+    const totalValue = products.reduce((sum, product) => {
+      const quantity = product.current_stock || 0;
+      const costPrice = product.cost_price || product.price || 0;
+      return sum + (quantity * costPrice);
+    }, 0);
+
+    const totalItems = products.length;
+
+    return {
+      totalQuantity,
+      totalValue,
+      totalItems,
+      slowMovingCount: slowMovingProducts.length,
+      lowStockCount: lowStockProducts.length,
+    };
+  };
+
+  const metrics = calculateMetrics();
+
+  /**
+   * Calcular entradas por mês (últimos 6 meses)
+   */
+  const calculateMonthlyEntries = () => {
+    const monthlyData: Record<string, { count: number; value: number }> = {};
+
+    entries.forEach(entry => {
+      const month = entry.entry_date.substring(0, 7); // YYYY-MM
+      if (!monthlyData[month]) {
+        monthlyData[month] = { count: 0, value: 0 };
+      }
+      monthlyData[month].count++;
+      monthlyData[month].value += entry.total_cost || 0;
+    });
+
+    // Ordenar por mês
+    const sorted = Object.entries(monthlyData)
+      .sort((a, b) => b[0].localeCompare(a[0]))
+      .slice(0, 6);
+
+    return sorted;
+  };
+
+  const monthlyEntries = calculateMonthlyEntries();
+
+  return (
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.container}>
+        {/* Header Gradiente */}
+        <LinearGradient
+          colors={[Colors.light.primary, Colors.light.secondary]}
+          style={styles.header}
+        >
+          <Text style={styles.headerTitle}>Inventário</Text>
+          <Text style={styles.headerSubtitle}>Visão Geral do Estoque</Text>
+        </LinearGradient>
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
+        {/* KPIs Principais */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Indicadores Principais</Text>
+          <View style={styles.statsGrid}>
+            <StatCard
+              icon="cube-outline"
+              label="Total de Produtos"
+              value={metrics.totalItems}
+              iconColor={Colors.light.info}
+              iconBg={Colors.light.infoLight}
+            />
+            <StatCard
+              icon="layers-outline"
+              label="Quantidade em Estoque"
+              value={metrics.totalQuantity}
+              iconColor={Colors.light.primary}
+              iconBg={Colors.light.primaryLight}
+            />
+            <StatCard
+              icon="wallet-outline"
+              label="Valor Total"
+              value={formatCurrency(metrics.totalValue)}
+              iconColor={Colors.light.success}
+              iconBg={Colors.light.successLight}
+            />
+            <StatCard
+              icon="time-outline"
+              label="Produtos Encalhados"
+              value={metrics.slowMovingCount}
+              iconColor={Colors.light.warning}
+              iconBg={Colors.light.warningLight}
+            />
+          </View>
+        </View>
+
+        {/* Alertas */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Alertas</Text>
+
+          {metrics.lowStockCount > 0 && (
+            <AlertCard
+              type="error"
+              title="Estoque Baixo"
+              message={`${metrics.lowStockCount} produto(s) com estoque abaixo do mínimo`}
+              onPress={() => router.push('/products')}
+            />
+          )}
+
+          {metrics.slowMovingCount > 0 && (
+            <AlertCard
+              type="warning"
+              title="Produtos Encalhados"
+              message={`${metrics.slowMovingCount} produto(s) com mais de 60 dias parados`}
+              onPress={() => router.push('/reports')}
+            />
+          )}
+
+          {metrics.lowStockCount === 0 && metrics.slowMovingCount === 0 && (
+            <AlertCard
+              type="info"
+              title="Tudo em Ordem"
+              message="Nenhum alerta no momento"
+            />
+          )}
+        </View>
+
+        {/* Gráfico de Entradas por Mês */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Entradas por Mês</Text>
+            <Button
+              mode="text"
+              compact
+              onPress={() => router.push('/entries')}
+            >
+              Ver Todas
+            </Button>
+          </View>
+
+          {monthlyEntries.length > 0 ? (
+            <Card style={styles.chartCard}>
+              <Card.Content>
+                {monthlyEntries.map(([month, data]) => {
+                  const maxValue = Math.max(...monthlyEntries.map(([, d]) => d.value));
+                  const percentage = maxValue > 0 ? data.value / maxValue : 0;
+
+                  // Formatar mês (YYYY-MM -> MMM/YYYY)
+                  const [year, monthNum] = month.split('-');
+                  const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                  const monthLabel = `${monthNames[parseInt(monthNum) - 1]}/${year}`;
+
+                  return (
+                    <View key={month} style={styles.chartRow}>
+                      <Text style={styles.chartMonth}>{monthLabel}</Text>
+                      <View style={styles.chartBarContainer}>
+                        <ProgressBar
+                          progress={percentage}
+                          color={Colors.light.primary}
+                          style={styles.chartBar}
+                        />
+                      </View>
+                      <View style={styles.chartData}>
+                        <Text style={styles.chartValue}>{formatCurrency(data.value)}</Text>
+                        <Text style={styles.chartCount}>{data.count} entrada(s)</Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </Card.Content>
+            </Card>
+          ) : (
+            <Surface style={styles.emptyState}>
+              <Ionicons name="bar-chart-outline" size={48} color={Colors.light.textSecondary} />
+              <Text style={styles.emptyText}>Nenhuma entrada registrada</Text>
+            </Surface>
+          )}
+        </View>
+
+        {/* Últimas Entradas */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Últimas Entradas</Text>
+            <Button
+              mode="text"
+              compact
+              onPress={() => router.push('/entries')}
+            >
+              Ver Todas
+            </Button>
+          </View>
+
+          {entries.slice(0, 5).map((entry) => (
+            <TouchableOpacity
+              key={entry.id}
+              onPress={() => router.push(`/entries/${entry.id}`)}
+            >
+              <Card style={styles.entryCard}>
+                <Card.Content>
+                  <View style={styles.entryHeader}>
+                    <View style={styles.entryInfo}>
+                      <Text style={styles.entryCode}>{entry.entry_code}</Text>
+                      <Text style={styles.entrySupplier}>{entry.supplier_name}</Text>
+                    </View>
+                    <Chip
+                      mode="flat"
+                      style={[
+                        styles.typeChip,
+                        entry.entry_type === EntryType.TRIP && { backgroundColor: Colors.light.infoLight },
+                        entry.entry_type === EntryType.ONLINE && { backgroundColor: Colors.light.warningLight },
+                        entry.entry_type === EntryType.LOCAL && { backgroundColor: Colors.light.successLight },
+                      ]}
+                      textStyle={styles.typeChipText}
+                    >
+                      {entry.entry_type === EntryType.TRIP ? 'Viagem' : entry.entry_type === EntryType.ONLINE ? 'Online' : 'Local'}
+                    </Chip>
+                  </View>
+
+                  <View style={styles.entryMetrics}>
+                    <View style={styles.entryMetric}>
+                      <Text style={styles.metricLabel}>Data</Text>
+                      <Text style={styles.metricValue}>{formatDate(entry.entry_date)}</Text>
+                    </View>
+                    <View style={styles.entryMetric}>
+                      <Text style={styles.metricLabel}>Total</Text>
+                      <Text style={styles.metricValue}>{formatCurrency(entry.total_cost || 0)}</Text>
+                    </View>
+                    <View style={styles.entryMetric}>
+                      <Text style={styles.metricLabel}>Sell-Through</Text>
+                      <Text style={[
+                        styles.metricValue,
+                        {
+                          color:
+                            (entry.sell_through_rate || 0) >= 70 ? Colors.light.success :
+                            (entry.sell_through_rate || 0) >= 40 ? Colors.light.warning :
+                            Colors.light.error
+                        }
+                      ]}>
+                        {(entry.sell_through_rate || 0).toFixed(0)}%
+                      </Text>
+                    </View>
+                  </View>
+                </Card.Content>
+              </Card>
+            </TouchableOpacity>
+          ))}
+
+          {entries.length === 0 && (
+            <Surface style={styles.emptyState}>
+              <Ionicons name="cube-outline" size={48} color={Colors.light.textSecondary} />
+              <Text style={styles.emptyText}>Nenhuma entrada cadastrada</Text>
+              <Button
+                mode="contained"
+                onPress={() => router.push('/entries/add')}
+                style={{ marginTop: 16 }}
+              >
+                Adicionar Entrada
+              </Button>
+            </Surface>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* FAB - Adicionar entrada */}
+      <FAB
+        icon="plus"
+        style={styles.fab}
+        onPress={() => router.push('/entries/add')}
+        label="Adicionar"
+      />
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.light.primary,
+  },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.light.background,
+  },
+  header: {
+    paddingHorizontal: 16,
+    paddingTop: 24,
+    paddingBottom: 24,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: 'white',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255, 255, 255, 0.8)',
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 32,
+  },
+  section: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginBottom: 12,
+  },
+  statsGrid: {
+    gap: 12,
+  },
+  statCard: {
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.lg,
+  },
+  statCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: theme.borderRadius.lg,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
+  },
+  statTextContainer: {
+    flex: 1,
+  },
+  statLabel: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    marginBottom: 4,
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  trendContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 4,
+    gap: 4,
+  },
+  trendText: {
+    fontSize: 12,
+    fontWeight: '600',
+  },
+  alertCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    borderRadius: theme.borderRadius.lg,
+    marginBottom: 8,
+    gap: 12,
+  },
+  alertContent: {
+    flex: 1,
+  },
+  alertTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  alertMessage: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+  },
+  chartCard: {
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.lg,
+  },
+  chartRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    gap: 12,
+  },
+  chartMonth: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.text,
+    width: 60,
+  },
+  chartBarContainer: {
+    flex: 1,
+    height: 8,
+  },
+  chartBar: {
+    height: 8,
+    borderRadius: 4,
+  },
+  chartData: {
+    alignItems: 'flex-end',
+    width: 100,
+  },
+  chartValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  chartCount: {
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+  },
+  entryCard: {
+    backgroundColor: Colors.light.card,
+    marginBottom: 12,
+    borderRadius: theme.borderRadius.lg,
+  },
+  entryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  entryInfo: {
+    flex: 1,
+  },
+  entryCode: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginBottom: 2,
+  },
+  entrySupplier: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+  },
+  typeChip: {
+    height: 28,
+  },
+  typeChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  entryMetrics: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  entryMetric: {
+    flex: 1,
+  },
+  metricLabel: {
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+    marginBottom: 2,
+  },
+  metricValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  emptyState: {
+    padding: 32,
+    alignItems: 'center',
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.lg,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+    marginTop: 12,
+  },
+  fab: {
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
+    backgroundColor: Colors.light.primary,
+  },
+});

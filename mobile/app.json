@@ -1,0 +1,38 @@
+{
+  "expo": {
+    "name": "Fitness Store",
+    "slug": "fitness-store-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.fitnessstore.mobile",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Este app precisa acessar sua câmera para escanear códigos de barras de produtos."
+      }
+    },
+    "android": {
+      "package": "com.fitnessstore.mobile",
+      "permissions": [
+        "android.permission.CAMERA"
+      ]
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "scheme": "fitness-store",
+    "plugins": [
+      "expo-router",
+      [
+        "expo-barcode-scanner",
+        {
+          "cameraPermission": "Permitir $(PRODUCT_NAME) acessar sua câmera para escanear códigos de barras"
+        }
+      ]
+    ]
+  }
+}
