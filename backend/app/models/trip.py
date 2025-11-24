@@ -3,7 +3,7 @@ Modelo de viagem para rastrear viagens de compra de produtos.
 """
 from datetime import datetime, date
 from decimal import Decimal
-from sqlalchemy import String, Text, Numeric, Date, DateTime, Enum as SQLEnum
+from sqlalchemy import String, Text, Numeric, Date, DateTime, Enum as SQLEnum, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import List, TYPE_CHECKING
 import enum
@@ -29,14 +29,16 @@ class Trip(BaseModel):
     incluindo custos detalhados de viagem e relacionamento com entradas de estoque.
     """
     __tablename__ = "trips"
+    __table_args__ = (
+        UniqueConstraint('tenant_id', 'trip_code', name='uq_trips_tenant_code'),
+    )
     
     # Identificação da viagem
     trip_code: Mapped[str] = mapped_column(
         String(50),
-        unique=True,
         index=True,
         nullable=False,
-        comment="Código único da viagem (ex: TRIP-2025-001)"
+        comment="Código único da viagem por tenant (ex: TRIP-2025-001)"
     )
     
     # Informações da viagem

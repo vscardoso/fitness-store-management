@@ -27,9 +27,11 @@ class FIFOService:
         self.item_repo = EntryItemRepository()
     
     async def process_sale(
-        self, 
-        product_id: int, 
-        quantity: int
+        self,
+        product_id: int,
+        quantity: int,
+        *,
+        tenant_id: int | None = None,
     ) -> List[Dict[str, Any]]:
         """
         Processa uma venda usando FIFO (First In, First Out).
@@ -118,7 +120,7 @@ class FIFOService:
                 "unit_cost": float(item.unit_cost),
                 "total_cost": float(total_cost),
                 "entry_code": item.stock_entry.entry_code if item.stock_entry else None,
-                "entry_date": item.stock_entry.entry_date if item.stock_entry else None,
+                "entry_date": item.stock_entry.entry_date.isoformat() if item.stock_entry and item.stock_entry.entry_date else None,
             }
             sources.append(source)
             
@@ -268,7 +270,7 @@ class FIFOService:
                 "unit_cost": float(item.unit_cost),
                 "total_cost": float(cost),
                 "entry_code": item.stock_entry.entry_code if item.stock_entry else None,
-                "entry_date": item.stock_entry.entry_date if item.stock_entry else None,
+                "entry_date": item.stock_entry.entry_date.isoformat() if item.stock_entry and item.stock_entry.entry_date else None,
             })
             
             remaining_to_allocate -= quantity_to_take

@@ -30,7 +30,9 @@ class InventoryService:
         quantity: int,
         movement_type: MovementType = MovementType.PURCHASE,
         reference_id: Optional[str] = None,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        *,
+        tenant_id: int | None = None,
     ) -> Inventory:
         """
         Adiciona estoque a um produto (entrada manual).
@@ -52,7 +54,7 @@ class InventoryService:
             raise ValueError("Quantidade deve ser maior que zero")
         
         # Verificar se produto existe
-        product = await self.product_repo.get(self.db, product_id)
+        product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
         if not product:
             raise ValueError(f"Produto {product_id} não encontrado")
         
@@ -60,7 +62,7 @@ class InventoryService:
             raise ValueError("Produto não está ativo")
         
         # Buscar ou criar inventário
-        inventory = await self.inventory_repo.get_by_product(product_id)
+        inventory = await self.inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
         if not inventory:
             # Criar inventário inicial
             inventory_data = {
@@ -77,7 +79,8 @@ class InventoryService:
             quantity=quantity,
             movement_type=movement_type,
             reference_id=reference_id,
-            notes=notes or f"Entrada de estoque - {quantity} unidades"
+            notes=notes or f"Entrada de estoque - {quantity} unidades",
+            tenant_id=tenant_id,
         )
         
         await self.db.commit()
@@ -91,7 +94,9 @@ class InventoryService:
         quantity: int,
         movement_type: MovementType = MovementType.ADJUSTMENT,
         reference_id: Optional[str] = None,
-        notes: Optional[str] = None
+        notes: Optional[str] = None,
+        *,
+        tenant_id: int | None = None,
     ) -> Inventory:
         """
         Remove estoque de um produto (saída manual).
@@ -113,12 +118,12 @@ class InventoryService:
             raise ValueError("Quantidade deve ser maior que zero")
         
         # Verificar se produto existe
-        product = await self.product_repo.get(self.db, product_id)
+        product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
         if not product:
             raise ValueError(f"Produto {product_id} não encontrado")
         
         # Verificar disponibilidade
-        inventory = await self.inventory_repo.get_by_product(product_id)
+        inventory = await self.inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
         if not inventory:
             raise ValueError(f"Produto {product_id} não possui registro de estoque")
         
@@ -134,7 +139,8 @@ class InventoryService:
             quantity=quantity,
             movement_type=movement_type,
             reference_id=reference_id,
-            notes=notes or f"Saída de estoque - {quantity} unidades"
+            notes=notes or f"Saída de estoque - {quantity} unidades",
+            tenant_id=tenant_id,
         )
         
         await self.db.commit()
@@ -269,7 +275,9 @@ class InventoryService:
     async def check_availability(
         self,
         product_id: int,
-        quantity: int
+        quantity: int,
+        *,
+        tenant_id: int | None = None,
     ) -> bool:
         """
         Verifica disponibilidade de estoque para um produto.
@@ -277,6 +285,7 @@ class InventoryService:
         Args:
             product_id: ID do produto
             quantity: Quantidade desejada
+            tenant_id: ID do tenant
             
         Returns:
             bool: True se estoque disponível, False caso contrário
@@ -284,10 +293,10 @@ class InventoryService:
         if quantity <= 0:
             return False
         
-        inventory = await self.inventory_repo.get_by_product(product_id)
+        inventory = await self.inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
         return inventory is not None and inventory.quantity >= quantity
     
-    async def get_stock_level(self, product_id: int) -> Dict[str, any]:
+    async def get_stock_level(self, product_id: int, *, tenant_id: int | None = None) -> Dict[str, any]:
         """
         Obtém nível de estoque detalhado de um produto.
         
@@ -297,11 +306,11 @@ class InventoryService:
         Returns:
             Dict: Informações detalhadas do estoque
         """
-        product = await self.product_repo.get(self.db, product_id)
+        product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
         if not product:
             raise ValueError(f"Produto {product_id} não encontrado")
         
-        inventory = await self.inventory_repo.get_by_product(product_id)
+        inventory = await self.inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
         
         if not inventory:
             return {
@@ -333,18 +342,21 @@ class InventoryService:
             'available': inventory.quantity > 0
         }
     
-    async def get_stock_alerts(self) -> List[Dict[str, any]]:
+    async def get_stock_alerts(self, *, tenant_id: int | None = None) -> List[Dict[str, any]]:
         """
         Obtém alertas de produtos com estoque baixo ou zerado.
+        
+        Args:
+            tenant_id: ID do tenant
         
         Returns:
             List[Dict]: Lista de alertas de estoque
         """
-        low_stock_items = await self.inventory_repo.get_low_stock_products()
+        low_stock_items = await self.inventory_repo.get_low_stock_products(tenant_id=tenant_id)
         alerts = []
         
         for inventory in low_stock_items:
-            product = await self.product_repo.get(self.db, inventory.product_id)
+            product = await self.product_repo.get(self.db, inventory.product_id, tenant_id=tenant_id)
             if not product or not product.is_active:
                 continue
             
@@ -370,7 +382,9 @@ class InventoryService:
     async def get_movement_history(
         self,
         product_id: int,
-        limit: int = 50
+        limit: int = 50,
+        *,
+        tenant_id: int | None = None,
     ) -> List[Dict[str, any]]:
         """
         Obtém histórico de movimentações de um produto.
@@ -378,15 +392,16 @@ class InventoryService:
         Args:
             product_id: ID do produto
             limit: Número máximo de registros
+            tenant_id: ID do tenant
             
         Returns:
             List[Dict]: Histórico de movimentações
         """
-        inventory = await self.inventory_repo.get_by_product(product_id)
+        inventory = await self.inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
         if not inventory:
             return []
         
-        movements = await self.inventory_repo.get_movements_by_product(inventory.id)
+        movements = await self.inventory_repo.get_movements_by_product(inventory.id, tenant_id=tenant_id)
         
         history = []
         for movement in movements[:limit]:

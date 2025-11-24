@@ -17,57 +17,69 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
         super().__init__(Customer)
         self.db = db
     
-    async def get_by_email(self, db: AsyncSession, email: str) -> Optional[Customer]:
+    async def get_by_email(self, db: AsyncSession, email: str, tenant_id: Optional[int] = None) -> Optional[Customer]:
         """
-        Busca um cliente pelo email.
+        Busca um cliente pelo email, opcionalmente filtrando por tenant.
 
         Args:
             db: Database session
             email: Email do cliente
+            tenant_id: Tenant atual (opcional)
 
         Returns:
             Cliente encontrado ou None
         """
-        query = select(Customer).where(
+        conditions = [
             Customer.email == email,
             Customer.is_active == True
-        )
+        ]
+        if tenant_id is not None:
+            conditions.append(Customer.tenant_id == tenant_id)
+        query = select(Customer).where(*conditions)
         result = await db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_by_phone(self, db: AsyncSession, phone: str) -> Optional[Customer]:
+    async def get_by_phone(self, db: AsyncSession, phone: str, tenant_id: Optional[int] = None) -> Optional[Customer]:
         """
-        Busca um cliente pelo telefone.
+        Busca um cliente pelo telefone, opcionalmente filtrando por tenant.
 
         Args:
             db: Database session
             phone: Telefone do cliente
+            tenant_id: Tenant atual (opcional)
 
         Returns:
             Cliente encontrado ou None
         """
-        query = select(Customer).where(
+        conditions = [
             Customer.phone == phone,
             Customer.is_active == True
-        )
+        ]
+        if tenant_id is not None:
+            conditions.append(Customer.tenant_id == tenant_id)
+        query = select(Customer).where(*conditions)
         result = await db.execute(query)
         return result.scalar_one_or_none()
 
-    async def get_by_cpf(self, db: AsyncSession, cpf: str) -> Optional[Customer]:
+    async def get_by_cpf(self, db: AsyncSession, cpf: str, tenant_id: Optional[int] = None) -> Optional[Customer]:
         """
         Busca um cliente pelo CPF.
 
         Args:
             db: Database session
             cpf: CPF do cliente
+            tenant_id: Tenant atual (opcional)
 
         Returns:
             Cliente encontrado ou None
         """
-        query = select(Customer).where(
+        conditions = [
             Customer.document_number == cpf,
             Customer.is_active == True
-        )
+        ]
+        if tenant_id is not None:
+            conditions.append(Customer.tenant_id == tenant_id)
+        query = select(Customer).where(*conditions)
         result = await db.execute(query)
         return result.scalar_one_or_none()
     
@@ -76,7 +88,8 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
         db: AsyncSession,
         query: str,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        tenant_id: Optional[int] = None
     ) -> Sequence[Customer]:
         """
         Busca clientes por nome, email ou telefone.
@@ -92,16 +105,20 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
         """
         search_term = f"%{query.lower()}%"
 
+        conditions = [
+            Customer.is_active == True,
+            or_(
+                Customer.full_name.ilike(search_term),
+                Customer.email.ilike(search_term),
+                Customer.phone.ilike(search_term)
+            )
+        ]
+        if tenant_id is not None:
+            conditions.append(Customer.tenant_id == tenant_id)
+
         sql_query = (
             select(Customer)
-            .where(
-                Customer.is_active == True,
-                or_(
-                    Customer.full_name.ilike(search_term),
-                    Customer.email.ilike(search_term),
-                    Customer.phone.ilike(search_term)
-                )
-            )
+            .where(*conditions)
             .order_by(Customer.full_name)
             .offset(skip)
             .limit(limit)
@@ -110,86 +127,102 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
         result = await db.execute(sql_query)
         return result.scalars().all()
     
-    async def get_with_sales(self, db: AsyncSession, customer_id: int) -> Optional[Customer]:
+    async def get_with_sales(self, db: AsyncSession, customer_id: int, tenant_id: Optional[int] = None) -> Optional[Customer]:
         """
         Busca um cliente específico com histórico de vendas carregado.
 
         Args:
             db: Database session
             customer_id: ID do cliente
+            tenant_id: Tenant atual (opcional)
 
         Returns:
             Cliente com vendas ou None se não encontrado
         """
-        query = select(Customer).where(Customer.id == customer_id).options(
+        conditions = [Customer.id == customer_id]
+        if tenant_id is not None:
+            conditions.append(Customer.tenant_id == tenant_id)
+        query = select(Customer).where(*conditions).options(
             selectinload(Customer.sales)
         )
 
         result = await db.execute(query)
         return result.scalar_one_or_none()
     
-    async def get_active_customers(self, db: AsyncSession) -> Sequence[Customer]:
+    async def get_active_customers(self, db: AsyncSession, tenant_id: Optional[int] = None) -> Sequence[Customer]:
         """
         Busca todos os clientes ativos.
 
         Args:
             db: Database session
+            tenant_id: Tenant atual (opcional)
 
         Returns:
             Lista de clientes ativos
         """
-        query = select(Customer).where(Customer.is_active == True).order_by(Customer.full_name)
+        conditions = [Customer.is_active == True]
+        if tenant_id is not None:
+            conditions.append(Customer.tenant_id == tenant_id)
+        query = select(Customer).where(*conditions).order_by(Customer.full_name)
 
         result = await db.execute(query)
         return result.scalars().all()
     
-    async def get_customers_by_city(self, db: AsyncSession, city: str) -> Sequence[Customer]:
+    async def get_customers_by_city(self, db: AsyncSession, city: str, tenant_id: Optional[int] = None) -> Sequence[Customer]:
         """
         Busca clientes por cidade.
 
         Args:
             db: Database session
             city: Nome da cidade
+            tenant_id: Tenant atual (opcional)
 
         Returns:
             Lista de clientes da cidade
         """
+        conditions = [
+            Customer.is_active == True,
+            Customer.city.ilike(f"%{city}%")
+        ]
+        if tenant_id is not None:
+            conditions.append(Customer.tenant_id == tenant_id)
         query = (
             select(Customer)
-            .where(
-                Customer.is_active == True,
-                Customer.city.ilike(f"%{city}%")
-            )
+            .where(*conditions)
             .order_by(Customer.full_name)
         )
 
         result = await db.execute(query)
         return result.scalars().all()
     
-    async def get_customers_by_state(self, db: AsyncSession, state: str) -> Sequence[Customer]:
+    async def get_customers_by_state(self, db: AsyncSession, state: str, tenant_id: Optional[int] = None) -> Sequence[Customer]:
         """
         Busca clientes por estado.
 
         Args:
             db: Database session
             state: Sigla ou nome do estado
+            tenant_id: Tenant atual (opcional)
 
         Returns:
             Lista de clientes do estado
         """
+        conditions = [
+            Customer.is_active == True,
+            Customer.state.ilike(f"%{state}%")
+        ]
+        if tenant_id is not None:
+            conditions.append(Customer.tenant_id == tenant_id)
         query = (
             select(Customer)
-            .where(
-                Customer.is_active == True,
-                Customer.state.ilike(f"%{state}%")
-            )
+            .where(*conditions)
             .order_by(Customer.full_name)
         )
 
         result = await db.execute(query)
         return result.scalars().all()
     
-    async def exists_by_email(self, db: AsyncSession, email: str, exclude_id: Optional[int] = None) -> bool:
+    async def exists_by_email(self, db: AsyncSession, email: str, exclude_id: Optional[int] = None, tenant_id: Optional[int] = None) -> bool:
         """
         Verifica se existe um cliente ativo com o email especificado.
 
@@ -197,6 +230,7 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
             db: Database session
             email: Email a verificar
             exclude_id: ID do cliente a excluir da verificação (para updates)
+            tenant_id: Tenant atual (opcional)
 
         Returns:
             True se o email já existe
@@ -208,12 +242,14 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
 
         if exclude_id is not None:
             conditions.append(Customer.id != exclude_id)
+        if tenant_id is not None:
+            conditions.append(Customer.tenant_id == tenant_id)
 
         query = select(Customer.id).where(*conditions)
         result = await db.execute(query)
         return result.scalar_one_or_none() is not None
     
-    async def exists_by_cpf(self, db: AsyncSession, cpf: str, exclude_id: Optional[int] = None) -> bool:
+    async def exists_by_cpf(self, db: AsyncSession, cpf: str, exclude_id: Optional[int] = None, tenant_id: Optional[int] = None) -> bool:
         """
         Verifica se existe um cliente ativo com o CPF especificado.
 
@@ -221,6 +257,7 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
             db: Database session
             cpf: CPF a verificar
             exclude_id: ID do cliente a excluir da verificação (para updates)
+            tenant_id: Tenant atual (opcional)
 
         Returns:
             True se o CPF já existe
@@ -232,12 +269,14 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
 
         if exclude_id is not None:
             conditions.append(Customer.id != exclude_id)
+        if tenant_id is not None:
+            conditions.append(Customer.tenant_id == tenant_id)
 
         query = select(Customer.id).where(*conditions)
         result = await db.execute(query)
         return result.scalar_one_or_none() is not None
     
-    async def exists_by_phone(self, db: AsyncSession, phone: str, exclude_id: Optional[int] = None) -> bool:
+    async def exists_by_phone(self, db: AsyncSession, phone: str, exclude_id: Optional[int] = None, tenant_id: Optional[int] = None) -> bool:
         """
         Verifica se existe um cliente ativo com o telefone especificado.
 
@@ -245,6 +284,7 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
             db: Database session
             phone: Telefone a verificar
             exclude_id: ID do cliente a excluir da verificação (para updates)
+            tenant_id: Tenant atual (opcional)
 
         Returns:
             True se o telefone já existe
@@ -256,27 +296,34 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
 
         if exclude_id is not None:
             conditions.append(Customer.id != exclude_id)
+        if tenant_id is not None:
+            conditions.append(Customer.tenant_id == tenant_id)
 
         query = select(Customer.id).where(*conditions)
         result = await db.execute(query)
         return result.scalar_one_or_none() is not None
     
-    async def get_customers_with_sales(self, db: AsyncSession) -> Sequence[Customer]:
+    async def get_customers_with_sales(self, db: AsyncSession, tenant_id: Optional[int] = None) -> Sequence[Customer]:
         """
         Busca clientes que fizeram pelo menos uma compra.
 
         Args:
             db: Database session
+            tenant_id: Tenant atual (opcional)
 
         Returns:
             Lista de clientes com vendas
         """
         from app.models.sale import Sale
 
+        conditions = [Customer.is_active == True]
+        if tenant_id is not None:
+            conditions.extend([Customer.tenant_id == tenant_id, Sale.tenant_id == tenant_id])
+
         query = (
             select(Customer)
             .join(Sale, Customer.id == Sale.customer_id)
-            .where(Customer.is_active == True)
+            .where(*conditions)
             .distinct()
             .order_by(Customer.full_name)
         )
@@ -284,13 +331,14 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
         result = await db.execute(query)
         return result.scalars().all()
     
-    async def get_top_customers(self, db: AsyncSession, limit: int = 10) -> Sequence[Customer]:
+    async def get_top_customers(self, db: AsyncSession, limit: int = 10, tenant_id: Optional[int] = None) -> Sequence[Customer]:
         """
         Busca os melhores clientes por valor total de compras.
 
         Args:
             db: Database session
             limit: Número máximo de clientes a retornar
+            tenant_id: Tenant atual (opcional)
 
         Returns:
             Lista dos melhores clientes
@@ -298,20 +346,28 @@ class CustomerRepository(BaseRepository[Customer, Any, Any]):
         from app.models.sale import Sale
         from sqlalchemy import func, desc
 
+        subquery_conditions = [Sale.is_active == True]
+        if tenant_id is not None:
+            subquery_conditions.append(Sale.tenant_id == tenant_id)
+
         subquery = (
             select(
                 Sale.customer_id,
                 func.sum(Sale.total_amount).label('total_spent')
             )
-            .where(Sale.is_active == True)
+            .where(*subquery_conditions)
             .group_by(Sale.customer_id)
             .subquery()
         )
 
+        query_conditions = [Customer.is_active == True]
+        if tenant_id is not None:
+            query_conditions.append(Customer.tenant_id == tenant_id)
+
         query = (
             select(Customer)
             .join(subquery, Customer.id == subquery.c.customer_id)
-            .where(Customer.is_active == True)
+            .where(*query_conditions)
             .order_by(desc(subquery.c.total_spent))
             .limit(limit)
         )

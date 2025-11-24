@@ -21,18 +21,19 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
     def __init__(self):
         super().__init__(StockEntry)
     
-    async def create(self, db: AsyncSession, data: dict) -> StockEntry:
+    async def create(self, db: AsyncSession, data: dict, *, tenant_id: int | None = None) -> StockEntry:
         """
         Cria uma nova entrada de estoque.
         
         Args:
             db: Database session
             data: Dados da entrada
+            tenant_id: ID do tenant
             
         Returns:
             StockEntry criado
         """
-        entry = await super().create(db, data)
+        entry = await super().create(db, data, tenant_id=tenant_id)
         await db.commit()
         await db.refresh(entry)
         return entry
@@ -41,7 +42,9 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         self, 
         db: AsyncSession, 
         entry_id: int,
-        include_items: bool = False
+        include_items: bool = False,
+        *,
+        tenant_id: int | None = None,
     ) -> Optional[StockEntry]:
         """
         Busca uma entrada por ID.
@@ -50,16 +53,16 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
             db: Database session
             entry_id: ID da entrada
             include_items: Se deve incluir itens da entrada
+            tenant_id: ID do tenant
             
         Returns:
             StockEntry encontrado ou None
         """
-        query = select(StockEntry).where(
-            and_(
-                StockEntry.id == entry_id,
-                StockEntry.is_active == True
-            )
-        )
+        conditions = [StockEntry.id == entry_id, StockEntry.is_active == True]
+        if tenant_id is not None and hasattr(StockEntry, "tenant_id"):
+            conditions.append(StockEntry.tenant_id == tenant_id)
+        
+        query = select(StockEntry).where(and_(*conditions))
         
         if include_items:
             query = query.options(
@@ -72,23 +75,29 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         result = await db.execute(query)
         return result.scalar_one_or_none()
     
-    async def get_by_code(self, db: AsyncSession, entry_code: str) -> Optional[StockEntry]:
+    async def get_by_code(
+        self, 
+        db: AsyncSession, 
+        entry_code: str,
+        *,
+        tenant_id: int | None = None,
+    ) -> Optional[StockEntry]:
         """
         Busca uma entrada por código.
         
         Args:
             db: Database session
             entry_code: Código da entrada
+            tenant_id: ID do tenant
             
         Returns:
             StockEntry encontrado ou None
         """
-        query = select(StockEntry).where(
-            and_(
-                StockEntry.entry_code == entry_code,
-                StockEntry.is_active == True
-            )
-        )
+        conditions = [StockEntry.entry_code == entry_code, StockEntry.is_active == True]
+        if tenant_id is not None and hasattr(StockEntry, "tenant_id"):
+            conditions.append(StockEntry.tenant_id == tenant_id)
+        
+        query = select(StockEntry).where(and_(*conditions))
         result = await db.execute(query)
         return result.scalar_one_or_none()
     
@@ -98,7 +107,9 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         skip: int = 0,
         limit: int = 100,
         entry_type: Optional[EntryType] = None,
-        trip_id: Optional[int] = None
+        trip_id: Optional[int] = None,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[StockEntry]:
         """
         Busca todas as entradas com paginação e filtros.
@@ -109,11 +120,15 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
             limit: Número máximo de registros
             entry_type: Filtrar por tipo de entrada
             trip_id: Filtrar por viagem
+            tenant_id: ID do tenant
             
         Returns:
             Lista de entradas
         """
         query = select(StockEntry).where(StockEntry.is_active == True)
+        
+        if tenant_id is not None and hasattr(StockEntry, "tenant_id"):
+            query = query.where(StockEntry.tenant_id == tenant_id)
         
         if entry_type:
             query = query.where(StockEntry.entry_type == entry_type)
@@ -140,7 +155,9 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         start_date: Optional[any] = None,
         end_date: Optional[any] = None,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[StockEntry]:
         """
         Busca entradas com filtros múltiplos.
@@ -153,11 +170,15 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
             end_date: Data final (entry_date <= end_date)
             skip: Número de registros para pular
             limit: Número máximo de registros
+            tenant_id: ID do tenant
             
         Returns:
             Lista de entradas filtradas
         """
         query = select(StockEntry).where(StockEntry.is_active == True)
+        
+        if tenant_id is not None and hasattr(StockEntry, "tenant_id"):
+            query = query.where(StockEntry.tenant_id == tenant_id)
         
         if entry_type:
             query = query.where(StockEntry.entry_type == entry_type)
@@ -185,7 +206,9 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
     async def get_by_trip(
         self, 
         db: AsyncSession, 
-        trip_id: int
+        trip_id: int,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[StockEntry]:
         """
         Busca entradas de uma viagem específica.
@@ -193,18 +216,18 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         Args:
             db: Database session
             trip_id: ID da viagem
+            tenant_id: ID do tenant
             
         Returns:
             Lista de entradas da viagem
         """
+        conditions = [StockEntry.trip_id == trip_id, StockEntry.is_active == True]
+        if tenant_id is not None and hasattr(StockEntry, "tenant_id"):
+            conditions.append(StockEntry.tenant_id == tenant_id)
+        
         query = (
             select(StockEntry)
-            .where(
-                and_(
-                    StockEntry.trip_id == trip_id,
-                    StockEntry.is_active == True
-                )
-            )
+            .where(and_(*conditions))
             .options(selectinload(StockEntry.entry_items).selectinload(EntryItem.product))
             .order_by(StockEntry.entry_date.desc())
         )
@@ -215,7 +238,9 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
     async def get_by_supplier(
         self,
         db: AsyncSession,
-        supplier_name: str
+        supplier_name: str,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[StockEntry]:
         """
         Busca entradas de um fornecedor específico.
@@ -223,18 +248,21 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         Args:
             db: Database session
             supplier_name: Nome do fornecedor
+            tenant_id: ID do tenant
             
         Returns:
             Lista de entradas do fornecedor
         """
+        conditions = [
+            StockEntry.supplier_name.ilike(f"%{supplier_name}%"),
+            StockEntry.is_active == True
+        ]
+        if tenant_id is not None and hasattr(StockEntry, "tenant_id"):
+            conditions.append(StockEntry.tenant_id == tenant_id)
+        
         query = (
             select(StockEntry)
-            .where(
-                and_(
-                    StockEntry.supplier_name.ilike(f"%{supplier_name}%"),
-                    StockEntry.is_active == True
-                )
-            )
+            .where(and_(*conditions))
             .order_by(StockEntry.entry_date.desc())
         )
         
@@ -244,7 +272,9 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
     async def get_best_performing(
         self,
         db: AsyncSession,
-        limit: int = 10
+        limit: int = 10,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[tuple]:
         """
         Busca entradas com melhor performance (maior ROI - taxa de venda).
@@ -254,6 +284,7 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         Args:
             db: Database session
             limit: Número máximo de resultados
+            tenant_id: ID do tenant
             
         Returns:
             Lista de tuplas (StockEntry, sell_through_rate)
@@ -277,9 +308,12 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
             )
             .join(subquery, StockEntry.id == subquery.c.entry_id)
             .where(StockEntry.is_active == True)
-            .order_by((subquery.c.total_sold * 100.0 / subquery.c.total_received).desc())
-            .limit(limit)
         )
+        
+        if tenant_id is not None and hasattr(StockEntry, "tenant_id"):
+            query = query.where(StockEntry.tenant_id == tenant_id)
+        
+        query = query.order_by((subquery.c.total_sold * 100.0 / subquery.c.total_received).desc()).limit(limit)
         
         result = await db.execute(query)
         return result.all()
@@ -287,7 +321,9 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
     async def get_slow_moving(
         self,
         db: AsyncSession,
-        min_days: int = 60
+        min_days: int = 60,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[tuple]:
         """
         Busca entradas com produtos parados (sem movimento há X dias).
@@ -295,11 +331,22 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         Args:
             db: Database session
             min_days: Mínimo de dias sem movimento
+            tenant_id: ID do tenant
             
         Returns:
             Lista de tuplas (StockEntry, EntryItem, days_since_entry)
         """
         cutoff_date = datetime.now().date() - timedelta(days=min_days)
+        
+        conditions = [
+            StockEntry.entry_date <= cutoff_date,
+            StockEntry.is_active == True,
+            EntryItem.is_active == True,
+            EntryItem.quantity_remaining > 0,
+            (EntryItem.quantity_received - EntryItem.quantity_remaining) * 100.0 / EntryItem.quantity_received < 20
+        ]
+        if tenant_id is not None and hasattr(StockEntry, "tenant_id"):
+            conditions.append(StockEntry.tenant_id == tenant_id)
         
         query = (
             select(
@@ -308,16 +355,7 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
                 (func.julianday('now') - func.julianday(StockEntry.entry_date)).label('days_since_entry')
             )
             .join(EntryItem, EntryItem.entry_id == StockEntry.id)
-            .where(
-                and_(
-                    StockEntry.entry_date <= cutoff_date,
-                    StockEntry.is_active == True,
-                    EntryItem.is_active == True,
-                    EntryItem.quantity_remaining > 0,  # Ainda tem estoque
-                    # Baixa taxa de venda (< 20%)
-                    (EntryItem.quantity_received - EntryItem.quantity_remaining) * 100.0 / EntryItem.quantity_received < 20
-                )
-            )
+            .where(and_(*conditions))
             .options(
                 selectinload(StockEntry.trip),
                 selectinload(EntryItem.product)
@@ -331,7 +369,9 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
     async def get_recent(
         self,
         db: AsyncSession,
-        days: int = 30
+        days: int = 30,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[StockEntry]:
         """
         Busca entradas recentes (últimos X dias).
@@ -339,20 +379,23 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         Args:
             db: Database session
             days: Número de dias
+            tenant_id: ID do tenant
             
         Returns:
             Lista de entradas recentes
         """
         cutoff_date = datetime.now().date() - timedelta(days=days)
         
+        conditions = [
+            StockEntry.entry_date >= cutoff_date,
+            StockEntry.is_active == True
+        ]
+        if tenant_id is not None and hasattr(StockEntry, "tenant_id"):
+            conditions.append(StockEntry.tenant_id == tenant_id)
+        
         query = (
             select(StockEntry)
-            .where(
-                and_(
-                    StockEntry.entry_date >= cutoff_date,
-                    StockEntry.is_active == True
-                )
-            )
+            .where(and_(*conditions))
             .options(selectinload(StockEntry.trip))
             .order_by(StockEntry.entry_date.desc())
         )
@@ -364,7 +407,9 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         self, 
         db: AsyncSession, 
         entry_id: int, 
-        data: dict
+        data: dict,
+        *,
+        tenant_id: int | None = None,
     ) -> Optional[StockEntry]:
         """
         Atualiza uma entrada.
@@ -373,11 +418,12 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
             db: Database session
             entry_id: ID da entrada
             data: Dados para atualização
+            tenant_id: ID do tenant
             
         Returns:
             StockEntry atualizado ou None
         """
-        entry = await self.get_by_id(db, entry_id)
+        entry = await self.get_by_id(db, entry_id, tenant_id=tenant_id)
         if not entry:
             return None
         
@@ -390,18 +436,25 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         await db.refresh(entry)
         return entry
     
-    async def delete(self, db: AsyncSession, entry_id: int) -> bool:
+    async def delete(
+        self, 
+        db: AsyncSession, 
+        entry_id: int,
+        *,
+        tenant_id: int | None = None,
+    ) -> bool:
         """
         Soft delete de uma entrada.
         
         Args:
             db: Database session
             entry_id: ID da entrada
+            tenant_id: ID do tenant
             
         Returns:
             True se deletado, False se não encontrado
         """
-        entry = await self.get_by_id(db, entry_id)
+        entry = await self.get_by_id(db, entry_id, tenant_id=tenant_id)
         if not entry:
             return False
         
@@ -412,7 +465,9 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
     async def count(
         self, 
         db: AsyncSession,
-        entry_type: Optional[EntryType] = None
+        entry_type: Optional[EntryType] = None,
+        *,
+        tenant_id: int | None = None,
     ) -> int:
         """
         Conta o número de entradas.
@@ -420,11 +475,15 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         Args:
             db: Database session
             entry_type: Filtrar por tipo
+            tenant_id: ID do tenant
             
         Returns:
             Número de entradas
         """
         query = select(func.count(StockEntry.id)).where(StockEntry.is_active == True)
+        
+        if tenant_id is not None and hasattr(StockEntry, "tenant_id"):
+            query = query.where(StockEntry.tenant_id == tenant_id)
         
         if entry_type:
             query = query.where(StockEntry.entry_type == entry_type)
@@ -432,12 +491,18 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         result = await db.execute(query)
         return result.scalar_one()
     
-    async def get_suppliers(self, db: AsyncSession) -> Sequence[tuple]:
+    async def get_suppliers(
+        self, 
+        db: AsyncSession,
+        *,
+        tenant_id: int | None = None,
+    ) -> Sequence[tuple]:
         """
         Retorna lista de fornecedores únicos com contagem de entradas.
         
         Args:
             db: Database session
+            tenant_id: ID do tenant
             
         Returns:
             Lista de tuplas (supplier_name, entry_count, total_spent)
@@ -449,9 +514,12 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
                 func.sum(StockEntry.total_cost).label('total_spent')
             )
             .where(StockEntry.is_active == True)
-            .group_by(StockEntry.supplier_name)
-            .order_by(func.count(StockEntry.id).desc())
         )
+        
+        if tenant_id is not None and hasattr(StockEntry, "tenant_id"):
+            query = query.where(StockEntry.tenant_id == tenant_id)
+        
+        query = query.group_by(StockEntry.supplier_name).order_by(func.count(StockEntry.id).desc())
         
         result = await db.execute(query)
         return result.all()

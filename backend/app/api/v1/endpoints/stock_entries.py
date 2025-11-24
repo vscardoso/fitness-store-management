@@ -18,7 +18,7 @@ from app.schemas.stock_entry import (
 )
 from app.schemas.entry_item import EntryItemCreate, EntryItemResponse
 from app.services.stock_entry_service import StockEntryService
-from app.api.deps import get_current_active_user, require_role
+from app.api.deps import get_current_active_user, require_role, get_current_tenant_id
 from app.models.user import User, UserRole
 from app.models.stock_entry import EntryType
 
@@ -40,7 +40,8 @@ class StockEntryCreateRequest(StockEntryCreate):
 async def create_stock_entry(
     request_data: StockEntryCreateRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER]))
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Cria uma nova entrada de estoque com seus itens em transação única.
@@ -102,7 +103,7 @@ async def create_stock_entry(
         )
         
         service = StockEntryService(db)
-        entry = await service.create_entry(entry_data, items, current_user.id)
+        entry = await service.create_entry(entry_data, items, current_user.id, tenant_id=tenant_id)
         
         await db.commit()
         await db.refresh(entry)
@@ -136,7 +137,8 @@ async def list_stock_entries(
     start_date: Optional[date] = Query(None, description="Data inicial (entry_date >= start_date)"),
     end_date: Optional[date] = Query(None, description="Data final (entry_date <= end_date)"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Lista entradas de estoque com filtros opcionais.
@@ -170,13 +172,14 @@ async def list_stock_entries(
                 start_date=start_date,
                 end_date=end_date,
                 skip=skip,
-                limit=limit
+                limit=limit,
+                tenant_id=tenant_id,
             )
         else:
             # Lista todos
             from app.repositories.stock_entry_repository import StockEntryRepository
             repo = StockEntryRepository()
-            entries = await repo.get_multi(db, skip=skip, limit=limit)
+            entries = await repo.get_multi(db, skip=skip, limit=limit, tenant_id=tenant_id)
         
         return entries
     
@@ -197,7 +200,8 @@ async def get_slow_moving_products(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=500),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Retorna produtos com venda lenta (encalhados).
@@ -242,7 +246,8 @@ async def get_slow_moving_products(
         slow_movers = await service.get_slow_moving_products(
             threshold=threshold,
             skip=skip,
-            limit=limit
+            limit=limit,
+            tenant_id=tenant_id,
         )
         return slow_movers
     
@@ -262,7 +267,8 @@ async def get_best_performing_entries(
     skip: int = Query(0, ge=0),
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Retorna entradas de estoque com melhor performance.
@@ -304,7 +310,8 @@ async def get_best_performing_entries(
         service = StockEntryService(db)
         best_entries = await service.get_best_performing_entries(
             skip=skip,
-            limit=limit
+            limit=limit,
+            tenant_id=tenant_id,
         )
         return best_entries
     
@@ -324,7 +331,8 @@ async def get_best_performing_entries(
 async def get_stock_entry(
     entry_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Retorna detalhes de uma entrada de estoque com seus itens.
@@ -368,7 +376,7 @@ async def get_stock_entry(
     try:
         from app.repositories.stock_entry_repository import StockEntryRepository
         repo = StockEntryRepository()
-        entry = await repo.get_by_id(db, entry_id, include_items=True)
+        entry = await repo.get_by_id(db, entry_id, include_items=True, tenant_id=tenant_id)
         
         if not entry:
             raise HTTPException(
@@ -395,7 +403,8 @@ async def get_stock_entry(
 async def get_entry_analytics(
     entry_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Retorna análises e métricas de uma entrada de estoque.
@@ -420,7 +429,7 @@ async def get_entry_analytics(
     """
     try:
         service = StockEntryService(db)
-        analytics = await service.get_entry_analytics(entry_id)
+        analytics = await service.get_entry_analytics(entry_id, tenant_id=tenant_id)
         return analytics
     
     except ValueError as e:
@@ -445,7 +454,8 @@ async def update_stock_entry(
     entry_id: int,
     entry_data: StockEntryUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER]))
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Atualiza dados de uma entrada de estoque.
@@ -475,7 +485,7 @@ async def update_stock_entry(
     """
     try:
         service = StockEntryService(db)
-        entry = await service.update_entry(entry_id, entry_data)
+        entry = await service.update_entry(entry_id, entry_data, tenant_id=tenant_id)
         
         await db.commit()
         await db.refresh(entry)
@@ -504,7 +514,8 @@ async def update_stock_entry(
 async def delete_stock_entry(
     entry_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN]))
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Deleta uma entrada de estoque (soft delete).
@@ -524,7 +535,7 @@ async def delete_stock_entry(
     """
     try:
         service = StockEntryService(db)
-        await service.delete_entry(entry_id)
+        await service.delete_entry(entry_id, tenant_id=tenant_id)
         
         await db.commit()
         return None

@@ -1,5 +1,5 @@
 """
-Serviço de gerenciamento de vendas.
+Servio de gerenciamento de vendas.
 """
 from datetime import datetime
 from decimal import Decimal
@@ -19,14 +19,14 @@ from app.services.fifo_service import FIFOService
 
 
 class SaleService:
-    """Serviço para operações de negócio com vendas."""
+    """Servio para operaes de negcio com vendas."""
     
     def __init__(self, db: AsyncSession):
         """
-        Inicializa o serviço de vendas.
+        Inicializa o servio de vendas.
         
         Args:
-            db: Sessão assíncrona do banco de dados
+            db: Sesso assncrona do banco de dados
         """
         self.db = db
         self.sale_repo = SaleRepository(db)
@@ -38,13 +38,15 @@ class SaleService:
     async def create_sale(
         self,
         sale_data: SaleCreate,
-        seller_id: int
+        seller_id: int,
+        *,
+        tenant_id: int,
     ) -> Sale:
         """
-        Cria uma venda completa com validações e movimentação de estoque.
+        Cria uma venda completa com validaes e movimentao de estoque.
         
         Processo:
-        1. Validar estoque disponível para TODOS os itens
+        1. Validar estoque disponvel para TODOS os itens
         2. Calcular valores (subtotal, descontos, total)
         3. Validar pagamentos
         4. Criar Sale
@@ -57,34 +59,35 @@ class SaleService:
         Args:
             sale_data: Dados da venda
             seller_id: ID do vendedor
+            tenant_id: ID do tenant
             
         Returns:
             Sale: Venda criada e finalizada
             
         Raises:
-            ValueError: Se validações falharem (estoque, pagamento, etc)
+            ValueError: Se validaes falharem (estoque, pagamento, etc)
         """
         try:
-            # 1. Validar estoque disponível para TODOS os itens
-            print(f"🔍 Validando estoque para {len(sale_data.items)} itens...")
+            # 1. Validar estoque disponvel para TODOS os itens
+            print(f" Validando estoque para {len(sale_data.items)} itens...")
             for item in sale_data.items:
-                inventory = await self.inventory_repo.get_by_product(item.product_id)
+                inventory = await self.inventory_repo.get_by_product(item.product_id, tenant_id=tenant_id)
                 
                 if not inventory:
                     raise ValueError(
-                        f"Produto ID {item.product_id} não possui registro de estoque"
+                        f"Produto ID {item.product_id} no possui registro de estoque"
                     )
                 
                 if inventory.quantity < item.quantity:
-                    product = await self.product_repo.get(self.db, item.product_id)
+                    product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
                     product_name = product.name if product else f"ID {item.product_id}"
                     raise ValueError(
                         f"Estoque insuficiente para {product_name}. "
-                        f"Disponível: {inventory.quantity}, Solicitado: {item.quantity}"
+                        f"Disponvel: {inventory.quantity}, Solicitado: {item.quantity}"
                     )
             
             # 2. Calcular valores
-            print("💰 Calculando valores...")
+            print(" Calculando valores...")
             subtotal = Decimal('0')
             for item in sale_data.items:
                 item_subtotal = (
@@ -97,7 +100,7 @@ class SaleService:
             total_amount = subtotal - discount_amount + tax_amount
             
             # 3. Validar pagamentos
-            print("💳 Validando pagamentos...")
+            print(" Validando pagamentos...")
             payments_total = sum(
                 Decimal(str(p.amount)) for p in sale_data.payments
             )
@@ -109,11 +112,11 @@ class SaleService:
                     f"Faltam: R$ {(total_amount - payments_total):.2f}"
                 )
             
-            # 4. Gerar número da venda
+            # 4. Gerar nmero da venda
             sale_number = f"VENDA-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
             
             # 5. Criar Sale
-            print(f"📝 Criando venda {sale_number}...")
+            print(f" Criando venda {sale_number}...")
             sale_dict = {
                 'sale_number': sale_number,
                 'customer_id': sale_data.customer_id,
@@ -136,22 +139,23 @@ class SaleService:
             await self.db.flush()  # Para obter o ID
             
             # 6. Criar SaleItems
-            print(f"📦 Criando {len(sale_data.items)} itens da venda...")
+            print(f" Criando {len(sale_data.items)} itens da venda...")
             for item_data in sale_data.items:
                 item_subtotal = (
                     Decimal(str(item_data.unit_price)) * item_data.quantity
                 ) - Decimal(str(item_data.discount_amount))
                 
-                # ✨ FIFO: Processar venda e obter fontes (de quais entradas saiu)
-                print(f"   🔄 Processando FIFO para produto {item_data.product_id}...")
+                #  FIFO: Processar venda e obter fontes (de quais entradas saiu)
+                print(f"    Processando FIFO para produto {item_data.product_id}...")
                 try:
                     fifo_sources = await self.fifo_service.process_sale(
                         product_id=item_data.product_id,
-                        quantity=item_data.quantity
+                        quantity=item_data.quantity,
+                        tenant_id=tenant_id,
                     )
-                    print(f"   ✅ FIFO processado: {len(fifo_sources)} fonte(s)")
+                    print(f"    FIFO processado: {len(fifo_sources)} fonte(s)")
                 except ValueError as fifo_error:
-                    print(f"   ❌ Erro FIFO: {str(fifo_error)}")
+                    print(f"    Erro FIFO: {str(fifo_error)}")
                     raise ValueError(
                         f"Erro ao processar FIFO para produto {item_data.product_id}: {str(fifo_error)}"
                     )
@@ -164,7 +168,7 @@ class SaleService:
                     unit_price=float(item_data.unit_price),
                     subtotal=float(item_subtotal),
                     discount_amount=float(item_data.discount_amount),
-                    sale_sources={"sources": fifo_sources},  # 🎯 Salvar fontes FIFO
+                    sale_sources={"sources": fifo_sources},  #  Salvar fontes FIFO
                     is_active=True
                 )
                 self.db.add(sale_item)
@@ -172,15 +176,15 @@ class SaleService:
             await self.db.flush()
             
             # 7. Criar Payments
-            print(f"💵 Criando {len(sale_data.payments)} pagamentos...")
+            print(f" Criando {len(sale_data.payments)} pagamentos...")
             for payment_data in sale_data.payments:
                 payment = Payment(
                     sale_id=sale.id,
                     amount=float(payment_data.amount),
                     payment_method=payment_data.payment_method.value,
                     payment_reference=payment_data.payment_reference,
-                    status='confirmed',  # PaymentCreate não tem status, sempre confirmar
-                    notes=None,  # PaymentCreate não tem notes
+                    status='confirmed',  # PaymentCreate no tem status, sempre confirmar
+                    notes=None,  # PaymentCreate no tem notes
                     is_active=True
                 )
                 self.db.add(payment)
@@ -188,17 +192,17 @@ class SaleService:
             await self.db.flush()
             
             # 8. Atualizar fidelidade do cliente
-            # Nota: Movimentação de estoque agora é feita pelo FIFOService.process_sale()
-            # não sendo mais necessário chamar inventory_repo.remove_stock()
+            # Nota: Movimentao de estoque agora  feita pelo FIFOService.process_sale()
+            # no sendo mais necessrio chamar inventory_repo.remove_stock()
             loyalty_points_earned = Decimal('0')
             if sale_data.customer_id:
-                print("⭐ Atualizando pontos de fidelidade...")
-                customer = await self.customer_repo.get(self.db, sale_data.customer_id)
+                print(" Atualizando pontos de fidelidade...")
+                customer = await self.customer_repo.get(self.db, sale_data.customer_id, tenant_id=tenant_id)
                 if customer:
                     # Pontos: 1 ponto a cada R$ 10 gastos
                     loyalty_points_earned = total_amount / Decimal('10')
                     
-                    # SaleCreate não tem loyalty_points_used, sempre 0 na criação
+                    # SaleCreate no tem loyalty_points_used, sempre 0 na criao
                     new_loyalty_points = (
                         Decimal(str(customer.loyalty_points)) + 
                         loyalty_points_earned
@@ -216,18 +220,18 @@ class SaleService:
                     customer.total_purchases = new_total_purchases
             
             # 10. Finalizar venda
-            print("✅ Finalizando venda...")
+            print(" Finalizando venda...")
             sale.status = SaleStatus.COMPLETED.value
             sale.loyalty_points_earned = float(loyalty_points_earned)
             
             await self.db.commit()
             await self.db.refresh(sale)
             
-            print(f"🎉 Venda {sale_number} criada com sucesso!")
+            print(f" Venda {sale_number} criada com sucesso!")
             return sale
             
         except Exception as e:
-            print(f"❌ Erro ao criar venda: {str(e)}")
+            print(f" Erro ao criar venda: {str(e)}")
             await self.db.rollback()
             raise e
     
@@ -235,7 +239,9 @@ class SaleService:
         self,
         sale_id: int,
         reason: str,
-        user_id: int
+        user_id: int,
+        *,
+        tenant_id: int,
     ) -> Sale:
         """
         Cancela uma venda e reverte estoque.
@@ -243,47 +249,48 @@ class SaleService:
         Args:
             sale_id: ID da venda
             reason: Motivo do cancelamento
-            user_id: ID do usuário que está cancelando
+            user_id: ID do usurio que est cancelando
+            tenant_id: ID do tenant
             
         Returns:
             Sale: Venda cancelada
             
         Raises:
-            ValueError: Se venda não encontrada ou já cancelada
+            ValueError: Se venda no encontrada ou j cancelada
         """
         try:
-            sale = await self.sale_repo.get(self.db, sale_id)
+            sale = await self.sale_repo.get(self.db, sale_id, tenant_id=tenant_id)
             if not sale:
-                raise ValueError(f"Venda {sale_id} não encontrada")
+                raise ValueError(f"Venda {sale_id} no encontrada")
             
             if sale.status == SaleStatus.CANCELLED.value:
-                raise ValueError("Venda já está cancelada")
+                raise ValueError("Venda j est cancelada")
             
-            print(f"🔄 Cancelando venda {sale.sale_number}...")
+            print(f" Cancelando venda {sale.sale_number}...")
             
             # 1. Reverter estoque usando FIFO
-            print("📈 Revertendo estoque via FIFO...")
-            # Buscar itens da venda através de refresh com relationships
+            print(" Revertendo estoque via FIFO...")
+            # Buscar itens da venda atravs de refresh com relationships
             await self.db.refresh(sale, ['items'])
             
             for item in sale.items:
-                # ✨ FIFO: Reverter usando as fontes salvas no sale_sources
+                #  FIFO: Reverter usando as fontes salvas no sale_sources
                 if item.sale_sources and 'sources' in item.sale_sources:
-                    print(f"   🔄 Revertendo FIFO para produto {item.product_id}...")
+                    print(f"    Revertendo FIFO para produto {item.product_id}...")
                     try:
                         await self.fifo_service.reverse_sale(
                             sources=item.sale_sources['sources']
                         )
-                        print(f"   ✅ FIFO revertido com sucesso")
+                        print(f"    FIFO revertido com sucesso")
                     except ValueError as fifo_error:
-                        print(f"   ❌ Erro ao reverter FIFO: {str(fifo_error)}")
+                        print(f"    Erro ao reverter FIFO: {str(fifo_error)}")
                         raise ValueError(
                             f"Erro ao reverter FIFO para produto {item.product_id}: {str(fifo_error)}"
                         )
                 else:
                     # Fallback: venda antiga sem FIFO tracking
-                    print(f"   ⚠️ Item {item.id} sem sale_sources, usando método legado")
-                    inventory = await self.inventory_repo.get_by_product(item.product_id)
+                    print(f"    Item {item.id} sem sale_sources, usando mtodo legado")
+                    inventory = await self.inventory_repo.get_by_product(item.product_id, tenant_id=tenant_id)
                     if inventory:
                         await self.inventory_repo.add_stock(
                             inventory.id,
@@ -295,8 +302,8 @@ class SaleService:
             
             # 2. Reverter pontos de fidelidade
             if sale.customer_id:
-                print("⭐ Revertendo pontos de fidelidade...")
-                customer = await self.customer_repo.get(self.db, sale.customer_id)
+                print(" Revertendo pontos de fidelidade...")
+                customer = await self.customer_repo.get(self.db, sale.customer_id, tenant_id=tenant_id)
                 if customer:
                     new_loyalty_points = (
                         Decimal(str(customer.loyalty_points)) - 
@@ -311,7 +318,7 @@ class SaleService:
                     
                     new_total_purchases = max(0, customer.total_purchases - 1)
                     
-                    # Atualizar customer com atribuição direta
+                    # Atualizar customer com atribuio direta
                     customer.loyalty_points = float(max(0, new_loyalty_points))
                     customer.total_spent = float(max(0, new_total_spent))
                     customer.total_purchases = new_total_purchases
@@ -323,37 +330,39 @@ class SaleService:
             await self.db.commit()
             await self.db.refresh(sale)
             
-            print(f"✅ Venda {sale.sale_number} cancelada com sucesso!")
+            print(f" Venda {sale.sale_number} cancelada com sucesso!")
             return sale
             
         except Exception as e:
-            print(f"❌ Erro ao cancelar venda: {str(e)}")
+            print(f" Erro ao cancelar venda: {str(e)}")
             await self.db.rollback()
             raise e
     
-    async def get_sale(self, sale_id: int) -> Optional[Sale]:
+    async def get_sale(self, sale_id: int, *, tenant_id: int) -> Optional[Sale]:
         """
         Busca uma venda por ID com relacionamentos.
         
         Args:
             sale_id: ID da venda
+            tenant_id: ID do tenant
             
         Returns:
             Optional[Sale]: Venda encontrada ou None
         """
-        return await self.sale_repo.get(self.db, sale_id)
+        return await self.sale_repo.get(self.db, sale_id, tenant_id=tenant_id)
     
-    async def get_sale_by_number(self, sale_number: str) -> Optional[Sale]:
+    async def get_sale_by_number(self, sale_number: str, *, tenant_id: int | None = None) -> Optional[Sale]:
         """
-        Busca uma venda pelo número.
+        Busca uma venda pelo nmero.
         
         Args:
-            sale_number: Número da venda
+            sale_number: Nmero da venda
+            tenant_id: ID do tenant
             
         Returns:
             Optional[Sale]: Venda encontrada ou None
         """
-        return await self.sale_repo.get_by_sale_number(sale_number)
+        return await self.sale_repo.get_by_sale_number(sale_number, tenant_id=tenant_id)
     
     async def list_sales(
         self,
@@ -361,38 +370,42 @@ class SaleService:
         limit: int = 100,
         status: Optional[SaleStatus] = None,
         customer_id: Optional[int] = None,
-        seller_id: Optional[int] = None
+        seller_id: Optional[int] = None,
+        *,
+        tenant_id: int | None = None,
     ) -> List[Sale]:
         """
         Lista vendas com filtros.
         
         Args:
-            skip: Número de registros para pular
-            limit: Número máximo de registros
+            skip: Nmero de registros para pular
+            limit: Nmero mximo de registros
             status: Filtrar por status
             customer_id: Filtrar por cliente
             seller_id: Filtrar por vendedor
+            tenant_id: ID do tenant
             
         Returns:
             List[Sale]: Lista de vendas
         """
         if customer_id:
-            return await self.sale_repo.get_by_customer(customer_id)
+            return await self.sale_repo.get_by_customer(customer_id, tenant_id=tenant_id)
         
         if seller_id:
-            return await self.sale_repo.get_by_seller(seller_id)
+            return await self.sale_repo.get_by_seller(seller_id, tenant_id=tenant_id)
         
-        return await self.sale_repo.get_multi(self.db, skip=skip, limit=limit)
+        return await self.sale_repo.get_multi(skip=skip, limit=limit, tenant_id=tenant_id)
     
-    async def get_daily_report(self, date: datetime = None) -> Dict:
+    async def get_daily_report(self, date: datetime = None, *, tenant_id: int | None = None) -> Dict:
         """
-        Gera relatório de vendas do dia.
+        Gera relatrio de vendas do dia.
         
         Args:
-            date: Data do relatório (padrão: hoje)
+            date: Data do relatrio (padro: hoje)
+            tenant_id: ID do tenant
             
         Returns:
-            Dict: Relatório com totais e estatísticas
+            Dict: Relatrio com totais e estatsticas
         """
         if date is None:
             date = datetime.utcnow().date()
@@ -400,12 +413,12 @@ class SaleService:
             date = date.date() if isinstance(date, datetime) else date
         
         # Total do dia
-        daily_total = await self.sale_repo.get_daily_total(date)
+        daily_total = await self.sale_repo.get_daily_total(date, tenant_id=tenant_id)
         
-        # Vendas do período
-        sales = await self.sale_repo.get_by_date_range(date, date)
+        # Vendas do perodo
+        sales = await self.sale_repo.get_by_date_range(date, date, tenant_id=tenant_id)
         
-        # Estatísticas
+        # Estatsticas
         completed_sales = [s for s in sales if s.status == SaleStatus.COMPLETED.value]
         cancelled_sales = [s for s in sales if s.status == SaleStatus.CANCELLED.value]
         
@@ -425,41 +438,47 @@ class SaleService:
     async def get_sales_report(
         self,
         start_date: datetime,
-        end_date: datetime
+        end_date: datetime,
+        *,
+        tenant_id: int | None = None,
     ) -> Dict:
         """
-        Gera relatório de vendas por período.
+        Gera relatrio de vendas por perodo.
         
         Args:
             start_date: Data inicial
             end_date: Data final
+            tenant_id: ID do tenant
             
         Returns:
-            Dict: Relatório com estatísticas completas
+            Dict: Relatrio com estatsticas completas
         """
         return await self.sale_repo.get_sales_report(
             start_date.date() if isinstance(start_date, datetime) else start_date,
-            end_date.date() if isinstance(end_date, datetime) else end_date
+            end_date.date() if isinstance(end_date, datetime) else end_date,
+            tenant_id=tenant_id,
         )
     
-    async def get_top_products(self, limit: int = 10) -> List[Dict]:
+    async def get_top_products(self, limit: int = 10, *, tenant_id: int | None = None) -> List[Dict]:
         """
         Lista produtos mais vendidos.
         
         Args:
-            limit: Número de produtos
+            limit: Nmero de produtos
+            tenant_id: ID do tenant
             
         Returns:
             List[Dict]: Lista de produtos com quantidades
         """
-        return await self.sale_repo.get_top_products(limit)
+        return await self.sale_repo.get_top_products(limit, tenant_id=tenant_id)
     
-    async def get_daily_total(self, date: datetime = None) -> Decimal:
+    async def get_daily_total(self, date: datetime = None, *, tenant_id: int | None = None) -> Decimal:
         """
         Total de vendas do dia.
         
         Args:
-            date: Data para consulta (padrão: hoje)
+            date: Data para consulta (padro: hoje)
+            tenant_id: ID do tenant
             
         Returns:
             Decimal: Total de vendas
@@ -469,28 +488,35 @@ class SaleService:
         else:
             date = date.date() if isinstance(date, datetime) else date
         
-        total = await self.sale_repo.get_daily_total(date)
+        total = await self.sale_repo.get_daily_total(date, tenant_id=tenant_id)
         return Decimal(str(total)) if total else Decimal('0')
     
     async def get_sales_by_period(
         self,
         start_date: datetime,
         end_date: datetime,
-        include_relationships: bool = True
+        include_relationships: bool = True,
+        *,
+        tenant_id: int | None = None,
     ) -> List[Sale]:
         """
-        Vendas por período.
+        Vendas por perodo.
         
         Args:
             start_date: Data inicial
             end_date: Data final
             include_relationships: Se deve incluir items e payments
+            tenant_id: ID do tenant
             
         Returns:
-            List[Sale]: Lista de vendas do período
+            List[Sale]: Lista de vendas do perodo
         """
         start = start_date.date() if isinstance(start_date, datetime) else start_date
         end = end_date.date() if isinstance(end_date, datetime) else end_date
+        
+        return await self.sale_repo.get_by_date_range(
+            start, end, include_relationships, tenant_id=tenant_id
+        )
         
         return await self.sale_repo.get_by_date_range(
             start,

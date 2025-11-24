@@ -3,7 +3,7 @@ Modelo base abstrato com campos comuns e métodos auxiliares.
 """
 from datetime import datetime
 from typing import Any, Dict
-from sqlalchemy import DateTime, Boolean, Integer
+from sqlalchemy import DateTime, Boolean, Integer, ForeignKey
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from sqlalchemy.sql import func
 
@@ -49,6 +49,14 @@ class BaseModel(Base):
         Boolean, 
         default=True,
         comment="Soft delete flag"
+    )
+
+    # Multi-tenancy: cada registro pertence a uma loja/tenant
+    tenant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("stores.id", ondelete="RESTRICT"),
+        index=True,
+        nullable=True,
+        comment="Tenant/Store identifier"
     )
     
     def __repr__(self) -> str:

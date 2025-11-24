@@ -26,7 +26,7 @@ from app.schemas.inventory import (
 )
 from app.services.inventory_service import InventoryService
 from app.repositories.inventory_repository import InventoryRepository
-from app.api.deps import get_current_active_user, require_role
+from app.api.deps import get_current_active_user, require_role, get_current_tenant_id
 from app.models.user import User, UserRole
 
 
@@ -48,7 +48,8 @@ router = APIRouter(prefix="/inventory", tags=["Estoque"])
 async def add_stock(
     movement: StockMovementCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER]))
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Adicionar estoque (entrada de produtos).
@@ -112,7 +113,8 @@ async def add_stock(
         inventory = await inventory_service.add_stock(
             product_id=movement.product_id,
             quantity=movement.quantity,
-            notes=movement.notes
+            notes=movement.notes,
+            tenant_id=tenant_id,
         )
         
         return inventory
@@ -141,7 +143,8 @@ async def add_stock(
 async def remove_stock(
     movement: StockMovementCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER]))
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Remover estoque manualmente (saída).
@@ -210,7 +213,8 @@ async def remove_stock(
         inventory = await inventory_service.remove_stock(
             product_id=movement.product_id,
             quantity=movement.quantity,
-            notes=movement.notes
+            notes=movement.notes,
+            tenant_id=tenant_id,
         )
         
         return inventory
@@ -218,7 +222,7 @@ async def remove_stock(
     except ValueError as e:
         # Erros de validação (estoque insuficiente, produto não encontrado)
         error_detail = str(e)
-        print(f"❌ Erro de validação ao remover estoque: {error_detail}")
+        print(f"[ERROR] Erro de validação ao remover estoque: {error_detail}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=error_detail
@@ -227,7 +231,7 @@ async def remove_stock(
         raise
     except Exception as e:
         error_msg = f"Erro ao remover estoque: {str(e)}"
-        print(f"❌ {error_msg}")
+        print(f"[ERROR] {error_msg}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=error_msg
@@ -248,7 +252,8 @@ async def remove_stock(
 async def get_product_stock(
     product_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Consultar estoque atual de um produto.
@@ -293,7 +298,7 @@ async def get_product_stock(
     
     try:
         # Buscar o inventário completo do produto
-        inventory = await inventory_repo.get_by_product(product_id)
+        inventory = await inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
         
         if not inventory:
             raise HTTPException(
@@ -320,7 +325,8 @@ async def get_product_stock(
 )
 async def get_stock_alerts(
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Listar produtos com estoque baixo (abaixo do mínimo).
@@ -371,7 +377,7 @@ async def get_stock_alerts(
     inventory_service = InventoryService(db)
     
     try:
-        alerts = await inventory_service.get_stock_alerts()
+        alerts = await inventory_service.get_stock_alerts(tenant_id=tenant_id)
         return alerts
         
     except Exception as e:
@@ -396,7 +402,8 @@ async def get_product_movements(
     product_id: int,
     limit: int = Query(50, ge=1, le=100, description="Quantidade de movimentações a retornar"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Histórico de movimentações de um produto.
@@ -470,7 +477,7 @@ async def get_product_movements(
     inventory_repo = InventoryRepository(db)
     
     try:
-        movements = await inventory_repo.get_movements_by_product(product_id, limit)
+        movements = await inventory_repo.get_movements_by_product(product_id, limit, tenant_id=tenant_id)
         return movements
         
     except Exception as e:

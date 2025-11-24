@@ -91,11 +91,34 @@ setProducts([...products, newProduct]);  // ❌ DON'T DO THIS
 - **Custom Headers**: Disable default Expo Router headers with `headerShown: false` when using custom headers
 - **Avoid Redundant Titles**: If showing entity name (e.g., product name), don't add generic "Details" title
 
+**Global Loading System:**
+- **Automatic Loading**: All API requests automatically show a global loading overlay
+- **Custom Messages**: Use `withLoadingMessage('Mensagem...')` helper for context-specific feedback
+- **Skip Loading**: Use `skipLoading()` helper for background operations (silent refreshes, polling)
+- **Smart Behavior**: Request counter handles concurrent requests, 300ms minimum display time prevents flicker
+- **Safety Features**: 10s timeout warning, 30s auto-hide to prevent stuck states
+
+```typescript
+// ✅ Default: automatic loading
+await api.post('/products', data);
+
+// ✅ Custom message
+await api.post('/products', data, withLoadingMessage('Criando produto...'));
+
+// ✅ Skip loading for background operations
+await api.get('/products', skipLoading());
+```
+
 **Key Mobile Files:**
-- `mobile/services/api.ts` - Axios instance with JWT interceptor
+- `mobile/services/api.ts` - Axios instance with JWT interceptor + loading manager
+- `mobile/services/loadingManager.ts` - Global loading state manager
+- `mobile/components/ui/LoadingOverlay.tsx` - Loading overlay component
+- `mobile/utils/apiHelpers.ts` - Helper functions (`skipLoading()`, `withLoadingMessage()`)
 - `mobile/store/authStore.ts` - Zustand auth state (persisted to AsyncStorage)
 - `mobile/constants/Config.ts` - API URL (change for physical device testing with localtunnel)
 - `mobile/app/(tabs)/_layout.tsx` - Tab navigation + auth redirect
+- `mobile/docs/LOADING_SYSTEM.md` - Complete loading system documentation
+- `mobile/docs/LOADING_EXAMPLES.md` - Practical usage examples
 
 ## Common Development Commands
 

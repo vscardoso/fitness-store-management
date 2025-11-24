@@ -11,6 +11,8 @@ from .sale import Sale, SaleItem, SaleStatus, PaymentMethod
 from .trip import Trip, TripStatus
 from .stock_entry import StockEntry, EntryType
 from .entry_item import EntryItem
+from .store import Store
+from .subscription import Subscription
 
 __all__ = [
     # Base
@@ -52,4 +54,10 @@ __all__ = [
 
     # Entry Item
     "EntryItem",
+
+    # Store (Tenant)
+    "Store",
+    
+    # Subscription
+    "Subscription",
 ]

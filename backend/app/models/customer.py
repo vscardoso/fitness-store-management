@@ -1,7 +1,7 @@
 """
 Modelo de cliente com programa de fidelidade.
 """
-from sqlalchemy import String, Date, Enum as SQLEnum, Numeric, Text
+from sqlalchemy import String, Date, Enum as SQLEnum, Numeric, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from enum import Enum
 from datetime import date
@@ -28,6 +28,10 @@ class Customer(BaseModel):
     Manages customer data, purchase history, and loyalty points.
     """
     __tablename__ = "customers"
+    __table_args__ = (
+        UniqueConstraint('tenant_id', 'email', name='uq_customers_tenant_email'),
+        UniqueConstraint('tenant_id', 'document_number', name='uq_customers_tenant_document'),
+    )
     
     # Informações pessoais
     full_name: Mapped[str] = mapped_column(
@@ -38,9 +42,8 @@ class Customer(BaseModel):
     
     email: Mapped[str | None] = mapped_column(
         String(255),
-        unique=True,
         index=True,
-        comment="Customer email address"
+        comment="Customer email address (unique per tenant)"
     )
     
     phone: Mapped[str | None] = mapped_column(
@@ -50,9 +53,8 @@ class Customer(BaseModel):
     
     document_number: Mapped[str | None] = mapped_column(
         String(20),
-        unique=True,
         index=True,
-        comment="CPF/CNPJ document number"
+        comment="CPF/CNPJ document number (unique per tenant)"
     )
     
     birth_date: Mapped[date | None] = mapped_column(

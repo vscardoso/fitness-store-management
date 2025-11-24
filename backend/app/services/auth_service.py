@@ -91,7 +91,11 @@ class AuthService:
             str: Token JWT de acesso
         """
         access_token = create_access_token(
-            data={"sub": str(user.id), "role": user.role.value},
+            data={
+                "sub": str(user.id),
+                "role": user.role.value,
+                "tenant_id": user.tenant_id  # ✅ ADD TENANT_ID
+            },
             expires_delta=timedelta(days=7)
         )
         return access_token

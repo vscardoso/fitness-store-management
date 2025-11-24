@@ -1,7 +1,7 @@
 """
 Modelo de categoria de produtos com hierarquia.
 """
-from sqlalchemy import String, ForeignKey, Text
+from sqlalchemy import String, ForeignKey, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import List, Optional, TYPE_CHECKING
 from .base import BaseModel
@@ -17,6 +17,9 @@ class Category(BaseModel):
     Supports parent-child relationships for category organization.
     """
     __tablename__ = "categories"
+    __table_args__ = (
+        UniqueConstraint('tenant_id', 'slug', name='uq_categories_tenant_slug'),
+    )
     
     name: Mapped[str] = mapped_column(
         String(100), 
@@ -31,9 +34,8 @@ class Category(BaseModel):
     
     slug: Mapped[str] = mapped_column(
         String(100), 
-        unique=True, 
         index=True,
-        comment="URL-friendly category identifier"
+        comment="URL-friendly category identifier (unique per tenant)"
     )
     
     # Auto-relacionamento para hierarquia

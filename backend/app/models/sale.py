@@ -1,7 +1,7 @@
 """
 Modelo de vendas com itens e pagamentos.
 """
-from sqlalchemy import String, ForeignKey, Numeric, Enum as SQLEnum, Text, JSON
+from sqlalchemy import String, ForeignKey, Numeric, Enum as SQLEnum, Text, JSON, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from enum import Enum
 from decimal import Decimal
@@ -40,14 +40,16 @@ class Sale(BaseModel):
     Represents complete sales transactions with customer and payment information.
     """
     __tablename__ = "sales"
+    __table_args__ = (
+        UniqueConstraint('tenant_id', 'sale_number', name='uq_sales_tenant_number'),
+    )
     
     # Informações da venda
     sale_number: Mapped[str] = mapped_column(
         String(50),
-        unique=True,
         index=True,
         nullable=False,
-        comment="Unique sale number"
+        comment="Unique sale number per tenant"
     )
     
     status: Mapped[SaleStatus] = mapped_column(

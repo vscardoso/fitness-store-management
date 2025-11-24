@@ -23,7 +23,7 @@ from app.core.database import get_db
 from app.schemas.customer import CustomerCreate, CustomerUpdate, CustomerResponse
 from app.services.customer_service import CustomerService
 from app.repositories.customer_repository import CustomerRepository
-from app.api.deps import get_current_active_user
+from app.api.deps import get_current_active_user, get_current_tenant_id
 from app.models.user import User
 
 
@@ -52,7 +52,8 @@ async def list_customers(
     limit: int = Query(100, ge=1, le=100, description="Número máximo de registros"),
     search: Optional[str] = Query(None, description="Buscar por nome, email ou telefone"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id)
 ):
     """
     Listar clientes com paginação.
@@ -103,9 +104,9 @@ async def list_customers(
     
     try:
         if search:
-            customers = await customer_repo.search(db, search, skip=skip, limit=limit)
+            customers = await customer_repo.search(db, search, skip=skip, limit=limit, tenant_id=tenant_id)
         else:
-            customers = await customer_repo.get_multi(db, skip=skip, limit=limit)
+            customers = await customer_repo.get_multi(db, skip=skip, limit=limit, tenant_id=tenant_id)
         
         return customers
         
@@ -125,7 +126,8 @@ async def list_customers(
 async def get_customer(
     customer_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id)
 ):
     """
     Obter detalhes completos do cliente.
@@ -213,7 +215,8 @@ async def get_customer(
 async def create_customer(
     customer_data: CustomerCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id)
 ):
     """
     Criar novo cliente.
@@ -279,7 +282,7 @@ async def create_customer(
     
     try:
         logger.info("[customers] create_customer START user_id=%s name=%s", getattr(current_user, 'id', None), customer_data.full_name)
-        customer = await customer_service.create_customer(customer_data)
+        customer = await customer_service.create_customer(customer_data, tenant_id=tenant_id)
         logger.info("[customers] create_customer OK id=%s", getattr(customer, 'id', None))
         return customer
         
@@ -307,7 +310,8 @@ async def update_customer(
     customer_id: int,
     customer_data: CustomerUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id)
 ):
     """
     Atualizar dados do cliente.
@@ -368,7 +372,7 @@ async def update_customer(
     customer_service = CustomerService(db)
     
     try:
-        customer = await customer_service.update_customer(customer_id, customer_data)
+        customer = await customer_service.update_customer(customer_id, customer_data, tenant_id=tenant_id)
         return customer
         
     except ValueError as e:
@@ -407,7 +411,8 @@ async def update_customer(
 async def delete_customer(
     customer_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id)
 ):
     """
     Deletar cliente (soft delete).
@@ -478,7 +483,8 @@ async def delete_customer(
 async def get_customer_purchases(
     customer_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id)
 ):
     """
     Histórico de compras do cliente.
@@ -546,7 +552,7 @@ async def get_customer_purchases(
     
     try:
         # Verificar se cliente existe
-        customer = await customer_repo.get(db, customer_id)
+        customer = await customer_repo.get(db, customer_id, tenant_id=tenant_id)
         
         if not customer:
             raise HTTPException(

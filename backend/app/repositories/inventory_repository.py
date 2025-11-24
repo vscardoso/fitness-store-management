@@ -21,7 +21,7 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
         self.model = Inventory
         self.session = session
     
-    async def get_stock(self, product_id: int) -> int:
+    async def get_stock(self, product_id: int, *, tenant_id: int | None = None) -> int:
         """
         Busca o estoque atual de um produto.
         
@@ -31,9 +31,9 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
         Returns:
             Quantidade em estoque (0 se não encontrado)
         """
-        query = select(Inventory.quantity).where(
-            Inventory.product_id == product_id
-        )
+        query = select(Inventory.quantity).where(Inventory.product_id == product_id)
+        if tenant_id is not None:
+            query = query.where(Inventory.tenant_id == tenant_id)
         
         result = await self.session.execute(query)
         stock = result.scalar_one_or_none()
@@ -45,7 +45,9 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
         quantity: int,
         movement_type: MovementType = MovementType.ADJUSTMENT,
         notes: str = None,
-        reference_id: str = None
+        reference_id: str = None,
+        *,
+        tenant_id: int | None = None,
     ) -> Inventory:
         """
         Atualiza o estoque de um produto.
@@ -61,7 +63,7 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
             Registro de inventário atualizado
         """
         # Buscar ou criar registro de inventário
-        inventory = await self.get_by_product(product_id)
+        inventory = await self.get_by_product(product_id, tenant_id=tenant_id)
         
         if not inventory:
             # Criar novo registro
@@ -70,7 +72,7 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
                 "quantity": quantity,
                 "min_stock": 5  # Default
             }
-            inventory = await self.create(db=self.session, obj_in=inventory_data)
+            inventory = await self.create(db=self.session, obj_in=inventory_data, tenant_id=tenant_id)
         else:
             # Atualizar existente
             previous_stock = inventory.quantity
@@ -88,15 +90,19 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
             }
             
             movement = InventoryMovement(**movement_data)
+            if tenant_id is not None:
+                movement.tenant_id = tenant_id
             self.session.add(movement)
         
         await self.session.commit()
         await self.session.refresh(inventory)
         return inventory
     
-    async def get_by_product(self, product_id: int) -> Optional[Inventory]:
+    async def get_by_product(self, product_id: int, *, tenant_id: int | None = None) -> Optional[Inventory]:
         """Busca inventário por produto."""
         query = select(Inventory).where(Inventory.product_id == product_id)
+        if tenant_id is not None:
+            query = query.where(Inventory.tenant_id == tenant_id)
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
     
@@ -106,7 +112,9 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
         quantity: int,
         movement_type: MovementType = MovementType.PURCHASE,
         notes: str = None,
-        reference_id: str = None
+        reference_id: str = None,
+        *,
+        tenant_id: int | None = None,
     ) -> Inventory:
         """
         Adiciona estoque de um produto.
@@ -117,11 +125,12 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
             movement_type: Tipo de movimentação
             notes: Observações
             reference_id: ID de referência
+            tenant_id: ID do tenant
             
         Returns:
             Registro de inventário atualizado
         """
-        current_stock = await self.get_stock(product_id)
+        current_stock = await self.get_stock(product_id, tenant_id=tenant_id)
         new_stock = current_stock + quantity
         
         return await self.update_stock(
@@ -129,7 +138,8 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
             quantity=new_stock,
             movement_type=movement_type,
             notes=notes,
-            reference_id=reference_id
+            reference_id=reference_id,
+            tenant_id=tenant_id,
         )
     
     async def remove_stock(
@@ -138,7 +148,9 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
         quantity: int,
         movement_type: MovementType = MovementType.SALE,
         notes: str = None,
-        reference_id: str = None
+        reference_id: str = None,
+        *,
+        tenant_id: int | None = None,
     ) -> Inventory:
         """
         Remove estoque de um produto.
@@ -156,7 +168,7 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
         Raises:
             ValueError: Se não há estoque suficiente
         """
-        current_stock = await self.get_stock(product_id)
+        current_stock = await self.get_stock(product_id, tenant_id=tenant_id)
         
         if current_stock < quantity:
             raise ValueError(
@@ -171,10 +183,11 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
             quantity=new_stock,
             movement_type=movement_type,
             notes=notes,
-            reference_id=reference_id
+            reference_id=reference_id,
+            tenant_id=tenant_id,
         )
     
-    async def get_low_stock_products(self, threshold: int = None) -> Sequence[Inventory]:
+    async def get_low_stock_products(self, threshold: int = None, *, tenant_id: int | None = None) -> Sequence[Inventory]:
         """
         Busca produtos com estoque baixo.
         
@@ -192,6 +205,8 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
             query = select(Inventory).options(
                 selectinload(Inventory.product)
             ).where(Inventory.quantity <= Inventory.min_stock)
+        if tenant_id is not None:
+            query = query.where(Inventory.tenant_id == tenant_id)
         
         result = await self.session.execute(query)
         return result.unique().scalars().all()
@@ -199,16 +214,22 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
     async def get_movements_by_product(
         self, 
         product_id: int,
-        limit: int = 100
+        limit: int = 100,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[InventoryMovement]:
         """Busca movimentações de um produto."""
-        inventory = await self.get_by_product(product_id)
+        inventory = await self.get_by_product(product_id, tenant_id=tenant_id)
         if not inventory:
             return []
         
         query = select(InventoryMovement).where(
             InventoryMovement.inventory_id == inventory.id
-        ).order_by(InventoryMovement.created_at.desc()).limit(limit)
+        )
+        if tenant_id is not None:
+            query = query.where(InventoryMovement.tenant_id == tenant_id)
+        
+        query = query.order_by(InventoryMovement.created_at.desc()).limit(limit)
         
         result = await self.session.execute(query)
         return result.scalars().all()
@@ -221,7 +242,9 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
         quantity_change: int,
         quantity_after: int,
         reference_id: str = None,
-        notes: str = None
+        notes: str = None,
+        *,
+        tenant_id: int | None = None,
     ) -> InventoryMovement:
         """Cria uma movimentação de estoque."""
         movement_data = {
@@ -235,6 +258,8 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
         }
         
         movement = InventoryMovement(**movement_data)
+        if tenant_id is not None:
+            movement.tenant_id = tenant_id
         self.session.add(movement)
         await self.session.commit()
         await self.session.refresh(movement)

@@ -12,7 +12,7 @@ from datetime import date
 from app.core.database import get_db
 from app.schemas.trip import TripResponse, TripCreate, TripUpdate, TripStatusUpdate
 from app.services.trip_service import TripService
-from app.api.deps import get_current_active_user, require_role
+from app.api.deps import get_current_active_user, require_role, get_current_tenant_id
 from app.models.user import User, UserRole
 from app.models.trip import TripStatus
 
@@ -29,7 +29,8 @@ router = APIRouter(prefix="/trips", tags=["Viagens"])
 async def create_trip(
     trip_data: TripCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER]))
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Cria uma nova viagem de compras.
@@ -63,7 +64,7 @@ async def create_trip(
     """
     try:
         service = TripService(db)
-        trip = await service.create_trip(trip_data, current_user.id)
+        trip = await service.create_trip(trip_data, current_user.id, tenant_id=tenant_id)
         await db.commit()
         await db.refresh(trip)
         return trip
@@ -94,7 +95,8 @@ async def list_trips(
     start_date: Optional[date] = Query(None, description="Data inicial (trip_date >= start_date)"),
     end_date: Optional[date] = Query(None, description="Data final (trip_date <= end_date)"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Lista viagens com filtros opcionais.
@@ -127,13 +129,14 @@ async def list_trips(
                 start_date=start_date,
                 end_date=end_date,
                 skip=skip,
-                limit=limit
+                limit=limit,
+                tenant_id=tenant_id,
             )
         else:
             # Lista todos
             from app.repositories.trip_repository import TripRepository
             repo = TripRepository()
-            trips = await repo.get_multi(db, skip=skip, limit=limit)
+            trips = await repo.get_multi(db, skip=skip, limit=limit, tenant_id=tenant_id)
         
         return trips
     
@@ -153,7 +156,8 @@ async def list_trips(
 async def get_trip(
     trip_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Retorna detalhes de uma viagem específica.
@@ -175,7 +179,7 @@ async def get_trip(
     try:
         from app.repositories.trip_repository import TripRepository
         repo = TripRepository()
-        trip = await repo.get_by_id(db, trip_id, include_entries=True)
+        trip = await repo.get_by_id(db, trip_id, include_entries=True, tenant_id=tenant_id)
         
         if not trip:
             raise HTTPException(
@@ -202,7 +206,8 @@ async def get_trip(
 async def get_trip_analytics(
     trip_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Retorna análises e métricas de uma viagem.
@@ -248,7 +253,7 @@ async def get_trip_analytics(
     """
     try:
         service = TripService(db)
-        analytics = await service.get_trip_analytics(trip_id)
+        analytics = await service.get_trip_analytics(trip_id, tenant_id=tenant_id)
         return analytics
     
     except ValueError as e:
@@ -271,7 +276,8 @@ async def get_trip_analytics(
 async def compare_trips(
     ids: str = Query(..., description="IDs das viagens separados por vírgula (ex: 1,2,3)"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Compara múltiplas viagens lado a lado.
@@ -343,7 +349,7 @@ async def compare_trips(
             )
         
         service = TripService(db)
-        comparison = await service.compare_trips(trip_ids)
+        comparison = await service.compare_trips(trip_ids, tenant_id=tenant_id)
         return comparison
     
     except HTTPException:
@@ -370,7 +376,8 @@ async def update_trip(
     trip_id: int,
     trip_data: TripUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER]))
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Atualiza dados de uma viagem.
@@ -405,7 +412,7 @@ async def update_trip(
     """
     try:
         service = TripService(db)
-        trip = await service.update_trip(trip_id, trip_data)
+        trip = await service.update_trip(trip_id, trip_data, tenant_id=tenant_id)
         await db.commit()
         await db.refresh(trip)
         return trip
@@ -433,7 +440,8 @@ async def update_trip_status(
     trip_id: int,
     status_data: TripStatusUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER]))
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Atualiza apenas o status de uma viagem.
@@ -465,7 +473,7 @@ async def update_trip_status(
     """
     try:
         service = TripService(db)
-        trip = await service.update_trip_status(trip_id, status_data.status)
+        trip = await service.update_trip_status(trip_id, status_data.status, tenant_id=tenant_id)
         await db.commit()
         await db.refresh(trip)
         return trip
@@ -492,7 +500,8 @@ async def update_trip_status(
 async def delete_trip(
     trip_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN]))
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Deleta uma viagem (soft delete).
@@ -521,7 +530,7 @@ async def delete_trip(
     """
     try:
         service = TripService(db)
-        await service.delete_trip(trip_id)
+        await service.delete_trip(trip_id, tenant_id=tenant_id)
         await db.commit()
         return None
     

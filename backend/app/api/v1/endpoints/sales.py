@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.schemas.sale import SaleCreate, SaleResponse, SaleWithDetails
 from app.services.sale_service import SaleService
 from app.repositories.sale_repository import SaleRepository
-from app.api.deps import get_current_active_user, require_role
+from app.api.deps import get_current_active_user, require_role, get_current_tenant_id
 from app.models.user import User, UserRole
 
 router = APIRouter(prefix="/sales", tags=["Vendas"])
@@ -26,7 +26,8 @@ router = APIRouter(prefix="/sales", tags=["Vendas"])
 async def create_sale(
     sale_data: SaleCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Criar nova venda.
@@ -105,7 +106,8 @@ async def create_sale(
         # Criar venda com o usuário atual como vendedor
         sale = await sale_service.create_sale(
             sale_data, 
-            seller_id=current_user.id
+            seller_id=current_user.id,
+            tenant_id=tenant_id,
         )
         return sale
         
@@ -137,7 +139,8 @@ async def list_sales(
     start_date: Optional[date] = Query(None, description="Data inicial (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Data final (YYYY-MM-DD)"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Listar vendas com filtros.
@@ -180,16 +183,16 @@ async def list_sales(
         # Aplicar filtros na ordem de prioridade
         if start_date and end_date:
             # Filtro por período
-            sales = await sale_repo.get_by_date_range(start_date, end_date, skip, limit)
+            sales = await sale_repo.get_by_date_range(start_date, end_date, skip, limit, tenant_id=tenant_id)
         elif customer_id:
             # Filtro por cliente
-            sales = await sale_repo.get_by_customer(customer_id, skip, limit)
+            sales = await sale_repo.get_by_customer(customer_id, skip, limit, tenant_id=tenant_id)
         elif seller_id:
             # Filtro por vendedor
-            sales = await sale_repo.get_by_seller(seller_id, skip, limit)
+            sales = await sale_repo.get_by_seller(seller_id, skip, limit, tenant_id=tenant_id)
         else:
             # Sem filtro - todas as vendas
-            sales = await sale_repo.get_multi(skip=skip, limit=limit)
+            sales = await sale_repo.get_multi(skip=skip, limit=limit, tenant_id=tenant_id)
         
         return sales
         
@@ -209,7 +212,8 @@ async def list_sales(
 async def get_daily_total(
     target_date: Optional[date] = Query(None, description="Data alvo (padrão: hoje)"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Obter total de vendas do dia.
@@ -243,11 +247,11 @@ async def get_daily_total(
             target_date = datetime.now().date()
         
         # Buscar total do dia
-        total = await sale_service.get_daily_total(target_date)
+        total = await sale_service.get_daily_total(target_date, tenant_id=tenant_id)
         
         # Buscar quantidade de vendas
         sale_repo = SaleRepository(db)
-        sales = await sale_repo.get_by_date_range(target_date, target_date)
+        sales = await sale_repo.get_by_date_range(target_date, target_date, tenant_id=tenant_id)
         
         return {
             "date": target_date.isoformat(),
@@ -271,7 +275,8 @@ async def get_daily_total(
 async def get_sale_by_number(
     sale_number: str,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Buscar venda por número.
@@ -290,7 +295,7 @@ async def get_sale_by_number(
     sale_repo = SaleRepository(db)
     
     try:
-        sale = await sale_repo.get_by_sale_number(sale_number)
+        sale = await sale_repo.get_by_sale_number(sale_number, tenant_id=tenant_id)
         
         if not sale:
             raise HTTPException(
@@ -318,7 +323,8 @@ async def get_sale_by_number(
 async def get_sale(
     sale_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Obter detalhes completos da venda.
@@ -377,7 +383,7 @@ async def get_sale(
     
     try:
         # Buscar venda com todos os detalhes
-        sale = await sale_repo.get_with_details(sale_id)
+        sale = await sale_repo.get_with_details(sale_id, tenant_id=tenant_id)
         
         if not sale:
             raise HTTPException(
@@ -411,7 +417,8 @@ async def cancel_sale(
     sale_id: int,
     reason: str = Query(..., description="Motivo do cancelamento"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN]))
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Cancelar venda (soft cancel).
@@ -457,7 +464,8 @@ async def cancel_sale(
         sale = await sale_service.cancel_sale(
             sale_id=sale_id,
             reason=reason,
-            user_id=current_user.id
+            user_id=current_user.id,
+            tenant_id=tenant_id,
         )
         return sale
         
@@ -495,7 +503,8 @@ async def cancel_sale(
 async def get_daily_report(
     report_date: Optional[date] = Query(None, description="Data do relatório (padrão: hoje)"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Relatório de vendas do dia.
@@ -537,10 +546,10 @@ async def get_daily_report(
             report_date = datetime.now().date()
         
         # Total do dia
-        daily_total = await sale_service.get_daily_total(report_date)
+        daily_total = await sale_service.get_daily_total(report_date, tenant_id=tenant_id)
         
         # Buscar todas as vendas do dia (sem carregar relacionamentos para evitar erro)
-        sales = await sale_repo.get_by_date_range(report_date, report_date, include_relationships=False)
+        sales = await sale_repo.get_by_date_range(report_date, report_date, include_relationships=False, tenant_id=tenant_id)
         
         # Calcular ticket médio (apenas vendas não canceladas)
         active_sales = [s for s in sales if s.status != "CANCELLED"]
@@ -583,7 +592,8 @@ async def get_period_report(
     start_date: date = Query(..., description="Data inicial (YYYY-MM-DD)"),
     end_date: date = Query(..., description="Data final (YYYY-MM-DD)"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Relatório de vendas por período.
@@ -643,7 +653,7 @@ async def get_period_report(
             )
         
         # Buscar vendas do período
-        sales = await sale_repo.get_by_date_range(start_date, end_date)
+        sales = await sale_repo.get_by_date_range(start_date, end_date, tenant_id=tenant_id)
         
         # Calcular totais
         total_sales = sum(float(s.total_amount) for s in sales)
@@ -662,7 +672,8 @@ async def get_period_report(
             top_products_raw = await sale_repo.get_top_products(
                 start_date=start_date,
                 end_date=end_date,
-                limit=10
+                limit=10,
+                tenant_id=tenant_id,
             )
             top_products = [
                 {
@@ -714,7 +725,8 @@ async def get_top_customers(
     start_date: Optional[date] = Query(None, description="Data inicial (opcional)"),
     end_date: Optional[date] = Query(None, description="Data final (opcional)"),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
     Top clientes por volume de compras.
@@ -750,9 +762,9 @@ async def get_top_customers(
     try:
         # Buscar vendas (com filtro de data se fornecido)
         if start_date and end_date:
-            sales = await sale_repo.get_by_date_range(start_date, end_date)
+            sales = await sale_repo.get_by_date_range(start_date, end_date, tenant_id=tenant_id)
         else:
-            sales = await sale_repo.get_multi(skip=0, limit=10000)  # Limite alto para pegar todas
+            sales = await sale_repo.get_multi(skip=0, limit=10000, tenant_id=tenant_id)  # Limite alto para pegar todas
         
         # Filtrar apenas vendas completas com clientes
         sales = [s for s in sales if s.status == "COMPLETED" and s.customer_id]
@@ -786,7 +798,7 @@ async def get_top_customers(
         customer_repo = CustomerRepository(db)
         
         for item in result:
-            customer = await customer_repo.get(db, item["customer_id"])
+            customer = await customer_repo.get(db, item["customer_id"], tenant_id=tenant_id)
             item["customer_name"] = customer.full_name if customer else "Cliente Desconhecido"
         
         return result
