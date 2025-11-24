@@ -1,3 +1,4 @@
 
 # Temporary check scripts
 check_*.py
+coverage.xml
