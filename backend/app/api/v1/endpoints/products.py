@@ -172,6 +172,93 @@ async def get_low_stock(
 
 
 @router.get(
+    "/active",
+    response_model=List[ProductResponse],
+    summary="Listar produtos ativos da loja",
+    description="Lista apenas produtos que o lojista já ativou (não inclui catálogo)"
+)
+async def list_active_products(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Lista produtos ATIVOS da loja (is_catalog=false).
+
+    Estes são produtos que o lojista:
+    - Ativou do catálogo, OU
+    - Criou manualmente
+
+    Produtos do catálogo (is_catalog=true) NÃO aparecem aqui.
+    """
+    try:
+        service = ProductService(db)
+        products = await service.get_active_products(
+            tenant_id=tenant_id,
+            skip=skip,
+            limit=limit
+        )
+
+        # Enriquecer com informações de estoque
+        inventory_repo = InventoryRepository(db)
+        for product in products:
+            await enrich_product_with_stock(product, inventory_repo)
+
+        return products
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao listar produtos ativos: {str(e)}"
+        )
+
+
+@router.get(
+    "/catalog",
+    response_model=List[ProductResponse],
+    summary="Listar produtos do catálogo",
+    description="Lista os 115 produtos templates que podem ser ativados na loja"
+)
+async def list_catalog_products(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    category_id: Optional[int] = Query(None, description="Filtrar por categoria"),
+    search: Optional[str] = Query(None, description="Buscar por nome ou marca"),
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Lista produtos do CATÁLOGO (templates/sugestões).
+
+    Estes são os 115 produtos padrão criados no signup.
+    O usuário pode "ativar" produtos do catálogo para adicionar à sua loja.
+
+    Produtos do catálogo têm is_catalog=true e não aparecem na listagem normal.
+    """
+    try:
+        service = ProductService(db)
+        products = await service.get_catalog_products(
+            tenant_id=tenant_id,
+            category_id=category_id,
+            search=search,
+            skip=skip,
+            limit=limit
+        )
+
+        # Não precisa enriquecer com estoque (catálogo não tem estoque)
+        return products
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao listar catálogo: {str(e)}"
+        )
+
+
+@router.get(
     "/sku/{sku}",
     response_model=ProductResponse,
     summary="Buscar produto por SKU",
@@ -230,30 +317,30 @@ async def get_product_by_barcode(
 ):
     """
     Obter produto por código de barras.
-    
+
     Args:
         barcode: Código de barras do produto
         db: Sessão do banco de dados
-        
+
     Returns:
         ProductResponse: Dados do produto
-        
+
     Raises:
         HTTPException 404: Se produto não for encontrado
     """
     product_repo = ProductRepository(db)
-    
+
     try:
         product = await product_repo.get_by_barcode(barcode, tenant_id=tenant_id)
-        
+
         if not product:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Produto com código de barras '{barcode}' não encontrado"
             )
-        
+
         return product
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -276,31 +363,31 @@ async def get_product(
 ):
     """
     Obter detalhes de um produto.
-    
+
     Args:
         product_id: ID do produto
         db: Sessão do banco de dados
-        
+
     Returns:
         ProductResponse: Dados completos do produto
-        
+
     Raises:
         HTTPException 404: Se produto não for encontrado
         HTTPException 500: Se houver erro ao buscar produto
     """
     product_repo = ProductRepository(db)
-    
+
     try:
         product = await product_repo.get(db, product_id, tenant_id=tenant_id)
-        
+
         if not product:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Produto com ID {product_id} não encontrado"
             )
-        
+
         return product
-        
+
     except HTTPException:
         raise
     except Exception as e:
@@ -308,6 +395,7 @@ async def get_product(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao buscar produto: {str(e)}"
         )
+
 
 
 # ============================================================================
@@ -619,95 +707,8 @@ async def delete_product(
 
 
 # ============================================================================
-# CATÁLOGO DE PRODUTOS
+# CATÁLOGO DE PRODUTOS - ATIVAÇÃO
 # ============================================================================
-
-@router.get(
-    "/catalog",
-    response_model=List[ProductResponse],
-    summary="Listar produtos do catálogo",
-    description="Lista os 115 produtos templates que podem ser ativados na loja"
-)
-async def list_catalog_products(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    category_id: Optional[int] = Query(None, description="Filtrar por categoria"),
-    search: Optional[str] = Query(None, description="Buscar por nome ou marca"),
-    tenant_id: int = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Lista produtos do CATÁLOGO (templates/sugestões).
-
-    Estes são os 115 produtos padrão criados no signup.
-    O usuário pode "ativar" produtos do catálogo para adicionar à sua loja.
-
-    Produtos do catálogo têm is_catalog=true e não aparecem na listagem normal.
-    """
-    try:
-        service = ProductService(db)
-        products = await service.get_catalog_products(
-            tenant_id=tenant_id,
-            category_id=category_id,
-            search=search,
-            skip=skip,
-            limit=limit
-        )
-
-        # Não precisa enriquecer com estoque (catálogo não tem estoque)
-        return products
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao listar catálogo: {str(e)}"
-        )
-
-
-@router.get(
-    "/active",
-    response_model=List[ProductResponse],
-    summary="Listar produtos ativos da loja",
-    description="Lista apenas produtos que o lojista já ativou (não inclui catálogo)"
-)
-async def list_active_products(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    tenant_id: int = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Lista produtos ATIVOS da loja (is_catalog=false).
-
-    Estes são produtos que o lojista:
-    - Ativou do catálogo, OU
-    - Criou manualmente
-
-    Produtos do catálogo (is_catalog=true) NÃO aparecem aqui.
-    """
-    try:
-        service = ProductService(db)
-        products = await service.get_active_products(
-            tenant_id=tenant_id,
-            skip=skip,
-            limit=limit
-        )
-
-        # Enriquecer com informações de estoque
-        inventory_repo = InventoryRepository(db)
-        for product in products:
-            await enrich_product_with_stock(product, inventory_repo)
-
-        return products
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao listar produtos ativos: {str(e)}"
-        )
-
 
 @router.post(
     "/catalog/{product_id}/activate",

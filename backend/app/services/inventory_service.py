@@ -53,29 +53,33 @@ class InventoryService:
         if quantity <= 0:
             raise ValueError("Quantidade deve ser maior que zero")
         
-        # Verificar se produto existe
+        # Verificar se produto existe e pertence ao tenant
         product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
         if not product:
-            raise ValueError(f"Produto {product_id} não encontrado")
+            raise ValueError(
+                f"Produto {product_id} não encontrado. "
+                f"Verifique se o produto existe e pertence à sua loja."
+            )
         
         if not product.is_active:
-            raise ValueError("Produto não está ativo")
+            raise ValueError("Produto não está ativo. Reative o produto antes de adicionar estoque.")
         
         # Buscar ou criar inventário
         inventory = await self.inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
         if not inventory:
-            # Criar inventário inicial
+            # Criar inventário inicial com tenant_id
             inventory_data = {
                 'product_id': product_id,
                 'quantity': 0,
                 'min_stock': 5,
-                'is_active': True
+                'is_active': True,
+                'tenant_id': tenant_id
             }
             inventory = await self.inventory_repo.create(self.db, inventory_data)
         
         # Adicionar estoque com movimento
         inventory = await self.inventory_repo.add_stock(
-            inventory.id,
+            product_id,
             quantity=quantity,
             movement_type=movement_type,
             reference_id=reference_id,
