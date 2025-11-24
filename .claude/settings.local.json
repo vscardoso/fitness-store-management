@@ -6,7 +6,12 @@
       "Bash(git add:*)",
       "Bash(npx expo start:*)",
       "Bash(alembic revision:*)",
-      "Bash(.venvScriptsActivate.ps1)"
+      "Bash(.venvScriptsActivate.ps1)",
+      "Bash(alembic current:*)",
+      "Bash(alembic upgrade:*)",
+      "Bash(.\\venv\\Scripts\\python.exe -m alembic upgrade:*)",
+      "Bash(npx tsc:*)",
+      "Bash(timeout 90 python -m pytest:*)"
     ],
     "deny": [],
     "ask": []

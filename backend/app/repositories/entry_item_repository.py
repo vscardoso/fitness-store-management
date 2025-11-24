@@ -479,7 +479,8 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
         db: AsyncSession,
         threshold: float = 30.0,
         skip: int = 0,
-        limit: int = 50
+        limit: int = 50,
+        tenant_id: int | None = None
     ) -> Sequence[EntryItem]:
         """
         Busca itens com venda lenta (baixa taxa de depleção).
@@ -489,6 +490,7 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
             threshold: Limite de depleção (%) para considerar lento
             skip: Registros para pular
             limit: Limite de registros
+            tenant_id: ID do tenant para filtrar
             
         Returns:
             Lista de itens com venda lenta
@@ -507,17 +509,22 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
             else_=0
         )
         
+        # Condições base
+        conditions = [
+            EntryItem.is_active == True,
+            EntryItem.quantity_remaining > 0,  # Tem estoque
+            StockEntry.entry_date <= date_threshold,  # Entrada antiga
+            depletion_calc < threshold  # Taxa de depleção baixa
+        ]
+        
+        # Adicionar filtro de tenant se fornecido
+        if tenant_id is not None:
+            conditions.append(EntryItem.tenant_id == tenant_id)
+        
         query = (
             select(EntryItem)
             .join(StockEntry, EntryItem.entry_id == StockEntry.id)
-            .where(
-                and_(
-                    EntryItem.is_active == True,
-                    EntryItem.quantity_remaining > 0,  # Tem estoque
-                    StockEntry.entry_date <= date_threshold,  # Entrada antiga
-                    depletion_calc < threshold  # Taxa de depleção baixa
-                )
-            )
+            .where(and_(*conditions))
             .options(
                 selectinload(EntryItem.product),
                 selectinload(EntryItem.stock_entry)

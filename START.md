@@ -167,6 +167,39 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ✅ **Backend rodando em:** http://localhost:8000  
 📚 **Documentação da API:** http://localhost:8000/docs
 
+### 1.1 Backend com Docker (opcional)
+
+Se preferir, você pode rodar o Postgres e o backend via Docker Compose.
+
+Pré‑requisito: Docker Desktop instalado e em execução.
+
+#### Subir Postgres + Backend
+```powershell
+# Na raiz do projeto
+docker compose up -d
+
+# Acompanhar logs do backend
+docker compose logs -f backend
+```
+
+#### Rodar migrações e seeds dentro do container
+```powershell
+# Rodar migrações Alembic (criar/atualizar schema)
+docker compose exec backend alembic upgrade head
+
+# Criar admin e categorias (se necessário)
+docker compose exec backend python create_admin_simple.py
+docker compose exec backend python create_categories.py
+```
+
+URLs no Docker:
+- API: `http://localhost:8000/api/v1`
+- Docs: `http://localhost:8000/docs`
+
+Observações:
+- O compose já define `DATABASE_URL` para o Postgres do serviço `postgres`.
+- `CORS_ORIGINS` vem liberado para localhost/Expo. Ajuste conforme seu uso.
+
 ---
 
 ### 2 Mobile (App)
@@ -190,7 +223,7 @@ npm install
 ```typescript
 export const API_CONFIG = {
   BASE_URL: __DEV__ 
-    ? 'http://10.0.2.2:8000/api/v1'  // ✅ Android Emulator
+    ? 'http://10.0.2.2:8000/api/v1'  // ✅ Android Emulator (com Docker também)
     : 'https://api.sualoja.com/api/v1',
   TIMEOUT: 30000,
 };
@@ -200,7 +233,7 @@ export const API_CONFIG = {
 ```typescript
 export const API_CONFIG = {
   BASE_URL: __DEV__ 
-    ? 'http://localhost:8000/api/v1'  // ✅ iOS Simulator
+    ? 'http://localhost:8000/api/v1'  // ✅ iOS Simulator (com Docker também)
     : 'https://api.sualoja.com/api/v1',
   TIMEOUT: 30000,
 };
@@ -403,6 +436,9 @@ pip install -r requirements.txt
 
 # Verificar se banco existe
 python recreate_db.py
+
+# Se estiver usando Docker, verifique os logs
+docker compose logs -f backend
 ```
 
 ---

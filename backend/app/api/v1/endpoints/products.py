@@ -6,11 +6,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
 from app.core.database import get_db
-from app.schemas.product import ProductResponse, ProductCreate, ProductUpdate
+from app.schemas.product import ProductResponse, ProductCreate, ProductUpdate, ActivateProductRequest
 from app.services.product_service import ProductService
 from app.repositories.product_repository import ProductRepository
 from app.repositories.inventory_repository import InventoryRepository
-from app.api.deps import get_current_active_user, require_role
+from app.api.deps import get_current_active_user, require_role, get_current_tenant_id
 from app.models.user import User, UserRole
 
 router = APIRouter(prefix="/products", tags=["Produtos"])
@@ -34,11 +34,17 @@ async def enrich_product_with_stock(product, inventory_repo: InventoryRepository
     summary="Listar produtos",
     description="Lista produtos com paginação e filtros opcionais por categoria ou busca"
 )
+@router.get(
+    "",
+    response_model=List[ProductResponse],
+    include_in_schema=False
+)
 async def list_products(
     skip: int = Query(0, ge=0, description="Número de registros para pular"),
     limit: int = Query(100, ge=1, le=1000, description="Limite de registros por página"),
     category_id: Optional[int] = Query(None, description="Filtrar por ID da categoria"),
     search: Optional[str] = Query(None, description="Buscar por nome, SKU ou marca"),
+    tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -66,13 +72,13 @@ async def list_products(
     try:
         if search:
             # Busca por nome, SKU ou marca
-            products = await product_repo.search(search)
+            products = await product_repo.search(search, tenant_id=tenant_id)
         elif category_id:
             # Filtro por categoria
-            products = await product_repo.get_by_category(category_id)
+            products = await product_repo.get_by_category(category_id, tenant_id=tenant_id)
         else:
             # Lista todos os produtos
-            products = await product_repo.get_multi(db, skip=skip, limit=limit)
+            products = await product_repo.get_multi(db, skip=skip, limit=limit, tenant_id=tenant_id)
         
         # Adicionar informações de estoque
         for product in products:
@@ -95,6 +101,7 @@ async def list_products(
 )
 async def get_low_stock(
     threshold: Optional[int] = Query(None, ge=0, description="Threshold customizado (usa min_stock se não fornecido)"),
+    tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
@@ -126,7 +133,7 @@ async def get_low_stock(
     
     try:
         # Buscar produtos com estoque baixo
-        products = await product_repo.get_low_stock(threshold)
+        products = await product_repo.get_low_stock(threshold, tenant_id=tenant_id)
         
         # Formatar resposta com informações de estoque detalhadas
         result = []
@@ -172,6 +179,7 @@ async def get_low_stock(
 )
 async def get_product_by_sku(
     sku: str,
+    tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -190,7 +198,7 @@ async def get_product_by_sku(
     product_repo = ProductRepository(db)
     
     try:
-        product = await product_repo.get_by_sku(sku)
+        product = await product_repo.get_by_sku(sku, tenant_id=tenant_id)
         
         if not product:
             raise HTTPException(
@@ -217,6 +225,7 @@ async def get_product_by_sku(
 )
 async def get_product_by_barcode(
     barcode: str,
+    tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -235,7 +244,7 @@ async def get_product_by_barcode(
     product_repo = ProductRepository(db)
     
     try:
-        product = await product_repo.get_by_barcode(barcode)
+        product = await product_repo.get_by_barcode(barcode, tenant_id=tenant_id)
         
         if not product:
             raise HTTPException(
@@ -262,6 +271,7 @@ async def get_product_by_barcode(
 )
 async def get_product(
     product_id: int,
+    tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -281,7 +291,7 @@ async def get_product(
     product_repo = ProductRepository(db)
     
     try:
-        product = await product_repo.get(db, product_id)
+        product = await product_repo.get(db, product_id, tenant_id=tenant_id)
         
         if not product:
             raise HTTPException(
@@ -312,8 +322,15 @@ async def get_product(
     summary="Criar novo produto",
     description="Cria um novo produto no sistema (requer permissão de Admin ou Manager)"
 )
+@router.post(
+    "",
+    response_model=ProductResponse,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=False
+)
 async def create_product(
     product_data: ProductCreate,
+    tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role([UserRole.ADMIN]))
 ):
@@ -370,13 +387,18 @@ async def create_product(
         logger.info(f"📊 Estoque extraído - initial_stock: {initial_stock}, min_stock: {min_stock}")
         logger.info(f"🔧 Chamando service.create_product com initial_quantity={initial_stock}")
         
+        # Garantir mapeamento sale_price -> price (compatibilidade)
+        if product_data.price is None and getattr(product_data, "sale_price", None) is not None:
+            product_data.price = product_data.sale_price  # type: ignore
+
         product = await product_service.create_product(
-            product_data, 
+            product_data,
             initial_quantity=initial_stock,
-            min_stock=min_stock
+            min_stock=min_stock,
+            tenant_id=tenant_id,
         )
-        
-        logger.info(f"✅ Produto criado com sucesso - ID: {product.id}, initial_quantity: {product.initial_quantity}")
+
+        logger.info(f"✅ Produto criado com sucesso - ID: {product.id}")
         return product
         
     except ValueError as e:
@@ -408,6 +430,7 @@ async def create_product(
 async def update_product(
     product_id: int,
     product_data: ProductUpdate,
+    tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role([UserRole.ADMIN]))
 ):
@@ -441,7 +464,7 @@ async def update_product(
     product_service = ProductService(db)
     
     try:
-        product = await product_service.update_product(product_id, product_data)
+        product = await product_service.update_product(product_id, product_data, tenant_id=tenant_id)
         return product
         
     except ValueError as e:
@@ -474,6 +497,7 @@ async def update_product_price(
     product_id: int,
     price: float = Query(..., gt=0, description="Novo preço de venda"),
     cost_price: Optional[float] = Query(None, ge=0, description="Novo preço de custo"),
+    tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role([UserRole.ADMIN]))
 ):
@@ -508,7 +532,8 @@ async def update_product_price(
         product = await product_service.update_product_price(
             product_id, 
             price, 
-            cost_price
+            cost_price,
+            tenant_id=tenant_id,
         )
         return product
         
@@ -539,6 +564,7 @@ async def update_product_price(
 )
 async def delete_product(
     product_id: int,
+    tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_role([UserRole.ADMIN]))
 ):
@@ -570,7 +596,7 @@ async def delete_product(
     product_service = ProductService(db)
     
     try:
-        await product_service.delete_product(product_id)
+        await product_service.delete_product(product_id, tenant_id=tenant_id)
         return None
         
     except ValueError as e:
@@ -589,4 +615,167 @@ async def delete_product(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao deletar produto: {str(e)}"
+        )
+
+
+# ============================================================================
+# CATÁLOGO DE PRODUTOS
+# ============================================================================
+
+@router.get(
+    "/catalog",
+    response_model=List[ProductResponse],
+    summary="Listar produtos do catálogo",
+    description="Lista os 115 produtos templates que podem ser ativados na loja"
+)
+async def list_catalog_products(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    category_id: Optional[int] = Query(None, description="Filtrar por categoria"),
+    search: Optional[str] = Query(None, description="Buscar por nome ou marca"),
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Lista produtos do CATÁLOGO (templates/sugestões).
+
+    Estes são os 115 produtos padrão criados no signup.
+    O usuário pode "ativar" produtos do catálogo para adicionar à sua loja.
+
+    Produtos do catálogo têm is_catalog=true e não aparecem na listagem normal.
+    """
+    try:
+        service = ProductService(db)
+        products = await service.get_catalog_products(
+            tenant_id=tenant_id,
+            category_id=category_id,
+            search=search,
+            skip=skip,
+            limit=limit
+        )
+
+        # Não precisa enriquecer com estoque (catálogo não tem estoque)
+        return products
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao listar catálogo: {str(e)}"
+        )
+
+
+@router.get(
+    "/active",
+    response_model=List[ProductResponse],
+    summary="Listar produtos ativos da loja",
+    description="Lista apenas produtos que o lojista já ativou (não inclui catálogo)"
+)
+async def list_active_products(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=1000),
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Lista produtos ATIVOS da loja (is_catalog=false).
+
+    Estes são produtos que o lojista:
+    - Ativou do catálogo, OU
+    - Criou manualmente
+
+    Produtos do catálogo (is_catalog=true) NÃO aparecem aqui.
+    """
+    try:
+        service = ProductService(db)
+        products = await service.get_active_products(
+            tenant_id=tenant_id,
+            skip=skip,
+            limit=limit
+        )
+
+        # Enriquecer com informações de estoque
+        inventory_repo = InventoryRepository(db)
+        for product in products:
+            await enrich_product_with_stock(product, inventory_repo)
+
+        return products
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao listar produtos ativos: {str(e)}"
+        )
+
+
+@router.post(
+    "/catalog/{product_id}/activate",
+    response_model=ProductResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Ativar produto do catálogo",
+    description="Copia um produto do catálogo para a loja do usuário"
+)
+async def activate_catalog_product(
+    product_id: int,
+    request: ActivateProductRequest,
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Ativa um produto do catálogo, criando uma cópia para a loja.
+
+    Fluxo:
+    1. Busca produto do catálogo (is_catalog=true)
+    2. Cria CÓPIA com is_catalog=false
+    3. Gera SKU único para a loja
+    4. Usa preço customizado ou mantém o sugerido
+
+    O produto ativado:
+    - Aparece em /products/active
+    - Pode ter estoque adicionado
+    - Pode ser editado/deletado normalmente
+
+    Args:
+        product_id: ID do produto no catálogo
+        request: Opcionalmente um preço customizado
+
+    Returns:
+        Produto ativado (cópia)
+    """
+    try:
+        service = ProductService(db)
+
+        # Ativar produto
+        activated_product = await service.activate_catalog_product(
+            catalog_product_id=product_id,
+            tenant_id=tenant_id,
+            custom_price=float(request.custom_price) if request.custom_price else None
+        )
+
+        # Enriquecer com estoque (será 0)
+        inventory_repo = InventoryRepository(db)
+        await enrich_product_with_stock(activated_product, inventory_repo)
+
+        return activated_product
+
+    except ValueError as e:
+        error_msg = str(e).lower()
+
+        if "não encontrado" in error_msg or "not found" in error_msg:
+            status_code = status.HTTP_404_NOT_FOUND
+        elif "não é um template" in error_msg or "não é catálogo" in error_msg:
+            status_code = status.HTTP_400_BAD_REQUEST
+        else:
+            status_code = status.HTTP_400_BAD_REQUEST
+
+        raise HTTPException(
+            status_code=status_code,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao ativar produto: {str(e)}"
         )

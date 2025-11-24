@@ -20,15 +20,16 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         super().__init__(Sale)
         self.db = db
     
-    async def create(self, obj_in: dict) -> Sale:
+    async def create(self, obj_in: dict, *, tenant_id: int | None = None) -> Sale:
         """Wrapper para criar venda."""
-        return await super().create(self.db, obj_in)
+        return await super().create(self.db, obj_in, tenant_id=tenant_id)
     
     async def get_multi(
         self,
         *,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        tenant_id: int | None = None,
     ) -> List[Sale]:
         """
         Wrapper para get_multi usando self.db.
@@ -36,17 +37,20 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         Args:
             skip: Número de registros para pular
             limit: Limite de registros
+            tenant_id: ID do tenant
             
         Returns:
             Lista de vendas
         """
-        return await super().get_multi(self.db, skip=skip, limit=limit)
+        return await super().get_multi(self.db, skip=skip, limit=limit, tenant_id=tenant_id)
     
     async def get_by_date_range(
         self, 
         start_date: date, 
         end_date: date,
-        include_relationships: bool = True
+        include_relationships: bool = True,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[Sale]:
         """
         Busca vendas em um intervalo de datas.
@@ -55,16 +59,20 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
             start_date: Data inicial
             end_date: Data final
             include_relationships: Se deve incluir relacionamentos
+            tenant_id: ID do tenant
             
         Returns:
             Lista de vendas no período
         """
-        query = select(Sale).where(
-            and_(
-                func.date(Sale.created_at) >= start_date,
-                func.date(Sale.created_at) <= end_date
-            )
-        ).order_by(desc(Sale.created_at))
+        conditions = [
+            func.date(Sale.created_at) >= start_date,
+            func.date(Sale.created_at) <= end_date
+        ]
+        
+        if tenant_id is not None and hasattr(Sale, "tenant_id"):
+            conditions.append(Sale.tenant_id == tenant_id)
+        
+        query = select(Sale).where(and_(*conditions)).order_by(desc(Sale.created_at))
         
         if include_relationships:
             query = query.options(
@@ -79,7 +87,9 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
     async def get_by_customer(
         self, 
         customer_id: int,
-        include_relationships: bool = True
+        include_relationships: bool = True,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[Sale]:
         """
         Busca vendas de um cliente específico.
@@ -87,13 +97,17 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         Args:
             customer_id: ID do cliente
             include_relationships: Se deve incluir relacionamentos
+            tenant_id: ID do tenant
             
         Returns:
             Lista de vendas do cliente
         """
-        query = select(Sale).where(
-            Sale.customer_id == customer_id
-        ).order_by(desc(Sale.created_at))
+        conditions = [Sale.customer_id == customer_id]
+        
+        if tenant_id is not None and hasattr(Sale, "tenant_id"):
+            conditions.append(Sale.tenant_id == tenant_id)
+        
+        query = select(Sale).where(and_(*conditions)).order_by(desc(Sale.created_at))
         
         if include_relationships:
             query = query.options(
@@ -105,30 +119,35 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         result = await self.db.execute(query)
         return result.scalars().all()
     
-    async def get_daily_total(self, target_date: date) -> Decimal:
+    async def get_daily_total(self, target_date: date, *, tenant_id: int | None = None) -> Decimal:
         """
         Calcula o total de vendas de um dia específico.
         
         Args:
             target_date: Data para calcular o total
+            tenant_id: ID do tenant
             
         Returns:
             Total de vendas do dia
         """
-        query = select(func.sum(Sale.total_amount)).where(
-            func.date(Sale.created_at) == target_date
-        )
+        conditions = [func.date(Sale.created_at) == target_date]
+        
+        if tenant_id is not None and hasattr(Sale, "tenant_id"):
+            conditions.append(Sale.tenant_id == tenant_id)
+        
+        query = select(func.sum(Sale.total_amount)).where(and_(*conditions))
         
         result = await self.db.execute(query)
         total = result.scalar()
         return Decimal(str(total)) if total is not None else Decimal('0.00')
     
-    async def get_top_products(self, limit: int = 10) -> List[dict]:
+    async def get_top_products(self, limit: int = 10, *, tenant_id: int | None = None) -> List[dict]:
         """
         Busca os produtos mais vendidos.
         
         Args:
             limit: Número máximo de produtos a retornar
+            tenant_id: ID do tenant
             
         Returns:
             Lista com produtos e quantidades vendidas
@@ -143,10 +162,12 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
             )
             .select_from(SaleItem)
             .join(Product, SaleItem.product_id == Product.id)
-            .group_by(Product.id, Product.name, Product.brand)
-            .order_by(desc('total_quantity'))
-            .limit(limit)
         )
+        
+        if tenant_id is not None and hasattr(SaleItem, "tenant_id"):
+            query = query.where(SaleItem.tenant_id == tenant_id)
+        
+        query = query.group_by(Product.id, Product.name, Product.brand).order_by(desc('total_quantity')).limit(limit)
         
         result = await self.db.execute(query)
         rows = result.all()
@@ -165,7 +186,9 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
     async def get_by_seller(
         self, 
         seller_id: int,
-        include_relationships: bool = True
+        include_relationships: bool = True,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[Sale]:
         """
         Busca vendas de um vendedor específico.
@@ -173,13 +196,17 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         Args:
             seller_id: ID do vendedor
             include_relationships: Se deve incluir relacionamentos
+            tenant_id: ID do tenant
             
         Returns:
             Lista de vendas do vendedor
         """
-        query = select(Sale).where(
-            Sale.seller_id == seller_id
-        ).order_by(desc(Sale.created_at))
+        conditions = [Sale.seller_id == seller_id]
+        
+        if tenant_id is not None and hasattr(Sale, "tenant_id"):
+            conditions.append(Sale.tenant_id == tenant_id)
+        
+        query = select(Sale).where(and_(*conditions)).order_by(desc(Sale.created_at))
         
         if include_relationships:
             query = query.options(
@@ -191,17 +218,23 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         result = await self.db.execute(query)
         return result.scalars().all()
     
-    async def get_with_relationships(self, sale_id: int) -> Optional[Sale]:
+    async def get_with_relationships(self, sale_id: int, *, tenant_id: int | None = None) -> Optional[Sale]:
         """
         Busca uma venda específica com todos os relacionamentos carregados.
         
         Args:
             sale_id: ID da venda
+            tenant_id: ID do tenant
             
         Returns:
             Venda com relacionamentos ou None se não encontrada
         """
-        query = select(Sale).where(Sale.id == sale_id).options(
+        conditions = [Sale.id == sale_id]
+        
+        if tenant_id is not None and hasattr(Sale, "tenant_id"):
+            conditions.append(Sale.tenant_id == tenant_id)
+        
+        query = select(Sale).where(and_(*conditions)).options(
             selectinload(Sale.items).selectinload(SaleItem.product),
             selectinload(Sale.payments),
             selectinload(Sale.customer)
@@ -213,7 +246,9 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
     async def get_sales_summary(
         self, 
         start_date: Optional[date] = None,
-        end_date: Optional[date] = None
+        end_date: Optional[date] = None,
+        *,
+        tenant_id: int | None = None,
     ) -> dict:
         """
         Gera um resumo das vendas para um período.
@@ -221,6 +256,7 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         Args:
             start_date: Data inicial (opcional)
             end_date: Data final (opcional)
+            tenant_id: ID do tenant
             
         Returns:
             Dicionário com resumo das vendas
@@ -230,6 +266,8 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
             conditions.append(func.date(Sale.created_at) >= start_date)
         if end_date:
             conditions.append(func.date(Sale.created_at) <= end_date)
+        if tenant_id is not None and hasattr(Sale, "tenant_id"):
+            conditions.append(Sale.tenant_id == tenant_id)
         
         where_clause = and_(*conditions) if conditions else True
         
@@ -257,23 +295,29 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
             }
         }
     
-    async def get_monthly_sales(self, year: int) -> List[dict]:
+    async def get_monthly_sales(self, year: int, *, tenant_id: int | None = None) -> List[dict]:
         """
         Busca vendas agrupadas por mês para um ano específico.
         
         Args:
             year: Ano para buscar as vendas
+            tenant_id: ID do tenant
             
         Returns:
             Lista com vendas por mês
         """
+        conditions = [func.extract('year', Sale.created_at) == year]
+        
+        if tenant_id is not None and hasattr(Sale, "tenant_id"):
+            conditions.append(Sale.tenant_id == tenant_id)
+        
         query = (
             select(
                 func.extract('month', Sale.created_at).label('month'),
                 func.count(Sale.id).label('total_sales'),
                 func.sum(Sale.total_amount).label('total_revenue')
             )
-            .where(func.extract('year', Sale.created_at) == year)
+            .where(and_(*conditions))
             .group_by(func.extract('month', Sale.created_at))
             .order_by('month')
         )

@@ -1,14 +1,15 @@
 """
 Modelo de usuário com autenticação e permissões.
 """
-from sqlalchemy import String, Enum as SQLEnum
+from sqlalchemy import String, Enum as SQLEnum, Integer, ForeignKey
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from enum import Enum
-from typing import List, TYPE_CHECKING
+from typing import List, Optional, TYPE_CHECKING
 from .base import BaseModel
 
 if TYPE_CHECKING:
     from .sale import Sale
+    from .store import Store
 
 
 class UserRole(str, Enum):
@@ -24,6 +25,7 @@ class User(BaseModel):
     User model for authentication and authorization.
     
     Represents system users with different roles and permissions.
+    Multi-tenant: Each user belongs to a Store (tenant).
     """
     __tablename__ = "users"
     
@@ -58,11 +60,25 @@ class User(BaseModel):
         comment="User phone number"
     )
     
+    # Multi-tenant: Tenant/Store relationship
+    tenant_id: Mapped[Optional[int]] = mapped_column(
+        Integer,
+        ForeignKey("stores.id"),
+        nullable=True,  # Allow NULL for backwards compatibility
+        index=True,
+        comment="Store (tenant) this user belongs to"
+    )
+    
     # Relacionamentos
     sales: Mapped[List["Sale"]] = relationship(
         "Sale",
         back_populates="seller",
         foreign_keys="Sale.seller_id"
+    )
+    
+    tenant: Mapped[Optional["Store"]] = relationship(
+        "Store",
+        foreign_keys=[tenant_id]
     )
     
     def __repr__(self) -> str:

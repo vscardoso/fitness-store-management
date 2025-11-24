@@ -26,10 +26,12 @@ class ProductService:
         self.inventory_repo = InventoryRepository(db)
     
     async def create_product(
-        self, 
+        self,
         product_data: ProductCreate,
         initial_quantity: int = 0,
-        min_stock: int = 5
+        min_stock: int = 5,
+        *,
+        tenant_id: int,
     ) -> Product:
         """
         Cria um novo produto com registro de estoque inicial.
@@ -46,47 +48,55 @@ class ProductService:
             ValueError: Se SKU já existe ou dados inválidos
         """
         # Verificar SKU único
-        existing = await self.product_repo.get_by_sku(product_data.sku)
+        existing = await self.product_repo.get_by_sku(product_data.sku, tenant_id=tenant_id)
         if existing:
             raise ValueError(f"SKU {product_data.sku} já existe")
         
         # Verificar barcode único se fornecido
         if product_data.barcode:
-            existing_barcode = await self.product_repo.get_by_barcode(product_data.barcode)
+            existing_barcode = await self.product_repo.get_by_barcode(product_data.barcode, tenant_id=tenant_id)
             if existing_barcode:
                 raise ValueError(f"Código de barras {product_data.barcode} já existe")
         
         # Criar produto - excluir campos que não pertencem ao modelo Product
         import logging
         logger = logging.getLogger(__name__)
-        
-        # Usar exclude (sem exclude_unset) para garantir que todos os campos sejam incluídos
-        product_dict = product_data.model_dump(exclude={'initial_stock', 'min_stock'})
-        logger.info(f"🔍 product_dict ANTES de adicionar initial_quantity: {product_dict}")
-        
-        # Adicionar initial_quantity que é obrigatório no modelo
-        product_dict['initial_quantity'] = initial_quantity
-        logger.info(f"🔍 product_dict DEPOIS de adicionar initial_quantity: {product_dict}")
-        logger.info(f"🔍 Valor de initial_quantity sendo passado: {initial_quantity} (tipo: {type(initial_quantity)})")
-        
-        product = await self.product_repo.create(product_dict)
+
+        # Remover campos específicos de estoque e alias sale_price do payload do produto
+        product_dict = product_data.model_dump(exclude={"initial_stock", "min_stock", "sale_price"})
+
+        # Criar produto no repositório
+        product = await self.product_repo.create(product_dict, tenant_id=tenant_id)
         logger.info(f"✅ Produto criado no repository - ID: {product.id}")
-        
-        # Criar registro de estoque inicial
-        inventory_data = {
-            'product_id': product.id,
-            'quantity': initial_quantity,
-            'min_stock': min_stock,
-            'is_active': True
-        }
-        await self.inventory_repo.create(self.db, inventory_data)
+
+        # Criar/atualizar registro de estoque inicial usando o repositório de inventário
+        try:
+            from app.models.inventory import MovementType
+            await self.inventory_repo.update_stock(
+                product_id=product.id,
+                quantity=initial_quantity,
+                movement_type=MovementType.PURCHASE,
+                notes="Estoque inicial na criação do produto",
+                reference_id=f"product:{product.id}",
+                tenant_id=tenant_id,
+            )
+            # Ajustar min_stock se necessário
+            inventory = await self.inventory_repo.get_by_product(product.id)
+            if inventory and min_stock is not None:
+                inventory.min_stock = min_stock
+                await self.db.commit()
+        except Exception as inv_err:
+            logger.error(f"Erro ao registrar estoque inicial para o produto {product.id}: {inv_err}")
+            # Não falhar a criação do produto por causa do estoque inicial
         
         return product
     
     async def update_product(
         self, 
         product_id: int, 
-        product_data: ProductUpdate
+        product_data: ProductUpdate,
+        *,
+        tenant_id: int,
     ) -> Product:
         """
         Atualiza um produto existente.
@@ -101,27 +111,27 @@ class ProductService:
         Raises:
             ValueError: Se produto não encontrado ou SKU duplicado
         """
-        product = await self.product_repo.get(self.db, product_id)
+        product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
         if not product:
             raise ValueError("Produto não encontrado")
         
         # Verificar SKU único se estiver sendo alterado
         if product_data.sku and product_data.sku != product.sku:
-            existing = await self.product_repo.get_by_sku(product_data.sku)
+            existing = await self.product_repo.get_by_sku(product_data.sku, tenant_id=tenant_id)
             if existing:
                 raise ValueError(f"SKU {product_data.sku} já existe")
         
         # Verificar barcode único se estiver sendo alterado
         if product_data.barcode and product_data.barcode != product.barcode:
-            existing_barcode = await self.product_repo.get_by_barcode(product_data.barcode)
+            existing_barcode = await self.product_repo.get_by_barcode(product_data.barcode, tenant_id=tenant_id)
             if existing_barcode:
                 raise ValueError(f"Código de barras {product_data.barcode} já existe")
         
         update_dict = product_data.model_dump(exclude_unset=True)
-        updated_product = await self.product_repo.update(self.db, id=product_id, obj_in=update_dict)
+        updated_product = await self.product_repo.update(self.db, id=product_id, obj_in=update_dict, tenant_id=tenant_id)
         return updated_product
     
-    async def delete_product(self, product_id: int) -> bool:
+    async def delete_product(self, product_id: int, *, tenant_id: int) -> bool:
         """
         Deleta um produto (soft delete).
         
@@ -134,12 +144,12 @@ class ProductService:
         Raises:
             ValueError: Se produto não encontrado ou possui estoque
         """
-        product = await self.product_repo.get(self.db, product_id)
+        product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
         if not product:
             raise ValueError("Produto não encontrado")
         
         # Verificar se há estoque
-        inventory = await self.inventory_repo.get_by_product(product_id)
+        inventory = await self.inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
         if inventory and inventory.quantity > 0:
             raise ValueError(
                 f"Não é possível deletar produto com estoque "
@@ -147,10 +157,10 @@ class ProductService:
             )
         
         # Soft delete
-        await self.product_repo.update(self.db, id=product_id, obj_in={'is_active': False})
+        await self.product_repo.update(self.db, id=product_id, obj_in={'is_active': False}, tenant_id=tenant_id)
         return True
     
-    async def get_product(self, product_id: int) -> Optional[Product]:
+    async def get_product(self, product_id: int, *, tenant_id: int) -> Optional[Product]:
         """
         Busca um produto por ID.
         
@@ -160,9 +170,9 @@ class ProductService:
         Returns:
             Optional[Product]: Produto encontrado ou None
         """
-        return await self.product_repo.get(self.db, product_id)
+        return await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
     
-    async def get_product_by_sku(self, sku: str) -> Optional[Product]:
+    async def get_product_by_sku(self, sku: str, *, tenant_id: int) -> Optional[Product]:
         """
         Busca um produto por SKU.
         
@@ -172,9 +182,9 @@ class ProductService:
         Returns:
             Optional[Product]: Produto encontrado ou None
         """
-        return await self.product_repo.get_by_sku(sku)
+        return await self.product_repo.get_by_sku(sku, tenant_id=tenant_id)
     
-    async def get_product_by_barcode(self, barcode: str) -> Optional[Product]:
+    async def get_product_by_barcode(self, barcode: str, *, tenant_id: int) -> Optional[Product]:
         """
         Busca um produto por código de barras.
         
@@ -184,13 +194,15 @@ class ProductService:
         Returns:
             Optional[Product]: Produto encontrado ou None
         """
-        return await self.product_repo.get_by_barcode(barcode)
+        return await self.product_repo.get_by_barcode(barcode, tenant_id=tenant_id)
     
     async def search_products(
         self, 
         query: str, 
         skip: int = 0, 
-        limit: int = 100
+        limit: int = 100,
+        *,
+        tenant_id: int,
     ) -> List[Product]:
         """
         Busca produtos por termo de pesquisa.
@@ -205,13 +217,15 @@ class ProductService:
         Returns:
             List[Product]: Lista de produtos encontrados
         """
-        return await self.product_repo.search(query)
+        return await self.product_repo.search(query, tenant_id=tenant_id)
     
     async def get_products_by_category(
         self, 
         category_id: int,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        *,
+        tenant_id: int,
     ) -> List[Product]:
         """
         Lista produtos de uma categoria.
@@ -224,13 +238,15 @@ class ProductService:
         Returns:
             List[Product]: Lista de produtos da categoria
         """
-        return await self.product_repo.get_by_category(category_id)
+        return await self.product_repo.get_by_category(category_id, tenant_id=tenant_id)
     
     async def get_products_by_brand(
         self, 
         brand: str,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        *,
+        tenant_id: int,
     ) -> List[Product]:
         """
         Lista produtos de uma marca.
@@ -243,13 +259,15 @@ class ProductService:
         Returns:
             List[Product]: Lista de produtos da marca
         """
-        return await self.product_repo.get_by_brand(brand)
+        return await self.product_repo.get_by_brand(brand, tenant_id=tenant_id)
     
     async def list_products(
         self, 
         skip: int = 0, 
         limit: int = 100,
-        active_only: bool = True
+        active_only: bool = True,
+        *,
+        tenant_id: int,
     ) -> List[Product]:
         """
         Lista produtos com paginação.
@@ -262,14 +280,14 @@ class ProductService:
         Returns:
             List[Product]: Lista de produtos
         """
-        products = await self.product_repo.get_multi(self.db, skip=skip, limit=limit)
+        products = await self.product_repo.get_multi(self.db, skip=skip, limit=limit, tenant_id=tenant_id)
         
         if active_only:
             products = [p for p in products if p.is_active]
         
         return products
     
-    async def get_product_with_inventory(self, product_id: int) -> Optional[Product]:
+    async def get_product_with_inventory(self, product_id: int, *, tenant_id: int) -> Optional[Product]:
         """
         Busca produto com informações de estoque carregadas.
         
@@ -279,9 +297,9 @@ class ProductService:
         Returns:
             Optional[Product]: Produto com estoque ou None
         """
-        return await self.product_repo.get_with_inventory(product_id)
+        return await self.product_repo.get_with_inventory(product_id, tenant_id=tenant_id)
     
-    async def get_low_stock_products(self, threshold: int = None) -> List[Product]:
+    async def get_low_stock_products(self, threshold: int = None, *, tenant_id: int) -> List[Product]:
         """
         Lista produtos com estoque baixo.
         
@@ -291,20 +309,20 @@ class ProductService:
         Returns:
             List[Product]: Lista de produtos com estoque baixo
         """
-        low_stock_inventory = await self.inventory_repo.get_low_stock_products(threshold)
+        low_stock_inventory = await self.inventory_repo.get_low_stock_products(threshold, tenant_id=tenant_id)
         
         # Buscar produtos correspondentes
         product_ids = [inv.product_id for inv in low_stock_inventory]
         products = []
         
         for product_id in product_ids:
-            product = await self.product_repo.get(self.db, product_id)
+            product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
             if product and product.is_active:
                 products.append(product)
         
         return products
     
-    async def activate_product(self, product_id: int) -> bool:
+    async def activate_product(self, product_id: int, *, tenant_id: int) -> bool:
         """
         Ativa um produto desativado.
         
@@ -317,18 +335,20 @@ class ProductService:
         Raises:
             ValueError: Se produto não encontrado
         """
-        product = await self.product_repo.get(self.db, product_id)
+        product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
         if not product:
             raise ValueError("Produto não encontrado")
         
-        await self.product_repo.update(self.db, id=product_id, obj_in={'is_active': True})
+        await self.product_repo.update(self.db, id=product_id, obj_in={'is_active': True}, tenant_id=tenant_id)
         return True
     
     async def update_product_price(
         self, 
         product_id: int, 
         new_price: float,
-        new_cost_price: float = None
+        new_cost_price: float = None,
+        *,
+        tenant_id: int,
     ) -> Product:
         """
         Atualiza preço de um produto.
@@ -347,7 +367,7 @@ class ProductService:
         if new_price <= 0:
             raise ValueError("Preço deve ser maior que zero")
         
-        product = await self.product_repo.get(self.db, product_id)
+        product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
         if not product:
             raise ValueError("Produto não encontrado")
         
@@ -359,7 +379,182 @@ class ProductService:
         
         for key, value in update_data.items():
             setattr(product, key, value)
-        
+
         await self.db.commit()
         await self.db.refresh(product)
         return product
+
+    async def get_catalog_products(
+        self,
+        *,
+        tenant_id: int,
+        category_id: Optional[int] = None,
+        search: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[Product]:
+        """
+        Lista produtos do CATÁLOGO (templates).
+
+        Estes são os 115 produtos padrão que aparecem para novas lojas.
+        O usuário pode "ativar" produtos do catálogo para adicionar à sua loja.
+
+        Args:
+            tenant_id: ID do tenant (para filtrar produtos do catálogo deste tenant)
+            category_id: Filtrar por categoria (opcional)
+            search: Buscar por nome/marca (opcional)
+            skip: Paginação - registros a pular
+            limit: Paginação - máximo de registros
+
+        Returns:
+            Lista de produtos do catálogo
+        """
+        from sqlalchemy import select, and_
+
+        # Buscar produtos do catálogo (is_catalog=true)
+        stmt = select(Product).where(
+            and_(
+                Product.tenant_id == tenant_id,
+                Product.is_catalog == True,
+                Product.is_active == True
+            )
+        )
+
+        # Filtrar por categoria
+        if category_id is not None:
+            stmt = stmt.where(Product.category_id == category_id)
+
+        # Buscar por nome/marca
+        if search:
+            search_pattern = f"%{search}%"
+            from sqlalchemy import or_
+            stmt = stmt.where(
+                or_(
+                    Product.name.ilike(search_pattern),
+                    Product.brand.ilike(search_pattern)
+                )
+            )
+
+        stmt = stmt.order_by(Product.name).offset(skip).limit(limit)
+
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_active_products(
+        self,
+        *,
+        tenant_id: int,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[Product]:
+        """
+        Lista produtos ATIVOS da loja (não catálogo).
+
+        Estes são produtos que o lojista já adicionou à sua loja
+        (ativados do catálogo ou criados manualmente).
+
+        Args:
+            tenant_id: ID do tenant
+            skip: Paginação - registros a pular
+            limit: Paginação - máximo de registros
+
+        Returns:
+            Lista de produtos ativos
+        """
+        from sqlalchemy import select, and_
+
+        stmt = select(Product).where(
+            and_(
+                Product.tenant_id == tenant_id,
+                Product.is_catalog == False,  # Apenas produtos ativos (não catálogo)
+                Product.is_active == True
+            )
+        ).order_by(Product.name).offset(skip).limit(limit)
+
+        result = await self.db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def activate_catalog_product(
+        self,
+        catalog_product_id: int,
+        *,
+        tenant_id: int,
+        custom_price: Optional[float] = None
+    ) -> Product:
+        """
+        Ativa um produto do catálogo, criando uma cópia para a loja do usuário.
+
+        Fluxo:
+        1. Busca produto do catálogo (is_catalog=true)
+        2. Cria CÓPIA com is_catalog=false
+        3. Gera novo SKU único para a loja
+        4. Usa preço customizado ou mantém sugerido
+
+        Args:
+            catalog_product_id: ID do produto no catálogo
+            tenant_id: ID do tenant (loja)
+            custom_price: Preço personalizado (opcional, usa o do catálogo se None)
+
+        Returns:
+            Produto ativado (cópia)
+
+        Raises:
+            ValueError: Se produto não existe ou não é catálogo
+        """
+        # Buscar produto do catálogo
+        catalog_product = await self.product_repo.get(
+            self.db,
+            catalog_product_id,
+            tenant_id=tenant_id
+        )
+
+        if not catalog_product:
+            raise ValueError("Produto não encontrado no catálogo")
+
+        if not catalog_product.is_catalog:
+            raise ValueError("Este produto não é um template do catálogo")
+
+        # Gerar SKU único para a loja
+        # Usar formato: MARCA-NOME-XXX (ex: NIKE-CAMISETA-001)
+        import re
+        base_sku = f"{catalog_product.brand or 'PROD'}-{catalog_product.name[:10]}"
+        base_sku = re.sub(r'[^A-Z0-9-]', '', base_sku.upper())
+
+        # Verificar se SKU já existe e adicionar contador
+        counter = 1
+        new_sku = f"{base_sku}-{counter:03d}"
+
+        while await self.product_repo.exists_by_sku(new_sku, tenant_id=tenant_id):
+            counter += 1
+            new_sku = f"{base_sku}-{counter:03d}"
+
+        # Criar cópia do produto como ativo
+        product_data = ProductCreate(
+            name=catalog_product.name,
+            description=catalog_product.description,
+            sku=new_sku,
+            barcode=catalog_product.barcode,
+            price=custom_price if custom_price is not None else catalog_product.price,
+            cost_price=catalog_product.cost_price,
+            category_id=catalog_product.category_id,
+            brand=catalog_product.brand,
+            color=catalog_product.color,
+            size=catalog_product.size,
+            gender=catalog_product.gender,
+            material=catalog_product.material,
+            is_digital=catalog_product.is_digital,
+            is_activewear=catalog_product.is_activewear,
+            is_catalog=False,  # ✅ Agora é produto ATIVO
+            initial_stock=0,  # Sem estoque inicial
+            min_stock=5
+        )
+
+        # Criar produto ativo
+        new_product = await self.create_product(
+            product_data,
+            initial_quantity=0,
+            min_stock=5,
+            tenant_id=tenant_id
+        )
+
+        return new_product

@@ -37,7 +37,9 @@ class StockEntryService:
         self, 
         entry_data: StockEntryCreate,
         items: List[EntryItemCreate],
-        user_id: int
+        user_id: int,
+        *,
+        tenant_id: int,
     ) -> StockEntry:
         """
         Cria uma nova entrada de estoque com seus itens em transação única.
@@ -46,6 +48,7 @@ class StockEntryService:
             entry_data: Dados da entrada
             items: Lista de itens da entrada
             user_id: ID do usuário que está criando
+            tenant_id: ID do tenant
             
         Returns:
             StockEntry: Entrada criada com itens
@@ -55,13 +58,13 @@ class StockEntryService:
         """
         try:
             # Verificar entry_code único
-            existing = await self.entry_repo.get_by_code(self.db, entry_data.entry_code)
+            existing = await self.entry_repo.get_by_code(self.db, entry_data.entry_code, tenant_id=tenant_id)
             if existing:
                 raise ValueError(f"Entry code {entry_data.entry_code} já existe")
             
             # Validar trip_id se fornecido
             if entry_data.trip_id:
-                trip = await self.trip_repo.get_by_id(self.db, entry_data.trip_id)
+                trip = await self.trip_repo.get_by_id(self.db, entry_data.trip_id, tenant_id=tenant_id)
                 if not trip:
                     raise ValueError(f"Trip {entry_data.trip_id} não encontrada")
                 
@@ -75,7 +78,7 @@ class StockEntryService:
             
             # Validar produtos
             for item in items:
-                product = await self.product_repo.get(self.db, item.product_id)
+                product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
                 if not product:
                     raise ValueError(f"Product {item.product_id} não encontrado")
             
@@ -83,7 +86,7 @@ class StockEntryService:
             entry_dict = entry_data.model_dump(exclude_unset=True)
             entry_dict['total_cost'] = Decimal('0.00')  # Será calculado depois
             
-            entry = await self.entry_repo.create(self.db, entry_dict)
+            entry = await self.entry_repo.create(self.db, entry_dict, tenant_id=tenant_id)
             
             # Criar itens
             total_cost = Decimal('0.00')
@@ -97,6 +100,8 @@ class StockEntryService:
                 if 'quantity_remaining' not in item_dict:
                     item_dict['quantity_remaining'] = item_dict['quantity_received']
                 
+                # EntryItem não tem tenant_id próprio, herda da StockEntry
+                item_dict['tenant_id'] = tenant_id
                 item = await self.item_repo.create(self.db, item_dict)
                 created_items.append(item)
                 
@@ -107,7 +112,8 @@ class StockEntryService:
                 await self._update_product_inventory(
                     item.product_id, 
                     item.quantity_received,
-                    operation='add'
+                    operation='add',
+                    tenant_id=tenant_id,
                 )
             
             # Atualizar total_cost da entrada
@@ -116,7 +122,7 @@ class StockEntryService:
             await self.db.refresh(entry)
             
             # Recarregar com itens
-            entry = await self.entry_repo.get_by_id(self.db, entry.id, include_items=True)
+            entry = await self.entry_repo.get_by_id(self.db, entry.id, include_items=True, tenant_id=tenant_id)
             
             return entry
             
@@ -128,7 +134,9 @@ class StockEntryService:
         self,
         product_id: int,
         quantity: int,
-        operation: str = 'add'
+        operation: str = 'add',
+        *,
+        tenant_id: int | None = None,
     ):
         """
         Atualiza o inventário de um produto.
@@ -137,8 +145,9 @@ class StockEntryService:
             product_id: ID do produto
             quantity: Quantidade a adicionar/remover
             operation: 'add' ou 'remove'
+            tenant_id: ID do tenant
         """
-        inventory = await self.inventory_repo.get_by_product(self.db, product_id)
+        inventory = await self.inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
         
         if not inventory:
             # Criar inventário se não existe
@@ -148,7 +157,7 @@ class StockEntryService:
                 'min_stock': 5,
                 'is_active': True
             }
-            await self.inventory_repo.create(self.db, inventory_data)
+            await self.inventory_repo.create(self.db, inventory_data, tenant_id=tenant_id)
         else:
             # Atualizar quantidade
             if operation == 'add':
@@ -160,13 +169,16 @@ class StockEntryService:
     
     async def get_entry_details(
         self, 
-        entry_id: int
+        entry_id: int,
+        *,
+        tenant_id: int,
     ) -> Dict[str, Any]:
         """
         Obtém detalhes completos de uma entrada.
         
         Args:
             entry_id: ID da entrada
+            tenant_id: ID do tenant
             
         Returns:
             Dict com detalhes da entrada
@@ -174,7 +186,7 @@ class StockEntryService:
         Raises:
             ValueError: Se entrada não encontrada
         """
-        entry = await self.entry_repo.get_by_id(self.db, entry_id, include_items=True)
+        entry = await self.entry_repo.get_by_id(self.db, entry_id, include_items=True, tenant_id=tenant_id)
         if not entry:
             raise ValueError(f"Entry {entry_id} não encontrada")
         
@@ -230,13 +242,16 @@ class StockEntryService:
     
     async def get_entry_analytics(
         self, 
-        entry_id: int
+        entry_id: int,
+        *,
+        tenant_id: int,
     ) -> Dict[str, Any]:
         """
         Obtém análises e métricas de uma entrada.
         
         Args:
             entry_id: ID da entrada
+            tenant_id: ID do tenant
             
         Returns:
             Dict com análises da entrada
@@ -244,7 +259,7 @@ class StockEntryService:
         Raises:
             ValueError: Se entrada não encontrada
         """
-        entry = await self.entry_repo.get_by_id(self.db, entry_id, include_items=True)
+        entry = await self.entry_repo.get_by_id(self.db, entry_id, include_items=True, tenant_id=tenant_id)
         if not entry:
             raise ValueError(f"Entry {entry_id} não encontrada")
         
@@ -308,7 +323,9 @@ class StockEntryService:
     async def link_to_trip(
         self, 
         entry_id: int, 
-        trip_id: int
+        trip_id: int,
+        *,
+        tenant_id: int,
     ) -> StockEntry:
         """
         Vincula uma entrada a uma viagem.
@@ -316,6 +333,7 @@ class StockEntryService:
         Args:
             entry_id: ID da entrada
             trip_id: ID da viagem
+            tenant_id: ID do tenant
             
         Returns:
             StockEntry: Entrada atualizada
@@ -324,12 +342,12 @@ class StockEntryService:
             ValueError: Se entrada ou viagem não encontradas
         """
         # Verificar entrada
-        entry = await self.entry_repo.get_by_id(self.db, entry_id)
+        entry = await self.entry_repo.get_by_id(self.db, entry_id, tenant_id=tenant_id)
         if not entry:
             raise ValueError(f"Entry {entry_id} não encontrada")
         
         # Verificar viagem
-        trip = await self.trip_repo.get_by_id(self.db, trip_id)
+        trip = await self.trip_repo.get_by_id(self.db, trip_id, tenant_id=tenant_id)
         if not trip:
             raise ValueError(f"Trip {trip_id} não encontrada")
         
@@ -340,7 +358,8 @@ class StockEntryService:
             {
                 "trip_id": trip_id,
                 "entry_type": EntryType.TRIP
-            }
+            },
+            tenant_id=tenant_id,
         )
         
         return updated
@@ -348,7 +367,9 @@ class StockEntryService:
     async def update_entry(
         self, 
         entry_id: int, 
-        entry_data: StockEntryUpdate
+        entry_data: StockEntryUpdate,
+        *,
+        tenant_id: int,
     ) -> StockEntry:
         """
         Atualiza uma entrada.
@@ -356,6 +377,7 @@ class StockEntryService:
         Args:
             entry_id: ID da entrada
             entry_data: Dados para atualização
+            tenant_id: ID do tenant
             
         Returns:
             StockEntry: Entrada atualizada
@@ -363,29 +385,34 @@ class StockEntryService:
         Raises:
             ValueError: Se entrada não encontrada ou entry_code duplicado
         """
-        entry = await self.entry_repo.get_by_id(self.db, entry_id)
+        entry = await self.entry_repo.get_by_id(self.db, entry_id, tenant_id=tenant_id)
         if not entry:
             raise ValueError(f"Entry {entry_id} não encontrada")
         
         # Verificar entry_code único se está sendo alterado
         if entry_data.entry_code and entry_data.entry_code != entry.entry_code:
-            existing = await self.entry_repo.get_by_code(self.db, entry_data.entry_code)
+            existing = await self.entry_repo.get_by_code(self.db, entry_data.entry_code, tenant_id=tenant_id)
             if existing:
                 raise ValueError(f"Entry code {entry_data.entry_code} já existe")
         
         # Validar trip_id se fornecido
         if entry_data.trip_id:
-            trip = await self.trip_repo.get_by_id(self.db, entry_data.trip_id)
+            trip = await self.trip_repo.get_by_id(self.db, entry_data.trip_id, tenant_id=tenant_id)
             if not trip:
                 raise ValueError(f"Trip {entry_data.trip_id} não encontrada")
         
         # Atualizar
         entry_dict = entry_data.model_dump(exclude_unset=True)
-        updated = await self.entry_repo.update(self.db, entry_id, entry_dict)
+        updated = await self.entry_repo.update(self.db, entry_id, entry_dict, tenant_id=tenant_id)
         
         return updated
     
-    async def delete_entry(self, entry_id: int) -> bool:
+    async def delete_entry(
+        self, 
+        entry_id: int,
+        *,
+        tenant_id: int,
+    ) -> bool:
         """
         Soft delete de uma entrada.
         
@@ -393,11 +420,12 @@ class StockEntryService:
         
         Args:
             entry_id: ID da entrada
+            tenant_id: ID do tenant
             
         Returns:
             bool: True se deletada
         """
-        entry = await self.entry_repo.get_by_id(self.db, entry_id, include_items=True)
+        entry = await self.entry_repo.get_by_id(self.db, entry_id, include_items=True, tenant_id=tenant_id)
         if not entry:
             raise ValueError(f"Entry {entry_id} não encontrada")
         
@@ -408,11 +436,12 @@ class StockEntryService:
                     await self._update_product_inventory(
                         item.product_id,
                         item.quantity_remaining,
-                        operation='remove'
+                        operation='remove',
+                        tenant_id=tenant_id,
                     )
             
             # Soft delete da entrada (cascata para itens)
-            success = await self.entry_repo.delete(self.db, entry_id)
+            success = await self.entry_repo.delete(self.db, entry_id, tenant_id=tenant_id)
             
             await self.db.commit()
             return success
@@ -428,7 +457,9 @@ class StockEntryService:
         start_date: Optional[Any] = None,
         end_date: Optional[Any] = None,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        *,
+        tenant_id: int | None = None,
     ) -> List[StockEntry]:
         """
         Lista entradas com filtros.
@@ -440,6 +471,7 @@ class StockEntryService:
             end_date: Data final
             skip: Registros para pular
             limit: Limite de registros
+            tenant_id: ID do tenant
             
         Returns:
             Lista de entradas filtradas
@@ -451,14 +483,17 @@ class StockEntryService:
             start_date=start_date,
             end_date=end_date,
             skip=skip,
-            limit=limit
+            limit=limit,
+            tenant_id=tenant_id,
         )
     
     async def get_slow_moving_products(
         self,
         threshold: float = 30.0,
         skip: int = 0,
-        limit: int = 50
+        limit: int = 50,
+        *,
+        tenant_id: int | None = None,
     ) -> List[Dict[str, Any]]:
         """
         Retorna produtos com venda lenta.
@@ -467,6 +502,7 @@ class StockEntryService:
             threshold: Limite de depleção (%) para considerar lento
             skip: Registros para pular
             limit: Limite de registros
+            tenant_id: ID do tenant
             
         Returns:
             Lista de entry_items com venda lenta
@@ -475,13 +511,14 @@ class StockEntryService:
             self.db,
             threshold=threshold,
             skip=skip,
-            limit=limit
+            limit=limit,
+            tenant_id=tenant_id,
         )
         
         result = []
         for item in items:
-            entry = await self.entry_repo.get_by_id(self.db, item.stock_entry_id)
-            product = await self.product_repo.get(self.db, item.product_id)
+            entry = await self.entry_repo.get_by_id(self.db, item.stock_entry_id, tenant_id=tenant_id)
+            product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
             
             if entry and product:
                 depletion_rate = ((item.quantity_received - item.quantity_remaining) / 
@@ -508,7 +545,9 @@ class StockEntryService:
     async def get_best_performing_entries(
         self,
         skip: int = 0,
-        limit: int = 20
+        limit: int = 20,
+        *,
+        tenant_id: int | None = None,
     ) -> List[Dict[str, Any]]:
         """
         Retorna entradas com melhor performance.
@@ -516,17 +555,18 @@ class StockEntryService:
         Args:
             skip: Registros para pular
             limit: Limite de registros
+            tenant_id: ID do tenant
             
         Returns:
             Lista de entradas ordenadas por performance
         """
-        entries = await self.entry_repo.get_multi(self.db, skip=skip, limit=limit * 3)  # Buscar mais para filtrar
+        entries = await self.entry_repo.get_multi(self.db, skip=skip, limit=limit * 3, tenant_id=tenant_id)  # Buscar mais para filtrar
         
         performance_list = []
         
         for entry in entries:
             # Buscar itens da entrada
-            items = await self.item_repo.get_by_entry(self.db, entry.id)
+            items = await self.item_repo.get_by_entry(self.db, entry.id, tenant_id=tenant_id)
             
             if not items:
                 continue

@@ -3,7 +3,7 @@ Modelo de entrada de estoque (substituição do Batch).
 """
 from datetime import date
 from decimal import Decimal
-from sqlalchemy import String, Text, Numeric, Date, ForeignKey, Enum as SQLEnum
+from sqlalchemy import String, Text, Numeric, Date, ForeignKey, Enum as SQLEnum, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import List, TYPE_CHECKING, Optional
 import enum
@@ -30,14 +30,16 @@ class StockEntry(BaseModel):
     compra online ou compra local. Agrupa vários itens de produto.
     """
     __tablename__ = "stock_entries"
+    __table_args__ = (
+        UniqueConstraint('tenant_id', 'entry_code', name='uq_stock_entries_tenant_code'),
+    )
     
     # Identificação da entrada
     entry_code: Mapped[str] = mapped_column(
         String(50),
-        unique=True,
         index=True,
         nullable=False,
-        comment="Código único da entrada (ex: ENTRY-2025-001)"
+        comment="Código único da entrada por tenant (ex: ENTRY-2025-001)"
     )
     
     entry_date: Mapped[date] = mapped_column(

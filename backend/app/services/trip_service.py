@@ -32,7 +32,9 @@ class TripService:
     async def create_trip(
         self, 
         trip_data: TripCreate,
-        user_id: int
+        user_id: int,
+        *,
+        tenant_id: int,
     ) -> Trip:
         """
         Cria uma nova viagem.
@@ -40,6 +42,7 @@ class TripService:
         Args:
             trip_data: Dados da viagem
             user_id: ID do usuário que está criando
+            tenant_id: ID do tenant
             
         Returns:
             Trip: Viagem criada
@@ -49,7 +52,7 @@ class TripService:
         """
         try:
             # Verificar trip_code único
-            existing = await self.trip_repo.get_by_code(self.db, trip_data.trip_code)
+            existing = await self.trip_repo.get_by_code(self.db, trip_data.trip_code, tenant_id=tenant_id)
             if existing:
                 raise ValueError(f"Trip code {trip_data.trip_code} já existe")
             
@@ -65,7 +68,7 @@ class TripService:
                 trip_dict.get('travel_cost_other', Decimal('0.00'))
             )
             
-            trip = await self.trip_repo.create(self.db, trip_dict)
+            trip = await self.trip_repo.create(self.db, trip_dict, tenant_id=tenant_id)
             
             return trip
             
@@ -79,7 +82,9 @@ class TripService:
         start_date: Optional[Any] = None,
         end_date: Optional[Any] = None,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        *,
+        tenant_id: int | None = None,
     ) -> List[Trip]:
         """
         Lista viagens com filtros.
@@ -90,6 +95,7 @@ class TripService:
             end_date: Data final
             skip: Registros para pular
             limit: Limite de registros
+            tenant_id: ID do tenant
             
         Returns:
             Lista de viagens filtradas
@@ -100,12 +106,15 @@ class TripService:
             start_date=start_date,
             end_date=end_date,
             skip=skip,
-            limit=limit
+            limit=limit,
+            tenant_id=tenant_id,
         )
     
     async def get_trip_analytics(
         self, 
-        trip_id: int
+        trip_id: int,
+        *,
+        tenant_id: int,
     ) -> Dict[str, Any]:
         """
         Obtém análises e métricas detalhadas de uma viagem.
@@ -118,6 +127,7 @@ class TripService:
         
         Args:
             trip_id: ID da viagem
+            tenant_id: ID do tenant
             
         Returns:
             Dict com análises da viagem
@@ -126,12 +136,12 @@ class TripService:
             ValueError: Se viagem não encontrada
         """
         # Buscar viagem
-        trip = await self.trip_repo.get_by_id(self.db, trip_id, include_entries=True)
+        trip = await self.trip_repo.get_by_id(self.db, trip_id, include_entries=True, tenant_id=tenant_id)
         if not trip:
             raise ValueError(f"Trip {trip_id} não encontrada")
         
         # Buscar entradas da viagem
-        entries = await self.entry_repo.get_by_trip(self.db, trip_id)
+        entries = await self.entry_repo.get_by_trip(self.db, trip_id, tenant_id=tenant_id)
         
         # Calcular métricas
         total_entries = len(entries)
@@ -144,7 +154,7 @@ class TripService:
             total_invested += entry.total_cost
             
             # Buscar itens da entrada
-            items = await self.item_repo.get_by_entry(self.db, entry.id)
+            items = await self.item_repo.get_by_entry(self.db, entry.id, tenant_id=tenant_id)
             total_items += len(items)
             
             for item in items:
@@ -202,13 +212,16 @@ class TripService:
     
     async def compare_trips(
         self, 
-        trip_ids: List[int]
+        trip_ids: List[int],
+        *,
+        tenant_id: int,
     ) -> Dict[str, Any]:
         """
         Compara performance de múltiplas viagens.
         
         Args:
             trip_ids: Lista de IDs das viagens a comparar
+            tenant_id: ID do tenant
             
         Returns:
             Dict com comparação das viagens
@@ -220,7 +233,7 @@ class TripService:
         trips_analytics = []
         for trip_id in trip_ids:
             try:
-                analytics = await self.get_trip_analytics(trip_id)
+                analytics = await self.get_trip_analytics(trip_id, tenant_id=tenant_id)
                 trips_analytics.append(analytics)
             except ValueError:
                 continue  # Pular viagens não encontradas
@@ -266,7 +279,9 @@ class TripService:
     async def update_trip_status(
         self, 
         trip_id: int, 
-        status: TripStatus
+        status: TripStatus,
+        *,
+        tenant_id: int,
     ) -> Trip:
         """
         Atualiza o status de uma viagem.
@@ -274,6 +289,7 @@ class TripService:
         Args:
             trip_id: ID da viagem
             status: Novo status
+            tenant_id: ID do tenant
             
         Returns:
             Trip: Viagem atualizada
@@ -281,7 +297,7 @@ class TripService:
         Raises:
             ValueError: Se viagem não encontrada
         """
-        trip = await self.trip_repo.get_by_id(self.db, trip_id)
+        trip = await self.trip_repo.get_by_id(self.db, trip_id, tenant_id=tenant_id)
         if not trip:
             raise ValueError(f"Trip {trip_id} não encontrada")
         
@@ -290,14 +306,16 @@ class TripService:
             raise ValueError("Não é possível alterar o status de uma viagem completada")
         
         # Atualizar status
-        updated = await self.trip_repo.update(self.db, trip_id, {"status": status})
+        updated = await self.trip_repo.update(self.db, trip_id, {"status": status}, tenant_id=tenant_id)
         
         return updated
     
     async def update_trip(
         self, 
         trip_id: int, 
-        trip_data: TripUpdate
+        trip_data: TripUpdate,
+        *,
+        tenant_id: int,
     ) -> Trip:
         """
         Atualiza uma viagem.
@@ -305,6 +323,7 @@ class TripService:
         Args:
             trip_id: ID da viagem
             trip_data: Dados para atualização
+            tenant_id: ID do tenant
             
         Returns:
             Trip: Viagem atualizada
@@ -312,55 +331,57 @@ class TripService:
         Raises:
             ValueError: Se viagem não encontrada ou trip_code duplicado
         """
-        trip = await self.trip_repo.get_by_id(self.db, trip_id)
+        trip = await self.trip_repo.get_by_id(self.db, trip_id, tenant_id=tenant_id)
         if not trip:
             raise ValueError(f"Trip {trip_id} não encontrada")
         
         # Verificar trip_code único se está sendo alterado
         if trip_data.trip_code and trip_data.trip_code != trip.trip_code:
-            existing = await self.trip_repo.get_by_code(self.db, trip_data.trip_code)
+            existing = await self.trip_repo.get_by_code(self.db, trip_data.trip_code, tenant_id=tenant_id)
             if existing:
                 raise ValueError(f"Trip code {trip_data.trip_code} já existe")
         
         # Atualizar
         trip_dict = trip_data.model_dump(exclude_unset=True)
-        updated = await self.trip_repo.update(self.db, trip_id, trip_dict)
+        updated = await self.trip_repo.update(self.db, trip_id, trip_dict, tenant_id=tenant_id)
         
         return updated
     
-    async def delete_trip(self, trip_id: int) -> bool:
+    async def delete_trip(self, trip_id: int, *, tenant_id: int) -> bool:
         """
         Soft delete de uma viagem.
         
         Args:
             trip_id: ID da viagem
+            tenant_id: ID do tenant
             
         Returns:
             bool: True se deletada
             
         Raises:
-            ValueError: Se viagem tem entradas associadas
+            ValueError: Se viagem não encontrada ou tiver entradas vinculadas
         """
-        # Verificar se tem entradas
-        entries = await self.entry_repo.get_by_trip(self.db, trip_id)
+        # Verificar se tem entradas vinculadas
+        entries = await self.entry_repo.get_by_trip(self.db, trip_id, tenant_id=tenant_id)
         if entries:
             raise ValueError(
                 f"Não é possível deletar viagem com {len(entries)} entradas associadas"
             )
         
-        return await self.trip_repo.delete(self.db, trip_id)
+        return await self.trip_repo.delete(self.db, trip_id, tenant_id=tenant_id)
     
-    async def get_trip_summary(self, trip_id: int) -> Dict[str, Any]:
+    async def get_trip_summary(self, trip_id: int, *, tenant_id: int) -> Dict[str, Any]:
         """
         Obtém resumo básico de uma viagem.
         
         Args:
             trip_id: ID da viagem
+            tenant_id: ID do tenant
             
         Returns:
             Dict com resumo da viagem
         """
-        trip = await self.trip_repo.get_by_id(self.db, trip_id, include_entries=True)
+        trip = await self.trip_repo.get_by_id(self.db, trip_id, include_entries=True, tenant_id=tenant_id)
         if not trip:
             raise ValueError(f"Trip {trip_id} não encontrada")
         

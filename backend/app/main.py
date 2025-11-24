@@ -14,6 +14,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.core.config import settings
 from app.core.database import init_db, close_db
 from app.api.v1.router import api_router
+from app.middleware.tenant import TenantMiddleware
 
 # Configure logging
 logging.basicConfig(
@@ -65,6 +66,9 @@ app.add_middleware(
     expose_headers=["X-Total-Count", "X-Page", "X-Page-Size"],
 )
 
+# Tenant Middleware (resolve tenant_id por requisição)
+app.add_middleware(TenantMiddleware)
+
 
 # ============================================================================
 # INCLUDE API ROUTERS
@@ -103,11 +107,23 @@ async def validation_exception_handler(
     exc: RequestValidationError
 ):
     """Handle validation errors."""
-    logger.error(f"Validation error: {exc.errors()}")
+    import json
+    from decimal import Decimal
+    
+    # Converter erros para formato JSON-safe
+    errors = exc.errors()
+    for error in errors:
+        # Converter Decimal para string no contexto
+        if 'ctx' in error:
+            for key, value in error['ctx'].items():
+                if isinstance(value, Decimal):
+                    error['ctx'][key] = str(value)
+    
+    logger.error(f"Validation error: {errors}")
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
-            "detail": exc.errors(),
+            "detail": errors,
             "message": "Erro de validação nos dados enviados"
         }
     )

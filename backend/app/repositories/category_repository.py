@@ -17,9 +17,9 @@ class CategoryRepository(BaseRepository[Category, Any, Any]):
         super().__init__(Category)
         self.db = db
     
-    async def create(self, obj_in: dict) -> Category:
+    async def create(self, obj_in: dict, *, tenant_id: int | None = None) -> Category:
         """Wrapper para criar categoria."""
-        return await super().create(self.db, obj_in)
+        return await super().create(self.db, obj_in, tenant_id=tenant_id)
     
     async def get_with_subcategories(self, category_id: int) -> Optional[Category]:
         """

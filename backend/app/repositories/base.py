@@ -35,7 +35,9 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     async def get(
         self, 
         db: AsyncSession, 
-        id: int
+        id: int,
+        *,
+        tenant_id: int | None = None,
     ) -> Optional[ModelType]:
         """
         Get a single record by ID.
@@ -55,6 +57,8 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 self.model.id == id,
                 self.model.is_active == True
             )
+            if tenant_id is not None and hasattr(self.model, "tenant_id"):
+                stmt = stmt.where(self.model.tenant_id == tenant_id)
             result = await db.execute(stmt)
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
@@ -67,7 +71,8 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         skip: int = 0,
         limit: int = 100,
         filters: Optional[Dict[str, Any]] = None,
-        order_by: Optional[str] = None
+        order_by: Optional[str] = None,
+        tenant_id: int | None = None,
     ) -> List[ModelType]:
         """
         Get multiple records with pagination and filters.
@@ -87,6 +92,8 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         """
         try:
             stmt = select(self.model).where(self.model.is_active == True)
+            if tenant_id is not None and hasattr(self.model, "tenant_id"):
+                stmt = stmt.where(self.model.tenant_id == tenant_id)
             
             # Apply additional filters
             if filters:
@@ -111,7 +118,9 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
     async def create(
         self, 
         db: AsyncSession, 
-        obj_in: Union[CreateSchemaType, Dict[str, Any]]
+        obj_in: Union[CreateSchemaType, Dict[str, Any]],
+        *,
+        tenant_id: int | None = None,
     ) -> ModelType:
         """
         Create a new record.
@@ -133,6 +142,10 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             else:
                 obj_data = obj_in
             
+            # Inject tenant_id if provided and not already set
+            if tenant_id is not None and hasattr(self.model, "tenant_id") and "tenant_id" not in obj_data:
+                obj_data["tenant_id"] = tenant_id
+
             # Create model instance
             db_obj = self.model(**obj_data)
             
@@ -151,7 +164,8 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         db: AsyncSession,
         *,
         id: int,
-        obj_in: Union[UpdateSchemaType, Dict[str, Any]]
+        obj_in: Union[UpdateSchemaType, Dict[str, Any]],
+        tenant_id: int | None = None,
     ) -> Optional[ModelType]:
         """
         Update an existing record.
@@ -169,7 +183,7 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         """
         try:
             # Get existing record
-            db_obj = await self.get(db, id)
+            db_obj = await self.get(db, id, tenant_id=tenant_id)
             if not db_obj:
                 return None
             
@@ -198,7 +212,8 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         db: AsyncSession, 
         *,
         id: int,
-        soft_delete: bool = True
+        soft_delete: bool = True,
+        tenant_id: int | None = None,
     ) -> bool:
         """
         Delete a record (soft delete by default).
@@ -222,12 +237,16 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                     .where(self.model.id == id, self.model.is_active == True)
                     .values(is_active=False)
                 )
+                if tenant_id is not None and hasattr(self.model, "tenant_id"):
+                    stmt = stmt.where(self.model.tenant_id == tenant_id)
                 result = await db.execute(stmt)
                 await db.flush()
                 return result.rowcount > 0
             else:
                 # Hard delete: permanently remove from database
                 stmt = delete(self.model).where(self.model.id == id)
+                if tenant_id is not None and hasattr(self.model, "tenant_id"):
+                    stmt = stmt.where(self.model.tenant_id == tenant_id)
                 result = await db.execute(stmt)
                 await db.flush()
                 return result.rowcount > 0
@@ -240,7 +259,8 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         db: AsyncSession,
         *,
         field: str,
-        value: Any
+        value: Any,
+        tenant_id: int | None = None,
     ) -> Optional[ModelType]:
         """
         Get a single record by any field.
@@ -265,6 +285,8 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 getattr(self.model, field) == value,
                 self.model.is_active == True
             )
+            if tenant_id is not None and hasattr(self.model, "tenant_id"):
+                stmt = stmt.where(self.model.tenant_id == tenant_id)
             result = await db.execute(stmt)
             return result.scalar_one_or_none()
         except SQLAlchemyError as e:
@@ -274,7 +296,8 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         self,
         db: AsyncSession,
         *,
-        id: int
+        id: int,
+        tenant_id: int | None = None,
     ) -> bool:
         """
         Check if a record exists by ID.
@@ -294,6 +317,8 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 self.model.id == id,
                 self.model.is_active == True
             )
+            if tenant_id is not None and hasattr(self.model, "tenant_id"):
+                stmt = stmt.where(self.model.tenant_id == tenant_id)
             result = await db.execute(stmt)
             return result.scalar_one_or_none() is not None
         except SQLAlchemyError as e:
@@ -303,7 +328,8 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         self,
         db: AsyncSession,
         *,
-        filters: Optional[Dict[str, Any]] = None
+        filters: Optional[Dict[str, Any]] = None,
+        tenant_id: int | None = None,
     ) -> int:
         """
         Count records with optional filters.
@@ -320,6 +346,8 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         """
         try:
             stmt = select(func.count(self.model.id)).where(self.model.is_active == True)
+            if tenant_id is not None and hasattr(self.model, "tenant_id"):
+                stmt = stmt.where(self.model.tenant_id == tenant_id)
             
             # Apply filters
             if filters:
@@ -336,7 +364,8 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         self,
         db: AsyncSession,
         *,
-        objects: List[Union[CreateSchemaType, Dict[str, Any]]]
+        objects: List[Union[CreateSchemaType, Dict[str, Any]]],
+        tenant_id: int | None = None,
     ) -> List[ModelType]:
         """
         Create multiple records in bulk.
@@ -361,6 +390,8 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
                 else:
                     obj_data = obj_in
                 
+                if tenant_id is not None and hasattr(self.model, "tenant_id") and "tenant_id" not in obj_data:
+                    obj_data["tenant_id"] = tenant_id
                 db_obj = self.model(**obj_data)
                 db_objects.append(db_obj)
             
@@ -401,6 +432,9 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
         try:
             # Try to get existing record
             stmt = select(self.model).where(self.model.is_active == True)
+            tenant_id = kwargs.pop("tenant_id", None) if "tenant_id" in kwargs else None
+            if tenant_id is not None and hasattr(self.model, "tenant_id"):
+                stmt = stmt.where(self.model.tenant_id == tenant_id)
             
             for field, value in kwargs.items():
                 if hasattr(self.model, field):
@@ -417,7 +451,7 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
             if defaults:
                 create_data.update(defaults)
             
-            new_obj = await self.create(db, obj_in=create_data)
+            new_obj = await self.create(db, obj_in=create_data, tenant_id=tenant_id)
             return new_obj, True
         except SQLAlchemyError as e:
             await db.rollback()

@@ -1,16 +1,29 @@
 """
 Endpoints de autenticação e autorização.
 """
+import logging
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
 from app.core.database import get_db
 from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, TokenResponse
+from app.schemas.signup import (
+    SignupRequest,
+    SignupResponse,
+    CheckEmailRequest,
+    CheckEmailResponse,
+    CheckSlugRequest,
+    CheckSlugResponse
+)
 from app.services.auth_service import AuthService
+from app.services.signup_service import SignupService
 from app.api.deps import get_current_active_user
 from app.models.user import User
+from app.models.store import Store
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
+logger = logging.getLogger(__name__)
 
 
 @router.post(
@@ -123,6 +136,8 @@ async def login(
     }
 
 
+
+
 @router.get(
     "/me",
     response_model=UserResponse,
@@ -130,22 +145,51 @@ async def login(
     description="Retorna informações do usuário atualmente autenticado"
 )
 async def get_me(
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db)
 ):
     """
     Obter dados do usuário autenticado.
-    
+
     Args:
         current_user: Usuário atual (injetado pela dependência)
-        
+        db: Sessão do banco de dados
+
     Returns:
-        UserResponse: Dados do usuário autenticado
-        
+        UserResponse: Dados do usuário autenticado (com nome da loja)
+
     Raises:
         HTTPException 401: Se token for inválido
         HTTPException 403: Se usuário estiver inativo
+        HTTPException 500: Se erro ao buscar dados
     """
-    return current_user
+    # Buscar nome da loja se tenant_id existir
+    store_name = None
+    if current_user.tenant_id:
+        try:
+            result = await db.execute(
+                select(Store.name).where(
+                    Store.id == current_user.tenant_id,
+                    Store.is_active == True
+                )
+            )
+            store_name = result.scalar_one_or_none()
+        except Exception as e:
+            logger.error(f"Error fetching store: {e}", exc_info=True)
+
+    # Return explicit dict to avoid ORM lazy-loading issues
+    return {
+        "id": current_user.id,
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "role": current_user.role,
+        "phone": current_user.phone,
+        "is_active": current_user.is_active,
+        "created_at": current_user.created_at,
+        "updated_at": current_user.updated_at,
+        "tenant_id": current_user.tenant_id,
+        "store_name": store_name
+    }
 
 
 @router.post(
@@ -216,3 +260,112 @@ async def refresh_token(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao renovar token: {str(e)}"
         )
+
+
+@router.post(
+    "/signup",
+    response_model=SignupResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Cadastro completo (SaaS)",
+    description="Cria tenant (store) + usuário (owner) + subscription atomicamente"
+)
+async def signup(
+    signup_data: SignupRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Cadastro completo para SaaS multi-tenant:
+    1. Cria Store (tenant) com slug único
+    2. Cria User como owner (ADMIN)
+    3. Cria Subscription (trial por padrão)
+    4. Retorna JWT tokens para login automático
+    
+    Args:
+        signup_data: Dados de cadastro (usuário + loja + plano)
+        db: Sessão do banco de dados
+        
+    Returns:
+        SignupResponse: Dados completos + tokens JWT
+        
+    Raises:
+        HTTPException 400: Se email/slug já existir ou dados inválidos
+        HTTPException 500: Se erro na transação
+    """
+    signup_service = SignupService(db)
+    
+    try:
+        response = await signup_service.signup(signup_data)
+        return response
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao criar conta: {str(e)}"
+        )
+
+
+@router.post(
+    "/check-email",
+    response_model=CheckEmailResponse,
+    summary="Verificar disponibilidade de email",
+    description="Verifica se email já está cadastrado no sistema"
+)
+async def check_email(
+    request: CheckEmailRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Verifica se email está disponível para cadastro.
+    Útil para validação em tempo real no frontend.
+    
+    Args:
+        request: Email a verificar
+        db: Sessão do banco de dados
+        
+    Returns:
+        CheckEmailResponse: available (bool) + message
+    """
+    signup_service = SignupService(db)
+    
+    available, message = await signup_service.check_email_available(request.email)
+    
+    return CheckEmailResponse(
+        available=available,
+        message=message
+    )
+
+
+@router.post(
+    "/check-slug",
+    response_model=CheckSlugResponse,
+    summary="Verificar disponibilidade de slug/nome da loja",
+    description="Verifica se slug está disponível e sugere alternativas"
+)
+async def check_slug(
+    request: CheckSlugRequest,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Verifica se slug da loja está disponível.
+    Se indisponível, sugere alternativa com sufixo.
+    
+    Args:
+        request: Slug a verificar
+        db: Sessão do banco de dados
+        
+    Returns:
+        CheckSlugResponse: available (bool) + suggested_slug + message
+    """
+    signup_service = SignupService(db)
+    
+    available, suggested_slug, message = await signup_service.check_slug_available(request.slug)
+    
+    return CheckSlugResponse(
+        available=available,
+        suggested_slug=suggested_slug,
+        message=message
+    )

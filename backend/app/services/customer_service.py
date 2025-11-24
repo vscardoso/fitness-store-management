@@ -25,7 +25,7 @@ class CustomerService:
         self.customer_repo = CustomerRepository(db)
         self.sale_repo = SaleRepository(db)
     
-    async def create_customer(self, customer_data: CustomerCreate) -> Customer:
+    async def create_customer(self, customer_data: CustomerCreate, tenant_id: int) -> Customer:
         """
         Cria um novo cliente.
         
@@ -41,13 +41,13 @@ class CustomerService:
         try:
             # Validar email único
             if customer_data.email:
-                existing = await self.customer_repo.get_by_email(self.db, customer_data.email)
+                existing = await self.customer_repo.get_by_email(self.db, customer_data.email, tenant_id=tenant_id)
                 if existing:
                     raise ValueError(f"Email {customer_data.email} já cadastrado")
             
             # Validar CPF/documento único
             if customer_data.document_number:
-                existing = await self.customer_repo.get_by_cpf(self.db, customer_data.document_number)
+                existing = await self.customer_repo.get_by_cpf(self.db, customer_data.document_number, tenant_id=tenant_id)
                 if existing:
                     raise ValueError(f"CPF/Documento {customer_data.document_number} já cadastrado")
             
@@ -64,7 +64,7 @@ class CustomerService:
             if 'is_active' not in customer_dict:
                 customer_dict['is_active'] = True
             
-            customer = await self.customer_repo.create(self.db, customer_dict)
+            customer = await self.customer_repo.create(self.db, customer_dict, tenant_id=tenant_id)
             
             await self.db.commit()
             await self.db.refresh(customer)
@@ -78,7 +78,8 @@ class CustomerService:
     async def update_customer(
         self, 
         customer_id: int, 
-        customer_data: CustomerUpdate
+        customer_data: CustomerUpdate,
+        tenant_id: int
     ) -> Customer:
         """
         Atualiza um cliente existente.
@@ -94,7 +95,7 @@ class CustomerService:
             ValueError: Se cliente não encontrado ou email/CPF duplicados
         """
         try:
-            customer = await self.customer_repo.get(self.db, customer_id)
+            customer = await self.customer_repo.get(self.db, customer_id, tenant_id=tenant_id)
             if not customer:
                 raise ValueError("Cliente não encontrado")
             
@@ -103,14 +104,14 @@ class CustomerService:
             # Validar email único se alterado
             if 'email' in update_dict and update_dict['email']:
                 if update_dict['email'] != customer.email:
-                    existing = await self.customer_repo.get_by_email(self.db, update_dict['email'])
+                    existing = await self.customer_repo.get_by_email(self.db, update_dict['email'], tenant_id=tenant_id)
                     if existing and existing.id != customer_id:
                         raise ValueError(f"Email {update_dict['email']} já cadastrado")
             
             # Validar CPF único se alterado
             if 'document_number' in update_dict and update_dict['document_number']:
                 if update_dict['document_number'] != customer.document_number:
-                    existing = await self.customer_repo.get_by_cpf(self.db, update_dict['document_number'])
+                    existing = await self.customer_repo.get_by_cpf(self.db, update_dict['document_number'], tenant_id=tenant_id)
                     if existing and existing.id != customer_id:
                         raise ValueError(f"CPF/Documento {update_dict['document_number']} já cadastrado")
             
@@ -122,18 +123,17 @@ class CustomerService:
             await self.db.refresh(customer)
             return customer
             
-            return updated
-            
         except Exception as e:
             await self.db.rollback()
             raise e
     
-    async def delete_customer(self, customer_id: int) -> bool:
+    async def delete_customer(self, customer_id: int, tenant_id: int) -> bool:
         """
         Deleta um cliente (soft delete).
         
         Args:
             customer_id: ID do cliente
+            tenant_id: Tenant atual
             
         Returns:
             bool: True se deletado com sucesso
@@ -142,7 +142,7 @@ class CustomerService:
             ValueError: Se cliente não encontrado ou possui vendas
         """
         try:
-            customer = await self.customer_repo.get(self.db, customer_id)
+            customer = await self.customer_repo.get(self.db, customer_id, tenant_id=tenant_id)
             if not customer:
                 raise ValueError("Cliente não encontrado")
             
@@ -165,47 +165,51 @@ class CustomerService:
             await self.db.rollback()
             raise e
     
-    async def get_customer(self, customer_id: int) -> Optional[Customer]:
+    async def get_customer(self, customer_id: int, tenant_id: Optional[int] = None) -> Optional[Customer]:
         """
         Busca um cliente por ID.
         
         Args:
             customer_id: ID do cliente
+            tenant_id: Tenant atual (opcional)
             
         Returns:
             Optional[Customer]: Cliente encontrado ou None
         """
-        return await self.customer_repo.get(self.db, customer_id)
+        return await self.customer_repo.get(self.db, customer_id, tenant_id=tenant_id)
     
-    async def get_customer_by_email(self, email: str) -> Optional[Customer]:
+    async def get_customer_by_email(self, email: str, tenant_id: Optional[int] = None) -> Optional[Customer]:
         """
         Busca um cliente por email.
         
         Args:
             email: Email do cliente
+            tenant_id: Tenant atual (opcional)
             
         Returns:
             Optional[Customer]: Cliente encontrado ou None
         """
-        return await self.customer_repo.get_by_email(self.db, email)
+        return await self.customer_repo.get_by_email(self.db, email, tenant_id=tenant_id)
     
-    async def get_customer_by_cpf(self, document_number: str) -> Optional[Customer]:
+    async def get_customer_by_cpf(self, document_number: str, tenant_id: Optional[int] = None) -> Optional[Customer]:
         """
         Busca um cliente por CPF/documento.
         
         Args:
             document_number: CPF ou documento do cliente
+            tenant_id: Tenant atual (opcional)
             
         Returns:
             Optional[Customer]: Cliente encontrado ou None
         """
-        return await self.customer_repo.get_by_cpf(self.db, document_number)
+        return await self.customer_repo.get_by_cpf(self.db, document_number, tenant_id=tenant_id)
     
     async def search_customers(
         self, 
         query: str,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        tenant_id: Optional[int] = None
     ) -> List[Customer]:
         """
         Busca clientes por termo de pesquisa.
@@ -216,17 +220,19 @@ class CustomerService:
             query: Termo de pesquisa
             skip: Número de registros para pular
             limit: Número máximo de registros
+            tenant_id: Tenant atual (opcional)
             
         Returns:
             List[Customer]: Lista de clientes encontrados
         """
-        return await self.customer_repo.search(self.db, query)
+        return await self.customer_repo.search(self.db, query, skip=skip, limit=limit, tenant_id=tenant_id)
     
     async def list_customers(
         self,
         skip: int = 0,
         limit: int = 100,
-        active_only: bool = True
+        active_only: bool = True,
+        tenant_id: Optional[int] = None
     ) -> List[Customer]:
         """
         Lista clientes com paginação.
@@ -235,11 +241,12 @@ class CustomerService:
             skip: Número de registros para pular
             limit: Número máximo de registros
             active_only: Se deve retornar apenas clientes ativos
+            tenant_id: Tenant atual (opcional)
             
         Returns:
             List[Customer]: Lista de clientes
         """
-        customers = await self.customer_repo.get_multi(self.db, skip=skip, limit=limit)
+        customers = await self.customer_repo.get_multi(self.db, skip=skip, limit=limit, tenant_id=tenant_id)
         
         if active_only:
             customers = [c for c in customers if c.is_active]
@@ -248,13 +255,15 @@ class CustomerService:
     
     async def get_customer_with_history(
         self, 
-        customer_id: int
+        customer_id: int,
+        tenant_id: Optional[int] = None
     ) -> Dict:
         """
         Busca cliente com histórico de compras.
         
         Args:
             customer_id: ID do cliente
+            tenant_id: Tenant atual (opcional)
             
         Returns:
             Dict: Cliente com histórico completo
@@ -262,7 +271,7 @@ class CustomerService:
         Raises:
             ValueError: Se cliente não encontrado
         """
-        customer = await self.customer_repo.get(self.db, customer_id)
+        customer = await self.customer_repo.get(self.db, customer_id, tenant_id=tenant_id)
         if not customer:
             raise ValueError("Cliente não encontrado")
         
@@ -294,7 +303,8 @@ class CustomerService:
         self,
         customer_id: int,
         points: float,
-        reason: str = None
+        reason: str = None,
+        tenant_id: Optional[int] = None
     ) -> Customer:
         """
         Adiciona pontos de fidelidade manualmente.
@@ -303,6 +313,7 @@ class CustomerService:
             customer_id: ID do cliente
             points: Pontos a adicionar
             reason: Motivo da adição
+            tenant_id: Tenant atual (opcional)
             
         Returns:
             Customer: Cliente atualizado
@@ -314,7 +325,7 @@ class CustomerService:
             raise ValueError("Pontos devem ser maiores que zero")
         
         try:
-            customer = await self.customer_repo.get(self.db, customer_id)
+            customer = await self.customer_repo.get(self.db, customer_id, tenant_id=tenant_id)
             if not customer:
                 raise ValueError("Cliente não encontrado")
             
@@ -333,7 +344,8 @@ class CustomerService:
     async def redeem_loyalty_points(
         self,
         customer_id: int,
-        points: float
+        points: float,
+        tenant_id: Optional[int] = None
     ) -> Customer:
         """
         Resgata pontos de fidelidade.
@@ -341,6 +353,7 @@ class CustomerService:
         Args:
             customer_id: ID do cliente
             points: Pontos a resgatar
+            tenant_id: Tenant atual (opcional)
             
         Returns:
             Customer: Cliente atualizado
@@ -352,7 +365,7 @@ class CustomerService:
             raise ValueError("Pontos devem ser maiores que zero")
         
         try:
-            customer = await self.customer_repo.get(self.db, customer_id)
+            customer = await self.customer_repo.get(self.db, customer_id, tenant_id=tenant_id)
             if not customer:
                 raise ValueError("Cliente não encontrado")
             
@@ -377,7 +390,8 @@ class CustomerService:
     async def get_top_customers(
         self,
         limit: int = 10,
-        by: str = 'total_spent'
+        by: str = 'total_spent',
+        tenant_id: Optional[int] = None
     ) -> List[Customer]:
         """
         Lista melhores clientes.
@@ -385,20 +399,24 @@ class CustomerService:
         Args:
             limit: Número de clientes
             by: Critério de ordenação ('total_spent' ou 'loyalty_points')
+            tenant_id: Tenant atual (opcional)
             
         Returns:
             List[Customer]: Lista de melhores clientes
         """
-        return await self.customer_repo.get_top_customers(self.db, limit)
+        return await self.customer_repo.get_top_customers(self.db, limit, tenant_id=tenant_id)
     
-    async def get_customer_stats(self) -> Dict:
+    async def get_customer_stats(self, tenant_id: Optional[int] = None) -> Dict:
         """
         Obtém estatísticas gerais de clientes.
+        
+        Args:
+            tenant_id: Tenant atual (opcional)
         
         Returns:
             Dict: Estatísticas de clientes
         """
-        all_customers = await self.customer_repo.get_multi(self.db, skip=0, limit=10000)
+        all_customers = await self.customer_repo.get_multi(self.db, skip=0, limit=10000, tenant_id=tenant_id)
         active_customers = [c for c in all_customers if c.is_active]
         
         vip_customers = [
@@ -423,12 +441,13 @@ class CustomerService:
             )
         }
     
-    async def activate_customer(self, customer_id: int) -> bool:
+    async def activate_customer(self, customer_id: int, tenant_id: Optional[int] = None) -> bool:
         """
         Ativa um cliente desativado.
         
         Args:
             customer_id: ID do cliente
+            tenant_id: Tenant atual (opcional)
             
         Returns:
             bool: True se ativado com sucesso
@@ -437,7 +456,7 @@ class CustomerService:
             ValueError: Se cliente não encontrado
         """
         try:
-            customer = await self.customer_repo.get(self.db, customer_id)
+            customer = await self.customer_repo.get(self.db, customer_id, tenant_id=tenant_id)
             if not customer:
                 raise ValueError("Cliente não encontrado")
             

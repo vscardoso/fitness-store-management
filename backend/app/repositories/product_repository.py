@@ -18,11 +18,11 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         super().__init__(Product)
         self.db = db
     
-    async def create(self, obj_in: dict) -> Product:
+    async def create(self, obj_in: dict, *, tenant_id: int | None = None) -> Product:
         """Wrapper para criar produto."""
-        return await super().create(self.db, obj_in)
+        return await super().create(self.db, obj_in, tenant_id=tenant_id)
     
-    async def get_by_sku(self, sku: str) -> Optional[Product]:
+    async def get_by_sku(self, sku: str, *, tenant_id: int | None = None) -> Optional[Product]:
         """
         Busca um produto pelo SKU.
         
@@ -33,10 +33,12 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
             Produto encontrado ou None
         """
         query = select(Product).where(Product.sku == sku)
+        if tenant_id is not None:
+            query = query.where(Product.tenant_id == tenant_id)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
     
-    async def get_by_barcode(self, barcode: str) -> Optional[Product]:
+    async def get_by_barcode(self, barcode: str, *, tenant_id: int | None = None) -> Optional[Product]:
         """
         Busca um produto pelo código de barras.
         
@@ -47,13 +49,17 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
             Produto encontrado ou None
         """
         query = select(Product).where(Product.barcode == barcode)
+        if tenant_id is not None:
+            query = query.where(Product.tenant_id == tenant_id)
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
     
     async def get_by_category(
         self, 
         category_id: int,
-        include_relationships: bool = True
+        include_relationships: bool = True,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[Product]:
         """
         Busca produtos de uma categoria específica (apenas ativos).
@@ -71,6 +77,8 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
                 Product.is_active == True
             )
         ).order_by(Product.name)
+        if tenant_id is not None:
+            query = query.where(Product.tenant_id == tenant_id)
         
         if include_relationships:
             query = query.options(
@@ -84,7 +92,9 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
     async def search(
         self, 
         query: str,
-        include_relationships: bool = False
+        include_relationships: bool = False,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[Product]:
         """
         Busca produtos por nome, descrição, marca ou SKU (apenas ativos).
@@ -109,6 +119,8 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
                 Product.is_active == True
             )
         ).order_by(Product.name)
+        if tenant_id is not None:
+            sql_query = sql_query.where(Product.tenant_id == tenant_id)
         
         if include_relationships:
             sql_query = sql_query.options(
@@ -122,7 +134,9 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
     async def get_by_brand(
         self, 
         brand: str,
-        include_relationships: bool = False
+        include_relationships: bool = False,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[Product]:
         """
         Busca produtos por marca (apenas ativos).
@@ -140,6 +154,8 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
                 Product.is_active == True
             )
         ).order_by(Product.name)
+        if tenant_id is not None:
+            query = query.where(Product.tenant_id == tenant_id)
         
         if include_relationships:
             query = query.options(
@@ -153,7 +169,9 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
     async def get_by_size(
         self, 
         size: str,
-        include_relationships: bool = False
+        include_relationships: bool = False,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[Product]:
         """
         Busca produtos por tamanho (apenas ativos).
@@ -171,6 +189,8 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
                 Product.is_active == True
             )
         ).order_by(Product.name)
+        if tenant_id is not None:
+            query = query.where(Product.tenant_id == tenant_id)
         
         if include_relationships:
             query = query.options(
@@ -184,7 +204,9 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
     async def get_by_color(
         self, 
         color: str,
-        include_relationships: bool = False
+        include_relationships: bool = False,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[Product]:
         """
         Busca produtos por cor (apenas ativos).
@@ -202,6 +224,8 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
                 Product.is_active == True
             )
         ).order_by(Product.name)
+        if tenant_id is not None:
+            query = query.where(Product.tenant_id == tenant_id)
         
         if include_relationships:
             query = query.options(
@@ -215,7 +239,9 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
     async def get_by_gender(
         self, 
         gender: str,
-        include_relationships: bool = False
+        include_relationships: bool = False,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[Product]:
         """
         Busca produtos por gênero (apenas ativos).
@@ -233,6 +259,8 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
                 Product.is_active == True
             )
         ).order_by(Product.name)
+        if tenant_id is not None:
+            query = query.where(Product.tenant_id == tenant_id)
         
         if include_relationships:
             query = query.options(
@@ -245,7 +273,9 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
     
     async def get_active_products(
         self, 
-        include_relationships: bool = False
+        include_relationships: bool = False,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[Product]:
         """
         Busca todos os produtos ativos.
@@ -257,6 +287,8 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
             Lista de produtos ativos
         """
         query = select(Product).where(Product.is_active == True).order_by(Product.name)
+        if tenant_id is not None:
+            query = query.where(Product.tenant_id == tenant_id)
         
         if include_relationships:
             query = query.options(
@@ -267,7 +299,7 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         result = await self.db.execute(query)
         return result.scalars().all()
     
-    async def exists_by_sku(self, sku: str, exclude_id: Optional[int] = None) -> bool:
+    async def exists_by_sku(self, sku: str, exclude_id: Optional[int] = None, *, tenant_id: int | None = None) -> bool:
         """
         Verifica se existe um produto com o SKU especificado.
         
@@ -279,6 +311,8 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
             True se o SKU já existe
         """
         conditions = [Product.sku == sku]
+        if tenant_id is not None:
+            conditions.append(Product.tenant_id == tenant_id)
         
         if exclude_id is not None:
             conditions.append(Product.id != exclude_id)
@@ -287,7 +321,7 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         result = await self.db.execute(query)
         return result.scalar_one_or_none() is not None
     
-    async def get_with_inventory(self, product_id: int) -> Optional[Product]:
+    async def get_with_inventory(self, product_id: int, *, tenant_id: int | None = None) -> Optional[Product]:
         """
         Busca um produto específico com informações de inventário carregadas.
         
@@ -301,11 +335,13 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
             selectinload(Product.category),
             selectinload(Product.inventory)
         )
+        if tenant_id is not None:
+            query = query.where(Product.tenant_id == tenant_id)
         
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
     
-    async def deactivate_product(self, product_id: int) -> bool:
+    async def deactivate_product(self, product_id: int, *, tenant_id: int | None = None) -> bool:
         """
         Desativa um produto (soft delete).
         
@@ -315,14 +351,14 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         Returns:
             True se o produto foi desativado com sucesso
         """
-        product = await self.get(product_id)
+        product = await self.get(self.db, product_id, tenant_id=tenant_id)
         if product:
             product.is_active = False
             await self.db.commit()
             return True
         return False
     
-    async def activate_product(self, product_id: int) -> bool:
+    async def activate_product(self, product_id: int, *, tenant_id: int | None = None) -> bool:
         """
         Ativa um produto.
         
@@ -332,14 +368,14 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         Returns:
             True se o produto foi ativado com sucesso
         """
-        product = await self.get(product_id)
+        product = await self.get(self.db, product_id, tenant_id=tenant_id)
         if product:
             product.is_active = True
             await self.db.commit()
             return True
         return False
     
-    async def get_low_stock(self, threshold: Optional[int] = None) -> Sequence[Product]:
+    async def get_low_stock(self, threshold: Optional[int] = None, *, tenant_id: int | None = None) -> Sequence[Product]:
         """
         Busca produtos com estoque abaixo do mínimo.
         
@@ -357,6 +393,8 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         ).options(
             selectinload(Product.inventory)
         )
+        if tenant_id is not None:
+            query = query.where(Product.tenant_id == tenant_id)
         
         if threshold is not None:
             # Usa threshold customizado

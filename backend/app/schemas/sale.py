@@ -62,6 +62,7 @@ class PaymentResponse(BaseModel):
 class SaleResponse(BaseModel):
     """Schema for sale response."""
     id: int
+    sale_number: str
     customer_id: int
     seller_id: int
     sale_date: datetime
@@ -73,7 +74,8 @@ class SaleResponse(BaseModel):
     notes: Optional[str]
     items: List[SaleItemResponse] = []
     payments: List[PaymentResponse] = []
-    
+    created_at: Optional[datetime] = None
+
     class Config:
         from_attributes = True
 

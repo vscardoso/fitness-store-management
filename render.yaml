@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: fitness-backend
+    env: docker
+    plan: free
+    autoDeploy: true
+    dockerfilePath: backend/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        value: https://expo.dev,https://*.expo.dev,https://fitness-store.app
+      - key: ACCESS_TOKEN_EXPIRE_MINUTES
+        value: "60"

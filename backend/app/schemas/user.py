@@ -48,6 +48,8 @@ class UserResponse(UserBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
+    tenant_id: Optional[int] = None
+    store_name: Optional[str] = None  # Nome da loja do usuário
     
     class Config:
         from_attributes = True

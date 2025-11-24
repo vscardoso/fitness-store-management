@@ -12,5 +12,21 @@ services:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
 
+  backend:
+    build: ./backend
+    container_name: fitness-backend
+    environment:
+      # Use o serviço 'postgres' no mesmo network do compose
+      DATABASE_URL: postgresql+asyncpg://fitness:fitness123@postgres:5432/fitness_store
+      SECRET_KEY: dev-secret-change-me
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      # Ajuste conforme necessário para o Expo/localhost
+      CORS_ORIGINS: http://localhost:8000,http://localhost:19006,http://10.0.2.2:8000,https://expo.dev,https://*.expo.dev
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
 volumes:
   postgres_data:

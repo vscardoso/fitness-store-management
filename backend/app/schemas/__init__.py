@@ -8,6 +8,14 @@ from .user import (
     UserPasswordChange,
     TokenResponse
 )
+from .signup import (
+    SignupRequest,
+    SignupResponse,
+    CheckEmailRequest,
+    CheckEmailResponse,
+    CheckSlugRequest,
+    CheckSlugResponse,
+)
 from .product import (
     ProductCreate,
     ProductUpdate,
@@ -35,6 +43,13 @@ __all__ = [
     "UserLogin",
     "UserPasswordChange",
     "TokenResponse",
+    # Signup
+    "SignupRequest",
+    "SignupResponse",
+    "CheckEmailRequest",
+    "CheckEmailResponse",
+    "CheckSlugRequest",
+    "CheckSlugResponse",
     # Product
     "ProductCreate",
     "ProductUpdate",

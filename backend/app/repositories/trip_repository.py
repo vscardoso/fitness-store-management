@@ -18,13 +18,14 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
     def __init__(self):
         super().__init__(Trip)
     
-    async def create(self, db: AsyncSession, data: dict) -> Trip:
+    async def create(self, db: AsyncSession, data: dict, *, tenant_id: int | None = None) -> Trip:
         """
         Cria uma nova viagem.
         
         Args:
             db: Database session
             data: Dados da viagem
+            tenant_id: ID do tenant
             
         Returns:
             Trip criado
@@ -39,7 +40,7 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
                 data.get('travel_cost_other', 0)
             )
         
-        trip = await super().create(db, data)
+        trip = await super().create(db, data, tenant_id=tenant_id)
         await db.commit()
         await db.refresh(trip)
         return trip
@@ -48,7 +49,9 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
         self, 
         db: AsyncSession, 
         trip_id: int,
-        include_entries: bool = False
+        include_entries: bool = False,
+        *,
+        tenant_id: int | None = None,
     ) -> Optional[Trip]:
         """
         Busca uma viagem por ID.
@@ -57,16 +60,20 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
             db: Database session
             trip_id: ID da viagem
             include_entries: Se deve incluir entradas de estoque
+            tenant_id: ID do tenant
             
         Returns:
             Trip encontrado ou None
         """
-        query = select(Trip).where(
-            and_(
-                Trip.id == trip_id,
-                Trip.is_active == True
-            )
-        )
+        conditions = [
+            Trip.id == trip_id,
+            Trip.is_active == True
+        ]
+        
+        if tenant_id is not None and hasattr(Trip, "tenant_id"):
+            conditions.append(Trip.tenant_id == tenant_id)
+        
+        query = select(Trip).where(and_(*conditions))
         
         if include_entries:
             query = query.options(selectinload(Trip.stock_entries))
@@ -74,23 +81,27 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
         result = await db.execute(query)
         return result.scalar_one_or_none()
     
-    async def get_by_code(self, db: AsyncSession, trip_code: str) -> Optional[Trip]:
+    async def get_by_code(self, db: AsyncSession, trip_code: str, *, tenant_id: int | None = None) -> Optional[Trip]:
         """
         Busca uma viagem por código.
         
         Args:
             db: Database session
             trip_code: Código da viagem
+            tenant_id: ID do tenant
             
         Returns:
             Trip encontrado ou None
         """
-        query = select(Trip).where(
-            and_(
-                Trip.trip_code == trip_code,
-                Trip.is_active == True
-            )
-        )
+        conditions = [
+            Trip.trip_code == trip_code,
+            Trip.is_active == True
+        ]
+        
+        if tenant_id is not None and hasattr(Trip, "tenant_id"):
+            conditions.append(Trip.tenant_id == tenant_id)
+        
+        query = select(Trip).where(and_(*conditions))
         result = await db.execute(query)
         return result.scalar_one_or_none()
     
@@ -99,7 +110,9 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
         db: AsyncSession,
         skip: int = 0,
         limit: int = 100,
-        status: Optional[TripStatus] = None
+        status: Optional[TripStatus] = None,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[Trip]:
         """
         Busca todas as viagens com paginação e filtros.
@@ -109,14 +122,20 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
             skip: Número de registros para pular
             limit: Número máximo de registros
             status: Filtrar por status (opcional)
+            tenant_id: ID do tenant
             
         Returns:
             Lista de viagens
         """
-        query = select(Trip).where(Trip.is_active == True)
+        conditions = [Trip.is_active == True]
+        
+        if tenant_id is not None and hasattr(Trip, "tenant_id"):
+            conditions.append(Trip.tenant_id == tenant_id)
         
         if status:
-            query = query.where(Trip.status == status)
+            conditions.append(Trip.status == status)
+        
+        query = select(Trip).where(and_(*conditions))
         
         query = query.order_by(Trip.trip_date.desc()).offset(skip).limit(limit)
         
@@ -130,7 +149,9 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
         start_date: Optional[any] = None,
         end_date: Optional[any] = None,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[Trip]:
         """
         Busca viagens com filtros múltiplos.
@@ -142,20 +163,26 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
             end_date: Data final (trip_date <= end_date)
             skip: Número de registros para pular
             limit: Número máximo de registros
+            tenant_id: ID do tenant
             
         Returns:
             Lista de viagens filtradas
         """
-        query = select(Trip).where(Trip.is_active == True)
+        conditions = [Trip.is_active == True]
+        
+        if tenant_id is not None and hasattr(Trip, "tenant_id"):
+            conditions.append(Trip.tenant_id == tenant_id)
         
         if status:
-            query = query.where(Trip.status == status)
+            conditions.append(Trip.status == status)
         
         if start_date:
-            query = query.where(Trip.trip_date >= start_date)
+            conditions.append(Trip.trip_date >= start_date)
         
         if end_date:
-            query = query.where(Trip.trip_date <= end_date)
+            conditions.append(Trip.trip_date <= end_date)
+        
+        query = select(Trip).where(and_(*conditions))
         
         query = query.order_by(Trip.trip_date.desc()).offset(skip).limit(limit)
         
@@ -165,7 +192,9 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
     async def get_by_status(
         self, 
         db: AsyncSession, 
-        status: TripStatus
+        status: TripStatus,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[Trip]:
         """
         Busca viagens por status.
@@ -173,16 +202,20 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
         Args:
             db: Database session
             status: Status da viagem
+            tenant_id: ID do tenant
             
         Returns:
             Lista de viagens com o status especificado
         """
-        query = select(Trip).where(
-            and_(
-                Trip.status == status,
-                Trip.is_active == True
-            )
-        ).order_by(Trip.trip_date.desc())
+        conditions = [
+            Trip.status == status,
+            Trip.is_active == True
+        ]
+        
+        if tenant_id is not None and hasattr(Trip, "tenant_id"):
+            conditions.append(Trip.tenant_id == tenant_id)
+        
+        query = select(Trip).where(and_(*conditions)).order_by(Trip.trip_date.desc())
         
         result = await db.execute(query)
         return result.scalars().all()
@@ -190,7 +223,9 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
     async def get_recent(
         self, 
         db: AsyncSession, 
-        days: int = 30
+        days: int = 30,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[Trip]:
         """
         Busca viagens recentes (últimos X dias).
@@ -198,18 +233,22 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
         Args:
             db: Database session
             days: Número de dias para considerar como recente
+            tenant_id: ID do tenant
             
         Returns:
             Lista de viagens recentes
         """
         cutoff_date = datetime.now().date() - timedelta(days=days)
         
-        query = select(Trip).where(
-            and_(
-                Trip.trip_date >= cutoff_date,
-                Trip.is_active == True
-            )
-        ).order_by(Trip.trip_date.desc())
+        conditions = [
+            Trip.trip_date >= cutoff_date,
+            Trip.is_active == True
+        ]
+        
+        if tenant_id is not None and hasattr(Trip, "tenant_id"):
+            conditions.append(Trip.tenant_id == tenant_id)
+        
+        query = select(Trip).where(and_(*conditions)).order_by(Trip.trip_date.desc())
         
         result = await db.execute(query)
         return result.scalars().all()
@@ -218,7 +257,9 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
         self,
         db: AsyncSession,
         skip: int = 0,
-        limit: int = 100
+        limit: int = 100,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[tuple]:
         """
         Busca viagens com contagem de entradas de estoque.
@@ -227,10 +268,16 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
             db: Database session
             skip: Número de registros para pular
             limit: Número máximo de registros
+            tenant_id: ID do tenant
             
         Returns:
             Lista de tuplas (Trip, entry_count)
         """
+        conditions = [Trip.is_active == True]
+        
+        if tenant_id is not None and hasattr(Trip, "tenant_id"):
+            conditions.append(Trip.tenant_id == tenant_id)
+        
         query = (
             select(
                 Trip,
@@ -240,7 +287,7 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
                 StockEntry.trip_id == Trip.id,
                 StockEntry.is_active == True
             ))
-            .where(Trip.is_active == True)
+            .where(and_(*conditions))
             .group_by(Trip.id)
             .order_by(Trip.trip_date.desc())
             .offset(skip)
@@ -254,7 +301,9 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
         self, 
         db: AsyncSession, 
         trip_id: int, 
-        data: dict
+        data: dict,
+        *,
+        tenant_id: int | None = None,
     ) -> Optional[Trip]:
         """
         Atualiza uma viagem.
@@ -263,11 +312,12 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
             db: Database session
             trip_id: ID da viagem
             data: Dados para atualização
+            tenant_id: ID do tenant
             
         Returns:
             Trip atualizado ou None
         """
-        trip = await self.get_by_id(db, trip_id)
+        trip = await self.get_by_id(db, trip_id, tenant_id=tenant_id)
         if not trip:
             return None
         
@@ -288,18 +338,19 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
         await db.refresh(trip)
         return trip
     
-    async def delete(self, db: AsyncSession, trip_id: int) -> bool:
+    async def delete(self, db: AsyncSession, trip_id: int, *, tenant_id: int | None = None) -> bool:
         """
         Soft delete de uma viagem.
         
         Args:
             db: Database session
             trip_id: ID da viagem
+            tenant_id: ID do tenant
             
         Returns:
             True se deletado, False se não encontrado
         """
-        trip = await self.get_by_id(db, trip_id)
+        trip = await self.get_by_id(db, trip_id, tenant_id=tenant_id)
         if not trip:
             return False
         
@@ -310,7 +361,9 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
     async def count(
         self, 
         db: AsyncSession, 
-        status: Optional[TripStatus] = None
+        status: Optional[TripStatus] = None,
+        *,
+        tenant_id: int | None = None,
     ) -> int:
         """
         Conta o número de viagens.
@@ -318,34 +371,46 @@ class TripRepository(BaseRepository[Trip, dict, dict]):
         Args:
             db: Database session
             status: Filtrar por status (opcional)
+            tenant_id: ID do tenant
             
         Returns:
             Número de viagens
         """
-        query = select(func.count(Trip.id)).where(Trip.is_active == True)
+        conditions = [Trip.is_active == True]
+        
+        if tenant_id is not None and hasattr(Trip, "tenant_id"):
+            conditions.append(Trip.tenant_id == tenant_id)
         
         if status:
-            query = query.where(Trip.status == status)
+            conditions.append(Trip.status == status)
+        
+        query = select(func.count(Trip.id)).where(and_(*conditions))
         
         result = await db.execute(query)
         return result.scalar_one()
     
-    async def get_destinations(self, db: AsyncSession) -> Sequence[tuple]:
+    async def get_destinations(self, db: AsyncSession, *, tenant_id: int | None = None) -> Sequence[tuple]:
         """
         Retorna lista de destinos únicos com contagem de viagens.
         
         Args:
             db: Database session
+            tenant_id: ID do tenant
             
         Returns:
             Lista de tuplas (destination, count)
         """
+        conditions = [Trip.is_active == True]
+        
+        if tenant_id is not None and hasattr(Trip, "tenant_id"):
+            conditions.append(Trip.tenant_id == tenant_id)
+        
         query = (
             select(
                 Trip.destination,
                 func.count(Trip.id).label('trip_count')
             )
-            .where(Trip.is_active == True)
+            .where(and_(*conditions))
             .group_by(Trip.destination)
             .order_by(func.count(Trip.id).desc())
         )

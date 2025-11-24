@@ -1,7 +1,7 @@
 """
 Modelo de produto com variações e preços.
 """
-from sqlalchemy import String, Text, Numeric, ForeignKey, Boolean, Integer
+from sqlalchemy import String, Text, Numeric, ForeignKey, Boolean, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from decimal import Decimal
 from typing import List, TYPE_CHECKING
@@ -20,6 +20,10 @@ class Product(BaseModel):
     Represents fitness equipment, supplements, accessories, etc.
     """
     __tablename__ = "products"
+    __table_args__ = (
+        UniqueConstraint('tenant_id', 'sku', name='uq_products_tenant_sku'),
+        UniqueConstraint('tenant_id', 'barcode', name='uq_products_tenant_barcode'),
+    )
     
     name: Mapped[str] = mapped_column(
         String(255), 
@@ -34,16 +38,14 @@ class Product(BaseModel):
     
     sku: Mapped[str] = mapped_column(
         String(50), 
-        unique=True, 
         index=True,
-        comment="Stock Keeping Unit (unique identifier)"
+        comment="Stock Keeping Unit (unique per tenant)"
     )
     
     barcode: Mapped[str | None] = mapped_column(
         String(50),
-        unique=True,
         index=True,
-        comment="Product barcode"
+        comment="Product barcode (unique per tenant)"
     )
     
     price: Mapped[Decimal] = mapped_column(
@@ -93,7 +95,13 @@ class Product(BaseModel):
         default=True,
         comment="Whether it's activewear/fitness clothing"
     )
-    
+
+    is_catalog: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        comment="Whether this is a catalog template (true) or active product (false)"
+    )
+
     # Chaves estrangeiras
     category_id: Mapped[int] = mapped_column(
         ForeignKey("categories.id", ondelete="RESTRICT"),
