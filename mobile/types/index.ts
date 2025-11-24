@@ -476,6 +476,7 @@ export interface Trip {
 }
 
 export interface TripCreate {
+  trip_code: string;
   trip_date: string;
   destination: string;
   departure_time?: string;

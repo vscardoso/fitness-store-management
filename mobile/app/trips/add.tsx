@@ -15,6 +15,7 @@ export default function AddTripScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  const [tripCode, setTripCode] = useState('');
   const [tripDate, setTripDate] = useState(new Date());
   const [destination, setDestination] = useState('');
   const [departureTime, setDepartureTime] = useState<Date | undefined>();
@@ -43,12 +44,23 @@ export default function AddTripScreen() {
   });
 
   const handleSubmit = () => {
+    if (!tripCode.trim()) {
+      Alert.alert('Atenção', 'Informe o código da viagem');
+      return;
+    }
+
+    if (tripCode.trim().length < 5) {
+      Alert.alert('Atenção', 'O código da viagem deve ter no mínimo 5 caracteres');
+      return;
+    }
+
     if (!destination.trim()) {
       Alert.alert('Atenção', 'Informe o destino da viagem');
       return;
     }
 
     const tripData: TripCreate = {
+      trip_code: tripCode.trim(),
       trip_date: tripDate.toISOString().split('T')[0],
       destination: destination.trim(),
       travel_cost_fuel: parseCurrency(costFuel),
@@ -90,6 +102,18 @@ export default function AddTripScreen() {
           {/* Informações Básicas */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Informações Básicas</Text>
+
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Código da Viagem *</Text>
+              <TextInput
+                style={styles.input}
+                value={tripCode}
+                onChangeText={setTripCode}
+                placeholder="Ex: VIAGEM-001 (mín. 5 caracteres)"
+                placeholderTextColor={Colors.light.textSecondary}
+                maxLength={50}
+              />
+            </View>
 
             <View style={styles.inputGroup}>
               <Text style={styles.label}>Data da Viagem *</Text>
