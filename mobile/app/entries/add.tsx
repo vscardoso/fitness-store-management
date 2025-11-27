@@ -372,7 +372,7 @@ export default function AddStockEntryScreen() {
       >
         <View style={styles.headerContent}>
           <TouchableOpacity
-            onPress={() => router.push('/(tabs)/stock-entries')}
+            onPress={() => router.push('/(tabs)/entries')}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color="white" />
@@ -839,7 +839,7 @@ export default function AddStockEntryScreen() {
 
           <Button
             mode="outlined"
-            onPress={() => router.push('/(tabs)/stock-entries')}
+            onPress={() => router.push('/(tabs)/entries')}
             disabled={createMutation.isPending}
           >
             Cancelar
@@ -888,7 +888,7 @@ export default function AddStockEntryScreen() {
         cancelText="Nova Entrada"
         onConfirm={() => {
           setShowSuccessDialog(false);
-          router.push('/(tabs)/stock-entries');
+          router.push('/(tabs)/entries');
         }}
         onCancel={() => {
           // Reset para nova entrada rápida
