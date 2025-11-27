@@ -62,6 +62,8 @@ export default function StockEntryDetailsScreen() {
   // Estados
   const [refreshing, setRefreshing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   /**
    * Query: Buscar entrada
@@ -78,38 +80,32 @@ export default function StockEntryDetailsScreen() {
    */
   const deleteMutation = useMutation({
     mutationFn: () => deleteStockEntry(entryId),
-    onSuccess: (result: any) => {
+    onSuccess: async (result: any) => {
       setShowDeleteDialog(false);
 
-      // Mensagem detalhada sobre o que foi excluído
-      const messages = [`Entrada ${result.entry_code} excluída`];
+      // Remover query específica desta entrada do cache (evita refetch 404)
+      queryClient.removeQueries({ queryKey: ['stock-entry', entryId] });
+
+      // Invalidar outras queries para atualizar listas
+      await queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      await queryClient.invalidateQueries({ queryKey: ['active-products'] });
+      await queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      await queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+
+      // Preparar mensagem detalhada
+      const messages = [`Entrada ${result.entry_code} excluída com sucesso!`];
 
       if (result.orphan_products_deleted > 0) {
-        messages.push(`${result.orphan_products_deleted} produto(s) órfão(s) excluído(s)`);
+        messages.push(`• ${result.orphan_products_deleted} produto(órfão(s) excluído(s)`);
       }
 
       if (result.total_stock_removed > 0) {
-        messages.push(`${result.total_stock_removed} unidades removidas do estoque`);
+        messages.push(`• ${result.total_stock_removed} unidades removidas do estoque`);
       }
 
-      // 1. Navegar de volta PRIMEIRO (evita refetch 404)
-      handleGoBack();
-
-      // 2. DEPOIS limpar cache (após navegação)
-      setTimeout(() => {
-        // Remover query específica desta entrada do cache
-        queryClient.removeQueries({ queryKey: ['stock-entry', entryId] });
-
-        // Invalidar outras queries para atualizar listas
-        queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
-        queryClient.invalidateQueries({ queryKey: ['products'] });
-        queryClient.invalidateQueries({ queryKey: ['active-products'] });
-        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-        queryClient.invalidateQueries({ queryKey: ['low-stock'] });
-
-        // Mostrar mensagem de sucesso
-        Alert.alert('Sucesso!', messages.join('\n'));
-      }, 100);
+      setSuccessMessage(messages.join('\n'));
+      setShowSuccessDialog(true);
     },
     onError: (error: any) => {
       setShowDeleteDialog(false);
@@ -511,6 +507,24 @@ export default function StockEntryDetailsScreen() {
           type="danger"
           icon="trash"
           loading={deleteMutation.isPending}
+        />
+
+        {/* Success Dialog */}
+        <ConfirmDialog
+          visible={showSuccessDialog}
+          title="Sucesso!"
+          message={successMessage}
+          confirmText="OK"
+          onConfirm={() => {
+            setShowSuccessDialog(false);
+            handleGoBack();
+          }}
+          onCancel={() => {
+            setShowSuccessDialog(false);
+            handleGoBack();
+          }}
+          type="success"
+          icon="checkmark-circle"
         />
       </View>
     </SafeAreaView>

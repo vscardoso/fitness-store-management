@@ -8,18 +8,14 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  Text,
-  Searchbar,
-  FAB,
-  Card,
-} from 'react-native-paper';
+import { Searchbar, Text, Card } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
 import { Ionicons } from '@expo/vector-icons';
 import ListHeader from '@/components/layout/ListHeader';
 import EmptyState from '@/components/ui/EmptyState';
+import FAB from '@/components/FAB';
 import { getCustomers } from '@/services/customerService';
 import { formatPhone } from '@/utils/format';
 import { Colors } from '@/constants/Colors';
@@ -215,12 +211,7 @@ export default function CustomersScreen() {
         />
 
         {/* FAB - Adicionar cliente */}
-        <FAB
-          icon="plus"
-          style={styles.fab}
-          onPress={() => router.push('/customers/add')}
-          label="Adicionar"
-        />
+        <FAB directRoute="/customers/add" />
       </View>
     </SafeAreaView>
   );
@@ -336,11 +327,5 @@ const styles = StyleSheet.create({
   },
   statusTextInactive: {
     color: '#c62828',
-  },
-  fab: {
-    position: 'absolute',
-    right: 16,
-    bottom: 16,
-    backgroundColor: Colors.light.primary,
   },
 });

@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FAB } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import FAB from '@/components/FAB';
 
 import { getTrips } from '@/services/tripService';
 import { Trip, TripStatus } from '@/types';
@@ -150,12 +150,7 @@ export default function TripsScreen() {
         />
 
         {/* FAB - Botão Adicionar */}
-        <FAB
-          icon="plus"
-          style={styles.fab}
-          onPress={() => router.push('/trips/add')}
-          label="Adicionar"
-        />
+        <FAB directRoute="/trips/add" />
       </View>
     </SafeAreaView>
   );
@@ -294,10 +289,5 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     marginTop: 8,
     textAlign: 'center',
-  },
-  fab: {
-    position: 'absolute',
-    right: 16,
-    bottom: 16,
   },
 });

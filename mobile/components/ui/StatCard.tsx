@@ -35,7 +35,9 @@ export default function StatCard({
       )}
       <Text style={styles.label}>{label}</Text>
       <View style={styles.valueContainer}>
-        <Text style={[styles.value, { color: valueColor }]}>{value}</Text>
+        <Text style={[styles.value, { color: valueColor }]} numberOfLines={1} adjustsFontSizeToFit>
+          {value}
+        </Text>
         {suffix && <Text style={styles.suffix}>{suffix}</Text>}
       </View>
     </View>
@@ -45,36 +47,48 @@ export default function StatCard({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    minWidth: '30%',
-    backgroundColor: Colors.light.card,
-    padding: 16,
-    borderRadius: 12,
-    elevation: 2,
+    minWidth: 100,
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 16,
+    elevation: 3,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.06)',
+    alignItems: 'center',
   },
   icon: {
     marginBottom: 8,
+    opacity: 0.8,
   },
   label: {
-    fontSize: 12,
-    color: Colors.light.icon,
-    marginBottom: 8,
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+    marginBottom: 6,
     fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    textAlign: 'center',
   },
   valueContainer: {
     flexDirection: 'row',
     alignItems: 'baseline',
+    marginTop: 2,
+    justifyContent: 'center',
   },
   value: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.3,
+    textAlign: 'center',
   },
   suffix: {
     fontSize: 14,
-    color: Colors.light.icon,
-    marginLeft: 4,
+    color: Colors.light.textSecondary,
+    marginLeft: 3,
+    fontWeight: '600',
   },
 });

@@ -21,11 +21,12 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { FAB, Text, Card, Searchbar, Menu, Button, Chip } from 'react-native-paper';
+import { Text, Card, Searchbar, Menu, Button, Chip } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ListHeader from '@/components/layout/ListHeader';
 import EmptyState from '@/components/ui/EmptyState';
+import FAB from '@/components/FAB';
 import { useStockEntries } from '@/hooks/useStockEntries';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors } from '@/constants/Colors';
@@ -66,28 +67,52 @@ export default function StockEntriesScreen() {
    * Renderizar badge de tipo
    */
   const renderTypeBadge = (type: EntryType) => {
-    const typeConfig = {
-      trip: { 
+    const typeConfig: Record<EntryType, { label: string; color: string; icon: string; bgColor: string }> = {
+      [EntryType.TRIP]: { 
         label: 'Viagem', 
         color: Colors.light.info, 
         icon: 'car-outline',
         bgColor: Colors.light.info + '20',
       },
-      online: { 
+      [EntryType.ONLINE]: { 
         label: 'Online', 
         color: Colors.light.warning, 
         icon: 'cart-outline',
         bgColor: Colors.light.warning + '20',
       },
-      local: { 
+      [EntryType.LOCAL]: { 
         label: 'Local', 
         color: Colors.light.success, 
         icon: 'business-outline',
         bgColor: Colors.light.success + '20',
       },
+      [EntryType.INITIAL_INVENTORY]: {
+        label: 'Estoque Inicial',
+        color: Colors.light.textSecondary,
+        icon: 'archive-outline',
+        bgColor: Colors.light.textSecondary + '20',
+      },
+      [EntryType.ADJUSTMENT]: {
+        label: 'Ajuste',
+        color: Colors.light.textSecondary,
+        icon: 'construct-outline',
+        bgColor: Colors.light.textSecondary + '20',
+      },
+      [EntryType.RETURN]: {
+        label: 'Devolução',
+        color: Colors.light.textSecondary,
+        icon: 'arrow-undo-outline',
+        bgColor: Colors.light.textSecondary + '20',
+      },
+      [EntryType.DONATION]: {
+        label: 'Doação',
+        color: Colors.light.textSecondary,
+        icon: 'heart-outline',
+        bgColor: Colors.light.textSecondary + '20',
+      },
     };
 
-    const config = typeConfig[type] || typeConfig.local;
+    const config = typeConfig[type] || typeConfig[EntryType.LOCAL];
 
     return (
       <View style={[styles.badge, { backgroundColor: config.bgColor }]}>
@@ -395,12 +420,7 @@ export default function StockEntriesScreen() {
         />
 
         {/* FAB: Nova Entrada */}
-        <FAB
-          icon="plus"
-          style={styles.fab}
-          onPress={() => router.push({ pathname: '/entries/add', params: { from: '/(tabs)/entries' } })}
-          label="Nova Entrada"
-        />
+        <FAB directRoute="/entries/add" />
       </View>
     </SafeAreaView>
   );
@@ -410,10 +430,14 @@ export default function StockEntriesScreen() {
  * Helper para label de tipo
  */
 function getTypeLabel(type: EntryType): string {
-  const labels = {
-    trip: 'Viagens',
-    online: 'Compras Online',
-    local: 'Compras Locais',
+  const labels: Record<EntryType, string> = {
+    [EntryType.TRIP]: 'Viagens',
+    [EntryType.ONLINE]: 'Compras Online',
+    [EntryType.LOCAL]: 'Compras Locais',
+    [EntryType.INITIAL_INVENTORY]: 'Estoque Inicial',
+    [EntryType.ADJUSTMENT]: 'Ajustes',
+    [EntryType.RETURN]: 'Devoluções',
+    [EntryType.DONATION]: 'Doações',
   };
   return labels[type] || 'Todos';
 }
@@ -588,11 +612,5 @@ const styles = StyleSheet.create({
   kpiValue: {
     fontSize: 14,
     fontWeight: '700',
-  },
-  fab: {
-    position: 'absolute',
-    right: 16,
-    bottom: 16,
-    backgroundColor: Colors.light.primary,
   },
 });

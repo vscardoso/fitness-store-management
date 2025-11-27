@@ -75,8 +75,15 @@ export async function updateStockEntry(id: number, entry: Partial<StockEntryCrea
 /**
  * Deletar entrada (soft delete)
  */
-export async function deleteStockEntry(id: number): Promise<void> {
-  await api.delete(`${ENTRIES_ENDPOINT}${id}`);
+export async function deleteStockEntry(id: number): Promise<{
+  success: boolean;
+  orphan_products_deleted: number;
+  orphan_products: Array<{ id: number; name: string; sku: string }>;
+  total_stock_removed: number;
+  entry_code: string;
+}> {
+  const response = await api.delete(`${ENTRIES_ENDPOINT}${id}`);
+  return response.data;
 }
 
 /**

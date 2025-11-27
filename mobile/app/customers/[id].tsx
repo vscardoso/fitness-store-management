@@ -13,6 +13,7 @@ import {
 import {
   Text,
   Card,
+  Divider,
 } from 'react-native-paper';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
@@ -23,6 +24,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import InfoRow from '@/components/ui/InfoRow';
 import StatCard from '@/components/ui/StatCard';
 import ActionButtons from '@/components/ui/ActionButtons';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getCustomerById, deleteCustomer } from '@/services/customerService';
 import { formatPhone, formatDate, formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
@@ -48,9 +50,11 @@ export default function CustomerDetailsScreen() {
   });
 
   /**
-   * Estado de refresh
+   * Estados
    */
   const [refreshing, setRefreshing] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 
   /**
    * Função de refresh
@@ -66,16 +70,13 @@ export default function CustomerDetailsScreen() {
    */
   const deleteMutation = useMutation({
     mutationFn: () => deleteCustomer(customerId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
-      Alert.alert('Sucesso!', 'Cliente deletado', [
-        {
-          text: 'OK',
-          onPress: () => goBack(),
-        },
-      ]);
+    onSuccess: async () => {
+      setShowDeleteDialog(false);
+      await queryClient.invalidateQueries({ queryKey: ['customers'] });
+      setShowSuccessDialog(true);
     },
     onError: (error: any) => {
+      setShowDeleteDialog(false);
       Alert.alert('Erro', error.message || 'Erro ao deletar cliente');
     },
   });
@@ -84,18 +85,7 @@ export default function CustomerDetailsScreen() {
    * Confirmar deleção
    */
   const handleDelete = () => {
-    Alert.alert(
-      'Confirmar exclusão',
-      `Tem certeza que deseja deletar "${customer?.full_name}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Deletar',
-          style: 'destructive',
-          onPress: () => deleteMutation.mutate(),
-        },
-      ]
-    );
+    setShowDeleteDialog(true);
   };
 
   /**
@@ -291,9 +281,14 @@ export default function CustomerDetailsScreen() {
         {/* Informações de Contato */}
         <Card style={styles.card}>
           <Card.Content>
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Informações de Contato
-            </Text>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="call-outline" size={20} color={Colors.light.primary} />
+              </View>
+              <Text variant="titleMedium" style={styles.cardTitle}>
+                Informações de Contato
+              </Text>
+            </View>
 
             <View style={styles.infoSection}>
               {customer.phone && (
@@ -339,9 +334,14 @@ export default function CustomerDetailsScreen() {
         {(customer.address || customer.city || customer.state) && (
           <Card style={styles.card}>
             <Card.Content>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                Endereço
-              </Text>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardHeaderIcon}>
+                  <Ionicons name="location-outline" size={20} color={Colors.light.primary} />
+                </View>
+                <Text variant="titleMedium" style={styles.cardTitle}>
+                  Endereço
+                </Text>
+              </View>
 
               <View style={styles.infoSection}>
                 {customer.address && (
@@ -380,9 +380,14 @@ export default function CustomerDetailsScreen() {
         {/* Informações Adicionais */}
         <Card style={styles.card}>
           <Card.Content>
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Informações Adicionais
-            </Text>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="information-circle-outline" size={20} color={Colors.light.primary} />
+              </View>
+              <Text variant="titleMedium" style={styles.cardTitle}>
+                Informações Adicionais
+              </Text>
+            </View>
 
             <View style={styles.statsGrid}>
               <StatCard
@@ -418,6 +423,38 @@ export default function CustomerDetailsScreen() {
           </Card.Content>
         </Card>
       </ScrollView>
+
+      {/* Dialog de Confirmação de Exclusão */}
+      <ConfirmDialog
+        visible={showDeleteDialog}
+        title="Confirmar Exclusão"
+        message={`Tem certeza que deseja excluir o cliente "${customer?.full_name}"?\n\nEsta ação não pode ser desfeita.`}
+        confirmText="Excluir"
+        cancelText="Cancelar"
+        onConfirm={() => deleteMutation.mutate()}
+        onCancel={() => setShowDeleteDialog(false)}
+        type="danger"
+        icon="trash"
+        loading={deleteMutation.isPending}
+      />
+
+      {/* Dialog de Sucesso */}
+      <ConfirmDialog
+        visible={showSuccessDialog}
+        title="Sucesso!"
+        message="Cliente excluído com sucesso!"
+        confirmText="OK"
+        onConfirm={() => {
+          setShowSuccessDialog(false);
+          goBack();
+        }}
+        onCancel={() => {
+          setShowSuccessDialog(false);
+          goBack();
+        }}
+        type="success"
+        icon="checkmark-circle"
+      />
     </SafeAreaView>
   );
 }
@@ -560,6 +597,33 @@ const styles = StyleSheet.create({
     margin: 16,
     marginTop: 0,
     marginBottom: 12,
+    borderRadius: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  cardHeaderIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: Colors.light.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  cardTitle: {
+    fontWeight: '600',
+    color: Colors.light.text,
   },
   sectionTitle: {
     fontWeight: '600',

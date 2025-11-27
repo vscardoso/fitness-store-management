@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -40,6 +40,13 @@ export default function ProductDetailsScreen() {
   // Validar ID do produto
   const productId = id ? parseInt(id as string) : NaN;
   const isValidId = !isNaN(productId) && productId > 0;
+
+  // Se ID inválido, redirecionar imediatamente
+  useEffect(() => {
+    if (id && !isValidId) {
+      router.replace('/(tabs)/products');
+    }
+  }, [id, isValidId]);
 
   // Estados do modal de estoque
   const [stockModalVisible, setStockModalVisible] = useState(false);
@@ -281,7 +288,7 @@ export default function ProductDetailsScreen() {
 
             <View style={styles.headerActions}>
               <TouchableOpacity
-                onPress={() => router.push(`/products/edit/${productId}` as any)}
+                onPress={() => router.push(`/products/edit/${productId}`)}
                 style={styles.actionButton}
               >
                 <Ionicons name="pencil" size={20} color="#fff" />
@@ -348,19 +355,29 @@ export default function ProductDetailsScreen() {
         <Card.Content>
           {/* Estoque atual */}
           <View style={styles.stockSection}>
-            <View style={styles.stockInfo}>
-              <Ionicons name="cube" size={48} color={Colors.light.primary} />
-              <View style={styles.stockNumbers}>
-                <Text variant="bodySmall" style={styles.stockLabel}>
-                  Estoque Atual
-                </Text>
-                <Text variant="displaySmall" style={styles.stockValue}>
-                  {currentStock}
-                </Text>
-                <Text variant="bodySmall" style={styles.stockUnit}>
-                  unidades
-                </Text>
+            <View style={styles.stockCard}>
+              <View style={styles.stockHeader}>
+                <Ionicons name="cube" size={40} color={Colors.light.primary} />
+                <View style={styles.stockNumbers}>
+                  <Text variant="bodySmall" style={styles.stockLabel}>
+                    Estoque Atual
+                  </Text>
+                  <Text variant="displaySmall" style={styles.stockValue}>
+                    {currentStock}
+                  </Text>
+                  <Text variant="bodySmall" style={styles.stockUnit}>
+                    unidades disponíveis
+                  </Text>
+                </View>
               </View>
+
+              {/* Indicador visual de status */}
+              <View style={[
+                styles.stockStatusBar,
+                isOutOfStock ? styles.stockStatusEmpty :
+                isLowStock ? styles.stockStatusLow :
+                styles.stockStatusGood
+              ]} />
             </View>
 
             {/* Botões de movimentação */}
@@ -371,8 +388,9 @@ export default function ProductDetailsScreen() {
                 onPress={() => handleStockModal(MovementType.IN)}
                 style={styles.stockButton}
                 buttonColor={Colors.light.success}
+                contentStyle={styles.buttonContent}
               >
-                Entrada
+                Adicionar
               </Button>
               <Button
                 mode="contained"
@@ -380,63 +398,79 @@ export default function ProductDetailsScreen() {
                 onPress={() => handleStockModal(MovementType.OUT)}
                 style={styles.stockButton}
                 buttonColor={Colors.light.error}
+                contentStyle={styles.buttonContent}
                 disabled={currentStock === 0}
               >
-                Saída
+                Remover
               </Button>
             </View>
           </View>
 
           {/* Informações do produto */}
           <View style={styles.infoSection}>
-            <InfoRow label="SKU:" value={product.sku} />
+            <View style={styles.sectionHeader}>
+              <Ionicons name="information-circle-outline" size={20} color={Colors.light.primary} />
+              <Text variant="titleMedium" style={styles.sectionTitle}>
+                Detalhes do Produto
+              </Text>
+            </View>
 
-            {product.barcode && (
-              <InfoRow label="Código de Barras:" value={product.barcode} />
-            )}
+            <View style={styles.infoGrid}>
+              <InfoRow label="SKU:" value={product.sku} />
 
-            {product.brand && (
-              <InfoRow label="Marca:" value={product.brand} />
-            )}
+              {product.barcode && (
+                <InfoRow label="Código de Barras:" value={product.barcode} />
+              )}
 
-            <InfoRow
-              label="Categoria:"
-              value={product.category?.name || 'Sem categoria'}
-            />
+              {product.brand && (
+                <InfoRow label="Marca:" value={product.brand} />
+              )}
 
-            {product.description && (
-              <InfoRow label="Descrição:" value={product.description} />
-            )}
+              <InfoRow
+                label="Categoria:"
+                value={product.category?.name || 'Sem categoria'}
+              />
+
+              {product.description && (
+                <InfoRow label="Descrição:" value={product.description} />
+              )}
+            </View>
           </View>
 
           {/* Preços */}
           <View style={styles.priceSection}>
-            <Text variant="titleMedium" style={styles.sectionTitle}>
-              Preços
-            </Text>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="cash-outline" size={20} color={Colors.light.primary} />
+              <Text variant="titleMedium" style={styles.sectionTitle}>
+                Informações de Preço
+              </Text>
+            </View>
 
             <View style={styles.priceGrid}>
               {product.cost_price && (
                 <StatCard
-                  label="Custo"
+                  label="Custo Unitário"
                   value={formatCurrency(product.cost_price)}
-                  valueColor="#666"
+                  icon="trending-down-outline"
+                  valueColor="#f57c00"
                 />
               )}
 
               <StatCard
-                label="Venda"
+                label="Preço de Venda"
                 value={formatCurrency(product.price)}
+                icon="pricetag"
                 valueColor={Colors.light.primary}
               />
 
               {product.cost_price && product.cost_price > 0 && (
                 <StatCard
-                  label="Margem"
+                  label="Margem de Lucro"
                   value={(
                     ((product.price - product.cost_price) / product.cost_price) * 100
                   ).toFixed(1)}
                   suffix="%"
+                  icon="trending-up"
                   valueColor={Colors.light.success}
                 />
               )}
@@ -629,10 +663,29 @@ const styles = StyleSheet.create({
   },
   card: {
     margin: 16,
+    borderRadius: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
   },
   stockSection: {
     marginTop: 8,
+    marginBottom: 24,
+  },
+  stockCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    borderWidth: 2,
+    borderColor: '#e9ecef',
+  },
+  stockHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 16,
   },
   stockInfo: {
     flexDirection: 'row',
@@ -640,18 +693,38 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   stockNumbers: {
-    marginLeft: 16,
-    alignItems: 'flex-start',
+    flex: 1,
   },
   stockLabel: {
-    color: Colors.light.icon,
+    color: Colors.light.textSecondary,
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   stockValue: {
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: Colors.light.primary,
+    fontSize: 36,
+    lineHeight: 42,
   },
   stockUnit: {
-    color: Colors.light.icon,
+    color: Colors.light.textSecondary,
+    fontSize: 13,
+  },
+  stockStatusBar: {
+    height: 4,
+    borderRadius: 2,
+    marginTop: 16,
+  },
+  stockStatusGood: {
+    backgroundColor: Colors.light.success,
+  },
+  stockStatusLow: {
+    backgroundColor: Colors.light.warning,
+  },
+  stockStatusEmpty: {
+    backgroundColor: Colors.light.error,
   },
   stockButtons: {
     flexDirection: 'row',
@@ -660,17 +733,36 @@ const styles = StyleSheet.create({
   },
   stockButton: {
     flex: 1,
+    borderRadius: 12,
+  },
+  buttonContent: {
+    paddingVertical: 8,
   },
   infoSection: {
+    marginTop: 8,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  infoGrid: {
     gap: 12,
-    marginTop: 24,
   },
   priceSection: {
     marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
   },
   sectionTitle: {
-    fontWeight: '600',
-    marginBottom: 12,
+    fontWeight: '700',
+    fontSize: 16,
+    color: Colors.light.text,
   },
   priceGrid: {
     flexDirection: 'row',
@@ -678,11 +770,18 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   additionalInfo: {
-    gap: 4,
+    gap: 8,
     marginTop: 24,
+    padding: 16,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.light.primary,
   },
   additionalText: {
-    color: Colors.light.icon,
+    color: Colors.light.textSecondary,
+    fontSize: 13,
+    lineHeight: 20,
   },
   input: {
     marginBottom: 16,

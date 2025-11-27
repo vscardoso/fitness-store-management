@@ -25,7 +25,12 @@ interface QuickAction {
   route: string;
 }
 
-export default function FAB() {
+interface FABProps {
+  bottom?: number;
+  directRoute?: string; // Se fornecido, vai direto para a rota sem modal
+}
+
+export default function FAB({ bottom = 20, directRoute }: FABProps) {
   const router = useRouter();
   const [visible, setVisible] = useState(false);
   const [scaleAnim] = useState(new Animated.Value(0));
@@ -118,12 +123,21 @@ export default function FAB() {
     outputRange: ['0deg', '45deg'],
   });
 
+  // Se tem rota direta, vai direto sem modal
+  const handleFABPress = () => {
+    if (directRoute) {
+      router.push(directRoute as any);
+    } else {
+      openModal();
+    }
+  };
+
   return (
     <>
       {/* Botão FAB */}
       <TouchableOpacity
-        style={styles.fab}
-        onPress={openModal}
+        style={[styles.fab, { bottom }]}
+        onPress={handleFABPress}
         activeOpacity={0.8}
       >
         <LinearGradient

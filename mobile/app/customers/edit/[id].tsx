@@ -15,10 +15,12 @@ import {
   HelperText,
   ActivityIndicator,
   Text,
+  Card,
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -53,6 +55,9 @@ export default function EditCustomerScreen() {
   // Estados de validação e UI
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loadingCep, setLoadingCep] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   /**
    * Query: Buscar cliente
@@ -151,23 +156,15 @@ export default function EditCustomerScreen() {
    */
   const updateMutation = useMutation({
     mutationFn: (data: CustomerUpdate) => updateCustomer(customerId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
-      queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
-      Alert.alert(
-        'Sucesso!',
-        'Cliente atualizado com sucesso',
-        [
-          {
-            text: 'OK',
-            onPress: () => goBack(),
-          },
-        ]
-      );
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['customers'] });
+      await queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
+      setShowSuccessDialog(true);
     },
     onError: (error: any) => {
-      const errorMessage = error?.response?.data?.detail || error.message || 'Erro ao atualizar cliente';
-      Alert.alert('Erro', errorMessage);
+      const message = error?.response?.data?.detail || error.message || 'Erro ao atualizar cliente';
+      setErrorMessage(message);
+      setShowErrorDialog(true);
     },
   });
 
@@ -176,7 +173,8 @@ export default function EditCustomerScreen() {
    */
   const handleSubmit = () => {
     if (!validateForm()) {
-      Alert.alert('Erro', 'Preencha todos os campos obrigatórios corretamente');
+      setErrorMessage('Preencha todos os campos obrigatórios corretamente');
+      setShowErrorDialog(true);
       return;
     }
 
@@ -240,7 +238,7 @@ export default function EditCustomerScreen() {
         <View style={styles.headerContent}>
           <View style={styles.headerTop}>
             <TouchableOpacity
-              onPress={() => router.push('/(tabs)/customers')}
+              onPress={() => router.back()}
               style={styles.backButton}
             >
               <Ionicons name="arrow-back" size={24} color="#fff" />
@@ -268,10 +266,14 @@ export default function EditCustomerScreen() {
       >
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Informações básicas */}
-          <View style={styles.section}>
-            <HelperText type="info" style={styles.sectionTitle}>
-              Informações Básicas
-            </HelperText>
+          <Card style={styles.card}>
+            <Card.Content>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardHeaderIcon}>
+                  <Ionicons name="person-outline" size={20} color={Colors.light.primary} />
+                </View>
+                <Text style={styles.cardTitle}>Informações Básicas</Text>
+              </View>
 
             <TextInput
               label="Nome Completo *"
@@ -322,13 +324,18 @@ export default function EditCustomerScreen() {
             {errors.email ? (
               <HelperText type="error">{errors.email}</HelperText>
             ) : null}
-          </View>
+            </Card.Content>
+          </Card>
 
           {/* Documentos */}
-          <View style={styles.section}>
-            <HelperText type="info" style={styles.sectionTitle}>
-              Documentos
-            </HelperText>
+          <Card style={styles.card}>
+            <Card.Content>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardHeaderIcon}>
+                  <Ionicons name="card-outline" size={20} color={Colors.light.primary} />
+                </View>
+                <Text style={styles.cardTitle}>Documentos</Text>
+              </View>
 
             <TextInput
               label="CPF"
@@ -363,13 +370,18 @@ export default function EditCustomerScreen() {
             {errors.birthDate ? (
               <HelperText type="error">{errors.birthDate}</HelperText>
             ) : null}
-          </View>
+            </Card.Content>
+          </Card>
 
           {/* Endereço */}
-          <View style={styles.section}>
-            <HelperText type="info" style={styles.sectionTitle}>
-              Endereço (Opcional)
-            </HelperText>
+          <Card style={styles.card}>
+            <Card.Content>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardHeaderIcon}>
+                  <Ionicons name="location-outline" size={20} color={Colors.light.primary} />
+                </View>
+                <Text style={styles.cardTitle}>Endereço (Opcional)</Text>
+              </View>
 
             <TextInput
               label="CEP"
@@ -428,7 +440,8 @@ export default function EditCustomerScreen() {
                 />
               </View>
             </View>
-          </View>
+            </Card.Content>
+          </Card>
 
           {/* Botões */}
           <View style={styles.actions}>
@@ -452,6 +465,36 @@ export default function EditCustomerScreen() {
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Dialog de Sucesso */}
+      <ConfirmDialog
+        visible={showSuccessDialog}
+        title="Sucesso!"
+        message="Cliente atualizado com sucesso!"
+        confirmText="OK"
+        onConfirm={() => {
+          setShowSuccessDialog(false);
+          router.replace(`/customers/${customerId}` as any);
+        }}
+        onCancel={() => {
+          setShowSuccessDialog(false);
+          router.replace(`/customers/${customerId}` as any);
+        }}
+        type="success"
+        icon="checkmark-circle"
+      />
+
+      {/* Dialog de Erro */}
+      <ConfirmDialog
+        visible={showErrorDialog}
+        title="Erro"
+        message={errorMessage}
+        confirmText="OK"
+        onConfirm={() => setShowErrorDialog(false)}
+        onCancel={() => setShowErrorDialog(false)}
+        type="danger"
+        icon="alert-circle"
+      />
     </SafeAreaView>
   );
 }
@@ -529,6 +572,37 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: theme.spacing.md,
     paddingBottom: theme.spacing.xl,
+  },
+  card: {
+    marginBottom: 16,
+    borderRadius: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  cardHeaderIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: Colors.light.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.light.text,
   },
   section: {
     marginBottom: theme.spacing.lg,

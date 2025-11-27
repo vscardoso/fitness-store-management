@@ -19,7 +19,7 @@ import {
   TouchableOpacity,
   Dimensions,
 } from 'react-native';
-import { Text, Card, Chip, Button, Surface, ProgressBar, FAB } from 'react-native-paper';
+import { Text, Card, Chip, Button, Surface, ProgressBar } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -30,6 +30,7 @@ import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { EntryType } from '@/types';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import FAB from '@/components/FAB';
 
 const { width } = Dimensions.get('window');
 
@@ -484,12 +485,7 @@ export default function InventoryDashboard() {
       </ScrollView>
 
       {/* FAB - Adicionar entrada */}
-      <FAB
-        icon="plus"
-        style={styles.fab}
-        onPress={() => router.push('/entries/add')}
-        label="Adicionar"
-      />
+      <FAB directRoute="/entries/add" />
       </View>
     </SafeAreaView>
   );
@@ -698,11 +694,5 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.light.textSecondary,
     marginTop: 12,
-  },
-  fab: {
-    position: 'absolute',
-    right: 16,
-    bottom: 16,
-    backgroundColor: Colors.light.primary,
   },
 });

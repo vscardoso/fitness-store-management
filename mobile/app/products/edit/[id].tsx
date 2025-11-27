@@ -5,7 +5,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  Alert,
   TouchableOpacity,
   StatusBar,
 } from 'react-native';
@@ -22,6 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import useBackToList from '@/hooks/useBackToList';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCategories } from '@/hooks/useCategories';
@@ -32,7 +32,6 @@ import type { ProductUpdate } from '@/types';
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { goBack } = useBackToList('/(tabs)/products');
   const queryClient = useQueryClient();
   const { categories, isLoading: loadingCategories } = useCategories();
 
@@ -53,6 +52,7 @@ export default function EditProductScreen() {
   // Estados de validação e UI
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [menuVisible, setMenuVisible] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
 
   /**
    * Query: Buscar produto
@@ -84,23 +84,20 @@ export default function EditProductScreen() {
    */
   const updateMutation = useMutation({
     mutationFn: (data: ProductUpdate) => updateProduct(productId, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['product', productId] });
-      Alert.alert(
-        'Sucesso!',
-        'Produto atualizado com sucesso',
-        [
-          {
-            text: 'OK',
-            onPress: () => goBack(),
-          },
-        ]
-      );
+    onSuccess: async () => {
+      // Invalidar queries para forçar refetch
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      await queryClient.invalidateQueries({ queryKey: ['product', productId] });
+      await queryClient.invalidateQueries({ queryKey: ['active-products'] });
+      await queryClient.invalidateQueries({ queryKey: ['inventory', productId] });
+      
+      // Aguardar um pouco para garantir que as queries foram invalidadas
+      setTimeout(() => {
+        setShowSuccessDialog(true);
+      }, 150);
     },
     onError: (error: any) => {
-      const errorMessage = error.message || 'Erro ao atualizar produto';
-      Alert.alert('Erro', errorMessage);
+      // Silencioso - erros são mostrados nos campos de validação
     },
   });
 
@@ -142,8 +139,12 @@ export default function EditProductScreen() {
    * Salvar alterações
    */
   const handleSave = () => {
+    // Validar ID novamente antes de salvar
+    if (!isValidId) {
+      return;
+    }
+
     if (!validate()) {
-      Alert.alert('Atenção', 'Preencha todos os campos obrigatórios');
       return;
     }
 
@@ -158,7 +159,6 @@ export default function EditProductScreen() {
       price: parseFloat(salePrice),
     };
 
-    console.log('Dados do produto a serem atualizados:', JSON.stringify(productData, null, 2));
     updateMutation.mutate(productData);
   };
 
@@ -232,7 +232,7 @@ export default function EditProductScreen() {
         <View style={styles.headerContent}>
           <View style={styles.headerTop}>
             <TouchableOpacity
-              onPress={() => router.push('/(tabs)/products')}
+              onPress={() => router.back()}
               style={styles.backButton}
             >
               <Ionicons name="arrow-back" size={24} color="#fff" />
@@ -264,185 +264,197 @@ export default function EditProductScreen() {
           keyboardShouldPersistTaps="handled"
         >
         {/* Informações Básicas */}
-        <View style={styles.section}>
-          <TextInput
-            label="Nome do Produto *"
-            value={name}
-            onChangeText={(text) => {
-              setName(text);
-              setErrors({ ...errors, name: '' });
-            }}
-            mode="outlined"
-            error={!!errors.name}
-            style={styles.input}
-            placeholder="Ex: Legging Fitness Preta"
-          />
-          {errors.name ? (
-            <HelperText type="error">{errors.name}</HelperText>
-          ) : null}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="information-circle-outline" size={20} color={Colors.light.primary} />
+            <Text style={styles.cardTitle}>Informações Básicas</Text>
+          </View>
+          <View style={styles.cardContent}>
+            <TextInput
+              label="Nome do Produto *"
+              value={name}
+              onChangeText={(text) => {
+                setName(text);
+                setErrors({ ...errors, name: '' });
+              }}
+              mode="outlined"
+              error={!!errors.name}
+              style={styles.input}
+              placeholder="Ex: Legging Fitness Preta"
+            />
+            {errors.name ? (
+              <HelperText type="error">{errors.name}</HelperText>
+            ) : null}
 
-          <TextInput
-            label="SKU (Código) *"
-            value={sku}
-            onChangeText={(text) => {
-              setSku(text);
-              setErrors({ ...errors, sku: '' });
-            }}
-            mode="outlined"
-            error={!!errors.sku}
-            style={styles.input}
-            placeholder="Ex: LEG-FIT-001"
-            autoCapitalize="characters"
-          />
-          {errors.sku ? (
-            <HelperText type="error">{errors.sku}</HelperText>
-          ) : null}
+            <TextInput
+              label="SKU (Código) *"
+              value={sku}
+              onChangeText={(text) => {
+                setSku(text);
+                setErrors({ ...errors, sku: '' });
+              }}
+              mode="outlined"
+              error={!!errors.sku}
+              style={styles.input}
+              placeholder="Ex: LEG-FIT-001"
+              autoCapitalize="characters"
+            />
+            {errors.sku ? (
+              <HelperText type="error">{errors.sku}</HelperText>
+            ) : null}
 
-          <TextInput
-            label="Código de Barras"
-            value={barcode}
-            onChangeText={setBarcode}
-            mode="outlined"
-            style={styles.input}
-            placeholder="Ex: 7891234567890"
-            keyboardType="numeric"
-          />
+            <TextInput
+              label="Código de Barras"
+              value={barcode}
+              onChangeText={setBarcode}
+              mode="outlined"
+              style={styles.input}
+              placeholder="Ex: 7891234567890"
+              keyboardType="numeric"
+            />
 
-          <TextInput
-            label="Marca"
-            value={brand}
-            onChangeText={setBrand}
-            mode="outlined"
-            style={styles.input}
-            placeholder="Ex: Nike, Adidas"
-          />
+            <TextInput
+              label="Marca"
+              value={brand}
+              onChangeText={setBrand}
+              mode="outlined"
+              style={styles.input}
+              placeholder="Ex: Nike, Adidas"
+            />
 
-          <TextInput
-            label="Descrição"
-            value={description}
-            onChangeText={setDescription}
-            mode="outlined"
-            style={styles.input}
-            placeholder="Descrição detalhada do produto"
-            multiline
-            numberOfLines={3}
-          />
+            <TextInput
+              label="Descrição"
+              value={description}
+              onChangeText={setDescription}
+              mode="outlined"
+              style={styles.input}
+              placeholder="Descrição detalhada do produto"
+              multiline
+              numberOfLines={3}
+            />
+          </View>
         </View>
 
         {/* Categoria */}
-        <View style={styles.section}>
-          <HelperText type="info" style={styles.sectionTitle}>
-            Categoria *
-          </HelperText>
-          
-          {loadingCategories ? (
-            <HelperText type="info">Carregando categorias...</HelperText>
-          ) : categories.length === 0 ? (
-            <HelperText type="error">Nenhuma categoria disponível. Cadastre categorias primeiro.</HelperText>
-          ) : (
-            <>
-              <Menu
-                visible={menuVisible}
-                onDismiss={() => setMenuVisible(false)}
-                contentStyle={{ maxHeight: 300 }}
-                anchor={
-                  <TouchableRipple
-                    onPress={() => setMenuVisible(true)}
-                    style={styles.categoryButton}
-                  >
-                    <View style={styles.categoryButtonContent}>
-                      <Text style={categoryId ? styles.categoryText : styles.categoryPlaceholder}>
-                        {categoryId 
-                          ? categories.find(c => c.id === categoryId)?.name 
-                          : 'Selecione uma categoria'}
-                      </Text>
-                    </View>
-                  </TouchableRipple>
-                }
-              >
-                {categories.map((category) => (
-                  <Menu.Item
-                    key={category.id}
-                    onPress={() => {
-                      console.log('Categoria selecionada:', category.id, category.name);
-                      setMenuVisible(false);
-                      // Usar setTimeout para garantir que o menu feche antes de atualizar o estado
-                      setTimeout(() => {
-                        setCategoryId(category.id);
-                        setErrors({ ...errors, categoryId: '' });
-                      }, 100);
-                    }}
-                    title={category.name}
-                  />
-                ))}
-              </Menu>
-              {errors.categoryId ? (
-                <HelperText type="error">{errors.categoryId}</HelperText>
-              ) : null}
-            </>
-          )}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="list-outline" size={20} color={Colors.light.primary} />
+            <Text style={styles.cardTitle}>Categoria *</Text>
+          </View>
+          <View style={styles.cardContent}>
+            {loadingCategories ? (
+              <HelperText type="info">Carregando categorias...</HelperText>
+            ) : categories.length === 0 ? (
+              <HelperText type="error">Nenhuma categoria disponível. Cadastre categorias primeiro.</HelperText>
+            ) : (
+              <>
+                <Menu
+                  visible={menuVisible}
+                  onDismiss={() => setMenuVisible(false)}
+                  contentStyle={{ maxHeight: 300 }}
+                  anchor={
+                    <TouchableRipple
+                      onPress={() => setMenuVisible(true)}
+                      style={styles.categoryButton}
+                    >
+                      <View style={styles.categoryButtonContent}>
+                        <Text style={categoryId ? styles.categoryText : styles.categoryPlaceholder}>
+                          {categoryId 
+                            ? categories.find(c => c.id === categoryId)?.name 
+                            : 'Selecione uma categoria'}
+                        </Text>
+                        <Ionicons name="chevron-down" size={20} color="#999" />
+                      </View>
+                    </TouchableRipple>
+                  }
+                >
+                  {categories.map((category) => (
+                    <Menu.Item
+                      key={category.id}
+                      onPress={() => {
+                        setMenuVisible(false);
+                        setTimeout(() => {
+                          setCategoryId(category.id);
+                          setErrors({ ...errors, categoryId: '' });
+                        }, 100);
+                      }}
+                      title={category.name}
+                    />
+                  ))}
+                </Menu>
+                {errors.categoryId ? (
+                  <HelperText type="error">{errors.categoryId}</HelperText>
+                ) : null}
+              </>
+            )}
+          </View>
         </View>
 
         {/* Preços */}
-        <View style={styles.section}>
-          <HelperText type="info" style={styles.sectionTitle}>
-            Preços
-          </HelperText>
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="cash-outline" size={20} color={Colors.light.primary} />
+            <Text style={styles.cardTitle}>Preços</Text>
+          </View>
+          <View style={styles.cardContent}>
+            <TextInput
+              label="Preço de Custo (R$) *"
+              value={formatPriceDisplay(costPrice)}
+              onChangeText={(text) => {
+                setCostPrice(formatPriceInput(text));
+                setErrors({ ...errors, costPrice: '' });
+              }}
+              mode="outlined"
+              error={!!errors.costPrice}
+              style={styles.input}
+              placeholder="0,00"
+              keyboardType="numeric"
+              left={<TextInput.Affix text="R$" />}
+            />
+            {errors.costPrice ? (
+              <HelperText type="error">{errors.costPrice}</HelperText>
+            ) : null}
 
-          <TextInput
-            label="Preço de Custo (R$) *"
-            value={formatPriceDisplay(costPrice)}
-            onChangeText={(text) => {
-              setCostPrice(formatPriceInput(text));
-              setErrors({ ...errors, costPrice: '' });
-            }}
-            mode="outlined"
-            error={!!errors.costPrice}
-            style={styles.input}
-            placeholder="0,00"
-            keyboardType="numeric"
-            left={<TextInput.Affix text="R$" />}
-          />
-          {errors.costPrice ? (
-            <HelperText type="error">{errors.costPrice}</HelperText>
-          ) : null}
+            <TextInput
+              label="Preço de Venda (R$) *"
+              value={formatPriceDisplay(salePrice)}
+              onChangeText={(text) => {
+                setSalePrice(formatPriceInput(text));
+                setErrors({ ...errors, salePrice: '' });
+              }}
+              mode="outlined"
+              error={!!errors.salePrice}
+              style={styles.input}
+              placeholder="0,00"
+              keyboardType="numeric"
+              left={<TextInput.Affix text="R$" />}
+            />
+            {errors.salePrice ? (
+              <HelperText type="error">{errors.salePrice}</HelperText>
+            ) : null}
 
-          <TextInput
-            label="Preço de Venda (R$) *"
-            value={formatPriceDisplay(salePrice)}
-            onChangeText={(text) => {
-              setSalePrice(formatPriceInput(text));
-              setErrors({ ...errors, salePrice: '' });
-            }}
-            mode="outlined"
-            error={!!errors.salePrice}
-            style={styles.input}
-            placeholder="0,00"
-            keyboardType="numeric"
-            left={<TextInput.Affix text="R$" />}
-          />
-          {errors.salePrice ? (
-            <HelperText type="error">{errors.salePrice}</HelperText>
-          ) : null}
-
-          {/* Margem de lucro calculada */}
-          {costPrice && salePrice && parseFloat(costPrice) > 0 && parseFloat(salePrice) > 0 && (
-            <View style={styles.marginInfo}>
-              <Text style={styles.marginLabel}>Margem de Lucro:</Text>
-              <Text style={styles.marginValue}>
-                {(
-                  ((parseFloat(salePrice) - parseFloat(costPrice)) / parseFloat(costPrice)) * 100
-                ).toFixed(1)}%
-              </Text>
-            </View>
-          )}
+            {/* Margem de lucro calculada */}
+            {costPrice && salePrice && parseFloat(costPrice) > 0 && parseFloat(salePrice) > 0 && (
+              <View style={styles.marginInfo}>
+                <View style={styles.marginRow}>
+                  <Ionicons name="trending-up" size={20} color="#2e7d32" />
+                  <Text style={styles.marginLabel}>Margem de Lucro:</Text>
+                </View>
+                <Text style={styles.marginValue}>
+                  {(
+                    ((parseFloat(salePrice) - parseFloat(costPrice)) / parseFloat(costPrice)) * 100
+                  ).toFixed(1)}%
+                </Text>
+              </View>
+            )}
+          </View>
         </View>
 
         {/* Botões de ação */}
         <View style={styles.actions}>
           <Button
             mode="outlined"
-            onPress={goBack}
+            onPress={() => router.back()}
             style={styles.button}
             disabled={updateMutation.isPending}
           >
@@ -461,6 +473,20 @@ export default function EditProductScreen() {
         </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Dialog de Sucesso */}
+      <ConfirmDialog
+        visible={showSuccessDialog}
+        title="Produto Atualizado!"
+        message="As alterações foram salvas com sucesso."
+        confirmText="OK"
+        onConfirm={() => {
+          setShowSuccessDialog(false);
+          router.replace(`/products/${productId}`);
+        }}
+        type="success"
+        icon="checkmark-circle"
+      />
     </SafeAreaView>
   );
 }
@@ -468,7 +494,7 @@ export default function EditProductScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5', // Background padrão
+    backgroundColor: Colors.light.primary,
   },
   loadingContainer: {
     flex: 1,
@@ -544,6 +570,34 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     paddingBottom: theme.spacing.xl,
   },
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    marginBottom: theme.spacing.md,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0, 0, 0, 0.06)',
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: theme.spacing.md,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  cardContent: {
+    padding: theme.spacing.md,
+  },
   section: {
     marginBottom: theme.spacing.md,
     marginTop: theme.spacing.lg,
@@ -561,14 +615,16 @@ const styles = StyleSheet.create({
   categoryButton: {
     borderWidth: 1,
     borderColor: Colors.light.border,
-    borderRadius: 4,
+    borderRadius: 8,
     backgroundColor: '#fff',
     marginBottom: 8,
   },
   categoryButtonContent: {
     padding: 16,
     minHeight: 56,
-    justifyContent: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   categoryText: {
     fontSize: 16,
@@ -581,27 +637,39 @@ const styles = StyleSheet.create({
   marginInfo: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
     backgroundColor: '#e8f5e9',
-    padding: 12,
-    borderRadius: 8,
+    padding: 16,
+    borderRadius: 12,
     marginTop: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2e7d32',
+  },
+  marginRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   marginLabel: {
     color: '#2e7d32',
     fontWeight: '600',
+    fontSize: 14,
   },
   marginValue: {
-    fontWeight: 'bold',
+    fontWeight: '800',
     color: '#1b5e20',
-    fontSize: 16,
+    fontSize: 20,
   },
   actions: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
     marginTop: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.md,
   },
   button: {
     flex: 1,
+    borderRadius: 12,
   },
   buttonPrimary: {
     backgroundColor: Colors.light.primary,

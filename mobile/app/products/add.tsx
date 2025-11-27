@@ -16,6 +16,7 @@ import {
   Menu,
   TouchableRipple,
   Text,
+  Card,
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,6 +27,7 @@ import { useCategories } from '@/hooks/useCategories';
 import { createProduct } from '@/services/productService';
 import { Colors, theme } from '@/constants/Colors';
 import type { ProductCreate } from '@/types';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 export default function AddProductScreen() {
   const router = useRouter();
@@ -48,6 +50,9 @@ export default function AddProductScreen() {
   // Estados de validação e UI
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [categoryMenuVisible, setCategoryMenuVisible] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   // Debug: log quando categorias carregarem
   useEffect(() => {
@@ -62,22 +67,15 @@ export default function AddProductScreen() {
    */
   const createMutation = useMutation({
     mutationFn: createProduct,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      Alert.alert(
-        'Sucesso!',
-        'Produto cadastrado com sucesso',
-        [
-          {
-            text: 'OK',
-            onPress: () => goBack(),
-          },
-        ]
-      );
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      await queryClient.invalidateQueries({ queryKey: ['active-products'] });
+      setShowSuccessDialog(true);
     },
     onError: (error: any) => {
-      const errorMessage = error.message || 'Erro ao cadastrar produto';
-      Alert.alert('Erro', errorMessage);
+      const message = error.message || 'Erro ao cadastrar produto';
+      setErrorMessage(message);
+      setShowErrorDialog(true);
     },
   });
 
@@ -120,7 +118,8 @@ export default function AddProductScreen() {
    */
   const handleSave = () => {
     if (!validate()) {
-      Alert.alert('Atenção', 'Preencha todos os campos obrigatórios');
+      setErrorMessage('Preencha todos os campos obrigatórios');
+      setShowErrorDialog(true);
       return;
     }
 
@@ -197,7 +196,15 @@ export default function AddProductScreen() {
           keyboardShouldPersistTaps="handled"
         >
         {/* Informações Básicas */}
-        <View style={styles.section}>
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="cube-outline" size={20} color={Colors.light.primary} />
+              </View>
+              <Text style={styles.cardTitle}>Informações Básicas</Text>
+            </View>
+
           <TextInput
             label="Nome do Produto *"
             value={name}
@@ -260,13 +267,18 @@ export default function AddProductScreen() {
             multiline
             numberOfLines={3}
           />
-        </View>
+          </Card.Content>
+        </Card>
 
         {/* Categoria */}
-        <View style={styles.section}>
-          <HelperText type="info" style={styles.sectionTitle}>
-            Categoria *
-          </HelperText>
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="grid-outline" size={20} color={Colors.light.primary} />
+              </View>
+              <Text style={styles.cardTitle}>Categoria</Text>
+            </View>
           
           {loadingCategories ? (
             <HelperText type="info">Carregando categorias...</HelperText>
@@ -314,21 +326,18 @@ export default function AddProductScreen() {
               ) : null}
             </>
           )}
-        </View>
-
-        {/* Lote (descontinuado) */}
-        <View style={styles.section}>
-          <HelperText type="info" style={styles.sectionTitle}>
-            Lotes descontinuados
-          </HelperText>
-          <HelperText type="info">O sistema agora usa Entradas de Estoque (FIFO). Não é necessário vincular a um lote.</HelperText>
-        </View>
+          </Card.Content>
+        </Card>
 
         {/* Preços */}
-        <View style={styles.section}>
-          <HelperText type="info" style={styles.sectionTitle}>
-            Preços
-          </HelperText>
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="cash-outline" size={20} color={Colors.light.primary} />
+              </View>
+              <Text style={styles.cardTitle}>Preços</Text>
+            </View>
 
           <TextInput
             label="Preço de Custo (R$) *"
@@ -377,13 +386,18 @@ export default function AddProductScreen() {
             left={<TextInput.Affix text="R$" />}
           />
           <HelperText type="info">Opcional - para vendas em quantidade</HelperText>
-        </View>
+          </Card.Content>
+        </Card>
 
         {/* Estoque Mínimo */}
-        <View style={styles.section}>
-          <HelperText type="info" style={styles.sectionTitle}>
-            Estoque
-          </HelperText>
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="archive-outline" size={20} color={Colors.light.primary} />
+              </View>
+              <Text style={styles.cardTitle}>Estoque</Text>
+            </View>
 
           <TextInput
             label="Estoque Mínimo"
@@ -397,7 +411,8 @@ export default function AddProductScreen() {
           <HelperText type="info">
             Você será alertado quando o estoque atingir este valor
           </HelperText>
-        </View>
+          </Card.Content>
+        </Card>
 
         {/* Botões de ação */}
         <View style={styles.actions}>
@@ -422,6 +437,36 @@ export default function AddProductScreen() {
         </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      {/* Dialog de Sucesso */}
+      <ConfirmDialog
+        visible={showSuccessDialog}
+        title="Sucesso!"
+        message="Produto cadastrado com sucesso!"
+        confirmText="OK"
+        onConfirm={() => {
+          setShowSuccessDialog(false);
+          goBack();
+        }}
+        onCancel={() => {
+          setShowSuccessDialog(false);
+          goBack();
+        }}
+        type="success"
+        icon="checkmark-circle"
+      />
+
+      {/* Dialog de Erro */}
+      <ConfirmDialog
+        visible={showErrorDialog}
+        title="Erro"
+        message={errorMessage}
+        confirmText="OK"
+        onConfirm={() => setShowErrorDialog(false)}
+        onCancel={() => setShowErrorDialog(false)}
+        type="danger"
+        icon="alert-circle"
+      />
     </View>
   );
 }
@@ -495,6 +540,34 @@ const styles = StyleSheet.create({
     fontWeight: '600' as const,
     color: Colors.light.primary,
     marginBottom: theme.spacing.sm,
+  },
+  card: {
+    marginBottom: theme.spacing.md,
+    borderRadius: 16,
+    elevation: 2,
+    backgroundColor: Colors.light.background,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  cardHeaderIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: Colors.light.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: theme.spacing.sm,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '600' as const,
+    color: Colors.light.text,
   },
   input: {
     marginBottom: theme.spacing.sm,

@@ -7,12 +7,13 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Searchbar, FAB, Text, Button } from 'react-native-paper';
+import { Searchbar, Text, Button } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import ListHeader from '@/components/layout/ListHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import ProductCard from '@/components/products/ProductCard';
+import FAB from '@/components/FAB';
 import { getActiveProducts, searchProducts } from '@/services/productService';
 import { Colors } from '@/constants/Colors';
 import type { Product } from '@/types';
@@ -195,12 +196,7 @@ export default function ProductsScreen() {
         />
 
         {/* Botão flutuante para adicionar */}
-        <FAB
-          icon="plus"
-          style={styles.fab}
-          onPress={handleAddProduct}
-          label="Adicionar"
-        />
+        <FAB directRoute="/products/add" />
       </View>
     </SafeAreaView>
   );
@@ -240,12 +236,6 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 16,
     color: Colors.light.icon,
-  },
-  fab: {
-    position: 'absolute',
-    right: 16,
-    bottom: 16,
-    backgroundColor: Colors.light.primary,
   },
   actionsRow: {
     flexDirection: 'row',
