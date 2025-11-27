@@ -1,23 +1,18 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
-  FlatList,
   StatusBar,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import {
   Text,
-  Searchbar,
   Card,
   Button,
-  Chip,
-  FAB,
   IconButton,
-  List,
-  ActivityIndicator,
 } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -27,11 +22,12 @@ import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
 import EmptyState from '@/components/ui/EmptyState';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
 // import BarcodeScanner from '@/components/sale/BarcodeScanner'; // Desabilitado temporariamente - requer build nativo
 import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
-import { searchProducts } from '@/services/productService';
+import ProductSelectionModal from '@/components/sale/ProductSelectionModal';
 import { getCustomerById } from '@/services/customerService';
 import {
   validateProductForCart,
@@ -44,12 +40,26 @@ export default function SaleScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const cart = useCart();
-  const [searchQuery, setSearchQuery] = useState('');
   const [scannerVisible, setScannerVisible] = useState(false);
-  const [searchResults, setSearchResults] = useState<Product[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
-  const [showSearchResults, setShowSearchResults] = useState(false);
   const [customerModalVisible, setCustomerModalVisible] = useState(false);
+  const [productModalVisible, setProductModalVisible] = useState(false);
+
+  // Estado para controlar diálogos de confirmação
+  const [dialog, setDialog] = useState<{
+    visible: boolean;
+    type: 'danger' | 'warning' | 'info' | 'success';
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm: () => void;
+  }>({
+    visible: false,
+    type: 'warning',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   // Query: Selected customer details
   const { data: selectedCustomer } = useQuery({
@@ -58,54 +68,34 @@ export default function SaleScreen() {
     enabled: !!cart.customer_id,
   });
 
-  /**
-   * Debounced search effect
-   */
-  useEffect(() => {
-    const timer = setTimeout(async () => {
-      if (searchQuery.trim().length >= 2) {
-        setIsSearching(true);
-        setShowSearchResults(true);
-        try {
-          const results = await searchProducts(searchQuery);
-          // Filtrar apenas produtos ativos e não catálogo
-          const validProducts = results.filter(
-            product => product.is_active && !product.is_catalog
-          );
-          setSearchResults(validProducts);
-        } catch (error) {
-          console.error('Search error:', error);
-          setSearchResults([]);
-        } finally {
-          setIsSearching(false);
-        }
-      } else {
-        setSearchResults([]);
-        setShowSearchResults(false);
-      }
-    }, 500); // 500ms debounce
-
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
   const handleAddToCart = (product: any) => {
     // Validar se o produto está ativo
     if (!product.is_active) {
       haptics.warning();
-      Alert.alert(
-        'Produto inativo',
-        'Este produto está inativo e não pode ser adicionado ao carrinho. Ative o produto antes de vendê-lo.'
-      );
+      setDialog({
+        visible: true,
+        type: 'warning',
+        title: 'Produto inativo',
+        message: 'Este produto está inativo e não pode ser adicionado ao carrinho. Ative o produto antes de vendê-lo.',
+        confirmText: 'Entendi',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
       return;
     }
 
     // Validar se o produto não é de catálogo
     if (product.is_catalog) {
       haptics.warning();
-      Alert.alert(
-        'Produto de catálogo',
-        'Este é um produto de catálogo e não pode ser vendido. Importe o produto para seu estoque primeiro.'
-      );
+      setDialog({
+        visible: true,
+        type: 'warning',
+        title: 'Produto de catálogo',
+        message: 'Este é um produto de catálogo e não pode ser vendido. Importe o produto para seu estoque primeiro.',
+        confirmText: 'Entendi',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
       return;
     }
 
@@ -117,7 +107,15 @@ export default function SaleScreen() {
 
     if (!validation.isValid) {
       haptics.warning();
-      Alert.alert('Não é possível adicionar produto', formatValidationErrors(validation.errors));
+      setDialog({
+        visible: true,
+        type: 'danger',
+        title: 'Não é possível adicionar produto',
+        message: formatValidationErrors(validation.errors),
+        confirmText: 'Entendi',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
       return;
     }
 
@@ -138,21 +136,19 @@ export default function SaleScreen() {
     // Se quantidade for zero ou menor, remover do carrinho
     if (newQuantity <= 0) {
       haptics.warning();
-      Alert.alert(
-        'Remover produto',
-        `Deseja remover ${item.product.name} do carrinho?`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Remover',
-            style: 'destructive',
-            onPress: () => {
-              haptics.success();
-              cart.removeItem(productId);
-            },
-          },
-        ]
-      );
+      setDialog({
+        visible: true,
+        type: 'danger',
+        title: 'Remover produto',
+        message: `Deseja remover ${item.product.name} do carrinho?`,
+        confirmText: 'Remover',
+        cancelText: 'Cancelar',
+        onConfirm: () => {
+          haptics.success();
+          cart.removeItem(productId);
+          setDialog({ ...dialog, visible: false });
+        },
+      });
       return;
     }
 
@@ -161,7 +157,15 @@ export default function SaleScreen() {
 
     if (!validation.isValid) {
       haptics.warning();
-      Alert.alert('Quantidade inválida', formatValidationErrors(validation.errors));
+      setDialog({
+        visible: true,
+        type: 'danger',
+        title: 'Quantidade inválida',
+        message: formatValidationErrors(validation.errors),
+        confirmText: 'Entendi',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
       return;
     }
 
@@ -171,27 +175,33 @@ export default function SaleScreen() {
 
   const handleClearCart = () => {
     haptics.warning();
-    Alert.alert(
-      'Limpar carrinho',
-      'Tem certeza que deseja remover todos os itens?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Limpar',
-          style: 'destructive',
-          onPress: () => {
-            haptics.success();
-            cart.clearItems();
-          },
-        },
-      ]
-    );
+    setDialog({
+      visible: true,
+      type: 'danger',
+      title: 'Limpar carrinho',
+      message: 'Tem certeza que deseja remover todos os itens?',
+      confirmText: 'Limpar',
+      cancelText: 'Cancelar',
+      onConfirm: () => {
+        haptics.success();
+        cart.clearItems();
+        setDialog({ ...dialog, visible: false });
+      },
+    });
   };
 
   const handleCheckout = () => {
     if (!cart.hasItems()) {
       haptics.warning();
-      Alert.alert('Carrinho vazio', 'Adicione produtos ao carrinho para finalizar a venda');
+      setDialog({
+        visible: true,
+        type: 'warning',
+        title: 'Carrinho vazio',
+        message: 'Adicione produtos ao carrinho para finalizar a venda',
+        confirmText: 'Entendi',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
       return;
     }
 
@@ -200,16 +210,15 @@ export default function SaleScreen() {
 
     if (!validation.isValid) {
       haptics.error();
-      Alert.alert(
-        'Validação do carrinho',
-        formatValidationErrors(validation.errors),
-        [
-          {
-            text: 'Revisar carrinho',
-            style: 'cancel',
-          },
-        ]
-      );
+      setDialog({
+        visible: true,
+        type: 'danger',
+        title: 'Validação do carrinho',
+        message: formatValidationErrors(validation.errors),
+        confirmText: 'Revisar carrinho',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
       return;
     }
 
@@ -233,33 +242,26 @@ export default function SaleScreen() {
     handleAddToCart(product);
 
     // Exibir feedback
-    Alert.alert(
-      'Produto adicionado',
-      `${product.name} foi adicionado ao carrinho`,
-      [{ text: 'OK', onPress: () => haptics.light() }]
-    );
+    setDialog({
+      visible: true,
+      type: 'success',
+      title: 'Produto adicionado',
+      message: `${product.name} foi adicionado ao carrinho`,
+      confirmText: 'OK',
+      cancelText: '',
+      onConfirm: () => {
+        haptics.light();
+        setDialog({ ...dialog, visible: false });
+      },
+    });
   };
 
   /**
-   * Handler para selecionar produto da busca
+   * Handler para selecionar produto do modal
    */
   const handleSelectProduct = (product: Product) => {
     haptics.light();
     handleAddToCart(product);
-
-    // Limpar busca
-    setSearchQuery('');
-    setSearchResults([]);
-    setShowSearchResults(false);
-  };
-
-  /**
-   * Handler para limpar busca
-   */
-  const handleClearSearch = () => {
-    setSearchQuery('');
-    setSearchResults([]);
-    setShowSearchResults(false);
   };
 
   /**
@@ -271,6 +273,7 @@ export default function SaleScreen() {
   };
 
   return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
@@ -345,66 +348,25 @@ export default function SaleScreen() {
           )}
         </View>
 
-        {/* Buscar produtos */}
-        <View style={styles.searchSection}>
-          <Searchbar
-            placeholder="Buscar produto por nome, SKU ou código de barras..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            style={styles.searchbar}
-            icon="barcode"
-            elevation={0}
-            onClearIconPress={handleClearSearch}
-          />
-
-          {/* Resultados da busca */}
-          {showSearchResults && (
-            <Card style={styles.searchResultsCard}>
-              {isSearching ? (
-                <View style={styles.searchLoadingContainer}>
-                  <ActivityIndicator size="small" color={Colors.light.primary} />
-                  <Text style={styles.searchLoadingText}>Buscando...</Text>
-                </View>
-              ) : searchResults.length > 0 ? (
-                <ScrollView style={styles.searchResultsList} nestedScrollEnabled>
-                  {searchResults.map((product) => (
-                    <List.Item
-                      key={product.id}
-                      title={product.name}
-                      description={`SKU: ${product.sku} | ${formatCurrency(product.price)}`}
-                      left={(props) => (
-                        <List.Icon {...props} icon="cube-outline" color={Colors.light.primary} />
-                      )}
-                      right={(props) => (
-                        <IconButton
-                          {...props}
-                          icon="plus-circle"
-                          iconColor={Colors.light.primary}
-                          onPress={() => handleSelectProduct(product)}
-                        />
-                      )}
-                      onPress={() => handleSelectProduct(product)}
-                      style={styles.searchResultItem}
-                    />
-                  ))}
-                </ScrollView>
-              ) : (
-                <View style={styles.searchEmptyContainer}>
-                  <Ionicons
-                    name="alert-circle-outline"
-                    size={32}
-                    color={Colors.light.textSecondary}
-                  />
-                  <Text style={styles.searchEmptyText}>
-                    Nenhum produto ativo encontrado para "{searchQuery}"
-                  </Text>
-                  <Text style={styles.searchEmptySubtext}>
-                    Apenas produtos ativos podem ser vendidos
-                  </Text>
-                </View>
-              )}
-            </Card>
-          )}
+        {/* Adicionar produtos */}
+        <View style={styles.addProductSection}>
+          <TouchableOpacity
+            style={styles.addProductButton}
+            onPress={() => setProductModalVisible(true)}
+          >
+            <View style={styles.addProductIconContainer}>
+              <Ionicons name="add-circle" size={32} color={Colors.light.primary} />
+            </View>
+            <View style={styles.addProductTextContainer}>
+              <Text variant="titleMedium" style={styles.addProductText}>
+                Adicionar Produtos
+              </Text>
+              <Text variant="bodySmall" style={styles.addProductSubtext}>
+                Toque para buscar e adicionar produtos à venda
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={Colors.light.textTertiary} />
+          </TouchableOpacity>
         </View>
 
         {/* Carrinho de compras */}
@@ -546,7 +508,27 @@ export default function SaleScreen() {
           onDismiss={() => setCustomerModalVisible(false)}
           onSelectCustomer={handleSelectCustomer}
         />
+
+        {/* Product Selection Modal */}
+        <ProductSelectionModal
+          visible={productModalVisible}
+          onDismiss={() => setProductModalVisible(false)}
+          onSelectProduct={handleSelectProduct}
+        />
+
+        {/* Confirm Dialog */}
+        <ConfirmDialog
+          visible={dialog.visible}
+          type={dialog.type}
+          title={dialog.title}
+          message={dialog.message}
+          confirmText={dialog.confirmText}
+          cancelText={dialog.cancelText}
+          onConfirm={dialog.onConfirm}
+          onCancel={() => setDialog({ ...dialog, visible: false })}
+        />
     </View>
+    </TouchableWithoutFeedback>
   );
 }
 
@@ -658,54 +640,33 @@ const styles = StyleSheet.create({
     color: Colors.light.primary,
     fontWeight: '500',
   },
-  searchSection: {
+  addProductSection: {
     paddingHorizontal: 16,
     marginTop: 16,
   },
-  searchbar: {
-    backgroundColor: Colors.light.background,
-    borderRadius: theme.borderRadius.lg,
-    elevation: 1,
-  },
-  searchResultsCard: {
-    marginTop: 8,
-    borderRadius: theme.borderRadius.lg,
-    elevation: 2,
-    maxHeight: 300,
-  },
-  searchResultsList: {
-    maxHeight: 300,
-  },
-  searchResultItem: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
-  },
-  searchLoadingContainer: {
+  addProductButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
+    backgroundColor: Colors.light.background,
+    padding: 16,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 2,
+    borderColor: Colors.light.primary,
+    borderStyle: 'solid',
   },
-  searchLoadingText: {
-    marginLeft: 12,
+  addProductIconContainer: {
+    marginRight: 12,
+  },
+  addProductTextContainer: {
+    flex: 1,
+  },
+  addProductText: {
+    fontWeight: '600',
+    color: Colors.light.primary,
+    marginBottom: 2,
+  },
+  addProductSubtext: {
     color: Colors.light.textSecondary,
-  },
-  searchEmptyContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-  },
-  searchEmptyText: {
-    marginTop: 12,
-    color: Colors.light.textSecondary,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  searchEmptySubtext: {
-    marginTop: 4,
-    color: Colors.light.textTertiary,
-    textAlign: 'center',
-    fontSize: 12,
   },
   cartSection: {
     flex: 1,

@@ -4,16 +4,19 @@
  */
 
 import { useState, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, StatusBar, TouchableOpacity } from 'react-native';
 import { Text, Button, Card, Chip, TextInput, IconButton, ActivityIndicator, Divider } from 'react-native-paper';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
 import { useCart } from '@/hooks/useCart';
 import { createSale } from '@/services/saleService';
 import { getCustomerById } from '@/services/customerService';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import {
   validateCheckout,
   validatePayments,
@@ -56,14 +59,40 @@ export default function CheckoutScreen() {
   const [loadingCustomer, setLoadingCustomer] = useState(false);
   const [cashReceived, setCashReceived] = useState('');
 
+  // Estado para controlar diálogos de confirmação
+  const [dialog, setDialog] = useState<{
+    visible: boolean;
+    type: 'danger' | 'warning' | 'info' | 'success';
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm: () => void;
+  }>({
+    visible: false,
+    type: 'warning',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
   /**
    * Redirecionar se carrinho vazio
    */
   useEffect(() => {
     if (!cart.hasItems()) {
-      Alert.alert('Carrinho vazio', 'Adicione produtos antes de finalizar a venda.', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)/sale') }
-      ]);
+      setDialog({
+        visible: true,
+        type: 'warning',
+        title: 'Carrinho vazio',
+        message: 'Adicione produtos antes de finalizar a venda.',
+        confirmText: 'OK',
+        cancelText: '',
+        onConfirm: () => {
+          setDialog({ ...dialog, visible: false });
+          router.replace('/(tabs)/sale');
+        },
+      });
     }
   }, [cart.items]);
 
@@ -88,7 +117,15 @@ export default function CheckoutScreen() {
       setCustomer(data);
     } catch (error) {
       console.error('Erro ao carregar cliente:', error);
-      Alert.alert('Erro', 'Não foi possível carregar dados do cliente');
+      setDialog({
+        visible: true,
+        type: 'danger',
+        title: 'Erro',
+        message: 'Não foi possível carregar dados do cliente',
+        confirmText: 'OK',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
     } finally {
       setLoadingCustomer(false);
     }
@@ -128,7 +165,15 @@ export default function CheckoutScreen() {
     const amount = parseMoneyInput(paymentAmount);
 
     if (isNaN(amount) || amount <= 0) {
-      Alert.alert('Valor inválido', 'Digite um valor válido para o pagamento');
+      setDialog({
+        visible: true,
+        type: 'warning',
+        title: 'Valor inválido',
+        message: 'Digite um valor válido para o pagamento',
+        confirmText: 'OK',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
       haptics.warning();
       return;
     }
@@ -137,22 +182,21 @@ export default function CheckoutScreen() {
     const totalRemaining = cart.total - cart.totalPaid;
 
     if (amount > totalRemaining) {
-      Alert.alert(
-        'Valor excede total',
-        `O pagamento excede o valor restante. Deseja adicionar R$ ${formatCurrency(totalRemaining)}?`,
-        [
-          { text: 'Cancelar', style: 'cancel' },
-          {
-            text: 'Adicionar',
-            onPress: () => {
-              cart.addPayment(selectedMethod, totalRemaining, installments);
-              setPaymentAmount('');
-              setCashReceived('');
-              haptics.success();
-            }
-          }
-        ]
-      );
+      setDialog({
+        visible: true,
+        type: 'warning',
+        title: 'Valor excede total',
+        message: `O pagamento excede o valor restante. Deseja adicionar ${formatCurrency(totalRemaining)}?`,
+        confirmText: 'Adicionar',
+        cancelText: 'Cancelar',
+        onConfirm: () => {
+          cart.addPayment(selectedMethod, totalRemaining, installments);
+          setPaymentAmount('');
+          setCashReceived('');
+          haptics.success();
+          setDialog({ ...dialog, visible: false });
+        },
+      });
       return;
     }
 
@@ -203,21 +247,30 @@ export default function CheckoutScreen() {
 
     if (!validation.isValid) {
       haptics.error();
-      Alert.alert(
-        'Validação falhou',
-        formatValidationErrors(validation.errors),
-        [{ text: 'Revisar', style: 'cancel' }]
-      );
+      setDialog({
+        visible: true,
+        type: 'danger',
+        title: 'Validação falhou',
+        message: formatValidationErrors(validation.errors),
+        confirmText: 'Revisar',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
       return;
     }
 
     // Validação adicional: pagamento deve cobrir total
     if (!cart.canFinalizeSale()) {
       haptics.warning();
-      Alert.alert(
-        'Pagamento incompleto',
-        `Valor pago: ${formatCurrency(cart.totalPaid)}\nTotal: ${formatCurrency(cart.total)}\n\nO valor pago deve cobrir o total da venda`
-      );
+      setDialog({
+        visible: true,
+        type: 'warning',
+        title: 'Pagamento incompleto',
+        message: `Valor pago: ${formatCurrency(cart.totalPaid)}\nTotal: ${formatCurrency(cart.total)}\n\nO valor pago deve cobrir o total da venda`,
+        confirmText: 'OK',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
       return;
     }
 
@@ -265,7 +318,15 @@ export default function CheckoutScreen() {
       console.error('Erro ao finalizar venda:', error);
 
       const message = error.response?.data?.detail || 'Erro ao processar venda. Tente novamente.';
-      Alert.alert('Erro', message);
+      setDialog({
+        visible: true,
+        type: 'danger',
+        title: 'Erro',
+        message: message,
+        confirmText: 'OK',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
     } finally {
       setLoading(false);
     }
@@ -290,23 +351,29 @@ export default function CheckoutScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={styles.headerLeft}>
-          <IconButton
-            icon="arrow-left"
-            size={24}
-            onPress={goBack}
-          />
-          <View>
-            <Text variant="titleLarge" style={styles.headerTitle}>
-              Finalizar Venda
-            </Text>
-            <Text variant="bodySmall" style={styles.headerSubtitle}>
-              {cart.itemCount} {cart.itemCount === 1 ? 'item' : 'itens'}
-            </Text>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      
+      {/* Header Premium */}
+      <View style={styles.headerContainer}>
+        <LinearGradient
+          colors={['#667eea', '#764ba2']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerContent}>
+            <TouchableOpacity onPress={goBack} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+            <View style={styles.headerInfo}>
+              <Text style={styles.greeting}>Finalizar Venda</Text>
+              <Text style={styles.headerSubtitle}>
+                {cart.itemCount} {cart.itemCount === 1 ? 'item' : 'itens'}
+              </Text>
+            </View>
+            <View style={styles.headerSpacer} />
           </View>
-        </View>
+        </LinearGradient>
       </View>
 
       <KeyboardAvoidingView
@@ -625,6 +692,18 @@ export default function CheckoutScreen() {
           </Button>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        visible={dialog.visible}
+        type={dialog.type}
+        title={dialog.title}
+        message={dialog.message}
+        confirmText={dialog.confirmText}
+        cancelText={dialog.cancelText}
+        onConfirm={dialog.onConfirm}
+        onCancel={() => setDialog({ ...dialog, visible: false })}
+      />
     </View>
   );
 }
@@ -634,26 +713,40 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
   },
-  header: {
+  headerContainer: {
+    overflow: 'hidden',
+  },
+  headerGradient: {
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
+  },
+  headerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    backgroundColor: Colors.light.background,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
+    gap: 12,
   },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
+  backButton: {
+    padding: theme.spacing.xs,
   },
-  headerTitle: {
-    fontWeight: '600',
+  headerInfo: {
+    flex: 1,
+  },
+  greeting: {
+    fontSize: theme.fontSize.xxl,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: theme.spacing.xs,
   },
   headerSubtitle: {
-    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.md,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
+  },
+  headerSpacer: {
+    width: 40,
   },
   content: {
     flex: 1,
@@ -667,6 +760,9 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 16,
     backgroundColor: Colors.light.background,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: theme.borderRadius.lg,
   },
   sectionHeader: {
     flexDirection: 'row',
