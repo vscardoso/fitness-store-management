@@ -378,9 +378,7 @@ export default function SaleScreen() {
             <EmptyState
               icon="cart-outline"
               title="Carrinho vazio"
-              description="Busque e adicione produtos para iniciar uma venda"
-              actionLabel="Buscar Produtos"
-              onAction={() => router.push('/(tabs)/products')}
+              description="Use a barra de busca acima para encontrar e adicionar produtos à venda"
             />
           ) : (
             <ScrollView style={styles.cartList} showsVerticalScrollIndicator={false}>
