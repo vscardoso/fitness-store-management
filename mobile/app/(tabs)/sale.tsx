@@ -6,8 +6,8 @@ import {
   TouchableOpacity,
   Alert,
   FlatList,
+  StatusBar,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Text,
   Searchbar,
@@ -228,21 +228,23 @@ export default function SaleScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
-        {/* Header com gradiente */}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      
+      {/* Header Premium */}
+      <View style={styles.headerContainer}>
         <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
+          colors={['#667eea', '#764ba2']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          style={styles.header}
+          style={styles.headerGradient}
         >
           <View style={styles.headerContent}>
-            <View>
-              <Text variant="headlineMedium" style={styles.headerTitle}>
-                {user?.store_name || 'PDV - Ponto de Venda'}
+            <View style={styles.headerInfo}>
+              <Text style={styles.greeting}>
+                {user?.store_name || 'WA Moda Fitness'}
               </Text>
-              <Text variant="bodyMedium" style={styles.headerSubtitle}>
+              <Text style={styles.headerSubtitle}>
                 Realize vendas rapidamente
               </Text>
             </View>
@@ -250,15 +252,18 @@ export default function SaleScreen() {
               style={styles.cartBadgeContainer}
               onPress={() => {}}
             >
-              <Ionicons name="cart" size={32} color="#fff" />
-              {cart.itemCount > 0 && (
-                <View style={styles.cartBadge}>
-                  <Text style={styles.cartBadgeText}>{cart.itemCount}</Text>
-                </View>
-              )}
+              <View style={styles.cartIconContainer}>
+                <Ionicons name="cart" size={28} color="#fff" />
+                {cart.itemCount > 0 && (
+                  <View style={styles.cartBadge}>
+                    <Text style={styles.cartBadgeText}>{cart.itemCount}</Text>
+                  </View>
+                )}
+              </View>
             </TouchableOpacity>
           </View>
         </LinearGradient>
+      </View>
 
         {/* Cliente selecionado */}
         <View style={styles.customerSection}>
@@ -488,47 +493,61 @@ export default function SaleScreen() {
           onDismiss={() => setScannerVisible(false)}
           onProductFound={handleProductScanned}
         /> */}
-      </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.light.primary,
-  },
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
   },
-  header: {
-    paddingHorizontal: 20,
-    paddingTop: 32,
-    paddingBottom: 20,
+  headerContainer: {
+    overflow: 'hidden',
+  },
+  headerGradient: {
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  headerTitle: {
+  headerInfo: {
+    flex: 1,
+  },
+  greeting: {
+    fontSize: theme.fontSize.xxl,
+    fontWeight: '700',
     color: '#fff',
-    fontWeight: 'bold',
+    marginBottom: theme.spacing.xs,
   },
   headerSubtitle: {
+    fontSize: theme.fontSize.md,
     color: 'rgba(255, 255, 255, 0.9)',
-    marginTop: 4,
+    fontWeight: '500',
   },
   cartBadgeContainer: {
-    position: 'relative',
+    padding: theme.spacing.xs,
+  },
+  cartIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   cartBadge: {
     position: 'absolute',
     top: -4,
     right: -4,
     backgroundColor: Colors.light.error,
-    borderRadius: theme.borderRadius.full,
+    borderRadius: 10,
     minWidth: 20,
     height: 20,
     justifyContent: 'center',
