@@ -7,6 +7,7 @@ import {
   Platform,
   Alert,
   TouchableOpacity,
+  StatusBar,
 } from 'react-native';
 import {
   TextInput,
@@ -14,12 +15,12 @@ import {
   HelperText,
   ActivityIndicator,
   Text,
+  Card,
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useRouter } from 'expo-router';
-import useBackToList from '@/hooks/useBackToList';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createCustomer } from '@/services/customerService';
 import { searchCep } from '@/services/cepService';
@@ -29,7 +30,6 @@ import type { CustomerCreate } from '@/types';
 
 export default function AddCustomerScreen() {
   const router = useRouter();
-  const { goBack } = useBackToList('/(tabs)/customers');
   const queryClient = useQueryClient();
 
   // Estados do formulário
@@ -47,6 +47,9 @@ export default function AddCustomerScreen() {
   // Estados de validação e UI
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loadingCep, setLoadingCep] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
   /**
    * Buscar CEP automaticamente
@@ -114,18 +117,14 @@ export default function AddCustomerScreen() {
    */
   const createMutation = useMutation({
     mutationFn: (customerData: CustomerCreate) => createCustomer(customerData),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
-      Alert.alert('Sucesso!', 'Cliente cadastrado com sucesso', [
-        {
-          text: 'OK',
-          onPress: () => goBack(),
-        },
-      ]);
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['customers'] });
+      setShowSuccessDialog(true);
     },
     onError: (error: any) => {
-      const errorMessage = error?.response?.data?.detail || error.message || 'Erro ao cadastrar cliente';
-      Alert.alert('Erro', errorMessage);
+      const message = error?.response?.data?.detail || error.message || 'Erro ao cadastrar cliente';
+      setErrorMessage(message);
+      setShowErrorDialog(true);
     },
   });
 
@@ -134,7 +133,8 @@ export default function AddCustomerScreen() {
    */
   const handleSubmit = () => {
     if (!validateForm()) {
-      Alert.alert('Erro', 'Preencha todos os campos obrigatórios corretamente');
+      setErrorMessage('Preencha todos os campos obrigatórios corretamente');
+      setShowErrorDialog(true);
       return;
     }
 
@@ -163,7 +163,8 @@ export default function AddCustomerScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
       {/* Header com gradiente */}
       <LinearGradient
         colors={[Colors.light.primary, '#7c4dff']}
@@ -177,7 +178,7 @@ export default function AddCustomerScreen() {
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
 
-          <Text variant="headlineSmall" style={styles.headerTitle}>
+          <Text style={styles.headerTitle}>
             Novo Cliente
           </Text>
 
@@ -193,14 +194,22 @@ export default function AddCustomerScreen() {
 
       <KeyboardAvoidingView
         style={styles.content}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
         {/* Informações básicas */}
-        <View style={styles.section}>
-          <HelperText type="info" style={styles.sectionTitle}>
-            Informações Básicas
-          </HelperText>
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="person-outline" size={20} color={Colors.light.primary} />
+              </View>
+              <Text style={styles.cardTitle}>Informações Básicas</Text>
+            </View>
 
           <TextInput
             label="Nome Completo *"
@@ -251,13 +260,18 @@ export default function AddCustomerScreen() {
           {errors.email ? (
             <HelperText type="error">{errors.email}</HelperText>
           ) : null}
-        </View>
+          </Card.Content>
+        </Card>
 
         {/* Documentos */}
-        <View style={styles.section}>
-          <HelperText type="info" style={styles.sectionTitle}>
-            Documentos
-          </HelperText>
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="card-outline" size={20} color={Colors.light.primary} />
+              </View>
+              <Text style={styles.cardTitle}>Documentos</Text>
+            </View>
 
           <TextInput
             label="CPF"
@@ -292,13 +306,18 @@ export default function AddCustomerScreen() {
           {errors.birthDate ? (
             <HelperText type="error">{errors.birthDate}</HelperText>
           ) : null}
-        </View>
+          </Card.Content>
+        </Card>
 
         {/* Endereço */}
-        <View style={styles.section}>
-          <HelperText type="info" style={styles.sectionTitle}>
-            Endereço (Opcional)
-          </HelperText>
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="location-outline" size={20} color={Colors.light.primary} />
+              </View>
+              <Text style={styles.cardTitle}>Endereço (Opcional)</Text>
+            </View>
 
           <TextInput
             label="CEP"
@@ -357,13 +376,14 @@ export default function AddCustomerScreen() {
               />
             </View>
           </View>
-        </View>
+          </Card.Content>
+        </Card>
 
-        {/* Botões */}
+        {/* Botões de ação */}
         <View style={styles.actions}>
           <Button
             mode="outlined"
-            onPress={goBack}
+            onPress={() => router.push('/(tabs)/customers')}
             style={styles.button}
             disabled={createMutation.isPending}
           >
@@ -376,12 +396,42 @@ export default function AddCustomerScreen() {
             loading={createMutation.isPending}
             disabled={createMutation.isPending}
           >
-            Cadastrar
+            Salvar Cliente
           </Button>
         </View>
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+
+      {/* Dialog de Sucesso */}
+      <ConfirmDialog
+        visible={showSuccessDialog}
+        title="Sucesso!"
+        message="Cliente cadastrado com sucesso!"
+        confirmText="OK"
+        onConfirm={() => {
+          setShowSuccessDialog(false);
+          router.push('/(tabs)/customers');
+        }}
+        onCancel={() => {
+          setShowSuccessDialog(false);
+          router.push('/(tabs)/customers');
+        }}
+        type="success"
+        icon="checkmark-circle"
+      />
+
+      {/* Dialog de Erro */}
+      <ConfirmDialog
+        visible={showErrorDialog}
+        title="Erro"
+        message={errorMessage}
+        confirmText="OK"
+        onConfirm={() => setShowErrorDialog(false)}
+        onCancel={() => setShowErrorDialog(false)}
+        type="danger"
+        icon="alert-circle"
+      />
+    </View>
   );
 }
 
@@ -392,7 +442,7 @@ const styles = StyleSheet.create({
   },
   // Header styles
   headerGradient: {
-    paddingTop: 0,
+    paddingTop: theme.spacing.xl + 28,
     paddingBottom: theme.spacing.lg,
     paddingHorizontal: theme.spacing.md,
   },
@@ -406,17 +456,16 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   backButton: {
-    padding: theme.spacing.sm,
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    minWidth: 40,
-    minHeight: 40,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   headerTitle: {
     color: '#fff',
-    fontWeight: theme.fontWeight.bold,
+    fontWeight: 'bold' as const,
     textAlign: 'center',
     flex: 1,
     fontSize: theme.fontSize.xl,
@@ -432,19 +481,51 @@ const styles = StyleSheet.create({
   },
   headerSubtitle: {
     color: '#fff',
-    fontSize: theme.fontSize.md,
-    opacity: 0.95,
+    fontSize: theme.fontSize.sm,
+    opacity: 0.9,
     textAlign: 'center',
-    lineHeight: 20,
-    fontWeight: theme.fontWeight.regular,
   },
   content: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
+  scrollView: {
+    flex: 1,
+  },
   scrollContent: {
     padding: theme.spacing.md,
     paddingBottom: theme.spacing.xl,
+  },
+  card: {
+    marginBottom: 16,
+    borderRadius: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  cardHeaderIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: Colors.light.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.light.text,
   },
   section: {
     marginBottom: theme.spacing.lg,
