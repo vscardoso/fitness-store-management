@@ -1,5 +1,6 @@
-import { View, StyleSheet } from 'react-native';
+import { View, StyleSheet, StatusBar } from 'react-native';
 import { Text } from 'react-native-paper';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '@/constants/Colors';
 
 interface ListHeaderProps {
@@ -26,21 +27,31 @@ export default function ListHeader({
 
   return (
     <View style={styles.container}>
-      <Text variant="headlineMedium" style={styles.title}>
-        {title}
-      </Text>
-      {showCount && (
-        <Text variant="bodyMedium" style={styles.count}>
-          {count} {countLabel}
+      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
+      <LinearGradient
+        colors={[Colors.light.primary, '#7c4dff']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.gradient}
+      >
+        <Text variant="headlineMedium" style={styles.title}>
+          {title}
         </Text>
-      )}
+        {showCount && (
+          <Text variant="bodyMedium" style={styles.count}>
+            {count} {countLabel}
+          </Text>
+        )}
+      </LinearGradient>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: Colors.light.primary,
+    // Container vazio para não afetar layout
+  },
+  gradient: {
     paddingHorizontal: 20,
     paddingTop: 24,
     paddingBottom: 16,

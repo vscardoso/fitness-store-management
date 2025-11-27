@@ -5,21 +5,25 @@ import {
   FlatList,
   RefreshControl,
   ActivityIndicator,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Searchbar, Text, Button } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import ListHeader from '@/components/layout/ListHeader';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '@/hooks/useAuth';
 import EmptyState from '@/components/ui/EmptyState';
 import ProductCard from '@/components/products/ProductCard';
 import FAB from '@/components/FAB';
 import { getActiveProducts, searchProducts } from '@/services/productService';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
 import type { Product } from '@/types';
 
 export default function ProductsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
 
   /**
@@ -56,6 +60,16 @@ export default function ProductsScreen() {
   };
 
   /**
+   * Função para obter saudação baseada no horário
+   */
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Bom dia';
+    if (hour < 18) return 'Boa tarde';
+    return 'Boa noite';
+  };
+
+  /**
    * Renderizar item da lista
    */
   const renderProduct = ({ item }: { item: Product }) => {
@@ -71,21 +85,41 @@ export default function ProductsScreen() {
    */
   if (isLoading && !isRefetching) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.container}>
-          <ListHeader
-            title="Produtos"
-            count={0}
-            singularLabel="produto"
-            pluralLabel="produtos"
-            showCount={false}
-          />
-          <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color={Colors.light.primary} />
-            <Text style={styles.loadingText}>Carregando produtos...</Text>
-          </View>
+      <View style={styles.container}>
+        {/* Header Premium */}
+        <View style={styles.headerContainer}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.headerGradient}
+          >
+            <View style={styles.headerContent}>
+              <View style={styles.headerInfo}>
+                <Text style={styles.greeting}>
+                  Produtos
+                </Text>
+                <Text style={styles.headerSubtitle}>
+                  0 produtos
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.profileButton}
+                onPress={() => router.push('/(tabs)/more')}
+              >
+                <View style={styles.profileIcon}>
+                  <Ionicons name="person" size={24} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
         </View>
-      </SafeAreaView>
+
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <Text style={styles.loadingText}>Carregando produtos...</Text>
+        </View>
+      </View>
     );
   }
 
@@ -94,37 +128,77 @@ export default function ProductsScreen() {
    */
   if (isError) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.container}>
-          <ListHeader
-            title="Produtos"
-            count={0}
-            singularLabel="produto"
-            pluralLabel="produtos"
-            showCount={false}
-          />
-          <EmptyState
-            icon="alert-circle-outline"
-            title="Erro ao carregar produtos"
-            description="Verifique sua conexão e tente novamente"
-          />
+      <View style={styles.container}>
+        {/* Header Premium */}
+        <View style={styles.headerContainer}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.headerGradient}
+          >
+            <View style={styles.headerContent}>
+              <View style={styles.headerInfo}>
+                <Text style={styles.greeting}>
+                  Produtos
+                </Text>
+                <Text style={styles.headerSubtitle}>
+                  0 produtos
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.profileButton}
+                onPress={() => router.push('/(tabs)/more')}
+              >
+                <View style={styles.profileIcon}>
+                  <Ionicons name="person" size={24} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
         </View>
-      </SafeAreaView>
+
+        <EmptyState
+          icon="alert-circle-outline"
+          title="Erro ao carregar produtos"
+          description="Verifique sua conexão e tente novamente"
+        />
+      </View>
     );
   }
 
   const productCount = products?.length || 0;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.container}>
-        {/* Header com contador */}
-        <ListHeader
-          title="Produtos"
-          count={productCount}
-          singularLabel="produto"
-          pluralLabel="produtos"
-        />
+    <View style={styles.container}>
+        {/* Header Premium */}
+        <View style={styles.headerContainer}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.headerGradient}
+          >
+            <View style={styles.headerContent}>
+              <View style={styles.headerInfo}>
+                <Text style={styles.greeting}>
+                  Produtos
+                </Text>
+                <Text style={styles.headerSubtitle}>
+                  {productCount} {productCount === 1 ? 'produto' : 'produtos'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.profileButton}
+                onPress={() => router.push('/(tabs)/more')}
+              >
+                <View style={styles.profileIcon}>
+                  <Ionicons name="person" size={24} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
+        </View>
 
         {/* Barra de busca */}
         <Searchbar
@@ -198,24 +272,60 @@ export default function ProductsScreen() {
         {/* Botão flutuante para adicionar */}
         <FAB directRoute="/products/add" />
       </View>
-    </SafeAreaView>
-  );
-}
+    );
+  }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.light.primary,
-  },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
+  },
+  // Header Premium
+  headerContainer: {
+    marginBottom: 0,
+  },
+  headerGradient: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.lg,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerInfo: {
+    flex: 1,
+  },
+  greeting: {
+    fontSize: theme.fontSize.xxl,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: theme.spacing.xs,
+  },
+  headerSubtitle: {
+    fontSize: theme.fontSize.md,
+    color: '#fff',
+    opacity: 0.9,
+  },
+  profileButton: {
+    marginLeft: theme.spacing.md,
+  },
+  profileIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   searchbar: {
     margin: 16,

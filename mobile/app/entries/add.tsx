@@ -20,6 +20,7 @@ import {
   Alert,
   TouchableOpacity,
   Modal,
+  StatusBar,
 } from 'react-native';
 import {
   TextInput,
@@ -363,31 +364,41 @@ export default function AddStockEntryScreen() {
   const selectedTrip = trips.find(t => t.id === tripId);
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
       {/* Header Gradiente */}
       <LinearGradient
-        colors={[Colors.light.primary, Colors.light.primary]}
-        style={styles.header}
+        colors={[Colors.light.primary, '#7c4dff']}
+        style={styles.headerGradient}
       >
-        <View style={styles.headerContent}>
+        <View style={styles.headerTop}>
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/entries')}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color="white" />
           </TouchableOpacity>
+          
           <Text style={styles.headerTitle}>Nova Entrada</Text>
+          
           <View style={styles.headerPlaceholder} />
+        </View>
+
+        <View style={styles.headerInfo}>
+          <Text style={styles.headerSubtitle}>
+            Preencha os dados abaixo para cadastrar uma nova entrada de estoque
+          </Text>
         </View>
       </LinearGradient>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+      <KeyboardAvoidingView
+        style={styles.content}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+        >
         {/* Tipo de Entrada */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Tipo de Entrada</Text>
@@ -454,9 +465,15 @@ export default function AddStockEntryScreen() {
           </View>
         </View>
 
-        {/* Código e Data da Entrada */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Informações Básicas</Text>
+        {/* Informações Básicas */}
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="document-text-outline" size={20} color={Colors.light.primary} />
+              </View>
+              <Text style={styles.cardTitle}>Informações Básicas</Text>
+            </View>
           
           <View style={styles.inputGroup}>
             <TextInput
@@ -488,7 +505,8 @@ export default function AddStockEntryScreen() {
               Calculada automaticamente
             </HelperText>
           </View>
-        </View>
+          </Card.Content>
+        </Card>
 
         {/* Seleção de Viagem (se tipo = TRIP) */}
         {selectedType === EntryType.TRIP && (
@@ -566,8 +584,14 @@ export default function AddStockEntryScreen() {
         )}
 
         {/* Fornecedor */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Informações do Fornecedor</Text>
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="briefcase-outline" size={20} color={Colors.light.primary} />
+              </View>
+              <Text style={styles.cardTitle}>Informações do Fornecedor</Text>
+            </View>
 
           <View style={styles.inputGroup}>
             <TextInput
@@ -622,11 +646,18 @@ export default function AddStockEntryScreen() {
               <HelperText type="error">{errors.supplierContact}</HelperText>
             )}
           </View>
-        </View>
+          </Card.Content>
+        </Card>
 
         {/* Nota Fiscal e Pagamento */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Pagamento</Text>
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="cash-outline" size={20} color={Colors.light.primary} />
+              </View>
+              <Text style={styles.cardTitle}>Pagamento</Text>
+            </View>
 
           <View style={styles.inputGroup}>
             <TextInput
@@ -664,7 +695,8 @@ export default function AddStockEntryScreen() {
               style={{ marginTop: 8 }}
             />
           </View>
-        </View>
+          </Card.Content>
+        </Card>
 
         {/* Lista de Produtos */}
         <View style={styles.section}>
@@ -847,7 +879,8 @@ export default function AddStockEntryScreen() {
             Cancelar
           </Button>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Dialog de Criar Nova Viagem */}
       <ConfirmDialog
@@ -909,40 +942,63 @@ export default function AddStockEntryScreen() {
         }}
         icon="checkmark-circle"
       />
-    </KeyboardAvoidingView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.light.primary,
   },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 16,
+  headerGradient: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.lg,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
   },
-  headerContent: {
+  headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginBottom: theme.spacing.md,
   },
   backButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: 'white',
+    flex: 1,
+    textAlign: 'center',
+    fontSize: theme.fontSize.xl,
+    fontWeight: 'bold' as const,
+    color: '#fff',
   },
   headerPlaceholder: {
     width: 40,
+  },
+  headerInfo: {
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.sm,
+    maxWidth: '90%',
+    alignSelf: 'center',
+  },
+  headerSubtitle: {
+    fontSize: theme.fontSize.md,
+    color: '#fff',
+    opacity: 0.95,
+    textAlign: 'center',
+    lineHeight: 20,
+    fontWeight: 'normal' as const,
+  },
+  content: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
   },
   scrollView: {
     flex: 1,
@@ -953,6 +1009,36 @@ const styles = StyleSheet.create({
   },
   section: {
     marginBottom: 24,
+  },
+  card: {
+    marginBottom: 16,
+    borderRadius: 16,
+    elevation: 2,
+    backgroundColor: Colors.light.background,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  cardHeaderIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: Colors.light.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.light.text,
   },
   sectionHeader: {
     flexDirection: 'row',

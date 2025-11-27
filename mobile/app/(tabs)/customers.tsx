@@ -7,22 +7,23 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Searchbar, Text, Card } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import ListHeader from '@/components/layout/ListHeader';
+import { useAuth } from '@/hooks/useAuth';
 import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';
 import { getCustomers } from '@/services/customerService';
 import { formatPhone } from '@/utils/format';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
 import type { Customer } from '@/types';
 
 export default function CustomersScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
 
@@ -119,21 +120,41 @@ export default function CustomersScreen() {
    */
   if (isLoading && !isRefetching) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.container}>
-          <ListHeader
-            title="Clientes"
-            count={0}
-            singularLabel="cliente"
-            pluralLabel="clientes"
-            showCount={false}
-          />
-          <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color={Colors.light.primary} />
-            <Text style={styles.loadingText}>Carregando clientes...</Text>
-          </View>
+      <View style={styles.container}>
+        {/* Header Premium */}
+        <View style={styles.headerContainer}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.headerGradient}
+          >
+            <View style={styles.headerContent}>
+              <View style={styles.headerInfo}>
+                <Text style={styles.greeting}>
+                  Clientes
+                </Text>
+                <Text style={styles.headerSubtitle}>
+                  0 clientes
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.profileButton}
+                onPress={() => router.push('/(tabs)/more')}
+              >
+                <View style={styles.profileIcon}>
+                  <Ionicons name="person" size={24} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
         </View>
-      </SafeAreaView>
+
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <Text style={styles.loadingText}>Carregando clientes...</Text>
+        </View>
+      </View>
     );
   }
 
@@ -142,37 +163,77 @@ export default function CustomersScreen() {
    */
   if (isError) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.container}>
-          <ListHeader
-            title="Clientes"
-            count={0}
-            singularLabel="cliente"
-            pluralLabel="clientes"
-            showCount={false}
-          />
-          <EmptyState
-            icon="alert-circle-outline"
-            title="Erro ao carregar clientes"
-            description="Verifique sua conexão e tente novamente"
-          />
+      <View style={styles.container}>
+        {/* Header Premium */}
+        <View style={styles.headerContainer}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.headerGradient}
+          >
+            <View style={styles.headerContent}>
+              <View style={styles.headerInfo}>
+                <Text style={styles.greeting}>
+                  Clientes
+                </Text>
+                <Text style={styles.headerSubtitle}>
+                  0 clientes
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.profileButton}
+                onPress={() => router.push('/(tabs)/more')}
+              >
+                <View style={styles.profileIcon}>
+                  <Ionicons name="person" size={24} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
         </View>
-      </SafeAreaView>
+
+        <EmptyState
+          icon="alert-circle-outline"
+          title="Erro ao carregar clientes"
+          description="Verifique sua conexão e tente novamente"
+        />
+      </View>
     );
   }
 
   const customerCount = filteredCustomers?.length || 0;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.container}>
-        {/* Header com contador */}
-        <ListHeader
-          title="Clientes"
-          count={customerCount}
-          singularLabel="cliente"
-          pluralLabel="clientes"
-        />
+    <View style={styles.container}>
+      {/* Header Premium */}
+      <View style={styles.headerContainer}>
+        <LinearGradient
+          colors={['#667eea', '#764ba2']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerContent}>
+            <View style={styles.headerInfo}>
+              <Text style={styles.greeting}>
+                Clientes
+              </Text>
+              <Text style={styles.headerSubtitle}>
+                {customerCount} {customerCount === 1 ? 'cliente' : 'clientes'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.profileButton}
+              onPress={() => router.push('/(tabs)/more')}
+            >
+              <View style={styles.profileIcon}>
+                <Ionicons name="person" size={24} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </View>
 
         {/* Barra de busca */}
         <Searchbar
@@ -213,24 +274,60 @@ export default function CustomersScreen() {
         {/* FAB - Adicionar cliente */}
         <FAB directRoute="/customers/add" />
       </View>
-    </SafeAreaView>
-  );
-}
+    );
+  }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.light.primary,
-  },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
+  },
+  // Header Premium
+  headerContainer: {
+    marginBottom: 0,
+  },
+  headerGradient: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.lg,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerInfo: {
+    flex: 1,
+  },
+  greeting: {
+    fontSize: theme.fontSize.xxl,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: theme.spacing.xs,
+  },
+  headerSubtitle: {
+    fontSize: theme.fontSize.md,
+    color: '#fff',
+    opacity: 0.9,
+  },
+  profileButton: {
+    marginLeft: theme.spacing.md,
+  },
+  profileIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   searchbar: {
     margin: 16,

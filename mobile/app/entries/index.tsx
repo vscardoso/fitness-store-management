@@ -20,20 +20,21 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, Card, Searchbar, Menu, Button, Chip } from 'react-native-paper';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import ListHeader from '@/components/layout/ListHeader';
+import { useAuth } from '@/hooks/useAuth';
 import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';
 import { useStockEntries } from '@/hooks/useStockEntries';
 import { formatCurrency, formatDate } from '@/utils/format';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
 import { StockEntry, EntryType } from '@/types';
 
 export default function StockEntriesScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [typeFilter, setTypeFilter] = useState<EntryType | undefined>();
   const [searchQuery, setSearchQuery] = useState('');
   const [menuVisible, setMenuVisible] = useState(false);
@@ -259,21 +260,41 @@ export default function StockEntriesScreen() {
    */
   if (isLoading && !isRefetching) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.container}>
-          <ListHeader
-            title="Entradas de Estoque"
-            count={0}
-            singularLabel="entrada"
-            pluralLabel="entradas"
-            showCount={false}
-          />
-          <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color={Colors.light.primary} />
-            <Text style={styles.loadingText}>Carregando entradas...</Text>
-          </View>
+      <View style={styles.container}>
+        {/* Header Premium */}
+        <View style={styles.headerContainer}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.headerGradient}
+          >
+            <View style={styles.headerContent}>
+              <View style={styles.headerInfo}>
+                <Text style={styles.greeting}>
+                  Entradas
+                </Text>
+                <Text style={styles.headerSubtitle}>
+                  0 entradas
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.profileButton}
+                onPress={() => router.push('/(tabs)/more')}
+              >
+                <View style={styles.profileIcon}>
+                  <Ionicons name="person" size={24} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
         </View>
-      </SafeAreaView>
+
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <Text style={styles.loadingText}>Carregando entradas...</Text>
+        </View>
+      </View>
     );
   }
 
@@ -282,37 +303,77 @@ export default function StockEntriesScreen() {
    */
   if (isError) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.container}>
-          <ListHeader
-            title="Entradas de Estoque"
-            count={0}
-            singularLabel="entrada"
-            pluralLabel="entradas"
-            showCount={false}
-          />
-          <EmptyState
-            icon="alert-circle-outline"
-            title="Erro ao carregar entradas"
-            description="Verifique sua conexão e tente novamente"
-          />
+      <View style={styles.container}>
+        {/* Header Premium */}
+        <View style={styles.headerContainer}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.headerGradient}
+          >
+            <View style={styles.headerContent}>
+              <View style={styles.headerInfo}>
+                <Text style={styles.greeting}>
+                  Entradas
+                </Text>
+                <Text style={styles.headerSubtitle}>
+                  0 entradas
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.profileButton}
+                onPress={() => router.push('/(tabs)/more')}
+              >
+                <View style={styles.profileIcon}>
+                  <Ionicons name="person" size={24} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
         </View>
-      </SafeAreaView>
+
+        <EmptyState
+          icon="alert-circle-outline"
+          title="Erro ao carregar entradas"
+          description="Verifique sua conexão e tente novamente"
+        />
+      </View>
     );
   }
 
   const entryCount = filteredEntries.length;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.container}>
-        {/* Header com contador */}
-        <ListHeader
-          title="Entradas de Estoque"
-          count={entryCount}
-          singularLabel="entrada"
-          pluralLabel="entradas"
-        />
+    <View style={styles.container}>
+      {/* Header Premium */}
+      <View style={styles.headerContainer}>
+        <LinearGradient
+          colors={['#667eea', '#764ba2']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerContent}>
+            <View style={styles.headerInfo}>
+              <Text style={styles.greeting}>
+                Entradas
+              </Text>
+              <Text style={styles.headerSubtitle}>
+                {entryCount} {entryCount === 1 ? 'entrada' : 'entradas'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.profileButton}
+              onPress={() => router.push('/(tabs)/more')}
+            >
+              <View style={styles.profileIcon}>
+                <Ionicons name="person" size={24} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </View>
 
         {/* Estatísticas gerais */}
         {stats.totalEntries > 0 && (
@@ -422,9 +483,8 @@ export default function StockEntriesScreen() {
         {/* FAB: Nova Entrada */}
         <FAB directRoute="/entries/add" />
       </View>
-    </SafeAreaView>
-  );
-}
+    );
+  }
 
 /**
  * Helper para label de tipo
@@ -443,13 +503,50 @@ function getTypeLabel(type: EntryType): string {
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.light.primary,
-  },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.light.backgroundSecondary,
+  },
+  // Header Premium
+  headerContainer: {
+    marginBottom: 0,
+  },
+  headerGradient: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.lg,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerInfo: {
+    flex: 1,
+  },
+  greeting: {
+    fontSize: theme.fontSize.xxl,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: theme.spacing.xs,
+  },
+  headerSubtitle: {
+    fontSize: theme.fontSize.md,
+    color: '#fff',
+    opacity: 0.9,
+  },
+  profileButton: {
+    marginLeft: theme.spacing.md,
+  },
+  profileIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   centerContainer: {
     flex: 1,

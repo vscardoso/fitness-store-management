@@ -546,6 +546,8 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     elevation: 2,
     backgroundColor: Colors.light.background,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
   cardHeader: {
     flexDirection: 'row',

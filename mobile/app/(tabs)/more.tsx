@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Alert, StatusBar } from 'react-native';
 import { Text, Card, Avatar, Button } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -91,44 +91,48 @@ export default function MoreScreen() {
   };
 
   return (
-    <ScrollView
-      style={styles.container}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          colors={[Colors.light.primary]}
-        />
-      }
-    >
-      {/* Profile Card com Gradiente */}
-      <LinearGradient
-        colors={[Colors.light.primary, Colors.light.secondary]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.profileGradient}
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      
+      {/* Header Premium */}
+      <View style={styles.headerContainer}>
+        <LinearGradient
+          colors={['#667eea', '#764ba2']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerContent}>
+            <View style={styles.avatarContainer}>
+              <Avatar.Text
+                size={64}
+                label={user?.full_name?.charAt(0) || 'U'}
+                style={styles.avatar}
+                labelStyle={styles.avatarLabel}
+              />
+            </View>
+            <View style={styles.userInfo}>
+              <Text style={styles.greeting}>{user?.full_name}</Text>
+              <Text style={styles.headerSubtitle}>{user?.email}</Text>
+              <View style={styles.roleChip}>
+                <Ionicons name="shield-checkmark" size={14} color="#fff" />
+                <Text style={styles.roleText}>{getRoleLabel(user?.role || '')}</Text>
+              </View>
+            </View>
+          </View>
+        </LinearGradient>
+      </View>
+
+      <ScrollView
+        style={styles.scrollView}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[Colors.light.primary]}
+          />
+        }
       >
-        <View style={styles.profileContent}>
-          <View style={styles.avatarContainer}>
-            <Avatar.Text
-              size={72}
-              label={user?.full_name?.charAt(0) || 'U'}
-              style={styles.avatar}
-              labelStyle={styles.avatarLabel}
-            />
-          </View>
-          <Text variant="headlineSmall" style={styles.profileName}>
-            {user?.full_name}
-          </Text>
-          <Text variant="bodyMedium" style={styles.profileEmail}>
-            {user?.email}
-          </Text>
-          <View style={styles.roleChip}>
-            <Ionicons name="shield-checkmark" size={16} color="#fff" />
-            <Text style={styles.roleText}>{getRoleLabel(user?.role || '')}</Text>
-          </View>
-        </View>
-      </LinearGradient>
 
       {/* Menu Items */}
       <View style={styles.section}>
@@ -261,7 +265,8 @@ export default function MoreScreen() {
       <Text variant="bodySmall" style={styles.version}>
         Versão 1.0.0 • Fitness Store Management
       </Text>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -270,47 +275,67 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
   },
-  profileGradient: {
-    paddingTop: 32,
-    paddingBottom: 40,
-    paddingHorizontal: 20,
+  headerContainer: {
+    overflow: 'hidden',
   },
-  profileContent: {
+  headerGradient: {
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.lg,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
+  },
+  headerContent: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 16,
   },
   avatarContainer: {
-    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
   avatar: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
   },
   avatarLabel: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: 'bold',
     color: '#fff',
   },
-  profileName: {
-    color: '#fff',
-    fontWeight: 'bold',
-    marginBottom: 4,
+  userInfo: {
+    flex: 1,
   },
-  profileEmail: {
+  greeting: {
+    fontSize: theme.fontSize.xl,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: theme.spacing.xxs,
+  },
+  headerSubtitle: {
+    fontSize: theme.fontSize.sm,
     color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: 12,
+    marginBottom: theme.spacing.xs,
   },
   roleChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    alignSelf: 'flex-start',
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: 16,
-    paddingVertical: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
     borderRadius: theme.borderRadius.full,
-    gap: 6,
+    gap: 4,
   },
   roleText: {
     color: '#fff',
     fontWeight: '600',
-    fontSize: 13,
+    fontSize: 12,
+  },
+  scrollView: {
+    flex: 1,
   },
   section: {
     marginTop: 24,
@@ -325,12 +350,14 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.lg,
     elevation: 1,
     backgroundColor: Colors.light.background,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: 16,
-    borderBottomWidth: 1,
+    borderBottomWidth: 0.5,
     borderBottomColor: Colors.light.border,
   },
   menuIconContainer: {

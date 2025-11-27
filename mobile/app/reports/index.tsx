@@ -37,7 +37,7 @@ import { getStockEntries, getSlowMovingProducts, getBestPerformingEntries } from
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { EntryType, TripStatus } from '@/types';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAuth } from '@/hooks/useAuth';
 
 type ReportTab = 'trips' | 'suppliers' | 'products' | 'slow';
 
@@ -201,6 +201,7 @@ function SlowMovingProductCard({ product, onPress }: SlowProductCardProps) {
 
 export default function ReportsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const { goBack } = useBackToList('/(tabs)');
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<ReportTab>('trips');
@@ -277,30 +278,37 @@ export default function ReportsScreen() {
   const bestSellers = bestPerforming.slice(0, 10);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header Gradiente */}
-      <LinearGradient
-        colors={[Colors.light.primary, Colors.light.secondary]}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
-          <TouchableOpacity
-            onPress={goBack}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Relatórios</Text>
-          <TouchableOpacity
-            onPress={() => {}}
-            style={styles.exportButton}
-            disabled
-          >
-            <Ionicons name="download-outline" size={24} color="rgba(255,255,255,0.5)" />
-          </TouchableOpacity>
-        </View>
-        <Text style={styles.headerSubtitle}>Análise de Performance</Text>
-      </LinearGradient>
+    <View style={styles.container}>
+      {/* Header Premium */}
+      <View style={styles.headerContainer}>
+        <LinearGradient
+          colors={['#667eea', '#764ba2']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerContent}>
+            <TouchableOpacity
+              onPress={goBack}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+            <View style={styles.headerInfo}>
+              <Text style={styles.greeting}>Relatórios</Text>
+              <Text style={styles.headerSubtitle}>Análise de Performance</Text>
+            </View>
+            <TouchableOpacity
+              style={styles.profileButton}
+              onPress={() => router.push('/(tabs)/more')}
+            >
+              <View style={styles.profileIcon}>
+                <Ionicons name="person" size={24} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </View>
 
       {/* Período Selector */}
       <View style={styles.periodContainer}>
@@ -523,50 +531,58 @@ export default function ReportsScreen() {
           </View>
         )}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.light.backgroundSecondary,
   },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 20,
+  headerContainer: {
+    overflow: 'hidden',
+  },
+  headerGradient: {
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
   },
   headerContent: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    alignItems: 'center',
   },
   backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    padding: theme.spacing.xs,
+    marginRight: theme.spacing.sm,
   },
-  headerTitle: {
-    fontSize: 24,
+  headerInfo: {
+    flex: 1,
+  },
+  greeting: {
+    fontSize: theme.fontSize.xxl,
     fontWeight: '700',
-    color: 'white',
-  },
-  exportButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    color: '#fff',
+    marginBottom: theme.spacing.xs,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: theme.fontSize.md,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
+  },
+  profileButton: {
+    padding: theme.spacing.xs,
+  },
+  profileIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   periodContainer: {
     paddingHorizontal: 16,

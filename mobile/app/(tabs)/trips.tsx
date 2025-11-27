@@ -1,18 +1,20 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/useAuth';
 import FAB from '@/components/FAB';
 
 import { getTrips } from '@/services/tripService';
 import { Trip, TripStatus } from '@/types';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency, formatDate } from '@/utils/format';
 
 export default function TripsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
   const { data: trips = [], isLoading, refetch } = useQuery({
@@ -94,23 +96,44 @@ export default function TripsScreen() {
     </TouchableOpacity>
   );
 
-  // KPIs
   const totalTrips = trips.length;
   const completedTrips = trips.filter(t => t.status === TripStatus.COMPLETED).length;
   const totalCost = trips.reduce((sum, t) => sum + t.travel_cost_total, 0);
   const avgCost = totalTrips > 0 ? totalCost / totalTrips : 0;
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>Viagens</Text>
-          <View style={{ width: 40 }} />
-        </View>
+    <View style={styles.container}>
+      {/* Header Premium */}
+      <View style={styles.headerContainer}>
+        <LinearGradient
+          colors={['#667eea', '#764ba2']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerContent}>
+            <View style={styles.headerInfo}>
+              <Text style={styles.greeting}>
+                Viagens
+              </Text>
+              <Text style={styles.headerSubtitle}>
+                {totalTrips} {totalTrips === 1 ? 'viagem' : 'viagens'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.profileButton}
+              onPress={() => router.push('/(tabs)/more')}
+            >
+              <View style={styles.profileIcon}>
+                <Ionicons name="person" size={24} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </View>
 
-        {/* KPIs */}
-        <View style={styles.kpisContainer}>
+      {/* KPIs */}
+      <View style={styles.kpisContainer}>
           <View style={styles.kpiCard}>
             <Text style={styles.kpiValue}>{totalTrips}</Text>
             <Text style={styles.kpiLabel}>Total</Text>
@@ -125,8 +148,8 @@ export default function TripsScreen() {
           </View>
         </View>
 
-        {/* Lista */}
-        <FlatList
+      {/* Lista */}
+      <FlatList
           data={trips}
           renderItem={renderTripCard}
           keyExtractor={(item) => item.id.toString()}
@@ -149,34 +172,56 @@ export default function TripsScreen() {
           }
         />
 
-        {/* FAB - Botão Adicionar */}
-        <FAB directRoute="/trips/add" />
-      </View>
-    </SafeAreaView>
+      {/* FAB - Botão Adicionar */}
+      <FAB directRoute="/trips/add" />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.light.primary,
-  },
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.light.backgroundSecondary,
   },
-  header: {
+  headerContainer: {
+    overflow: 'hidden',
+  },
+  headerGradient: {
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.lg,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
+  },
+  headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: Colors.light.primary,
   },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+  headerInfo: {
+    flex: 1,
+  },
+  greeting: {
+    fontSize: theme.fontSize.xxl,
+    fontWeight: '700',
     color: '#fff',
+    marginBottom: theme.spacing.xs,
+  },
+  headerSubtitle: {
+    fontSize: theme.fontSize.md,
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontWeight: '500',
+  },
+  profileButton: {
+    padding: theme.spacing.xs,
+  },
+  profileIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   kpisContainer: {
     flexDirection: 'row',

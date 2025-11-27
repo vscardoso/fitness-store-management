@@ -24,12 +24,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import { useAuth } from '@/hooks/useAuth';
 import { getStockEntries, getSlowMovingProducts } from '@/services/stockEntryService';
 import { getLowStockProducts, getProducts } from '@/services/productService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { EntryType } from '@/types';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import FAB from '@/components/FAB';
 
 const { width } = Dimensions.get('window');
@@ -126,6 +126,7 @@ function AlertCard({ type, title, message, onPress }: AlertCardProps) {
 
 export default function InventoryDashboard() {
   const router = useRouter();
+  const { user } = useAuth();
   const [refreshing, setRefreshing] = useState(false);
 
   // Queries
@@ -237,16 +238,35 @@ export default function InventoryDashboard() {
   const monthlyEntries = calculateMonthlyEntries();
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.container}>
-        {/* Header Gradiente */}
+    <View style={styles.container}>
+      {/* Header Premium */}
+      <View style={styles.headerContainer}>
         <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          style={styles.header}
+          colors={['#667eea', '#764ba2']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
         >
-          <Text style={styles.headerTitle}>Inventário</Text>
-          <Text style={styles.headerSubtitle}>Visão Geral do Estoque</Text>
+          <View style={styles.headerContent}>
+            <View style={styles.headerInfo}>
+              <Text style={styles.greeting}>
+                Inventário
+              </Text>
+              <Text style={styles.headerSubtitle}>
+                {metrics.totalItems} produtos ativos
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.profileButton}
+              onPress={() => router.push('/(tabs)/more')}
+            >
+              <View style={styles.profileIcon}>
+                <Ionicons name="person" size={24} color="#fff" />
+              </View>
+            </TouchableOpacity>
+          </View>
         </LinearGradient>
+      </View>
 
       <ScrollView
         style={styles.scrollView}
@@ -486,34 +506,55 @@ export default function InventoryDashboard() {
 
       {/* FAB - Adicionar entrada */}
       <FAB directRoute="/entries/add" />
-      </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.light.primary,
-  },
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.light.backgroundSecondary,
   },
-  header: {
-    paddingHorizontal: 16,
-    paddingTop: 24,
-    paddingBottom: 24,
+  // Header Premium
+  headerContainer: {
+    marginBottom: 0,
   },
-  headerTitle: {
-    fontSize: 28,
+  headerGradient: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.lg,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerInfo: {
+    flex: 1,
+  },
+  greeting: {
+    fontSize: theme.fontSize.xxl,
     fontWeight: '700',
-    color: 'white',
-    marginBottom: 4,
+    color: '#fff',
+    marginBottom: theme.spacing.xs,
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: theme.fontSize.md,
+    color: '#fff',
+    opacity: 0.9,
+  },
+  profileButton: {
+    marginLeft: theme.spacing.md,
+  },
+  profileIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   scrollView: {
     flex: 1,

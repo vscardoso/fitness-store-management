@@ -72,7 +72,8 @@ export default function StockEntryDetailsScreen() {
     queryKey: ['stock-entry', entryId],
     queryFn: () => getStockEntryById(entryId),
     enabled: isValidId,
-    retry: false, // Não tentar novamente em caso de 404
+    retry: false,
+    refetchOnMount: false,
   });
 
   /**
@@ -83,21 +84,11 @@ export default function StockEntryDetailsScreen() {
     onSuccess: async (result: any) => {
       setShowDeleteDialog(false);
 
-      // Remover query específica desta entrada do cache (evita refetch 404)
-      queryClient.removeQueries({ queryKey: ['stock-entry', entryId] });
-
-      // Invalidar outras queries para atualizar listas
-      await queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
-      await queryClient.invalidateQueries({ queryKey: ['products'] });
-      await queryClient.invalidateQueries({ queryKey: ['active-products'] });
-      await queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      await queryClient.invalidateQueries({ queryKey: ['low-stock'] });
-
       // Preparar mensagem detalhada
       const messages = [`Entrada ${result.entry_code} excluída com sucesso!`];
 
       if (result.orphan_products_deleted > 0) {
-        messages.push(`• ${result.orphan_products_deleted} produto(órfão(s) excluído(s)`);
+        messages.push(`• ${result.orphan_products_deleted} produto(s) órfão(s) excluído(s)`);
       }
 
       if (result.total_stock_removed > 0) {
@@ -106,6 +97,16 @@ export default function StockEntryDetailsScreen() {
 
       setSuccessMessage(messages.join('\n'));
       setShowSuccessDialog(true);
+
+      // Invalidar queries em background (Promise não bloqueia)
+      Promise.all([
+        queryClient.removeQueries({ queryKey: ['stock-entry', entryId] }),
+        queryClient.invalidateQueries({ queryKey: ['stock-entries'] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+        queryClient.invalidateQueries({ queryKey: ['active-products'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
+        queryClient.invalidateQueries({ queryKey: ['low-stock'] }),
+      ]);
     },
     onError: (error: any) => {
       setShowDeleteDialog(false);
@@ -243,7 +244,7 @@ export default function StockEntryDetailsScreen() {
             <View style={styles.productMetricItem}>
               <Text style={styles.productMetricLabel}>Vendido</Text>
               <Text style={[styles.productMetricValue, { color: Colors.light.success }]}>
-                {item.quantity_sold} un
+                {item.quantity_sold || 0} un
               </Text>
             </View>
             <View style={styles.productMetricItem}>
@@ -517,11 +518,7 @@ export default function StockEntryDetailsScreen() {
           confirmText="OK"
           onConfirm={() => {
             setShowSuccessDialog(false);
-            handleGoBack();
-          }}
-          onCancel={() => {
-            setShowSuccessDialog(false);
-            handleGoBack();
+            router.replace('/(tabs)/entries');
           }}
           type="success"
           icon="checkmark-circle"

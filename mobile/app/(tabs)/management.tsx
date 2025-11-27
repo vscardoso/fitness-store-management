@@ -149,19 +149,25 @@ export default function ManagementScreen() {
   return (
     <View style={styles.container}>
       {/* Header */}
-      <LinearGradient
-        colors={[Colors.light.primary, Colors.light.secondary]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <Text style={styles.headerTitle}>
-          {user?.store_name ? `${user.store_name} - Fitness Store` : 'Fitness Store Management'}
-        </Text>
-        <Text style={styles.headerSubtitle}>
-          Acesse todos os módulos do sistema
-        </Text>
-      </LinearGradient>
+      <View style={styles.headerContainer}>
+        <LinearGradient
+          colors={[Colors.light.primary, Colors.light.secondary]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerContent}>
+            <View style={styles.headerInfo}>
+              <Text style={styles.greeting}>
+                Gestão Completa 📈
+              </Text>
+              <Text style={styles.headerSubtitle}>
+                {user?.store_name ? `${user.store_name} - Fitness Store` : 'Fitness Store Management'}
+              </Text>
+            </View>
+          </View>
+        </LinearGradient>
+      </View>
 
       <ScrollView
         style={styles.scrollView}
@@ -218,16 +224,27 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.backgroundSecondary,
   },
 
-  // Header
-  header: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.xl + 20,
-    paddingBottom: theme.spacing.xl,
-    borderBottomLeftRadius: theme.borderRadius.xxl,
-    borderBottomRightRadius: theme.borderRadius.xxl,
+  // Header Premium (idêntic o a index.tsx)
+  headerContainer: {
+    marginBottom: theme.spacing.md,
   },
-  headerTitle: {
-    fontSize: theme.fontSize.xxxl,
+  headerGradient: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.lg,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerInfo: {
+    flex: 1,
+  },
+  greeting: {
+    fontSize: theme.fontSize.xxl,
     fontWeight: '700',
     color: '#fff',
     marginBottom: theme.spacing.xs,
@@ -243,8 +260,8 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.lg,
   },
 
   // Section
