@@ -56,6 +56,82 @@ class ProductRepository:
 - `backend/app/models/base.py` - Common fields for all models
 - `backend/app/api/deps.py` - Auth dependencies (`get_current_user`, `require_role()`)
 
+### Inventory Traceability: Every Product Must Have an Entry
+
+**CRITICAL RULE: Todo produto DEVE estar vinculado a uma entrada de estoque (StockEntry).**
+
+**Why this matters:**
+- ✅ Complete traceability: Know where every product came from
+- ✅ Financial accuracy: Calculate FIFO, real cost per sale, ROI per purchase
+- ✅ Supplier analysis: Track performance by supplier/trip
+- ✅ Audit trail: No "phantom" products without origin
+- ✅ Better decisions: "Which trip was profitable?", "Which supplier has best ROI?"
+
+**Entry Types (EntryType enum):**
+```python
+class EntryType(str, enum.Enum):
+    TRIP = "trip"                    # Purchase from trip
+    ONLINE = "online"                # Online purchase
+    LOCAL = "local"                  # Local purchase
+    INITIAL_INVENTORY = "initial"    # Initial stock (before system)
+    ADJUSTMENT = "adjustment"        # Inventory adjustment
+    RETURN = "return"                # Customer return
+    DONATION = "donation"            # Donation/gift received
+```
+
+**How it works:**
+
+1. **Creating new products with stock:**
+   ```python
+   # When creating a product with initial_stock > 0
+   product_data = ProductCreate(
+       name="Whey Protein",
+       sku="WHY-001",
+       price=89.90,
+       cost_price=45.00,
+       initial_stock=10,  # ← Automatically creates INITIAL_INVENTORY entry
+       min_stock=5,
+   )
+
+   # ProductService automatically:
+   # 1. Creates product
+   # 2. Creates StockEntry with type=INITIAL_INVENTORY
+   # 3. Creates EntryItem linking product to entry
+   # 4. Now product has full traceability!
+   ```
+
+2. **Migrating existing products:**
+   ```bash
+   # Run ONCE to create entries for products that existed before this system
+   python backend/migrate_products_to_entries.py
+   ```
+
+   This script:
+   - Finds all products with stock but no entry
+   - Creates INITIAL_INVENTORY entries for them
+   - Links existing stock to these entries
+   - Ensures 100% traceability from day 1
+
+3. **Stock flow:**
+   ```
+   StockEntry (trip/online/local)
+       ├─> EntryItem (product_id, quantity_received, quantity_remaining)
+       │   └─> Used for FIFO: oldest entries sold first
+       └─> Inventory.quantity = sum(all EntryItem.quantity_remaining)
+   ```
+
+**Key Models:**
+- `StockEntry` (backend/app/models/stock_entry.py): Purchase/entry record
+- `EntryItem` (backend/app/models/entry_item.py): Individual product in an entry (FIFO tracking)
+- `Inventory` (backend/app/models/inventory.py): Current stock total (sum of all entry_items)
+
+**Best Practices:**
+- ✅ Every new product with stock creates INITIAL_INVENTORY entry automatically
+- ✅ Bulk purchases create entries of type TRIP/ONLINE/LOCAL
+- ✅ Adjustments use ADJUSTMENT type with notes explaining why
+- ✅ Returns use RETURN type
+- ❌ NEVER create products with stock without an entry (system won't allow it)
+
 ### Mobile: File-Based Routing + React Query
 
 **Architecture:**

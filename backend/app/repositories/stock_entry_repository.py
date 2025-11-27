@@ -444,7 +444,7 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         tenant_id: int | None = None,
     ) -> bool:
         """
-        Soft delete de uma entrada.
+        Soft delete de uma entrada e seus entry_items.
         
         Args:
             db: Database session
@@ -454,10 +454,21 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         Returns:
             True se deletado, False se não encontrado
         """
+        from sqlalchemy import update
+        from app.models.entry_item import EntryItem
+        
         entry = await self.get_by_id(db, entry_id, tenant_id=tenant_id)
         if not entry:
             return False
         
+        # Desativar todos os entry_items desta entrada
+        await db.execute(
+            update(EntryItem)
+            .where(EntryItem.entry_id == entry_id)
+            .values(is_active=False, quantity_remaining=0)
+        )
+        
+        # Desativar a entrada
         entry.is_active = False
         await db.commit()
         return True

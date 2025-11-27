@@ -3,7 +3,7 @@
  * Mostra os 115 produtos templates que podem ser ativados
  */
 import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, Alert, RefreshControl, TouchableOpacity, Keyboard, TouchableWithoutFeedback, ScrollView } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Keyboard, TouchableWithoutFeedback, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   Searchbar,
@@ -17,24 +17,46 @@ import {
   TextInput,
 } from 'react-native-paper';
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
-import { router } from 'expo-router';
+import { useRouter } from 'expo-router';
+import useBackToList from '@/hooks/useBackToList';
 import { Ionicons } from '@expo/vector-icons';
 
 import { getCatalogProducts, activateCatalogProduct } from '@/services/catalogService';
-import { Product } from '@/types';
+import { getStockEntries } from '@/services/stockEntryService';
+import { Product, StockEntry } from '@/types';
 import ListHeader from '@/components/layout/ListHeader';
 import EmptyState from '@/components/ui/EmptyState';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Colors } from '@/constants/Colors';
 
 const PAGE_SIZE = 20;
 
 export default function CatalogScreen() {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const { goBack } = useBackToList('/catalog');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [customPrice, setCustomPrice] = useState('');
   const [customCostPrice, setCustomCostPrice] = useState('');
   const [customName, setCustomName] = useState('');
+  const [quantity, setQuantity] = useState('1');
+  const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
+  const [createNewEntry, setCreateNewEntry] = useState(false);
+  const [entrySearch, setEntrySearch] = useState('');
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [addedProductName, setAddedProductName] = useState('');
+  const [showEntryRequiredDialog, setShowEntryRequiredDialog] = useState(false);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [showCreateEntryDialog, setShowCreateEntryDialog] = useState(false);
+
+  // Buscar entradas disponíveis
+  const { data: entries = [] } = useQuery({
+    queryKey: ['stock-entries-active'],
+    queryFn: () => getStockEntries({ limit: 100 }),
+    enabled: !!selectedProduct,
+  });
 
   // Infinite Query para scroll infinito
   const {
@@ -73,27 +95,16 @@ export default function CatalogScreen() {
 
   // Mutation para ativar produto
   const activateMutation = useMutation({
-    mutationFn: (data: { productId: number; customPrice?: number }) =>
-      activateCatalogProduct(data.productId, data.customPrice),
+    mutationFn: (data: { productId: number; customPrice?: number; entryId?: number; quantity?: number }) =>
+      activateCatalogProduct(data.productId, data.customPrice, data.entryId, data.quantity),
     onSuccess: () => {
       // Invalidar queries
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['active-products'] });
 
-      Alert.alert(
-        'Sucesso!',
-        'Produto adicionado à sua loja. Agora você pode adicionar estoque.',
-        [
-          {
-            text: 'Ver Meus Produtos',
-            onPress: () => router.back(),
-          },
-          {
-            text: 'OK',
-            style: 'cancel',
-          },
-        ]
-      );
+      // Salvar nome do produto e mostrar dialog
+      setAddedProductName(selectedProduct?.name || 'Produto');
+      setShowSuccessDialog(true);
 
       setSelectedProduct(null);
       setCustomPrice('');
@@ -101,10 +112,8 @@ export default function CatalogScreen() {
       setCustomName('');
     },
     onError: (error: any) => {
-      Alert.alert(
-        'Erro',
-        error.response?.data?.detail || 'Erro ao ativar produto'
-      );
+      setErrorMessage(error.response?.data?.detail || 'Erro ao ativar produto');
+      setShowErrorDialog(true);
     },
   });
 
@@ -113,6 +122,10 @@ export default function CatalogScreen() {
     setCustomName(product.name || '');
     setCustomPrice(product.price ? formatCurrency(Number(product.price)) : '0,00');
     setCustomCostPrice(product.cost_price ? formatCurrency(Number(product.cost_price)) : '0,00');
+    setQuantity('1');
+    setSelectedEntryId(null);
+    setCreateNewEntry(false);
+    setEntrySearch('');
   };
 
   // Formatar valor para máscara de moeda
@@ -145,20 +158,42 @@ export default function CatalogScreen() {
 
     const price = parseCurrency(customPrice);
     const costPrice = parseCurrency(customCostPrice);
+    const qty = parseInt(quantity) || 0;
 
     if (!customName.trim()) {
-      Alert.alert('Erro', 'Nome do produto é obrigatório');
+      setErrorMessage('Nome do produto é obrigatório');
+      setShowErrorDialog(true);
       return;
     }
 
     if (isNaN(price) || price <= 0) {
-      Alert.alert('Erro', 'Preço de venda inválido');
+      setErrorMessage('Preço de venda inválido');
+      setShowErrorDialog(true);
+      return;
+    }
+
+    if (qty <= 0) {
+      setErrorMessage('Quantidade deve ser maior que zero');
+      setShowErrorDialog(true);
+      return;
+    }
+
+    if (!createNewEntry && !selectedEntryId) {
+      setShowEntryRequiredDialog(true);
+      return;
+    }
+
+    if (createNewEntry) {
+      // Mostrar dialog de confirmação para criar entrada
+      setShowCreateEntryDialog(true);
       return;
     }
 
     activateMutation.mutate({
       productId: selectedProduct.id,
       customPrice: price,
+      entryId: selectedEntryId!,
+      quantity: qty,
     });
   };
 
@@ -390,6 +425,146 @@ export default function CatalogScreen() {
                   Valor que você cobra do cliente (sugestão: R$ {selectedProduct.price ? Number(selectedProduct.price).toFixed(2).replace('.', ',') : '0,00'})
                 </Text>
 
+                {/* Quantidade */}
+                <TextInput
+                  label="Quantidade Inicial *"
+                  mode="outlined"
+                  value={quantity}
+                  onChangeText={setQuantity}
+                  keyboardType="numeric"
+                  style={styles.input}
+                  placeholder="1"
+                />
+
+                <Text variant="bodySmall" style={styles.helpText}>
+                  Quantidade que você está adicionando ao estoque
+                </Text>
+
+                {/* Seleção de Entrada */}
+                <View style={styles.entrySection}>
+                  <Text variant="titleSmall" style={styles.entrySectionTitle}>
+                    Vinculação de Entrada (Obrigatório) *
+                  </Text>
+
+                  <Text variant="bodySmall" style={styles.entryHelpText}>
+                    Para rastreabilidade, vincule este produto a uma entrada de estoque
+                  </Text>
+
+                  {/* Opção: Criar Nova Entrada */}
+                  <TouchableOpacity
+                    style={[
+                      styles.entryOption,
+                      createNewEntry && styles.entryOptionSelected,
+                    ]}
+                    onPress={() => {
+                      setCreateNewEntry(true);
+                      setSelectedEntryId(null);
+                    }}
+                  >
+                    <View style={styles.entryOptionContent}>
+                      <Ionicons
+                        name={createNewEntry ? 'radio-button-on' : 'radio-button-off'}
+                        size={24}
+                        color={createNewEntry ? Colors.light.primary : '#666'}
+                      />
+                      <View style={styles.entryOptionText}>
+                        <Text variant="bodyMedium" style={styles.entryOptionTitle}>
+                          Criar Nova Entrada
+                        </Text>
+                        <Text variant="bodySmall" style={styles.entryOptionSubtitle}>
+                          Será redirecionado para criar uma entrada
+                        </Text>
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+
+                  {/* Opção: Vincular a Entrada Existente */}
+                  {entries && entries.length > 0 && (
+                    <View style={styles.existingEntriesSection}>
+                      <Text variant="bodyMedium" style={styles.existingEntriesTitle}>
+                        Ou vincular a entrada existente:
+                      </Text>
+
+                      <TextInput
+                        mode="outlined"
+                        label="Buscar entrada (código, fornecedor)"
+                        value={entrySearch}
+                        onChangeText={setEntrySearch}
+                        style={styles.existingEntriesSearch}
+                        placeholder="Ex: ENT-2024, Fornecedor X"
+                      />
+
+                      <View style={styles.entriesScrollableArea}>
+                        <ScrollView style={{ maxHeight: 260 }}>
+                          {entries
+                            .filter((e) => {
+                              if (!entrySearch.trim()) return true;
+                              const term = entrySearch.toLowerCase();
+                              return (
+                                e.entry_code.toLowerCase().includes(term) ||
+                                e.supplier_name.toLowerCase().includes(term)
+                              );
+                            })
+                            .slice(0, 40)
+                            .map((entry) => {
+                              const selected = selectedEntryId === entry.id;
+                              return (
+                                <TouchableOpacity
+                                  key={entry.id}
+                                  style={[
+                                    styles.entryOption,
+                                    selected && styles.entryOptionSelected,
+                                  ]}
+                                  onPress={() => {
+                                    setSelectedEntryId(entry.id);
+                                    setCreateNewEntry(false);
+                                  }}
+                                >
+                                  <View style={styles.entryOptionContent}>
+                                    <Ionicons
+                                      name={selected ? 'radio-button-on' : 'radio-button-off'}
+                                      size={24}
+                                      color={selected ? Colors.light.primary : '#666'}
+                                    />
+                                    <View style={styles.entryOptionText}>
+                                      <View style={styles.entryOptionHeaderRow}>
+                                        <Text variant="bodyMedium" style={styles.entryOptionTitle}>
+                                          {entry.entry_code}
+                                        </Text>
+                                        <View style={styles.entryTypeChip}>
+                                          <Text style={styles.entryTypeChipText}>
+                                            {entry.entry_type}
+                                          </Text>
+                                        </View>
+                                      </View>
+                                      <Text variant="bodySmall" style={styles.entryOptionSubtitle}>
+                                        {entry.supplier_name} • {new Date(entry.entry_date).toLocaleDateString('pt-BR')}
+                                      </Text>
+                                      <Text variant="bodySmall" style={styles.entryMetricsText}>
+                                        {(entry.total_items ?? 0)} itens • {(entry.total_quantity ?? 0)} unidades • R$ {(() => {
+                                          const costVal = typeof entry.total_cost === 'number' ? entry.total_cost : Number(entry.total_cost);
+                                          return isNaN(costVal) ? '0,00' : costVal.toFixed(2).replace('.', ',');
+                                        })()}
+                                      </Text>
+                                      {typeof entry.sell_through_rate === 'number' && (
+                                        <Text variant="bodySmall" style={styles.entrySellThroughText}>
+                                          Sell-through: {entry.sell_through_rate.toFixed(1)}% {entry.roi !== undefined && `• ROI: ${entry.roi?.toFixed(2)}`}
+                                        </Text>
+                                      )}
+                                    </View>
+                                  </View>
+                                </TouchableOpacity>
+                              );
+                            })}
+                          {entries.length === 0 && (
+                            <Text style={styles.noEntriesText}>Nenhuma entrada disponível.</Text>
+                          )}
+                        </ScrollView>
+                      </View>
+                    </View>
+                  )}
+                </View>
+
                 {/* Margem de Lucro */}
                 {customPrice && customCostPrice && parseCurrency(customPrice) > 0 && parseCurrency(customCostPrice) >= 0 && (
                   <View style={styles.profitCard}>
@@ -429,6 +604,90 @@ export default function CatalogScreen() {
           </ScrollView>
         </Modal>
       </Portal>
+
+      {/* Dialog de Sucesso */}
+      <ConfirmDialog
+        visible={showSuccessDialog}
+        title="Produto Adicionado! ✓"
+        message={`${addedProductName} foi adicionado à sua loja com sucesso.`}
+        details={[
+          'O produto está disponível na sua lista',
+          'Você pode adicionar estoque agora',
+          'Ou gerenciar depois na aba Produtos'
+        ]}
+        type="success"
+        confirmText="Ver Meus Produtos"
+        cancelText="Fechar"
+        onConfirm={() => {
+          setShowSuccessDialog(false);
+          goBack();
+        }}
+        onCancel={() => setShowSuccessDialog(false)}
+        icon="checkmark-circle"
+      />
+
+      {/* Dialog de Entrada Obrigatória */}
+      <ConfirmDialog
+        visible={showEntryRequiredDialog}
+        title="Entrada Obrigatória"
+        message="Para rastreabilidade, você precisa vincular este produto a uma entrada de estoque."
+        details={[
+          'Escolha uma entrada existente na lista abaixo',
+          'Ou marque a opção "Criar Nova Entrada"',
+          'A rastreabilidade garante controle total do estoque'
+        ]}
+        type="info"
+        confirmText="Entendi"
+        cancelText=""
+        onConfirm={() => setShowEntryRequiredDialog(false)}
+        onCancel={() => setShowEntryRequiredDialog(false)}
+        icon="information-circle"
+      />
+
+      {/* Dialog de Erro */}
+      <ConfirmDialog
+        visible={showErrorDialog}
+        title="Atenção"
+        message={errorMessage}
+        type="danger"
+        confirmText="Entendi"
+        cancelText=""
+        onConfirm={() => setShowErrorDialog(false)}
+        onCancel={() => setShowErrorDialog(false)}
+        icon="alert-circle"
+      />
+
+      {/* Dialog de Criar Nova Entrada */}
+      <ConfirmDialog
+        visible={showCreateEntryDialog}
+        title="Criar Nova Entrada de Estoque"
+        message="Você será redirecionado para criar uma nova entrada de estoque com este produto pré-selecionado."
+        details={[
+          `Produto: ${selectedProduct?.name || customName}`,
+          `Quantidade: ${quantity} unidade(s)`,
+          `Custo: R$ ${customCostPrice}`,
+          'Você poderá adicionar outros produtos na entrada'
+        ]}
+        type="info"
+        confirmText="Continuar"
+        cancelText="Cancelar"
+        onConfirm={() => {
+          setShowCreateEntryDialog(false);
+          if (selectedProduct) {
+            router.push({
+              pathname: '/entries/add',
+              params: {
+                preselectedProductId: selectedProduct.id,
+                preselectedProductName: customName,
+                preselectedQuantity: quantity,
+                preselectedPrice: parseCurrency(customCostPrice),
+              },
+            });
+          }
+        }}
+        onCancel={() => setShowCreateEntryDialog(false)}
+        icon="document-text"
+      />
       </View>
     </SafeAreaView>
   );
@@ -630,5 +889,101 @@ const styles = StyleSheet.create({
   },
   modalButton: {
     flex: 1,
+  },
+  entrySection: {
+    marginTop: 20,
+    marginBottom: 16,
+  },
+  entrySectionTitle: {
+    fontWeight: '600',
+    marginBottom: 8,
+    color: '#333',
+  },
+  entryHelpText: {
+    color: '#666',
+    marginBottom: 16,
+  },
+  entryOption: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
+    backgroundColor: '#fff',
+  },
+  entryOptionSelected: {
+    borderColor: Colors.light.primary,
+    borderWidth: 2,
+    backgroundColor: '#f0f7ff',
+  },
+  entryOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  entryOptionText: {
+    flex: 1,
+  },
+  entryOptionTitle: {
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 2,
+  },
+  entryOptionSubtitle: {
+    color: '#666',
+    fontSize: 12,
+  },
+  existingEntriesSection: {
+    marginTop: 16,
+  },
+  existingEntriesTitle: {
+    fontWeight: '600',
+    marginBottom: 12,
+    color: '#333',
+  },
+  existingEntriesSearch: {
+    marginBottom: 12,
+  },
+  entriesScrollableArea: {
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    borderRadius: 8,
+    padding: 4,
+    backgroundColor: '#fafafa',
+    marginBottom: 8,
+  },
+  entryOptionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  entryTypeChip: {
+    backgroundColor: '#eef6ff',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  entryTypeChipText: {
+    fontSize: 11,
+    color: Colors.light.primary,
+    textTransform: 'uppercase',
+    fontWeight: '600',
+  },
+  entryMetricsText: {
+    color: '#444',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  entrySellThroughText: {
+    color: '#666',
+    fontSize: 11,
+    marginTop: 2,
+  },
+  noEntriesText: {
+    textAlign: 'center',
+    color: '#666',
+    paddingVertical: 12,
+    fontSize: 12,
   },
 });

@@ -22,22 +22,40 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
         self.session = session
     
     async def get_stock(self, product_id: int, *, tenant_id: int | None = None) -> int:
+        """Retorna a soma de estoque de todas as linhas ativas do produto.
+
+        Considera cenários com múltiplos registros (multi-location / legacy) e
+        normaliza registros antigos sem tenant.
         """
-        Busca o estoque atual de um produto.
-        
-        Args:
-            product_id: ID do produto
-            
-        Returns:
-            Quantidade em estoque (0 se não encontrado)
-        """
-        query = select(Inventory.quantity).where(Inventory.product_id == product_id)
+        # Query agregada por tenant se informado
         if tenant_id is not None:
-            query = query.where(Inventory.tenant_id == tenant_id)
-        
-        result = await self.session.execute(query)
-        stock = result.scalar_one_or_none()
-        return stock if stock is not None else 0
+            agg_query = (
+                select(func.coalesce(func.sum(Inventory.quantity), 0))
+                .where(Inventory.product_id == product_id)
+                .where(Inventory.tenant_id == tenant_id)
+            )
+            result = await self.session.execute(agg_query)
+            total = result.scalar_one()
+            if total == 0:
+                # Fallback: verificar registros legacy sem tenant_id
+                legacy_query = select(Inventory).where(Inventory.product_id == product_id, Inventory.tenant_id.is_(None))
+                legacy_result = await self.session.execute(legacy_query)
+                legacy_inventories = legacy_result.scalars().all()
+                if legacy_inventories:
+                    # Atribuir tenant_id aos registros legacy e recalcular total
+                    for inv in legacy_inventories:
+                        inv.tenant_id = tenant_id
+                    await self.session.commit()
+                    # Recalcular após normalização
+                    result = await self.session.execute(agg_query)
+                    total = result.scalar_one()
+            return int(total or 0)
+
+        # Sem tenant: somar todos registros do produto
+        agg_query = select(func.coalesce(func.sum(Inventory.quantity), 0)).where(Inventory.product_id == product_id)
+        result = await self.session.execute(agg_query)
+        total = result.scalar_one()
+        return int(total or 0)
     
     async def update_stock(
         self, 

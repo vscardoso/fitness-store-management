@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, StatusBar, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -19,6 +20,7 @@ export default function TripDetailsScreen() {
     queryKey: ['trip', id],
     queryFn: () => getTripById(Number(id)),
     enabled: !!id,
+    retry: false, // Não tentar novamente em caso de 404
   });
 
   const deleteMutation = useMutation({
@@ -94,25 +96,37 @@ export default function TripDetailsScreen() {
 
   if (isLoading) {
     return (
-      <View style={[styles.container, styles.centerContent]}>
-        <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
-        <ActivityIndicator size="large" color={Colors.light.primary} />
-      </View>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <View style={[styles.container, styles.centerContent]}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (!trip) {
     return (
-      <View style={[styles.container, styles.centerContent]}>
-        <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
-        <Text style={styles.errorText}>Viagem não encontrada</Text>
-      </View>
+      <SafeAreaView style={styles.safeArea} edges={['top']}>
+        <View style={[styles.container, styles.centerContent]}>
+          <Ionicons name="alert-circle-outline" size={64} color={Colors.light.error} />
+          <Text style={styles.errorText}>Viagem não encontrada ou foi excluída</Text>
+          <Text style={styles.errorSubtext}>
+            A viagem pode ter sido excluída ou o link está incorreto.
+          </Text>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButtonError}
+          >
+            <Text style={styles.backButtonText}>Voltar</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
+    <SafeAreaView style={styles.safeArea} edges={['top']}>
+      <View style={styles.container}>
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
@@ -263,11 +277,15 @@ export default function TripDetailsScreen() {
           </View>
         </ScrollView>
       </View>
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: Colors.light.primary,
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
@@ -281,8 +299,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight ? StatusBar.currentHeight + 16 : 40 : 50,
-    paddingBottom: 16,
+    paddingVertical: 16,
     backgroundColor: Colors.light.primary,
   },
   backButton: {
@@ -428,7 +445,29 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   errorText: {
-    fontSize: 16,
+    fontSize: 18,
+    color: Colors.light.text,
+    fontWeight: '600',
+    marginTop: 16,
+    textAlign: 'center',
+  },
+  errorSubtext: {
+    fontSize: 14,
     color: Colors.light.textSecondary,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 24,
+    paddingHorizontal: 32,
+  },
+  backButtonError: {
+    backgroundColor: Colors.light.primary,
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  backButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

@@ -1,15 +1,16 @@
 /**
  * Stock Entry Add Screen - Nova Entrada de Estoque
- * 
+ *
  * Funcionalidades:
  * - Escolher tipo de entrada (Viagem, Online, Local)
  * - Formulário com fornecedor, NF, pagamento
  * - Lista de produtos com busca
  * - Cálculo automático do total
  * - Validação completa
+ * - Suporte a produto pré-selecionado do catálogo
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -34,15 +35,16 @@ import {
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTrips } from '@/hooks/useTrips';
 import { useProducts } from '@/hooks';
 import { createStockEntry } from '@/services/stockEntryService';
 import { formatCurrency } from '@/utils/format';
-import { dateMask, cnpjMask, phoneMask } from '@/utils/masks';
+import { cnpjMask, phoneMask } from '@/utils/masks';
 import { Colors, theme } from '@/constants/Colors';
 import { EntryType, StockEntryCreate, EntryItem, Product } from '@/types';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 interface EntryItemForm extends EntryItem {
   id: string; // ID temporário para gerenciar a lista
@@ -53,9 +55,19 @@ export default function AddStockEntryScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  // Ler parâmetros da navegação (produto pré-selecionado do catálogo + viagem criada)
+  const params = useLocalSearchParams<{
+    preselectedProductId?: string;
+    preselectedProductName?: string;
+    preselectedQuantity?: string;
+    preselectedPrice?: string;
+    newTripId?: string;
+    newTripCode?: string;
+  }>();
+
   // Estados do formulário
   const [selectedType, setSelectedType] = useState<EntryType>(EntryType.LOCAL);
-  const [entryDate, setEntryDate] = useState('');
+  const [entryCode, setEntryCode] = useState('');
   const [tripId, setTripId] = useState<number | undefined>();
   const [supplierName, setSupplierName] = useState('');
   const [supplierCnpj, setSupplierCnpj] = useState('');
@@ -64,6 +76,7 @@ export default function AddStockEntryScreen() {
   const [paymentMethod, setPaymentMethod] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<EntryItemForm[]>([]);
+  const [itemCosts, setItemCosts] = useState<Record<string, string>>({});
 
   // Estados de UI
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -71,15 +84,71 @@ export default function AddStockEntryScreen() {
   const [productMenuVisible, setProductMenuVisible] = useState(false);
   const [productSearch, setProductSearch] = useState('');
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
+  const [showCreateTripDialog, setShowCreateTripDialog] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [createdEntryCode, setCreatedEntryCode] = useState<string | undefined>();
 
   // Queries
   const { data: trips = [] } = useTrips({ status: undefined, limit: 100 });
   const { data: products = [] } = useProducts({ limit: 100 });
 
   /**
+   * Pré-adicionar produto do catálogo (se veio dos parâmetros)
+   */
+  useEffect(() => {
+    if (params.preselectedProductId && products.length > 0 && items.length === 0) {
+      const productId = parseInt(params.preselectedProductId);
+      const product = products.find((p: Product) => p.id === productId);
+
+      if (product) {
+        const quantity = params.preselectedQuantity ? parseInt(params.preselectedQuantity) : 1;
+        const price = params.preselectedPrice ? parseFloat(params.preselectedPrice) : (product.cost_price || 0);
+
+        // Converter price para formato aceito por formatCostInput (números inteiros representando centavos)
+        const priceInCents = Math.round(price * 100).toString();
+        const costFormatted = formatCostInput(priceInCents);
+
+        const newItem: EntryItemForm = {
+          id: Date.now().toString(),
+          product_id: product.id,
+          quantity_received: quantity,
+          unit_cost: price,
+          notes: '',
+          product,
+        };
+
+        setItems([newItem]);
+        setItemCosts({ [newItem.id]: costFormatted });
+      }
+    }
+  }, [params.preselectedProductId, products]);
+
+  /**
+   * Auto-selecionar viagem recém-criada (quando volta de /trips/add)
+   */
+  useEffect(() => {
+    if (params.newTripId && trips.length > 0) {
+      const newTripIdNum = parseInt(params.newTripId);
+      const trip = trips.find((t) => t.id === newTripIdNum);
+
+      if (trip) {
+        setSelectedType(EntryType.TRIP);
+        setTripId(trip.id);
+
+        // Mostrar feedback de sucesso
+        Alert.alert(
+          'Viagem Vinculada! ✓',
+          `A viagem "${trip.trip_code} - ${trip.destination}" foi vinculada automaticamente a esta entrada.`,
+          [{ text: 'Entendi' }]
+        );
+      }
+    }
+  }, [params.newTripId, trips]);
+
+  /**
    * Filtrar produtos por busca
    */
-  const filteredProducts = products.filter((p: Product) => 
+  const filteredProducts = products.filter((p: Product) =>
     p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
     p.sku.toLowerCase().includes(productSearch.toLowerCase())
   );
@@ -90,20 +159,15 @@ export default function AddStockEntryScreen() {
   const createMutation = useMutation({
     mutationFn: createStockEntry,
     onSuccess: (createdEntry) => {
+      // Invalidate stock entries queries
       queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
-      queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['trips'] });
-      
-      Alert.alert(
-        'Sucesso!',
-        `Entrada ${createdEntry.entry_code} criada com sucesso`,
-        [
-          {
-            text: 'OK',
-            onPress: () => router.back(),
-          },
-        ]
-      );
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['active-products'] });
+      queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+
+      setCreatedEntryCode(createdEntry.entry_code);
+      setShowSuccessDialog(true);
     },
     onError: (error: any) => {
       const errorMessage = error.message || 'Erro ao criar entrada';
@@ -112,9 +176,29 @@ export default function AddStockEntryScreen() {
   });
 
   /**
+   * Formatar custo unitário (formato brasileiro)
+   */
+  const formatCostInput = (text: string): string => {
+    const numbers = text.replace(/[^0-9]/g, '');
+    if (numbers.length === 0) return '0,00';
+    const value = parseInt(numbers) / 100;
+    return value.toFixed(2).replace('.', ',');
+  };
+
+  /**
+   * Converter custo formatado para número
+   */
+  const parseCost = (value: string): number => {
+    if (!value) return 0;
+    const cleaned = value.replace(/[^\d,]/g, '').replace(',', '.');
+    return parseFloat(cleaned) || 0;
+  };
+
+  /**
    * Adicionar produto à lista
    */
   const handleAddProduct = (product: Product) => {
+    const costFormatted = formatCostInput((product.cost_price || 0).toString().replace('.', ''));
     const newItem: EntryItemForm = {
       id: Date.now().toString(),
       product_id: product.id,
@@ -125,6 +209,7 @@ export default function AddStockEntryScreen() {
     };
 
     setItems([...items, newItem]);
+    setItemCosts({ ...itemCosts, [newItem.id]: costFormatted });
     setProductMenuVisible(false);
     setProductSearch('');
   };
@@ -136,6 +221,15 @@ export default function AddStockEntryScreen() {
     const newItems = [...items];
     newItems[index] = { ...newItems[index], [field]: value };
     setItems(newItems);
+  };
+
+  /**
+   * Atualizar custo do item
+   */
+  const handleUpdateItemCost = (itemId: string, index: number, formattedValue: string) => {
+    const numericValue = parseCost(formattedValue);
+    setItemCosts({ ...itemCosts, [itemId]: formattedValue });
+    handleUpdateItem(index, 'unit_cost', numericValue);
   };
 
   /**
@@ -174,6 +268,14 @@ export default function AddStockEntryScreen() {
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
+    if (!entryCode.trim()) {
+      newErrors.entryCode = 'Código da entrada é obrigatório';
+    }
+
+    if (entryCode.trim().length < 5) {
+      newErrors.entryCode = 'Código deve ter no mínimo 5 caracteres';
+    }
+
     if (!supplierName.trim()) {
       newErrors.supplierName = 'Fornecedor é obrigatório';
     }
@@ -200,6 +302,30 @@ export default function AddStockEntryScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
+  /** Calcular data da entrada (auto)
+   * - Viagem: usa data de retorno (se existir) ou data da viagem
+   * - Outros tipos: hoje
+   */
+  const computeEntryDateISO = (): string => {
+    if (selectedType === EntryType.TRIP && tripId) {
+      const trip = trips.find((t) => t.id === tripId);
+      if (trip) {
+        const baseDate = trip.return_time ? new Date(trip.return_time) : new Date(trip.trip_date);
+        // Usar data local em vez de UTC
+        const year = baseDate.getFullYear();
+        const month = String(baseDate.getMonth() + 1).padStart(2, '0');
+        const day = String(baseDate.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+    }
+    // Usar data local em vez de UTC
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   /**
    * Submeter formulário
    */
@@ -209,20 +335,9 @@ export default function AddStockEntryScreen() {
       return;
     }
 
-    // Converter data de DD/MM/YYYY para YYYY-MM-DD
-    const formatDateToISO = (date: string): string => {
-      const cleaned = date.replace(/\D/g, '');
-      if (cleaned.length === 8) {
-        const day = cleaned.substring(0, 2);
-        const month = cleaned.substring(2, 4);
-        const year = cleaned.substring(4, 8);
-        return `${year}-${month}-${day}`;
-      }
-      return new Date().toISOString().split('T')[0];
-    };
-
     const entryData: StockEntryCreate = {
-      entry_date: entryDate ? formatDateToISO(entryDate) : new Date().toISOString().split('T')[0],
+      entry_code: entryCode.trim(),
+      entry_date: computeEntryDateISO(),
       entry_type: selectedType,
       trip_id: selectedType === EntryType.TRIP ? tripId : undefined,
       supplier_name: supplierName.trim(),
@@ -257,7 +372,7 @@ export default function AddStockEntryScreen() {
       >
         <View style={styles.headerContent}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={() => router.push('/(tabs)/stock-entries')}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color="white" />
@@ -337,10 +452,58 @@ export default function AddStockEntryScreen() {
           </View>
         </View>
 
+        {/* Código e Data da Entrada */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Informações Básicas</Text>
+          
+          <View style={styles.inputGroup}>
+            <TextInput
+              label="Código da Entrada *"
+              value={entryCode}
+              onChangeText={setEntryCode}
+              mode="outlined"
+              placeholder="Ex: ENTRADA-001 (mín. 5 caracteres)"
+              maxLength={50}
+              autoCapitalize="characters"
+              error={!!errors.entryCode}
+            />
+            {errors.entryCode && (
+              <HelperText type="error" visible={!!errors.entryCode}>
+                {errors.entryCode}
+              </HelperText>
+            )}
+          </View>
+
+          <View style={styles.inputGroup}>
+            <TextInput
+              label="Data da Entrada (auto)"
+              value={new Date(computeEntryDateISO()).toLocaleDateString('pt-BR')}
+              mode="outlined"
+              editable={false}
+              left={<TextInput.Icon icon="calendar" />}
+            />
+            <HelperText type="info">
+              Calculada automaticamente
+            </HelperText>
+          </View>
+        </View>
+
         {/* Seleção de Viagem (se tipo = TRIP) */}
         {selectedType === EntryType.TRIP && (
           <View style={styles.inputGroup}>
-            <Text style={styles.label}>Viagem *</Text>
+            <View style={styles.labelWithAction}>
+              <Text style={styles.label}>Viagem *</Text>
+              <TouchableOpacity
+                onPress={() => {
+                  setTripMenuVisible(false);
+                  setShowCreateTripDialog(true);
+                }}
+                style={styles.addButton}
+              >
+                <Ionicons name="add-circle" size={20} color={Colors.light.primary} />
+                <Text style={styles.addButtonText}>Nova Viagem</Text>
+              </TouchableOpacity>
+            </View>
             <Menu
               visible={tripMenuVisible}
               onDismiss={() => setTripMenuVisible(false)}
@@ -356,48 +519,53 @@ export default function AddStockEntryScreen() {
                 </TouchableOpacity>
               }
             >
-              {trips.map((trip) => (
+              {trips.length === 0 ? (
                 <Menu.Item
-                  key={trip.id}
                   onPress={() => {
-                    setTripId(trip.id);
                     setTripMenuVisible(false);
+                    setShowCreateTripDialog(true);
                   }}
-                  title={`${trip.trip_code} - ${trip.destination}`}
+                  title="➕ Criar Nova Viagem"
+                  titleStyle={{ color: Colors.light.primary, fontWeight: '600' }}
                 />
-              ))}
+              ) : (
+                <>
+                  <Menu.Item
+                    onPress={() => {
+                      setTripMenuVisible(false);
+                      setShowCreateTripDialog(true);
+                    }}
+                    title="➕ Criar Nova Viagem"
+                    titleStyle={{ color: Colors.light.primary, fontWeight: '600' }}
+                  />
+                  <Divider />
+                  {trips.map((trip) => (
+                    <Menu.Item
+                      key={trip.id}
+                      onPress={() => {
+                        setTripId(trip.id);
+                        setTripMenuVisible(false);
+                      }}
+                      title={`${trip.trip_code} - ${trip.destination}`}
+                    />
+                  ))}
+                </>
+              )}
             </Menu>
             {errors.tripId && (
               <HelperText type="error">{errors.tripId}</HelperText>
             )}
+            {trips.length === 0 && !errors.tripId && (
+              <HelperText type="info">
+                Nenhuma viagem cadastrada. Crie uma nova viagem para continuar.
+              </HelperText>
+            )}
           </View>
         )}
 
-        {/* Data e Fornecedor */}
+        {/* Fornecedor */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Informações Gerais</Text>
-
-          <View style={styles.inputGroup}>
-            <TextInput
-              label="Data da Entrada *"
-              value={entryDate}
-              onChangeText={(text) => {
-                setEntryDate(dateMask(text));
-                setErrors({ ...errors, entryDate: '' });
-              }}
-              mode="outlined"
-              placeholder="DD/MM/AAAA"
-              keyboardType="numeric"
-              maxLength={10}
-              left={<TextInput.Icon icon="calendar" />}
-              error={!!errors.entryDate}
-            />
-            {errors.entryDate ? (
-              <HelperText type="error">{errors.entryDate}</HelperText>
-            ) : (
-              <HelperText type="info">Formato: DD/MM/AAAA</HelperText>
-            )}
-          </View>
+          <Text style={styles.sectionTitle}>Informações do Fornecedor</Text>
 
           <View style={styles.inputGroup}>
             <TextInput
@@ -601,9 +769,9 @@ export default function AddStockEntryScreen() {
 
                   <View style={styles.itemInput}>
                     <TextInput
-                      label="Custo Unit."
-                      value={item.unit_cost.toString()}
-                      onChangeText={(text) => handleUpdateItem(index, 'unit_cost', parseFloat(text) || 0)}
+                      label="Custo Unit. (R$)"
+                      value={itemCosts[item.id] || '0,00'}
+                      onChangeText={(text) => handleUpdateItemCost(item.id, index, formatCostInput(text))}
                       keyboardType="decimal-pad"
                       mode="outlined"
                       dense
@@ -671,13 +839,74 @@ export default function AddStockEntryScreen() {
 
           <Button
             mode="outlined"
-            onPress={() => router.back()}
+            onPress={() => router.push('/(tabs)/stock-entries')}
             disabled={createMutation.isPending}
           >
             Cancelar
           </Button>
         </View>
       </ScrollView>
+
+      {/* Dialog de Criar Nova Viagem */}
+      <ConfirmDialog
+        visible={showCreateTripDialog}
+        title="Criar Nova Viagem"
+        message="Você será redirecionado para cadastrar uma nova viagem. Seus dados da entrada atual serão preservados."
+        details={[
+          'Cadastre a viagem com destino, data e custos',
+          'Após salvar, você voltará automaticamente',
+          'A viagem será vinculada automaticamente',
+          'Continue preenchendo a entrada de estoque'
+        ]}
+        type="info"
+        confirmText="Ir para Nova Viagem"
+        cancelText="Cancelar"
+        onConfirm={() => {
+          setShowCreateTripDialog(false);
+          router.push({
+            pathname: '/trips/add',
+            params: { from: 'entries' }
+          });
+        }}
+        onCancel={() => setShowCreateTripDialog(false)}
+        icon="airplane"
+      />
+
+      {/* Dialog de Sucesso da Entrada */}
+      <ConfirmDialog
+        visible={showSuccessDialog}
+        title="Entrada Criada! ✓"
+        message={`A entrada ${createdEntryCode || ''} foi registrada com sucesso.`}
+        details={[
+          `${items.length} ${items.length === 1 ? 'item' : 'itens'} adicionados`,
+          `Total: ${formatCurrency(total)}`,
+          selectedType === EntryType.TRIP && selectedTrip ? `Viagem vinculada: ${selectedTrip.trip_code}` : 'Tipo: ' + (selectedType === EntryType.TRIP ? 'Viagem' : selectedType === EntryType.ONLINE ? 'Online' : 'Local'),
+          'Você pode acompanhar performance (Sell-Through / ROI) após vendas',
+        ].filter(Boolean)}
+        type="success"
+        confirmText="Ver Entradas"
+        cancelText="Nova Entrada"
+        onConfirm={() => {
+          setShowSuccessDialog(false);
+          router.push('/(tabs)/stock-entries');
+        }}
+        onCancel={() => {
+          // Reset para nova entrada rápida
+          setShowSuccessDialog(false);
+          setEntryCode('');
+          setSupplierName('');
+          setSupplierCnpj('');
+          setSupplierContact('');
+          setInvoiceNumber('');
+          setPaymentMethod('');
+          setNotes('');
+          setItems([]);
+          setItemCosts({});
+          setTripId(undefined);
+          setSelectedType(EntryType.LOCAL);
+        }}
+        icon="checkmark-circle"
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -769,6 +998,26 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.light.text,
     marginBottom: 8,
+  },
+  labelWithAction: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: Colors.light.primaryLight,
+  },
+  addButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.primary,
   },
   selectButton: {
     flexDirection: 'row',

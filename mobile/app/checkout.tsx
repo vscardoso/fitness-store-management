@@ -8,6 +8,7 @@ import { View, StyleSheet, ScrollView, Alert, KeyboardAvoidingView, Platform } f
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Text, Button, Card, Chip, TextInput, IconButton, ActivityIndicator, Divider } from 'react-native-paper';
 import { useRouter } from 'expo-router';
+import useBackToList from '@/hooks/useBackToList';
 import { useCart } from '@/hooks/useCart';
 import { createSale } from '@/services/saleService';
 import { getCustomerById } from '@/services/customerService';
@@ -45,6 +46,7 @@ const installmentOptions = Array.from({ length: 12 }, (_, i) => ({
 export default function CheckoutScreen() {
   const cart = useCart();
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)');
 
   // Estado local
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(PaymentMethod.PIX);
@@ -295,7 +297,7 @@ export default function CheckoutScreen() {
           <IconButton
             icon="arrow-left"
             size={24}
-            onPress={() => router.back()}
+            onPress={goBack}
           />
           <View>
             <Text variant="titleLarge" style={styles.headerTitle}>
@@ -327,7 +329,7 @@ export default function CheckoutScreen() {
                 <Button
                   mode="text"
                   compact
-                  onPress={() => router.back()}
+                  onPress={goBack}
                 >
                   Editar
                 </Button>

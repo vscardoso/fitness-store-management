@@ -30,6 +30,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import useBackToList from '@/hooks/useBackToList';
 import { useQuery } from '@tanstack/react-query';
 import { getTrips } from '@/services/tripService';
 import { getStockEntries, getSlowMovingProducts, getBestPerformingEntries } from '@/services/stockEntryService';
@@ -200,6 +201,7 @@ function SlowMovingProductCard({ product, onPress }: SlowProductCardProps) {
 
 export default function ReportsScreen() {
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)');
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<ReportTab>('trips');
   const [periodMenuVisible, setPeriodMenuVisible] = useState(false);
@@ -283,7 +285,7 @@ export default function ReportsScreen() {
       >
         <View style={styles.headerContent}>
           <TouchableOpacity
-            onPress={() => router.back()}
+            onPress={goBack}
             style={styles.backButton}
           >
             <Ionicons name="arrow-back" size={24} color="white" />

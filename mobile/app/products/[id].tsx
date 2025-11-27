@@ -16,6 +16,7 @@ import {
   TextInput,
 } from 'react-native-paper';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import useBackToList from '@/hooks/useBackToList';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -33,6 +34,7 @@ import { MovementType } from '@/types';
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/products');
   const queryClient = useQueryClient();
 
   // Validar ID do produto
@@ -52,6 +54,7 @@ export default function ProductDetailsScreen() {
     queryKey: ['product', productId],
     queryFn: () => getProductById(productId),
     enabled: isValidId,
+    retry: false, // Não tentar novamente em caso de 404
   });
 
   /**
@@ -98,11 +101,23 @@ export default function ProductDetailsScreen() {
 
       // Validar estoque antes de remover
       if (movementType === MovementType.OUT) {
-        const currentStock = inventory?.quantity || 0;
-        if (qty > currentStock) {
-          throw new Error(
-            `Estoque insuficiente. Disponível: ${currentStock}, Solicitado: ${qty}`
-          );
+        // Refetch direto do servidor para evitar estado stale
+        try {
+          const fresh = await getProductStock(productId);
+          const serverStock = fresh.quantity;
+          if (qty > serverStock) {
+            throw new Error(
+              `Estoque insuficiente. Disponível (servidor): ${serverStock}, Solicitado: ${qty}`
+            );
+          }
+        } catch (e) {
+          // Se falhar, usar cache como fallback
+          const currentStock = inventory?.quantity || 0;
+          if (qty > currentStock) {
+            throw new Error(
+              `Estoque insuficiente (fallback). Disponível: ${currentStock}, Solicitado: ${qty}`
+            );
+          }
         }
       }
 
@@ -137,7 +152,7 @@ export default function ProductDetailsScreen() {
       Alert.alert('Sucesso!', 'Produto deletado', [
         {
           text: 'OK',
-          onPress: () => router.back(),
+          onPress: () => goBack(),
         },
       ]);
     },
@@ -204,7 +219,7 @@ export default function ProductDetailsScreen() {
         <Text style={styles.errorMessage}>O ID do produto fornecido não é válido.</Text>
         <Text
           style={styles.errorLink}
-          onPress={() => router.push('/(tabs)/products')}
+          onPress={goBack}
         >
           Voltar para produtos
         </Text>
@@ -256,7 +271,7 @@ export default function ProductDetailsScreen() {
         <View style={styles.headerContent}>
           <View style={styles.headerTop}>
             <TouchableOpacity
-              onPress={() => router.push('/(tabs)/products')}
+              onPress={goBack}
               style={styles.backButton}
             >
               <Ionicons name="arrow-back" size={24} color="#fff" />

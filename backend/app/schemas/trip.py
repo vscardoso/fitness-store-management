@@ -28,7 +28,11 @@ class TripBase(BaseModel):
         """Valida que departure_time < return_time."""
         if self.departure_time and self.return_time:
             if self.departure_time >= self.return_time:
-                raise ValueError("departure_time must be before return_time")
+                raise ValueError(
+                    "O horário de retorno deve ser posterior ao horário de partida. "
+                    f"Partida: {self.departure_time.strftime('%d/%m/%Y %H:%M')}, "
+                    f"Retorno: {self.return_time.strftime('%d/%m/%Y %H:%M')}"
+                )
         return self
 
 
@@ -58,7 +62,11 @@ class TripUpdate(BaseModel):
         """Valida que departure_time < return_time."""
         if self.departure_time and self.return_time:
             if self.departure_time >= self.return_time:
-                raise ValueError("departure_time must be before return_time")
+                raise ValueError(
+                    "O horário de retorno deve ser posterior ao horário de partida. "
+                    f"Partida: {self.departure_time.strftime('%d/%m/%Y %H:%M')}, "
+                    f"Retorno: {self.return_time.strftime('%d/%m/%Y %H:%M')}"
+                )
         return self
 
 

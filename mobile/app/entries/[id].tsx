@@ -30,10 +30,10 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import InfoRow from '@/components/ui/InfoRow';
 import StatCard from '@/components/ui/StatCard';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getStockEntryById, deleteStockEntry } from '@/services/stockEntryService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
@@ -48,16 +48,29 @@ export default function StockEntryDetailsScreen() {
   const entryId = id ? parseInt(id as string) : NaN;
   const isValidId = !isNaN(entryId) && entryId > 0;
 
+  /**
+   * Função para voltar garantindo que vai para a lista de entradas
+   */
+  const handleGoBack = () => {
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace('/entries');
+    }
+  };
+
   // Estados
   const [refreshing, setRefreshing] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
   /**
    * Query: Buscar entrada
    */
-  const { data: entry, isLoading, refetch } = useQuery({
+  const { data: entry, isLoading, error, refetch } = useQuery({
     queryKey: ['stock-entry', entryId],
     queryFn: () => getStockEntryById(entryId),
     enabled: isValidId,
+    retry: false, // Não tentar novamente em caso de 404
   });
 
   /**
@@ -65,16 +78,40 @@ export default function StockEntryDetailsScreen() {
    */
   const deleteMutation = useMutation({
     mutationFn: () => deleteStockEntry(entryId),
-    onSuccess: () => {
+    onSuccess: (result: any) => {
+      setShowDeleteDialog(false);
+
+      // Remover query específica desta entrada do cache (evita refetch 404)
+      queryClient.removeQueries({ queryKey: ['stock-entry', entryId] });
+
+      // Invalidar outras queries para atualizar listas
       queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
-      Alert.alert('Sucesso', 'Entrada excluída com sucesso', [
-        {
-          text: 'OK',
-          onPress: () => router.back(),
-        },
-      ]);
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['active-products'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+
+      // Mensagem detalhada sobre o que foi excluído
+      const messages = [`Entrada ${result.entry_code} excluída`];
+
+      if (result.orphan_products_deleted > 0) {
+        messages.push(`${result.orphan_products_deleted} produto(s) órfão(s) excluído(s)`);
+      }
+
+      if (result.total_stock_removed > 0) {
+        messages.push(`${result.total_stock_removed} unidades removidas do estoque`);
+      }
+
+      // Navegar de volta imediatamente
+      handleGoBack();
+
+      // Mostrar toast de sucesso
+      setTimeout(() => {
+        Alert.alert('Sucesso!', messages.join('\n'));
+      }, 300);
     },
     onError: (error: any) => {
+      setShowDeleteDialog(false);
       Alert.alert('Erro', error.message || 'Erro ao excluir entrada');
     },
   });
@@ -92,36 +129,60 @@ export default function StockEntryDetailsScreen() {
    * Confirmar exclusão
    */
   const handleDelete = () => {
-    Alert.alert(
-      'Excluir Entrada',
-      'Tem certeza que deseja excluir esta entrada? Esta ação não pode ser desfeita.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: () => deleteMutation.mutate(),
-        },
-      ]
-    );
+    setShowDeleteDialog(true);
+  };
+
+  /**
+   * Confirmar exclusão no diálogo
+   */
+  const confirmDelete = () => {
+    deleteMutation.mutate();
+  };
+
+  /**
+   * Preparar detalhes da exclusão
+   */
+  const getDeleteDetails = (): string[] => {
+    if (!entry) return [];
+
+    const details: string[] = [];
+
+    details.push(`${entry.total_quantity || 0} unidades de estoque serão removidas`);
+
+    // Contar produtos únicos
+    const uniqueProducts = entry.entry_items?.length || 0;
+    details.push(`${uniqueProducts} produto(s) vinculado(s) a esta entrada`);
+
+    // Avisar sobre produtos órfãos
+    if (uniqueProducts > 0) {
+      details.push('⚠️ Produtos que existem APENAS nesta entrada serão excluídos permanentemente');
+    }
+
+    details.push('Esta ação não pode ser desfeita');
+
+    return details;
   };
 
   /**
    * Renderizar badge de tipo
    */
   const renderTypeBadge = (type: EntryType) => {
-    const typeConfig = {
-      trip: { label: 'Viagem', color: Colors.light.info, icon: 'car-outline' },
-      online: { label: 'Online', color: Colors.light.warning, icon: 'cart-outline' },
-      local: { label: 'Local', color: Colors.light.success, icon: 'business-outline' },
+    const typeConfig: Record<EntryType, { label: string; icon: string }> = {
+      [EntryType.TRIP]: { label: 'Viagem', icon: 'car-outline' },
+      [EntryType.ONLINE]: { label: 'Online', icon: 'cart-outline' },
+      [EntryType.LOCAL]: { label: 'Local', icon: 'business-outline' },
+      [EntryType.INITIAL_INVENTORY]: { label: 'Estoque Inicial', icon: 'archive-outline' },
+      [EntryType.ADJUSTMENT]: { label: 'Ajuste', icon: 'construct-outline' },
+      [EntryType.RETURN]: { label: 'Devolução', icon: 'return-up-back-outline' },
+      [EntryType.DONATION]: { label: 'Doação', icon: 'gift-outline' },
     };
 
-    const config = typeConfig[type] || typeConfig.local;
+    const config = typeConfig[type];
 
     return (
-      <View style={[styles.typeBadge, { backgroundColor: config.color + '20' }]}>
-        <Ionicons name={config.icon as any} size={16} color={config.color} />
-        <Text style={[styles.typeBadgeText, { color: config.color }]}>
+      <View style={styles.typeBadge}>
+        <Ionicons name={config.icon as any} size={16} color="#fff" />
+        <Text style={styles.typeBadgeText}>
           {config.label}
         </Text>
       </View>
@@ -241,17 +302,24 @@ export default function StockEntryDetailsScreen() {
   }
 
   /**
-   * Erro: Entrada não encontrada
+   * Erro: ID inválido ou entrada não encontrada
    */
-  if (!entry) {
+  if (!isValidId || !entry) {
+    const errorMessage = !isValidId 
+      ? 'ID de entrada inválido' 
+      : 'Entrada não encontrada ou foi excluída';
+    
     return (
       <SafeAreaView style={styles.safeArea} edges={['top']}>
         <View style={styles.container}>
           <View style={styles.centerContainer}>
             <Ionicons name="alert-circle-outline" size={64} color={Colors.light.error} />
-            <Text style={styles.errorText}>Entrada não encontrada</Text>
-            <Button mode="contained" onPress={() => router.back()} style={styles.backButton}>
-              Voltar
+            <Text style={styles.errorText}>{errorMessage}</Text>
+            <Text style={styles.errorSubtext}>
+              A entrada pode ter sido excluída ou o link está incorreto.
+            </Text>
+            <Button mode="contained" onPress={handleGoBack} style={styles.errorButton}>
+              Voltar para Lista
             </Button>
           </View>
         </View>
@@ -259,41 +327,35 @@ export default function StockEntryDetailsScreen() {
     );
   }
 
-  const { bestSellers, slowMovers } = analyzeProducts(entry.entry_items || []);
+  // Garantir que entry existe antes de usar
+  const { bestSellers, slowMovers } = analyzeProducts(entry?.entry_items || []);
 
   return (
     <SafeAreaView style={styles.safeArea} edges={['top']}>
-      {/* Header Gradiente */}
-      <LinearGradient
-        colors={[Colors.light.primary, Colors.light.primary]}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="white" />
+      <View style={styles.container}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={styles.headerSubtitle}>Entrada de Estoque</Text>
             <Text style={styles.headerTitle}>{entry.entry_code}</Text>
+            {renderTypeBadge(entry.entry_type)}
           </View>
           <View style={styles.headerPlaceholder} />
         </View>
-      </LinearGradient>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
-      >
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
         {/* Info Básica */}
         <Card style={styles.card}>
           <Card.Content>
-            <View style={styles.infoHeader}>
-              <Text style={styles.cardTitle}>Informações</Text>
-              {renderTypeBadge(entry.entry_type)}
-            </View>
+            <Text style={styles.cardTitle}>Informações</Text>
 
             <InfoRow label="Data de Entrada" value={formatDate(entry.entry_date)} icon="calendar-outline" />
             <InfoRow label="Fornecedor" value={entry.supplier_name} icon="briefcase-outline" />
@@ -426,7 +488,7 @@ export default function StockEntryDetailsScreen() {
             onPress={handleDelete}
             loading={deleteMutation.isPending}
             disabled={deleteMutation.isPending}
-            icon="trash-outline"
+            icon="delete"
             textColor={Colors.light.error}
             style={styles.deleteButton}
           >
@@ -434,6 +496,22 @@ export default function StockEntryDetailsScreen() {
           </Button>
         </View>
       </ScrollView>
+
+        {/* Confirm Delete Dialog */}
+        <ConfirmDialog
+          visible={showDeleteDialog}
+          title="Excluir Entrada de Estoque?"
+          message={`Você está prestes a excluir a entrada ${entry?.entry_code || ''}. Esta ação terá as seguintes consequências:`}
+          details={getDeleteDetails()}
+          confirmText="Sim, Excluir"
+          cancelText="Cancelar"
+          onConfirm={confirmDelete}
+          onCancel={() => setShowDeleteDialog(false)}
+          type="danger"
+          icon="trash"
+          loading={deleteMutation.isPending}
+        />
+      </View>
     </SafeAreaView>
   );
 }
@@ -441,10 +519,11 @@ export default function StockEntryDetailsScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.light.primary,
   },
   container: {
     flex: 1,
+    backgroundColor: Colors.light.background,
   },
   centerContainer: {
     flex: 1,
@@ -461,7 +540,26 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: Colors.light.text,
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  errorSubtext: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
     marginBottom: 24,
+    paddingHorizontal: 32,
+  },
+  errorButton: {
+    paddingHorizontal: 24,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.light.primary,
+    paddingHorizontal: 16,
+    paddingVertical: 16,
   },
   backButton: {
     width: 40,
@@ -471,29 +569,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 16,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
   headerCenter: {
     flex: 1,
     alignItems: 'center',
   },
-  headerSubtitle: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 4,
-  },
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: 'white',
+    color: '#fff',
+    marginBottom: 4,
   },
   headerPlaceholder: {
     width: 40,
@@ -510,16 +594,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.card,
     elevation: 2,
   },
-  infoHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
   cardTitle: {
     fontSize: 18,
     fontWeight: '700',
     color: Colors.light.text,
+    marginBottom: 16,
   },
   typeBadge: {
     flexDirection: 'row',
@@ -528,10 +607,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 12,
+    backgroundColor: '#4A90E2', // Azul claro contrastante
   },
   typeBadgeText: {
     fontSize: 12,
     fontWeight: '600',
+    color: '#fff',
   },
   statsGrid: {
     flexDirection: 'row',
@@ -681,8 +762,11 @@ const styles = StyleSheet.create({
   },
   actions: {
     marginTop: 8,
+    marginBottom: 16,
   },
   deleteButton: {
     borderColor: Colors.light.error,
+    borderWidth: 1.5,
+    borderRadius: 12,
   },
 });

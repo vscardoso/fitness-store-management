@@ -76,11 +76,16 @@ class StockEntryService:
             if not items or len(items) == 0:
                 raise ValueError("É necessário fornecer ao menos um item")
             
-            # Validar produtos
+            # Validar produtos e atualizar is_catalog
             for item in items:
                 product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
                 if not product:
                     raise ValueError(f"Product {item.product_id} não encontrado")
+                
+                # Se produto é de catálogo, marcar como adicionado à loja
+                if product.is_catalog:
+                    product.is_catalog = False
+                    # Commit será feito ao final da transação
             
             # Criar entrada
             entry_dict = entry_data.model_dump(exclude_unset=True)
@@ -408,44 +413,91 @@ class StockEntryService:
         return updated
     
     async def delete_entry(
-        self, 
+        self,
         entry_id: int,
         *,
         tenant_id: int,
-    ) -> bool:
+    ) -> dict:
         """
         Soft delete de uma entrada.
-        
-        ATENÇÃO: Também remove as quantidades do inventário.
-        
+
+        ATENÇÃO:
+        - Remove as quantidades do inventário
+        - Exclui produtos órfãos (produtos que só existem nesta entrada)
+
         Args:
             entry_id: ID da entrada
             tenant_id: ID do tenant
-            
+
         Returns:
-            bool: True se deletada
+            dict: Informações sobre a exclusão (produtos excluídos, estoque removido)
         """
+        from sqlalchemy import select, func
+        from app.models.entry_item import EntryItem
+        from app.models.product import Product
+
         entry = await self.entry_repo.get_by_id(self.db, entry_id, include_items=True, tenant_id=tenant_id)
         if not entry:
             raise ValueError(f"Entry {entry_id} não encontrada")
-        
+
         try:
-            # Remover quantidades do inventário
+            orphan_products = []
+            total_stock_removed = 0
+
+            # Remover quantidades do inventário e identificar produtos órfãos
             for item in entry.entry_items:
                 if item.is_active:
+                    total_stock_removed += item.quantity_remaining
+
                     await self._update_product_inventory(
                         item.product_id,
                         item.quantity_remaining,
                         operation='remove',
                         tenant_id=tenant_id,
                     )
-            
+
+                    # Verificar se este produto tem outras entradas ativas
+                    other_entries_query = select(func.count(EntryItem.id)).where(
+                        EntryItem.product_id == item.product_id,
+                        EntryItem.entry_id != entry_id,  # ← Campo correto
+                        EntryItem.is_active == True,
+                        EntryItem.tenant_id == tenant_id
+                    )
+                    result = await self.db.execute(other_entries_query)
+                    other_entries_count = result.scalar()
+
+                    # Se não tem outras entradas, é órfão
+                    if other_entries_count == 0:
+                        product_query = select(Product).where(
+                            Product.id == item.product_id,
+                            Product.tenant_id == tenant_id
+                        )
+                        product_result = await self.db.execute(product_query)
+                        product = product_result.scalar_one_or_none()
+
+                        if product:
+                            # Produto órfão volta para o catálogo (ativo)
+                            product.is_active = True
+                            product.is_catalog = True  # Volta para o catálogo
+                            orphan_products.append({
+                                'id': product.id,
+                                'name': product.name,
+                                'sku': product.sku
+                            })
+
             # Soft delete da entrada (cascata para itens)
             success = await self.entry_repo.delete(self.db, entry_id, tenant_id=tenant_id)
-            
+
             await self.db.commit()
-            return success
-            
+
+            return {
+                'success': success,
+                'orphan_products_deleted': len(orphan_products),
+                'orphan_products': orphan_products,
+                'total_stock_removed': total_stock_removed,
+                'entry_code': entry.entry_code
+            }
+
         except Exception as e:
             await self.db.rollback()
             raise e
@@ -517,7 +569,7 @@ class StockEntryService:
         
         result = []
         for item in items:
-            entry = await self.entry_repo.get_by_id(self.db, item.stock_entry_id, tenant_id=tenant_id)
+            entry = await self.entry_repo.get_by_id(self.db, item.entry_id, tenant_id=tenant_id)  # ← Campo correto
             product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
             
             if entry and product:

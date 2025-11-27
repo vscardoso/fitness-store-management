@@ -19,6 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import useBackToList from '@/hooks/useBackToList';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createCustomer } from '@/services/customerService';
 import { searchCep } from '@/services/cepService';
@@ -28,6 +29,7 @@ import type { CustomerCreate } from '@/types';
 
 export default function AddCustomerScreen() {
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/customers');
   const queryClient = useQueryClient();
 
   // Estados do formulário
@@ -117,7 +119,7 @@ export default function AddCustomerScreen() {
       Alert.alert('Sucesso!', 'Cliente cadastrado com sucesso', [
         {
           text: 'OK',
-          onPress: () => router.push('/(tabs)/customers'),
+          onPress: () => goBack(),
         },
       ]);
     },
@@ -361,7 +363,7 @@ export default function AddCustomerScreen() {
         <View style={styles.actions}>
           <Button
             mode="outlined"
-            onPress={() => router.back()}
+            onPress={goBack}
             style={styles.button}
             disabled={createMutation.isPending}
           >

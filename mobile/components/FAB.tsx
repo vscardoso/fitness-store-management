@@ -64,6 +64,14 @@ export default function FAB() {
       colors: ['#f093fb', '#f5576c'],
       route: '/entries/add',
     },
+    {
+      id: 'new-trip',
+      title: 'Nova Viagem',
+      subtitle: 'Planejar viagem',
+      icon: 'car',
+      colors: ['#fa709a', '#fee140'],
+      route: '/trips/add',
+    },
   ];
 
   const openModal = () => {

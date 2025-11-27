@@ -28,10 +28,17 @@ export const getCatalogProducts = async (params?: GetCatalogParams): Promise<Pro
 /**
  * Ativar produto do catálogo para a loja do usuário
  */
-export const activateCatalogProduct = async (productId: number, customPrice?: number): Promise<Product> => {
+export const activateCatalogProduct = async (
+  productId: number,
+  customPrice?: number,
+  entryId?: number,
+  quantity?: number
+): Promise<Product> => {
   try {
     const { data } = await api.post<Product>(`/products/catalog/${productId}/activate`, {
       custom_price: customPrice,
+      entry_id: entryId,
+      quantity: quantity,
     });
     return data;
   } catch (error) {

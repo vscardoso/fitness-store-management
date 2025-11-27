@@ -20,6 +20,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import useBackToList from '@/hooks/useBackToList';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useCategories } from '@/hooks/useCategories';
 import { createProduct } from '@/services/productService';
@@ -28,6 +29,7 @@ import type { ProductCreate } from '@/types';
 
 export default function AddProductScreen() {
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/products');
   const queryClient = useQueryClient();
   const { categories, isLoading: loadingCategories } = useCategories();
 
@@ -68,7 +70,7 @@ export default function AddProductScreen() {
         [
           {
             text: 'OK',
-            onPress: () => router.push('/(tabs)/products'),
+            onPress: () => goBack(),
           },
         ]
       );
@@ -401,7 +403,7 @@ export default function AddProductScreen() {
         <View style={styles.actions}>
           <Button
             mode="outlined"
-            onPress={() => router.back()}
+            onPress={goBack}
             style={styles.button}
             disabled={createMutation.isPending}
           >

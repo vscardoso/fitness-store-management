@@ -22,6 +22,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import useBackToList from '@/hooks/useBackToList';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCategories } from '@/hooks/useCategories';
 import { getProductById, updateProduct } from '@/services/productService';
@@ -31,6 +32,7 @@ import type { ProductUpdate } from '@/types';
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/products');
   const queryClient = useQueryClient();
   const { categories, isLoading: loadingCategories } = useCategories();
 
@@ -91,7 +93,7 @@ export default function EditProductScreen() {
         [
           {
             text: 'OK',
-            onPress: () => router.back(),
+            onPress: () => goBack(),
           },
         ]
       );
@@ -440,7 +442,7 @@ export default function EditProductScreen() {
         <View style={styles.actions}>
           <Button
             mode="outlined"
-            onPress={() => router.back()}
+            onPress={goBack}
             style={styles.button}
             disabled={updateMutation.isPending}
           >

@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
+import { getDashboardStats } from '@/services/dashboardService';
 import { getActiveProducts, getLowStockProducts } from '@/services/productService';
 import { getDailySalesTotal, getSales } from '@/services/saleService';
 import { getCustomers } from '@/services/customerService';
@@ -54,28 +55,10 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [quickActionsVisible, setQuickActionsVisible] = useState(false);
 
-  // Queries principais do dashboard
-  const { data: products, refetch: refetchProducts } = useQuery({
-    queryKey: ['active-products'],
-    queryFn: () => getActiveProducts({ limit: 1000 }),
-    enabled: !!user,
-  });
-
-  const { data: dailySales, refetch: refetchSales } = useQuery({
-    queryKey: ['daily-sales'],
-    queryFn: () => getDailySalesTotal(),
-    enabled: !!user,
-  });
-
-  const { data: lowStockProducts, refetch: refetchLowStock } = useQuery({
-    queryKey: ['low-stock'],
-    queryFn: () => getLowStockProducts(),
-    enabled: !!user,
-  });
-
-  const { data: customers, refetch: refetchCustomers } = useQuery({
-    queryKey: ['customers'],
-    queryFn: () => getCustomers(),
+  // Query principal: Dashboard stats com rastreabilidade
+  const { data: dashboardStats, refetch: refetchStats } = useQuery({
+    queryKey: ['dashboard-stats'],
+    queryFn: getDashboardStats,
     enabled: !!user,
   });
 
@@ -90,34 +73,26 @@ export default function DashboardScreen() {
   const onRefresh = async () => {
     setRefreshing(true);
     await Promise.all([
-      refetchProducts(),
-      refetchSales(),
-      refetchLowStock(),
-      refetchCustomers(),
+      refetchStats(),
       refetchRecentSales(),
     ]);
     setRefreshing(false);
   };
 
-  // Cálculos das métricas
-  const totalProducts = products?.length || 0;
-  const totalCustomers = customers?.length || 0;
-  const totalSalesToday = dailySales?.total || 0;
-  const lowStockCount = lowStockProducts?.length || 0;
+  // Extrair métricas do dashboard stats (com rastreabilidade)
+  const stockValue = dashboardStats?.stock.invested_value || 0;
+  const potentialRevenue = dashboardStats?.stock.potential_revenue || 0;
+  const potentialProfit = dashboardStats?.stock.potential_profit || 0;
+  const averageMargin = dashboardStats?.stock.average_margin_percent || 0;
+  const totalStockQuantity = dashboardStats?.stock.total_quantity || 0;
+  const totalProducts = dashboardStats?.stock.total_products || 0;
+  const lowStockCount = dashboardStats?.stock.low_stock_count || 0;
 
-  const stockValue = products?.reduce((total, product) => {
-    const quantity = product.current_stock || 0;
-    const cost = product.cost_price || 0;
-    return total + (quantity * cost);
-  }, 0) || 0;
+  const totalSalesToday = dashboardStats?.sales.total_today || 0;
+  const salesCountToday = dashboardStats?.sales.count_today || 0;
+  const averageTicket = dashboardStats?.sales.average_ticket || 0;
 
-  const potentialProfit = products?.reduce((total, product) => {
-    const quantity = product.current_stock || 0;
-    const cost = product.cost_price || 0;
-    const price = product.price || 0;
-    const profit = price - cost;
-    return total + (quantity * profit);
-  }, 0) || 0;
+  const totalCustomers = dashboardStats?.customers.total || 0;
 
   // Ações rápidas
   const quickActions: QuickAction[] = [
@@ -313,21 +288,55 @@ export default function DashboardScreen() {
     <View style={styles.insightsContainer}>
       <Text style={styles.sectionTitle}>Insights do Negócio</Text>
 
-      {/* Card de Produtos em Destaque */}
-      <Card style={styles.insightCard}>
-        <Card.Content style={styles.insightContent}>
-          <View style={styles.insightHeader}>
-            <Ionicons name="star" size={20} color={Colors.light.warning} />
-            <Text style={styles.insightTitle}>Produtos em Destaque</Text>
-          </View>
-          <Text style={styles.insightText}>
-            {totalProducts > 0
-              ? `Você possui ${totalProducts} produtos cadastrados com potencial de lucro de ${formatCurrency(potentialProfit)}`
-              : 'Cadastre seus primeiros produtos para começar a vender'
-            }
-          </Text>
-        </Card.Content>
-      </Card>
+      {/* Card de Rentabilidade */}
+      {totalProducts > 0 && (
+        <Card style={styles.insightCard}>
+          <Card.Content style={styles.insightContent}>
+            <View style={styles.insightHeader}>
+              <Ionicons name="trending-up" size={20} color={Colors.light.success} />
+              <Text style={styles.insightTitle}>Rentabilidade</Text>
+            </View>
+            <Text style={styles.insightText}>
+              Margem de lucro média de <Text style={styles.insightHighlight}>{averageMargin.toFixed(1)}%</Text>
+              {' '}com potencial de lucro de <Text style={styles.insightHighlight}>{formatCurrency(potentialProfit)}</Text>
+              {' '}sobre o estoque atual.
+            </Text>
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Card de Ticket Médio */}
+      {salesCountToday > 0 && (
+        <Card style={styles.insightCard}>
+          <Card.Content style={styles.insightContent}>
+            <View style={styles.insightHeader}>
+              <Ionicons name="calculator" size={20} color={Colors.light.primary} />
+              <Text style={styles.insightTitle}>Ticket Médio</Text>
+            </View>
+            <Text style={styles.insightText}>
+              Valor médio por venda de <Text style={styles.insightHighlight}>{formatCurrency(averageTicket)}</Text>
+              {' '}com <Text style={styles.insightHighlight}>{salesCountToday}</Text> venda{salesCountToday > 1 ? 's' : ''} hoje.
+            </Text>
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Card de Estoque */}
+      {totalProducts > 0 && (
+        <Card style={styles.insightCard}>
+          <Card.Content style={styles.insightContent}>
+            <View style={styles.insightHeader}>
+              <Ionicons name="cube" size={20} color={Colors.light.info} />
+              <Text style={styles.insightTitle}>Gestão de Estoque</Text>
+            </View>
+            <Text style={styles.insightText}>
+              Total de <Text style={styles.insightHighlight}>{totalStockQuantity}</Text> unidades em estoque,
+              avaliadas em <Text style={styles.insightHighlight}>{formatCurrency(stockValue)}</Text>.
+              {lowStockCount > 0 && ` ${lowStockCount} produto${lowStockCount > 1 ? 's' : ''} com estoque baixo.`}
+            </Text>
+          </Card.Content>
+        </Card>
+      )}
 
       {/* Card de Alertas */}
       {lowStockCount > 0 && (
@@ -335,18 +344,33 @@ export default function DashboardScreen() {
           <Card.Content style={styles.insightContent}>
             <View style={styles.insightHeader}>
               <Ionicons name="warning" size={20} color={Colors.light.error} />
-              <Text style={styles.alertTitle}>Atenção ao Estoque</Text>
+              <Text style={styles.alertTitle}>Ação Necessária</Text>
             </View>
             <Text style={styles.alertText}>
-              {lowStockCount} produto{lowStockCount > 1 ? 's' : ''} com estoque baixo.
-              Reponha para não perder vendas!
+              {lowStockCount} produto{lowStockCount > 1 ? 's' : ''} com estoque crítico.
+              Reponha agora para evitar perda de vendas!
             </Text>
             <TouchableOpacity
               style={styles.alertButton}
               onPress={() => router.push('/(tabs)/products')}
             >
-              <Text style={styles.alertButtonText}>Ver Produtos</Text>
+              <Text style={styles.alertButtonText}>Reabastecer Agora</Text>
             </TouchableOpacity>
+          </Card.Content>
+        </Card>
+      )}
+
+      {/* Card de Primeiros Passos (quando não há dados) */}
+      {totalProducts === 0 && (
+        <Card style={styles.insightCard}>
+          <Card.Content style={styles.insightContent}>
+            <View style={styles.insightHeader}>
+              <Ionicons name="rocket" size={20} color={Colors.light.primary} />
+              <Text style={styles.insightTitle}>Comece Agora</Text>
+            </View>
+            <Text style={styles.insightText}>
+              Cadastre seus primeiros produtos e clientes para começar a vender e acompanhar o desempenho do seu negócio.
+            </Text>
           </Card.Content>
         </Card>
       )}
@@ -642,6 +666,10 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: Colors.light.textSecondary,
     lineHeight: 20,
+  },
+  insightHighlight: {
+    fontWeight: '700',
+    color: Colors.light.primary,
   },
 
   // Alertas

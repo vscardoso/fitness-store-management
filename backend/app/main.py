@@ -109,16 +109,25 @@ async def validation_exception_handler(
     """Handle validation errors."""
     import json
     from decimal import Decimal
-    
+
+    def make_json_safe(obj):
+        """Converter recursivamente objetos para formato JSON-safe."""
+        if isinstance(obj, dict):
+            return {k: make_json_safe(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple)):
+            return [make_json_safe(item) for item in obj]
+        elif isinstance(obj, (Decimal, ValueError, Exception)):
+            return str(obj)
+        elif isinstance(obj, (str, int, float, bool, type(None))):
+            return obj
+        else:
+            # Para qualquer outro tipo, converter para string
+            return str(obj)
+
     # Converter erros para formato JSON-safe
     errors = exc.errors()
-    for error in errors:
-        # Converter Decimal para string no contexto
-        if 'ctx' in error:
-            for key, value in error['ctx'].items():
-                if isinstance(value, Decimal):
-                    error['ctx'][key] = str(value)
-    
+    errors = make_json_safe(errors)
+
     logger.error(f"Validation error: {errors}")
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,

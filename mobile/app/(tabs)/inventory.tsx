@@ -166,25 +166,45 @@ export default function InventoryDashboard() {
    * Calcular métricas do dashboard baseado no inventário
    */
   const calculateMetrics = () => {
-    // Calcular total em estoque (quantidade) e valor baseado nos produtos
-    const totalQuantity = products.reduce((sum, product) => {
-      return sum + (product.current_stock || 0);
+    // Filtrar apenas produtos ativos e não catálogo
+    const activeProducts = products.filter(p => p.is_active && !p.is_catalog);
+
+    // Calcular total em estoque (quantidade válida >= 0) e valor baseado nos produtos
+    const totalQuantity = activeProducts.reduce((sum, product) => {
+      const stock = product.current_stock ?? 0;
+      return sum + (stock >= 0 ? stock : 0);
     }, 0);
 
-    const totalValue = products.reduce((sum, product) => {
-      const quantity = product.current_stock || 0;
+    const totalValue = activeProducts.reduce((sum, product) => {
+      const quantity = product.current_stock ?? 0;
+      const validQuantity = quantity >= 0 ? quantity : 0;
       const costPrice = product.cost_price || product.price || 0;
-      return sum + (quantity * costPrice);
+      return sum + (validQuantity * Number(costPrice));
     }, 0);
 
-    const totalItems = products.length;
+    // Total de produtos ativos não catálogo
+    const totalItems = activeProducts.length;
+
+    // Produtos com estoque (quantidade > 0)
+    const productsWithStock = activeProducts.filter(p => (p.current_stock ?? 0) > 0).length;
+
+    // Produtos sem estoque
+    const productsOutOfStock = activeProducts.filter(p => (p.current_stock ?? 0) === 0).length;
+
+    // Estoque baixo: quantidade > 0 e < 3
+    const productsLowStock = activeProducts.filter(p => {
+      const stock = p.current_stock ?? 0;
+      return stock > 0 && stock < 3;
+    }).length;
 
     return {
       totalQuantity,
       totalValue,
       totalItems,
+      productsWithStock,
+      productsOutOfStock,
       slowMovingCount: slowMovingProducts.length,
-      lowStockCount: lowStockProducts.length,
+      lowStockCount: productsLowStock,
     };
   };
 
@@ -240,29 +260,47 @@ export default function InventoryDashboard() {
           <View style={styles.statsGrid}>
             <StatCard
               icon="cube-outline"
-              label="Total de Produtos"
+              label="Produtos Ativos"
               value={metrics.totalItems}
               iconColor={Colors.light.info}
               iconBg={Colors.light.infoLight}
             />
             <StatCard
               icon="layers-outline"
-              label="Quantidade em Estoque"
-              value={metrics.totalQuantity}
+              label="Unidades em Estoque"
+              value={metrics.totalQuantity.toLocaleString('pt-BR')}
               iconColor={Colors.light.primary}
               iconBg={Colors.light.primaryLight}
             />
+          </View>
+          <View style={styles.statsGrid}>
             <StatCard
               icon="wallet-outline"
-              label="Valor Total"
+              label="Valor Investido"
               value={formatCurrency(metrics.totalValue)}
               iconColor={Colors.light.success}
               iconBg={Colors.light.successLight}
             />
             <StatCard
-              icon="time-outline"
-              label="Produtos Encalhados"
-              value={metrics.slowMovingCount}
+              icon="checkmark-circle-outline"
+              label="Com Estoque"
+              value={metrics.productsWithStock}
+              iconColor={Colors.light.success}
+              iconBg={Colors.light.successLight}
+            />
+          </View>
+          <View style={styles.statsGrid}>
+            <StatCard
+              icon="alert-circle-outline"
+              label="Sem Estoque"
+              value={metrics.productsOutOfStock}
+              iconColor={Colors.light.error}
+              iconBg={Colors.light.errorLight}
+            />
+            <StatCard
+              icon="warning-outline"
+              label="Estoque Baixo (<3)"
+              value={metrics.lowStockCount}
               iconColor={Colors.light.warning}
               iconBg={Colors.light.warningLight}
             />
@@ -271,13 +309,22 @@ export default function InventoryDashboard() {
 
         {/* Alertas */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Alertas</Text>
+          <Text style={styles.sectionTitle}>Alertas de Estoque</Text>
+
+          {metrics.productsOutOfStock > 0 && (
+            <AlertCard
+              type="error"
+              title="Produtos Sem Estoque"
+              message={`${metrics.productsOutOfStock} produto(s) sem unidades disponíveis. Reponha o estoque o quanto antes.`}
+              onPress={() => router.push('/products')}
+            />
+          )}
 
           {metrics.lowStockCount > 0 && (
             <AlertCard
-              type="error"
+              type="warning"
               title="Estoque Baixo"
-              message={`${metrics.lowStockCount} produto(s) com estoque abaixo do mínimo`}
+              message={`${metrics.lowStockCount} produto(s) com menos de 3 unidades em estoque. Considere repor em breve.`}
               onPress={() => router.push('/products')}
             />
           )}
@@ -291,7 +338,7 @@ export default function InventoryDashboard() {
             />
           )}
 
-          {metrics.lowStockCount === 0 && metrics.slowMovingCount === 0 && (
+          {metrics.productsOutOfStock === 0 && metrics.lowStockCount === 0 && metrics.slowMovingCount === 0 && (
             <AlertCard
               type="info"
               title="Tudo em Ordem"

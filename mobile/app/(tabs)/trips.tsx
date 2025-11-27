@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { FAB } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
@@ -54,7 +55,7 @@ export default function TripsScreen() {
   const renderTripCard = ({ item }: { item: Trip }) => (
     <TouchableOpacity
       style={styles.card}
-      onPress={() => router.push(`/(tabs)/trips/${item.id}`)}
+      onPress={() => router.push(`/trips/${item.id}`)}
       activeOpacity={0.7}
     >
       <View style={styles.cardHeader}>
@@ -105,12 +106,7 @@ export default function TripsScreen() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Viagens</Text>
-          <TouchableOpacity
-            style={styles.addButton}
-            onPress={() => router.push('/(tabs)/trips/add')}
-          >
-            <Ionicons name="add" size={24} color="#fff" />
-          </TouchableOpacity>
+          <View style={{ width: 40 }} />
         </View>
 
         {/* KPIs */}
@@ -152,6 +148,14 @@ export default function TripsScreen() {
             </View>
           }
         />
+
+        {/* FAB - Botão Adicionar */}
+        <FAB
+          icon="plus"
+          style={styles.fab}
+          onPress={() => router.push('/trips/add')}
+          label="Adicionar"
+        />
       </View>
     </SafeAreaView>
   );
@@ -178,11 +182,6 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
-  },
-  addButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 8,
-    padding: 8,
   },
   kpisContainer: {
     flexDirection: 'row',
@@ -295,5 +294,10 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     marginTop: 8,
     textAlign: 'center',
+  },
+  fab: {
+    position: 'absolute',
+    right: 16,
+    bottom: 16,
   },
 });

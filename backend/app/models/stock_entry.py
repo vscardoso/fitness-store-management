@@ -17,9 +17,13 @@ if TYPE_CHECKING:
 
 class EntryType(str, enum.Enum):
     """Tipos de entrada de estoque."""
-    TRIP = "trip"          # Compra em viagem
-    ONLINE = "online"      # Compra online
-    LOCAL = "local"        # Compra local
+    TRIP = "trip"                    # Compra em viagem
+    ONLINE = "online"                # Compra online
+    LOCAL = "local"                  # Compra local
+    INITIAL_INVENTORY = "initial"    # Estoque inicial (antes do sistema)
+    ADJUSTMENT = "adjustment"        # Ajuste de inventário
+    RETURN = "return"                # Devolução de cliente
+    DONATION = "donation"            # Doação/Brinde recebido
 
 
 class StockEntry(BaseModel):
@@ -145,7 +149,7 @@ class StockEntry(BaseModel):
         self.total_cost = self.calculate_total_cost()
     
     @property
-    def item_count(self) -> int:
+    def total_items(self) -> int:
         """
         Retorna o número de itens ativos nesta entrada.
         
@@ -157,6 +161,11 @@ class StockEntry(BaseModel):
         return len([item for item in self.entry_items if item.is_active])
     
     @property
+    def item_count(self) -> int:
+        """Alias para total_items (compatibilidade)."""
+        return self.total_items
+    
+    @property
     def total_quantity(self) -> int:
         """
         Retorna a quantidade total de produtos nesta entrada.
@@ -166,7 +175,49 @@ class StockEntry(BaseModel):
         """
         if not self.entry_items:
             return 0
-        return sum(item.quantity for item in self.entry_items if item.is_active)
+        return sum(item.quantity_received for item in self.entry_items if item.is_active)
+    
+    @property
+    def items_sold(self) -> int:
+        """
+        Retorna a quantidade total de produtos vendidos.
+        
+        Returns:
+            int: Soma das quantidades vendidas
+        """
+        if not self.entry_items:
+            return 0
+        return sum(item.quantity_sold for item in self.entry_items if item.is_active)
+    
+    @property
+    def sell_through_rate(self) -> float:
+        """
+        Retorna a taxa de venda (sell-through rate).
+        
+        Returns:
+            float: Porcentagem de produtos vendidos (0-100)
+        """
+        if not self.entry_items:
+            return 0.0
+        total_received = sum(item.quantity_received for item in self.entry_items if item.is_active)
+        if total_received == 0:
+            return 0.0
+        total_sold = sum(item.quantity_sold for item in self.entry_items if item.is_active)
+        return (total_sold / total_received) * 100.0
+    
+    @property
+    def roi(self) -> float | None:
+        """
+        Retorna o ROI (Return on Investment).
+        
+        Returns:
+            float | None: Porcentagem de retorno sobre investimento
+        """
+        if not self.total_cost or self.total_cost == 0:
+            return None
+        # ROI simplificado baseado em margem de 30%
+        estimated_revenue = float(self.total_cost) * 1.3
+        return ((estimated_revenue - float(self.total_cost)) / float(self.total_cost)) * 100.0
     
     @property
     def is_from_trip(self) -> bool:

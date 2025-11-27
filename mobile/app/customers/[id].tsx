@@ -15,6 +15,7 @@ import {
   Card,
 } from 'react-native-paper';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import useBackToList from '@/hooks/useBackToList';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,6 +30,7 @@ import { Colors, theme } from '@/constants/Colors';
 export default function CustomerDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/customers');
   const queryClient = useQueryClient();
 
   // Validar ID do cliente
@@ -42,6 +44,7 @@ export default function CustomerDetailsScreen() {
     queryKey: ['customer', customerId],
     queryFn: () => getCustomerById(customerId),
     enabled: isValidId,
+    retry: false, // Não tentar novamente em caso de 404
   });
 
   /**
@@ -68,7 +71,7 @@ export default function CustomerDetailsScreen() {
       Alert.alert('Sucesso!', 'Cliente deletado', [
         {
           text: 'OK',
-          onPress: () => router.push('/(tabs)/customers'),
+          onPress: () => goBack(),
         },
       ]);
     },
@@ -119,21 +122,47 @@ export default function CustomerDetailsScreen() {
     return (
       <View style={styles.centerContainer}>
         <Ionicons name="alert-circle-outline" size={64} color={Colors.light.error} />
-        <Text style={{ marginTop: 16, color: Colors.light.error, textAlign: 'center', fontSize: 16 }}>
+        <Text style={{ marginTop: 16, color: Colors.light.error, textAlign: 'center', fontSize: 18, fontWeight: '600' }}>
           ID do cliente inválido
         </Text>
-        <Text style={{ marginTop: 8, color: '#666', textAlign: 'center' }}>
+        <Text style={{ marginTop: 8, color: '#666', textAlign: 'center', marginBottom: 24 }}>
           O ID fornecido não é válido
         </Text>
+        <TouchableOpacity
+          onPress={goBack}
+          style={{ backgroundColor: Colors.light.primary, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 }}
+        >
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Voltar</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
-  if (isLoading || !customer) {
+  if (isLoading) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color={Colors.light.primary} />
         <Text style={{ marginTop: 16, color: '#666' }}>Carregando cliente...</Text>
+      </View>
+    );
+  }
+
+  if (!customer) {
+    return (
+      <View style={styles.centerContainer}>
+        <Ionicons name="alert-circle-outline" size={64} color={Colors.light.error} />
+        <Text style={{ marginTop: 16, color: Colors.light.text, textAlign: 'center', fontSize: 18, fontWeight: '600' }}>
+          Cliente não encontrado ou foi excluído
+        </Text>
+        <Text style={{ marginTop: 8, color: '#666', textAlign: 'center', marginBottom: 24, paddingHorizontal: 32 }}>
+          O cliente pode ter sido excluído ou o link está incorreto.
+        </Text>
+        <TouchableOpacity
+          onPress={goBack}
+          style={{ backgroundColor: Colors.light.primary, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 }}
+        >
+          <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Voltar</Text>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -181,7 +210,7 @@ export default function CustomerDetailsScreen() {
         <View style={[styles.headerContent, { marginTop: 8 }]}>
           <View style={styles.headerTop}>
             <TouchableOpacity
-              onPress={() => router.push('/(tabs)/customers')}
+              onPress={goBack}
               style={styles.backButton}
             >
               <Ionicons name="arrow-back" size={24} color="#fff" />

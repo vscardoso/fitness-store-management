@@ -521,6 +521,10 @@ export enum EntryType {
   TRIP = 'trip',
   ONLINE = 'online',
   LOCAL = 'local',
+  INITIAL_INVENTORY = 'initial',
+  ADJUSTMENT = 'adjustment',
+  RETURN = 'return',
+  DONATION = 'donation',
 }
 
 export interface EntryItem {
@@ -569,6 +573,8 @@ export interface StockEntry {
 }
 
 export interface StockEntryCreate {
+  // Código da entrada (pode ser gerado pelo backend). Tornado opcional para não quebrar chamadas existentes.
+  entry_code?: string;
   entry_date: string;
   entry_type: EntryType;
   trip_id?: number;

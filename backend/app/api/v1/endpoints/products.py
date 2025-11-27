@@ -484,6 +484,7 @@ async def create_product(
             initial_quantity=initial_stock,
             min_stock=min_stock,
             tenant_id=tenant_id,
+            user_id=current_user.id,
         )
 
         logger.info(f"✅ Produto criado com sucesso - ID: {product.id}")
@@ -752,7 +753,10 @@ async def activate_catalog_product(
         activated_product = await service.activate_catalog_product(
             catalog_product_id=product_id,
             tenant_id=tenant_id,
-            custom_price=float(request.custom_price) if request.custom_price else None
+            user_id=current_user.id,
+            custom_price=float(request.custom_price) if request.custom_price else None,
+            entry_id=request.entry_id,
+            quantity=request.quantity
         )
 
         # Enriquecer com estoque (será 0)

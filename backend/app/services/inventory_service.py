@@ -139,7 +139,7 @@ class InventoryService:
         
         # Remover estoque com movimento
         inventory = await self.inventory_repo.remove_stock(
-            inventory.id,
+            product_id,
             quantity=quantity,
             movement_type=movement_type,
             reference_id=reference_id,
@@ -193,7 +193,7 @@ class InventoryService:
         transfer_notes = notes or f"Transferência: {from_location} → {to_location}"
         
         await self.inventory_repo.remove_stock(
-            inventory.id,
+            product_id,
             quantity=quantity,
             movement_type=MovementType.TRANSFER,
             reference_id=reference_id,
@@ -255,7 +255,7 @@ class InventoryService:
         if difference > 0:
             # Adicionar
             inventory = await self.inventory_repo.add_stock(
-                inventory.id,
+                product_id,
                 quantity=difference,
                 movement_type=MovementType.ADJUSTMENT,
                 reference_id=reference_id,
@@ -264,7 +264,7 @@ class InventoryService:
         else:
             # Remover
             inventory = await self.inventory_repo.remove_stock(
-                inventory.id,
+                product_id,
                 quantity=abs(difference),
                 movement_type=MovementType.ADJUSTMENT,
                 reference_id=reference_id,

@@ -126,11 +126,6 @@ class StockEntryStats(BaseModel):
     monthly_purchases: List[dict] = Field(default_factory=list, description="Compras mensais")
 
 
-# Import para referência circular
-from typing import TYPE_CHECKING, List
-if TYPE_CHECKING:
-    from .entry_item import EntryItemResponse
-
 # Schema com items (deve vir após imports)
 class StockEntryWithItems(StockEntryResponse):
     """Schema for stock entry with full items list."""
@@ -138,4 +133,11 @@ class StockEntryWithItems(StockEntryResponse):
 
     class Config:
         from_attributes = True
+
+
+# Import após definição para resolver referência circular
+from app.schemas.entry_item import EntryItemResponse  # noqa: E402
+
+# Rebuild do modelo para resolver forward references
+StockEntryWithItems.model_rebuild()
 

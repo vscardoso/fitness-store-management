@@ -375,20 +375,30 @@ async def get_stock_entry(
     """
     try:
         from app.repositories.stock_entry_repository import StockEntryRepository
+        import logging
+        logger = logging.getLogger(__name__)
+
+        logger.info(f"Buscando entrada {entry_id} para tenant {tenant_id}")
         repo = StockEntryRepository()
         entry = await repo.get_by_id(db, entry_id, include_items=True, tenant_id=tenant_id)
-        
+
         if not entry:
+            logger.warning(f"Entrada {entry_id} não encontrada para tenant {tenant_id}")
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Entrada {entry_id} não encontrada"
             )
-        
+
+        logger.info(f"Entrada {entry_id} encontrada com {len(entry.entry_items)} itens")
         return entry
-    
+
     except HTTPException:
         raise
     except Exception as e:
+        import traceback
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Erro ao buscar entrada {entry_id}: {str(e)}\n{traceback.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao buscar entrada: {str(e)}"
@@ -507,9 +517,9 @@ async def update_stock_entry(
 
 @router.delete(
     "/{entry_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
     summary="Deletar entrada",
-    description="Faz soft delete de uma entrada. Requer permissões de admin."
+    description="Faz soft delete de uma entrada e produtos órfãos. Requer permissões de admin."
 )
 async def delete_stock_entry(
     entry_id: int,
@@ -519,15 +529,17 @@ async def delete_stock_entry(
 ):
     """
     Deleta uma entrada de estoque (soft delete).
-    
+
+    ATENÇÃO: Também exclui produtos que só existem nesta entrada (órfãos).
+
     Args:
         entry_id: ID da entrada
         db: Sessão do banco de dados
         current_user: Usuário autenticado (admin)
-        
+
     Returns:
-        None (204 No Content)
-        
+        dict: Informações sobre a exclusão
+
     Raises:
         HTTPException 404: Se entrada não encontrada
         HTTPException 400: Se entrada não puder ser deletada
@@ -535,10 +547,10 @@ async def delete_stock_entry(
     """
     try:
         service = StockEntryService(db)
-        await service.delete_entry(entry_id, tenant_id=tenant_id)
-        
+        result = await service.delete_entry(entry_id, tenant_id=tenant_id)
+
         await db.commit()
-        return None
+        return result
     
     except ValueError as e:
         error_msg = str(e).lower()

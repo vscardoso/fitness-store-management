@@ -109,7 +109,7 @@ export default function StockEntriesScreen() {
 
     return (
       <TouchableOpacity
-        onPress={() => router.push(`/entries/${item.id}`)}
+        onPress={() => router.push({ pathname: `/entries/${item.id}`, params: { from: '/(tabs)/entries' } })}
         activeOpacity={0.7}
       >
         <Card style={styles.card}>
@@ -159,9 +159,9 @@ export default function StockEntriesScreen() {
               </View>
 
               <View style={styles.metricItem}>
-                <Text style={styles.metricLabel}>Items</Text>
+                <Text style={styles.metricLabel}>Itens</Text>
                 <Text style={styles.metricValue}>
-                  {item.total_items} ({item.total_quantity} un)
+                  {item.total_items || 0} ({item.total_quantity || 0} un)
                 </Text>
               </View>
             </View>
@@ -299,7 +299,7 @@ export default function StockEntriesScreen() {
               </Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Total Items</Text>
+              <Text style={styles.statLabel}>Total Itens</Text>
               <Text style={styles.statValue}>{stats.totalItems}</Text>
             </View>
             <View style={styles.statCard}>
@@ -308,7 +308,7 @@ export default function StockEntriesScreen() {
                 styles.statValue,
                 { color: stats.avgSellThrough >= 70 ? Colors.light.success : Colors.light.warning }
               ]}>
-                {stats.avgSellThrough.toFixed(0)}%
+                {isNaN(stats.avgSellThrough) ? '0' : stats.avgSellThrough.toFixed(0)}%
               </Text>
             </View>
           </View>
@@ -389,7 +389,7 @@ export default function StockEntriesScreen() {
               title="Nenhuma entrada encontrada"
               description={searchQuery ? 'Tente ajustar os filtros de busca' : 'Comece adicionando uma nova entrada'}
               actionLabel="Nova Entrada"
-              onAction={() => router.push('/entries/add')}
+              onAction={() => router.push({ pathname: '/entries/add', params: { from: '/(tabs)/entries' } })}
             />
           }
         />
@@ -398,7 +398,7 @@ export default function StockEntriesScreen() {
         <FAB
           icon="plus"
           style={styles.fab}
-          onPress={() => router.push('/entries/add')}
+          onPress={() => router.push({ pathname: '/entries/add', params: { from: '/(tabs)/entries' } })}
           label="Nova Entrada"
         />
       </View>

@@ -27,7 +27,8 @@ from app.api.v1.endpoints import (
     customers,
     categories,
     trips,
-    stock_entries
+    stock_entries,
+    dashboard,
 )
 
 
@@ -87,4 +88,11 @@ api_router.include_router(
 api_router.include_router(
     stock_entries.router,
     tags=["Entradas de Estoque"]
+)
+
+# Dashboard - Estatísticas e métricas
+api_router.include_router(
+    dashboard.router,
+    prefix="/dashboard",
+    tags=["Dashboard"]
 )

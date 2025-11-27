@@ -32,63 +32,112 @@ class ProductService:
         min_stock: int = 5,
         *,
         tenant_id: int,
+        user_id: int,
     ) -> Product:
         """
-        Cria um novo produto com registro de estoque inicial.
-        
+        Cria um novo produto com entrada de estoque inicial automática.
+
         Args:
             product_data: Dados do produto a ser criado
-            initial_quantity: Quantidade inicial em estoque (padrão: 0)
-            min_stock: Estoque mínimo (padrão: 5)
-            
+            initial_quantity: Quantidade inicial em estoque (padrão: 0, sobrescrito por product_data.initial_stock)
+            min_stock: Estoque mínimo (padrão: 5, sobrescrito por product_data.min_stock)
+            tenant_id: ID do tenant
+            user_id: ID do usuário que está criando
+
         Returns:
-            Product: Produto criado com estoque
-            
+            Product: Produto criado com estoque vinculado a entrada
+
         Raises:
             ValueError: Se SKU já existe ou dados inválidos
         """
+        import logging
+        from datetime import date
+        from decimal import Decimal
+        from app.models.stock_entry import EntryType
+        from app.repositories.stock_entry_repository import StockEntryRepository
+        from app.repositories.entry_item_repository import EntryItemRepository
+
+        logger = logging.getLogger(__name__)
+
         # Verificar SKU único
         existing = await self.product_repo.get_by_sku(product_data.sku, tenant_id=tenant_id)
         if existing:
             raise ValueError(f"SKU {product_data.sku} já existe")
-        
+
         # Verificar barcode único se fornecido
         if product_data.barcode:
             existing_barcode = await self.product_repo.get_by_barcode(product_data.barcode, tenant_id=tenant_id)
             if existing_barcode:
                 raise ValueError(f"Código de barras {product_data.barcode} já existe")
-        
-        # Criar produto - excluir campos que não pertencem ao modelo Product
-        import logging
-        logger = logging.getLogger(__name__)
+
+        # Usar valores de product_data ou padrões
+        initial_stock = product_data.initial_stock if product_data.initial_stock is not None else initial_quantity
+        min_stock_value = product_data.min_stock if product_data.min_stock is not None else min_stock
 
         # Remover campos específicos de estoque e alias sale_price do payload do produto
         product_dict = product_data.model_dump(exclude={"initial_stock", "min_stock", "sale_price"})
 
         # Criar produto no repositório
         product = await self.product_repo.create(product_dict, tenant_id=tenant_id)
-        logger.info(f"✅ Produto criado no repository - ID: {product.id}")
+        logger.info(f"✅ Produto criado - ID: {product.id}, SKU: {product.sku}")
 
-        # Criar/atualizar registro de estoque inicial usando o repositório de inventário
-        try:
-            from app.models.inventory import MovementType
-            await self.inventory_repo.update_stock(
-                product_id=product.id,
-                quantity=initial_quantity,
-                movement_type=MovementType.PURCHASE,
-                notes="Estoque inicial na criação do produto",
-                reference_id=f"product:{product.id}",
-                tenant_id=tenant_id,
-            )
-            # Ajustar min_stock se necessário
-            inventory = await self.inventory_repo.get_by_product(product.id)
-            if inventory and min_stock is not None:
-                inventory.min_stock = min_stock
+        # Se há estoque inicial, criar entrada automática do tipo INITIAL_INVENTORY
+        if initial_stock and initial_stock > 0:
+            try:
+                entry_repo = StockEntryRepository()
+                item_repo = EntryItemRepository()
+
+                # Criar entrada de estoque inicial
+                from app.schemas.stock_entry import StockEntryCreate
+                from app.schemas.entry_item import EntryItemCreate
+
+                entry_data = StockEntryCreate(
+                    entry_code=f"INIT-{product.sku}-{date.today().strftime('%Y%m%d')}",
+                    entry_date=date.today(),
+                    entry_type=EntryType.INITIAL_INVENTORY,
+                    supplier_name="Estoque Inicial do Sistema",
+                    notes=f"Entrada automática criada na adição do produto {product.name}",
+                )
+
+                entry = await entry_repo.create(entry_data.model_dump(), tenant_id=tenant_id)
+                logger.info(f"✅ Entrada inicial criada - ID: {entry.id}, Code: {entry.entry_code}")
+
+                # Criar item da entrada
+                item_data = EntryItemCreate(
+                    product_id=product.id,
+                    quantity_received=initial_stock,
+                    unit_cost=product.cost_price or Decimal("0.00"),
+                    notes="Item de estoque inicial",
+                )
+
+                item = await item_repo.create(
+                    entry_id=entry.id,
+                    item_data=item_data,
+                    tenant_id=tenant_id,
+                )
+                logger.info(f"✅ Item de entrada criado - ID: {item.id}, Qty: {initial_stock}")
+
+                # Atualizar total_cost da entrada
+                entry.total_cost = item.total_cost
                 await self.db.commit()
+
+                logger.info(f"✅ Produto {product.sku} vinculado à entrada {entry.entry_code}")
+
+            except Exception as entry_err:
+                logger.error(f"Erro ao criar entrada inicial para o produto {product.id}: {entry_err}")
+                # Não falhar a criação do produto por causa da entrada
+                raise ValueError(f"Produto criado mas falhou ao vincular entrada inicial: {entry_err}")
+
+        # Criar/atualizar registro de inventário com min_stock
+        try:
+            inventory = await self.inventory_repo.get_by_product(product.id, tenant_id=tenant_id)
+            if inventory:
+                inventory.min_stock = min_stock_value
+                await self.db.commit()
+                logger.info(f"✅ Min stock configurado: {min_stock_value}")
         except Exception as inv_err:
-            logger.error(f"Erro ao registrar estoque inicial para o produto {product.id}: {inv_err}")
-            # Não falhar a criação do produto por causa do estoque inicial
-        
+            logger.error(f"Erro ao configurar min_stock para o produto {product.id}: {inv_err}")
+
         return product
     
     async def update_product(
@@ -479,7 +528,10 @@ class ProductService:
         catalog_product_id: int,
         *,
         tenant_id: int,
-        custom_price: Optional[float] = None
+        user_id: int,
+        custom_price: Optional[float] = None,
+        entry_id: Optional[int] = None,
+        quantity: Optional[int] = None
     ) -> Product:
         """
         Ativa um produto do catálogo, criando uma cópia para a loja do usuário.
@@ -489,11 +541,15 @@ class ProductService:
         2. Cria CÓPIA com is_catalog=false
         3. Gera novo SKU único para a loja
         4. Usa preço customizado ou mantém sugerido
+        5. Se entry_id e quantity forem fornecidos, vincula à entrada (rastreabilidade)
 
         Args:
             catalog_product_id: ID do produto no catálogo
             tenant_id: ID do tenant (loja)
+            user_id: ID do usuário que está ativando o produto
             custom_price: Preço personalizado (opcional, usa o do catálogo se None)
+            entry_id: ID da entrada de estoque para vincular (opcional)
+            quantity: Quantidade inicial para adicionar (opcional)
 
         Returns:
             Produto ativado (cópia)
@@ -554,7 +610,68 @@ class ProductService:
             product_data,
             initial_quantity=0,
             min_stock=5,
-            tenant_id=tenant_id
+            tenant_id=tenant_id,
+            user_id=user_id
         )
+
+        # Se entry_id e quantity foram fornecidos, vincular à entrada
+        if entry_id is not None and quantity is not None and quantity > 0:
+            from app.models.entry_item import EntryItem
+            from app.models.stock_entry import StockEntry
+            from app.repositories.entry_item_repository import EntryItemRepository
+            from decimal import Decimal
+
+            # Buscar entrada
+            from sqlalchemy import select
+            result = await self.db.execute(
+                select(StockEntry).where(
+                    StockEntry.id == entry_id,
+                    StockEntry.tenant_id == tenant_id,
+                    StockEntry.is_active == True
+                )
+            )
+            stock_entry = result.scalar_one_or_none()
+
+            if not stock_entry:
+                raise ValueError(f"Entrada de estoque {entry_id} não encontrada")
+
+            # Criar EntryItem vinculando produto à entrada
+            entry_item = EntryItem(
+                entry_id=entry_id,  # ← Campo correto
+                product_id=new_product.id,
+                quantity_received=quantity,
+                quantity_remaining=quantity,
+                unit_cost=Decimal(str(new_product.cost_price)) if new_product.cost_price else Decimal("0"),
+                tenant_id=tenant_id,
+                is_active=True
+            )
+            self.db.add(entry_item)
+
+            # Atualizar inventário
+            from app.models.inventory import Inventory
+            from sqlalchemy import select
+
+            inv_result = await self.db.execute(
+                select(Inventory).where(
+                    Inventory.product_id == new_product.id,
+                    Inventory.tenant_id == tenant_id
+                )
+            )
+            inventory = inv_result.scalar_one_or_none()
+
+            if inventory:
+                inventory.quantity += quantity
+            else:
+                inventory = Inventory(
+                    product_id=new_product.id,
+                    quantity=quantity,
+                    min_stock=5,
+                    tenant_id=tenant_id,
+                    is_active=True
+                )
+                self.db.add(inventory)
+
+            await self.db.commit()
+            await self.db.refresh(new_product)
 
         return new_product

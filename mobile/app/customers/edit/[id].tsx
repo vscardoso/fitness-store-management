@@ -20,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import useBackToList from '@/hooks/useBackToList';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCustomerById, updateCustomer } from '@/services/customerService';
 import { searchCep } from '@/services/cepService';
@@ -30,6 +31,7 @@ import type { CustomerUpdate } from '@/types';
 export default function EditCustomerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/customers');
   const queryClient = useQueryClient();
 
   // Validar ID do cliente
@@ -158,7 +160,7 @@ export default function EditCustomerScreen() {
         [
           {
             text: 'OK',
-            onPress: () => router.back(),
+            onPress: () => goBack(),
           },
         ]
       );
@@ -432,7 +434,7 @@ export default function EditCustomerScreen() {
           <View style={styles.actions}>
             <Button
               mode="outlined"
-              onPress={() => router.back()}
+              onPress={goBack}
               style={styles.button}
               disabled={updateMutation.isPending}
             >

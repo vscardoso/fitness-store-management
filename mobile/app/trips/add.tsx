@@ -1,24 +1,45 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, StatusBar, Platform } from 'react-native';
-import { useRouter } from 'expo-router';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableOpacity,
+  StatusBar,
+} from 'react-native';
+import {
+  TextInput,
+  Button,
+  HelperText,
+  Text,
+} from 'react-native-paper';
+import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 import { createTrip } from '@/services/tripService';
 import { TripCreate } from '@/types';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency, parseCurrency } from '@/utils/format';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 export default function AddTripScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ from?: string }>();
   const queryClient = useQueryClient();
 
   const [tripCode, setTripCode] = useState('');
   const [tripDate, setTripDate] = useState(new Date());
+  const [tripDateInput, setTripDateInput] = useState('');
   const [destination, setDestination] = useState('');
-  const [departureTime, setDepartureTime] = useState<Date | undefined>();
-  const [returnTime, setReturnTime] = useState<Date | undefined>();
+  const [departureTime, setDepartureTime] = useState('');
+  const [returnTime, setReturnTime] = useState('');
+  const [returnDate, setReturnDate] = useState(new Date());
+  const [returnDateInput, setReturnDateInput] = useState('');
   const [costFuel, setCostFuel] = useState('0,00');
   const [costFood, setCostFood] = useState('0,00');
   const [costToll, setCostToll] = useState('0,00');
@@ -27,40 +48,228 @@ export default function AddTripScreen() {
   const [notes, setNotes] = useState('');
 
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showDeparturePicker, setShowDeparturePicker] = useState(false);
-  const [showReturnPicker, setShowReturnPicker] = useState(false);
+  const [showReturnDatePicker, setShowReturnDatePicker] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [createdTripCode, setCreatedTripCode] = useState('');
+  const [showValidationDialog, setShowValidationDialog] = useState(false);
+  const [validationMessage, setValidationMessage] = useState('');
 
   const createMutation = useMutation({
     mutationFn: createTrip,
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['trips'] });
-      Alert.alert('Sucesso', 'Viagem criada com sucesso!');
-      router.back();
+      setCreatedTripCode(data.trip_code || tripCode);
+
+      // Se veio da tela de entradas, redirecionar de volta com o trip_id
+      if (params.from === 'entries') {
+        router.replace({
+          pathname: '/entries/add',
+          params: {
+            newTripId: data.id,
+            newTripCode: data.trip_code || tripCode
+          }
+        });
+      } else {
+        // Se veio da lista de viagens, mostrar dialog e voltar para lista
+        setShowSuccessDialog(true);
+      }
     },
     onError: (error: any) => {
-      Alert.alert('Erro', error.response?.data?.detail || 'Erro ao criar viagem');
+      setErrorMessage(error.response?.data?.detail || 'Erro ao criar viagem');
+      setShowErrorDialog(true);
     },
   });
 
-  const handleSubmit = () => {
+  /**
+   * Formatar entrada de preço com centavos (formato brasileiro)
+   */
+  const formatPriceInput = (text: string): string => {
+    const numbers = text.replace(/[^0-9]/g, '');
+    if (numbers.length === 0) return '0,00';
+    const value = parseInt(numbers) / 100;
+    return value.toFixed(2).replace('.', ',');
+  };
+
+  /**
+   * Formatar entrada de data (DD/MM/YYYY)
+   */
+  const formatDateInput = (text: string, currentValue: string): string => {
+    const numbers = text.replace(/[^0-9]/g, '');
+
+    if (numbers.length === 0) return '';
+    if (numbers.length <= 2) return numbers;
+    if (numbers.length <= 4) {
+      return `${numbers.substring(0, 2)}/${numbers.substring(2)}`;
+    }
+    if (numbers.length <= 8) {
+      return `${numbers.substring(0, 2)}/${numbers.substring(2, 4)}/${numbers.substring(4, 8)}`;
+    }
+
+    return currentValue;
+  };
+
+  /**
+   * Validar formato de data (DD/MM/YYYY)
+   */
+  const isValidDate = (dateStr: string): boolean => {
+    if (!dateStr || dateStr.length !== 10) return false;
+
+    const parts = dateStr.split('/');
+    if (parts.length !== 3) return false;
+
+    const day = parseInt(parts[0]);
+    const month = parseInt(parts[1]);
+    const year = parseInt(parts[2]);
+
+    if (isNaN(day) || isNaN(month) || isNaN(year)) return false;
+    if (day < 1 || day > 31) return false;
+    if (month < 1 || month > 12) return false;
+    if (year < 1900 || year > 2100) return false;
+
+    // Validar dia válido para o mês
+    const date = new Date(year, month - 1, day);
+    return date.getFullYear() === year &&
+           date.getMonth() === month - 1 &&
+           date.getDate() === day;
+  };
+
+  /**
+   * Converter string DD/MM/YYYY para Date
+   */
+  const parseDateInput = (dateStr: string): Date | null => {
+    if (!isValidDate(dateStr)) return null;
+
+    const parts = dateStr.split('/');
+    const day = parseInt(parts[0]);
+    const month = parseInt(parts[1]) - 1; // Month is 0-indexed
+    const year = parseInt(parts[2]);
+
+    return new Date(year, month, day);
+  };
+
+  /**
+   * Formatar entrada de horário (HH:MM)
+   */
+  const formatTimeInput = (text: string, currentValue: string): string => {
+    const numbers = text.replace(/[^0-9]/g, '');
+
+    if (numbers.length === 0) return '';
+    if (numbers.length === 1) return numbers;
+    if (numbers.length === 2) {
+      const hours = parseInt(numbers);
+      if (hours > 23) return currentValue;
+      return numbers;
+    }
+    if (numbers.length === 3) {
+      const hours = parseInt(numbers.substring(0, 2));
+      if (hours > 23) return currentValue;
+      return `${numbers.substring(0, 2)}:${numbers.substring(2)}`;
+    }
+    if (numbers.length >= 4) {
+      const hours = parseInt(numbers.substring(0, 2));
+      const minutes = parseInt(numbers.substring(2, 4));
+      if (hours > 23 || minutes > 59) return currentValue;
+      return `${numbers.substring(0, 2)}:${numbers.substring(2, 4)}`;
+    }
+
+    return numbers;
+  };
+
+  /**
+   * Validar formato de horário (HH:MM)
+   */
+  const isValidTime = (time: string): boolean => {
+    if (!time || time.length !== 5) return false;
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours >= 0 && hours <= 23 && minutes >= 0 && minutes <= 59;
+  };
+
+  /**
+   * Validar formulário
+   */
+  const validateForm = (): boolean => {
     if (!tripCode.trim()) {
-      Alert.alert('Atenção', 'Informe o código da viagem');
-      return;
+      setValidationMessage('Informe o código da viagem');
+      setShowValidationDialog(true);
+      return false;
     }
 
     if (tripCode.trim().length < 5) {
-      Alert.alert('Atenção', 'O código da viagem deve ter no mínimo 5 caracteres');
-      return;
+      setValidationMessage('O código da viagem deve ter no mínimo 5 caracteres');
+      setShowValidationDialog(true);
+      return false;
     }
 
     if (!destination.trim()) {
-      Alert.alert('Atenção', 'Informe o destino da viagem');
+      setValidationMessage('Informe o destino da viagem');
+      setShowValidationDialog(true);
+      return false;
+    }
+
+    // Validar data de partida (se digitada manualmente)
+    if (tripDateInput && !isValidDate(tripDateInput)) {
+      setValidationMessage('Data da viagem inválida. Use o formato DD/MM/AAAA');
+      setShowValidationDialog(true);
+      return false;
+    }
+
+    // Validar data de retorno (se digitada manualmente)
+    if (returnDateInput && !isValidDate(returnDateInput)) {
+      setValidationMessage('Data de retorno inválida. Use o formato DD/MM/AAAA');
+      setShowValidationDialog(true);
+      return false;
+    }
+
+    // Pegar as datas corretas (input manual ou picker)
+    const finalTripDate = tripDateInput ? parseDateInput(tripDateInput) : tripDate;
+    const finalReturnDate = returnDateInput ? parseDateInput(returnDateInput) : returnDate;
+
+    if (!finalTripDate) {
+      setValidationMessage('Data da viagem inválida');
+      setShowValidationDialog(true);
+      return false;
+    }
+
+    // Validar horários de partida e retorno
+    if (departureTime && returnTime && isValidTime(departureTime) && isValidTime(returnTime)) {
+      const [depHours, depMinutes] = departureTime.split(':').map(Number);
+      const [retHours, retMinutes] = returnTime.split(':').map(Number);
+
+      const depDateTime = new Date(finalTripDate);
+      depDateTime.setHours(depHours, depMinutes, 0, 0);
+
+      const retDateTime = new Date(finalReturnDate || finalTripDate);
+      retDateTime.setHours(retHours, retMinutes, 0, 0);
+
+      if (depDateTime >= retDateTime) {
+        setValidationMessage('O horário de retorno deve ser posterior ao horário de partida. Ajuste as datas ou horários.');
+        setShowValidationDialog(true);
+        return false;
+      }
+    }
+
+    return true;
+  };
+
+  /**
+   * Submeter formulário
+   */
+  const handleSubmit = () => {
+    if (!validateForm()) {
       return;
     }
 
+    // Usar data do input manual ou do picker
+    const finalTripDate = tripDateInput ? parseDateInput(tripDateInput) : tripDate;
+    const finalReturnDate = returnDateInput ? parseDateInput(returnDateInput) : returnDate;
+
+    if (!finalTripDate) return;
+
     const tripData: TripCreate = {
       trip_code: tripCode.trim(),
-      trip_date: tripDate.toISOString().split('T')[0],
+      trip_date: finalTripDate.toISOString().split('T')[0],
       destination: destination.trim(),
       travel_cost_fuel: parseCurrency(costFuel),
       travel_cost_food: parseCurrency(costFood),
@@ -70,12 +279,18 @@ export default function AddTripScreen() {
       notes: notes.trim() || undefined,
     };
 
-    if (departureTime) {
-      tripData.departure_time = departureTime.toISOString();
+    if (departureTime && isValidTime(departureTime)) {
+      const [hours, minutes] = departureTime.split(':').map(Number);
+      const dateTime = new Date(finalTripDate);
+      dateTime.setHours(hours, minutes, 0, 0);
+      tripData.departure_time = dateTime.toISOString();
     }
 
-    if (returnTime) {
-      tripData.return_time = returnTime.toISOString();
+    if (returnTime && isValidTime(returnTime)) {
+      const [hours, minutes] = returnTime.split(':').map(Number);
+      const dateTime = new Date(finalReturnDate || finalTripDate);
+      dateTime.setHours(hours, minutes, 0, 0);
+      tripData.return_time = dateTime.toISOString();
     }
 
     createMutation.mutate(tripData);
@@ -86,178 +301,270 @@ export default function AddTripScreen() {
                    parseCurrency(costOther);
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
-      {/* Header */}
-      <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+
+      {/* Header com gradiente */}
+      <LinearGradient
+        colors={[Colors.light.primary, '#7c4dff']}
+        style={styles.headerGradient}
+      >
+        <View style={styles.headerTop}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backButton}
+          >
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
+
           <Text style={styles.headerTitle}>Nova Viagem</Text>
-          <View style={{ width: 40 }} />
+
+          <View style={styles.headerPlaceholder} />
         </View>
 
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerInfo}>
+          <Text style={styles.headerSubtitle}>
+            Preencha os dados abaixo para cadastrar uma nova viagem
+          </Text>
+        </View>
+      </LinearGradient>
+
+      <KeyboardAvoidingView
+        style={styles.content}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
+        >
           {/* Informações Básicas */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Informações Básicas</Text>
+            <HelperText type="info" style={styles.sectionTitle}>
+              Informações Básicas
+            </HelperText>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Código da Viagem *</Text>
-              <TextInput
-                style={styles.input}
-                value={tripCode}
-                onChangeText={setTripCode}
-                placeholder="Ex: VIAGEM-001 (mín. 5 caracteres)"
-                placeholderTextColor={Colors.light.textSecondary}
-                maxLength={50}
-              />
-            </View>
+            <TextInput
+              label="Código da Viagem *"
+              value={tripCode}
+              onChangeText={setTripCode}
+              mode="outlined"
+              style={styles.input}
+              placeholder="Ex: VIAGEM-001 (mín. 5 caracteres)"
+              maxLength={50}
+              autoCapitalize="characters"
+            />
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Data da Viagem *</Text>
-              <TouchableOpacity
-                style={styles.input}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Text>{tripDate.toLocaleDateString('pt-BR')}</Text>
-              </TouchableOpacity>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={tripDate}
-                  mode="date"
-                  display="default"
-                  onChange={(event, date) => {
-                    setShowDatePicker(false);
-                    if (date) setTripDate(date);
-                  }}
+            <TextInput
+              label="Data da Viagem *"
+              value={tripDateInput || tripDate.toLocaleDateString('pt-BR')}
+              onChangeText={(text) => {
+                const formatted = formatDateInput(text, tripDateInput);
+                setTripDateInput(formatted);
+              }}
+              mode="outlined"
+              style={styles.input}
+              placeholder="DD/MM/AAAA"
+              keyboardType="number-pad"
+              maxLength={10}
+              left={<TextInput.Icon icon="calendar-outline" />}
+              right={
+                <TextInput.Icon
+                  icon="calendar"
+                  onPress={() => setShowDatePicker(true)}
                 />
-              )}
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Destino *</Text>
-              <TextInput
-                style={styles.input}
-                value={destination}
-                onChangeText={setDestination}
-                placeholder="Ex: São Paulo - SP"
-                placeholderTextColor={Colors.light.textSecondary}
+              }
+              error={tripDateInput.length > 0 && !isValidDate(tripDateInput)}
+            />
+            {tripDateInput.length > 0 && !isValidDate(tripDateInput) && (
+              <HelperText type="error" visible={true}>
+                Data inválida (use DD/MM/AAAA)
+              </HelperText>
+            )}
+            {showDatePicker && (
+              <DateTimePicker
+                value={tripDate}
+                mode="date"
+                display="default"
+                onChange={(event, date) => {
+                  setShowDatePicker(false);
+                  if (date) {
+                    setTripDate(date);
+                    setTripDateInput(''); // Limpar input manual ao usar picker
+                  }
+                }}
               />
-            </View>
+            )}
+
+            <TextInput
+              label="Destino *"
+              value={destination}
+              onChangeText={setDestination}
+              mode="outlined"
+              style={styles.input}
+              placeholder="Ex: São Paulo - SP"
+            />
 
             <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.label}>Horário Saída</Text>
-                <TouchableOpacity
+              <View style={styles.inputHalf}>
+                <TextInput
+                  label="Horário Saída"
+                  value={departureTime}
+                  onChangeText={(text) => setDepartureTime(formatTimeInput(text, departureTime))}
+                  mode="outlined"
                   style={styles.input}
-                  onPress={() => setShowDeparturePicker(true)}
-                >
-                  <Text>
-                    {departureTime ? departureTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Selecionar'}
-                  </Text>
-                </TouchableOpacity>
-                {showDeparturePicker && (
-                  <DateTimePicker
-                    value={departureTime || new Date()}
-                    mode="time"
-                    display="default"
-                    onChange={(event, date) => {
-                      setShowDeparturePicker(false);
-                      if (date) setDepartureTime(date);
-                    }}
-                  />
+                  placeholder="HH:MM"
+                  keyboardType="number-pad"
+                  maxLength={5}
+                  left={<TextInput.Icon icon="clock-outline" />}
+                  right={
+                    departureTime ? (
+                      <TextInput.Icon
+                        icon="close-circle"
+                        onPress={() => setDepartureTime('')}
+                      />
+                    ) : null
+                  }
+                  error={departureTime.length > 0 && !isValidTime(departureTime)}
+                />
+                {departureTime.length > 0 && !isValidTime(departureTime) && (
+                  <HelperText type="error" visible={true}>
+                    Horário inválido (00:00 - 23:59)
+                  </HelperText>
                 )}
               </View>
 
-              <View style={[styles.inputGroup, { flex: 1 }]}>
-                <Text style={styles.label}>Horário Retorno</Text>
-                <TouchableOpacity
+              <View style={styles.inputHalf}>
+                <TextInput
+                  label="Horário Retorno"
+                  value={returnTime}
+                  onChangeText={(text) => setReturnTime(formatTimeInput(text, returnTime))}
+                  mode="outlined"
                   style={styles.input}
-                  onPress={() => setShowReturnPicker(true)}
-                >
-                  <Text>
-                    {returnTime ? returnTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : 'Selecionar'}
-                  </Text>
-                </TouchableOpacity>
-                {showReturnPicker && (
-                  <DateTimePicker
-                    value={returnTime || new Date()}
-                    mode="time"
-                    display="default"
-                    onChange={(event, date) => {
-                      setShowReturnPicker(false);
-                      if (date) setReturnTime(date);
-                    }}
-                  />
+                  placeholder="HH:MM"
+                  keyboardType="number-pad"
+                  maxLength={5}
+                  left={<TextInput.Icon icon="clock-outline" />}
+                  right={
+                    returnTime ? (
+                      <TextInput.Icon
+                        icon="close-circle"
+                        onPress={() => setReturnTime('')}
+                      />
+                    ) : null
+                  }
+                  error={returnTime.length > 0 && !isValidTime(returnTime)}
+                />
+                {returnTime.length > 0 && !isValidTime(returnTime) && (
+                  <HelperText type="error" visible={true}>
+                    Horário inválido (00:00 - 23:59)
+                  </HelperText>
                 )}
               </View>
             </View>
+
+            <TextInput
+              label="Data de Retorno"
+              value={returnDateInput || returnDate.toLocaleDateString('pt-BR')}
+              onChangeText={(text) => {
+                const formatted = formatDateInput(text, returnDateInput);
+                setReturnDateInput(formatted);
+              }}
+              mode="outlined"
+              style={styles.input}
+              placeholder="DD/MM/AAAA"
+              keyboardType="number-pad"
+              maxLength={10}
+              left={<TextInput.Icon icon="calendar-outline" />}
+              right={
+                <TextInput.Icon
+                  icon="calendar"
+                  onPress={() => setShowReturnDatePicker(true)}
+                />
+              }
+              error={returnDateInput.length > 0 && !isValidDate(returnDateInput)}
+            />
+            {returnDateInput.length > 0 && !isValidDate(returnDateInput) && (
+              <HelperText type="error" visible={true}>
+                Data inválida (use DD/MM/AAAA)
+              </HelperText>
+            )}
+            {showReturnDatePicker && (
+              <DateTimePicker
+                value={returnDate}
+                mode="date"
+                display="default"
+                minimumDate={tripDate}
+                onChange={(event, date) => {
+                  setShowReturnDatePicker(false);
+                  if (date) {
+                    setReturnDate(date);
+                    setReturnDateInput(''); // Limpar input manual ao usar picker
+                  }
+                }}
+              />
+            )}
           </View>
 
           {/* Custos da Viagem */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Custos da Viagem</Text>
+            <HelperText type="info" style={styles.sectionTitle}>
+              Custos da Viagem
+            </HelperText>
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Combustível</Text>
-              <TextInput
-                style={styles.input}
-                value={costFuel}
-                onChangeText={setCostFuel}
-                keyboardType="numeric"
-                placeholder="R$ 0,00"
-                placeholderTextColor={Colors.light.textSecondary}
-              />
-            </View>
+            <TextInput
+              label="Combustível (R$)"
+              value={costFuel}
+              onChangeText={(text) => setCostFuel(formatPriceInput(text))}
+              mode="outlined"
+              style={styles.input}
+              placeholder="0.00"
+              keyboardType="decimal-pad"
+              left={<TextInput.Affix text="R$" />}
+            />
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Alimentação</Text>
-              <TextInput
-                style={styles.input}
-                value={costFood}
-                onChangeText={setCostFood}
-                keyboardType="numeric"
-                placeholder="R$ 0,00"
-                placeholderTextColor={Colors.light.textSecondary}
-              />
-            </View>
+            <TextInput
+              label="Alimentação (R$)"
+              value={costFood}
+              onChangeText={(text) => setCostFood(formatPriceInput(text))}
+              mode="outlined"
+              style={styles.input}
+              placeholder="0.00"
+              keyboardType="decimal-pad"
+              left={<TextInput.Affix text="R$" />}
+            />
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Pedágios</Text>
-              <TextInput
-                style={styles.input}
-                value={costToll}
-                onChangeText={setCostToll}
-                keyboardType="numeric"
-                placeholder="R$ 0,00"
-                placeholderTextColor={Colors.light.textSecondary}
-              />
-            </View>
+            <TextInput
+              label="Pedágios (R$)"
+              value={costToll}
+              onChangeText={(text) => setCostToll(formatPriceInput(text))}
+              mode="outlined"
+              style={styles.input}
+              placeholder="0.00"
+              keyboardType="decimal-pad"
+              left={<TextInput.Affix text="R$" />}
+            />
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Hospedagem</Text>
-              <TextInput
-                style={styles.input}
-                value={costHotel}
-                onChangeText={setCostHotel}
-                keyboardType="numeric"
-                placeholder="R$ 0,00"
-                placeholderTextColor={Colors.light.textSecondary}
-              />
-            </View>
+            <TextInput
+              label="Hospedagem (R$)"
+              value={costHotel}
+              onChangeText={(text) => setCostHotel(formatPriceInput(text))}
+              mode="outlined"
+              style={styles.input}
+              placeholder="0.00"
+              keyboardType="decimal-pad"
+              left={<TextInput.Affix text="R$" />}
+            />
 
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Outros Custos</Text>
-              <TextInput
-                style={styles.input}
-                value={costOther}
-                onChangeText={setCostOther}
-                keyboardType="numeric"
-                placeholder="R$ 0,00"
-                placeholderTextColor={Colors.light.textSecondary}
-              />
-            </View>
+            <TextInput
+              label="Outros Custos (R$)"
+              value={costOther}
+              onChangeText={(text) => setCostOther(formatPriceInput(text))}
+              mode="outlined"
+              style={styles.input}
+              placeholder="0.00"
+              keyboardType="decimal-pad"
+              left={<TextInput.Affix text="R$" />}
+            />
 
             <View style={styles.totalCard}>
               <Text style={styles.totalLabel}>Custo Total</Text>
@@ -267,97 +574,175 @@ export default function AddTripScreen() {
 
           {/* Observações */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Observações</Text>
+            <HelperText type="info" style={styles.sectionTitle}>
+              Observações
+            </HelperText>
+
             <TextInput
-              style={[styles.input, styles.textArea]}
+              label="Observações"
               value={notes}
               onChangeText={setNotes}
+              mode="outlined"
+              style={styles.input}
               placeholder="Observações sobre a viagem..."
-              placeholderTextColor={Colors.light.textSecondary}
               multiline
               numberOfLines={4}
-              textAlignVertical="top"
             />
           </View>
-        </ScrollView>
 
-        {/* Footer */}
-        <View style={styles.footer}>
-          <TouchableOpacity
-            style={styles.saveButton}
-            onPress={handleSubmit}
-            disabled={createMutation.isPending}
-          >
-            <Text style={styles.saveButtonText}>
-              {createMutation.isPending ? 'Salvando...' : 'Salvar Viagem'}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    </View>
+          {/* Botões de ação */}
+          <View style={styles.actions}>
+            <Button
+              mode="outlined"
+              onPress={() => router.back()}
+              style={styles.button}
+              disabled={createMutation.isPending}
+            >
+              Cancelar
+            </Button>
+
+            <Button
+              mode="contained"
+              onPress={handleSubmit}
+              style={[styles.button, styles.buttonPrimary]}
+              loading={createMutation.isPending}
+              disabled={createMutation.isPending}
+            >
+              Salvar Viagem
+            </Button>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+
+      {/* Dialog de Sucesso (só aparece quando NÃO vem de entries) */}
+      <ConfirmDialog
+        visible={showSuccessDialog}
+        title="Viagem Criada com Sucesso!"
+        message={`A viagem ${createdTripCode} foi cadastrada e já está disponível para seleção.`}
+        details={[
+          'Viagem adicionada à lista',
+          'Agora você pode vincular entradas de estoque',
+          'Dados da viagem salvos com sucesso'
+        ]}
+        type="success"
+        confirmText="Ver Minhas Viagens"
+        cancelText=""
+        onConfirm={() => {
+          setShowSuccessDialog(false);
+          router.back();
+        }}
+        onCancel={() => {
+          setShowSuccessDialog(false);
+          router.back();
+        }}
+        icon="checkmark-circle"
+      />
+
+      {/* Dialog de Erro */}
+      <ConfirmDialog
+        visible={showErrorDialog}
+        title="Erro ao Criar Viagem"
+        message={errorMessage}
+        type="danger"
+        confirmText="Tentar Novamente"
+        cancelText=""
+        onConfirm={() => setShowErrorDialog(false)}
+        onCancel={() => setShowErrorDialog(false)}
+        icon="alert-circle"
+      />
+
+      {/* Dialog de Validação */}
+      <ConfirmDialog
+        visible={showValidationDialog}
+        title="Atenção"
+        message={validationMessage}
+        type="warning"
+        confirmText="Entendi"
+        cancelText=""
+        onConfirm={() => setShowValidationDialog(false)}
+        onCancel={() => setShowValidationDialog(false)}
+        icon="alert-circle"
+      />
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === 'android' ? StatusBar.currentHeight ? StatusBar.currentHeight + 16 : 40 : 50,
-    paddingBottom: 16,
     backgroundColor: Colors.light.primary,
   },
+  // Header styles
+  headerGradient: {
+    paddingTop: 0,
+    paddingBottom: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: theme.spacing.md,
+  },
   backButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
-    fontSize: 20,
+    flex: 1,
+    textAlign: 'center',
+    fontSize: theme.fontSize.xl,
     fontWeight: 'bold',
     color: '#fff',
   },
+  headerPlaceholder: {
+    width: 40,
+  },
+  headerInfo: {
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.sm,
+    maxWidth: '90%',
+    alignSelf: 'center',
+  },
+  headerSubtitle: {
+    fontSize: theme.fontSize.md,
+    color: '#fff',
+    opacity: 0.95,
+    textAlign: 'center',
+    lineHeight: 20,
+    fontWeight: theme.fontWeight.regular,
+  },
   content: {
     flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  scrollContent: {
+    padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xl,
   },
   section: {
-    backgroundColor: '#fff',
-    padding: 16,
-    marginTop: 16,
+    marginBottom: theme.spacing.lg,
   },
   sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.light.text,
-    marginBottom: 16,
-  },
-  inputGroup: {
-    marginBottom: 16,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.light.text,
-    marginBottom: 8,
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.semibold,
+    marginBottom: theme.spacing.sm,
+    color: Colors.light.primary,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    color: Colors.light.text,
-    backgroundColor: '#fff',
-  },
-  textArea: {
-    minHeight: 100,
+    marginBottom: theme.spacing.sm,
+    backgroundColor: Colors.light.background,
   },
   row: {
     flexDirection: 'row',
-    gap: 12,
+    gap: theme.spacing.sm,
+  },
+  inputHalf: {
+    flex: 1,
   },
   totalCard: {
     backgroundColor: Colors.light.primaryLight,
@@ -378,21 +763,15 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: Colors.light.primary,
   },
-  footer: {
-    padding: 16,
-    backgroundColor: '#fff',
-    borderTopWidth: 1,
-    borderTopColor: '#e0e0e0',
+  actions: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.lg,
   },
-  saveButton: {
+  button: {
+    flex: 1,
+  },
+  buttonPrimary: {
     backgroundColor: Colors.light.primary,
-    borderRadius: 8,
-    padding: 16,
-    alignItems: 'center',
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
   },
 });
