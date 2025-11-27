@@ -81,16 +81,6 @@ export default function StockEntryDetailsScreen() {
     onSuccess: (result: any) => {
       setShowDeleteDialog(false);
 
-      // Remover query específica desta entrada do cache (evita refetch 404)
-      queryClient.removeQueries({ queryKey: ['stock-entry', entryId] });
-
-      // Invalidar outras queries para atualizar listas
-      queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['active-products'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['low-stock'] });
-
       // Mensagem detalhada sobre o que foi excluído
       const messages = [`Entrada ${result.entry_code} excluída`];
 
@@ -102,13 +92,24 @@ export default function StockEntryDetailsScreen() {
         messages.push(`${result.total_stock_removed} unidades removidas do estoque`);
       }
 
-      // Navegar de volta imediatamente
+      // 1. Navegar de volta PRIMEIRO (evita refetch 404)
       handleGoBack();
 
-      // Mostrar toast de sucesso
+      // 2. DEPOIS limpar cache (após navegação)
       setTimeout(() => {
+        // Remover query específica desta entrada do cache
+        queryClient.removeQueries({ queryKey: ['stock-entry', entryId] });
+
+        // Invalidar outras queries para atualizar listas
+        queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
+        queryClient.invalidateQueries({ queryKey: ['products'] });
+        queryClient.invalidateQueries({ queryKey: ['active-products'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+        queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+
+        // Mostrar mensagem de sucesso
         Alert.alert('Sucesso!', messages.join('\n'));
-      }, 300);
+      }, 100);
     },
     onError: (error: any) => {
       setShowDeleteDialog(false);
