@@ -55,26 +55,27 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         return result.scalar_one_or_none()
     
     async def get_by_category(
-        self, 
+        self,
         category_id: int,
         include_relationships: bool = True,
         *,
         tenant_id: int | None = None,
     ) -> Sequence[Product]:
         """
-        Busca produtos de uma categoria específica (apenas ativos).
-        
+        Busca produtos de uma categoria específica (apenas ativos, não catálogo).
+
         Args:
             category_id: ID da categoria
             include_relationships: Se deve incluir relacionamentos
-            
+
         Returns:
             Lista de produtos da categoria
         """
         query = select(Product).where(
             and_(
                 Product.category_id == category_id,
-                Product.is_active == True
+                Product.is_active == True,
+                Product.is_catalog == False
             )
         ).order_by(Product.name)
         if tenant_id is not None:
@@ -90,24 +91,24 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         return result.scalars().all()
     
     async def search(
-        self, 
+        self,
         query: str,
         include_relationships: bool = False,
         *,
         tenant_id: int | None = None,
     ) -> Sequence[Product]:
         """
-        Busca produtos por nome, descrição, marca ou SKU (apenas ativos).
-        
+        Busca produtos por nome, descrição, marca ou SKU (apenas ativos, não catálogo).
+
         Args:
             query: Termo de busca
             include_relationships: Se deve incluir relacionamentos
-            
+
         Returns:
             Lista de produtos encontrados
         """
         search_term = f"%{query.lower()}%"
-        
+
         sql_query = select(Product).where(
             and_(
                 or_(
@@ -116,7 +117,8 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
                     Product.brand.ilike(search_term),
                     Product.sku.ilike(search_term)
                 ),
-                Product.is_active == True
+                Product.is_active == True,
+                Product.is_catalog == False
             )
         ).order_by(Product.name)
         if tenant_id is not None:
@@ -132,26 +134,27 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         return result.scalars().all()
     
     async def get_by_brand(
-        self, 
+        self,
         brand: str,
         include_relationships: bool = False,
         *,
         tenant_id: int | None = None,
     ) -> Sequence[Product]:
         """
-        Busca produtos por marca (apenas ativos).
-        
+        Busca produtos por marca (apenas ativos, não catálogo).
+
         Args:
             brand: Nome da marca
             include_relationships: Se deve incluir relacionamentos
-            
+
         Returns:
             Lista de produtos da marca
         """
         query = select(Product).where(
             and_(
                 Product.brand.ilike(f"%{brand}%"),
-                Product.is_active == True
+                Product.is_active == True,
+                Product.is_catalog == False
             )
         ).order_by(Product.name)
         if tenant_id is not None:
@@ -167,26 +170,27 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         return result.scalars().all()
     
     async def get_by_size(
-        self, 
+        self,
         size: str,
         include_relationships: bool = False,
         *,
         tenant_id: int | None = None,
     ) -> Sequence[Product]:
         """
-        Busca produtos por tamanho (apenas ativos).
-        
+        Busca produtos por tamanho (apenas ativos, não catálogo).
+
         Args:
             size: Tamanho do produto (P, M, G, GG, etc.)
             include_relationships: Se deve incluir relacionamentos
-            
+
         Returns:
             Lista de produtos do tamanho
         """
         query = select(Product).where(
             and_(
                 Product.size == size,
-                Product.is_active == True
+                Product.is_active == True,
+                Product.is_catalog == False
             )
         ).order_by(Product.name)
         if tenant_id is not None:
@@ -202,26 +206,27 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         return result.scalars().all()
     
     async def get_by_color(
-        self, 
+        self,
         color: str,
         include_relationships: bool = False,
         *,
         tenant_id: int | None = None,
     ) -> Sequence[Product]:
         """
-        Busca produtos por cor (apenas ativos).
-        
+        Busca produtos por cor (apenas ativos, não catálogo).
+
         Args:
             color: Cor do produto
             include_relationships: Se deve incluir relacionamentos
-            
+
         Returns:
             Lista de produtos da cor
         """
         query = select(Product).where(
             and_(
                 Product.color.ilike(f"%{color}%"),
-                Product.is_active == True
+                Product.is_active == True,
+                Product.is_catalog == False
             )
         ).order_by(Product.name)
         if tenant_id is not None:
@@ -237,26 +242,27 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         return result.scalars().all()
     
     async def get_by_gender(
-        self, 
+        self,
         gender: str,
         include_relationships: bool = False,
         *,
         tenant_id: int | None = None,
     ) -> Sequence[Product]:
         """
-        Busca produtos por gênero (apenas ativos).
-        
+        Busca produtos por gênero (apenas ativos, não catálogo).
+
         Args:
             gender: Gênero (Masculino, Feminino, Unissex)
             include_relationships: Se deve incluir relacionamentos
-            
+
         Returns:
             Lista de produtos do gênero
         """
         query = select(Product).where(
             and_(
                 Product.gender == gender,
-                Product.is_active == True
+                Product.is_active == True,
+                Product.is_catalog == False
             )
         ).order_by(Product.name)
         if tenant_id is not None:
@@ -272,21 +278,26 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         return result.scalars().all()
     
     async def get_active_products(
-        self, 
+        self,
         include_relationships: bool = False,
         *,
         tenant_id: int | None = None,
     ) -> Sequence[Product]:
         """
-        Busca todos os produtos ativos.
-        
+        Busca todos os produtos ativos (não catálogo).
+
         Args:
             include_relationships: Se deve incluir relacionamentos
-            
+
         Returns:
             Lista de produtos ativos
         """
-        query = select(Product).where(Product.is_active == True).order_by(Product.name)
+        query = select(Product).where(
+            and_(
+                Product.is_active == True,
+                Product.is_catalog == False
+            )
+        ).order_by(Product.name)
         if tenant_id is not None:
             query = query.where(Product.tenant_id == tenant_id)
         
@@ -378,18 +389,21 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
     async def get_low_stock(self, threshold: Optional[int] = None, *, tenant_id: int | None = None) -> Sequence[Product]:
         """
         Busca produtos com estoque abaixo do mínimo.
-        
+
         Args:
             threshold: Threshold customizado (se None, usa min_stock de cada produto)
-            
+
         Returns:
-            Lista de produtos com estoque baixo (apenas produtos ativos)
+            Lista de produtos com estoque baixo (apenas produtos ativos, não catálogo)
         """
         from app.models.inventory import Inventory
-        
-        # Query base: produtos ATIVOS com inventário
+
+        # Query base: produtos ATIVOS (não catálogo) com inventário
         query = select(Product).join(Inventory).where(
-            Product.is_active == True
+            and_(
+                Product.is_active == True,
+                Product.is_catalog == False
+            )
         ).options(
             selectinload(Product.inventory)
         )

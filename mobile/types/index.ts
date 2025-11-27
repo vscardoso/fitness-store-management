@@ -136,6 +136,7 @@ export interface Product {
   is_digital?: boolean;
   is_activewear?: boolean;
   is_active: boolean;
+  is_catalog: boolean; // Se é produto de catálogo (template) ou produto real do tenant
   created_at: string;
   updated_at: string;
   current_stock?: number; // Estoque atual

@@ -97,6 +97,11 @@ export const validateProductForCart = (
     errors.push('Este produto não está mais disponível');
   }
 
+  // Verificar se não é produto de catálogo
+  if (product.is_catalog) {
+    errors.push('Produtos de catálogo não podem ser vendidos');
+  }
+
   // Verificar quantidade mínima
   if (requestedQuantity < 1) {
     errors.push('Quantidade deve ser maior que zero');

@@ -68,9 +68,11 @@ export default function SaleScreen() {
         setShowSearchResults(true);
         try {
           const results = await searchProducts(searchQuery);
-          // Filtrar apenas produtos ativos
-          const activeProducts = results.filter(product => product.is_active);
-          setSearchResults(activeProducts);
+          // Filtrar apenas produtos ativos e não catálogo
+          const validProducts = results.filter(
+            product => product.is_active && !product.is_catalog
+          );
+          setSearchResults(validProducts);
         } catch (error) {
           console.error('Search error:', error);
           setSearchResults([]);
@@ -93,6 +95,16 @@ export default function SaleScreen() {
       Alert.alert(
         'Produto inativo',
         'Este produto está inativo e não pode ser adicionado ao carrinho. Ative o produto antes de vendê-lo.'
+      );
+      return;
+    }
+
+    // Validar se o produto não é de catálogo
+    if (product.is_catalog) {
+      haptics.warning();
+      Alert.alert(
+        'Produto de catálogo',
+        'Este é um produto de catálogo e não pode ser vendido. Importe o produto para seu estoque primeiro.'
       );
       return;
     }
