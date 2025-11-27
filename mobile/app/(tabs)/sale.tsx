@@ -68,7 +68,9 @@ export default function SaleScreen() {
         setShowSearchResults(true);
         try {
           const results = await searchProducts(searchQuery);
-          setSearchResults(results);
+          // Filtrar apenas produtos ativos
+          const activeProducts = results.filter(product => product.is_active);
+          setSearchResults(activeProducts);
         } catch (error) {
           console.error('Search error:', error);
           setSearchResults([]);
@@ -85,6 +87,16 @@ export default function SaleScreen() {
   }, [searchQuery]);
 
   const handleAddToCart = (product: any) => {
+    // Validar se o produto está ativo
+    if (!product.is_active) {
+      haptics.warning();
+      Alert.alert(
+        'Produto inativo',
+        'Este produto está inativo e não pode ser adicionado ao carrinho. Ative o produto antes de vendê-lo.'
+      );
+      return;
+    }
+
     const existingItem = cart.getItem(product.id);
     const requestedQuantity = existingItem ? existingItem.quantity + 1 : 1;
 
@@ -367,12 +379,15 @@ export default function SaleScreen() {
               ) : (
                 <View style={styles.searchEmptyContainer}>
                   <Ionicons
-                    name="search-outline"
+                    name="alert-circle-outline"
                     size={32}
                     color={Colors.light.textSecondary}
                   />
                   <Text style={styles.searchEmptyText}>
-                    Nenhum produto encontrado para "{searchQuery}"
+                    Nenhum produto ativo encontrado para "{searchQuery}"
+                  </Text>
+                  <Text style={styles.searchEmptySubtext}>
+                    Apenas produtos ativos podem ser vendidos
                   </Text>
                 </View>
               )}
@@ -672,6 +687,13 @@ const styles = StyleSheet.create({
     marginTop: 12,
     color: Colors.light.textSecondary,
     textAlign: 'center',
+    fontWeight: '500',
+  },
+  searchEmptySubtext: {
+    marginTop: 4,
+    color: Colors.light.textTertiary,
+    textAlign: 'center',
+    fontSize: 12,
   },
   cartSection: {
     flex: 1,
