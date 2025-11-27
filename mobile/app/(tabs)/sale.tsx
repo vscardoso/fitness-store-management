@@ -21,6 +21,7 @@ import {
 } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
@@ -29,13 +30,15 @@ import EmptyState from '@/components/ui/EmptyState';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
 // import BarcodeScanner from '@/components/sale/BarcodeScanner'; // Desabilitado temporariamente - requer build nativo
+import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
 import { searchProducts } from '@/services/productService';
+import { getCustomerById } from '@/services/customerService';
 import {
   validateProductForCart,
   validateCartStock,
   formatValidationErrors,
 } from '@/utils/validation';
-import type { Product } from '@/types';
+import type { Product, Customer } from '@/types';
 
 export default function SaleScreen() {
   const router = useRouter();
@@ -46,6 +49,14 @@ export default function SaleScreen() {
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [showSearchResults, setShowSearchResults] = useState(false);
+  const [customerModalVisible, setCustomerModalVisible] = useState(false);
+
+  // Query: Selected customer details
+  const { data: selectedCustomer } = useQuery({
+    queryKey: ['customer', cart.customer_id],
+    queryFn: () => getCustomerById(cart.customer_id!),
+    enabled: !!cart.customer_id,
+  });
 
   /**
    * Debounced search effect
@@ -227,6 +238,14 @@ export default function SaleScreen() {
     setShowSearchResults(false);
   };
 
+  /**
+   * Handler para selecionar cliente
+   */
+  const handleSelectCustomer = (customer: Customer) => {
+    haptics.light();
+    cart.setCustomer(customer.id);
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
@@ -267,17 +286,17 @@ export default function SaleScreen() {
 
         {/* Cliente selecionado */}
         <View style={styles.customerSection}>
-          {cart.customer_id ? (
+          {cart.customer_id && selectedCustomer ? (
             <Card style={styles.customerCard}>
               <Card.Content style={styles.customerCardContent}>
                 <View style={styles.customerInfo}>
                   <Ionicons name="person-circle" size={40} color={Colors.light.primary} />
                   <View style={styles.customerDetails}>
                     <Text variant="titleMedium" style={styles.customerName}>
-                      Cliente Selecionado
+                      {selectedCustomer.full_name}
                     </Text>
                     <Text variant="bodySmall" style={styles.customerType}>
-                      ID: {cart.customer_id}
+                      {selectedCustomer.email || selectedCustomer.phone || `ID: ${cart.customer_id}`}
                     </Text>
                   </View>
                 </View>
@@ -291,7 +310,7 @@ export default function SaleScreen() {
           ) : (
             <TouchableOpacity
               style={styles.selectCustomerButton}
-              onPress={() => router.push('/(tabs)/customers')}
+              onPress={() => setCustomerModalVisible(true)}
             >
               <Ionicons name="person-add-outline" size={24} color={Colors.light.primary} />
               <Text variant="bodyMedium" style={styles.selectCustomerText}>
@@ -493,6 +512,13 @@ export default function SaleScreen() {
           onDismiss={() => setScannerVisible(false)}
           onProductFound={handleProductScanned}
         /> */}
+
+        {/* Customer Selection Modal */}
+        <CustomerSelectionModal
+          visible={customerModalVisible}
+          onDismiss={() => setCustomerModalVisible(false)}
+          onSelectCustomer={handleSelectCustomer}
+        />
     </View>
   );
 }

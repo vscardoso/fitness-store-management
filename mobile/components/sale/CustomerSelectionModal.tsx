@@ -1,0 +1,279 @@
+import React, { useState, useEffect } from 'react';
+import {
+  View,
+  StyleSheet,
+  Modal,
+  TouchableOpacity,
+  FlatList,
+  Pressable,
+  ActivityIndicator,
+} from 'react-native';
+import { Text, Searchbar, Card } from 'react-native-paper';
+import { Ionicons } from '@expo/vector-icons';
+import { useQuery } from '@tanstack/react-query';
+import { Colors, theme } from '@/constants/Colors';
+import { formatPhone } from '@/utils/format';
+import { getCustomers } from '@/services/customerService';
+import EmptyState from '@/components/ui/EmptyState';
+import type { Customer } from '@/types';
+
+interface CustomerSelectionModalProps {
+  visible: boolean;
+  onDismiss: () => void;
+  onSelectCustomer: (customer: Customer) => void;
+}
+
+export default function CustomerSelectionModal({
+  visible,
+  onDismiss,
+  onSelectCustomer,
+}: CustomerSelectionModalProps) {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Query: Lista de clientes
+  const {
+    data: customers,
+    isLoading,
+    isError,
+  } = useQuery({
+    queryKey: ['customers'],
+    queryFn: () => getCustomers(),
+    enabled: visible, // Only fetch when modal is visible
+  });
+
+  // Reset search when modal opens
+  useEffect(() => {
+    if (visible) {
+      setSearchQuery('');
+    }
+  }, [visible]);
+
+  // Filter customers by search query
+  const filteredCustomers = customers?.filter((customer: Customer) => {
+    const search = searchQuery.toLowerCase();
+    return (
+      customer.full_name.toLowerCase().includes(search) ||
+      customer.email?.toLowerCase().includes(search) ||
+      customer.phone?.includes(search) ||
+      customer.document_number?.includes(search)
+    );
+  });
+
+  const handleSelectCustomer = (customer: Customer) => {
+    onSelectCustomer(customer);
+    onDismiss();
+  };
+
+  const renderCustomer = ({ item }: { item: Customer }) => (
+    <TouchableOpacity
+      onPress={() => handleSelectCustomer(item)}
+      activeOpacity={0.7}
+    >
+      <Card style={styles.customerCard}>
+        <Card.Content style={styles.customerCardContent}>
+          {/* Avatar */}
+          <View style={styles.avatarContainer}>
+            <Ionicons name="person" size={24} color={Colors.light.primary} />
+          </View>
+
+          {/* Customer Info */}
+          <View style={styles.customerInfo}>
+            <Text variant="titleMedium" style={styles.customerName} numberOfLines={1}>
+              {item.full_name}
+            </Text>
+            {item.email && (
+              <Text variant="bodySmall" style={styles.customerDetail} numberOfLines={1}>
+                {item.email}
+              </Text>
+            )}
+            {item.phone && (
+              <Text variant="bodySmall" style={styles.customerDetail} numberOfLines={1}>
+                {formatPhone(item.phone)}
+              </Text>
+            )}
+          </View>
+
+          {/* Selection icon */}
+          <Ionicons
+            name="chevron-forward"
+            size={24}
+            color={Colors.light.textTertiary}
+          />
+        </Card.Content>
+      </Card>
+    </TouchableOpacity>
+  );
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onDismiss}
+      statusBarTranslucent
+    >
+      <Pressable style={styles.modalOverlay} onPress={onDismiss}>
+        <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+          {/* Header */}
+          <View style={styles.header}>
+            <Text variant="headlineSmall" style={styles.title}>
+              Selecionar Cliente
+            </Text>
+            <TouchableOpacity onPress={onDismiss} style={styles.closeButton}>
+              <Ionicons name="close" size={24} color={Colors.light.textSecondary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Search Bar */}
+          <Searchbar
+            placeholder="Buscar por nome, email, telefone..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            style={styles.searchbar}
+            elevation={0}
+          />
+
+          {/* Customer List */}
+          {isLoading ? (
+            <View style={styles.centerContainer}>
+              <ActivityIndicator size="large" color={Colors.light.primary} />
+              <Text style={styles.loadingText}>Carregando clientes...</Text>
+            </View>
+          ) : isError ? (
+            <EmptyState
+              icon="alert-circle-outline"
+              title="Erro ao carregar clientes"
+              description="Verifique sua conexão e tente novamente"
+            />
+          ) : (
+            <FlatList
+              data={filteredCustomers}
+              renderItem={renderCustomer}
+              keyExtractor={(item) => item.id.toString()}
+              contentContainerStyle={styles.listContent}
+              ListEmptyComponent={
+                <EmptyState
+                  icon="people-outline"
+                  title={searchQuery ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}
+                  description={
+                    searchQuery
+                      ? 'Tente outro termo de busca'
+                      : 'Cadastre clientes para vinculá-los às vendas'
+                  }
+                />
+              }
+            />
+          )}
+
+          {/* Footer */}
+          <View style={styles.footer}>
+            <TouchableOpacity style={styles.continueButton} onPress={onDismiss}>
+              <Text style={styles.continueButtonText}>Continuar sem cliente</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalContent: {
+    backgroundColor: Colors.light.background,
+    borderTopLeftRadius: theme.borderRadius.xxl,
+    borderTopRightRadius: theme.borderRadius.xxl,
+    maxHeight: '80%',
+    paddingBottom: 20,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+  },
+  title: {
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: Colors.light.backgroundSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchbar: {
+    marginHorizontal: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: theme.borderRadius.lg,
+  },
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  loadingText: {
+    marginTop: 16,
+    color: Colors.light.textSecondary,
+  },
+  listContent: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+  },
+  customerCard: {
+    marginBottom: 12,
+    borderRadius: theme.borderRadius.lg,
+    elevation: 1,
+  },
+  customerCardContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  avatarContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: `${Colors.light.primary}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  customerInfo: {
+    flex: 1,
+    marginRight: 12,
+  },
+  customerName: {
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  customerDetail: {
+    color: Colors.light.textSecondary,
+    marginBottom: 2,
+  },
+  footer: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+  },
+  continueButton: {
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  continueButtonText: {
+    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.md,
+    fontWeight: '500',
+  },
+});
