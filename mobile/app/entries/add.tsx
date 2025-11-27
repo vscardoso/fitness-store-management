@@ -477,7 +477,7 @@ export default function AddStockEntryScreen() {
           <View style={styles.inputGroup}>
             <TextInput
               label="Data da Entrada (auto)"
-              value={new Date(computeEntryDateISO()).toLocaleDateString('pt-BR')}
+              value={computeEntryDateISO().split('-').reverse().join('/')}
               mode="outlined"
               editable={false}
               left={<TextInput.Icon icon="calendar" />}
