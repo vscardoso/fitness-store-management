@@ -258,7 +258,9 @@ export default function AddStockEntryScreen() {
    */
   const calculateTotal = (): number => {
     return items.reduce((sum, item) => {
-      return sum + (item.quantity_received * item.unit_cost);
+      const quantity = Number(item.quantity_received) || 0;
+      const cost = Number(item.unit_cost) || 0;
+      return sum + (quantity * cost);
     }, 0);
   };
 
@@ -783,7 +785,7 @@ export default function AddStockEntryScreen() {
                 <View style={styles.itemTotal}>
                   <Text style={styles.itemTotalLabel}>Subtotal:</Text>
                   <Text style={styles.itemTotalValue}>
-                    {formatCurrency(item.quantity_received * item.unit_cost)}
+                    {formatCurrency((Number(item.quantity_received) || 0) * (Number(item.unit_cost) || 0))}
                   </Text>
                 </View>
               </Card.Content>
