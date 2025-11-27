@@ -3,6 +3,7 @@ Serviço de gerenciamento de entradas de estoque (StockEntry).
 """
 from typing import List, Optional, Dict, Any
 from decimal import Decimal
+from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.stock_entry import StockEntry, EntryType
@@ -32,6 +33,37 @@ class StockEntryService:
         self.trip_repo = TripRepository()
         self.product_repo = ProductRepository(db)
         self.inventory_repo = InventoryRepository(db)
+
+    async def _generate_unique_entry_code(self, base_code: str, tenant_id: int) -> str:
+        """
+        Gera um código único para entrada, adicionando sufixo se necessário.
+
+        Args:
+            base_code: Código base fornecido
+            tenant_id: ID do tenant
+
+        Returns:
+            str: Código único
+        """
+        # Verificar se código base já existe
+        existing = await self.entry_repo.get_by_code(self.db, base_code, tenant_id=tenant_id)
+        if not existing:
+            return base_code
+
+        # Adicionar sufixo numérico até encontrar código único
+        counter = 1
+        while True:
+            new_code = f"{base_code}-{counter}"
+            existing = await self.entry_repo.get_by_code(self.db, new_code, tenant_id=tenant_id)
+            if not existing:
+                return new_code
+            counter += 1
+
+            # Limite de segurança
+            if counter > 1000:
+                # Usar timestamp se falhar após 1000 tentativas
+                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                return f"{base_code}-{timestamp}"
     
     async def create_entry(
         self, 
@@ -57,10 +89,9 @@ class StockEntryService:
             ValueError: Se entry_code já existe ou dados inválidos
         """
         try:
-            # Verificar entry_code único
-            existing = await self.entry_repo.get_by_code(self.db, entry_data.entry_code, tenant_id=tenant_id)
-            if existing:
-                raise ValueError(f"Entry code {entry_data.entry_code} já existe")
+            # Gerar código único se necessário
+            unique_code = await self._generate_unique_entry_code(entry_data.entry_code, tenant_id=tenant_id)
+            entry_data.entry_code = unique_code
             
             # Validar trip_id se fornecido
             if entry_data.trip_id:
