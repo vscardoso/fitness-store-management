@@ -108,24 +108,52 @@ class Trip(BaseModel):
     )
     
     # Status e observações
+    # NOTA: O campo 'status' é mantido no banco para override manual se necessário,
+    # mas a API retorna 'computed_status' que calcula automaticamente baseado em datas
     status: Mapped[TripStatus] = mapped_column(
         SQLEnum(TripStatus, native_enum=False, length=20),
         default=TripStatus.PLANNED,
         nullable=False,
-        comment="Status da viagem"
+        comment="Status manual da viagem (use computed_status para status calculado)"
     )
     
     notes: Mapped[str | None] = mapped_column(
         Text,
         comment="Observações sobre a viagem"
     )
-    
+
     # Relacionamentos
     stock_entries: Mapped[List["StockEntry"]] = relationship(
         "StockEntry",
         back_populates="trip",
         lazy="selectin"
     )
+
+    @property
+    def computed_status(self) -> TripStatus:
+        """
+        Calcula o status da viagem baseado nas datas/horários.
+
+        Lógica:
+        - COMPLETED: se return_time já passou
+        - IN_PROGRESS: se departure_time já passou mas return_time não
+        - PLANNED: se departure_time ainda não passou
+
+        Returns:
+            TripStatus: Status calculado automaticamente
+        """
+        now = datetime.now()
+
+        # Se tem horário de retorno e já passou, está completada
+        if self.return_time and now >= self.return_time:
+            return TripStatus.COMPLETED
+
+        # Se tem horário de partida e já passou (mas retorno não), está em andamento
+        if self.departure_time and now >= self.departure_time:
+            return TripStatus.IN_PROGRESS
+
+        # Caso contrário, ainda está planejada
+        return TripStatus.PLANNED
     
     def __repr__(self) -> str:
         """String representation of the trip."""

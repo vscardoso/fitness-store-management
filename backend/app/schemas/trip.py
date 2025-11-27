@@ -82,12 +82,30 @@ class TripResponse(TripBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-    
+
     # Campos calculados
     total_entries: int = Field(default=0, description="Total de entradas de estoque desta viagem")
     total_items_purchased: int = Field(default=0, description="Total de itens comprados na viagem")
     total_invested: Decimal = Field(default=Decimal("0.00"), description="Total investido em produtos")
     duration_hours: Optional[float] = Field(None, description="Duração da viagem em horas")
+
+    @model_validator(mode='before')
+    @classmethod
+    def use_computed_status(cls, data):
+        """Substituir status pelo computed_status se disponível."""
+        if hasattr(data, 'computed_status'):
+            # Se for um objeto Trip com computed_status, usar ele
+            if isinstance(data, dict):
+                data['status'] = getattr(data, 'computed_status')
+            else:
+                # Se for objeto SQLAlchemy
+                status = data.computed_status
+                # Converter para dict se necessário
+                if hasattr(data, '__dict__'):
+                    data_dict = {k: v for k, v in data.__dict__.items() if not k.startswith('_')}
+                    data_dict['status'] = status
+                    return data_dict
+        return data
 
     class Config:
         from_attributes = True
@@ -106,6 +124,21 @@ class TripSummary(BaseModel):
     total_invested: Decimal = Decimal("0.00")
     is_active: bool
     created_at: datetime
+
+    @model_validator(mode='before')
+    @classmethod
+    def use_computed_status(cls, data):
+        """Substituir status pelo computed_status se disponível."""
+        if hasattr(data, 'computed_status'):
+            if isinstance(data, dict):
+                data['status'] = getattr(data, 'computed_status')
+            else:
+                status = data.computed_status
+                if hasattr(data, '__dict__'):
+                    data_dict = {k: v for k, v in data.__dict__.items() if not k.startswith('_')}
+                    data_dict['status'] = status
+                    return data_dict
+        return data
 
     class Config:
         from_attributes = True
