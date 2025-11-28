@@ -75,46 +75,62 @@ export default function ProductSelectionModal({
     onDismiss();
   };
 
-  const renderProduct = ({ item }: { item: Product }) => (
-    <TouchableOpacity
-      onPress={() => handleSelectProduct(item)}
-      activeOpacity={0.7}
-    >
-      <Card style={styles.productCard}>
-        <Card.Content style={styles.productCardContent}>
-          {/* Icon */}
-          <View style={styles.iconContainer}>
-            <Ionicons name="cube" size={24} color={Colors.light.primary} />
-          </View>
+  const renderProduct = ({ item }: { item: Product }) => {
+    const stock = item.current_stock || 0;
+    const minStock = item.min_stock_threshold || 5;
+    const hasNoStock = stock === 0;
+    const hasLowStock = stock > 0 && stock <= minStock;
 
-          {/* Product Info */}
-          <View style={styles.productInfo}>
-            <Text variant="titleMedium" style={styles.productName} numberOfLines={1}>
-              {item.name}
-            </Text>
-            <Text variant="bodySmall" style={styles.productDetail} numberOfLines={1}>
-              SKU: {item.sku}
-            </Text>
-            <View style={styles.priceStockRow}>
-              <Text variant="bodySmall" style={styles.productPrice}>
-                {formatCurrency(item.price)}
-              </Text>
-              <Text variant="bodySmall" style={styles.productStock}>
-                Estoque: {item.current_stock || 0}
-              </Text>
+    return (
+      <TouchableOpacity
+        onPress={() => handleSelectProduct(item)}
+        activeOpacity={0.7}
+      >
+        <Card style={styles.productCard}>
+          <Card.Content style={styles.productCardContent}>
+            {/* Icon */}
+            <View style={styles.iconContainer}>
+              <Ionicons name="cube" size={24} color={Colors.light.primary} />
             </View>
-          </View>
 
-          {/* Selection icon */}
-          <Ionicons
-            name="add-circle"
-            size={28}
-            color={Colors.light.primary}
-          />
-        </Card.Content>
-      </Card>
-    </TouchableOpacity>
-  );
+            {/* Product Info */}
+            <View style={styles.productInfo}>
+              <Text variant="titleMedium" style={styles.productName} numberOfLines={1}>
+                {item.name}
+              </Text>
+              <Text variant="bodySmall" style={styles.productSku} numberOfLines={1}>
+                {item.sku}
+              </Text>
+              <View style={styles.priceStockRow}>
+                <Text variant="titleSmall" style={styles.productPrice}>
+                  {formatCurrency(item.price)}
+                </Text>
+                <View style={[
+                  styles.stockBadge,
+                  hasNoStock && styles.stockBadgeEmpty,
+                  hasLowStock && styles.stockBadgeLow,
+                ]}>
+                  <Ionicons
+                    name={hasNoStock ? "close-circle" : hasLowStock ? "alert-circle" : "checkmark-circle"}
+                    size={12}
+                    color="#fff"
+                  />
+                  <Text style={styles.stockText}>{stock}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* Selection icon */}
+            <Ionicons
+              name="chevron-forward"
+              size={24}
+              color={Colors.light.textTertiary}
+            />
+          </Card.Content>
+        </Card>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <Modal
@@ -143,7 +159,6 @@ export default function ProductSelectionModal({
             onChangeText={setSearchQuery}
             style={styles.searchbar}
             elevation={0}
-            autoFocus
           />
 
           {/* Product List */}
@@ -193,7 +208,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.background,
     borderTopLeftRadius: theme.borderRadius.xxl,
     borderTopRightRadius: theme.borderRadius.xxl,
-    maxHeight: '85%',
+    maxHeight: '80%',
     paddingBottom: 20,
   },
   header: {
@@ -261,23 +276,40 @@ const styles = StyleSheet.create({
   },
   productName: {
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  productDetail: {
+  productSku: {
     color: Colors.light.textSecondary,
-    marginBottom: 4,
+    fontSize: 12,
+    marginBottom: 6,
   },
   priceStockRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    justifyContent: 'space-between',
   },
   productPrice: {
     color: Colors.light.primary,
-    fontWeight: '600',
+    fontWeight: '700',
   },
-  productStock: {
-    color: Colors.light.textSecondary,
-    fontSize: 12,
+  stockBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light.success,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 12,
+    gap: 4,
+  },
+  stockBadgeLow: {
+    backgroundColor: Colors.light.warning,
+  },
+  stockBadgeEmpty: {
+    backgroundColor: Colors.light.error,
+  },
+  stockText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });
