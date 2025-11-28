@@ -179,6 +179,7 @@ export default function ProductSelectionModal({
               renderItem={renderProduct}
               keyExtractor={(item) => item.id.toString()}
               contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={true}
               ListEmptyComponent={
                 <EmptyState
                   icon="cube-outline"
@@ -192,6 +193,11 @@ export default function ProductSelectionModal({
               }
             />
           )}
+
+          {/* Footer - espaço para melhor visualização */}
+          <View style={styles.footer}>
+            <View style={styles.footerSpacer} />
+          </View>
         </Pressable>
       </Pressable>
     </Modal>
@@ -311,5 +317,15 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 11,
     fontWeight: '700',
+  },
+  footer: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+  },
+  footerSpacer: {
+    height: 8,
   },
 });
