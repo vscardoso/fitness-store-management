@@ -162,37 +162,39 @@ export default function ProductSelectionModal({
           />
 
           {/* Product List */}
-          {isLoading ? (
-            <View style={styles.centerContainer}>
-              <ActivityIndicator size="large" color={Colors.light.primary} />
-              <Text style={styles.loadingText}>Carregando produtos...</Text>
-            </View>
-          ) : isError ? (
-            <EmptyState
-              icon="alert-circle-outline"
-              title="Erro ao carregar produtos"
-              description="Verifique sua conexão e tente novamente"
-            />
-          ) : (
-            <FlatList
-              data={filteredProducts}
-              renderItem={renderProduct}
-              keyExtractor={(item) => item.id.toString()}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={true}
-              ListEmptyComponent={
-                <EmptyState
-                  icon="cube-outline"
-                  title={searchQuery ? 'Nenhum produto encontrado' : 'Nenhum produto disponível'}
-                  description={
-                    searchQuery
-                      ? 'Tente outro termo de busca'
-                      : 'Cadastre produtos ativos para vendê-los'
-                  }
-                />
-              }
-            />
-          )}
+          <View style={styles.listContainer}>
+            {isLoading ? (
+              <View style={styles.centerContainer}>
+                <ActivityIndicator size="large" color={Colors.light.primary} />
+                <Text style={styles.loadingText}>Carregando produtos...</Text>
+              </View>
+            ) : isError ? (
+              <EmptyState
+                icon="alert-circle-outline"
+                title="Erro ao carregar produtos"
+                description="Verifique sua conexão e tente novamente"
+              />
+            ) : (
+              <FlatList
+                data={filteredProducts}
+                renderItem={renderProduct}
+                keyExtractor={(item) => item.id.toString()}
+                contentContainerStyle={styles.listContent}
+                showsVerticalScrollIndicator={true}
+                ListEmptyComponent={
+                  <EmptyState
+                    icon="cube-outline"
+                    title={searchQuery ? 'Nenhum produto encontrado' : 'Nenhum produto disponível'}
+                    description={
+                      searchQuery
+                        ? 'Tente outro termo de busca'
+                        : 'Cadastre produtos ativos para vendê-los'
+                    }
+                  />
+                }
+              />
+            )}
+          </View>
 
           {/* Footer - espaço para melhor visualização */}
           <View style={styles.footer}>
@@ -243,6 +245,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: theme.borderRadius.lg,
   },
+  listContainer: {
+    flex: 1,
+  },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -255,7 +260,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
+    paddingBottom: 24,
   },
   productCard: {
     marginBottom: 12,
