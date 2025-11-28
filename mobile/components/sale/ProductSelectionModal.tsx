@@ -162,43 +162,42 @@ export default function ProductSelectionModal({
           />
 
           {/* Product List */}
-          <View style={styles.listContainer}>
-            {isLoading ? (
-              <View style={styles.centerContainer}>
-                <ActivityIndicator size="large" color={Colors.light.primary} />
-                <Text style={styles.loadingText}>Carregando produtos...</Text>
-              </View>
-            ) : isError ? (
-              <EmptyState
-                icon="alert-circle-outline"
-                title="Erro ao carregar produtos"
-                description="Verifique sua conexão e tente novamente"
-              />
-            ) : (
-              <FlatList
-                data={filteredProducts}
-                renderItem={renderProduct}
-                keyExtractor={(item) => item.id.toString()}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={true}
-                ListEmptyComponent={
-                  <EmptyState
-                    icon="cube-outline"
-                    title={searchQuery ? 'Nenhum produto encontrado' : 'Nenhum produto disponível'}
-                    description={
-                      searchQuery
-                        ? 'Tente outro termo de busca'
-                        : 'Cadastre produtos ativos para vendê-los'
-                    }
-                  />
-                }
-              />
-            )}
-          </View>
+          {isLoading ? (
+            <View style={styles.centerContainer}>
+              <ActivityIndicator size="large" color={Colors.light.primary} />
+              <Text style={styles.loadingText}>Carregando produtos...</Text>
+            </View>
+          ) : isError ? (
+            <EmptyState
+              icon="alert-circle-outline"
+              title="Erro ao carregar produtos"
+              description="Verifique sua conexão e tente novamente"
+            />
+          ) : (
+            <FlatList
+              data={filteredProducts}
+              renderItem={renderProduct}
+              keyExtractor={(item) => item.id.toString()}
+              contentContainerStyle={styles.listContent}
+              ListEmptyComponent={
+                <EmptyState
+                  icon="cube-outline"
+                  title={searchQuery ? 'Nenhum produto encontrado' : 'Nenhum produto disponível'}
+                  description={
+                    searchQuery
+                      ? 'Tente outro termo de busca'
+                      : 'Cadastre produtos ativos para vendê-los'
+                  }
+                />
+              }
+            />
+          )}
 
-          {/* Footer - espaço para melhor visualização */}
+          {/* Footer */}
           <View style={styles.footer}>
-            <View style={styles.footerSpacer} />
+            <TouchableOpacity style={styles.continueButton} onPress={onDismiss}>
+              <Text style={styles.continueButtonText}>Fechar</Text>
+            </TouchableOpacity>
           </View>
         </Pressable>
       </Pressable>
@@ -245,9 +244,6 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: theme.borderRadius.lg,
   },
-  listContainer: {
-    flex: 1,
-  },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -260,13 +256,12 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: theme.spacing.lg,
-    paddingBottom: 24,
+    paddingBottom: theme.spacing.md,
   },
   productCard: {
     marginBottom: 12,
     borderRadius: theme.borderRadius.lg,
     elevation: 1,
-    backgroundColor: Colors.light.background,
   },
   productCardContent: {
     flexDirection: 'row',
@@ -327,11 +322,16 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Colors.light.border,
   },
-  footerSpacer: {
-    height: 8,
+  continueButton: {
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  continueButtonText: {
+    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.md,
+    fontWeight: '500',
   },
 });
