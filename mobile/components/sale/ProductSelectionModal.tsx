@@ -145,7 +145,7 @@ export default function ProductSelectionModal({
           {/* Header */}
           <View style={styles.header}>
             <Text variant="headlineSmall" style={styles.title}>
-              Adicionar Produto
+              Buscar Produto
             </Text>
             <TouchableOpacity onPress={onDismiss} style={styles.closeButton}>
               <Ionicons name="close" size={24} color={Colors.light.textSecondary} />
@@ -261,6 +261,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     borderRadius: theme.borderRadius.lg,
     elevation: 1,
+    backgroundColor: Colors.light.background,
   },
   productCardContent: {
     flexDirection: 'row',

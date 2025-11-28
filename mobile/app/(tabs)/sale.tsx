@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -27,7 +27,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
 // import BarcodeScanner from '@/components/sale/BarcodeScanner'; // Desabilitado temporariamente - requer build nativo
 import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
-import ProductSelectionModal from '@/components/sale/ProductSelectionModal';
 import { getCustomerById } from '@/services/customerService';
 import {
   validateProductForCart,
@@ -35,6 +34,7 @@ import {
   formatValidationErrors,
 } from '@/utils/validation';
 import type { Product, Customer } from '@/types';
+import ProductSelectionModal from '@/components/sale/ProductSelectionModal';
 
 export default function SaleScreen() {
   const router = useRouter();
@@ -67,6 +67,8 @@ export default function SaleScreen() {
     queryFn: () => getCustomerById(cart.customer_id!),
     enabled: !!cart.customer_id,
   });
+
+  // Busca de produtos será feita pelo modal de seleção
 
   const handleAddToCart = (product: any) => {
     // Validar se o produto está ativo
@@ -413,7 +415,7 @@ export default function SaleScreen() {
                     <View style={styles.cartItemActions}>
                       <View style={styles.quantityControl}>
                         <IconButton
-                          icon="remove"
+                          icon="minus"
                           size={20}
                           mode="contained"
                           containerColor={Colors.light.error}
@@ -424,7 +426,7 @@ export default function SaleScreen() {
                           {item.quantity}
                         </Text>
                         <IconButton
-                          icon="add"
+                          icon="plus"
                           size={20}
                           mode="contained"
                           containerColor={Colors.light.primary}
