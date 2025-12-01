@@ -65,6 +65,19 @@ export async function createStockEntry(entry: StockEntryCreate): Promise<StockEn
 }
 
 /**
+ * Verificar se código de entrada já existe
+ */
+export async function checkEntryCode(entryCode: string): Promise<{ exists: boolean; message: string }> {
+  const response = await api.get<{ exists: boolean; message: string }>(
+    `${ENTRIES_ENDPOINT}check-code/${encodeURIComponent(entryCode)}`,
+    {
+      headers: { 'X-Skip-Loading': 'true' }
+    }
+  );
+  return response.data;
+}
+
+/**
  * Atualizar entrada de estoque
  */
 export async function updateStockEntry(id: number, entry: Partial<StockEntryCreate>): Promise<StockEntry> {
@@ -123,5 +136,19 @@ export async function getBestPerformingEntries(limit: number = 10): Promise<Arra
   entry_type: EntryType;
 }>> {
   const response = await api.get(`${ENTRIES_ENDPOINT}best-performing`, { params: { limit } });
+  return response.data;
+}
+
+/**
+ * Buscar estatísticas gerais de todas as entradas
+ * Retorna total investido, número de entradas, etc.
+ */
+export async function getStockEntriesStats(): Promise<{
+  total_invested: number;
+  total_entries: number;
+  total_items: number;
+  total_quantity: number;
+}> {
+  const response = await api.get(`${ENTRIES_ENDPOINT}stats`);
   return response.data;
 }

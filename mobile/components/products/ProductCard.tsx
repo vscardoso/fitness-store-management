@@ -97,31 +97,45 @@ export default function ProductCard({ product, onPress }: ProductCardProps) {
           )}
         </View>
 
-        {/* Footer com preço e estoque */}
+        {/* Footer com preços */}
         <View style={styles.footer}>
-          <View>
-            <Text variant="labelSmall" style={styles.label}>
-              Preço
-            </Text>
-            <Text
-              variant="headlineSmall"
-              style={[styles.price, { color: theme.colors.primary }]}
-            >
-              {formatCurrency(product.price)}
-            </Text>
+          <View style={styles.priceRow}>
+            <View style={styles.priceItem}>
+              <Text variant="labelSmall" style={styles.label}>
+                Custo
+              </Text>
+              <Text
+                variant="titleSmall"
+                style={styles.costPrice}
+              >
+                {formatCurrency(product.cost_price || 0)}
+              </Text>
+            </View>
+
+            <View style={styles.priceItem}>
+              <Text variant="labelSmall" style={styles.label}>
+                Venda
+              </Text>
+              <Text
+                variant="titleSmall"
+                style={[styles.salePrice, { color: theme.colors.primary }]}
+              >
+                {formatCurrency(product.price)}
+              </Text>
+            </View>
           </View>
 
           <View style={styles.stockInfo}>
             <Ionicons
               name="cube"
-              size={20}
+              size={18}
               color={theme.colors.secondary}
             />
             <View style={styles.stockTextContainer}>
               <Text variant="labelSmall" style={styles.label}>
                 Estoque
               </Text>
-              <Text variant="titleMedium" style={styles.stockValue}>
+              <Text variant="titleSmall" style={styles.stockValue}>
                 {currentStock}
               </Text>
             </View>
@@ -137,6 +151,7 @@ const styles = StyleSheet.create({
     width: '47%',
     marginHorizontal: 6,
     marginBottom: 12,
+    minHeight: 200, // Altura mínima padrão
   },
   content: {
     padding: 12,
@@ -166,6 +181,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     lineHeight: 20,
     fontSize: 14,
+    minHeight: 40, // Garante espaço para 2 linhas sempre
   },
   metaRow: {
     flexDirection: 'column',
@@ -186,6 +202,14 @@ const styles = StyleSheet.create({
     borderTopColor: 'rgba(0, 0, 0, 0.06)',
     gap: 10,
   },
+  priceRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  priceItem: {
+    flex: 1,
+  },
   label: {
     color: '#9E9E9E',
     marginBottom: 4,
@@ -193,10 +217,14 @@ const styles = StyleSheet.create({
     fontSize: 10,
     letterSpacing: 0.5,
   },
-  price: {
+  costPrice: {
+    fontWeight: '600',
+    color: '#757575',
+    fontSize: 15,
+  },
+  salePrice: {
     fontWeight: '700',
-    letterSpacing: -0.5,
-    fontSize: 18,
+    fontSize: 15,
   },
   stockInfo: {
     flexDirection: 'row',
@@ -213,5 +241,6 @@ const styles = StyleSheet.create({
   stockValue: {
     fontWeight: '600',
     color: '#424242',
+    fontSize: 15,
   },
 });

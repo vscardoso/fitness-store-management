@@ -19,11 +19,9 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import DetailHeader from '@/components/layout/DetailHeader';
 import InfoRow from '@/components/ui/InfoRow';
 import StatCard from '@/components/ui/StatCard';
-import ActionButtons from '@/components/ui/ActionButtons';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getCustomerById, deleteCustomer } from '@/services/customerService';
 import { formatPhone, formatDate, formatCurrency } from '@/utils/format';
@@ -189,77 +187,17 @@ export default function CustomerDetailsScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
-
-      {/* Header com gradiente */}
-      <LinearGradient
-        colors={[Colors.light.primary, '#7c4dff']}
-        style={styles.headerGradient}
-      >
-        <View style={[styles.headerContent, { marginTop: 8 }]}>
-          <View style={styles.headerTop}>
-            <TouchableOpacity
-              onPress={goBack}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-
-            <Text style={styles.headerTitle}>Detalhes do Cliente</Text>
-
-            <View style={styles.headerActions}>
-              <TouchableOpacity
-                onPress={() => router.push(`/customers/edit/${customerId}` as any)}
-                style={styles.actionButton}
-              >
-                <Ionicons name="pencil" size={20} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleDelete} style={styles.actionButton}>
-                <Ionicons name="trash" size={20} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerEntityName}>{customer.full_name}</Text>
-
-            {/* Badges de status */}
-            {badges.length > 0 && (
-              <View style={styles.badges}>
-                {badges.map((badge, index) => (
-                  <View key={index} style={[styles.badge,
-                    badge.type === 'success' ? styles.badgeSuccess :
-                    badge.type === 'error' ? styles.badgeError : styles.badgeInfo
-                  ]}>
-                    <Ionicons
-                      name={badge.icon}
-                      size={14}
-                      color="#fff"
-                      style={styles.badgeIcon}
-                    />
-                    <Text style={styles.badgeText}>{badge.label}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {/* Métricas principais */}
-            <View style={styles.metrics}>
-              <View style={styles.metricCard}>
-                <Ionicons name="cart-outline" size={20} color="#fff" style={styles.metricIcon} />
-                <Text style={styles.metricLabel}>Compras</Text>
-                <Text style={styles.metricValue}>{customer.total_purchases || 0}</Text>
-              </View>
-              <View style={styles.metricCard}>
-                <Ionicons name="cash-outline" size={20} color="#fff" style={styles.metricIcon} />
-                <Text style={styles.metricLabel}>Total</Text>
-                <Text style={styles.metricValue}>{formatCurrency(customer.total_spent || 0)}</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-      </LinearGradient>
+      <DetailHeader
+        title="Detalhes do Cliente"
+        entityName={customer.full_name}
+        backRoute="/(tabs)/customers"
+        editRoute={`/customers/edit/${customerId}`}
+        onDelete={handleDelete}
+        badges={badges}
+        metrics={[]}
+      />
 
       <ScrollView 
         style={styles.scrollContent}
@@ -271,12 +209,42 @@ export default function CustomerDetailsScreen() {
           />
         }
       >
-        {/* Ações Rápidas */}
-        {quickActions.length > 0 && (
-          <View style={styles.quickActionsContainer}>
-            <ActionButtons actions={quickActions} />
-          </View>
-        )}
+        {/* Ações Rápidas (Ligar/Email) */}
+        <View style={styles.quickGrid}>
+          <TouchableOpacity
+            style={[styles.quickCard, !customer.phone && styles.quickCardDisabled]}
+            onPress={handleCall}
+            disabled={!customer.phone}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.quickIconWrap, { backgroundColor: Colors.light.primary + '20' }]}>
+              <Ionicons name="call-outline" size={20} color={Colors.light.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.quickLabel}>Ligar</Text>
+              <Text style={styles.quickValue} numberOfLines={1}>
+                {customer.phone ? formatPhone(customer.phone) : 'Indisponível'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.quickCard, !customer.email && styles.quickCardDisabled]}
+            onPress={handleEmail}
+            disabled={!customer.email}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.quickIconWrap, { backgroundColor: Colors.light.success + '20' }]}>
+              <Ionicons name="mail-outline" size={20} color={Colors.light.success} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.quickLabel}>Email</Text>
+              <Text style={styles.quickValue} numberOfLines={1}>
+                {customer.email || 'Indisponível'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </View>
 
         {/* Informações de Contato */}
         <Card style={styles.card}>
@@ -455,122 +423,14 @@ export default function CustomerDetailsScreen() {
         type="success"
         icon="checkmark-circle"
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.primary,
-  },
-  // Header com gradiente
-  headerGradient: {
-    paddingTop: 0, // SafeArea já cuidou do espaço
-    paddingBottom: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.md,
-  },
-  headerContent: {
-    marginTop: theme.spacing.sm, // Pequeno espaço após SafeArea
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.md,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: theme.fontSize.xl,
-    fontWeight: theme.fontWeight.bold,
-    color: '#fff',
-    marginHorizontal: theme.spacing.sm,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  actionButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderRadius: 20,
-  },
-  headerInfo: {
-    alignItems: 'center',
-  },
-  headerEntityName: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: theme.fontWeight.semibold,
-    color: '#fff',
-    marginBottom: theme.spacing.sm,
-    textAlign: 'center',
-  },
-  badges: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
-    justifyContent: 'center',
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  badgeSuccess: {
-    backgroundColor: 'rgba(76, 175, 80, 0.9)',
-  },
-  badgeError: {
-    backgroundColor: 'rgba(244, 67, 54, 0.9)',
-  },
-  badgeInfo: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-  },
-  badgeIcon: {
-    marginRight: 4,
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  metrics: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  metricCard: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 12,
-    padding: 14,
-    alignItems: 'center',
-  },
-  metricIcon: {
-    marginBottom: 6,
-  },
-  metricLabel: {
-    color: 'rgba(255, 255, 255, 0.85)',
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  metricValue: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   centerContainer: {
     flex: 1,
@@ -589,9 +449,46 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  quickActionsContainer: {
+  quickGrid: {
+    flexDirection: 'row',
+    gap: 12,
     marginTop: 16,
     marginHorizontal: 16,
+  },
+  quickCard: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+  },
+  quickCardDisabled: {
+    opacity: 0.5,
+  },
+  quickIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  quickLabel: {
+    color: Colors.light.textSecondary,
+    fontSize: 12,
+  },
+  quickValue: {
+    color: Colors.light.text,
+    fontSize: 14,
+    fontWeight: '600',
   },
   card: {
     margin: 16,

@@ -48,6 +48,15 @@ import DetailHeader from '@/components/layout/DetailHeader';
   - `value`: Valor formatado
 - `customElement?`: Elemento customizado (ex: avatar)
 
+**Padrão Visual (alinhado ao header da lista de produtos):**
+- Gradiente: `['#667eea', '#764ba2']`, `start: {x:0,y:0}`, `end: {x:1,y:1}`
+- Padding: `paddingTop: theme.spacing.xl + 32`, `paddingBottom: theme.spacing.lg`, `paddingHorizontal: theme.spacing.md`
+- Bordas: `borderBottomLeftRadius` e `borderBottomRightRadius` = `theme.borderRadius.xl`
+- Sem divisórias: não usar Divider em headers
+- Sem título redundante: não exibir "Detalhes" se o nome da entidade está presente; o nome da entidade é o título principal
+- Ações no header: voltar à esquerda; editar e excluir à direita
+- Badges abaixo do nome; métricas sempre no corpo da tela
+
 ---
 
 ### 2. InfoRow

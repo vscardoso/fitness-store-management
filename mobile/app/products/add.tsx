@@ -22,7 +22,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { getStockEntries } from '@/services/stockEntryService';
 import { useCategories } from '@/hooks/useCategories';
 import { createProduct } from '@/services/productService';
 import { Colors, theme } from '@/constants/Colors';
@@ -53,6 +54,14 @@ export default function AddProductScreen() {
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [showErrorDialog, setShowErrorDialog] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [showLinkEntryDialog, setShowLinkEntryDialog] = useState(false);
+  const [createdProductId, setCreatedProductId] = useState<number | null>(null);
+
+  // Verificar se existem entradas cadastradas
+  const { data: existingEntries = [], isLoading: loadingEntries } = useQuery({
+    queryKey: ['stock-entries', 'exists-check'],
+    queryFn: () => getStockEntries({ limit: 5 }),
+  });
 
   // Debug: log quando categorias carregarem
   useEffect(() => {
@@ -67,9 +76,11 @@ export default function AddProductScreen() {
    */
   const createMutation = useMutation({
     mutationFn: createProduct,
-    onSuccess: async () => {
+    onSuccess: async (created) => {
       await queryClient.invalidateQueries({ queryKey: ['products'] });
       await queryClient.invalidateQueries({ queryKey: ['active-products'] });
+      setCreatedProductId(created?.id ?? null);
+      // Após criar produto, oferecer fluxo de vinculação de entrada
       setShowSuccessDialog(true);
     },
     onError: (error: any) => {
@@ -159,32 +170,39 @@ export default function AddProductScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
-      {/* Header com gradiente */}
-      <LinearGradient
-        colors={[Colors.light.primary, '#7c4dff']}
-        style={styles.headerGradient}
-      >
-        <View style={styles.headerTop}>
-          <TouchableOpacity
-            onPress={() => router.push('/(tabs)/products')}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>
-            Novo Produto
-          </Text>
+      {/* Header Premium */}
+      <View style={styles.headerContainer}>
+        <LinearGradient
+          colors={['#667eea', '#764ba2']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerContent}>
+          <View style={styles.headerTop}>
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/products')}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
 
-          <View style={styles.headerPlaceholder} />
+            <Text style={styles.headerTitle}>
+              Novo Produto
+            </Text>
+
+            <View style={styles.headerPlaceholder} />
+          </View>
+
+          <View style={styles.headerInfo}>
+            <Text style={styles.headerSubtitle}>
+              Preencha os dados abaixo para cadastrar um novo produto
+            </Text>
+          </View>
         </View>
-
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerSubtitle}>
-            Preencha os dados abaixo para cadastrar um novo produto
-          </Text>
-        </View>
-      </LinearGradient>
+        </LinearGradient>
+      </View>
 
       <KeyboardAvoidingView
         style={styles.content}
@@ -441,19 +459,30 @@ export default function AddProductScreen() {
       {/* Dialog de Sucesso */}
       <ConfirmDialog
         visible={showSuccessDialog}
-        title="Sucesso!"
-        message="Produto cadastrado com sucesso!"
-        confirmText="OK"
+        title="Produto criado"
+        message={
+          existingEntries.length > 0
+            ? 'Deseja vincular este produto a uma entrada agora?'
+            : 'Nenhuma entrada encontrada. Deseja cadastrar uma nova entrada agora?'
+        }
+        confirmText={existingEntries.length > 0 ? 'Cadastrar nova' : 'Cadastrar entrada'}
+        cancelText={existingEntries.length > 0 ? 'Selecionar existente' : ''}
+        type="success"
+        icon="checkmark-circle"
         onConfirm={() => {
           setShowSuccessDialog(false);
-          goBack();
+          // Navegar para cadastro de nova entrada
+          router.push('/entries/add');
         }}
         onCancel={() => {
           setShowSuccessDialog(false);
-          goBack();
+          if (existingEntries.length > 0) {
+            // Navegar para lista de entradas para selecionar
+            router.push('/entries');
+          } else {
+            goBack();
+          }
         }}
-        type="success"
-        icon="checkmark-circle"
       />
 
       {/* Dialog de Erro */}
@@ -474,19 +503,26 @@ export default function AddProductScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.primary, // IMPORTANTE: mesma cor do gradiente
+    backgroundColor: Colors.light.backgroundSecondary,
   },
-  // Header styles
+  headerContainer: {
+    marginBottom: 0,
+  },
   headerGradient: {
-    paddingTop: theme.spacing.xl + 28,
-    paddingBottom: theme.spacing.lg,
     paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.sm,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
+  },
+  headerContent: {
+    marginTop: 0,
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.xs,
   },
   backButton: {
     width: 40,
@@ -522,7 +558,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#fff',
   },
   scrollView: {
     flex: 1,

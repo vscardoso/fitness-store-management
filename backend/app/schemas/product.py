@@ -96,3 +96,42 @@ class ProductResponse(ProductBase):
     
     class Config:
         from_attributes = True
+
+
+class ProductStatusResponse(BaseModel):
+    """Resumo de status de estoque por produto."""
+    product_id: int
+    name: str
+    sku: str
+    current_stock: int = 0
+    in_stock: bool
+    depleted: bool
+    never_stocked: bool
+
+
+# ================================
+# Quantity Adjustment Schemas
+# ================================
+
+class ProductQuantityAdjustRequest(BaseModel):
+    """Payload para ajustar quantidade de estoque de um produto (FIFO)."""
+    new_quantity: int = Field(..., ge=0, description="Nova quantidade total desejada em estoque (soma FIFO)")
+    reason: Optional[str] = Field(
+        default="Ajuste manual de estoque",
+        description="Motivo do ajuste para auditoria"
+    )
+    unit_cost: Optional[Decimal] = Field(
+        default=None,
+        ge=0,
+        description="Custo unitário a usar quando houver aumento (obrigatório se aumentar)"
+    )
+
+
+class ProductQuantityAdjustResponse(BaseModel):
+    """Resposta do ajuste de quantidade de estoque."""
+    product_id: int
+    previous_quantity: int
+    new_quantity: int
+    delta: int
+    movement: str = Field(..., description="increase|decrease|none")
+    message: Optional[str] = None

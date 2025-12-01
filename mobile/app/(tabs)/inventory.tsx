@@ -27,6 +27,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/hooks/useAuth';
 import { getStockEntries, getSlowMovingProducts } from '@/services/stockEntryService';
 import { getLowStockProducts, getProducts } from '@/services/productService';
+import { getInventoryValuation } from '@/services/dashboardService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { EntryType } from '@/types';
@@ -44,36 +45,50 @@ interface StatCardProps {
   trend?: number; // % de mudança
   iconColor?: string;
   iconBg?: string;
+  onPress?: () => void;
 }
 
-function StatCard({ icon, label, value, trend, iconColor, iconBg }: StatCardProps) {
+function StatCard({ icon, label, value, trend, iconColor, iconBg, onPress }: StatCardProps) {
+  // Determinar cores do gradiente baseado no iconColor
+  const getGradientColors = (): [string, string] => {
+    if (iconColor === Colors.light.info) return ['#667eea', '#764ba2'];
+    if (iconColor === Colors.light.primary) return ['#4776e6', '#8e54e9'];
+    if (iconColor === Colors.light.success) return ['#11998e', '#38ef7d'];
+    if (iconColor === Colors.light.error) return ['#eb3349', '#f45c43'];
+    if (iconColor === Colors.light.warning) return ['#f093fb', '#f5576c'];
+    return ['#667eea', '#764ba2'];
+  };
+
   return (
-    <Card style={styles.statCard}>
-      <Card.Content style={styles.statCardContent}>
-        <View style={[styles.statIconContainer, { backgroundColor: iconBg || Colors.light.primaryLight }]}>
-          <Ionicons name={icon} size={24} color={iconColor || Colors.light.primary} />
-        </View>
-        <View style={styles.statTextContainer}>
-          <Text style={styles.statLabel}>{label}</Text>
-          <Text style={styles.statValue}>{value}</Text>
+    <TouchableOpacity
+      style={styles.statCard}
+      onPress={onPress}
+      activeOpacity={0.7}
+      disabled={!onPress}
+    >
+      <LinearGradient
+        colors={getGradientColors()}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.statGradient}
+      >
+        <View style={styles.statHeader}>
+          <Ionicons name={icon} size={28} color="#fff" />
           {trend !== undefined && (
             <View style={styles.trendContainer}>
+              <Text style={styles.trendText}>{trend >= 0 ? '+' : ''}{trend.toFixed(1)}%</Text>
               <Ionicons
-                name={trend >= 0 ? 'trending-up' : 'trending-down'}
-                size={14}
-                color={trend >= 0 ? Colors.light.success : Colors.light.error}
+                name={trend >= 0 ? 'arrow-up' : 'arrow-down'}
+                size={12}
+                color="#fff"
               />
-              <Text style={[
-                styles.trendText,
-                { color: trend >= 0 ? Colors.light.success : Colors.light.error }
-              ]}>
-                {Math.abs(trend)}%
-              </Text>
             </View>
           )}
         </View>
-      </Card.Content>
-    </Card>
+        <Text style={styles.statLabel}>{label}</Text>
+        <Text style={styles.statValue}>{value}</Text>
+      </LinearGradient>
+    </TouchableOpacity>
   );
 }
 
@@ -150,6 +165,12 @@ export default function InventoryDashboard() {
     queryFn: getLowStockProducts,
   });
 
+  // Valoração do estoque (fonte única da verdade)
+  const { data: valuation, refetch: refetchValuation } = useQuery({
+    queryKey: ['inventory-valuation'],
+    queryFn: getInventoryValuation,
+  });
+
   /**
    * Refresh handler
    */
@@ -160,6 +181,7 @@ export default function InventoryDashboard() {
       refetchProducts(),
       refetchSlow(),
       refetchLow(),
+      refetchValuation(),
     ]);
     setRefreshing(false);
   };
@@ -171,18 +193,14 @@ export default function InventoryDashboard() {
     // Filtrar apenas produtos ativos e não catálogo
     const activeProducts = products.filter(p => p.is_active && !p.is_catalog);
 
-    // Calcular total em estoque (quantidade válida >= 0) e valor baseado nos produtos
+    // Calcular total em estoque (quantidade válida >= 0)
     const totalQuantity = activeProducts.reduce((sum, product) => {
       const stock = product.current_stock ?? 0;
       return sum + (stock >= 0 ? stock : 0);
     }, 0);
 
-    const totalValue = activeProducts.reduce((sum, product) => {
-      const quantity = product.current_stock ?? 0;
-      const validQuantity = quantity >= 0 ? quantity : 0;
-      const costPrice = product.cost_price || product.price || 0;
-      return sum + (validQuantity * Number(costPrice));
-    }, 0);
+    // Usar valoração do endpoint (fonte única da verdade)
+    const totalValue = valuation?.cost_value || 0;
 
     // Total de produtos ativos não catálogo
     const totalItems = activeProducts.length;
@@ -278,53 +296,71 @@ export default function InventoryDashboard() {
         {/* KPIs Principais */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Indicadores Principais</Text>
-          <View style={styles.statsGrid}>
-            <StatCard
-              icon="cube-outline"
-              label="Produtos Ativos"
-              value={metrics.totalItems}
-              iconColor={Colors.light.info}
-              iconBg={Colors.light.infoLight}
-            />
-            <StatCard
-              icon="layers-outline"
-              label="Unidades em Estoque"
-              value={metrics.totalQuantity.toLocaleString('pt-BR')}
-              iconColor={Colors.light.primary}
-              iconBg={Colors.light.primaryLight}
-            />
+          <View style={styles.statsRow}>
+            <View style={styles.statCardWrapper}>
+              <StatCard
+                icon="cube-outline"
+                label="Produtos Ativos"
+                value={metrics.totalItems}
+                iconColor={Colors.light.info}
+                iconBg={Colors.light.infoLight}
+                onPress={() => router.push('/(tabs)/products')}
+              />
+            </View>
+            <View style={styles.statCardWrapper}>
+              <StatCard
+                icon="layers-outline"
+                label="Unidades em Estoque"
+                value={metrics.totalQuantity.toLocaleString('pt-BR')}
+                iconColor={Colors.light.primary}
+                iconBg={Colors.light.primaryLight}
+                onPress={() => router.push('/(tabs)/products')}
+              />
+            </View>
           </View>
-          <View style={styles.statsGrid}>
-            <StatCard
-              icon="wallet-outline"
-              label="Valor Investido"
-              value={formatCurrency(metrics.totalValue)}
-              iconColor={Colors.light.success}
-              iconBg={Colors.light.successLight}
-            />
-            <StatCard
-              icon="checkmark-circle-outline"
-              label="Com Estoque"
-              value={metrics.productsWithStock}
-              iconColor={Colors.light.success}
-              iconBg={Colors.light.successLight}
-            />
+          <View style={styles.statsRow}>
+            <View style={styles.statCardWrapper}>
+              <StatCard
+                icon="wallet-outline"
+                label="Valor Investido"
+                value={formatCurrency(metrics.totalValue)}
+                iconColor={Colors.light.success}
+                iconBg={Colors.light.successLight}
+                onPress={() => router.push('/(tabs)/products')}
+              />
+            </View>
+            <View style={styles.statCardWrapper}>
+              <StatCard
+                icon="checkmark-circle-outline"
+                label="Com Estoque"
+                value={metrics.productsWithStock}
+                iconColor={Colors.light.success}
+                iconBg={Colors.light.successLight}
+                onPress={() => router.push('/(tabs)/products')}
+              />
+            </View>
           </View>
-          <View style={styles.statsGrid}>
-            <StatCard
-              icon="alert-circle-outline"
-              label="Sem Estoque"
-              value={metrics.productsOutOfStock}
-              iconColor={Colors.light.error}
-              iconBg={Colors.light.errorLight}
-            />
-            <StatCard
-              icon="warning-outline"
-              label="Estoque Baixo (<3)"
-              value={metrics.lowStockCount}
-              iconColor={Colors.light.warning}
-              iconBg={Colors.light.warningLight}
-            />
+          <View style={styles.statsRow}>
+            <View style={styles.statCardWrapper}>
+              <StatCard
+                icon="alert-circle-outline"
+                label="Sem Estoque"
+                value={metrics.productsOutOfStock}
+                iconColor={Colors.light.error}
+                iconBg={Colors.light.errorLight}
+                onPress={() => router.push('/(tabs)/products')}
+              />
+            </View>
+            <View style={styles.statCardWrapper}>
+              <StatCard
+                icon="warning-outline"
+                label="Estoque Baixo (<3)"
+                value={metrics.lowStockCount}
+                iconColor={Colors.light.warning}
+                iconBg={Colors.light.warningLight}
+                onPress={() => router.push('/(tabs)/products')}
+              />
+            </View>
           </View>
         </View>
 
@@ -436,7 +472,10 @@ export default function InventoryDashboard() {
           {entries.slice(0, 5).map((entry) => (
             <TouchableOpacity
               key={entry.id}
-              onPress={() => router.push(`/entries/${entry.id}`)}
+              onPress={() => router.push({
+                pathname: `/entries/${entry.id}`,
+                params: { from: 'inventory' }
+              })}
             >
               <Card style={styles.entryCard}>
                 <Card.Content>
@@ -578,46 +617,61 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
     marginBottom: 12,
   },
+  statsRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
+  },
+  statCardWrapper: {
+    flex: 1,
+    minHeight: 140,
+  },
   statsGrid: {
     gap: 12,
   },
   statCard: {
-    backgroundColor: Colors.light.card,
-    borderRadius: theme.borderRadius.lg,
-  },
-  statCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  statIconContainer: {
-    width: 56,
-    height: 56,
-    borderRadius: theme.borderRadius.lg,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  statTextContainer: {
+    borderRadius: theme.borderRadius.xl,
+    elevation: theme.elevation.md,
     flex: 1,
   },
+  statGradient: {
+    padding: theme.spacing.md,
+    minHeight: 140,
+    flex: 1,
+    justifyContent: 'space-between',
+    borderRadius: theme.borderRadius.xl,
+  },
+  statHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: theme.spacing.sm,
+  },
   statLabel: {
-    fontSize: 13,
-    color: Colors.light.textSecondary,
-    marginBottom: 4,
+    color: '#fff',
+    fontSize: theme.fontSize.sm,
+    fontWeight: '500',
+    opacity: 0.9,
+    marginBottom: theme.spacing.xs,
   },
   statValue: {
-    fontSize: 22,
+    color: '#fff',
+    fontSize: theme.fontSize.xl,
     fontWeight: '700',
-    color: Colors.light.text,
+    marginBottom: 2,
   },
   trendContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 4,
-    gap: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.md,
+    gap: 2,
   },
   trendText: {
-    fontSize: 12,
+    color: '#fff',
+    fontSize: theme.fontSize.xs,
     fontWeight: '600',
   },
   alertCard: {

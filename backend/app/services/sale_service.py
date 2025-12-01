@@ -16,6 +16,7 @@ from app.repositories.product_repository import ProductRepository
 from app.repositories.sale_repository import SaleRepository
 from app.schemas.sale import SaleCreate
 from app.services.fifo_service import FIFOService
+from app.services.inventory_service import InventoryService
 
 
 class SaleService:
@@ -68,22 +69,21 @@ class SaleService:
             ValueError: Se validaes falharem (estoque, pagamento, etc)
         """
         try:
-            # 1. Validar estoque disponvel para TODOS os itens
-            print(f" Validando estoque para {len(sale_data.items)} itens...")
+            # 1. Validar estoque disponível via FIFO (entry_items) para TODOS os itens
+            print(f"✓ Validando estoque para {len(sale_data.items)} itens...")
             for item in sale_data.items:
-                inventory = await self.inventory_repo.get_by_product(item.product_id, tenant_id=tenant_id)
+                # Verificar disponibilidade via FIFOService (usa entry_items)
+                availability = await self.fifo_service.check_availability(
+                    product_id=item.product_id,
+                    quantity=item.quantity
+                )
                 
-                if not inventory:
-                    raise ValueError(
-                        f"Produto ID {item.product_id} no possui registro de estoque"
-                    )
-                
-                if inventory.quantity < item.quantity:
+                if not availability["available"]:
                     product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
                     product_name = product.name if product else f"ID {item.product_id}"
                     raise ValueError(
                         f"Estoque insuficiente para {product_name}. "
-                        f"Disponvel: {inventory.quantity}, Solicitado: {item.quantity}"
+                        f"Disponível: {availability['total_available']}, Solicitado: {item.quantity}"
                     )
             
             # 2. Calcular valores
@@ -131,6 +131,7 @@ class SaleService:
                 'loyalty_points_used': float(getattr(sale_data, 'loyalty_points_used', 0) or 0),
                 'loyalty_points_earned': 0,  # Calculado depois
                 'notes': sale_data.notes,
+                'tenant_id': tenant_id,  # Multi-tenancy
                 'is_active': True
             }
             
@@ -160,15 +161,25 @@ class SaleService:
                         f"Erro ao processar FIFO para produto {item_data.product_id}: {str(fifo_error)}"
                     )
                 
+                # Calcular custo unitário médio ponderado a partir das fontes FIFO
+                # unit_cost = SUM(quantity_taken * unit_cost) / total_quantity
+                total_cost = sum(
+                    Decimal(str(source['quantity_taken'])) * Decimal(str(source['unit_cost']))
+                    for source in fifo_sources
+                )
+                unit_cost = total_cost / item_data.quantity if item_data.quantity > 0 else Decimal('0')
+                
                 # Criar SaleItem com rastreabilidade FIFO
                 sale_item = SaleItem(
                     sale_id=sale.id,
                     product_id=item_data.product_id,
                     quantity=item_data.quantity,
                     unit_price=float(item_data.unit_price),
+                    unit_cost=float(unit_cost),  # ✅ Custo unitário médio ponderado
                     subtotal=float(item_subtotal),
                     discount_amount=float(item_data.discount_amount),
                     sale_sources={"sources": fifo_sources},  #  Salvar fontes FIFO
+                    tenant_id=tenant_id,
                     is_active=True
                 )
                 self.db.add(sale_item)
@@ -185,6 +196,7 @@ class SaleService:
                     payment_reference=payment_data.payment_reference,
                     status='confirmed',  # PaymentCreate no tem status, sempre confirmar
                     notes=None,  # PaymentCreate no tem notes
+                    tenant_id=tenant_id,
                     is_active=True
                 )
                 self.db.add(payment)
@@ -225,7 +237,34 @@ class SaleService:
             sale.loyalty_points_earned = float(loyalty_points_earned)
             
             await self.db.commit()
-            await self.db.refresh(sale)
+
+            # Recarregar venda com relacionamentos usando selectinload
+            # Isso garante que os relacionamentos sejam carregados eagerly
+            from sqlalchemy import select
+            from sqlalchemy.orm import selectinload
+            
+            result = await self.db.execute(
+                select(Sale)
+                .options(
+                    selectinload(Sale.items).selectinload(SaleItem.product),
+                    selectinload(Sale.payments),
+                    selectinload(Sale.customer),
+                    selectinload(Sale.seller)
+                )
+                .where(Sale.id == sale.id)
+            )
+            sale = result.scalar_one()
+
+            # Rebuild incremental de inventário para produtos afetados (verdade = FIFO)
+            inv_sync = InventoryService(self.db)
+            affected_products = {item.product_id for item in sale.items}
+            for pid in affected_products:
+                try:
+                    delta = await inv_sync.rebuild_product_from_fifo(pid, tenant_id=tenant_id)
+                    print(f"  [Inventory Sync] Produto {pid}: fifo={delta['fifo_sum']} inv={delta['inventory_quantity']} created={delta['created']} updated={delta['updated']}")
+                except Exception as sync_err:
+                    # Não bloquear venda por falha de sync – logar e continuar
+                    print(f"  [Inventory Sync] Falha ao sincronizar produto {pid}: {sync_err}")
             
             print(f" Venda {sale_number} criada com sucesso!")
             return sale

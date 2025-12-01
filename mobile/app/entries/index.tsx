@@ -11,7 +11,7 @@
  * - FAB para nova entrada
  */
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -24,13 +24,19 @@ import { Text, Card, Searchbar, Menu, Button, Chip } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/hooks/useAuth';
 import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';
-import { useStockEntries } from '@/hooks/useStockEntries';
+import { getStockEntries, getStockEntriesStats } from '@/services/stockEntryService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { StockEntry, EntryType } from '@/types';
+
+const PAGE_SIZE = 20;
+
+type FilterType = 'all' | 'active' | 'history';
 
 export default function StockEntriesScreen() {
   const router = useRouter();
@@ -38,24 +44,102 @@ export default function StockEntriesScreen() {
   const [typeFilter, setTypeFilter] = useState<EntryType | undefined>();
   const [searchQuery, setSearchQuery] = useState('');
   const [menuVisible, setMenuVisible] = useState(false);
+  const [filter, setFilter] = useState<FilterType>('active');
 
   /**
-   * Query para buscar entradas
+   * Query para buscar estatísticas gerais (total investido, etc.)
+   */
+  const { data: apiStats } = useQuery({
+    queryKey: ['stock-entries-stats'],
+    queryFn: getStockEntriesStats,
+  });
+
+  /**
+   * Infinite Query para scroll infinito de entradas
    */
   const {
-    data: entries,
+    data,
     isLoading,
     isError,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
     refetch,
     isRefetching,
-  } = useStockEntries({ entry_type: typeFilter, limit: 100 });
+  } = useInfiniteQuery({
+    queryKey: ['stock-entries', typeFilter],
+    queryFn: async ({ pageParam = 0 }) => {
+      const entries = await getStockEntries({
+        limit: PAGE_SIZE,
+        skip: pageParam * PAGE_SIZE,
+        entry_type: typeFilter,
+      });
+      return entries;
+    },
+    getNextPageParam: (lastPage, allPages) => {
+      if (!lastPage || lastPage.length < PAGE_SIZE) {
+        return undefined;
+      }
+      return allPages.length;
+    },
+    initialPageParam: 0,
+  });
+
+  /**
+   * Flatten de todas as páginas em um único array
+   */
+  const entries = useMemo(() => {
+    return data?.pages?.flat() ?? [];
+  }, [data]);
+
+  /**
+   * Persistir filtro no AsyncStorage
+   */
+  useEffect(() => {
+    AsyncStorage.setItem('entries_filter', filter);
+  }, [filter]);
+
+  useEffect(() => {
+    AsyncStorage.getItem('entries_filter').then(saved => {
+      if (saved) setFilter(saved as FilterType);
+    });
+  }, []);
+
+  /**
+   * Calcular contadores para cada filtro
+   */
+  const activeCount = useMemo(() => {
+    return entries?.filter(e => e.sell_through_rate < 100).length || 0;
+  }, [entries]);
+
+  const historyCount = useMemo(() => {
+    return entries?.filter(e => e.sell_through_rate >= 100).length || 0;
+  }, [entries]);
+
+  const totalCount = entries?.length || 0;
+
+  /**
+   * Filtrar entradas por status (ativas/histórico/todas)
+   */
+  const filteredByStatus = useMemo(() => {
+    if (!entries) return [];
+
+    switch (filter) {
+      case 'active':
+        return entries.filter(e => e.sell_through_rate < 100);
+      case 'history':
+        return entries.filter(e => e.sell_through_rate >= 100);
+      default:
+        return entries;
+    }
+  }, [entries, filter]);
 
   /**
    * Filtrar entradas por busca
    */
-  const filteredEntries = entries?.filter(entry => {
+  const filteredEntries = filteredByStatus?.filter(entry => {
     if (!searchQuery.trim()) return true;
-    
+
     const query = searchQuery.toLowerCase();
     return (
       entry.entry_code.toLowerCase().includes(query) ||
@@ -84,7 +168,7 @@ export default function StockEntriesScreen() {
       [EntryType.LOCAL]: { 
         label: 'Local', 
         color: Colors.light.success, 
-        icon: 'business-outline',
+        icon: 'store-outline',
         bgColor: Colors.light.success + '20',
       },
       [EntryType.INITIAL_INVENTORY]: {
@@ -172,6 +256,22 @@ export default function StockEntriesScreen() {
               </View>
             )}
 
+            {/* Badge "COM VENDAS" */}
+            {item.has_sales && (
+              <View style={styles.salesBadge}>
+                <Ionicons name="lock-closed" size={12} color="#F57C00" />
+                <Text style={styles.salesBadgeText}>COM VENDAS</Text>
+              </View>
+            )}
+
+            {/* Badge "HISTÓRICO" */}
+            {item.sell_through_rate >= 100 && (
+              <View style={styles.historyBadge}>
+                <Ionicons name="archive" size={12} color="#757575" />
+                <Text style={styles.historyBadgeText}>HISTÓRICO</Text>
+              </View>
+            )}
+
             {/* Divider */}
             <View style={styles.divider} />
 
@@ -229,10 +329,11 @@ export default function StockEntriesScreen() {
   };
 
   /**
-   * Calcular estatísticas gerais
+   * Calcular estatísticas gerais - usa dados da API para total investido correto
    */
   const calculateStats = () => {
-    if (!entries || entries.length === 0) {
+    // Se não há stats da API, retorna valores zerados
+    if (!apiStats) {
       return {
         totalEntries: 0,
         totalInvested: 0,
@@ -241,15 +342,16 @@ export default function StockEntriesScreen() {
       };
     }
 
-    const totalInvested = entries.reduce((sum, entry) => sum + entry.total_cost, 0);
-    const totalItems = entries.reduce((sum, entry) => sum + entry.total_quantity, 0);
-    const avgSellThrough = entries.reduce((sum, entry) => sum + entry.sell_through_rate, 0) / entries.length;
+    // Calcular média de sell-through apenas das entradas carregadas
+    const avgSellThrough = entries.length > 0
+      ? entries.reduce((sum, entry) => sum + (entry.sell_through_rate || 0), 0) / entries.length
+      : 0;
 
     return {
-      totalEntries: entries.length,
-      totalInvested,
-      totalItems,
-      avgSellThrough,
+      totalEntries: apiStats.total_entries, // Total real de TODAS as entradas
+      totalInvested: apiStats.total_invested, // Soma total de TODAS as entradas
+      totalItems: apiStats.total_items, // Total de produtos únicos
+      avgSellThrough, // Média das entradas carregadas
     };
   };
 
@@ -375,8 +477,53 @@ export default function StockEntriesScreen() {
         </LinearGradient>
       </View>
 
-        {/* Estatísticas gerais */}
-        {stats.totalEntries > 0 && (
+      {/* Filtros de Status (Ativas/Histórico/Todas) */}
+      <View style={styles.filterContainer}>
+        <TouchableOpacity
+          style={[styles.filterChip, filter === 'active' && styles.filterChipActive]}
+          onPress={() => setFilter('active')}
+        >
+          <Ionicons
+            name="cube"
+            size={16}
+            color={filter === 'active' ? Colors.light.primary : Colors.light.textSecondary}
+          />
+          <Text style={[styles.filterChipText, filter === 'active' && styles.filterChipTextActive]}>
+            Ativas ({activeCount})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.filterChip, filter === 'history' && styles.filterChipActive]}
+          onPress={() => setFilter('history')}
+        >
+          <Ionicons
+            name="archive"
+            size={16}
+            color={filter === 'history' ? Colors.light.primary : Colors.light.textSecondary}
+          />
+          <Text style={[styles.filterChipText, filter === 'history' && styles.filterChipTextActive]}>
+            Histórico ({historyCount})
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.filterChip, filter === 'all' && styles.filterChipActive]}
+          onPress={() => setFilter('all')}
+        >
+          <Ionicons
+            name="list"
+            size={16}
+            color={filter === 'all' ? Colors.light.primary : Colors.light.textSecondary}
+          />
+          <Text style={[styles.filterChipText, filter === 'all' && styles.filterChipTextActive]}>
+            Todas ({totalCount})
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Estatísticas gerais */}
+      {stats.totalEntries > 0 && (
           <View style={styles.statsContainer}>
             <View style={styles.statCard}>
               <Text style={styles.statLabel}>Total Investido</Text>
@@ -469,14 +616,48 @@ export default function StockEntriesScreen() {
               colors={[Colors.light.primary]}
             />
           }
+          onEndReached={() => {
+            if (hasNextPage && !isFetchingNextPage) {
+              fetchNextPage();
+            }
+          }}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <View style={styles.footerLoader}>
+                <ActivityIndicator size="small" color={Colors.light.primary} />
+                <Text style={styles.footerText}>Carregando mais entradas...</Text>
+              </View>
+            ) : null
+          }
           ListEmptyComponent={
-            <EmptyState
-              icon="receipt-outline"
-              title="Nenhuma entrada encontrada"
-              description={searchQuery ? 'Tente ajustar os filtros de busca' : 'Comece adicionando uma nova entrada'}
-              actionLabel="Nova Entrada"
-              onAction={() => router.push({ pathname: '/entries/add', params: { from: '/(tabs)/entries' } })}
-            />
+            searchQuery ? (
+              <EmptyState
+                icon="search-outline"
+                title="Nenhuma entrada encontrada"
+                description="Tente ajustar os filtros de busca"
+              />
+            ) : filter === 'history' ? (
+              <EmptyState
+                icon="archive-outline"
+                title="Nenhuma entrada no histórico"
+                description="Entradas aparecem aqui quando 100% do estoque for vendido"
+              />
+            ) : filter === 'active' ? (
+              <EmptyState
+                icon="cube-outline"
+                title="Nenhuma entrada ativa"
+                description="Todas as entradas foram totalmente vendidas"
+              />
+            ) : (
+              <EmptyState
+                icon="receipt-outline"
+                title="Nenhuma entrada cadastrada"
+                description="Comece adicionando uma nova entrada"
+                actionLabel="Nova Entrada"
+                onAction={() => router.push({ pathname: '/entries/add', params: { from: '/(tabs)/entries' } })}
+              />
+            )
           }
         />
 
@@ -664,6 +845,70 @@ const styles = StyleSheet.create({
     color: Colors.light.primary,
     fontWeight: '500',
   },
+  salesBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FFF3E0',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  salesBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#F57C00',
+    textTransform: 'uppercase',
+  },
+  historyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F5F5F5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 4,
+    alignSelf: 'flex-start',
+  },
+  historyBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#757575',
+    textTransform: 'uppercase',
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: Colors.light.background,
+  },
+  filterChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  filterChipActive: {
+    backgroundColor: Colors.light.primary + '15',
+    borderColor: Colors.light.primary,
+  },
+  filterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+  },
+  filterChipTextActive: {
+    color: Colors.light.primary,
+  },
   divider: {
     height: 1,
     backgroundColor: Colors.light.border,
@@ -709,5 +954,16 @@ const styles = StyleSheet.create({
   kpiValue: {
     fontSize: 14,
     fontWeight: '700',
+  },
+  footerLoader: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+    gap: 12,
+  },
+  footerText: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
   },
 });

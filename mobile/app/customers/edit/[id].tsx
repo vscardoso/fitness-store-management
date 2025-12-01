@@ -17,9 +17,8 @@ import {
   Text,
   Card,
 } from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import DetailHeader from '@/components/layout/DetailHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
@@ -227,38 +226,19 @@ export default function EditCustomerScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
-
-      {/* Header com gradiente */}
-      <LinearGradient
-        colors={[Colors.light.primary, '#7c4dff']}
-        style={styles.headerGradient}
-      >
-        <View style={styles.headerContent}>
-          <View style={styles.headerTop}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-
-            <Text style={styles.headerTitle}>
-              Editar Cliente
-            </Text>
-
-            <View style={styles.headerActions} />
-          </View>
-
-          {customer && (
-            <View style={styles.headerInfo}>
-              <Text style={styles.headerEntityName}>{customer.full_name}</Text>
-              <Text style={styles.headerSubtitle}>Edite as informações abaixo</Text>
-            </View>
-          )}
-        </View>
-      </LinearGradient>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#667eea" />
+      {customer && (
+        <DetailHeader
+          title="Editar Cliente"
+          entityName={customer.full_name}
+          backRoute="/(tabs)/customers"
+          editRoute=""
+          onDelete={() => {}}
+          badges={[]}
+          metrics={[]}
+        />
+      )}
 
       <KeyboardAvoidingView
         style={styles.content}
@@ -495,14 +475,14 @@ export default function EditCustomerScreen() {
         type="danger"
         icon="alert-circle"
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   centerContainer: {
     flex: 1,

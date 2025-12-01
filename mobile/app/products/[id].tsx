@@ -3,7 +3,6 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  Alert,
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
@@ -14,19 +13,20 @@ import {
   Card,
   Button,
   TextInput,
+  HelperText,
 } from 'react-native-paper';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import DetailHeader from '@/components/layout/DetailHeader';
 import InfoRow from '@/components/ui/InfoRow';
 import StatCard from '@/components/ui/StatCard';
 import CustomModal from '@/components/ui/CustomModal';
 import ModalActions from '@/components/ui/ModalActions';
-import { getProductById, deleteProduct } from '@/services/productService';
-import { addStock, removeStock, getProductStock } from '@/services/inventoryService';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { getProductById, deleteProduct, adjustProductQuantity } from '@/services/productService';
+import { getProductStock } from '@/services/inventoryService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { MovementType } from '@/types';
@@ -53,6 +53,42 @@ export default function ProductDetailsScreen() {
   const [movementType, setMovementType] = useState<MovementType>(MovementType.IN);
   const [quantity, setQuantity] = useState('');
   const [notes, setNotes] = useState('');
+  const [increaseUnitCost, setIncreaseUnitCost] = useState('');
+  const [quantityError, setQuantityError] = useState('');
+  const [costError, setCostError] = useState('');
+
+  const toBRNumber = (n: number) => {
+    try {
+      return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+    } catch (e) {
+      return n.toFixed(2).replace('.', ',');
+    }
+  };
+
+  const maskCurrencyBR = (text: string) => {
+    const digits = (text || '').replace(/\D/g, '');
+    if (!digits) return '';
+    const number = parseInt(digits, 10);
+    const value = (number / 100);
+    return toBRNumber(value);
+  };
+
+  // Estado para controlar diálogos de confirmação
+  const [dialog, setDialog] = useState<{
+    visible: boolean;
+    type: 'danger' | 'warning' | 'info' | 'success';
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm: () => void;
+  }>({
+    visible: false,
+    type: 'info',
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
 
   /**
    * Query: Buscar produto
@@ -98,54 +134,62 @@ export default function ProductDetailsScreen() {
       if (isNaN(qty) || qty <= 0) {
         throw new Error('Quantidade inválida');
       }
-      
-      const movement = {
-        product_id: productId,
-        movement_type: movementType,
-        quantity: qty,
-        notes: notes.trim() || undefined,
+
+      // Buscar estoque atual (mais fresco possível)
+      let current = inventory?.quantity || 0;
+      try {
+        const fresh = await getProductStock(productId);
+        current = fresh.quantity || current;
+      } catch {}
+
+      const newQty = movementType === MovementType.IN ? current + qty : current - qty;
+      if (newQty < 0) {
+        throw new Error('Estoque insuficiente para esta saída');
+      }
+
+      const payload: any = {
+        new_quantity: newQty,
+        reason: notes.trim() || (movementType === MovementType.IN ? 'Entrada manual' : 'Saída manual'),
       };
 
-      // Validar estoque antes de remover
-      if (movementType === MovementType.OUT) {
-        // Refetch direto do servidor para evitar estado stale
-        try {
-          const fresh = await getProductStock(productId);
-          const serverStock = fresh.quantity;
-          if (qty > serverStock) {
-            throw new Error(
-              `Estoque insuficiente. Disponível (servidor): ${serverStock}, Solicitado: ${qty}`
-            );
-          }
-        } catch (e) {
-          // Se falhar, usar cache como fallback
-          const currentStock = inventory?.quantity || 0;
-          if (qty > currentStock) {
-            throw new Error(
-              `Estoque insuficiente (fallback). Disponível: ${currentStock}, Solicitado: ${qty}`
-            );
-          }
-        }
-      }
-
-      if (movementType === MovementType.IN) {
-        return addStock(movement);
-      } else {
-        return removeStock(movement);
-      }
+      // Usa o endpoint que respeita FIFO e atualiza EntryItems
+      return adjustProductQuantity(productId, payload);
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['product', productId] });
-      queryClient.invalidateQueries({ queryKey: ['inventory', productId] });
-      queryClient.invalidateQueries({ queryKey: ['products'] });
+    onSuccess: async () => {
+      // Invalidar e refetch imediato para garantir dados frescos
+      await queryClient.invalidateQueries({ queryKey: ['product', productId] });
+      await queryClient.invalidateQueries({ queryKey: ['inventory', productId] });
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      
+      // Refetch explícito para forçar atualização
+      await refetchProduct();
+      await refetchInventory();
+      
       setStockModalVisible(false);
       setQuantity('');
       setNotes('');
-      Alert.alert('Sucesso!', 'Estoque atualizado');
+        setIncreaseUnitCost('');
+      setDialog({
+        visible: true,
+        type: 'success',
+        title: 'Sucesso!',
+        message: 'Estoque atualizado com sucesso',
+        confirmText: 'OK',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
     },
     onError: (error: any) => {
       const errorMessage = error?.response?.data?.detail || error.message || 'Erro ao atualizar estoque';
-      Alert.alert('Erro', errorMessage);
+      setDialog({
+        visible: true,
+        type: 'danger',
+        title: 'Erro',
+        message: errorMessage,
+        confirmText: 'OK',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
     },
   });
 
@@ -156,15 +200,29 @@ export default function ProductDetailsScreen() {
     mutationFn: () => deleteProduct(productId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      Alert.alert('Sucesso!', 'Produto deletado', [
-        {
-          text: 'OK',
-          onPress: () => goBack(),
+      setDialog({
+        visible: true,
+        type: 'success',
+        title: 'Sucesso!',
+        message: 'Produto deletado com sucesso',
+        confirmText: 'OK',
+        cancelText: '',
+        onConfirm: () => {
+          setDialog({ ...dialog, visible: false });
+          goBack();
         },
-      ]);
+      });
     },
     onError: (error: any) => {
-      Alert.alert('Erro', error.message || 'Erro ao deletar produto');
+      setDialog({
+        visible: true,
+        type: 'danger',
+        title: 'Erro',
+        message: error.message || 'Erro ao deletar produto',
+        confirmText: 'OK',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
     },
   });
 
@@ -172,18 +230,18 @@ export default function ProductDetailsScreen() {
    * Confirmar deleção
    */
   const handleDelete = () => {
-    Alert.alert(
-      'Confirmar exclusão',
-      `Tem certeza que deseja deletar "${product?.name}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Deletar',
-          style: 'destructive',
-          onPress: () => deleteMutation.mutate(),
-        },
-      ]
-    );
+    setDialog({
+      visible: true,
+      type: 'danger',
+      title: 'Confirmar exclusão',
+      message: `Tem certeza que deseja deletar "${product?.name}"?`,
+      confirmText: 'Deletar',
+      cancelText: 'Cancelar',
+      onConfirm: () => {
+        setDialog({ ...dialog, visible: false });
+        deleteMutation.mutate();
+      },
+    });
   };
 
   /**
@@ -193,6 +251,7 @@ export default function ProductDetailsScreen() {
     setMovementType(type);
     setQuantity('');
     setNotes('');
+    setQuantityError('');
     setStockModalVisible(true);
   };
 
@@ -203,6 +262,7 @@ export default function ProductDetailsScreen() {
     setStockModalVisible(false);
     setQuantity('');
     setNotes('');
+    setQuantityError('');
   };
 
   /**
@@ -210,11 +270,37 @@ export default function ProductDetailsScreen() {
    */
   const handleSaveStock = () => {
     if (!quantity || parseInt(quantity) <= 0) {
-      Alert.alert('Atenção', 'Informe uma quantidade válida');
+      setQuantityError('Informe uma quantidade válida (> 0)');
       return;
     }
 
-    stockMutation.mutate();
+    // Confirmação explicando o impacto
+    const qty = parseInt(quantity);
+    const curr = inventory?.quantity || 0;
+    const target = movementType === MovementType.IN ? curr + qty : curr - qty;
+    const impact = movementType === MovementType.IN ? 'AUMENTAR' : 'REDUZIR';
+
+
+    // Fechar o modal antes de abrir a confirmação (evita sobreposição/z-index)
+    setStockModalVisible(false);
+
+    const extra = '';
+
+    // Pequeno delay garante que o modal fechou antes de abrir o diálogo
+    setTimeout(() => {
+      setDialog({
+        visible: true,
+        type: 'warning',
+        title: 'Confirmar ajuste de estoque',
+        message: `Isso irá ${impact} o estoque de ${curr} para ${target}.\nEste ajuste atualiza a base FIFO e afeta os valores do dashboard.${extra}`,
+        confirmText: 'Sim, aplicar',
+        cancelText: 'Cancelar',
+        onConfirm: () => {
+          setDialog({ ...dialog, visible: false });
+          stockMutation.mutate();
+        },
+      });
+    }, 100);
   };
 
   // Verificar ID inválido
@@ -267,78 +353,17 @@ export default function ProductDetailsScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
-
-      {/* Header com gradiente */}
-      <LinearGradient
-        colors={[Colors.light.primary, '#7c4dff']}
-        style={styles.headerGradient}
-      >
-        <View style={styles.headerContent}>
-          <View style={styles.headerTop}>
-            <TouchableOpacity
-              onPress={goBack}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-
-            <Text style={styles.headerTitle}>Detalhes do Produto</Text>
-
-            <View style={styles.headerActions}>
-              <TouchableOpacity
-                onPress={() => router.push(`/products/edit/${productId}`)}
-                style={styles.actionButton}
-              >
-                <Ionicons name="pencil" size={20} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={handleDelete} style={styles.actionButton}>
-                <Ionicons name="trash" size={20} color="#fff" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerEntityName}>{product.name}</Text>
-
-            {/* Badges de status */}
-            {badges.length > 0 && (
-              <View style={styles.badges}>
-                {badges.map((badge, index) => (
-                  <View key={index} style={[styles.badge,
-                    badge.type === 'success' ? styles.badgeSuccess :
-                    badge.type === 'warning' ? styles.badgeWarning :
-                    badge.type === 'error' ? styles.badgeError : styles.badgeInfo
-                  ]}>
-                    <Ionicons
-                      name={badge.icon}
-                      size={14}
-                      color="#fff"
-                      style={styles.badgeIcon}
-                    />
-                    <Text style={styles.badgeText}>{badge.label}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-
-            {/* Métricas principais */}
-            <View style={styles.metrics}>
-              <View style={styles.metricCard}>
-                <Ionicons name="cube-outline" size={20} color="#fff" style={styles.metricIcon} />
-                <Text style={styles.metricLabel}>Estoque</Text>
-                <Text style={styles.metricValue}>{currentStock} un</Text>
-              </View>
-              <View style={styles.metricCard}>
-                <Ionicons name="cash-outline" size={20} color="#fff" style={styles.metricIcon} />
-                <Text style={styles.metricLabel}>Preço</Text>
-                <Text style={styles.metricValue}>{formatCurrency(product.price)}</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-      </LinearGradient>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#667eea" />
+      <DetailHeader
+        title="Detalhes do Produto"
+        entityName={product.name}
+        backRoute="/(tabs)/products"
+        editRoute={`/products/edit/${productId}`}
+        onDelete={handleDelete}
+        badges={badges}
+        metrics={[]}
+      />
 
       <ScrollView 
         style={styles.scrollContent}
@@ -488,6 +513,7 @@ export default function ProductDetailsScreen() {
           </View>
         </Card.Content>
       </Card>
+      </ScrollView>
 
       {/* Modal de movimentação de estoque */}
       <CustomModal
@@ -499,13 +525,20 @@ export default function ProductDetailsScreen() {
         <TextInput
           label="Quantidade *"
           value={quantity}
-          onChangeText={setQuantity}
+          onChangeText={(t) => { setQuantity(t); if (quantityError) setQuantityError(''); }}
           keyboardType="numeric"
           mode="outlined"
           style={styles.input}
           placeholder="Digite a quantidade"
           autoFocus
+          error={!!quantityError}
         />
+        {quantityError ? (
+          <HelperText type="error" visible={true}>
+            {quantityError}
+          </HelperText>
+        ) : null}
+
 
         <TextInput
           label="Observações (opcional)"
@@ -531,126 +564,26 @@ export default function ProductDetailsScreen() {
           }
         />
       </CustomModal>
-      </ScrollView>
-    </SafeAreaView>
+
+      {/* Confirm Dialog */}
+      <ConfirmDialog
+        visible={dialog.visible}
+        type={dialog.type}
+        title={dialog.title}
+        message={dialog.message}
+        confirmText={dialog.confirmText}
+        cancelText={dialog.cancelText}
+        onConfirm={dialog.onConfirm}
+        onCancel={() => setDialog({ ...dialog, visible: false })}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.primary,
-  },
-  // Header com gradiente
-  headerGradient: {
-    paddingTop: 0, // SafeArea já cuidou do espaço
-    paddingBottom: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.md,
-  },
-  headerContent: {
-    marginTop: 24, // Espaço após SafeArea
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.md,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: theme.fontSize.xl,
-    fontWeight: theme.fontWeight.bold,
-    color: '#fff',
-    marginHorizontal: theme.spacing.sm,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  actionButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    borderRadius: 20,
-  },
-  headerInfo: {
-    alignItems: 'center',
-  },
-  headerEntityName: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: theme.fontWeight.semibold,
-    color: '#fff',
-    marginBottom: theme.spacing.sm,
-    textAlign: 'center',
-  },
-  badges: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
-    justifyContent: 'center',
-  },
-  badge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  badgeSuccess: {
-    backgroundColor: 'rgba(76, 175, 80, 0.9)',
-  },
-  badgeWarning: {
-    backgroundColor: 'rgba(255, 152, 0, 0.9)',
-  },
-  badgeError: {
-    backgroundColor: 'rgba(244, 67, 54, 0.9)',
-  },
-  badgeInfo: {
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-  },
-  badgeIcon: {
-    marginRight: 4,
-  },
-  badgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  metrics: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  metricCard: {
-    flex: 1,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 12,
-    padding: 14,
-    alignItems: 'center',
-  },
-  metricIcon: {
-    marginBottom: 6,
-  },
-  metricLabel: {
-    color: 'rgba(255, 255, 255, 0.85)',
-    fontSize: 12,
-    marginBottom: 4,
-  },
-  metricValue: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: 'bold',
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   centerContainer: {
     flex: 1,

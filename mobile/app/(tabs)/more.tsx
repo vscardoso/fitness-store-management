@@ -197,7 +197,7 @@ export default function MoreScreen() {
             iconBg={Colors.light.successLight}
           />
           <MenuItem
-            icon="trending-up-outline"
+            icon="trending-up"
             title="Produtos Mais Vendidos"
             subtitle="Análise de performance"
             onPress={() => Alert.alert('Em desenvolvimento', 'Relatórios serão implementados em breve!')}

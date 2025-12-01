@@ -6,7 +6,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
 from app.core.database import get_db
-from app.schemas.product import ProductResponse, ProductCreate, ProductUpdate, ActivateProductRequest
+from app.schemas.product import (
+    ProductResponse,
+    ProductCreate,
+    ProductUpdate,
+    ActivateProductRequest,
+    ProductStatusResponse,
+    ProductQuantityAdjustRequest,
+    ProductQuantityAdjustResponse,
+)
 from app.services.product_service import ProductService
 from app.repositories.product_repository import ProductRepository
 from app.repositories.inventory_repository import InventoryRepository
@@ -255,6 +263,35 @@ async def list_catalog_products(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao listar catálogo: {str(e)}"
+        )
+
+
+@router.get(
+    "/status",
+    response_model=List[ProductStatusResponse],
+    summary="Status de estoque por produto",
+    description="Classifica produtos em in_stock, depleted, never_stocked"
+)
+async def get_products_status(
+    include_catalog: bool = Query(False, description="Incluir produtos do catálogo"),
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Retorna o status de estoque para os produtos do tenant atual.
+
+    - in_stock: estoque atual > 0
+    - depleted: já teve entradas mas estoque atual == 0
+    - never_stocked: nunca teve entradas
+    """
+    try:
+        service = ProductService(db)
+        return await service.get_products_status(tenant_id=tenant_id, include_catalog=include_catalog)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao obter status dos produtos: {str(e)}"
         )
 
 
@@ -784,3 +821,43 @@ async def activate_catalog_product(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao ativar produto: {str(e)}"
         )
+
+
+# ============================================================================
+# AJUSTE DE QUANTIDADE (FIFO)
+# ============================================================================
+
+@router.post(
+    "/{product_id}/adjust-quantity",
+    response_model=ProductQuantityAdjustResponse,
+    summary="Ajustar quantidade do produto (FIFO)",
+    description=(
+        "Ajusta a quantidade total do produto respeitando FIFO: "
+        "para aumento, cria uma entrada ADJUSTMENT; para redução, consome dos EntryItems existentes."
+    ),
+)
+async def adjust_product_quantity(
+    product_id: int,
+    payload: ProductQuantityAdjustRequest,
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER]))
+):
+    """Endpoint para ajuste de quantidade com confirmação do app.
+
+    Importante: Mantém rastreabilidade FIFO e reflete no inventário derivado.
+    """
+    svc = ProductService(db)
+    try:
+        result = await svc.adjust_product_quantity(
+            product_id,
+            new_quantity=payload.new_quantity,
+            reason=payload.reason,
+            unit_cost=float(payload.unit_cost) if payload.unit_cost is not None else None,
+            tenant_id=tenant_id,
+        )
+        return result  # pydantic fará o cast para o schema de resposta
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro ao ajustar quantidade: {str(e)}")

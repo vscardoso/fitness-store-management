@@ -32,11 +32,36 @@ export const formatDate = (date: string | Date): string => {
 };
 
 /**
- * Formata data e hora
+ * Formata data e hora (ajusta para timezone local do Brasil)
  */
 export const formatDateTime = (date: string | Date): string => {
-  const d = typeof date === 'string' ? new Date(date) : date;
-  return d.toLocaleString('pt-BR');
+  let d: Date;
+  
+  if (typeof date === 'string') {
+    // Se a string não tem timezone (ISO sem Z), o JS interpreta como UTC
+    // Precisamos adicionar o offset local
+    d = new Date(date);
+    
+    // Se a string termina com Z (UTC), converter para local
+    if (date.endsWith('Z') || date.includes('+')) {
+      // Já está em UTC, JS converte automaticamente
+      d = new Date(date);
+    } else {
+      // String sem timezone, assumir que é UTC e converter
+      // Backend salva em UTC, então precisamos subtrair 3h para BRT
+      d = new Date(date + 'Z'); // Força interpretação como UTC
+    }
+  } else {
+    d = date;
+  }
+  
+  return d.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };
 
 /**

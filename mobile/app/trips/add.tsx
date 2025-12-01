@@ -21,15 +21,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
-import { createTrip } from '@/services/tripService';
+import { createTrip, checkTripCode } from '@/services/tripService';
 import { TripCreate } from '@/types';
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency, parseCurrency } from '@/utils/format';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { useEffect, useRef } from 'react';
 
 export default function AddTripScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ from?: string }>();
+  const params = useLocalSearchParams<{
+    from?: string;
+    preselectedProductId?: string;
+    preselectedQuantity?: string;
+    preselectedPrice?: string;
+  }>();
   const queryClient = useQueryClient();
 
   const [tripCode, setTripCode] = useState('');
@@ -55,6 +61,8 @@ export default function AddTripScreen() {
   const [createdTripCode, setCreatedTripCode] = useState('');
   const [showValidationDialog, setShowValidationDialog] = useState(false);
   const [validationMessage, setValidationMessage] = useState('');
+  const [codeValidationStatus, setCodeValidationStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
+  const codeCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const createMutation = useMutation({
     mutationFn: createTrip,
@@ -68,7 +76,13 @@ export default function AddTripScreen() {
           pathname: '/entries/add',
           params: {
             newTripId: data.id,
-            newTripCode: data.trip_code || tripCode
+            newTripCode: data.trip_code || tripCode,
+            // Preservar produto pré-selecionado (se houver)
+            ...(params.preselectedProductId && {
+              preselectedProductId: params.preselectedProductId,
+              preselectedQuantity: params.preselectedQuantity,
+              preselectedPrice: params.preselectedPrice
+            })
           }
         });
       } else {
@@ -81,6 +95,50 @@ export default function AddTripScreen() {
       setShowErrorDialog(true);
     },
   });
+
+  /**
+   * Validar código de viagem em tempo real (com debounce)
+   */
+  useEffect(() => {
+    // Limpar timeout anterior
+    if (codeCheckTimeoutRef.current) {
+      clearTimeout(codeCheckTimeoutRef.current);
+    }
+
+    // Resetar se campo estiver vazio
+    if (!tripCode.trim()) {
+      setCodeValidationStatus('idle');
+      return;
+    }
+
+    // Validar tamanho mínimo
+    if (tripCode.trim().length < 5) {
+      setCodeValidationStatus('idle');
+      return;
+    }
+
+    // Iniciar validação após 500ms de inatividade
+    setCodeValidationStatus('checking');
+    codeCheckTimeoutRef.current = setTimeout(async () => {
+      try {
+        console.log('🔍 Verificando código:', tripCode.trim());
+        const result = await checkTripCode(tripCode.trim());
+        console.log('✅ Resultado da validação:', result);
+        setCodeValidationStatus(result.exists ? 'invalid' : 'valid');
+      } catch (error) {
+        // Em caso de erro, assumir que está válido para não bloquear o usuário
+        console.error('❌ Erro ao validar código:', error);
+        setCodeValidationStatus('valid');
+      }
+    }, 500);
+
+    // Cleanup
+    return () => {
+      if (codeCheckTimeoutRef.current) {
+        clearTimeout(codeCheckTimeoutRef.current);
+      }
+    };
+  }, [tripCode]);
 
   /**
    * Formatar entrada de preço com centavos (formato brasileiro)
@@ -190,6 +248,8 @@ export default function AddTripScreen() {
    * Validar formulário
    */
   const validateForm = (): boolean => {
+    console.log('🔍 Validando formulário. Status do código:', codeValidationStatus);
+
     if (!tripCode.trim()) {
       setValidationMessage('Informe o código da viagem');
       setShowValidationDialog(true);
@@ -198,6 +258,20 @@ export default function AddTripScreen() {
 
     if (tripCode.trim().length < 5) {
       setValidationMessage('O código da viagem deve ter no mínimo 5 caracteres');
+      setShowValidationDialog(true);
+      return false;
+    }
+
+    // Verificar se código está sendo validado
+    if (codeValidationStatus === 'checking') {
+      setValidationMessage('Aguarde a verificação do código...');
+      setShowValidationDialog(true);
+      return false;
+    }
+
+    // Verificar se código é inválido
+    if (codeValidationStatus === 'invalid') {
+      setValidationMessage('O código informado já existe. Por favor, escolha outro código.');
       setShowValidationDialog(true);
       return false;
     }
@@ -301,33 +375,37 @@ export default function AddTripScreen() {
                    parseCurrency(costOther);
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
 
-      {/* Header com gradiente */}
-      <LinearGradient
-        colors={[Colors.light.primary, '#7c4dff']}
-        style={styles.headerGradient}
-      >
-        <View style={styles.headerTop}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
+      {/* Header Premium */}
+      <View style={styles.headerContainer}>
+        <LinearGradient
+          colors={['#667eea', '#764ba2']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerTop}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>Nova Viagem</Text>
+            <Text style={styles.headerTitle}>Nova Viagem</Text>
 
-          <View style={styles.headerPlaceholder} />
-        </View>
+            <View style={styles.headerPlaceholder} />
+          </View>
 
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerSubtitle}>
-            Preencha os dados abaixo para cadastrar uma nova viagem
-          </Text>
-        </View>
-      </LinearGradient>
+          <View style={styles.headerInfo}>
+            <Text style={styles.headerSubtitle}>
+              Preencha os dados abaixo para cadastrar uma nova viagem
+            </Text>
+          </View>
+        </LinearGradient>
+      </View>
 
       <KeyboardAvoidingView
         style={styles.content}
@@ -352,7 +430,27 @@ export default function AddTripScreen() {
               placeholder="Ex: VIAGEM-001 (mín. 5 caracteres)"
               maxLength={50}
               autoCapitalize="characters"
+              error={codeValidationStatus === 'invalid'}
+              right={
+                codeValidationStatus === 'checking' ? (
+                  <TextInput.Icon icon="clock-outline" />
+                ) : codeValidationStatus === 'valid' ? (
+                  <TextInput.Icon icon="check-circle" color="#4CAF50" />
+                ) : codeValidationStatus === 'invalid' ? (
+                  <TextInput.Icon icon="close-circle" color="#f44336" />
+                ) : null
+              }
             />
+            {codeValidationStatus === 'invalid' && (
+              <HelperText type="error" visible={true}>
+                Código já existe. Por favor, escolha outro código.
+              </HelperText>
+            )}
+            {codeValidationStatus === 'valid' && (
+              <HelperText type="info" visible={true} style={{ color: '#4CAF50' }}>
+                Código disponível ✓
+              </HelperText>
+            )}
 
             <TextInput
               label="Data da Viagem *"
@@ -606,7 +704,7 @@ export default function AddTripScreen() {
               onPress={handleSubmit}
               style={[styles.button, styles.buttonPrimary]}
               loading={createMutation.isPending}
-              disabled={createMutation.isPending}
+              disabled={createMutation.isPending || codeValidationStatus === 'invalid' || codeValidationStatus === 'checking'}
             >
               Salvar Viagem
             </Button>
@@ -617,23 +715,38 @@ export default function AddTripScreen() {
       {/* Dialog de Sucesso (só aparece quando NÃO vem de entries) */}
       <ConfirmDialog
         visible={showSuccessDialog}
-        title="Viagem Criada com Sucesso!"
-        message={`A viagem ${createdTripCode} foi cadastrada e já está disponível para seleção.`}
+        title="Viagem Criada! ✓"
+        message={`A viagem ${createdTripCode} foi registrada com sucesso.`}
         details={[
-          'Viagem adicionada à lista',
-          'Agora você pode vincular entradas de estoque',
-          'Dados da viagem salvos com sucesso'
+          `Código: ${createdTripCode}`,
+          `Destino: ${destination}`,
+          `Custo Total: ${formatCurrency(totalCost)}`,
+          'Agora você pode vincular entradas de estoque a esta viagem'
         ]}
         type="success"
-        confirmText="Ver Minhas Viagens"
-        cancelText=""
+        confirmText="Ver Viagens"
+        cancelText="Nova Viagem"
         onConfirm={() => {
           setShowSuccessDialog(false);
-          router.back();
+          router.push('/(tabs)/entries');
         }}
         onCancel={() => {
+          // Reset para nova viagem rápida
           setShowSuccessDialog(false);
-          router.back();
+          setTripCode('');
+          setTripDate(new Date());
+          setTripDateInput('');
+          setDestination('');
+          setDepartureTime('');
+          setReturnTime('');
+          setReturnDate(new Date());
+          setReturnDateInput('');
+          setCostFuel('0,00');
+          setCostFood('0,00');
+          setCostToll('0,00');
+          setCostHotel('0,00');
+          setCostOther('0,00');
+          setNotes('');
         }}
         icon="checkmark-circle"
       />
@@ -643,11 +756,10 @@ export default function AddTripScreen() {
         visible={showErrorDialog}
         title="Erro ao Criar Viagem"
         message={errorMessage}
-        type="danger"
-        confirmText="Tentar Novamente"
-        cancelText=""
+        confirmText="OK"
         onConfirm={() => setShowErrorDialog(false)}
         onCancel={() => setShowErrorDialog(false)}
+        type="danger"
         icon="alert-circle"
       />
 
@@ -656,27 +768,31 @@ export default function AddTripScreen() {
         visible={showValidationDialog}
         title="Atenção"
         message={validationMessage}
-        type="warning"
-        confirmText="Entendi"
-        cancelText=""
+        confirmText="OK"
         onConfirm={() => setShowValidationDialog(false)}
         onCancel={() => setShowValidationDialog(false)}
+        type="warning"
         icon="alert-circle"
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: Colors.light.backgroundSecondary,
+  },
+  headerContainer: {
+    marginBottom: 0,
   },
   // Header styles
   headerGradient: {
-    paddingTop: 0,
+    paddingTop: theme.spacing.xl + 32,
     paddingBottom: theme.spacing.lg,
     paddingHorizontal: theme.spacing.md,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
   },
   headerTop: {
     flexDirection: 'row',

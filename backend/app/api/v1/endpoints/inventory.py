@@ -22,7 +22,10 @@ from app.core.database import get_db
 from app.schemas.inventory import (
     StockMovementCreate,
     StockMovementResponse,
-    InventoryResponse
+    InventoryResponse,
+    InventoryRebuildResult,
+    InventoryRebuildDelta,
+    CostReconciliationResponse,
 )
 from app.services.inventory_service import InventoryService
 from app.repositories.inventory_repository import InventoryRepository
@@ -485,3 +488,62 @@ async def get_product_movements(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao buscar histórico de movimentações: {str(e)}"
         )
+
+
+# ============================================================================
+# ENDPOINTS DE REBUILD E RECONCILIAÇÃO (FIFO = VERDADE)
+# ============================================================================
+
+
+@router.post(
+    "/rebuild",
+    response_model=InventoryRebuildResult,
+    summary="Rebuild do inventário a partir do FIFO",
+    description="Recalcula o inventário derivado da soma de entry_items (FIFO). Pode ser global por tenant ou específico por produto."
+)
+async def rebuild_inventory_from_fifo(
+    product_id: int | None = Query(None, description="Opcional: produto específico"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Executa rebuild do inventário usando o FIFO como fonte de verdade.
+
+    - Se `product_id` informado: apenas aquele produto.
+    - Caso contrário: todos os produtos do tenant.
+    """
+    svc = InventoryService(db)
+    try:
+        if product_id is not None:
+            delta = await svc.rebuild_product_from_fifo(product_id, tenant_id=tenant_id)
+            return {"updated": int(delta.get("created") or delta.get("updated")), "deltas": [delta]}
+        deltas = await svc.rebuild_all_from_fifo(tenant_id=tenant_id)
+        updated = sum(1 for d in deltas if d.get("created") or d.get("updated"))
+        return {"updated": updated, "deltas": deltas}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro no rebuild: {str(e)}")
+
+
+@router.get(
+    "/reconciliation",
+    response_model=CostReconciliationResponse,
+    summary="Reconciliação de custo FIFO",
+    description="Compara custo vendido via entry_items (recebido - restante) versus soma de sale_sources."
+)
+async def get_cost_reconciliation(
+    product_id: int | None = Query(None, description="Opcional: produto específico"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Retorna resumo de reconciliação de custo para auditoria FIFO."""
+    svc = InventoryService(db)
+    try:
+        result = await svc.reconcile_costs(tenant_id=tenant_id, product_id=product_id)
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erro na reconciliação: {str(e)}")

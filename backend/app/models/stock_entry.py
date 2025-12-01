@@ -53,7 +53,7 @@ class StockEntry(BaseModel):
     )
     
     entry_type: Mapped[EntryType] = mapped_column(
-        SQLEnum(EntryType, native_enum=False, length=20),
+        SQLEnum(EntryType, native_enum=False, length=20, create_constraint=False, values_callable=lambda x: [e.value for e in x]),
         nullable=False,
         comment="Tipo de entrada (trip/online/local)"
     )
@@ -128,15 +128,16 @@ class StockEntry(BaseModel):
     def calculate_total_cost(self) -> Decimal:
         """
         Calcula o custo total da entrada baseado nos itens.
-        
+
         Returns:
-            Decimal: Soma do custo de todos os itens (quantity * unit_cost)
+            Decimal: Soma do custo de todos os itens (quantity_received * unit_cost)
         """
         if not self.entry_items:
             return Decimal("0.00")
-        
+
+        # Usar a property total_cost de cada item que já faz o cálculo correto
         total = sum(
-            item.quantity * item.unit_cost
+            item.total_cost
             for item in self.entry_items
             if item.is_active
         )
@@ -233,7 +234,22 @@ class StockEntry(BaseModel):
     def is_local_purchase(self) -> bool:
         """Verifica se a entrada é de compra local."""
         return self.entry_type == EntryType.LOCAL
-    
+
+    @property
+    def has_sales(self) -> bool:
+        """
+        Verifica se algum item desta entrada teve vendas (FIFO tracking).
+
+        Uma entrada tem vendas se qualquer um de seus itens teve quantity_sold > 0.
+        Entradas com vendas não devem ser excluídas pois são histórico importante.
+
+        Returns:
+            bool: True se algum item foi vendido, False caso contrário
+        """
+        if not self.entry_items:
+            return False
+        return any(item.quantity_sold > 0 for item in self.entry_items if item.is_active)
+
     def get_trip_details(self) -> Optional[dict]:
         """
         Retorna detalhes da viagem associada, se houver.

@@ -37,7 +37,7 @@ export default function ProductSelectionModal({
     isError,
   } = useQuery({
     queryKey: ['products'],
-    queryFn: () => getProducts(),
+    queryFn: () => getProducts({ limit: 1000 }), // Buscar até 1000 produtos
     enabled: visible, // Only fetch when modal is visible
   });
 

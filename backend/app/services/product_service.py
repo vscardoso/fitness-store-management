@@ -2,13 +2,18 @@
 Serviço de gerenciamento de produtos.
 """
 from typing import List, Optional
+import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.product import Product
 from app.repositories.inventory_repository import InventoryRepository
 from app.repositories.product_repository import ProductRepository
-from app.schemas.product import ProductCreate, ProductUpdate
+from app.repositories.entry_item_repository import EntryItemRepository
+from app.schemas.product import ProductCreate, ProductUpdate, ProductStatusResponse
+
+# Logger global do módulo
+logger = logging.getLogger(__name__)
 
 
 class ProductService:
@@ -24,6 +29,7 @@ class ProductService:
         self.db = db
         self.product_repo = ProductRepository(db)
         self.inventory_repo = InventoryRepository(db)
+        self.entry_item_repo = EntryItemRepository()
     
     async def create_product(
         self,
@@ -99,7 +105,8 @@ class ProductService:
                     notes=f"Entrada automática criada na adição do produto {product.name}",
                 )
 
-                entry = await entry_repo.create(entry_data.model_dump(), tenant_id=tenant_id)
+                # Criar entrada com assinatura correta (db, data, tenant_id)
+                entry = await entry_repo.create(self.db, entry_data.model_dump(), tenant_id=tenant_id)
                 logger.info(f"✅ Entrada inicial criada - ID: {entry.id}, Code: {entry.entry_code}")
 
                 # Criar item da entrada
@@ -109,12 +116,10 @@ class ProductService:
                     unit_cost=product.cost_price or Decimal("0.00"),
                     notes="Item de estoque inicial",
                 )
-
-                item = await item_repo.create(
-                    entry_id=entry.id,
-                    item_data=item_data,
-                    tenant_id=tenant_id,
-                )
+                # Incluir entry_id nos dados do item e usar assinatura correta (db, data)
+                item_dict = item_data.model_dump()
+                item_dict["entry_id"] = entry.id
+                item = await item_repo.create(self.db, item_dict)
                 logger.info(f"✅ Item de entrada criado - ID: {item.id}, Qty: {initial_stock}")
 
                 # Atualizar total_cost da entrada
@@ -176,9 +181,195 @@ class ProductService:
             if existing_barcode:
                 raise ValueError(f"Código de barras {product_data.barcode} já existe")
         
+        # Se cost_price foi atualizado, propagar para EntryItems com estoque
+        cost_price_changed = False
+        if product_data.cost_price is not None and product_data.cost_price != product.cost_price:
+            cost_price_changed = True
+            new_cost = product_data.cost_price
+            old_cost = product.cost_price
+        
         update_dict = product_data.model_dump(exclude_unset=True)
         updated_product = await self.product_repo.update(self.db, id=product_id, obj_in=update_dict, tenant_id=tenant_id)
+        
+        # Sincronizar unit_cost dos EntryItems com estoque se cost_price mudou
+        if cost_price_changed:
+            from sqlalchemy import update as sql_update
+            from app.models.entry_item import EntryItem
+            
+            logger.info(f"Sincronizando unit_cost dos EntryItems do produto {product_id}: {old_cost} → {new_cost}")
+            
+            stmt = (
+                sql_update(EntryItem)
+                .where(
+                    EntryItem.product_id == product_id,
+                    EntryItem.quantity_remaining > 0,
+                    EntryItem.is_active == True,
+                    EntryItem.tenant_id == tenant_id
+                )
+                .values(unit_cost=new_cost)
+            )
+            
+            result = await self.db.execute(stmt)
+            updated_count = result.rowcount
+            await self.db.commit()
+            
+            if updated_count > 0:
+                logger.info(f"✅ {updated_count} EntryItem(s) atualizados com novo custo: {new_cost}")
+        
         return updated_product
+
+    async def adjust_product_quantity(
+        self,
+        product_id: int,
+        *,
+        new_quantity: int,
+        reason: str | None = None,
+        unit_cost: float | None = None,
+        tenant_id: int,
+    ) -> dict:
+        """Ajusta a quantidade total do produto com rastreabilidade FIFO.
+
+        Regras:
+        - Se aumentar (delta > 0): cria uma StockEntry do tipo ADJUSTMENT com um EntryItem
+          contendo quantity_received=delta e unit_cost informado (ou cost_price do produto).
+        - Se diminuir (delta < 0): reduz quantity_remaining dos EntryItems disponíveis seguindo FIFO.
+        - Ao final, reconcilia Inventory a partir do FIFO (rebuild_product_from_fifo).
+
+        Retorna metadados do ajuste (anterior, novo, delta).
+        """
+        from decimal import Decimal
+        from datetime import date, datetime
+        from sqlalchemy import select, and_
+        from app.models.entry_item import EntryItem
+        from app.models.stock_entry import StockEntry, EntryType
+        from app.repositories.stock_entry_repository import StockEntryRepository
+        from app.repositories.entry_item_repository import EntryItemRepository
+        from app.services.inventory_service import InventoryService
+
+        # Validar produto e tenant
+        product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
+        if not product:
+            raise ValueError("Produto não encontrado")
+
+        if new_quantity < 0:
+            raise ValueError("Nova quantidade não pode ser negativa")
+
+        # Quantidade atual baseada no FIFO (EntryItems)
+        stmt_sum = (
+            select((EntryItem.quantity_remaining))
+            .where(
+                and_(
+                    EntryItem.product_id == product_id,
+                    EntryItem.is_active == True,
+                    EntryItem.tenant_id == tenant_id,
+                )
+            )
+        )
+        rows = (await self.db.execute(stmt_sum)).scalars().all()
+        current_qty = int(sum(int(r or 0) for r in rows))
+
+        if new_quantity == current_qty:
+            return {
+                "product_id": product_id,
+                "previous_quantity": current_qty,
+                "new_quantity": new_quantity,
+                "delta": 0,
+                "movement": "none",
+                "message": "Quantidade já está no valor desejado",
+            }
+
+        delta = new_quantity - current_qty
+        movement = "increase" if delta > 0 else "decrease"
+
+        try:
+            if delta > 0:
+                # AUMENTAR: criar StockEntry ADJUSTMENT + EntryItem
+                if unit_cost is None:
+                    # fallback para cost_price do produto
+                    if product.cost_price is None:
+                        raise ValueError("unit_cost é obrigatório ao aumentar estoque (sem cost_price definido)")
+                    unit_cost = float(product.cost_price)  # type: ignore
+
+                entry_repo = StockEntryRepository()
+                item_repo = EntryItemRepository()
+
+                code_ts = datetime.now().strftime("%Y%m%d%H%M%S")
+                entry_payload = {
+                    "entry_code": f"ADJ-{product.sku}-{code_ts}",
+                    "entry_date": date.today(),
+                    "entry_type": EntryType.ADJUSTMENT,
+                    "supplier_name": "Ajuste de Inventário",
+                    "notes": (reason or "Ajuste manual de estoque"),
+                    "total_cost": Decimal("0.00"),
+                }
+                entry = await entry_repo.create(self.db, entry_payload, tenant_id=tenant_id)
+
+                item_payload = {
+                    "entry_id": entry.id,
+                    "product_id": product_id,
+                    "quantity_received": int(delta),
+                    "quantity_remaining": int(delta),
+                    "unit_cost": Decimal(str(unit_cost)),
+                    "tenant_id": tenant_id,
+                    "notes": (reason or "Ajuste manual de estoque"),
+                }
+                await item_repo.create(self.db, item_payload)
+
+                # Atualizar total da entrada (custo item)
+                entry.total_cost = Decimal(str(unit_cost)) * Decimal(str(int(delta)))
+                await self.db.commit()
+
+            else:
+                # DIMINUIR: consumir FIFO dos EntryItems disponíveis
+                take = abs(int(delta))
+                # Buscar itens disponíveis FIFO (mais antigos primeiro)
+                from sqlalchemy import join
+                from app.models.stock_entry import StockEntry as SE
+
+                q = (
+                    select(EntryItem)
+                    .join(SE, EntryItem.entry_id == SE.id)
+                    .where(
+                        and_(
+                            EntryItem.product_id == product_id,
+                            EntryItem.quantity_remaining > 0,
+                            EntryItem.is_active == True,
+                            EntryItem.tenant_id == tenant_id,
+                            SE.is_active == True,
+                        )
+                    )
+                    .order_by(SE.entry_date.asc(), EntryItem.created_at.asc())
+                )
+                items = (await self.db.execute(q)).scalars().all()
+
+                remaining = take
+                for it in items:
+                    if remaining <= 0:
+                        break
+                    can_take = min(it.quantity_remaining, remaining)
+                    it.quantity_remaining -= int(can_take)
+                    remaining -= int(can_take)
+
+                if remaining > 0:
+                    # Não deveria acontecer, pois new_quantity < current_qty
+                    raise ValueError("Estoque insuficiente para ajuste de redução")
+
+                await self.db.commit()
+
+            # Reconciliar Inventory com FIFO
+            inv_sync = InventoryService(self.db)
+            await inv_sync.rebuild_product_from_fifo(product_id, tenant_id=tenant_id)
+
+            return {
+                "product_id": product_id,
+                "previous_quantity": current_qty,
+                "new_quantity": new_quantity,
+                "delta": int(delta),
+                "movement": movement,
+            }
+        except Exception as e:
+            await self.db.rollback()
+            raise
     
     async def delete_product(self, product_id: int, *, tenant_id: int) -> bool:
         """
@@ -647,6 +838,11 @@ class ProductService:
             )
             self.db.add(entry_item)
 
+            # Atualizar total_cost da entrada com o custo deste item
+            # Evita inconsistência onde a entrada mostra valor menor que a soma dos itens
+            item_total_cost = (Decimal(str(quantity)) * (entry_item.unit_cost or Decimal("0")))
+            stock_entry.total_cost = (stock_entry.total_cost or Decimal("0.00")) + item_total_cost
+
             # Atualizar inventário
             from app.models.inventory import Inventory
             from sqlalchemy import select
@@ -673,5 +869,54 @@ class ProductService:
 
             await self.db.commit()
             await self.db.refresh(new_product)
+            await self.db.refresh(stock_entry)
 
         return new_product
+
+    async def get_products_status(
+        self,
+        *,
+        tenant_id: int,
+        include_catalog: bool = False,
+    ) -> List[ProductStatusResponse]:
+        """Retorna status de estoque para produtos do tenant.
+
+        Flags:
+        - in_stock: possui estoque atual (>0)
+        - depleted: já teve entrada mas estoque atual == 0
+        - never_stocked: nunca teve entrada (sem EntryItems)
+        """
+        # Seleciona produtos do tenant
+        from sqlalchemy import select, and_
+
+        stmt = select(Product).where(
+            and_(
+                Product.tenant_id == tenant_id,
+                Product.is_active == True,
+            )
+        )
+        if not include_catalog:
+            stmt = stmt.where(Product.is_catalog == False)
+
+        result = await self.db.execute(stmt)
+        products = list(result.scalars().all())
+
+        statuses: List[ProductStatusResponse] = []
+        for p in products:
+            inv = await self.inventory_repo.get_by_product(p.id, tenant_id=tenant_id)
+            stock = int(inv.quantity) if inv else 0
+            entries_count = await self.entry_item_repo.count_by_product(self.db, p.id, tenant_id=tenant_id)
+            has_entries = entries_count > 0
+            statuses.append(
+                ProductStatusResponse(
+                    product_id=p.id,
+                    name=p.name,
+                    sku=p.sku,
+                    current_stock=stock,
+                    in_stock=stock > 0,
+                    depleted=(has_entries and stock == 0),
+                    never_stocked=(not has_entries),
+                )
+            )
+
+        return statuses

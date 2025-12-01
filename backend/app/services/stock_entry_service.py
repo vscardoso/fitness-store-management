@@ -15,6 +15,7 @@ from app.repositories.product_repository import ProductRepository
 from app.repositories.inventory_repository import InventoryRepository
 from app.schemas.stock_entry import StockEntryCreate, StockEntryUpdate
 from app.schemas.entry_item import EntryItemCreate
+from app.services.inventory_service import InventoryService
 
 
 class StockEntryService:
@@ -64,7 +65,21 @@ class StockEntryService:
                 # Usar timestamp se falhar após 1000 tentativas
                 timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
                 return f"{base_code}-{timestamp}"
-    
+
+    async def check_code_exists(self, entry_code: str, tenant_id: int) -> bool:
+        """
+        Verifica se um código de entrada já existe para o tenant.
+
+        Args:
+            entry_code: Código da entrada a verificar
+            tenant_id: ID do tenant
+
+        Returns:
+            bool: True se código já existe, False caso contrário
+        """
+        existing = await self.entry_repo.get_by_code(self.db, entry_code, tenant_id=tenant_id)
+        return existing is not None
+
     async def create_entry(
         self, 
         entry_data: StockEntryCreate,
@@ -159,6 +174,16 @@ class StockEntryService:
             
             # Recarregar com itens
             entry = await self.entry_repo.get_by_id(self.db, entry.id, include_items=True, tenant_id=tenant_id)
+
+            # Rebuild incremental para cada produto inserido (garante inventário derivado do FIFO)
+            inv_sync = InventoryService(self.db)
+            product_ids = {it.product_id for it in created_items}
+            for pid in product_ids:
+                try:
+                    delta = await inv_sync.rebuild_product_from_fifo(pid, tenant_id=tenant_id)
+                    print(f"  [Inventory Sync ENTRY] Produto {pid}: fifo={delta['fifo_sum']} inv={delta['inventory_quantity']} created={delta['created']} updated={delta['updated']}")
+                except Exception as sync_err:
+                    print(f"  [Inventory Sync ENTRY] Falha sync produto {pid}: {sync_err}")
             
             return entry
             
@@ -455,6 +480,7 @@ class StockEntryService:
         ATENÇÃO:
         - Remove as quantidades do inventário
         - Exclui produtos órfãos (produtos que só existem nesta entrada)
+        - NÃO permite exclusão de entradas que já tiveram vendas (rastreabilidade)
 
         Args:
             entry_id: ID da entrada
@@ -462,6 +488,9 @@ class StockEntryService:
 
         Returns:
             dict: Informações sobre a exclusão (produtos excluídos, estoque removido)
+
+        Raises:
+            ValueError: Se a entrada não existe ou já teve vendas
         """
         from sqlalchemy import select, func
         from app.models.entry_item import EntryItem
@@ -470,6 +499,25 @@ class StockEntryService:
         entry = await self.entry_repo.get_by_id(self.db, entry_id, include_items=True, tenant_id=tenant_id)
         if not entry:
             raise ValueError(f"Entry {entry_id} não encontrada")
+
+        # VALIDAÇÃO CRÍTICA: Verificar se algum item teve vendas
+        # Se quantity_sold > 0, a entrada é parte do histórico de vendas e não pode ser excluída
+        items_with_sales = [
+            item for item in entry.entry_items
+            if item.is_active and item.quantity_sold > 0
+        ]
+
+        if items_with_sales:
+            # Calcular total vendido para mensagem informativa
+            total_sold = sum(item.quantity_sold for item in items_with_sales)
+            products_sold = len(items_with_sales)
+
+            raise ValueError(
+                f"Não é possível excluir entrada com produtos já vendidos. "
+                f"Esta entrada faz parte do histórico de vendas "
+                f"({products_sold} produto(s) com {total_sold} unidade(s) vendida(s)). "
+                f"A rastreabilidade e auditoria exigem que entradas com vendas sejam mantidas no sistema."
+            )
 
         try:
             orphan_products = []
@@ -649,7 +697,7 @@ class StockEntryService:
         
         for entry in entries:
             # Buscar itens da entrada
-            items = await self.item_repo.get_by_entry(self.db, entry.id, tenant_id=tenant_id)
+            items = await self.item_repo.get_by_entry(self.db, entry.id, tenant_id)
             
             if not items:
                 continue
@@ -658,18 +706,24 @@ class StockEntryService:
             total_remaining = sum(item.quantity_remaining for item in items)
             total_sold = total_received - total_remaining
             
-            depletion_rate = (total_sold / total_received * 100) if total_received > 0 else 0
+            sell_through_rate = (total_sold / total_received * 100) if total_received > 0 else 0
+            
+            # Calcular ROI simplificado (sell_through como proxy de performance)
+            # ROI real requer dados de venda que não temos aqui
+            roi = sell_through_rate - 100  # Se vendeu 100%, ROI = 0; se vendeu 150%, ROI = 50
             
             performance_list.append({
                 "entry_id": entry.id,
                 "entry_code": entry.entry_code,
-                "entry_date": entry.entry_date,
+                "entry_date": entry.entry_date.isoformat() if entry.entry_date else None,
+                "entry_type": entry.entry_type.value if entry.entry_type else None,
                 "supplier_name": entry.supplier_name,
                 "total_cost": float(entry.total_cost),
                 "total_items": len(items),
-                "average_depletion_rate": round(depletion_rate, 2),
+                "sell_through_rate": round(sell_through_rate, 2),
                 "total_quantity_sold": total_sold,
-                "performance_score": round(depletion_rate, 2)
+                "roi": round(roi, 2),
+                "performance_score": round(sell_through_rate, 2)
             })
         
         # Ordenar por performance_score (depletion_rate)

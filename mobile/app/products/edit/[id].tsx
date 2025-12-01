@@ -17,15 +17,15 @@ import {
   Text,
   ActivityIndicator,
 } from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import DetailHeader from '@/components/layout/DetailHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import useBackToList from '@/hooks/useBackToList';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCategories } from '@/hooks/useCategories';
-import { getProductById, updateProduct } from '@/services/productService';
+import { getProductById, updateProduct, adjustProductQuantity } from '@/services/productService';
+import { getProductStock } from '@/services/inventoryService';
 import { Colors, theme } from '@/constants/Colors';
 import type { ProductUpdate } from '@/types';
 
@@ -53,6 +53,13 @@ export default function EditProductScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [menuVisible, setMenuVisible] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [showCostChangeDialog, setShowCostChangeDialog] = useState(false);
+  const [pendingProductData, setPendingProductData] = useState<ProductUpdate | null>(null);
+  const [originalCostPrice, setOriginalCostPrice] = useState<number | null>(null);
+  // Estoque
+  const [currentStock, setCurrentStock] = useState<number>(0);
+  const [newStock, setNewStock] = useState<string>('');
+  const [increaseUnitCost, setIncreaseUnitCost] = useState<string>('');
 
   /**
    * Query: Buscar produto
@@ -74,30 +81,96 @@ export default function EditProductScreen() {
       setDescription(product.description || '');
       setBrand(product.brand || '');
       setCategoryId(product.category_id);
-      setCostPrice(product.cost_price?.toString() || '');
-      setSalePrice(product.price?.toString() || '');
+      
+      const safeToFixed = (value: any): string => {
+        if (value == null) return '';
+        const num = typeof value === 'number' ? value : parseFloat(String(value).replace(',', '.'));
+        if (isNaN(num)) return '';
+        return num.toFixed(2);
+      };
+
+      // Formatar custo e preço de venda com segurança (aceita number ou string vinda da API)
+      setCostPrice(safeToFixed(product.cost_price));
+      setSalePrice(safeToFixed(product.price));
+      
+      // Armazenar custo original (converter para number se vier string)
+      const originalCost = product.cost_price != null ? Number(product.cost_price) : null;
+      setOriginalCostPrice(isNaN(originalCost as number) ? null : originalCost);
+      
+      console.log('📦 Produto carregado - Custo original:', product.cost_price);
+      // Buscar estoque atual
+      (async () => {
+        try {
+          const inv = await getProductStock(productId);
+          setCurrentStock(inv.quantity || 0);
+          setNewStock(String(inv.quantity || 0));
+        } catch (e) {
+          // fallback silencioso
+        }
+      })();
     }
   }, [product]);
 
   /**
-   * Mutation para atualizar produto
+   * Formatador seguro para valores monetários (retorna string "xx,xx" ou "—")
+   */
+  const formatMoney = (value: any): string => {
+    if (value == null) return '—';
+    const num = typeof value === 'number' ? value : parseFloat(String(value).replace(',', '.'));
+    if (isNaN(num)) return '—';
+    return num.toFixed(2).replace('.', ',');
+  };
+
+  /**
+   * Mutation para atualizar produto (inclui ajuste de estoque automático se quantidade mudou)
    */
   const updateMutation = useMutation({
     mutationFn: (data: ProductUpdate) => updateProduct(productId, data),
     onSuccess: async () => {
-      // Invalidar queries para forçar refetch
-      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      console.log('✅ updateProduct sucesso: iniciando fluxo pós-salvar');
+
+      // Verificar necessidade de ajuste de estoque
+      const target = parseInt(newStock || '0', 10);
+      const hasValidTarget = !isNaN(target);
+      const needsAdjust = hasValidTarget && target !== currentStock;
+
+      if (needsAdjust) {
+        try {
+          const increasing = target > currentStock;
+          const payload: any = {
+            new_quantity: target,
+            reason: `Ajuste automático na edição (de ${currentStock} para ${target})`,
+          };
+          if (increasing) {
+            // Usar custo informado para aumento ou cair para costPrice
+            let unitCostRaw = increaseUnitCost || costPrice;
+            let unitCost = parseFloat(String(unitCostRaw).replace(',', '.'));
+            if (!isNaN(unitCost) && unitCost > 0) {
+              payload.unit_cost = unitCost;
+            }
+          }
+          console.log('🔄 Ajustando estoque com payload:', payload);
+          await adjustProductQuantity(productId, payload);
+          setCurrentStock(target);
+        } catch (err: any) {
+          console.log('❌ Falha ao ajustar estoque após updateProduct:', err?.response?.data || err?.message);
+          setErrors(prev => ({ ...prev, global: err?.response?.data?.detail || 'Falha ao ajustar estoque.' }));
+          return; // Não mostrar diálogo de sucesso se ajuste falhar
+        }
+      }
+
+      // Invalidar queries (produto, estoque e listas)
       await queryClient.invalidateQueries({ queryKey: ['product', productId] });
-      await queryClient.invalidateQueries({ queryKey: ['active-products'] });
       await queryClient.invalidateQueries({ queryKey: ['inventory', productId] });
-      
-      // Aguardar um pouco para garantir que as queries foram invalidadas
-      setTimeout(() => {
-        setShowSuccessDialog(true);
-      }, 150);
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      await queryClient.invalidateQueries({ queryKey: ['active-products'] });
+
+      // Mostrar diálogo de sucesso
+      setShowSuccessDialog(true);
     },
     onError: (error: any) => {
-      // Silencioso - erros são mostrados nos campos de validação
+      console.log('❌ updateProduct erro:', error?.response?.status, error?.response?.data || error?.message);
+      setErrors(prev => ({ ...prev, global: 'Falha ao atualizar produto. Verifique os dados.' }));
     },
   });
 
@@ -135,6 +208,8 @@ export default function EditProductScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Removido fluxo separado de ajuste de estoque (agora integrado ao salvar)
+
   /**
    * Salvar alterações
    */
@@ -159,7 +234,89 @@ export default function EditProductScreen() {
       price: parseFloat(salePrice),
     };
 
-    updateMutation.mutate(productData);
+    // Verificar se cost_price mudou
+    const newCost = parseFloat(costPrice);
+    console.log('💰 Verificando mudança de custo:');
+    console.log('  - Custo original:', originalCostPrice);
+    console.log('  - Custo novo:', newCost);
+    console.log('  - Diferença:', originalCostPrice !== null ? Math.abs(newCost - originalCostPrice) : 'N/A');
+    
+    if (originalCostPrice !== null && !isNaN(newCost) && Math.abs(newCost - originalCostPrice) > 0.01) {
+      // Cost_price mudou - mostrar dialog de confirmação
+      console.log('⚠️ Custo mudou! Mostrando dialog de confirmação');
+      setPendingProductData(productData);
+      setShowCostChangeDialog(true);
+    } else {
+      // Sem mudança no custo - salvar direto
+      console.log('✅ Sem mudança no custo, salvando direto');
+      updateMutation.mutate(productData);
+    }
+  };
+
+  /**
+   * Confirmar mudança de custo e salvar
+   */
+  const handleConfirmCostChange = () => {
+    console.log('✅ Usuário confirmou mudança de custo');
+    setShowCostChangeDialog(false);
+    if (pendingProductData) {
+      console.log('📤 Enviando atualização:', pendingProductData);
+      updateMutation.mutate(pendingProductData);
+      setPendingProductData(null);
+    }
+  };
+
+  /**
+   * Aplicar ajuste de estoque com confirmação
+   */
+  const applyStockAdjustment = async () => {
+    // Validar entrada
+    const parsedNew = parseInt(newStock || '0', 10);
+    if (isNaN(parsedNew) || parsedNew < 0) {
+      setErrors(prev => ({ ...prev, global: 'Quantidade de estoque inválida' }));
+      return;
+    }
+
+    const delta = parsedNew - currentStock;
+    if (delta === 0) {
+      setErrors(prev => ({ ...prev, global: 'Nenhuma mudança de estoque para aplicar.' }));
+      return;
+    }
+
+    // Se aumento, exigir unit_cost
+    let unitCostNumber: number | undefined = undefined;
+    if (delta > 0) {
+      const v = parseFloat((increaseUnitCost || '').replace(',', '.'));
+      if (isNaN(v) || v < 0) {
+        setErrors(prev => ({ ...prev, global: 'Informe o custo unitário para aumentar o estoque.' }));
+        return;
+      }
+      unitCostNumber = v;
+    }
+
+    try {
+      const payload: any = { new_quantity: parsedNew, reason: 'Ajuste manual pelo app' };
+      if (unitCostNumber !== undefined) payload.unit_cost = unitCostNumber;
+      await adjustProductQuantity(productId, payload);
+      await queryClient.invalidateQueries({ queryKey: ['inventory', productId] });
+      await queryClient.invalidateQueries({ queryKey: ['product', productId] });
+      await queryClient.invalidateQueries({ queryKey: ['products'] });
+      setCurrentStock(parsedNew);
+      setShowStockAdjustDialog(false);
+      setErrors(prev => ({ ...prev, global: '' }));
+      setTimeout(() => setShowSuccessDialog(true), 150);
+    } catch (error: any) {
+      setErrors(prev => ({ ...prev, global: error?.response?.data?.detail || 'Falha ao ajustar estoque.' }));
+    }
+  };
+
+  /**
+   * Cancelar mudança de custo
+   */
+  const handleCancelCostChange = () => {
+    console.log('❌ Usuário cancelou mudança de custo');
+    setShowCostChangeDialog(false);
+    setPendingProductData(null);
   };
 
   /**
@@ -221,38 +378,19 @@ export default function EditProductScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
-
-      {/* Header com gradiente */}
-      <LinearGradient
-        colors={[Colors.light.primary, '#7c4dff']}
-        style={styles.headerGradient}
-      >
-        <View style={styles.headerContent}>
-          <View style={styles.headerTop}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-
-            <Text style={styles.headerTitle}>
-              Editar Produto
-            </Text>
-
-            <View style={styles.headerActions} />
-          </View>
-
-          {product && (
-            <View style={styles.headerInfo}>
-              <Text style={styles.headerEntityName}>{product.name}</Text>
-              <Text style={styles.headerSubtitle}>Edite as informações abaixo</Text>
-            </View>
-          )}
-        </View>
-      </LinearGradient>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#667eea" />
+      {product && (
+        <DetailHeader
+          title="Editar Produto"
+          entityName={product.name}
+          backRoute="/(tabs)/products"
+          editRoute=""
+          onDelete={() => {}}
+          badges={[]}
+          metrics={[]}
+        />
+      )}
 
       <KeyboardAvoidingView
         style={styles.keyboardView}
@@ -450,8 +588,55 @@ export default function EditProductScreen() {
           </View>
         </View>
 
+        {/* Estoque */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="cube-outline" size={20} color={Colors.light.primary} />
+            <Text style={styles.cardTitle}>Estoque</Text>
+          </View>
+          <View style={styles.cardContent}>
+            <View style={styles.infoBox}>
+              <Text style={styles.infoLabel}>Atual:</Text>
+              <Text style={styles.infoValue}>{currentStock} un</Text>
+            </View>
+            <TextInput
+              label="Ajustar para (un)"
+              value={newStock}
+              onChangeText={(t) => setNewStock(t.replace(/[^0-9]/g, ''))}
+              mode="outlined"
+              keyboardType="numeric"
+              style={styles.input}
+              placeholder="0"
+            />
+            {(() => {
+              const parsedNew = parseInt(newStock || '0', 10);
+              const delta = (isNaN(parsedNew) ? 0 : parsedNew) - currentStock;
+              if (delta > 0) {
+                return (
+                  <TextInput
+                    label="Custo unitário (R$) para aumento"
+                    value={increaseUnitCost}
+                    onChangeText={(t) => setIncreaseUnitCost(t.replace(/[^0-9,\.]/g, '').replace(',', '.'))}
+                    mode="outlined"
+                    keyboardType="numeric"
+                    style={styles.input}
+                    placeholder="0,00"
+                    left={<TextInput.Affix text="R$" />}
+                  />
+                );
+              }
+              return null;
+            })()}
+          </View>
+        </View>
+
         {/* Botões de ação */}
         <View style={styles.actions}>
+          {errors.global && (
+            <Text style={{ color: Colors.light.error, textAlign: 'center', flex:1, fontSize:12 }}>
+              {errors.global}
+            </Text>
+          )}
           <Button
             mode="outlined"
             onPress={() => router.back()}
@@ -487,14 +672,28 @@ export default function EditProductScreen() {
         type="success"
         icon="checkmark-circle"
       />
-    </SafeAreaView>
+
+      {/* Dialog de Confirmação de Mudança de Custo */}
+      <ConfirmDialog
+        visible={showCostChangeDialog}
+        title="Atualizar Custo do Produto?"
+        message={`Alterar o custo de R$ ${formatMoney(originalCostPrice)} para R$ ${formatMoney(costPrice)} irá atualizar automaticamente o custo unitário de todos os lotes em estoque deste produto.\n\nIsso garante que o valor do estoque reflita o custo correto. Deseja continuar?`}
+        confirmText="Sim, Atualizar"
+        cancelText="Cancelar"
+        onConfirm={handleConfirmCostChange}
+        onCancel={handleCancelCostChange}
+        type="warning"
+        icon="warning"
+      />
+
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   loadingContainer: {
     flex: 1,

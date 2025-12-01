@@ -79,14 +79,15 @@ class StockEntryResponse(StockEntryBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-    
+
     # Métricas calculadas
     total_items: int = Field(default=0, description="Total de itens distintos")
     total_quantity: int = Field(default=0, description="Quantidade total de produtos")
     items_sold: int = Field(default=0, description="Quantidade de produtos vendidos")
     sell_through_rate: float = Field(default=0.0, description="Taxa de venda (%)")
     roi: Optional[float] = Field(None, description="Retorno sobre investimento (%)")
-    
+    has_sales: bool = Field(default=False, description="Indica se entrada teve vendas (FIFO tracking)")
+
     # Trip info (se houver)
     trip_code: Optional[str] = Field(None, description="Código da viagem")
     trip_destination: Optional[str] = Field(None, description="Destino da viagem")

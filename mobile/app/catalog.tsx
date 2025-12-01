@@ -3,8 +3,7 @@
  * Mostra os 115 produtos templates que podem ser ativados
  */
 import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Keyboard, TouchableWithoutFeedback, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Keyboard, TouchableWithoutFeedback, ScrollView, StatusBar } from 'react-native';
 import {
   Searchbar,
   Card,
@@ -25,6 +24,7 @@ import { getCatalogProducts, activateCatalogProduct } from '@/services/catalogSe
 import { getStockEntries } from '@/services/stockEntryService';
 import { Product, StockEntry } from '@/types';
 import ListHeader from '@/components/layout/ListHeader';
+import { LinearGradient } from 'expo-linear-gradient';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Colors } from '@/constants/Colors';
@@ -248,25 +248,29 @@ export default function CatalogScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.container}>
-        {/* Header com contador e botão voltar */}
-        <View style={styles.headerWithBack}>
-          <TouchableOpacity
-            onPress={() => router.push('/(tabs)/products')}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.headerContent}>
-            <ListHeader
-              title="Catálogo de Produtos"
-              count={allProducts.length}
-              singularLabel="produto"
-              pluralLabel="produtos"
-            />
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+
+      {/* Header Premium */}
+      <View style={styles.headerContainer}>
+        <LinearGradient
+          colors={["#667eea", "#764ba2"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerContentPremium}>
+            <TouchableOpacity onPress={() => router.push('/(tabs)/products')} style={styles.backButtonPremium}>
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+            <View style={styles.headerInfo}> 
+              <Text style={styles.greeting}>Catálogo</Text>
+              <Text style={styles.headerSubtitle}>{allProducts.length} produtos</Text>
+            </View>
+            <View style={styles.headerSpacer} />
           </View>
-        </View>
+        </LinearGradient>
+      </View>
 
         {/* Barra de busca */}
         <Searchbar
@@ -688,33 +692,54 @@ export default function CatalogScreen() {
         onCancel={() => setShowCreateEntryDialog(false)}
         icon="document-text"
       />
-      </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.light.primary,
-  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
-  headerWithBack: {
+  headerContainer: {
+    overflow: 'hidden',
+  },
+  headerGradient: {
+    paddingTop: 28 + 32,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  headerContentPremium: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Colors.light.primary,
   },
-  backButton: {
-    padding: 16,
-    paddingLeft: 16,
+  backButtonPremium: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  headerContent: {
+  headerInfo: {
     flex: 1,
-    marginLeft: -8,
+    alignItems: 'center',
   },
+  greeting: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 6,
+  },
+  headerSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.9)',
+    fontWeight: '500',
+  },
+  headerSpacer: { width: 40 },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',

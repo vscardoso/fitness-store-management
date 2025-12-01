@@ -201,7 +201,7 @@ export default function TripDetailsScreen() {
             {trip.departure_time && (
               <View style={styles.infoRow}>
                 <View style={styles.infoIcon}>
-                  <Ionicons name="time-outline" size={20} color={Colors.light.primary} />
+                  <Ionicons name="time" size={20} color={Colors.light.primary} />
                 </View>
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>Horário Saída</Text>
@@ -213,7 +213,7 @@ export default function TripDetailsScreen() {
             {trip.return_time && (
               <View style={styles.infoRow}>
                 <View style={styles.infoIcon}>
-                  <Ionicons name="time-outline" size={20} color={Colors.light.primary} />
+                  <Ionicons name="time" size={20} color={Colors.light.primary} />
                 </View>
                 <View style={styles.infoContent}>
                   <Text style={styles.infoLabel}>Horário Retorno</Text>

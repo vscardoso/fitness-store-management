@@ -40,3 +40,32 @@ class InventoryResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class InventoryRebuildDelta(BaseModel):
+    """Delta retornado por rebuild de inventário."""
+    product_id: int
+    tenant_id: int | None = None
+    fifo_sum: int
+    inventory_quantity: int
+    created: bool
+    updated: bool
+    previous_quantity: int | None = None
+
+
+class InventoryRebuildResult(BaseModel):
+    """Resultado do rebuild de inventário."""
+    updated: int
+    deltas: list[InventoryRebuildDelta]
+
+
+class CostReconciliationResponse(BaseModel):
+    """Resumo de reconciliação de custo FIFO."""
+    tenant_id: int
+    product_id: int | None = None
+    custo_recebido_total: float
+    custo_restante: float
+    custo_vendido_entry_items: float
+    custo_vendido_por_fontes: float
+    diferenca: float
+    unidades_vendidas_por_fontes: int

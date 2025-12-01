@@ -8,7 +8,9 @@ import type {
   Product, 
   ProductCreate, 
   ProductUpdate,
-  PaginationParams 
+  PaginationParams,
+  ProductQuantityAdjustRequest,
+  ProductQuantityAdjustResponse,
 } from '@/types';
 
 /**
@@ -131,6 +133,41 @@ export const deleteProduct = async (id: number): Promise<void> => {
 export const getLowStockProducts = async (): Promise<any[]> => {
   try {
     const { data } = await api.get('/products/low-stock');
+    return data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Buscar produtos de catálogo
+ */
+export const getCatalogProducts = async (params?: {
+  skip?: number;
+  limit?: number;
+  category_id?: number;
+  search?: string;
+}): Promise<Product[]> => {
+  try {
+    const { data } = await api.get<Product[]>('/products/catalog', { params });
+    return data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Ajustar quantidade do produto (FIFO)
+ */
+export const adjustProductQuantity = async (
+  productId: number,
+  payload: ProductQuantityAdjustRequest,
+): Promise<ProductQuantityAdjustResponse> => {
+  try {
+    const { data } = await api.post<ProductQuantityAdjustResponse>(
+      `/products/${productId}/adjust-quantity`,
+      payload,
+    );
     return data;
   } catch (error) {
     throw error;

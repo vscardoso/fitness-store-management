@@ -48,6 +48,19 @@ export async function createTrip(trip: TripCreate): Promise<Trip> {
 }
 
 /**
+ * Verificar se código de viagem já existe
+ */
+export async function checkTripCode(tripCode: string): Promise<{ exists: boolean; message: string }> {
+  const response = await api.get<{ exists: boolean; message: string }>(
+    `${TRIPS_ENDPOINT}check-code/${encodeURIComponent(tripCode)}`,
+    {
+      headers: { 'X-Skip-Loading': 'true' }
+    }
+  );
+  return response.data;
+}
+
+/**
  * Atualizar viagem
  */
 export async function updateTrip(id: number, trip: TripUpdate): Promise<Trip> {

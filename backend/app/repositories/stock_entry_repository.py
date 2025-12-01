@@ -17,10 +17,42 @@ from app.repositories.base import BaseRepository
 
 class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
     """Repository para operações específicas de StockEntry."""
-    
+
     def __init__(self):
         super().__init__(StockEntry)
-    
+
+    async def get_multi(
+        self,
+        db: AsyncSession,
+        *,
+        skip: int = 0,
+        limit: int = 100,
+        filters: dict | None = None,
+        order_by: str | None = None,
+        tenant_id: int | None = None,
+    ) -> list[StockEntry]:
+        """
+        Sobrescreve get_multi do BaseRepository para incluir eager loading de entry_items.
+        """
+        conditions = [StockEntry.is_active == True]
+        if tenant_id is not None:
+            conditions.append(StockEntry.tenant_id == tenant_id)
+
+        query = (
+            select(StockEntry)
+            .where(and_(*conditions))
+            .options(
+                selectinload(StockEntry.entry_items).selectinload(EntryItem.product),
+                selectinload(StockEntry.trip)
+            )
+            .order_by(StockEntry.entry_date.desc())
+            .offset(skip)
+            .limit(limit)
+        )
+
+        result = await db.execute(query)
+        return result.scalars().all()
+
     async def create(self, db: AsyncSession, data: dict, *, tenant_id: int | None = None) -> StockEntry:
         """
         Cria uma nova entrada de estoque.
@@ -138,7 +170,10 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         
         query = (
             query
-            .options(selectinload(StockEntry.trip))
+            .options(
+                selectinload(StockEntry.entry_items).selectinload(EntryItem.product),
+                selectinload(StockEntry.trip)
+            )
             .order_by(StockEntry.entry_date.desc())
             .offset(skip)
             .limit(limit)
@@ -194,7 +229,10 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         
         query = (
             query
-            .options(selectinload(StockEntry.trip))
+            .options(
+                selectinload(StockEntry.entry_items).selectinload(EntryItem.product),
+                selectinload(StockEntry.trip)
+            )
             .order_by(StockEntry.entry_date.desc())
             .offset(skip)
             .limit(limit)

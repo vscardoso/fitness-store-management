@@ -54,7 +54,7 @@ class TripService:
             # Verificar trip_code único
             existing = await self.trip_repo.get_by_code(self.db, trip_data.trip_code, tenant_id=tenant_id)
             if existing:
-                raise ValueError(f"Trip code {trip_data.trip_code} já existe")
+                raise ValueError(f"O código '{trip_data.trip_code}' já está em uso. Por favor, escolha outro código.")
             
             # Criar trip
             trip_dict = trip_data.model_dump(exclude_unset=True)
@@ -75,7 +75,21 @@ class TripService:
         except Exception as e:
             await self.db.rollback()
             raise e
-    
+
+    async def check_code_exists(self, trip_code: str, tenant_id: int) -> bool:
+        """
+        Verifica se um código de viagem já existe para o tenant.
+
+        Args:
+            trip_code: Código da viagem a verificar
+            tenant_id: ID do tenant
+
+        Returns:
+            bool: True se código já existe, False caso contrário
+        """
+        existing = await self.trip_repo.get_by_code(self.db, trip_code, tenant_id=tenant_id)
+        return existing is not None
+
     async def get_trips_filtered(
         self,
         status: Optional[TripStatus] = None,
@@ -154,7 +168,7 @@ class TripService:
             total_invested += entry.total_cost
             
             # Buscar itens da entrada
-            items = await self.item_repo.get_by_entry(self.db, entry.id, tenant_id=tenant_id)
+            items = await self.item_repo.get_by_entry(self.db, entry.id, tenant_id)
             total_items += len(items)
             
             for item in items:

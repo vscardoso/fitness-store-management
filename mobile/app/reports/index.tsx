@@ -136,12 +136,12 @@ function SupplierPerformanceCard({ supplier, entries, onPress }: SupplierCardPro
                 styles.metricValue,
                 { color: avgROI >= 0 ? Colors.light.success : Colors.light.error }
               ]}>
-                {avgROI >= 0 ? '+' : ''}{avgROI.toFixed(1)}%
+                {avgROI >= 0 ? '+' : ''}{(avgROI ?? 0).toFixed(1)}%
               </Text>
             </View>
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>Sell-Through</Text>
-              <Text style={styles.metricValue}>{avgSellThrough.toFixed(1)}%</Text>
+              <Text style={styles.metricValue}>{(avgSellThrough ?? 0).toFixed(1)}%</Text>
             </View>
           </View>
         </Card.Content>
@@ -190,7 +190,7 @@ function SlowMovingProductCard({ product, onPress }: SlowProductCardProps) {
             </View>
             <View style={styles.metric}>
               <Text style={styles.metricLabel}>Depleção</Text>
-              <Text style={styles.metricValue}>{product.depletion_percentage.toFixed(0)}%</Text>
+              <Text style={styles.metricValue}>{(product.depletion_percentage ?? 0).toFixed(0)}%</Text>
             </View>
           </View>
         </Card.Content>
@@ -228,6 +228,50 @@ export default function ReportsScreen() {
     queryKey: ['best-performing-entries'],
     queryFn: () => getBestPerformingEntries(10),
   });
+
+  /**
+   * Helper: Mapear tipo de entrada para label em português
+   */
+  const getEntryTypeLabel = (type: string): string => {
+    const normalizedType = (type || '').toLowerCase();
+    const labels: Record<string, string> = {
+      'trip': 'Viagem',
+      'online': 'Online',
+      'local': 'Local',
+      'initial': 'Estoque Inicial',
+      'initial_inventory': 'Estoque Inicial',
+      'adjustment': 'Ajuste',
+      'return': 'Devolução',
+      'donation': 'Doação',
+    };
+    return labels[normalizedType] || 'Outro';
+  };
+
+  /**
+   * Helper: Obter cor de fundo do chip por tipo de entrada
+   */
+  const getEntryTypeColor = (type: string) => {
+    const normalizedType = (type || '').toLowerCase();
+    switch (normalizedType) {
+      case 'trip':
+        return Colors.light.infoLight;
+      case 'online':
+        return Colors.light.warningLight;
+      case 'local':
+        return Colors.light.successLight;
+      case 'initial':
+      case 'initial_inventory':
+        return '#E3F2FD';
+      case 'adjustment':
+        return '#FFF3E0';
+      case 'return':
+        return '#F3E5F5';
+      case 'donation':
+        return '#E8F5E9';
+      default:
+        return '#F5F5F5';
+    }
+  };
 
   /**
    * Refresh handler
@@ -345,9 +389,9 @@ export default function ReportsScreen() {
           onValueChange={(value) => setActiveTab(value as ReportTab)}
           buttons={[
             { value: 'trips', label: 'Viagens', icon: 'car-outline' },
-            { value: 'suppliers', label: 'Fornecedores', icon: 'business-outline' },
-            { value: 'products', label: 'Best Sellers', icon: 'trending-up-outline' },
-            { value: 'slow', label: 'Encalhados', icon: 'time-outline' },
+            { value: 'suppliers', label: 'Fornecedores', icon: 'store-outline' },
+            { value: 'products', label: 'Best Sellers', icon: 'trending-up' },
+            { value: 'slow', label: 'Encalhados', icon: 'clock-outline' },
           ]}
           style={styles.segmentedButtons}
         />
@@ -419,7 +463,7 @@ export default function ReportsScreen() {
               ))
             ) : (
               <Surface style={styles.emptyState}>
-                <Ionicons name="business-outline" size={48} color={Colors.light.textSecondary} />
+                <Ionicons name="store-outline" size={48} color={Colors.light.textSecondary} />
                 <Text style={styles.emptyText}>Nenhuma entrada cadastrada</Text>
                 <Button
                   mode="contained"
@@ -458,13 +502,11 @@ export default function ReportsScreen() {
                               mode="flat"
                               style={[
                                 styles.statusChip,
-                                entry.entry_type === EntryType.TRIP && { backgroundColor: Colors.light.infoLight },
-                                entry.entry_type === EntryType.ONLINE && { backgroundColor: Colors.light.warningLight },
-                                entry.entry_type === EntryType.LOCAL && { backgroundColor: Colors.light.successLight },
+                                { backgroundColor: getEntryTypeColor(entry.entry_type) },
                               ]}
                               textStyle={styles.chipText}
                             >
-                              {entry.entry_type === EntryType.TRIP ? 'Viagem' : entry.entry_type === EntryType.ONLINE ? 'Online' : 'Local'}
+                              {getEntryTypeLabel(entry.entry_type)}
                             </Chip>
                           </View>
 
@@ -479,7 +521,7 @@ export default function ReportsScreen() {
                                 styles.metricValue,
                                 { color: entry.sell_through_rate >= 70 ? Colors.light.success : Colors.light.warning }
                               ]}>
-                                {entry.sell_through_rate.toFixed(1)}%
+                                {(entry.sell_through_rate ?? 0).toFixed(1)}%
                               </Text>
                             </View>
                             <View style={styles.metric}>
@@ -488,7 +530,7 @@ export default function ReportsScreen() {
                                 styles.metricValue,
                                 { color: entry.roi >= 0 ? Colors.light.success : Colors.light.error }
                               ]}>
-                                {entry.roi >= 0 ? '+' : ''}{entry.roi.toFixed(1)}%
+                                {entry.roi >= 0 ? '+' : ''}{(entry.roi ?? 0).toFixed(1)}%
                               </Text>
                             </View>
                           </View>
@@ -500,7 +542,7 @@ export default function ReportsScreen() {
               ))
             ) : (
               <Surface style={styles.emptyState}>
-                <Ionicons name="trending-up-outline" size={48} color={Colors.light.textSecondary} />
+                <Ionicons name="trending-up" size={48} color={Colors.light.textSecondary} />
                 <Text style={styles.emptyText}>Nenhuma entrada com vendas</Text>
               </Surface>
             )}

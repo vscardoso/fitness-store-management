@@ -16,7 +16,7 @@ import type {
  */
 export const createSale = async (saleData: SaleCreate): Promise<Sale> => {
   try {
-    const { data } = await api.post<Sale>('/sales', saleData);
+    const { data } = await api.post<Sale>('/sales/', saleData);
     return data;
   } catch (error) {
     throw error;
@@ -57,17 +57,28 @@ export const getSaleById = async (id: number): Promise<SaleWithDetails> => {
  */
 export const getSaleBySaleNumber = async (saleNumber: string): Promise<SaleWithDetails> => {
   try {
-    // Backend retorna array, pegamos o primeiro
     const { data } = await api.get<SaleWithDetails[]>(`/sales/`, {
       params: { sale_number: saleNumber },
     });
     if (data && data.length > 0) {
-      return data[0];
+      return normalizeSale(data[0]);
     }
     throw new Error('Venda não encontrada');
   } catch (error) {
     throw error;
   }
+};
+
+// Normaliza campos caso backend esteja enviando legacy names
+const normalizeSale = <T extends Partial<SaleWithDetails>>(sale: T): SaleWithDetails => {
+  return {
+    ...sale,
+    total_amount: (sale as any).total_amount ?? (sale as any).total ?? 0,
+    discount_amount: (sale as any).discount_amount ?? (sale as any).discount ?? 0,
+    tax_amount: (sale as any).tax_amount ?? 0,
+    items: (sale as any).items || [],
+    payments: (sale as any).payments || [],
+  } as SaleWithDetails;
 };
 
 /**

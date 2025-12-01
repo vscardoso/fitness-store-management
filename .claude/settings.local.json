@@ -11,7 +11,12 @@
       "Bash(alembic upgrade:*)",
       "Bash(.\\venv\\Scripts\\python.exe -m alembic upgrade:*)",
       "Bash(npx tsc:*)",
-      "Bash(timeout 90 python -m pytest:*)"
+      "Bash(timeout 90 python -m pytest:*)",
+      "Bash(git commit:*)",
+      "Bash(.venvScriptspython.exe test_sale_direct.py)",
+      "Bash(./venv/Scripts/python.exe:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File run_test.ps1)",
+      "Bash(powershell:*)"
     ],
     "deny": [],
     "ask": []

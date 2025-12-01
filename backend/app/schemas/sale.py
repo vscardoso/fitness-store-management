@@ -1,11 +1,21 @@
 """Sale schemas for request/response validation."""
 
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 
 from app.models.sale import PaymentMethod
+
+
+class ProductInSale(BaseModel):
+    """Simplified product schema for sale item response."""
+    id: int
+    name: str
+    description: Optional[str] = None
+    sku: Optional[str] = None
+    
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SaleItemCreate(BaseModel):
@@ -25,7 +35,7 @@ class PaymentCreate(BaseModel):
 
 class SaleCreate(BaseModel):
     """Schema for creating a sale."""
-    customer_id: int
+    customer_id: Optional[int] = None
     payment_method: PaymentMethod
     discount_amount: Decimal = Field(default=0, ge=0)
     tax_amount: Decimal = Field(default=0, ge=0)
@@ -41,10 +51,10 @@ class SaleItemResponse(BaseModel):
     quantity: int
     unit_price: Decimal
     discount_amount: Decimal
-    total_amount: Decimal
-    
-    class Config:
-        from_attributes = True
+    subtotal: Decimal  # Fixed: modelo usa 'subtotal', não 'total_amount'
+    product: Optional[ProductInSale] = None  # Dados do produto
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class PaymentResponse(BaseModel):
@@ -52,32 +62,37 @@ class PaymentResponse(BaseModel):
     id: int
     amount: Decimal
     payment_method: PaymentMethod
-    payment_reference: Optional[str]
-    payment_date: datetime
-    
-    class Config:
-        from_attributes = True
+    payment_reference: Optional[str] = None
+    status: str  # "confirmed", "pending", "failed"
+    created_at: Optional[datetime] = None  # Fixed: Payment usa 'created_at', não 'payment_date'
+
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SaleResponse(BaseModel):
     """Schema for sale response."""
     id: int
     sale_number: str
-    customer_id: int
+    customer_id: Optional[int] = None  # Fixed: customer_id is optional (walk-in sales)
     seller_id: int
-    sale_date: datetime
-    total_amount: Decimal
+    subtotal: Decimal
     discount_amount: Decimal
     tax_amount: Decimal
+    total_amount: Decimal
     payment_method: PaymentMethod
+    payment_reference: Optional[str] = None
+    loyalty_points_used: Decimal = Decimal(0)
+    loyalty_points_earned: Decimal = Decimal(0)
     status: str
-    notes: Optional[str]
+    notes: Optional[str] = None
     items: List[SaleItemResponse] = []
     payments: List[PaymentResponse] = []
     created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+    customer_name: Optional[str] = None
+    seller_name: Optional[str] = None
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
 
 
 class SaleWithDetails(SaleResponse):
@@ -86,5 +101,4 @@ class SaleWithDetails(SaleResponse):
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
     
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)

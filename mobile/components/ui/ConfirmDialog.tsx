@@ -127,7 +127,10 @@ export default function ConfirmDialog({
           )}
 
           {/* Actions */}
-          <View style={styles.actions}>
+          <View style={[
+            styles.actions,
+            (!cancelText || cancelText.trim() === '') && styles.actionsCenter
+          ]}>
             {cancelText && cancelText.trim() !== '' && (
               <Button
                 mode="outlined"
@@ -248,6 +251,9 @@ const styles = StyleSheet.create({
     gap: 12,
     marginTop: 8,
   },
+  actionsCenter: {
+    justifyContent: 'center',
+  },
   cancelButton: {
     flex: 1,
     borderRadius: 12,
@@ -261,5 +267,9 @@ const styles = StyleSheet.create({
   confirmButtonFull: {
     borderRadius: 12,
     elevation: 2,
+    alignSelf: 'center',
+    minWidth: '70%',
+    height: 48,
+    justifyContent: 'center',
   },
 });

@@ -8,7 +8,8 @@ import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, StatusBar
 import { Text, Button, Card, Chip, TextInput, IconButton, ActivityIndicator, Divider } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
 import useBackToList from '@/hooks/useBackToList';
 import { useCart } from '@/hooks/useCart';
 import { createSale } from '@/services/saleService';
@@ -29,12 +30,11 @@ import type { Customer } from '@/types';
 /**
  * Métodos de pagamento disponíveis
  */
-const paymentMethods: { value: PaymentMethod; label: string; icon: string }[] = [
+const paymentMethods: { value: PaymentMethod | 'MIXED'; label: string; icon: string }[] = [
   { value: PaymentMethod.PIX, label: 'PIX', icon: 'qrcode' },
+  { value: PaymentMethod.DEBIT_CARD, label: 'Cartão', icon: 'credit-card' },
   { value: PaymentMethod.CASH, label: 'Dinheiro', icon: 'cash' },
-  { value: PaymentMethod.DEBIT_CARD, label: 'Débito', icon: 'credit-card' },
-  { value: PaymentMethod.CREDIT_CARD, label: 'Crédito', icon: 'credit-card-outline' },
-  { value: PaymentMethod.TRANSFER, label: 'Transferência', icon: 'swap-horizontal' },
+  { value: 'MIXED', label: '2 Métodos', icon: 'swap-horizontal' },
 ];
 
 /**
@@ -48,16 +48,25 @@ const installmentOptions = Array.from({ length: 12 }, (_, i) => ({
 export default function CheckoutScreen() {
   const cart = useCart();
   const router = useRouter();
-  const { goBack } = useBackToList('/(tabs)');
+  const { goBack } = useBackToList('/(tabs)/sale');
 
   // Estado local
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>(PaymentMethod.PIX);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | 'MIXED'>(PaymentMethod.PIX);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [installments, setInstallments] = useState(1);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingCustomer, setLoadingCustomer] = useState(false);
   const [cashReceived, setCashReceived] = useState('');
+  const [isMixedMode, setIsMixedMode] = useState(false);
+
+  /**
+   * Voltar para tela de vendas
+   * Nota: A limpeza de estado é feita automaticamente pelo useFocusEffect
+   */
+  const handleGoBack = () => {
+    goBack();
+  };
 
   // Estado para controlar diálogos de confirmação
   const [dialog, setDialog] = useState<{
@@ -75,6 +84,24 @@ export default function CheckoutScreen() {
     message: '',
     onConfirm: () => {},
   });
+
+  /**
+   * Limpar pagamentos sempre que a tela ganhar foco
+   * Isso garante que cada entrada no checkout inicia com estado limpo de pagamentos
+   */
+  useFocusEffect(
+    useCallback(() => {
+      // Limpar todos os pagamentos ao entrar na tela
+      cart.clearPayments();
+
+      // Resetar estados locais
+      setPaymentAmount('');
+      setCashReceived('');
+      setSelectedMethod(PaymentMethod.PIX);
+      setInstallments(1);
+      setIsMixedMode(false);
+    }, [])
+  );
 
   /**
    * Redirecionar se carrinho vazio
@@ -159,9 +186,48 @@ export default function CheckoutScreen() {
   };
 
   /**
+   * Adicionar pagamento direto (PIX, Cartão, Dinheiro)
+   * Adiciona o valor total restante automaticamente
+   */
+  const handleAddDirectPayment = (method: PaymentMethod) => {
+    const totalRemaining = cart.total - cart.totalPaid;
+
+    if (totalRemaining <= 0) {
+      setDialog({
+        visible: true,
+        type: 'info',
+        title: 'Pagamento completo',
+        message: 'O valor total já foi pago.',
+        confirmText: 'OK',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
+      return;
+    }
+
+    // Adicionar pagamento com valor total
+    cart.addPayment(method, totalRemaining, 1);
+    haptics.success();
+  };
+
+  /**
    * Adicionar pagamento
    */
   const handleAddPayment = () => {
+    // Se não está no modo misto, mostrar aviso
+    if (!isMixedMode) {
+      setDialog({
+        visible: true,
+        type: 'info',
+        title: 'Modo de pagamento',
+        message: 'Para pagamento único, toque diretamente no botão PIX, Cartão ou Dinheiro. Use "2 Métodos" apenas para dividir o pagamento.',
+        confirmText: 'Entendi',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
+      return;
+    }
+
     const amount = parseMoneyInput(paymentAmount);
 
     if (isNaN(amount) || amount <= 0) {
@@ -175,6 +241,20 @@ export default function CheckoutScreen() {
         onConfirm: () => setDialog({ ...dialog, visible: false }),
       });
       haptics.warning();
+      return;
+    }
+
+    // selectedMethod deve ser um PaymentMethod válido no modo misto
+    if (selectedMethod === 'MIXED') {
+      setDialog({
+        visible: true,
+        type: 'warning',
+        title: 'Selecione a forma',
+        message: 'Escolha PIX, Cartão ou Dinheiro para adicionar o pagamento.',
+        confirmText: 'OK',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
       return;
     }
 
@@ -283,24 +363,42 @@ export default function CheckoutScreen() {
         product_id: item.product_id,
         quantity: item.quantity,
         unit_price: item.unit_price,
-        discount: item.discount,
+        discount_amount: item.discount,
       }));
 
       // Mapear payments para formato da API
+      // Backend espera payment_method, não method
+      // Backend não aceita installments
       const payments = cart.payments.map(p => ({
-        method: p.method,
+        payment_method: p.method,
         amount: p.amount,
-        installments: p.installments,
       }));
 
-      // Criar venda
-      const sale = await createSale({
-        customer_id: cart.customer_id,
+      // Determinar método de pagamento principal
+      // Se há múltiplos pagamentos, usa o de maior valor
+      const mainPaymentMethod = cart.payments.length > 0
+        ? cart.payments.reduce((prev, current) =>
+            (current.amount > prev.amount) ? current : prev
+          ).method
+        : PaymentMethod.CASH;
+
+      // Preparar dados da venda
+      const saleData: any = {
+        payment_method: mainPaymentMethod,
         items,
         payments,
-        discount: cart.discount,
+        discount_amount: cart.discount,
+        tax_amount: 0,
         notes: cart.notes,
-      });
+      };
+
+      // Adicionar customer_id apenas se houver cliente selecionado
+      if (cart.customer_id) {
+        saleData.customer_id = cart.customer_id;
+      }
+
+      // Criar venda
+      const sale = await createSale(saleData);
 
       haptics.success();
 
@@ -362,7 +460,7 @@ export default function CheckoutScreen() {
           style={styles.headerGradient}
         >
           <View style={styles.headerContent}>
-            <TouchableOpacity onPress={goBack} style={styles.backButton}>
+            <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
               <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
             <View style={styles.headerInfo}>
@@ -395,7 +493,7 @@ export default function CheckoutScreen() {
                 <Button
                   mode="text"
                   compact
-                  onPress={goBack}
+                  onPress={handleGoBack}
                 >
                   Editar
                 </Button>
@@ -463,7 +561,7 @@ export default function CheckoutScreen() {
                 Formas de Pagamento
               </Text>
 
-              {/* Métodos de pagamento */}
+              {/* Seleção de modo: Pagamento direto ou misto */}
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -472,11 +570,18 @@ export default function CheckoutScreen() {
                 {paymentMethods.map((method) => (
                   <Chip
                     key={method.value}
-                    selected={selectedMethod === method.value}
+                    selected={method.value === 'MIXED' ? isMixedMode : (!isMixedMode && selectedMethod === method.value)}
                     onPress={() => {
-                      setSelectedMethod(method.value);
-                      setInstallments(1);
-                      haptics.selection();
+                      if (method.value === 'MIXED') {
+                        setIsMixedMode(true);
+                        setSelectedMethod(PaymentMethod.PIX);
+                        haptics.selection();
+                      } else {
+                        setIsMixedMode(false);
+                        setSelectedMethod(method.value as PaymentMethod);
+                        // Pagamento direto: adiciona total automaticamente
+                        handleAddDirectPayment(method.value as PaymentMethod);
+                      }
                     }}
                     icon={method.icon}
                     style={styles.methodChip}
@@ -486,65 +591,69 @@ export default function CheckoutScreen() {
                 ))}
               </ScrollView>
 
-              {/* Input de valor */}
-              <View style={styles.paymentInputRow}>
-                <TextInput
-                  label="Valor"
-                  value={paymentAmount}
-                  onChangeText={(text) => setPaymentAmount(formatMoneyInput(text))}
-                  keyboardType="numeric"
-                  mode="outlined"
-                  dense
-                  left={<TextInput.Affix text="R$" />}
-                  style={styles.paymentInput}
-                />
-                <Button
-                  mode="outlined"
-                  onPress={handleFillRemaining}
-                  style={styles.fillButton}
-                  compact
-                >
-                  Preencher
-                </Button>
-              </View>
-
-              {/* Parcelas (somente para cartão de crédito) */}
-              {showInstallments && (
-                <View style={styles.installmentsContainer}>
-                  <Text variant="bodySmall" style={styles.installmentsLabel}>
-                    Parcelas
+              {/* Modo misto: mostrar inputs para digitar valores */}
+              {isMixedMode && (
+                <>
+                  <Text variant="bodySmall" style={styles.mixedModeHelp}>
+                    💡 No modo 2 Métodos, escolha a forma e digite o valor para cada pagamento.
                   </Text>
+
+                  {/* Seleção de método no modo misto */}
                   <ScrollView
                     horizontal
                     showsHorizontalScrollIndicator={false}
+                    style={styles.methodsScroll}
                   >
-                    {installmentOptions.map((option) => (
+                    {paymentMethods.slice(0, 3).map((method) => (
                       <Chip
-                        key={option.value}
-                        selected={installments === option.value}
+                        key={method.value}
+                        selected={selectedMethod === method.value}
                         onPress={() => {
-                          setInstallments(option.value);
+                          setSelectedMethod(method.value as PaymentMethod);
+                          setInstallments(1);
                           haptics.selection();
                         }}
-                        style={styles.installmentChip}
-                        compact
+                        icon={method.icon}
+                        style={styles.methodChip}
                       >
-                        {option.label}
+                        {method.label}
                       </Chip>
                     ))}
                   </ScrollView>
-                </View>
-              )}
 
-              {/* Botão adicionar pagamento */}
-              <Button
-                mode="contained"
-                onPress={handleAddPayment}
-                icon="plus"
-                style={styles.addPaymentButton}
-              >
-                Adicionar Pagamento
-              </Button>
+                  {/* Input de valor */}
+                  <View style={styles.paymentInputRow}>
+                    <TextInput
+                      label="Valor"
+                      value={paymentAmount}
+                      onChangeText={(text) => setPaymentAmount(formatMoneyInput(text))}
+                      keyboardType="numeric"
+                      mode="outlined"
+                      dense
+                      left={<TextInput.Affix text="R$" />}
+                      style={styles.paymentInput}
+                    />
+                    <Button
+                      mode="outlined"
+                      onPress={handleFillRemaining}
+                      style={styles.fillButton}
+                      compact
+                    >
+                      Preencher
+                    </Button>
+                  </View>
+
+                  {/* Botão adicionar pagamento */}
+                  <Button
+                    mode="contained"
+                    onPress={handleAddPayment}
+                    icon="plus"
+                    style={styles.addPaymentButton}
+                  >
+                    Adicionar Pagamento
+                  </Button>
+                </>
+              )}
 
               {/* Lista de pagamentos adicionados */}
               {cart.payments.length > 0 && (
@@ -815,6 +924,11 @@ const styles = StyleSheet.create({
   },
   methodChip: {
     marginRight: 8,
+  },
+  mixedModeHelp: {
+    color: Colors.light.textSecondary,
+    marginBottom: 12,
+    fontStyle: 'italic',
   },
   paymentInputRow: {
     flexDirection: 'row',

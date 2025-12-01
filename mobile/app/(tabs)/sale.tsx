@@ -192,6 +192,26 @@ export default function SaleScreen() {
     });
   };
 
+  /**
+   * Iniciar nova venda (limpa tudo)
+   */
+  const handleNewSale = () => {
+    haptics.warning();
+    setDialog({
+      visible: true,
+      type: 'warning',
+      title: 'Iniciar nova venda',
+      message: 'Isso irá limpar todos os itens do carrinho, cliente e pagamentos. Deseja continuar?',
+      confirmText: 'Sim, iniciar nova venda',
+      cancelText: 'Cancelar',
+      onConfirm: () => {
+        haptics.success();
+        cart.clear(); // Limpa tudo: items, pagamentos, cliente, notas, descontos
+        setDialog({ ...dialog, visible: false });
+      },
+    });
+  };
+
   const handleCheckout = () => {
     if (!cart.hasItems()) {
       haptics.warning();
@@ -296,19 +316,29 @@ export default function SaleScreen() {
                 Realize vendas rapidamente
               </Text>
             </View>
-            <TouchableOpacity
-              style={styles.cartBadgeContainer}
-              onPress={() => {}}
-            >
-              <View style={styles.cartIconContainer}>
-                <Ionicons name="cart" size={28} color="#fff" />
-                {cart.itemCount > 0 && (
-                  <View style={styles.cartBadge}>
-                    <Text style={styles.cartBadgeText}>{cart.itemCount}</Text>
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              {cart.itemCount > 0 && (
+                <TouchableOpacity
+                  style={styles.newSaleButton}
+                  onPress={handleNewSale}
+                >
+                  <Ionicons name="refresh" size={24} color="#fff" />
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={styles.cartBadgeContainer}
+                onPress={() => {}}
+              >
+                <View style={styles.cartIconContainer}>
+                  <Ionicons name="cart" size={28} color="#fff" />
+                  {cart.itemCount > 0 && (
+                    <View style={styles.cartBadge}>
+                      <Text style={styles.cartBadgeText}>{cart.itemCount}</Text>
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            </View>
           </View>
         </LinearGradient>
       </View>
@@ -341,10 +371,17 @@ export default function SaleScreen() {
               style={styles.selectCustomerButton}
               onPress={() => setCustomerModalVisible(true)}
             >
-              <Ionicons name="person-add-outline" size={24} color={Colors.light.primary} />
-              <Text variant="bodyMedium" style={styles.selectCustomerText}>
-                Selecionar Cliente (Opcional)
-              </Text>
+              <View style={styles.selectCustomerIconContainer}>
+                <Ionicons name="person-add" size={32} color={Colors.light.primary} />
+              </View>
+              <View style={styles.selectCustomerTextContainer}>
+                <Text variant="titleMedium" style={styles.selectCustomerText}>
+                  Selecionar Cliente (Opcional)
+                </Text>
+                <Text variant="bodySmall" style={styles.selectCustomerSubtext}>
+                  Toque para escolher um cliente
+                </Text>
+              </View>
               <Ionicons name="chevron-forward" size={20} color={Colors.light.textTertiary} />
             </TouchableOpacity>
           )}
@@ -568,6 +605,19 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '500',
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  newSaleButton: {
+    width: 44,
+    height: 44,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   cartBadgeContainer: {
     padding: theme.spacing.xs,
   },
@@ -632,15 +682,23 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.background,
     padding: 16,
     borderRadius: theme.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    borderStyle: 'dashed',
+    borderWidth: 2,
+    borderColor: Colors.light.primary,
+    borderStyle: 'solid',
+  },
+  selectCustomerIconContainer: {
+    marginRight: 12,
+  },
+  selectCustomerTextContainer: {
+    flex: 1,
   },
   selectCustomerText: {
-    flex: 1,
-    marginLeft: 12,
+    fontWeight: '600',
     color: Colors.light.primary,
-    fontWeight: '500',
+    marginBottom: 2,
+  },
+  selectCustomerSubtext: {
+    color: Colors.light.textSecondary,
   },
   addProductSection: {
     paddingHorizontal: 16,

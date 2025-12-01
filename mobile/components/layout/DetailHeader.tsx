@@ -1,9 +1,8 @@
-import { View, StyleSheet, TouchableOpacity, StatusBar } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Text } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, theme } from '@/constants/Colors';
 
 interface Badge {
@@ -19,7 +18,7 @@ interface MetricCard {
 }
 
 interface DetailHeaderProps {
-  /** Título da tela (ex: "Detalhes do Produto") */
+  /** Título da tela (ex: "Detalhes do Produto") - não usado, entidade é o título */
   title: string;
   /** Nome principal da entidade (ex: nome do produto) */
   entityName: string;
@@ -63,13 +62,14 @@ export default function DetailHeader({
   };
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
+    <View style={styles.headerContainer}>
       <LinearGradient
-        colors={[Colors.light.primary, '#7c4dff']}
-        style={styles.container}
+        colors={['#667eea', '#764ba2']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.headerGradient}
       >
-        <View style={styles.content}>
+        <View style={styles.headerContent}>
           {/* Barra de navegação */}
           <View style={styles.navbar}>
             <TouchableOpacity
@@ -79,9 +79,7 @@ export default function DetailHeader({
               <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
 
-            <Text variant="titleLarge" style={styles.navTitle}>
-              {title}
-            </Text>
+            <View style={styles.navSpacer} />
 
             <View style={styles.navActions}>
               <TouchableOpacity
@@ -99,10 +97,17 @@ export default function DetailHeader({
           {/* Elemento customizado (avatar, etc) */}
           {customElement && <View style={styles.customElement}>{customElement}</View>}
 
-          {/* Nome da entidade */}
-          <Text variant="headlineMedium" style={styles.entityName}>
-            {entityName}
-          </Text>
+          {/* Título e nome da entidade */}
+          <View style={styles.headerInfo}>
+            {title ? (
+              <>
+                <Text style={styles.titleMain}>{title}</Text>
+                <Text style={styles.entityNameSmall}>{entityName}</Text>
+              </>
+            ) : (
+              <Text style={styles.greeting}>{entityName}</Text>
+            )}
+          </View>
 
           {/* Badges de status */}
           {badges.length > 0 && (
@@ -140,27 +145,30 @@ export default function DetailHeader({
           )}
         </View>
       </LinearGradient>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    backgroundColor: Colors.light.primary, // IMPORTANTE: mesma cor do gradiente
+  // EXATAMENTE igual lista de produtos/clientes
+  headerContainer: {
+    marginBottom: 0,
   },
-  container: {
-    paddingTop: 0, // SafeArea já cuidou do espaço
-    paddingBottom: theme.spacing.lg,
+  headerGradient: {
     paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.lg,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
   },
-  content: {
-    marginTop: theme.spacing.sm, // Pequeno espaço após SafeArea
+  headerContent: {
+    // Container do conteúdo
   },
   navbar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
+    marginBottom: 0,
   },
   navButton: {
     width: 40,
@@ -170,13 +178,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  navTitle: {
-    color: '#fff',
-    fontWeight: theme.fontWeight.bold,
-    fontSize: theme.fontSize.xl,
+  navSpacer: {
     flex: 1,
-    textAlign: 'center',
-    marginHorizontal: theme.spacing.sm,
   },
   navActions: {
     flexDirection: 'row',
@@ -194,18 +197,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
-  entityName: {
+  headerInfo: {
+    // Container do título
+    alignItems: 'center',
+    marginTop: -16,
+  },
+  greeting: {
+    fontSize: theme.fontSize.xxl,
+    fontWeight: '700',
     color: '#fff',
-    fontWeight: theme.fontWeight.bold,
-    fontSize: theme.fontSize.lg,
-    marginBottom: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
     textAlign: 'center',
+  },
+  titleMain: {
+    fontSize: theme.fontSize.xl,
+    fontWeight: '700',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  entityNameSmall: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '600',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: theme.spacing.sm,
   },
   badges: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
+    marginTop: theme.spacing.sm,
     justifyContent: 'center',
   },
   badge: {
@@ -238,6 +260,7 @@ const styles = StyleSheet.create({
   metrics: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
+    marginTop: theme.spacing.md,
   },
   metricCard: {
     flex: 1,

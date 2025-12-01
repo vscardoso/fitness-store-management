@@ -1,0 +1,13 @@
+--- a/backend/app/services/sale_service.py
++++ b/backend/app/services/sale_service.py
+@@ -225,7 +225,9 @@ class SaleService:
+             sale.loyalty_points_earned = float(loyalty_points_earned)
+
+             await self.db.commit()
+-            await self.db.refresh(sale)
++
++            # Recarregar venda com relacionamentos para resposta da API
++            await self.db.refresh(sale, ['items', 'payments'])
+
+             print(f" Venda {sale_number} criada com sucesso!")
+             return sale

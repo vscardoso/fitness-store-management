@@ -191,6 +191,136 @@ async def list_stock_entries(
 
 
 @router.get(
+    "/check-code/{entry_code}",
+    response_model=dict,
+    summary="Verificar se código de entrada já existe",
+    description="Verifica se o código informado já está em uso por outra entrada ativa"
+)
+async def check_entry_code(
+    entry_code: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Verifica se o código de entrada já existe para o tenant atual.
+
+    Args:
+        entry_code: Código da entrada a verificar
+        db: Sessão do banco de dados
+        current_user: Usuário autenticado
+        tenant_id: ID do tenant atual
+
+    Returns:
+        dict: {"exists": bool, "message": str}
+
+    Examples:
+        GET /stock-entries/check-code/ENTRY-001
+        Response: {"exists": true, "message": "Código já existe"}
+    """
+    try:
+        service = StockEntryService(db)
+        exists = await service.check_code_exists(entry_code, tenant_id)
+
+        return {
+            "exists": exists,
+            "message": "Código já existe" if exists else "Código disponível"
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao verificar código: {str(e)}"
+        )
+
+
+@router.get(
+    "/stats",
+    summary="Estatísticas gerais de entradas",
+    description="Retorna estatísticas agregadas de todas as entradas (total investido, quantidade de entradas, etc.)"
+)
+async def get_stock_entries_stats(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Retorna estatísticas gerais de todas as entradas de estoque.
+
+    Args:
+        db: Sessão do banco de dados
+        current_user: Usuário autenticado
+        tenant_id: ID do tenant
+
+    Returns:
+        Dict com estatísticas:
+        - total_invested: Soma total de custo de todas as entradas
+        - total_entries: Número total de entradas ativas
+        - total_items: Soma de itens únicos em todas as entradas
+        - total_quantity: Soma de quantidades recebidas
+
+    Examples:
+        GET /stock-entries/stats
+
+        Response:
+        {
+            "total_invested": 150000.00,
+            "total_entries": 45,
+            "total_items": 120,
+            "total_quantity": 2500
+        }
+    """
+    try:
+        from sqlalchemy import select, func
+        from app.models.stock_entry import StockEntry
+        from app.models.entry_item import EntryItem
+
+        # Total investido: soma de todos os total_cost
+        total_invested_result = await db.execute(
+            select(func.sum(StockEntry.total_cost))
+            .where(StockEntry.is_active == True)
+            .where(StockEntry.tenant_id == tenant_id)
+        )
+        total_invested = total_invested_result.scalar() or 0
+
+        # Total de entradas ativas
+        total_entries_result = await db.execute(
+            select(func.count(StockEntry.id))
+            .where(StockEntry.is_active == True)
+            .where(StockEntry.tenant_id == tenant_id)
+        )
+        total_entries = total_entries_result.scalar() or 0
+
+        # Total de itens e quantidades
+        total_items_result = await db.execute(
+            select(
+                func.count(func.distinct(EntryItem.product_id)),
+                func.sum(EntryItem.quantity_received)
+            )
+            .join(StockEntry, EntryItem.entry_id == StockEntry.id)
+            .where(EntryItem.is_active == True)
+            .where(StockEntry.is_active == True)
+            .where(StockEntry.tenant_id == tenant_id)
+        )
+        stats_row = total_items_result.first()
+        total_items = stats_row[0] or 0
+        total_quantity = stats_row[1] or 0
+
+        return {
+            "total_invested": float(total_invested),
+            "total_entries": total_entries,
+            "total_items": total_items,
+            "total_quantity": total_quantity,
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao calcular estatísticas: {str(e)}"
+        )
+
+
+@router.get(
     "/slow-moving",
     summary="Produtos encalhados",
     description="Lista produtos com venda lenta (baixa taxa de depleção)"
@@ -319,6 +449,73 @@ async def get_best_performing_entries(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao buscar melhores entradas: {str(e)}"
+        )
+
+
+@router.get(
+    "/{entry_id}/has-sales",
+    summary="Verificar se entrada tem vendas",
+    description="Retorna se a entrada teve vendas (usado para validar exclusão)"
+)
+async def check_entry_has_sales(
+    entry_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Verifica rapidamente se uma entrada teve vendas.
+
+    Útil para UI validar se uma entrada pode ser excluída ou não.
+    Entradas com vendas não devem ser excluídas pois são histórico.
+
+    Args:
+        entry_id: ID da entrada
+        db: Sessão do banco de dados
+        current_user: Usuário autenticado
+        tenant_id: ID do tenant
+
+    Returns:
+        dict: {
+            "has_sales": bool,
+            "items_sold": int,
+            "can_delete": bool
+        }
+
+    Examples:
+        GET /stock-entries/1/has-sales
+
+        Response:
+        {
+            "has_sales": true,
+            "items_sold": 45,
+            "can_delete": false
+        }
+    """
+    try:
+        from app.repositories.stock_entry_repository import StockEntryRepository
+
+        repo = StockEntryRepository()
+        entry = await repo.get_by_id(db, entry_id, include_items=True, tenant_id=tenant_id)
+
+        if not entry:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Entrada {entry_id} não encontrada"
+            )
+
+        return {
+            "has_sales": entry.has_sales,
+            "items_sold": entry.items_sold,
+            "can_delete": not entry.has_sales,  # Só pode deletar se não teve vendas
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao verificar vendas: {str(e)}"
         )
 
 

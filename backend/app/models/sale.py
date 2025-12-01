@@ -198,6 +198,15 @@ class Sale(BaseModel):
         """
         return sum(item.quantity for item in self.items)
 
+    # Propriedades auxiliares para serialização no schema
+    @property
+    def customer_name(self) -> str | None:
+        return self.customer.full_name if hasattr(self, "customer") and self.customer else None
+
+    @property
+    def seller_name(self) -> str | None:
+        return self.seller.full_name if hasattr(self, "seller") and self.seller else None
+
 
 class SaleItem(BaseModel):
     """
@@ -216,6 +225,13 @@ class SaleItem(BaseModel):
         Numeric(10, 2),
         nullable=False,
         comment="Unit price at time of sale"
+    )
+    
+    unit_cost: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False,
+        server_default="0",
+        comment="Unit cost at time of sale (for CMV calculation)"
     )
     
     subtotal: Mapped[Decimal] = mapped_column(

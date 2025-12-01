@@ -17,7 +17,7 @@ import { useAuth } from '@/hooks/useAuth';
 import EmptyState from '@/components/ui/EmptyState';
 import ProductCard from '@/components/products/ProductCard';
 import FAB from '@/components/FAB';
-import { getActiveProducts, searchProducts } from '@/services/productService';
+import { getActiveProducts, searchProducts, getCatalogProducts } from '@/services/productService';
 import { Colors, theme } from '@/constants/Colors';
 import type { Product } from '@/types';
 
@@ -43,6 +43,14 @@ export default function ProductsScreen() {
       }
       return getActiveProducts({ limit: 100 });
     },
+  });
+
+  /**
+   * Query para contar produtos de catálogo
+   */
+  const { data: catalogProducts } = useQuery({
+    queryKey: ['catalog-products-count'],
+    queryFn: () => getCatalogProducts({ limit: 1000 }), // Busca todos para contar
   });
 
   /**
@@ -261,7 +269,7 @@ export default function ProductsScreen() {
                     onPress={() => router.push('/catalog')}
                     icon="storefront-outline"
                   >
-                    Explorar Catálogo (115 produtos)
+                    Explorar Catálogo ({catalogProducts?.length || 0} produtos)
                   </Button>
                 </View>
               )}

@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
-import { getDashboardStats } from '@/services/dashboardService';
+import { getDashboardStats, getInventoryValuation, getInventoryHealth } from '@/services/dashboardService';
 import { getActiveProducts, getLowStockProducts } from '@/services/productService';
 import { getDailySalesTotal, getSales } from '@/services/saleService';
 import { getCustomers } from '@/services/customerService';
@@ -54,11 +54,26 @@ export default function DashboardScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [quickActionsVisible, setQuickActionsVisible] = useState(false);
+  const [tooltipVisible, setTooltipVisible] = useState<string | null>(null);
 
   // Query principal: Dashboard stats com rastreabilidade
   const { data: dashboardStats, refetch: refetchStats } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: getDashboardStats,
+    enabled: !!user,
+  });
+
+  // Valoração do estoque (custo, venda, margem)
+  const { data: valuation, refetch: refetchValuation } = useQuery({
+    queryKey: ['inventory-valuation'],
+    queryFn: getInventoryValuation,
+    enabled: !!user,
+  });
+
+  // Saúde do estoque (cobertura, aging, giro, score)
+  const { data: health, refetch: refetchHealth } = useQuery({
+    queryKey: ['inventory-health'],
+    queryFn: getInventoryHealth,
     enabled: !!user,
   });
 
@@ -74,25 +89,47 @@ export default function DashboardScreen() {
     setRefreshing(true);
     await Promise.all([
       refetchStats(),
+      refetchValuation(),
+      refetchHealth(),
       refetchRecentSales(),
     ]);
     setRefreshing(false);
   };
 
   // Extrair métricas do dashboard stats (com rastreabilidade)
-  const stockValue = dashboardStats?.stock.invested_value || 0;
-  const potentialRevenue = dashboardStats?.stock.potential_revenue || 0;
-  const potentialProfit = dashboardStats?.stock.potential_profit || 0;
-  const averageMargin = dashboardStats?.stock.average_margin_percent || 0;
+  // PRIORIDADE: usar valuation (dados separados) ao invés de dashboardStats (agregado)
+  const stockValue = valuation?.cost_value || dashboardStats?.stock.invested_value || 0;
+  const potentialRevenue = valuation?.retail_value || dashboardStats?.stock.potential_revenue || 0;
+  const potentialProfit = valuation?.potential_margin || dashboardStats?.stock.potential_profit || 0;
+  const averageMargin = valuation && valuation.cost_value > 0
+    ? ((valuation.retail_value - valuation.cost_value) / valuation.cost_value) * 100
+    : dashboardStats?.stock.average_margin_percent || 0;
   const totalStockQuantity = dashboardStats?.stock.total_quantity || 0;
   const totalProducts = dashboardStats?.stock.total_products || 0;
   const lowStockCount = dashboardStats?.stock.low_stock_count || 0;
 
   const totalSalesToday = dashboardStats?.sales.total_today || 0;
   const salesCountToday = dashboardStats?.sales.count_today || 0;
+  const totalSalesAll = dashboardStats?.sales.total_all || 0;
+  const salesCountAll = dashboardStats?.sales.count_all || 0;
+  const realizedProfit = dashboardStats?.sales.realized_profit || 0;
+  const realizedMarginPercent = dashboardStats?.sales.realized_margin_percent || 0;
   const averageTicket = dashboardStats?.sales.average_ticket || 0;
+  const salesTrendPercent = dashboardStats?.sales.trend_percent || 0;
 
   const totalCustomers = dashboardStats?.customers.total || 0;
+
+  // Explicações dos cards
+  const cardExplanations: Record<string, string> = {
+    'sales-today': 'Total de vendas realizadas no dia atual. O percentual mostra a variação em relação ao dia anterior.',
+    'sales-total': 'Soma de todas as vendas realizadas desde o início. Inclui o número total de transações concluídas.',
+    'products': 'Quantidade total de produtos cadastrados que possuem estoque disponível para venda.',
+    'customers': 'Número de clientes ativos cadastrados no sistema. Clientes inativos não são contabilizados.',
+    'stock-cost': 'Valor total investido no estoque atual, calculado com base no custo de aquisição (preço de compra) de cada produto.',
+    'stock-retail': 'Valor potencial de venda do estoque atual. Representa quanto você pode faturar vendendo todo o estoque ao preço de venda cadastrado.',
+    'stock-margin': 'Diferença entre o valor de venda e o custo do estoque. Indica o lucro potencial caso todo o estoque seja vendido. O percentual mostra a margem média.',
+    'realized-profit': 'Lucro efetivo obtido com as vendas já realizadas. Calculado subtraindo o CMV (Custo das Mercadorias Vendidas) do total de vendas. O percentual mostra a margem de lucro real.',
+  };
 
   // Ações rápidas
   const quickActions: QuickAction[] = [
@@ -144,20 +181,29 @@ export default function DashboardScreen() {
       id: 'sales-today',
       title: 'Vendas Hoje',
       value: formatCurrency(totalSalesToday),
-      subtitle: 'faturamento',
+      subtitle: `${salesCountToday} ${salesCountToday === 1 ? 'venda' : 'vendas'}`,
       icon: 'trending-up',
       colors: ['#11998e', '#38ef7d'],
-      onPress: () => router.push('/(tabs)/sale'),
+      onPress: () => router.push('/(tabs)/sales'),
       trend: {
-        value: '+12%',
-        isPositive: true,
+        value: `${salesTrendPercent > 0 ? '+' : ''}${salesTrendPercent.toFixed(1)}%`,
+        isPositive: salesTrendPercent >= 0,
       },
+    },
+    {
+      id: 'sales-total',
+      title: 'Vendas Totais',
+      value: formatCurrency(totalSalesAll),
+      subtitle: `${salesCountAll} ${salesCountAll === 1 ? 'venda' : 'vendas'}`,
+      icon: 'cash-outline',
+      colors: ['#f093fb', '#f5576c'],
+      onPress: () => router.push('/(tabs)/sales'),
     },
     {
       id: 'products',
       title: 'Produtos',
       value: totalProducts.toString(),
-      subtitle: 'cadastrados',
+      subtitle: 'com estoque',
       icon: 'cube',
       colors: ['#667eea', '#764ba2'],
       onPress: () => router.push('/(tabs)/products'),
@@ -172,13 +218,40 @@ export default function DashboardScreen() {
       onPress: () => router.push('/(tabs)/customers'),
     },
     {
-      id: 'stock-value',
-      title: 'Valor Estoque',
+      id: 'stock-cost',
+      title: 'Estoque (Custo)',
       value: formatCurrency(stockValue),
-      subtitle: 'investido',
+      subtitle: 'valor investido',
       icon: 'wallet',
       colors: ['#4776e6', '#8e54e9'],
       onPress: () => router.push('/(tabs)/products'),
+    },
+    {
+      id: 'stock-retail',
+      title: 'Estoque (Venda)',
+      value: formatCurrency(potentialRevenue),
+      subtitle: 'valor potencial',
+      icon: 'cash',
+      colors: ['#11998e', '#38ef7d'],
+      onPress: () => router.push('/(tabs)/products'),
+    },
+    {
+      id: 'stock-margin',
+      title: 'Margem Potencial',
+      value: formatCurrency(potentialProfit),
+      subtitle: `${averageMargin.toFixed(1)}% média`,
+      icon: 'trending-up',
+      colors: ['#30cfd0', '#330867'],
+      onPress: () => router.push('/reports'),
+    },
+    {
+      id: 'realized-profit',
+      title: 'Lucro Realizado',
+      value: formatCurrency(realizedProfit),
+      subtitle: `${realizedMarginPercent.toFixed(1)}% margem`,
+      icon: 'stats-chart',
+      colors: ['#fa709a', '#fee140'],
+      onPress: () => router.push('/(tabs)/sales'),
     },
   ];
 
@@ -264,20 +337,35 @@ export default function DashboardScreen() {
         >
           <View style={styles.metricHeader}>
             <Ionicons name={metric.icon} size={28} color="#fff" />
-            {metric.trend && (
-              <View style={styles.trendContainer}>
-                <Text style={styles.trendText}>{metric.trend.value}</Text>
-                <Ionicons
-                  name={metric.trend.isPositive ? 'arrow-up' : 'arrow-down'}
-                  size={12}
-                  color="#fff"
-                />
-              </View>
-            )}
+            <View style={styles.metricHeaderRight}>
+              {metric.trend && (
+                <View style={styles.trendContainer}>
+                  <Text style={styles.trendText}>{metric.trend.value}</Text>
+                  <Ionicons
+                    name={metric.trend.isPositive ? 'arrow-up' : 'arrow-down'}
+                    size={12}
+                    color="#fff"
+                  />
+                </View>
+              )}
+              <TouchableOpacity
+                onPress={() => setTooltipVisible(tooltipVisible === metric.id ? null : metric.id)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="information-circle-outline" size={20} color="rgba(255,255,255,0.8)" />
+              </TouchableOpacity>
+            </View>
           </View>
           <Text style={styles.metricTitle}>{metric.title}</Text>
           <Text style={styles.metricValue}>{metric.value}</Text>
           <Text style={styles.metricSubtitle}>{metric.subtitle}</Text>
+          
+          {/* Tooltip */}
+          {tooltipVisible === metric.id && (
+            <View style={styles.tooltip}>
+              <Text style={styles.tooltipText}>{cardExplanations[metric.id]}</Text>
+            </View>
+          )}
         </LinearGradient>
       </Card>
     </TouchableOpacity>
@@ -321,7 +409,7 @@ export default function DashboardScreen() {
         </Card>
       )}
 
-      {/* Card de Estoque */}
+      {/* Card de Estoque - Valuation */}
       {totalProducts > 0 && (
         <Card style={styles.insightCard}>
           <Card.Content style={styles.insightContent}>
@@ -330,8 +418,9 @@ export default function DashboardScreen() {
               <Text style={styles.insightTitle}>Gestão de Estoque</Text>
             </View>
             <Text style={styles.insightText}>
-              Total de <Text style={styles.insightHighlight}>{totalStockQuantity}</Text> unidades em estoque,
-              avaliadas em <Text style={styles.insightHighlight}>{formatCurrency(stockValue)}</Text>.
+              <Text style={styles.insightHighlight}>{formatCurrency(valuation?.cost_value || stockValue)}</Text> em custo
+              {' '}e <Text style={styles.insightHighlight}>{formatCurrency(valuation?.retail_value || potentialRevenue)}</Text> em venda.
+              {' '}Margem potencial de <Text style={styles.insightHighlight}>{formatCurrency(valuation?.potential_margin || potentialProfit)}</Text>.
               {lowStockCount > 0 && ` ${lowStockCount} produto${lowStockCount > 1 ? 's' : ''} com estoque baixo.`}
             </Text>
           </Card.Content>
@@ -374,6 +463,25 @@ export default function DashboardScreen() {
           </Card.Content>
         </Card>
       )}
+      {/* Card de Saúde do Estoque */}
+      {health && (
+        <Card style={styles.insightCard}>
+          <Card.Content style={styles.insightContent}>
+            <View style={styles.insightHeader}>
+              <Ionicons name="stats-chart" size={20} color={Colors.light.primary} />
+              <Text style={styles.insightTitle}>Saúde do Estoque</Text>
+            </View>
+            <Text style={styles.insightText}>
+              Cobertura: <Text style={styles.insightHighlight}>
+                {health.coverage_days ? `${health.coverage_days.toFixed(1)} dias` : 'N/A'}
+              </Text>. Rupturas: <Text style={styles.insightHighlight}>{lowStockCount}</Text>.
+              Giro 30d: <Text style={styles.insightHighlight}>
+                {health.turnover_30d ? `${health.turnover_30d.toFixed(2)}x` : 'N/A'}
+              </Text>. Score: <Text style={styles.insightHighlight}>{health.health_score}</Text>.
+            </Text>
+          </Card.Content>
+        </Card>
+      )}
     </View>
   );
 
@@ -382,7 +490,7 @@ export default function DashboardScreen() {
     <View style={styles.activityContainer}>
       <View style={styles.activityHeader}>
         <Text style={styles.sectionTitle}>Atividade Recente</Text>
-        <TouchableOpacity onPress={() => router.push('/(tabs)/sale')}>
+        <TouchableOpacity onPress={() => router.push('/(tabs)/sales')}>
           <Text style={styles.seeAllText}>Ver todas</Text>
         </TouchableOpacity>
       </View>
@@ -399,7 +507,7 @@ export default function DashboardScreen() {
                   Venda #{sale.id}
                 </Text>
                 <Text style={styles.activitySubtitle}>
-                  {formatCurrency(sale.total)}
+                  {formatCurrency(sale.total_amount || (sale as any).total || 0)}
                 </Text>
               </View>
               <Text style={styles.activityTime}>
@@ -415,7 +523,7 @@ export default function DashboardScreen() {
             <Text style={styles.emptyActivityText}>Nenhuma venda registrada hoje</Text>
             <TouchableOpacity
               style={styles.emptyActivityButton}
-              onPress={() => router.push('/(tabs)/sale')}
+              onPress={() => router.push('/(tabs)/sales')}
             >
               <Text style={styles.emptyActivityButtonText}>Fazer primeira venda</Text>
             </TouchableOpacity>
@@ -427,6 +535,15 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Overlay transparente para fechar tooltip */}
+      {tooltipVisible && (
+        <TouchableOpacity
+          style={styles.tooltipOverlay}
+          activeOpacity={1}
+          onPress={() => setTooltipVisible(null)}
+        />
+      )}
+
       {/* Header Premium */}
       <PremiumHeader />
 
@@ -441,6 +558,8 @@ export default function DashboardScreen() {
           />
         }
         showsVerticalScrollIndicator={false}
+        onScroll={() => tooltipVisible && setTooltipVisible(null)}
+        scrollEventThrottle={16}
       >
         {/* Seção de Ações Rápidas */}
         <QuickActionsSection />
@@ -605,6 +724,16 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
     marginBottom: theme.spacing.sm,
+  },
+  metricHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+  },
+  metricIconRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
   },
   trendContainer: {
     flexDirection: 'row',
@@ -832,6 +961,32 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.md,
     fontWeight: '500',
     color: Colors.light.text,
+  },
+
+  // Tooltip
+  tooltipOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 999,
+  },
+  tooltip: {
+    position: 'absolute',
+    top: 60,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    zIndex: 1000,
+    elevation: theme.elevation.xl,
+  },
+  tooltipText: {
+    color: '#fff',
+    fontSize: theme.fontSize.xs,
+    lineHeight: 16,
   },
 
   // Espaçamento

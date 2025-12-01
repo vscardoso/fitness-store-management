@@ -166,31 +166,35 @@ export default function AddCustomerScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
       {/* Header com gradiente */}
-      <LinearGradient
-        colors={[Colors.light.primary, '#7c4dff']}
-        style={styles.headerGradient}
-      >
-        <View style={styles.headerTop}>
-          <TouchableOpacity
-            onPress={() => router.push('/(tabs)/customers')}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
+      <View style={styles.headerContainer}>
+        <LinearGradient
+          colors={['#667eea', '#764ba2']}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerContent}>
+          <View style={styles.headerTop}>
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/customers')}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
 
-          <Text style={styles.headerTitle}>
-            Novo Cliente
-          </Text>
+            <Text style={styles.headerTitle}>
+              Novo Cliente
+            </Text>
 
-          <View style={styles.headerPlaceholder} />
+            <View style={styles.headerPlaceholder} />
+          </View>
+
+          <View style={styles.headerInfo}>
+            <Text style={styles.headerSubtitle}>
+              Preencha os dados abaixo para cadastrar um novo cliente
+            </Text>
+          </View>
         </View>
-
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerSubtitle}>
-            Preencha os dados abaixo para cadastrar um novo cliente
-          </Text>
-        </View>
-      </LinearGradient>
+        </LinearGradient>
+      </View>
 
       <KeyboardAvoidingView
         style={styles.content}
@@ -438,22 +442,26 @@ export default function AddCustomerScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: Colors.light.backgroundSecondary,
   },
-  // Header styles
+  headerContainer: {
+    marginBottom: 0,
+  },
   headerGradient: {
-    paddingTop: theme.spacing.xl + 28,
-    paddingBottom: theme.spacing.lg,
     paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.sm,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
   },
   headerContent: {
-    marginTop: theme.spacing.sm,
+    marginTop: 0,
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.xs,
   },
   backButton: {
     width: 40,
@@ -487,7 +495,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#fff',
   },
   scrollView: {
     flex: 1,

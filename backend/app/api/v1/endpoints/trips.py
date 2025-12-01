@@ -148,6 +148,50 @@ async def list_trips(
 
 
 @router.get(
+    "/check-code/{trip_code}",
+    response_model=dict,
+    summary="Verificar se código de viagem já existe",
+    description="Verifica se o código informado já está em uso por outra viagem ativa"
+)
+async def check_trip_code(
+    trip_code: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Verifica se o código de viagem já existe para o tenant atual.
+
+    Args:
+        trip_code: Código da viagem a verificar
+        db: Sessão do banco de dados
+        current_user: Usuário autenticado
+        tenant_id: ID do tenant atual
+
+    Returns:
+        dict: {"exists": bool, "message": str}
+
+    Examples:
+        GET /trips/check-code/TRIP-001
+        Response: {"exists": true, "message": "Código já existe"}
+    """
+    try:
+        service = TripService(db)
+        exists = await service.check_code_exists(trip_code, tenant_id)
+
+        return {
+            "exists": exists,
+            "message": "Código já existe" if exists else "Código disponível"
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao verificar código: {str(e)}"
+        )
+
+
+@router.get(
     "/{trip_id}",
     response_model=TripResponse,
     summary="Detalhes da viagem",

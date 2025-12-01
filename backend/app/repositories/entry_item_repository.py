@@ -4,6 +4,7 @@ Repository para operações de EntryItem.
 from typing import Optional, Sequence
 from decimal import Decimal
 from sqlalchemy import select, and_, update as sql_update, case, Float
+from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.exc import SQLAlchemyError
@@ -76,7 +77,8 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
     async def get_by_entry(
         self, 
         db: AsyncSession, 
-        entry_id: int
+        entry_id: int,
+        tenant_id: int
     ) -> Sequence[EntryItem]:
         """
         Busca todos os itens de uma entrada específica.
@@ -84,6 +86,7 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
         Args:
             db: Database session
             entry_id: ID da entrada de estoque
+            tenant_id: ID do tenant (multi-tenancy)
             
         Returns:
             Lista de itens da entrada
@@ -93,6 +96,7 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
             .where(
                 and_(
                     EntryItem.entry_id == entry_id,
+                    EntryItem.tenant_id == tenant_id,
                     EntryItem.is_active == True
                 )
             )
@@ -184,6 +188,9 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
         """
         Diminui a quantidade restante de um item (usado em vendas - FIFO).
         
+        IMPORTANTE: NÃO faz commit - a transação é gerenciada pelo service layer.
+        Isso garante atomicidade: se houver erro na venda, o rollback reverte o estoque.
+        
         Args:
             db: Database session
             item_id: ID do item
@@ -209,15 +216,16 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
             if item.quantity_remaining < quantity:
                 return False
             
-            # Atualizar quantidade
+            # Atualizar quantidade (SEM COMMIT - deixar para o service layer)
             item.quantity_remaining -= quantity
             
-            await db.commit()
-            await db.refresh(item)
+            # Flush para refletir mudança na sessão sem commitar
+            await db.flush()
+            
             return True
             
         except SQLAlchemyError as e:
-            await db.rollback()
+            # NÃO fazer rollback aqui - deixar para o service layer
             raise SQLAlchemyError(f"Error decreasing quantity for item {item_id}: {str(e)}")
     
     async def increase_quantity(
@@ -228,6 +236,8 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
     ) -> bool:
         """
         Aumenta a quantidade restante de um item (usado em devoluções).
+        
+        IMPORTANTE: NÃO faz commit - a transação é gerenciada pelo service layer.
         
         Args:
             db: Database session
@@ -259,12 +269,13 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
             
             item.quantity_remaining = new_quantity
             
-            await db.commit()
-            await db.refresh(item)
+            # Flush para refletir mudança na sessão sem commitar
+            await db.flush()
+            
             return True
             
         except SQLAlchemyError as e:
-            await db.rollback()
+            # NÃO fazer rollback aqui - deixar para o service layer
             raise SQLAlchemyError(f"Error increasing quantity for item {item_id}: {str(e)}")
     
     async def update(
@@ -422,6 +433,28 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
         result = await db.execute(query)
         total = result.scalar_one_or_none()
         return total if total is not None else 0
+
+    async def count_by_product(
+        self,
+        db: AsyncSession,
+        product_id: int,
+        *,
+        tenant_id: int | None = None,
+    ) -> int:
+        """Conta quantos EntryItems ativos existem para um produto.
+
+        Útil para classificar produtos como "nunca estocados".
+        """
+        conditions = [
+            EntryItem.product_id == product_id,
+            EntryItem.is_active == True,
+        ]
+        if tenant_id is not None:
+            conditions.append(EntryItem.tenant_id == tenant_id)
+
+        query = select(func.count()).where(and_(*conditions))
+        result = await db.execute(query)
+        return int(result.scalar_one() or 0)
     
     async def bulk_decrease_quantity(
         self,

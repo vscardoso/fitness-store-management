@@ -10,7 +10,7 @@
  * - Suporte a produto pré-selecionado do catálogo
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -40,7 +40,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useTrips } from '@/hooks/useTrips';
 import { useProducts } from '@/hooks';
-import { createStockEntry } from '@/services/stockEntryService';
+import { createStockEntry, checkEntryCode } from '@/services/stockEntryService';
 import { formatCurrency } from '@/utils/format';
 import { cnpjMask, phoneMask } from '@/utils/masks';
 import { Colors, theme } from '@/constants/Colors';
@@ -88,6 +88,12 @@ export default function AddStockEntryScreen() {
   const [showCreateTripDialog, setShowCreateTripDialog] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [createdEntryCode, setCreatedEntryCode] = useState<string | undefined>();
+  const [codeValidationStatus, setCodeValidationStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
+  const codeCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [showTripLinkedDialog, setShowTripLinkedDialog] = useState(false);
+  const [linkedTripInfo, setLinkedTripInfo] = useState<{ code: string; destination: string } | null>(null);
+  const [showDeleteItemDialog, setShowDeleteItemDialog] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<number | null>(null);
 
   // Queries
   const { data: trips = [] } = useTrips({ status: undefined, limit: 100 });
@@ -137,14 +143,52 @@ export default function AddStockEntryScreen() {
         setTripId(trip.id);
 
         // Mostrar feedback de sucesso
-        Alert.alert(
-          'Viagem Vinculada! ✓',
-          `A viagem "${trip.trip_code} - ${trip.destination}" foi vinculada automaticamente a esta entrada.`,
-          [{ text: 'Entendi' }]
-        );
+        setLinkedTripInfo({ code: trip.trip_code, destination: trip.destination });
+        setShowTripLinkedDialog(true);
       }
     }
   }, [params.newTripId, trips]);
+
+  /**
+   * Validar código de entrada em tempo real (com debounce)
+   */
+  useEffect(() => {
+    // Limpar timeout anterior
+    if (codeCheckTimeoutRef.current) {
+      clearTimeout(codeCheckTimeoutRef.current);
+    }
+
+    // Resetar se campo estiver vazio
+    if (!entryCode.trim()) {
+      setCodeValidationStatus('idle');
+      return;
+    }
+
+    // Validar tamanho mínimo
+    if (entryCode.trim().length < 5) {
+      setCodeValidationStatus('idle');
+      return;
+    }
+
+    // Iniciar validação após 500ms de inatividade
+    setCodeValidationStatus('checking');
+    codeCheckTimeoutRef.current = setTimeout(async () => {
+      try {
+        const result = await checkEntryCode(entryCode.trim());
+        setCodeValidationStatus(result.exists ? 'invalid' : 'valid');
+      } catch (error) {
+        // Em caso de erro, assumir que está válido para não bloquear o usuário
+        setCodeValidationStatus('valid');
+      }
+    }, 500);
+
+    // Cleanup
+    return () => {
+      if (codeCheckTimeoutRef.current) {
+        clearTimeout(codeCheckTimeoutRef.current);
+      }
+    };
+  }, [entryCode]);
 
   /**
    * Filtrar produtos por busca
@@ -237,21 +281,20 @@ export default function AddStockEntryScreen() {
    * Remover item da lista
    */
   const handleRemoveItem = (index: number) => {
-    Alert.alert(
-      'Remover Produto',
-      'Deseja remover este produto da entrada?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Remover',
-          style: 'destructive',
-          onPress: () => {
-            const newItems = items.filter((_, i) => i !== index);
-            setItems(newItems);
-          },
-        },
-      ]
-    );
+    setItemToDelete(index);
+    setShowDeleteItemDialog(true);
+  };
+
+  /**
+   * Confirmar remoção do item
+   */
+  const confirmRemoveItem = () => {
+    if (itemToDelete !== null) {
+      const newItems = items.filter((_, i) => i !== itemToDelete);
+      setItems(newItems);
+      setItemToDelete(null);
+    }
+    setShowDeleteItemDialog(false);
   };
 
   /**
@@ -366,30 +409,35 @@ export default function AddStockEntryScreen() {
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
-      {/* Header Gradiente */}
-      <LinearGradient
-        colors={[Colors.light.primary, '#7c4dff']}
-        style={styles.headerGradient}
-      >
-        <View style={styles.headerTop}>
-          <TouchableOpacity
-            onPress={() => router.push('/(tabs)/entries')}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color="white" />
-          </TouchableOpacity>
-          
-          <Text style={styles.headerTitle}>Nova Entrada</Text>
-          
-          <View style={styles.headerPlaceholder} />
-        </View>
 
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerSubtitle}>
-            Preencha os dados abaixo para cadastrar uma nova entrada de estoque
-          </Text>
-        </View>
-      </LinearGradient>
+      {/* Header Premium */}
+      <View style={styles.headerContainer}>
+        <LinearGradient
+          colors={['#667eea', '#764ba2']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerTop}>
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/entries')}
+              style={styles.backButton}
+            >
+              <Ionicons name="arrow-back" size={24} color="white" />
+            </TouchableOpacity>
+
+            <Text style={styles.headerTitle}>Nova Entrada</Text>
+
+            <View style={styles.headerPlaceholder} />
+          </View>
+
+          <View style={styles.headerInfo}>
+            <Text style={styles.headerSubtitle}>
+              Preencha os dados abaixo para cadastrar uma nova entrada de estoque
+            </Text>
+          </View>
+        </LinearGradient>
+      </View>
 
       <KeyboardAvoidingView
         style={styles.content}
@@ -451,7 +499,7 @@ export default function AddStockEntryScreen() {
               onPress={() => setSelectedType(EntryType.LOCAL)}
             >
               <Ionicons
-                name="business-outline"
+                name="storefront-outline"
                 size={32}
                 color={selectedType === EntryType.LOCAL ? Colors.light.primary : Colors.light.textSecondary}
               />
@@ -484,11 +532,30 @@ export default function AddStockEntryScreen() {
               placeholder="Ex: ENTRADA-001 (mín. 5 caracteres)"
               maxLength={50}
               autoCapitalize="characters"
-              error={!!errors.entryCode}
+              error={!!errors.entryCode || codeValidationStatus === 'invalid'}
+              right={
+                codeValidationStatus === 'checking' ? (
+                  <TextInput.Icon icon="clock-outline" />
+                ) : codeValidationStatus === 'valid' ? (
+                  <TextInput.Icon icon="check-circle" color="#4CAF50" />
+                ) : codeValidationStatus === 'invalid' ? (
+                  <TextInput.Icon icon="close-circle" color="#f44336" />
+                ) : null
+              }
             />
             {errors.entryCode && (
               <HelperText type="error" visible={!!errors.entryCode}>
                 {errors.entryCode}
+              </HelperText>
+            )}
+            {!errors.entryCode && codeValidationStatus === 'invalid' && (
+              <HelperText type="error" visible={true}>
+                Código já existe. Por favor, escolha outro código.
+              </HelperText>
+            )}
+            {!errors.entryCode && codeValidationStatus === 'valid' && (
+              <HelperText type="info" visible={true} style={{ color: '#4CAF50' }}>
+                Código disponível ✓
               </HelperText>
             )}
           </View>
@@ -864,7 +931,7 @@ export default function AddStockEntryScreen() {
             mode="contained"
             onPress={handleSubmit}
             loading={createMutation.isPending}
-            disabled={createMutation.isPending || items.length === 0}
+            disabled={createMutation.isPending || items.length === 0 || codeValidationStatus === 'invalid' || codeValidationStatus === 'checking'}
             style={styles.submitButton}
             contentStyle={styles.submitButtonContent}
           >
@@ -900,7 +967,15 @@ export default function AddStockEntryScreen() {
           setShowCreateTripDialog(false);
           router.push({
             pathname: '/trips/add',
-            params: { from: 'entries' }
+            params: {
+              from: 'entries',
+              // Preservar produto pré-selecionado (se houver)
+              ...(params.preselectedProductId && {
+                preselectedProductId: params.preselectedProductId,
+                preselectedQuantity: params.preselectedQuantity,
+                preselectedPrice: params.preselectedPrice,
+              })
+            }
           });
         }}
         onCancel={() => setShowCreateTripDialog(false)}
@@ -940,7 +1015,45 @@ export default function AddStockEntryScreen() {
           setTripId(undefined);
           setSelectedType(EntryType.LOCAL);
         }}
-        icon="checkmark-circle"
+        icon="check-circle"
+      />
+
+      {/* Dialog de Viagem Vinculada */}
+      <ConfirmDialog
+        visible={showTripLinkedDialog}
+        title="Viagem Vinculada! ✓"
+        message={`A viagem foi vinculada automaticamente a esta entrada.`}
+        details={
+          linkedTripInfo
+            ? [
+                `Código: ${linkedTripInfo.code}`,
+                `Destino: ${linkedTripInfo.destination}`,
+                'Continue preenchendo os dados da entrada',
+              ]
+            : []
+        }
+        type="success"
+        confirmText="Continuar"
+        cancelText=""
+        onConfirm={() => setShowTripLinkedDialog(false)}
+        onCancel={() => setShowTripLinkedDialog(false)}
+        icon="check-circle"
+      />
+
+      {/* Dialog de Remover Item */}
+      <ConfirmDialog
+        visible={showDeleteItemDialog}
+        title="Remover Produto"
+        message="Deseja remover este produto da entrada?"
+        type="danger"
+        confirmText="Remover"
+        cancelText="Cancelar"
+        onConfirm={confirmRemoveItem}
+        onCancel={() => {
+          setShowDeleteItemDialog(false);
+          setItemToDelete(null);
+        }}
+        icon="trash"
       />
     </View>
   );
@@ -949,7 +1062,10 @@ export default function AddStockEntryScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: Colors.light.backgroundSecondary,
+  },
+  headerContainer: {
+    marginBottom: 0,
   },
   headerGradient: {
     paddingHorizontal: theme.spacing.md,

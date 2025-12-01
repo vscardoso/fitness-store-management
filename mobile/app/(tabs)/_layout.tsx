@@ -109,6 +109,9 @@ export default function TabsLayout() {
 
       {/* ========== TELAS OCULTAS (Sem Tab, Rotas Preservadas) ========== */}
       
+      {/* Oculta módulo de Vendas do tab bar, mantendo rota acessível */}
+      <Tabs.Screen name="sales" options={{ href: null }} />
+
       <Tabs.Screen name="products" options={{ href: null }} />
       <Tabs.Screen name="customers" options={{ href: null }} />
       <Tabs.Screen name="inventory" options={{ href: null }} />

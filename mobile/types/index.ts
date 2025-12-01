@@ -297,10 +297,18 @@ export interface SaleItem {
   discount: number;
 }
 
-export interface SaleItemResponse extends SaleItem {
+export interface SaleItemCreate {
+  product_id: number;
+  quantity: number;
+  unit_price: number;
+  discount_amount: number;
+}
+
+export interface SaleItemResponse extends Omit<SaleItem, 'discount'> {
   id: number;
   sale_id: number;
   subtotal: number;
+  discount_amount: number;
   product?: Product;
 }
 
@@ -317,6 +325,12 @@ export interface Payment {
   installments: number;
 }
 
+export interface PaymentCreate {
+  payment_method: PaymentMethod;
+  amount: number;
+  payment_reference?: string;
+}
+
 export interface PaymentResponse extends Payment {
   id: number;
   sale_id: number;
@@ -325,10 +339,12 @@ export interface PaymentResponse extends Payment {
 
 export interface SaleCreate {
   customer_id?: number;
-  items: SaleItem[];
-  payments: Payment[];
-  discount: number;
+  payment_method: PaymentMethod;
+  discount_amount: number;
+  tax_amount: number;
   notes?: string;
+  items: SaleItemCreate[];
+  payments: PaymentCreate[];
 }
 
 export interface Sale {
@@ -337,19 +353,22 @@ export interface Sale {
   customer_id?: number;
   seller_id: number;
   subtotal: number;
-  discount: number;
-  total: number;
+  discount_amount: number;
+  tax_amount: number;
+  total_amount: number;
+  payment_method: PaymentMethod;
+  payment_reference?: string;
   status: SaleStatus;
-  created_at: string;
-  completed_at?: string;
   notes?: string;
+  created_at: string;
+  updated_at?: string;
+  customer_name?: string;
+  seller_name?: string;
 }
 
 export interface SaleWithDetails extends Sale {
   items: SaleItemResponse[];
   payments: PaymentResponse[];
-  customer_name?: string;
-  seller_name?: string;
 }
 
 // ============================================
@@ -568,6 +587,7 @@ export interface StockEntry {
   roi?: number;
   trip_code?: string;
   trip_destination?: string;
+  has_sales: boolean;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -590,6 +610,25 @@ export interface StockEntryCreate {
 
 export interface StockEntryWithItems extends StockEntry {
   entry_items: EntryItemResponse[];
+}
+
+// ============================================
+// PRODUCT QUANTITY ADJUSTMENT TYPES
+// ============================================
+
+export interface ProductQuantityAdjustRequest {
+  new_quantity: number;
+  reason?: string;
+  unit_cost?: number; // obrigatório quando aumentar
+}
+
+export interface ProductQuantityAdjustResponse {
+  product_id: number;
+  previous_quantity: number;
+  new_quantity: number;
+  delta: number;
+  movement: 'increase' | 'decrease' | 'none';
+  message?: string;
 }
 
 // ============================================

@@ -95,7 +95,7 @@ class FIFOService:
             # Determinar quanto retirar deste item
             quantity_to_take = min(item.quantity_remaining, remaining_to_process)
             
-            # Deduzir quantidade do item
+            # Deduzir quantidade do item (transação gerenciada pelo sale_service)
             success = await self.item_repo.decrease_quantity(
                 self.db,
                 item.id,
@@ -103,8 +103,7 @@ class FIFOService:
             )
             
             if not success:
-                # Rollback se algo der errado
-                await self.db.rollback()
+                # Não faz rollback - deixar para o service layer
                 raise ValueError(
                     f"Failed to decrease quantity for entry item {item.id}"
                 )
@@ -129,7 +128,7 @@ class FIFOService:
         
         # Verificar se conseguiu processar tudo
         if remaining_to_process > 0:
-            await self.db.rollback()
+            # Não faz rollback - deixar para o service layer
             raise ValueError(
                 f"Failed to process complete sale. Remaining: {remaining_to_process}"
             )

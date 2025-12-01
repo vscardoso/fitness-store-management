@@ -6,6 +6,8 @@ from typing import Dict, List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.inventory import Inventory, MovementType
+from app.models.entry_item import EntryItem
+from app.models.sale import SaleItem
 from app.repositories.inventory_repository import InventoryRepository
 from app.repositories.product_repository import ProductRepository
 
@@ -23,6 +25,193 @@ class InventoryService:
         self.db = db
         self.inventory_repo = InventoryRepository(db)
         self.product_repo = ProductRepository(db)
+    
+    async def rebuild_product_from_fifo(self, product_id: int, *, tenant_id: int | None = None) -> dict:
+        """Recalcula o estoque derivado (inventory) para um produto a partir da soma FIFO (entry_items).
+
+        Regras:
+        - Soma apenas entry_items ativos.
+        - Cria registro de inventory se não existir.
+        - Atualiza quantidade diretamente (sem movimentos) se houver divergência.
+        - Retorna metadados da operação.
+        """
+        from sqlalchemy import select, func
+
+        # Soma FIFO
+        stmt = select(func.coalesce(func.sum(EntryItem.quantity_remaining), 0)).where(EntryItem.product_id == product_id, EntryItem.is_active == True)
+        if tenant_id is not None:
+            stmt = stmt.where(EntryItem.tenant_id == tenant_id)
+        result = await self.db.execute(stmt)
+        fifo_sum = int(result.scalar_one() or 0)
+
+        # Inventory atual
+        current = await self.inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
+
+        created = False
+        updated = False
+        previous_qty = None
+
+        if current is None:
+            inv_data = {
+                'product_id': product_id,
+                'quantity': fifo_sum,
+                'min_stock': 5,
+                'is_active': True
+            }
+            current = await self.inventory_repo.create(self.db, inv_data, tenant_id=tenant_id)
+            created = True
+        else:
+            previous_qty = current.quantity
+            if current.quantity != fifo_sum:
+                current.quantity = fifo_sum
+                updated = True
+        # Commit local apenas se houve criação/atualização
+        if created or updated:
+            await self.db.commit()
+            await self.db.refresh(current)
+
+        return {
+            'product_id': product_id,
+            'tenant_id': tenant_id,
+            'fifo_sum': fifo_sum,
+            'inventory_quantity': current.quantity if current else fifo_sum,
+            'created': created,
+            'updated': updated,
+            'previous_quantity': previous_qty
+        }
+
+    async def rebuild_all_from_fifo(self, *, tenant_id: int) -> list[dict]:
+        """Recalcula inventário de todos os produtos do tenant com base no FIFO.
+
+        Retorna lista de deltas por produto.
+        """
+        from sqlalchemy import select, func, update
+
+        # Coletar somas FIFO por produto
+        stmt = (
+            select(
+                EntryItem.product_id,
+                func.coalesce(func.sum(EntryItem.quantity_remaining), 0).label("fifo_sum")
+            )
+            .where(EntryItem.is_active == True)
+            .where(EntryItem.tenant_id == tenant_id)
+            .group_by(EntryItem.product_id)
+        )
+        rows = (await self.db.execute(stmt)).all()
+        fifo_map = {r[0]: int(r[1]) for r in rows}
+
+        # Inventários existentes do tenant
+        inv_stmt = select(Inventory).where(Inventory.tenant_id == tenant_id)
+        inv_list = (await self.db.execute(inv_stmt)).scalars().all()
+        inv_map = {inv.product_id: inv for inv in inv_list}
+
+        deltas: list[dict] = []
+        touched: set[int] = set()
+
+        # Atualizar/criar para produtos com entry_items
+        for pid, fifo_sum in fifo_map.items():
+            touched.add(pid)
+            inv = inv_map.get(pid)
+            if inv is None:
+                new_inv = Inventory(product_id=pid, quantity=fifo_sum)
+                new_inv.tenant_id = tenant_id
+                self.db.add(new_inv)
+                deltas.append({
+                    'product_id': pid,
+                    'tenant_id': tenant_id,
+                    'fifo_sum': fifo_sum,
+                    'inventory_quantity': fifo_sum,
+                    'created': True,
+                    'updated': False,
+                    'previous_quantity': None,
+                })
+            elif inv.quantity != fifo_sum:
+                prev = inv.quantity
+                inv.quantity = fifo_sum
+                deltas.append({
+                    'product_id': pid,
+                    'tenant_id': tenant_id,
+                    'fifo_sum': fifo_sum,
+                    'inventory_quantity': fifo_sum,
+                    'created': False,
+                    'updated': True,
+                    'previous_quantity': prev,
+                })
+
+        # Para inventários existentes sem entry_items ativos, zera
+        for pid, inv in inv_map.items():
+            if pid in touched:
+                continue
+            if inv.quantity != 0:
+                prev = inv.quantity
+                inv.quantity = 0
+                deltas.append({
+                    'product_id': pid,
+                    'tenant_id': tenant_id,
+                    'fifo_sum': 0,
+                    'inventory_quantity': 0,
+                    'created': False,
+                    'updated': True,
+                    'previous_quantity': prev,
+                })
+
+        if deltas:
+            await self.db.commit()
+
+        return deltas
+
+    async def reconcile_costs(self, *, tenant_id: int, product_id: int | None = None) -> dict:
+        """Gera um resumo de reconciliação de custo FIFO.
+
+        - custo_recebido_total: Σ(qty_received * unit_cost)
+        - custo_restante: Σ(qty_remaining * unit_cost)
+        - custo_vendido_entry_items: custo_recebido_total - custo_restante
+        - custo_vendido_por_fontes: soma das fontes em sale_sources (se existirem)
+        - diferenca: custo_vendido_por_fontes - custo_vendido_entry_items
+        """
+        from sqlalchemy import select, func
+
+        # Somas por entry_items
+        ei_stmt = select(
+            func.coalesce(func.sum(EntryItem.quantity_received * EntryItem.unit_cost), 0),
+            func.coalesce(func.sum(EntryItem.quantity_remaining * EntryItem.unit_cost), 0),
+        ).where(EntryItem.tenant_id == tenant_id)
+        if product_id is not None:
+            ei_stmt = ei_stmt.where(EntryItem.product_id == product_id)
+        received_cost, remaining_cost = (await self.db.execute(ei_stmt)).one()
+
+        received_cost = float(received_cost or 0)
+        remaining_cost = float(remaining_cost or 0)
+        sold_cost_entry_items = received_cost - remaining_cost
+
+        # Somar via sale_sources
+        si_stmt = select(SaleItem.sale_sources).where(SaleItem.tenant_id == tenant_id)
+        if product_id is not None:
+            si_stmt = si_stmt.where(SaleItem.product_id == product_id)
+        rows = (await self.db.execute(si_stmt)).scalars().all()
+        sold_cost_sources = 0.0
+        units_sold_sources = 0
+        for src in rows:
+            if not src or 'sources' not in src:
+                continue
+            for s in src['sources']:
+                qty = int(s.get('quantity_taken', 0))
+                unit_cost = float(s.get('unit_cost', 0))
+                sold_cost_sources += qty * unit_cost
+                units_sold_sources += qty
+
+        diff = sold_cost_sources - sold_cost_entry_items
+
+        return {
+            'tenant_id': tenant_id,
+            'product_id': product_id,
+            'custo_recebido_total': round(received_cost, 2),
+            'custo_restante': round(remaining_cost, 2),
+            'custo_vendido_entry_items': round(sold_cost_entry_items, 2),
+            'custo_vendido_por_fontes': round(sold_cost_sources, 2),
+            'diferenca': round(diff, 2),
+            'unidades_vendidas_por_fontes': units_sold_sources,
+        }
     
     async def add_stock(
         self,

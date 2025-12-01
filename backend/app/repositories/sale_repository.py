@@ -29,20 +29,28 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         *,
         skip: int = 0,
         limit: int = 100,
+        include_relationships: bool = True,
         tenant_id: int | None = None,
     ) -> List[Sale]:
+        """Lista vendas com paginação.
+        Adiciona eager loading para evitar lazy-load async (MissingGreenlet) no retorno da API.
         """
-        Wrapper para get_multi usando self.db.
-        
-        Args:
-            skip: Número de registros para pular
-            limit: Limite de registros
-            tenant_id: ID do tenant
-            
-        Returns:
-            Lista de vendas
-        """
-        return await super().get_multi(self.db, skip=skip, limit=limit, tenant_id=tenant_id)
+        conditions = [Sale.is_active == True]
+        if tenant_id is not None and hasattr(Sale, "tenant_id"):
+            conditions.append(Sale.tenant_id == tenant_id)
+
+        query = select(Sale).where(and_(*conditions)).order_by(desc(Sale.created_at)).offset(skip).limit(limit)
+
+        if include_relationships:
+            query = query.options(
+                selectinload(Sale.items).selectinload(SaleItem.product),
+                selectinload(Sale.payments),
+                selectinload(Sale.customer),
+                selectinload(Sale.seller),
+            )
+
+        result = await self.db.execute(query)
+        return result.scalars().all()
     
     async def get_by_date_range(
         self, 
@@ -78,7 +86,8 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
             query = query.options(
                 selectinload(Sale.items).selectinload(SaleItem.product),
                 selectinload(Sale.payments),
-                selectinload(Sale.customer)
+                selectinload(Sale.customer),
+                selectinload(Sale.seller),
             )
         
         result = await self.db.execute(query)
@@ -113,7 +122,8 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
             query = query.options(
                 selectinload(Sale.items).selectinload(SaleItem.product),
                 selectinload(Sale.payments),
-                selectinload(Sale.customer)
+                selectinload(Sale.customer),
+                selectinload(Sale.seller),
             )
         
         result = await self.db.execute(query)
@@ -212,7 +222,8 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
             query = query.options(
                 selectinload(Sale.items).selectinload(SaleItem.product),
                 selectinload(Sale.payments),
-                selectinload(Sale.customer)
+                selectinload(Sale.customer),
+                selectinload(Sale.seller),
             )
         
         result = await self.db.execute(query)
@@ -237,9 +248,38 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         query = select(Sale).where(and_(*conditions)).options(
             selectinload(Sale.items).selectinload(SaleItem.product),
             selectinload(Sale.payments),
-            selectinload(Sale.customer)
+            selectinload(Sale.customer),
+            selectinload(Sale.seller),
         )
         
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+
+    # --- Métodos utilizados pelos endpoints que estavam ausentes, causando 500 ---
+    async def get_with_details(self, sale_id: int, *, tenant_id: int | None = None) -> Optional[Sale]:
+        """Alias para get_with_relationships para compatibilidade com endpoint /sales/{sale_id}."""
+        return await self.get_with_relationships(sale_id, tenant_id=tenant_id)
+
+    async def get_by_sale_number(
+        self,
+        sale_number: str,
+        *,
+        tenant_id: int | None = None,
+        include_relationships: bool = True,
+    ) -> Optional[Sale]:
+        """Busca venda pelo número único (sale_number)."""
+        conditions = [Sale.sale_number == sale_number]
+        if tenant_id is not None and hasattr(Sale, "tenant_id"):
+            conditions.append(Sale.tenant_id == tenant_id)
+
+        query = select(Sale).where(and_(*conditions))
+        if include_relationships:
+            query = query.options(
+                selectinload(Sale.items).selectinload(SaleItem.product),
+                selectinload(Sale.payments),
+                selectinload(Sale.customer),
+                selectinload(Sale.seller),
+            )
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
     

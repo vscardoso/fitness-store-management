@@ -70,6 +70,96 @@ setProducts([...products, newProduct]); // DON'T DO THIS
 5. **Loading States**: Always handle `isLoading` with appropriate indicators
 6. **Error Handling**: Show user-friendly error messages with Alert.alert or Toast
 
+### Header Standards (MUST FOLLOW - PADRÃO DEFINITIVO)
+
+**Estrutura Base** (copiada EXATAMENTE de lista de produtos/clientes):
+
+```typescript
+// NA TELA (products/[id].tsx, customers/[id].tsx, etc):
+<SafeAreaView style={styles.safeArea} edges={['top']}>
+  <StatusBar barStyle="light-content" backgroundColor="#667eea" />
+  <View style={styles.container}>
+    <DetailHeader {...props} />
+    <ScrollView>...</ScrollView>
+  </View>
+</SafeAreaView>
+
+const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#667eea', // COR INICIAL DO GRADIENTE
+  },
+  container: {
+    flex: 1,
+    backgroundColor: Colors.light.backgroundSecondary,
+  },
+});
+```
+
+**NO COMPONENTE DetailHeader**:
+- SEM SafeAreaView (a tela já tem)
+- SEM StatusBar (a tela já tem)
+- Apenas View + LinearGradient + conteúdo
+
+```typescript
+// DetailHeader.tsx
+return (
+  <View style={styles.headerContainer}>
+    <LinearGradient
+      colors={['#667eea', '#764ba2']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.headerGradient}
+    >
+      <View style={styles.headerContent}>
+        {/* Navbar com back + actions */}
+        {/* Nome da entidade como título principal */}
+        {/* Badges (opcional) */}
+      </View>
+    </LinearGradient>
+  </View>
+);
+
+const styles = StyleSheet.create({
+  headerContainer: {
+    marginBottom: 0,
+  },
+  headerGradient: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl + 32,  // 56 (para status bar/notch)
+    paddingBottom: theme.spacing.lg,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
+  },
+  headerContent: {
+    // Container do conteúdo
+  },
+});
+```
+
+**Regras Críticas**:
+1. SafeAreaView NA TELA com `backgroundColor: '#667eea'` (cor inicial do gradiente)
+2. StatusBar NA TELA com `backgroundColor="#667eea"`
+3. DetailHeader é APENAS um View wrapper (sem SafeAreaView)
+4. Título principal = nome da entidade (fontSize: theme.fontSize.xxl, fontWeight: '700')
+5. Sem títulos redundantes tipo "Detalhes do..."
+6. Navbar: back à esquerda, edit/delete à direita
+7. Badges abaixo do título (opcional)
+8. Métricas NO BODY da tela (nunca no header)
+9. Screen container background = `Colors.light.backgroundSecondary`
+
+**O QUE CAUSAVA OS ERROS**:
+- ❌ SafeAreaView dentro do DetailHeader → faixa branca no topo
+- ❌ backgroundColor: 'transparent' no SafeArea → faixa branca
+- ❌ Título removido ou com fontSize errado → título sumiu
+- ❌ Padding/margins extras → altura enorme
+
+**SOLUÇÃO VERIFICADA**:
+- ✅ SafeAreaView NA TELA com cor do gradiente
+- ✅ DetailHeader sem SafeAreaView (só gradiente)
+- ✅ Título com mesmo estilo das listas (xxl, bold)
+- ✅ Paddings exatos da lista
+
 ## Component Structure Pattern
 
 ```typescript
@@ -141,6 +231,11 @@ Customers have types: REGULAR, VIP, PREMIUM, CORPORATE with associated discounts
 
 ### Product Display
 Products have: name, SKU, barcode, cost_price, sale_price, category, inventory quantity. Show profit margins when relevant.
+
+#### Currency Input (pt-BR)
+- Always mask price inputs with BR format (e.g., 1.234,56) for typing.
+- On submit, parse by removing thousand separators and converting comma to dot.
+- Pre-fill add-stock unit cost with `product.cost_price` when available; require manual input only if `cost_price` is absent or ≤ 0.
 
 ### Sales Flow
 1. Select customer (or create new)

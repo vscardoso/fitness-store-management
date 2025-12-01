@@ -192,7 +192,7 @@ async def list_sales(
             sales = await sale_repo.get_by_seller(seller_id, skip, limit, tenant_id=tenant_id)
         else:
             # Sem filtro - todas as vendas
-            sales = await sale_repo.get_multi(skip=skip, limit=limit, tenant_id=tenant_id)
+            sales = await sale_repo.get_multi(skip=skip, limit=limit, tenant_id=tenant_id, include_relationships=True)
         
         return sales
         

@@ -10,7 +10,7 @@
  * - Gráfico de performance
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -28,9 +28,9 @@ import {
   ProgressBar,
 } from 'react-native-paper';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import InfoRow from '@/components/ui/InfoRow';
 import StatCard from '@/components/ui/StatCard';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -40,7 +40,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { EntryType, EntryItemResponse } from '@/types';
 
 export default function StockEntryDetailsScreen() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -49,21 +49,22 @@ export default function StockEntryDetailsScreen() {
   const isValidId = !isNaN(entryId) && entryId > 0;
 
   /**
-   * Função para voltar garantindo que vai para a lista de entradas
+   * Função para voltar para a tela anterior (inventário ou lista de entradas)
    */
   const handleGoBack = () => {
-    if (router.canGoBack()) {
+    // Se veio do inventário, volta para lá
+    if (from === 'inventory') {
+      router.push('/(tabs)/inventory');
+    } else if (router.canGoBack()) {
       router.back();
     } else {
-      router.replace('/entries');
+      router.replace('/(tabs)/entries');
     }
   };
 
   // Estados
   const [refreshing, setRefreshing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
 
   /**
    * Query: Buscar entrada
@@ -84,28 +85,40 @@ export default function StockEntryDetailsScreen() {
     onSuccess: async (result: any) => {
       setShowDeleteDialog(false);
 
-      // Preparar mensagem detalhada
-      const messages = [`Entrada ${result.entry_code} excluída com sucesso!`];
-
-      if (result.orphan_products_deleted > 0) {
-        messages.push(`• ${result.orphan_products_deleted} produto(s) órfão(s) excluído(s)`);
-      }
-
-      if (result.total_stock_removed > 0) {
-        messages.push(`• ${result.total_stock_removed} unidades removidas do estoque`);
-      }
-
-      setSuccessMessage(messages.join('\n'));
-      setShowSuccessDialog(true);
-
-      // Invalidar queries em background (Promise não bloqueia)
-      Promise.all([
+      // Invalidar queries primeiro
+      await Promise.all([
         queryClient.removeQueries({ queryKey: ['stock-entry', entryId] }),
         queryClient.invalidateQueries({ queryKey: ['stock-entries'] }),
         queryClient.invalidateQueries({ queryKey: ['products'] }),
         queryClient.invalidateQueries({ queryKey: ['active-products'] }),
         queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
         queryClient.invalidateQueries({ queryKey: ['low-stock'] }),
+      ]);
+
+      // Preparar mensagem de sucesso
+      const messages = [`Entrada ${result.entry_code} excluída!`];
+      if (result.orphan_products_deleted > 0) {
+        messages.push(`${result.orphan_products_deleted} produto(s) órfão(s) excluído(s)`);
+      }
+      if (result.total_stock_removed > 0) {
+        messages.push(`${result.total_stock_removed} unidades removidas`);
+      }
+
+      // Mostrar alerta de sucesso e voltar para tela anterior
+      Alert.alert('Sucesso', messages.join(' • '), [
+        {
+          text: 'OK',
+          onPress: () => {
+            // Volta para a tela de origem
+            if (from === 'inventory') {
+              router.replace('/(tabs)/inventory');
+            } else if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace('/(tabs)/entries');
+            }
+          }
+        }
       ]);
     },
     onError: (error: any) => {
@@ -168,7 +181,7 @@ export default function StockEntryDetailsScreen() {
     const typeConfig: Record<EntryType, { label: string; icon: string }> = {
       [EntryType.TRIP]: { label: 'Viagem', icon: 'car-outline' },
       [EntryType.ONLINE]: { label: 'Online', icon: 'cart-outline' },
-      [EntryType.LOCAL]: { label: 'Local', icon: 'business-outline' },
+      [EntryType.LOCAL]: { label: 'Local', icon: 'store-outline' },
       [EntryType.INITIAL_INVENTORY]: { label: 'Estoque Inicial', icon: 'archive-outline' },
       [EntryType.ADJUSTMENT]: { label: 'Ajuste', icon: 'construct-outline' },
       [EntryType.RETURN]: { label: 'Devolução', icon: 'return-up-back-outline' },
@@ -288,14 +301,12 @@ export default function StockEntryDetailsScreen() {
    */
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.container}>
-          <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color={Colors.light.primary} />
-            <Text style={styles.loadingText}>Carregando entrada...</Text>
-          </View>
+      <View style={styles.container}>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <Text style={styles.loadingText}>Carregando entrada...</Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -303,25 +314,23 @@ export default function StockEntryDetailsScreen() {
    * Erro: ID inválido ou entrada não encontrada
    */
   if (!isValidId || !entry) {
-    const errorMessage = !isValidId 
-      ? 'ID de entrada inválido' 
+    const errorMessage = !isValidId
+      ? 'ID de entrada inválido'
       : 'Entrada não encontrada ou foi excluída';
-    
+
     return (
-      <SafeAreaView style={styles.safeArea} edges={['top']}>
-        <View style={styles.container}>
-          <View style={styles.centerContainer}>
-            <Ionicons name="alert-circle-outline" size={64} color={Colors.light.error} />
-            <Text style={styles.errorText}>{errorMessage}</Text>
-            <Text style={styles.errorSubtext}>
-              A entrada pode ter sido excluída ou o link está incorreto.
-            </Text>
-            <Button mode="contained" onPress={handleGoBack} style={styles.errorButton}>
-              Voltar para Lista
-            </Button>
-          </View>
+      <View style={styles.container}>
+        <View style={styles.centerContainer}>
+          <Ionicons name="alert-circle-outline" size={64} color={Colors.light.error} />
+          <Text style={styles.errorText}>{errorMessage}</Text>
+          <Text style={styles.errorSubtext}>
+            A entrada pode ter sido excluída ou o link está incorreto.
+          </Text>
+          <Button mode="contained" onPress={handleGoBack} style={styles.errorButton}>
+            Voltar para Lista
+          </Button>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
@@ -329,19 +338,36 @@ export default function StockEntryDetailsScreen() {
   const { bestSellers, slowMovers } = analyzeProducts(entry?.entry_items || []);
 
   return (
-    <SafeAreaView style={styles.safeArea} edges={['top']}>
-      <View style={styles.container}>
-        {/* Header */}
-        <View style={styles.header}>
-          <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <View style={styles.headerCenter}>
-            <Text style={styles.headerTitle}>{entry.entry_code}</Text>
-            {renderTypeBadge(entry.entry_type)}
+    <View style={styles.container}>
+      {/* Header padrão com gradiente */}
+      <View style={styles.headerContainer}>
+        <LinearGradient
+          colors={["#667eea", "#764ba2"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerContent}>
+            <TouchableOpacity onPress={handleGoBack} style={styles.backIconButton}>
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+            <View style={styles.headerInfo}>
+              <Text style={styles.greeting}>{entry.entry_code}</Text>
+              <View style={styles.headerSubtitleRow}>
+                {renderTypeBadge(entry.entry_type)}
+                {entry.has_sales && (
+                  <View style={styles.salesProtectionBadge}>
+                    <Ionicons name="shield-checkmark" size={14} color="#2E7D32" />
+                    <Text style={styles.salesProtectionText}>PROTEGIDA</Text>
+                  </View>
+                )}
+                <Text style={styles.headerSubtitle}>Fornecedor: {entry.supplier_name}</Text>
+              </View>
+            </View>
+            <View style={styles.headerPlaceholder} />
           </View>
-          <View style={styles.headerPlaceholder} />
-        </View>
+        </LinearGradient>
+      </View>
 
         <ScrollView
           style={styles.scrollView}
@@ -402,7 +428,7 @@ export default function StockEntryDetailsScreen() {
           <StatCard
             label="Sell-Through"
             value={`${entry.sell_through_rate.toFixed(1)}%`}
-            icon="trending-up-outline"
+            icon="trending-up"
           />
           {entry.roi !== null && entry.roi !== undefined && (
             <StatCard
@@ -481,16 +507,30 @@ export default function StockEntryDetailsScreen() {
 
         {/* Ações */}
         <View style={styles.actions}>
+          {/* Tooltip explicativo quando tem vendas */}
+          {entry.has_sales && (
+            <View style={styles.protectionInfo}>
+              <Ionicons name="information-circle" size={16} color={Colors.light.primary} />
+              <Text style={styles.protectionInfoText}>
+                Esta entrada não pode ser excluída pois possui {entry.items_sold} unidade(s) já vendida(s).
+                Entradas com vendas são mantidas como histórico para rastreabilidade FIFO.
+              </Text>
+            </View>
+          )}
+
           <Button
             mode="outlined"
             onPress={handleDelete}
+            disabled={entry.has_sales || deleteMutation.isPending}
             loading={deleteMutation.isPending}
-            disabled={deleteMutation.isPending}
             icon="delete"
-            textColor={Colors.light.error}
-            style={styles.deleteButton}
+            textColor={entry.has_sales ? Colors.light.textSecondary : Colors.light.error}
+            style={[
+              styles.deleteButton,
+              entry.has_sales && styles.deleteButtonDisabled
+            ]}
           >
-            Excluir Entrada
+            {entry.has_sales ? 'Não Pode Excluir (Com Vendas)' : 'Excluir Entrada'}
           </Button>
         </View>
       </ScrollView>
@@ -510,32 +550,14 @@ export default function StockEntryDetailsScreen() {
           loading={deleteMutation.isPending}
         />
 
-        {/* Success Dialog */}
-        <ConfirmDialog
-          visible={showSuccessDialog}
-          title="Sucesso!"
-          message={successMessage}
-          confirmText="OK"
-          onConfirm={() => {
-            setShowSuccessDialog(false);
-            router.replace('/(tabs)/entries');
-          }}
-          type="success"
-          icon="checkmark-circle"
-        />
-      </View>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.light.primary,
-  },
   container: {
     flex: 1,
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   centerContainer: {
     flex: 1,
@@ -565,31 +587,49 @@ const styles = StyleSheet.create({
   errorButton: {
     paddingHorizontal: 24,
   },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: Colors.light.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 16,
+  headerContainer: {
+    marginBottom: 0,
   },
-  backButton: {
+  headerGradient: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.lg,
+    borderBottomLeftRadius: theme.borderRadius.xl,
+    borderBottomRightRadius: theme.borderRadius.xl,
+  },
+  headerContent: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  backIconButton: {
     width: 40,
     height: 40,
-    borderRadius: 20,
+    borderRadius: theme.borderRadius.full,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
     alignItems: 'center',
+    marginRight: theme.spacing.md,
   },
-  headerCenter: {
+  headerInfo: {
     flex: 1,
-    alignItems: 'center',
   },
-  headerTitle: {
-    fontSize: 20,
+  greeting: {
+    fontSize: theme.fontSize.xl,
     fontWeight: '700',
     color: '#fff',
-    marginBottom: 4,
+    marginBottom: theme.spacing.xs,
+  },
+  headerSubtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  headerSubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: '#fff',
+    opacity: 0.9,
   },
   headerPlaceholder: {
     width: 40,
@@ -625,6 +665,21 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: '#fff',
+  },
+  salesProtectionBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#E8F5E9',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  salesProtectionText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#2E7D32',
+    textTransform: 'uppercase',
   },
   statsGrid: {
     flexDirection: 'row',
@@ -776,9 +831,28 @@ const styles = StyleSheet.create({
     marginTop: 8,
     marginBottom: 16,
   },
+  protectionInfo: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: Colors.light.primary + '10',
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  protectionInfoText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.light.text,
+    lineHeight: 18,
+  },
   deleteButton: {
     borderColor: Colors.light.error,
     borderWidth: 1.5,
     borderRadius: 12,
+  },
+  deleteButtonDisabled: {
+    borderColor: Colors.light.border,
+    opacity: 0.5,
   },
 });
