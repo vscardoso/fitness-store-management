@@ -13,6 +13,7 @@ from .stock_entry import StockEntry, EntryType
 from .entry_item import EntryItem
 from .store import Store
 from .subscription import Subscription
+from .conditional_shipment import ConditionalShipment, ConditionalShipmentItem
 
 __all__ = [
     # Base
@@ -60,4 +61,8 @@ __all__ = [
     
     # Subscription
     "Subscription",
+    
+    # Conditional Shipment
+    "ConditionalShipment",
+    "ConditionalShipmentItem",
 ]

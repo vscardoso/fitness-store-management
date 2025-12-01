@@ -69,6 +69,12 @@ class Store(BaseModel):
         uselist=False,
         cascade="all, delete-orphan"
     )
+    
+    conditional_shipments: Mapped[List["ConditionalShipment"]] = relationship(
+        "ConditionalShipment",
+        back_populates="tenant",
+        cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"<Store(id={self.id}, name='{self.name}', slug='{self.slug}', plan='{self.plan}')>"

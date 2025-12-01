@@ -135,6 +135,12 @@ class Customer(BaseModel):
         order_by="Sale.created_at.desc()"
     )
     
+    conditional_shipments: Mapped[List["ConditionalShipment"]] = relationship(
+        "ConditionalShipment",
+        back_populates="customer",
+        order_by="ConditionalShipment.created_at.desc()"
+    )
+    
     def __repr__(self) -> str:
         return f"<Customer(id={self.id}, name='{self.full_name}', type='{self.customer_type}')>"
     

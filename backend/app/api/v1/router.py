@@ -29,6 +29,7 @@ from app.api.v1.endpoints import (
     trips,
     stock_entries,
     dashboard,
+    conditional_shipments,
 )
 
 
@@ -95,4 +96,10 @@ api_router.include_router(
     dashboard.router,
     prefix="/dashboard",
     tags=["Dashboard"]
+)
+
+# Envios Condicionais (Try Before You Buy)
+api_router.include_router(
+    conditional_shipments.router,
+    tags=["Envios Condicionais"]
 )
