@@ -15,7 +15,6 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  Alert,
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
@@ -26,6 +25,8 @@ import {
   Button,
   Chip,
   ProgressBar,
+  TextInput,
+  HelperText,
 } from 'react-native-paper';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -34,10 +35,35 @@ import { Ionicons } from '@expo/vector-icons';
 import InfoRow from '@/components/ui/InfoRow';
 import StatCard from '@/components/ui/StatCard';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { getStockEntryById, deleteStockEntry } from '@/services/stockEntryService';
+import CustomModal from '@/components/ui/CustomModal';
+import ModalActions from '@/components/ui/ModalActions';
+import { getStockEntryById, deleteStockEntry, updateEntryItem } from '@/services/stockEntryService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { EntryType, EntryItemResponse } from '@/types';
+
+// Funções auxiliares para máscara de moeda
+const toBRNumber = (n: number) => {
+  try {
+    return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+  } catch (e) {
+    return n.toFixed(2).replace('.', ',');
+  }
+};
+
+const maskCurrencyBR = (text: string) => {
+  const digits = (text || '').replace(/\D/g, '');
+  if (!digits) return '';
+  const number = parseInt(digits, 10);
+  const value = (number / 100);
+  return toBRNumber(value);
+};
+
+const unmaskCurrency = (text: string): number => {
+  const digits = (text || '').replace(/\D/g, '');
+  if (!digits) return 0;
+  return parseInt(digits, 10) / 100;
+};
 
 export default function StockEntryDetailsScreen() {
   const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
@@ -49,22 +75,36 @@ export default function StockEntryDetailsScreen() {
   const isValidId = !isNaN(entryId) && entryId > 0;
 
   /**
-   * Função para voltar para a tela anterior (inventário ou lista de entradas)
+   * Função para voltar para a tela anterior
    */
   const handleGoBack = () => {
-    // Se veio do inventário, volta para lá
-    if (from === 'inventory') {
-      router.push('/(tabs)/inventory');
-    } else if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace('/(tabs)/entries');
-    }
+    router.back();
   };
 
   // Estados
   const [refreshing, setRefreshing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [successDialog, setSuccessDialog] = useState<{
+    visible: boolean;
+    message: string;
+  }>({ visible: false, message: '' });
+  const [errorDialog, setErrorDialog] = useState<{
+    visible: boolean;
+    message: string;
+  }>({ visible: false, message: '' });
+  const [deleteSuccessDialog, setDeleteSuccessDialog] = useState<{
+    visible: boolean;
+    message: string;
+  }>({ visible: false, message: '' });
+
+  // Estados do modal de edição de item
+  const [editItemDialog, setEditItemDialog] = useState<{
+    visible: boolean;
+    item: EntryItemResponse | null;
+  }>({ visible: false, item: null });
+  const [editQuantity, setEditQuantity] = useState('');
+  const [editCost, setEditCost] = useState('');
+  const [editNotes, setEditNotes] = useState('');
 
   /**
    * Query: Buscar entrada
@@ -85,16 +125,6 @@ export default function StockEntryDetailsScreen() {
     onSuccess: async (result: any) => {
       setShowDeleteDialog(false);
 
-      // Invalidar queries primeiro
-      await Promise.all([
-        queryClient.removeQueries({ queryKey: ['stock-entry', entryId] }),
-        queryClient.invalidateQueries({ queryKey: ['stock-entries'] }),
-        queryClient.invalidateQueries({ queryKey: ['products'] }),
-        queryClient.invalidateQueries({ queryKey: ['active-products'] }),
-        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
-        queryClient.invalidateQueries({ queryKey: ['low-stock'] }),
-      ]);
-
       // Preparar mensagem de sucesso
       const messages = [`Entrada ${result.entry_code} excluída!`];
       if (result.orphan_products_deleted > 0) {
@@ -104,26 +134,69 @@ export default function StockEntryDetailsScreen() {
         messages.push(`${result.total_stock_removed} unidades removidas`);
       }
 
-      // Mostrar alerta de sucesso e voltar para tela anterior
-      Alert.alert('Sucesso', messages.join(' • '), [
-        {
-          text: 'OK',
-          onPress: () => {
-            // Volta para a tela de origem
-            if (from === 'inventory') {
-              router.replace('/(tabs)/inventory');
-            } else if (router.canGoBack()) {
-              router.back();
-            } else {
-              router.replace('/(tabs)/entries');
-            }
-          }
-        }
-      ]);
+      // NAVEGAR DE VOLTA IMEDIATAMENTE (antes de invalidar queries)
+      router.back();
+
+      // Invalidar queries DEPOIS de sair da tela
+      // Usa setTimeout para garantir que a navegação aconteça primeiro
+      setTimeout(async () => {
+        await Promise.all([
+          queryClient.removeQueries({ queryKey: ['stock-entry', entryId] }),
+          queryClient.invalidateQueries({ queryKey: ['stock-entries'] }),
+          queryClient.invalidateQueries({ queryKey: ['products'] }),
+          queryClient.invalidateQueries({ queryKey: ['active-products'] }),
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
+          queryClient.invalidateQueries({ queryKey: ['low-stock'] }),
+        ]);
+      }, 100);
+
+      // Mostrar dialog de sucesso
+      setDeleteSuccessDialog({
+        visible: true,
+        message: messages.join(' • '),
+      });
     },
     onError: (error: any) => {
       setShowDeleteDialog(false);
-      Alert.alert('Erro', error.message || 'Erro ao excluir entrada');
+      setErrorDialog({
+        visible: true,
+        message: error.message || 'Erro ao excluir entrada',
+      });
+    },
+  });
+
+  /**
+   * Mutation: Atualizar item de entrada
+   */
+  const updateItemMutation = useMutation({
+    mutationFn: (data: { itemId: number; quantity_received?: number; unit_cost?: number; notes?: string }) =>
+      updateEntryItem(data.itemId, {
+        quantity_received: data.quantity_received,
+        unit_cost: data.unit_cost,
+        notes: data.notes,
+      }),
+    onSuccess: async () => {
+      setEditItemDialog({ visible: false, item: null });
+
+      // Invalidar queries para atualizar UI
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['stock-entry', entryId] }),
+        queryClient.invalidateQueries({ queryKey: ['stock-entries'] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+        queryClient.invalidateQueries({ queryKey: ['active-products'] }),
+      ]);
+
+      setSuccessDialog({
+        visible: true,
+        message: 'Item atualizado com sucesso! O inventário foi recalculado automaticamente.',
+      });
+    },
+    onError: (error: any) => {
+      const errorMessage = error.message || 'Erro ao atualizar item';
+      setErrorDialog({
+        visible: true,
+        message: errorMessage,
+      });
     },
   });
 
@@ -148,6 +221,71 @@ export default function StockEntryDetailsScreen() {
    */
   const confirmDelete = () => {
     deleteMutation.mutate();
+  };
+
+  /**
+   * Abrir diálogo de edição de item
+   */
+  const handleEditItem = (item: EntryItemResponse) => {
+    // Verificar se item já teve vendas
+    if (item.quantity_sold > 0) {
+      setErrorDialog({
+        visible: true,
+        message: `Este item já teve ${item.quantity_sold} unidade(s) vendida(s). A rastreabilidade FIFO exige que itens com vendas não sejam modificados.`,
+      });
+      return;
+    }
+
+    // Preencher valores atuais com máscara
+    setEditQuantity(item.quantity_received.toString());
+    setEditCost(toBRNumber(item.unit_cost));
+    setEditNotes(item.notes || '');
+    setEditItemDialog({ visible: true, item });
+  };
+
+  /**
+   * Confirmar edição de item
+   */
+  const confirmEditItem = () => {
+    if (!editItemDialog.item) return;
+
+    // Validar quantidade
+    const quantity = parseInt(editQuantity);
+    if (isNaN(quantity) || quantity <= 0) {
+      setErrorDialog({
+        visible: true,
+        message: 'Quantidade deve ser maior que zero',
+      });
+      return;
+    }
+
+    // Validar custo (desmascarar antes de validar)
+    const cost = unmaskCurrency(editCost);
+    if (isNaN(cost) || cost < 0) {
+      setErrorDialog({
+        visible: true,
+        message: 'Custo deve ser maior ou igual a zero',
+      });
+      return;
+    }
+
+    // Enviar atualização
+    updateItemMutation.mutate({
+      itemId: editItemDialog.item.id,
+      quantity_received: quantity,
+      unit_cost: cost,
+      notes: editNotes.trim() || undefined,
+    });
+  };
+
+  /**
+   * Cancelar edição
+   */
+  const cancelEditItem = () => {
+    setEditItemDialog({ visible: false, item: null });
+    setEditQuantity('');
+    setEditCost('');
+    setEditNotes('');
   };
 
   /**
@@ -181,7 +319,7 @@ export default function StockEntryDetailsScreen() {
     const typeConfig: Record<EntryType, { label: string; icon: string }> = {
       [EntryType.TRIP]: { label: 'Viagem', icon: 'car-outline' },
       [EntryType.ONLINE]: { label: 'Online', icon: 'cart-outline' },
-      [EntryType.LOCAL]: { label: 'Local', icon: 'store-outline' },
+      [EntryType.LOCAL]: { label: 'Local', icon: 'storefront-outline' },
       [EntryType.INITIAL_INVENTORY]: { label: 'Estoque Inicial', icon: 'archive-outline' },
       [EntryType.ADJUSTMENT]: { label: 'Ajuste', icon: 'construct-outline' },
       [EntryType.RETURN]: { label: 'Devolução', icon: 'return-up-back-outline' },
@@ -230,22 +368,42 @@ export default function StockEntryDetailsScreen() {
     const depletionRate = ((item.quantity_received - item.quantity_remaining) / item.quantity_received) * 100;
     const isSlowMover = depletionRate < 30 && item.quantity_remaining > 0;
     const isBestSeller = depletionRate >= 70;
+    const hasSales = item.quantity_sold > 0;
 
     return (
       <Card key={item.id} style={styles.productCard}>
         <Card.Content>
           <View style={styles.productHeader}>
-            <Text style={styles.productName}>Produto #{item.product_id}</Text>
-            {isBestSeller && (
-              <Chip icon="trophy" style={styles.bestSellerChip} textStyle={styles.chipText}>
-                Best Seller
-              </Chip>
-            )}
-            {isSlowMover && (
-              <Chip icon="alert" style={styles.slowMoverChip} textStyle={styles.chipText}>
-                Parado
-              </Chip>
-            )}
+            <View style={{ flex: 1 }}>
+              <Text style={styles.productName}>
+                {item.product_name}
+              </Text>
+              {item.product_sku && (
+                <Text style={styles.productSku}>SKU: {item.product_sku}</Text>
+              )}
+            </View>
+            <View style={styles.productHeaderRight}>
+              {isBestSeller && (
+                <Chip icon="trophy" style={styles.bestSellerChip} textStyle={styles.chipText}>
+                  Best Seller
+                </Chip>
+              )}
+              {isSlowMover && (
+                <Chip icon="alert" style={styles.slowMoverChip} textStyle={styles.chipText}>
+                  Parado
+                </Chip>
+              )}
+              <TouchableOpacity
+                onPress={() => handleEditItem(item)}
+                style={[styles.editButton, hasSales && styles.editButtonDisabled]}
+              >
+                <Ionicons
+                  name={hasSales ? "lock-closed" : "create-outline"}
+                  size={20}
+                  color={hasSales ? Colors.light.textSecondary : Colors.light.primary}
+                />
+              </TouchableOpacity>
+            </View>
           </View>
 
           {/* Métricas */}
@@ -291,6 +449,14 @@ export default function StockEntryDetailsScreen() {
             <Text style={styles.productCostLabel}>Custo Unit.: {formatCurrency(item.unit_cost)}</Text>
             <Text style={styles.productTotalCost}>Total: {formatCurrency(item.total_cost)}</Text>
           </View>
+
+          {/* Observações do item */}
+          {item.notes && (
+            <View style={styles.itemNotesContainer}>
+              <Ionicons name="document-text-outline" size={14} color={Colors.light.textSecondary} />
+              <Text style={styles.itemNotesText}>{item.notes}</Text>
+            </View>
+          )}
         </Card.Content>
       </Card>
     );
@@ -453,7 +619,7 @@ export default function StockEntryDetailsScreen() {
                     <Text style={[styles.rankNumber, { color: Colors.light.success }]}>#{index + 1}</Text>
                   </View>
                   <View style={styles.rankInfo}>
-                    <Text style={styles.rankName}>Produto #{item.product_id}</Text>
+                    <Text style={styles.rankName}>{item.product_name}</Text>
                     <Text style={styles.rankMetric}>
                       {item.quantity_sold} vendidos de {item.quantity_received} ({item.depletionRate.toFixed(0)}%)
                     </Text>
@@ -478,7 +644,7 @@ export default function StockEntryDetailsScreen() {
                     <Ionicons name="alert" size={16} color={Colors.light.warning} />
                   </View>
                   <View style={styles.rankInfo}>
-                    <Text style={styles.rankName}>Produto #{item.product_id}</Text>
+                    <Text style={styles.rankName}>{item.product_name}</Text>
                     <Text style={styles.rankMetric}>
                       Restam {item.quantity_remaining} de {item.quantity_received} ({item.depletionRate.toFixed(0)}% vendido)
                     </Text>
@@ -549,6 +715,98 @@ export default function StockEntryDetailsScreen() {
           icon="trash"
           loading={deleteMutation.isPending}
         />
+
+        {/* Dialog de Sucesso - Edição de Item */}
+        <ConfirmDialog
+          visible={successDialog.visible}
+          title="Sucesso"
+          message={successDialog.message}
+          confirmText="OK"
+          onConfirm={() => setSuccessDialog({ visible: false, message: '' })}
+          onCancel={() => setSuccessDialog({ visible: false, message: '' })}
+          type="success"
+          icon="checkmark-circle"
+        />
+
+        {/* Dialog de Erro */}
+        <ConfirmDialog
+          visible={errorDialog.visible}
+          title="Erro"
+          message={errorDialog.message}
+          confirmText="OK"
+          onConfirm={() => setErrorDialog({ visible: false, message: '' })}
+          onCancel={() => setErrorDialog({ visible: false, message: '' })}
+          type="danger"
+          icon="alert-circle"
+        />
+
+        {/* Dialog de Sucesso após Exclusão */}
+        <ConfirmDialog
+          visible={deleteSuccessDialog.visible}
+          title="Entrada Excluída"
+          message={deleteSuccessDialog.message}
+          confirmText="OK"
+          onConfirm={() => setDeleteSuccessDialog({ visible: false, message: '' })}
+          onCancel={() => setDeleteSuccessDialog({ visible: false, message: '' })}
+          type="success"
+          icon="checkmark-circle"
+        />
+
+        {/* Modal de Edição de Item */}
+        <CustomModal
+          visible={editItemDialog.visible}
+          onDismiss={cancelEditItem}
+          title="Editar Item da Entrada"
+          subtitle={editItemDialog.item?.product_name}
+        >
+          <View style={styles.warningBox}>
+            <Ionicons name="information-circle" size={20} color={Colors.light.primary} />
+            <Text style={styles.warningText}>
+              Ao editar quantidade ou custo, o inventário será recalculado automaticamente.
+            </Text>
+          </View>
+
+          <TextInput
+            label="Quantidade Recebida *"
+            value={editQuantity}
+            onChangeText={setEditQuantity}
+            keyboardType="numeric"
+            mode="outlined"
+            style={styles.input}
+            placeholder="Digite a quantidade"
+          />
+
+          <TextInput
+            label="Custo Unitário (R$) *"
+            value={editCost}
+            onChangeText={(text) => setEditCost(maskCurrencyBR(text))}
+            keyboardType="numeric"
+            mode="outlined"
+            style={styles.input}
+            placeholder="0,00"
+            left={<TextInput.Affix text="R$" />}
+          />
+
+          <TextInput
+            label="Observações"
+            value={editNotes}
+            onChangeText={setEditNotes}
+            mode="outlined"
+            multiline
+            numberOfLines={3}
+            style={styles.input}
+            placeholder="Observações sobre este item (opcional)"
+          />
+
+          <ModalActions
+            onCancel={cancelEditItem}
+            onConfirm={confirmEditItem}
+            cancelText="Cancelar"
+            confirmText="Salvar Alterações"
+            loading={updateItemMutation.isPending}
+            confirmColor={Colors.light.primary}
+          />
+        </CustomModal>
 
     </View>
   );
@@ -750,10 +1008,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 12,
   },
+  productHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   productName: {
     fontSize: 15,
     fontWeight: '600',
     color: Colors.light.text,
+  },
+  productSku: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  editButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.light.primary + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  editButtonDisabled: {
+    backgroundColor: Colors.light.border + '50',
   },
   bestSellerChip: {
     backgroundColor: Colors.light.success + '20',
@@ -854,5 +1133,41 @@ const styles = StyleSheet.create({
   deleteButtonDisabled: {
     borderColor: Colors.light.border,
     opacity: 0.5,
+  },
+  itemNotesContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 6,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+  },
+  itemNotesText: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    fontStyle: 'italic',
+    lineHeight: 16,
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: Colors.light.primary + '10',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.light.primary,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.light.text,
+    lineHeight: 18,
+  },
+  input: {
+    marginBottom: 16,
   },
 });

@@ -45,9 +45,20 @@ class ConditionalShipmentRepository(
             tenant_id=tenant_id,
             customer_id=shipment_data.customer_id,
             shipping_address=shipment_data.shipping_address,
+            scheduled_ship_date=shipment_data.scheduled_ship_date,
+            departure_datetime=shipment_data.departure_datetime,
+            return_datetime=shipment_data.return_datetime,
+            deadline_type=shipment_data.deadline_type,
+            deadline_value=shipment_data.deadline_value,
+            carrier=shipment_data.carrier,
+            tracking_code=shipment_data.tracking_code,
             notes=shipment_data.notes,
             status="PENDING",
         )
+        
+        # Se return_datetime foi fornecido, usar como deadline
+        if shipment_data.return_datetime:
+            shipment.deadline = shipment_data.return_datetime
         
         db.add(shipment)
         await db.flush()  # Gera ID do shipment

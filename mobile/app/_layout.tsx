@@ -9,11 +9,15 @@ import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PaperProvider, MD3LightTheme, Snackbar } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 // import * as Sentry from 'sentry-expo'; // TEMP: Desabilitado por conflito de versão
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
+import { NotificationContainer } from '@/components/notifications/NotificationContainer';
 // import { SENTRY_CONFIG } from '@/constants/Config'; // TEMP: Desabilitado
 import { useAuthStore } from '@/store/authStore';
+import { useNotificationStore } from '@/store/notificationStore';
+import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { setForceLogoutCallback, setInvalidateQueriesCallback } from '@/services/api';
 
 // TEMP: Sentry desabilitado por conflito de versão
@@ -90,6 +94,10 @@ export default function RootLayout() {
   const forceLogout = useAuthStore((state) => state.forceLogout);
   const error = useAuthStore((state) => state.error);
   const clearError = useAuthStore((state) => state.clearError);
+  const loadNotifications = useNotificationStore((state) => state.loadFromStorage);
+
+  // Inicializar push notifications
+  usePushNotifications();
 
   // Configurar callbacks no interceptor do Axios
   useEffect(() => {
@@ -98,17 +106,30 @@ export default function RootLayout() {
       await forceLogout(reason);
     });
 
-    // Callback para invalidar cache do React Query
+    // Callback para invalidar cache do React Query (SELETIVO - NÃO limpar auth!)
     setInvalidateQueriesCallback(() => {
-      queryClient.clear();
+      // Invalidar apenas queries de dados de negócio, NUNCA queries de autenticação
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['active-products'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
+      queryClient.invalidateQueries({ queryKey: ['trips'] });
+      queryClient.invalidateQueries({ queryKey: ['conditional-shipments'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory'] });
+      // NÃO invalidar: auth, user, session queries
+      console.log('🔄 Cache de dados invalidado (sessão preservada)');
     });
 
     console.log('✅ Callbacks de autenticação configurados');
   }, [forceLogout]);
 
-  // Carregar usuário ao iniciar app
+  // Carregar usuário e notificações ao iniciar app
   useEffect(() => {
     loadUser();
+    loadNotifications();
   }, []);
 
   return (
@@ -121,6 +142,9 @@ export default function RootLayout() {
 
             {/* Global Loading Overlay */}
             <LoadingOverlay />
+
+            {/* Notification System */}
+            <NotificationContainer />
 
             {/* Snackbar para mensagens de erro de autenticação */}
             <Snackbar
@@ -135,6 +159,9 @@ export default function RootLayout() {
             >
               {error}
             </Snackbar>
+
+            {/* Toast global para notificações */}
+            <Toast />
           </PaperProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

@@ -682,36 +682,36 @@ class StockEntryService:
     ) -> List[Dict[str, Any]]:
         """
         Retorna entradas com melhor performance.
-        
+
         Args:
             skip: Registros para pular
             limit: Limite de registros
             tenant_id: ID do tenant
-            
+
         Returns:
             Lista de entradas ordenadas por performance
         """
         entries = await self.entry_repo.get_multi(self.db, skip=skip, limit=limit * 3, tenant_id=tenant_id)  # Buscar mais para filtrar
-        
+
         performance_list = []
-        
+
         for entry in entries:
             # Buscar itens da entrada
             items = await self.item_repo.get_by_entry(self.db, entry.id, tenant_id)
-            
+
             if not items:
                 continue
-            
+
             total_received = sum(item.quantity_received for item in items)
             total_remaining = sum(item.quantity_remaining for item in items)
             total_sold = total_received - total_remaining
-            
+
             sell_through_rate = (total_sold / total_received * 100) if total_received > 0 else 0
-            
+
             # Calcular ROI simplificado (sell_through como proxy de performance)
             # ROI real requer dados de venda que não temos aqui
             roi = sell_through_rate - 100  # Se vendeu 100%, ROI = 0; se vendeu 150%, ROI = 50
-            
+
             performance_list.append({
                 "entry_id": entry.id,
                 "entry_code": entry.entry_code,
@@ -725,9 +725,139 @@ class StockEntryService:
                 "roi": round(roi, 2),
                 "performance_score": round(sell_through_rate, 2)
             })
-        
+
         # Ordenar por performance_score (depletion_rate)
         performance_list.sort(key=lambda x: x["performance_score"], reverse=True)
-        
+
         # Aplicar paginação
         return performance_list[skip:skip+limit]
+
+    async def update_entry_item(
+        self,
+        item_id: int,
+        item_data: Dict[str, Any],
+        *,
+        tenant_id: int,
+    ) -> EntryItem:
+        """
+        Atualiza um item de entrada com recálculo automático de inventário.
+
+        VALIDAÇÕES:
+        - Bloqueia edição se o item já teve vendas (quantity_sold > 0)
+        - Garante que quantity_remaining <= quantity_received
+        - Recalcula inventário automaticamente quando quantidade muda
+        - Recalcula total_cost da entrada quando custo/quantidade mudam
+
+        Args:
+            item_id: ID do item a atualizar
+            item_data: Dados para atualização (quantity_received, unit_cost, etc.)
+            tenant_id: ID do tenant
+
+        Returns:
+            EntryItem atualizado
+
+        Raises:
+            ValueError: Se item não encontrado, tem vendas, ou dados inválidos
+        """
+        from app.schemas.entry_item import EntryItemUpdate
+
+        # Buscar item com relações
+        item = await self.item_repo.get_by_id(self.db, item_id, include_relations=True)
+        if not item:
+            raise ValueError(f"EntryItem {item_id} não encontrado")
+
+        # Validar tenant (segurança multi-tenancy)
+        if item.tenant_id != tenant_id:
+            raise ValueError(f"EntryItem {item_id} não pertence a este tenant")
+
+        # VALIDAÇÃO CRÍTICA: Bloquear edição se item já teve vendas
+        if item.quantity_sold > 0:
+            raise ValueError(
+                f"Não é possível editar item que já teve vendas. "
+                f"Este item já vendeu {item.quantity_sold} unidade(s). "
+                f"A rastreabilidade FIFO exige que itens com vendas não sejam modificados."
+            )
+
+        # Guardar valores antigos para calcular delta
+        old_quantity_received = item.quantity_received
+        old_quantity_remaining = item.quantity_remaining
+        old_unit_cost = item.unit_cost
+
+        # Preparar update data
+        update_data = {}
+
+        # Atualizar quantity_received se fornecido
+        if 'quantity_received' in item_data and item_data['quantity_received'] is not None:
+            new_qty_received = item_data['quantity_received']
+            if new_qty_received <= 0:
+                raise ValueError("quantity_received deve ser maior que zero")
+
+            # Se quantity_received mudou, ajustar quantity_remaining proporcionalmente
+            # Mas apenas se o item ainda não foi vendido (já validamos acima)
+            if new_qty_received != old_quantity_received:
+                # Como não teve vendas, quantity_remaining = quantity_received
+                update_data['quantity_received'] = new_qty_received
+                update_data['quantity_remaining'] = new_qty_received
+
+        # Atualizar unit_cost se fornecido
+        if 'unit_cost' in item_data and item_data['unit_cost'] is not None:
+            new_unit_cost = item_data['unit_cost']
+            if new_unit_cost < 0:
+                raise ValueError("unit_cost não pode ser negativo")
+            update_data['unit_cost'] = new_unit_cost
+
+        # Atualizar notes se fornecido
+        if 'notes' in item_data and item_data['notes'] is not None:
+            update_data['notes'] = item_data['notes']
+
+        # Se não há nada para atualizar, retornar item atual
+        if not update_data:
+            return item
+
+        # Atualizar o item (sem commit ainda)
+        for key, value in update_data.items():
+            setattr(item, key, value)
+
+        await self.db.flush()  # Flush sem commit para refletir mudanças na sessão
+
+        # Calcular delta de inventário
+        new_quantity = update_data.get('quantity_remaining', old_quantity_remaining)
+        inventory_delta = new_quantity - old_quantity_remaining
+
+        # Se quantidade mudou, recalcular inventário do produto
+        if inventory_delta != 0:
+            # Usar InventoryService para garantir consistência FIFO
+            inv_service = InventoryService(self.db)
+            await inv_service.rebuild_product_from_fifo(item.product_id, tenant_id=tenant_id)
+
+            if __DEV__ if '__DEV__' in dir() else True:
+                print(
+                    f"  [EntryItem Update] Produto {item.product_id}: "
+                    f"delta inventário = {inventory_delta:+d} "
+                    f"(de {old_quantity_remaining} para {new_quantity})"
+                )
+
+        # Se custo ou quantidade mudaram, recalcular total_cost da entrada
+        if 'unit_cost' in update_data or 'quantity_received' in update_data:
+            # Recalcular total_cost da entrada inteira
+            entry = await self.entry_repo.get_by_id(self.db, item.entry_id, include_items=True, tenant_id=tenant_id)
+            if entry:
+                new_total_cost = Decimal('0.00')
+                for entry_item in entry.entry_items:
+                    if entry_item.is_active:
+                        new_total_cost += entry_item.quantity_received * entry_item.unit_cost
+
+                entry.total_cost = new_total_cost
+                await self.db.flush()
+
+                if __DEV__ if '__DEV__' in dir() else True:
+                    print(
+                        f"  [EntryItem Update] Entrada {entry.entry_code}: "
+                        f"total_cost recalculado = R$ {new_total_cost:.2f}"
+                    )
+
+        # Commit final
+        await self.db.commit()
+        await self.db.refresh(item)
+
+        return item

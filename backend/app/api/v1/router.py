@@ -30,6 +30,7 @@ from app.api.v1.endpoints import (
     stock_entries,
     dashboard,
     conditional_shipments,
+    notifications,
 )
 
 
@@ -102,4 +103,10 @@ api_router.include_router(
 api_router.include_router(
     conditional_shipments.router,
     tags=["Envios Condicionais"]
+)
+
+# Notificações Push
+api_router.include_router(
+    notifications.router,
+    tags=["Notificações"]
 )

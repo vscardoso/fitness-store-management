@@ -536,24 +536,6 @@ export default function EditProductScreen() {
           </View>
           <View style={styles.cardContent}>
             <TextInput
-              label="Preço de Custo (R$) *"
-              value={formatPriceDisplay(costPrice)}
-              onChangeText={(text) => {
-                setCostPrice(formatPriceInput(text));
-                setErrors({ ...errors, costPrice: '' });
-              }}
-              mode="outlined"
-              error={!!errors.costPrice}
-              style={styles.input}
-              placeholder="0,00"
-              keyboardType="numeric"
-              left={<TextInput.Affix text="R$" />}
-            />
-            {errors.costPrice ? (
-              <HelperText type="error">{errors.costPrice}</HelperText>
-            ) : null}
-
-            <TextInput
               label="Preço de Venda (R$) *"
               value={formatPriceDisplay(salePrice)}
               onChangeText={(text) => {
@@ -571,20 +553,13 @@ export default function EditProductScreen() {
               <HelperText type="error">{errors.salePrice}</HelperText>
             ) : null}
 
-            {/* Margem de lucro calculada */}
-            {costPrice && salePrice && parseFloat(costPrice) > 0 && parseFloat(salePrice) > 0 && (
-              <View style={styles.marginInfo}>
-                <View style={styles.marginRow}>
-                  <Ionicons name="trending-up" size={20} color="#2e7d32" />
-                  <Text style={styles.marginLabel}>Margem de Lucro:</Text>
-                </View>
-                <Text style={styles.marginValue}>
-                  {(
-                    ((parseFloat(salePrice) - parseFloat(costPrice)) / parseFloat(costPrice)) * 100
-                  ).toFixed(1)}%
-                </Text>
-              </View>
-            )}
+            {/* Aviso sobre custo */}
+            <View style={styles.warningBox}>
+              <Ionicons name="information-circle" size={20} color={Colors.light.primary} />
+              <Text style={styles.warningText}>
+                Custo e quantidade são gerenciados pela tela de Entradas
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -912,5 +887,22 @@ const styles = StyleSheet.create({
     marginTop: 16,
     textDecorationLine: 'underline',
     textAlign: 'center',
+  },
+  warningBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#e3f2fd',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.light.primary,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.light.text,
+    lineHeight: 18,
   },
 });

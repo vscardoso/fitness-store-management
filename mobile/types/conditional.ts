@@ -3,12 +3,11 @@
  */
 
 export type ShipmentStatus =
-  | 'PENDING'
-  | 'SENT'
-  | 'PARTIAL_RETURN'
-  | 'COMPLETED'
-  | 'CANCELLED'
-  | 'OVERDUE';
+  | 'PENDING'                    // Aguardando envio
+  | 'SENT'                       // Enviado, aguardando retorno
+  | 'RETURNED_NO_SALE'           // Devolveu tudo, não vendeu nada
+  | 'COMPLETED_PARTIAL_SALE'     // Vendeu alguns, devolveu outros
+  | 'COMPLETED_FULL_SALE';       // Vendeu tudo
 
 export type ShipmentItemStatus =
   | 'SENT'
@@ -55,7 +54,22 @@ export interface ConditionalShipment {
   completed_at?: string;
   notes?: string;
   shipping_address: string;
+
+  // Informações de transporte
+  carrier?: string;
+  tracking_code?: string;
+
+  // Agendamento e prazo
+  scheduled_ship_date?: string;
   
+  // Datas de ida e devolução (NOVO)
+  departure_datetime?: string;  // Data/hora de ida ao cliente
+  return_datetime?: string;     // Data/hora prevista para devolução
+  
+  // LEGACY - manter por compatibilidade
+  deadline_type?: 'days' | 'hours';
+  deadline_value?: number;
+
   // Propriedades calculadas
   is_overdue: boolean;
   days_remaining: number;
@@ -64,12 +78,12 @@ export interface ConditionalShipment {
   total_items_returned: number;
   total_value_sent: number;
   total_value_kept: number;
-  
+
   // Dados relacionados
   items: ConditionalShipmentItem[];
   customer_name?: string;
   customer_phone?: string;
-  
+
   created_at: string;
   updated_at: string;
   is_active: boolean;
@@ -93,6 +107,10 @@ export interface ConditionalShipmentList {
   total_value_sent: number;
   total_value_kept: number;
   created_at: string;
+
+  // Agendamento de envio e retorno
+  departure_datetime?: string;  // Data/hora de ida ao cliente
+  return_datetime?: string;     // Data/hora prevista para devolução
 }
 
 /**
@@ -109,6 +127,12 @@ export interface CreateShipmentDTO {
   customer_id: number;
   shipping_address: string;
   items: CreateShipmentItemDTO[];
+  
+  // Datas de ida e devolução (NOVO)
+  departure_datetime?: string;  // ISO string
+  return_datetime?: string;     // ISO string
+  
+  // LEGACY - manter por compatibilidade
   deadline_days?: number;  // Padrão: 7
   notes?: string;
 }
@@ -127,6 +151,7 @@ export interface ProcessReturnItemDTO {
 export interface ProcessReturnDTO {
   items: ProcessReturnItemDTO[];
   create_sale?: boolean;  // Padrão: true
+  payment_method?: 'cash' | 'credit_card' | 'debit_card' | 'pix' | 'bank_transfer' | 'installments' | 'loyalty_points';
   notes?: string;
 }
 
@@ -145,24 +170,22 @@ export interface ShipmentFilters {
  * Status badge colors para UI
  */
 export const SHIPMENT_STATUS_COLORS: Record<ShipmentStatus, string> = {
-  PENDING: '#9E9E9E',      // Cinza
-  SENT: '#2196F3',         // Azul
-  PARTIAL_RETURN: '#FF9800', // Laranja
-  COMPLETED: '#4CAF50',    // Verde
-  CANCELLED: '#F44336',    // Vermelho
-  OVERDUE: '#D32F2F',      // Vermelho escuro
+  PENDING: '#9E9E9E',                // Cinza - Aguardando
+  SENT: '#2196F3',                   // Azul - Em trânsito
+  RETURNED_NO_SALE: '#F44336',       // Vermelho - Sem venda
+  COMPLETED_PARTIAL_SALE: '#FF9800', // Laranja - Venda parcial
+  COMPLETED_FULL_SALE: '#4CAF50',    // Verde - Venda total
 };
 
 /**
- * Ícones para status
+ * Ícones para status (MaterialCommunityIcons - usado pelo react-native-paper)
  */
 export const SHIPMENT_STATUS_ICONS: Record<ShipmentStatus, string> = {
   PENDING: 'clock-outline',
   SENT: 'package-variant',
-  PARTIAL_RETURN: 'package-variant-closed',
-  COMPLETED: 'check-circle',
-  CANCELLED: 'close-circle',
-  OVERDUE: 'alert-circle',
+  RETURNED_NO_SALE: 'keyboard-return',
+  COMPLETED_PARTIAL_SALE: 'check-circle',
+  COMPLETED_FULL_SALE: 'check-all',
 };
 
 /**
@@ -171,29 +194,67 @@ export const SHIPMENT_STATUS_ICONS: Record<ShipmentStatus, string> = {
 export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {
   PENDING: 'Pendente',
   SENT: 'Enviado',
-  PARTIAL_RETURN: 'Devolução Parcial',
-  COMPLETED: 'Concluído',
-  CANCELLED: 'Cancelado',
-  OVERDUE: 'Atrasado',
+  RETURNED_NO_SALE: 'Sem Venda',
+  COMPLETED_PARTIAL_SALE: 'Venda Parcial',
+  COMPLETED_FULL_SALE: 'Venda Total',
 };
+
+/**
+ * Helper: verifica se é um status final (já processado)
+ */
+export function isFinalStatus(status: ShipmentStatus): boolean {
+  return [
+    'RETURNED_NO_SALE',
+    'COMPLETED_PARTIAL_SALE',
+    'COMPLETED_FULL_SALE'
+  ].includes(status);
+}
+
+/**
+ * Helper: verifica se houve alguma venda
+ */
+export function hasAnySale(status: ShipmentStatus): boolean {
+  return [
+    'COMPLETED_PARTIAL_SALE',
+    'COMPLETED_FULL_SALE'
+  ].includes(status);
+}
 
 /**
  * Helper: formatar prazo para exibição
  */
-export function formatDeadline(deadline: string | undefined, daysRemaining: number): string {
+export function formatDeadline(deadline: Date | string): string {
   if (!deadline) return 'Sem prazo';
-  
+
+  const deadlineDate = typeof deadline === 'string' ? new Date(deadline) : deadline;
+  const now = new Date();
+  const diffMs = deadlineDate.getTime() - now.getTime();
+  const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
   if (daysRemaining === 0) return 'Vence hoje';
   if (daysRemaining === 1) return 'Vence amanhã';
-  if (daysRemaining < 0) return `Atrasado ${Math.abs(daysRemaining)} dias`;
-  return `${daysRemaining} dias restantes`;
+  if (daysRemaining < 0) return `${Math.abs(daysRemaining)}d atraso`;
+  return `${daysRemaining}d restantes`;
 }
 
 /**
  * Helper: cor do contador de prazo
  */
-export function getDeadlineColor(daysRemaining: number, isOverdue: boolean): string {
-  if (isOverdue) return '#D32F2F';  // Vermelho
-  if (daysRemaining <= 2) return '#FF9800';  // Laranja
-  return '#4CAF50';  // Verde
+export function getDeadlineColor(deadline: Date | string | undefined | null): string {
+  if (!deadline) return '#4CAF50';
+
+  const deadlineDate = typeof deadline === 'string' ? new Date(deadline) : deadline;
+
+  // Validar se a data é válida
+  if (!deadlineDate || isNaN(deadlineDate.getTime())) {
+    return '#4CAF50';
+  }
+
+  const now = new Date();
+  const diffMs = deadlineDate.getTime() - now.getTime();
+  const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  if (daysRemaining < 0) return '#D32F2F';  // Vermelho (atrasado)
+  if (daysRemaining <= 2) return '#FF9800';  // Laranja (urgente)
+  return '#4CAF50';  // Verde (ok)
 }

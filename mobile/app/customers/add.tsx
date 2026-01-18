@@ -40,6 +40,7 @@ export default function AddCustomerScreen() {
   const [birthDate, setBirthDate] = useState('');
   const [address, setAddress] = useState('');
   const [addressNumber, setAddressNumber] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [zipCode, setZipCode] = useState('');
@@ -68,6 +69,7 @@ export default function AddCustomerScreen() {
 
       if (cepData) {
         setAddress(cepData.logradouro || '');
+        setNeighborhood(cepData.bairro || '');
         setCity(cepData.localidade || '');
         setState(cepData.uf || '');
       } else {
@@ -146,6 +148,7 @@ export default function AddCustomerScreen() {
       birth_date: birthDate ? formatDateToISO(birthDate) : undefined,
       address: address.trim() || undefined,
       address_number: addressNumber.trim() || undefined,
+      neighborhood: neighborhood.trim() || undefined,
       city: city.trim() || undefined,
       state: state.trim() || undefined,
       zip_code: zipCode ? zipCode.replace(/\D/g, '') : undefined,
@@ -355,6 +358,15 @@ export default function AddCustomerScreen() {
             style={styles.input}
             keyboardType="numeric"
             placeholder="123"
+          />
+
+          <TextInput
+            label="Bairro"
+            value={neighborhood}
+            onChangeText={setNeighborhood}
+            mode="outlined"
+            style={styles.input}
+            placeholder="Nome do bairro"
           />
 
           <View style={styles.row}>

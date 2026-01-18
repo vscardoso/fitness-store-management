@@ -179,6 +179,40 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
         result = await db.execute(query)
         return result.scalars().all()
     
+    async def get_products_with_stock(
+        self,
+        db: AsyncSession,
+        tenant_id: int
+    ) -> set[int]:
+        """
+        Retorna IDs de produtos que têm estoque disponível (quantity_remaining > 0).
+        
+        Usa FIFO como fonte da verdade - produtos só aparecem se tiverem EntryItems ativos.
+        
+        Args:
+            db: Database session
+            tenant_id: ID do tenant
+            
+        Returns:
+            Set de IDs de produtos com estoque
+        """
+        query = (
+            select(EntryItem.product_id)
+            .join(StockEntry, EntryItem.entry_id == StockEntry.id)
+            .where(
+                and_(
+                    EntryItem.quantity_remaining > 0,
+                    EntryItem.is_active == True,
+                    StockEntry.is_active == True,
+                    StockEntry.tenant_id == tenant_id
+                )
+            )
+            .distinct()
+        )
+        
+        result = await db.execute(query)
+        return set(result.scalars().all())
+    
     async def decrease_quantity(
         self, 
         db: AsyncSession, 

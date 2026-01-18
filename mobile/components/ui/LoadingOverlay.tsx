@@ -5,17 +5,8 @@
  */
 
 import { useEffect, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Animated } from 'react-native';
 import { Text, Portal } from 'react-native-paper';
-import Animated, {
-  FadeIn,
-  FadeOut,
-  useAnimatedStyle,
-  withRepeat,
-  withSequence,
-  withTiming,
-  useSharedValue,
-} from 'react-native-reanimated';
 import { loadingManager } from '@/services/loadingManager';
 
 interface LoadingOverlayProps {
@@ -38,8 +29,9 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
   const [loadingMessage, setLoadingMessage] = useState<string | undefined>();
   const [showTimeout, setShowTimeout] = useState(false);
 
-  // Animation value for pulse effect
-  const scale = useSharedValue(1);
+  // Animation values for native animations
+  const fadeAnim = useState(new Animated.Value(0))[0];
+  const scaleAnim = useState(new Animated.Value(1))[0];
 
   useEffect(() => {
     // Subscribe to loading manager
@@ -52,21 +44,38 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
     return unsubscribe;
   }, []);
 
-  // Pulse animation for spinner container
+  // Fade in/out animation
   useEffect(() => {
-    scale.value = withRepeat(
-      withSequence(
-        withTiming(1.1, { duration: 1000 }),
-        withTiming(1, { duration: 1000 })
-      ),
-      -1,
-      false
-    );
-  }, []);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
+    if (shouldShow) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(scaleAnim, {
+              toValue: 1.1,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+            Animated.timing(scaleAnim, {
+              toValue: 1,
+              duration: 1000,
+              useNativeDriver: true,
+            }),
+          ])
+        ),
+      ]).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [shouldShow]);
 
   // Allow prop override for testing
   const shouldShow = visible !== undefined ? visible : isVisible;
@@ -79,11 +88,21 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
   return (
     <Portal>
       <Animated.View
-        style={styles.overlay}
-        entering={FadeIn.duration(200)}
-        exiting={FadeOut.duration(200)}
+        style={[
+          styles.overlay,
+          {
+            opacity: fadeAnim,
+          },
+        ]}
       >
-        <Animated.View style={[styles.container, animatedStyle]}>
+        <Animated.View
+          style={[
+            styles.container,
+            {
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
           <View style={styles.content}>
             <ActivityIndicator
               size="large"

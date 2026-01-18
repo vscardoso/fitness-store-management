@@ -126,14 +126,16 @@ function AlertCard({ type, title, message, onPress }: AlertCardProps) {
   return (
     <TouchableOpacity onPress={onPress} disabled={!onPress}>
       <Surface style={[styles.alertCard, { backgroundColor: bg }]}>
-        <Ionicons name={icon} size={24} color={color} />
-        <View style={styles.alertContent}>
-          <Text style={[styles.alertTitle, { color }]}>{title}</Text>
-          <Text style={styles.alertMessage}>{message}</Text>
+        <View style={{ overflow: 'hidden', flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+          <Ionicons name={icon} size={24} color={color} />
+          <View style={styles.alertContent}>
+            <Text style={[styles.alertTitle, { color }]}>{title}</Text>
+            <Text style={styles.alertMessage}>{message}</Text>
+          </View>
+          {onPress && (
+            <Ionicons name="chevron-forward" size={20} color={Colors.light.textSecondary} />
+          )}
         </View>
-        {onPress && (
-          <Ionicons name="chevron-forward" size={20} color={Colors.light.textSecondary} />
-        )}
       </Surface>
     </TouchableOpacity>
   );
@@ -450,8 +452,10 @@ export default function InventoryDashboard() {
             </Card>
           ) : (
             <Surface style={styles.emptyState}>
-              <Ionicons name="bar-chart-outline" size={48} color={Colors.light.textSecondary} />
-              <Text style={styles.emptyText}>Nenhuma entrada registrada</Text>
+              <View style={{ overflow: 'hidden', flex: 1, alignItems: 'center' }}>
+                <Ionicons name="bar-chart-outline" size={48} color={Colors.light.textSecondary} />
+                <Text style={styles.emptyText}>Nenhuma entrada registrada</Text>
+              </View>
             </Surface>
           )}
         </View>
@@ -529,15 +533,17 @@ export default function InventoryDashboard() {
 
           {entries.length === 0 && (
             <Surface style={styles.emptyState}>
-              <Ionicons name="cube-outline" size={48} color={Colors.light.textSecondary} />
-              <Text style={styles.emptyText}>Nenhuma entrada cadastrada</Text>
-              <Button
-                mode="contained"
-                onPress={() => router.push('/entries/add')}
-                style={{ marginTop: 16 }}
-              >
-                Adicionar Entrada
-              </Button>
+              <View style={{ overflow: 'hidden', flex: 1, alignItems: 'center' }}>
+                <Ionicons name="cube-outline" size={48} color={Colors.light.textSecondary} />
+                <Text style={styles.emptyText}>Nenhuma entrada cadastrada</Text>
+                <Button
+                  mode="contained"
+                  onPress={() => router.push('/entries/add')}
+                  style={{ marginTop: 16 }}
+                >
+                  Adicionar Entrada
+                </Button>
+              </View>
             </Surface>
           )}
         </View>

@@ -2,6 +2,16 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## 🎯 IMPORTANTE: Sistema de Orquestração
+
+**Antes de fazer qualquer mudança que envolva múltiplas camadas (backend + frontend + UX), leia:**
+- 📋 **[AGENT_ORCHESTRATION.md](./AGENT_ORCHESTRATION.md)** - Processo completo e checklists
+- ⚡ **[QUICK_REFERENCE.md](./QUICK_REFERENCE.md)** - Comandos rápidos e exemplos
+
+**Use comandos `🔄 FULL-STACK [TIPO]` para garantir zero retrabalho e consistência total.**
+
+---
+
 ## System Overview
 
 Full-stack fitness retail management system with **FastAPI backend** (Python 3.11+) and **React Native + Expo** mobile app. The architecture follows a strict 3-layer pattern with async SQLAlchemy 2.0, Repository Pattern, and mandatory Soft Delete.
@@ -206,9 +216,26 @@ cd backend
 .\venv\Scripts\Activate.ps1
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-# Terminal 2 - Mobile
+# Terminal 2 - Mobile (RECOMENDADO - previne travamentos)
 cd mobile
-npx expo start
+.\expo-dev.ps1
+
+# Alternativa (para device físico):
+.\expo-dev.ps1 -Tunnel
+
+# Se o terminal travar: Feche o terminal → Abra novo → Execute:
+.\kill-all.ps1
+.\expo-dev.ps1
+```
+
+**⚠️ IMPORTANTE - Terminal Travando?**
+Se o terminal travar ao rodar Expo:
+1. **Feche o terminal** (X ou Alt+F4)
+2. **Abra novo terminal** e execute `.\kill-all.ps1`
+3. **Inicie com** `.\expo-dev.ps1`
+
+📚 **Documentação completa:** `mobile/TERMINAL_FREEZE_FIX.md` e `mobile/QUICK_START.md`
+
 ```
 
 ### Backend Development
@@ -236,10 +263,13 @@ black .                            # Format code
 flake8 .                           # Lint check
 mypy app/                          # Type checking
 
-# Alembic migrations
-alembic revision --autogenerate -m "Add new field"
-alembic upgrade head
-alembic downgrade -1
+# Database Migrations (AUTOMATIZADO)
+python migrate.py "add new field"      # Gera E aplica migration automaticamente
+python reset_db.py                     # Reset completo do banco (com backup)
+
+# Manual (NÃO RECOMENDADO - use migrate.py)
+alembic upgrade head                   # Só aplicar migrations pendentes
+alembic current                        # Ver revisão atual
 ```
 
 ### Mobile Development
@@ -410,7 +440,7 @@ For physical device testing with localtunnel:
 
 1. **Update Model**: Modify `backend/app/models/*.py`
 2. **Update Schema**: Modify `backend/app/schemas/*.py` (Pydantic)
-3. **Create Migration**: `alembic revision --autogenerate -m "description"`
+3. **Create Migration**: `python migrate.py "description"` (gera E aplica)
 4. **Update Repository**: Usually no changes needed (BaseRepository handles CRUD)
 5. **Update Service**: Add business logic in `backend/app/services/*.py`
 6. **Update Endpoint**: Modify `backend/app/api/v1/endpoints/*.py`
@@ -426,14 +456,13 @@ For physical device testing with localtunnel:
 
 ### Database Schema Changes
 
-Always use Alembic for migrations:
+**SEMPRE use migrate.py** (automatizado):
 ```powershell
 cd backend
-alembic revision --autogenerate -m "Add customer_type field"
-alembic upgrade head
+python migrate.py "add customer_type field"  # Faz tudo: gera + aplica
 ```
 
-**Never** manually edit the database schema.
+**NUNCA** edite o banco manualmente ou use alembic diretamente.
 
 ## Project Structure
 

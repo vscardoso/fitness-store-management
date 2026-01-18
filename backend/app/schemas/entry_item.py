@@ -72,17 +72,32 @@ class EntryItemResponse(EntryItemBase):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-    
+
     # Campos calculados
     total_cost: Decimal = Field(..., description="Custo total (quantity × unit_cost)")
     quantity_sold: int = Field(default=0, description="Quantidade vendida")
     depletion_percentage: float = Field(default=0.0, description="Porcentagem de depleção")
     is_depleted: bool = Field(default=False, description="Se está totalmente esgotado")
-    
+
     # Informações do produto
     product_name: Optional[str] = Field(None, description="Nome do produto")
     product_sku: Optional[str] = Field(None, description="SKU do produto")
     product_barcode: Optional[str] = Field(None, description="Código de barras")
+
+    @classmethod
+    def model_validate(cls, obj, **kwargs):
+        """Popula campos do produto a partir do relacionamento."""
+        # Se obj é um EntryItem model do SQLAlchemy, popular campos do produto
+        if hasattr(obj, 'product') and obj.product:
+            # Criar dict base do objeto
+            data = super().model_validate(obj, **kwargs).model_dump()
+            # Adicionar informações do produto
+            data['product_name'] = obj.product.name
+            data['product_sku'] = obj.product.sku
+            data['product_barcode'] = obj.product.barcode
+            # Retornar nova instância com dados completos
+            return cls.model_construct(**data)
+        return super().model_validate(obj, **kwargs)
 
     class Config:
         from_attributes = True

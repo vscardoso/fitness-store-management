@@ -14,6 +14,7 @@ from .entry_item import EntryItem
 from .store import Store
 from .subscription import Subscription
 from .conditional_shipment import ConditionalShipment, ConditionalShipmentItem
+from .notification import PushToken, NotificationLog
 
 __all__ = [
     # Base
@@ -65,4 +66,8 @@ __all__ = [
     # Conditional Shipment
     "ConditionalShipment",
     "ConditionalShipmentItem",
+
+    # Notifications
+    "PushToken",
+    "NotificationLog",
 ]

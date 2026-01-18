@@ -12,8 +12,6 @@ import {
   Text,
   Card,
   Button,
-  TextInput,
-  HelperText,
 } from 'react-native-paper';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
@@ -22,14 +20,11 @@ import { Ionicons } from '@expo/vector-icons';
 import DetailHeader from '@/components/layout/DetailHeader';
 import InfoRow from '@/components/ui/InfoRow';
 import StatCard from '@/components/ui/StatCard';
-import CustomModal from '@/components/ui/CustomModal';
-import ModalActions from '@/components/ui/ModalActions';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { getProductById, deleteProduct, adjustProductQuantity } from '@/services/productService';
+import { getProductById, deleteProduct } from '@/services/productService';
 import { getProductStock } from '@/services/inventoryService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
-import { MovementType } from '@/types';
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -48,14 +43,7 @@ export default function ProductDetailsScreen() {
     }
   }, [id, isValidId]);
 
-  // Estados do modal de estoque
-  const [stockModalVisible, setStockModalVisible] = useState(false);
-  const [movementType, setMovementType] = useState<MovementType>(MovementType.IN);
-  const [quantity, setQuantity] = useState('');
-  const [notes, setNotes] = useState('');
-  const [increaseUnitCost, setIncreaseUnitCost] = useState('');
-  const [quantityError, setQuantityError] = useState('');
-  const [costError, setCostError] = useState('');
+  // Estados do modal de estoque - REMOVIDOS (agora usa sistema FIFO com Entradas)
 
   const toBRNumber = (n: number) => {
     try {
@@ -123,75 +111,7 @@ export default function ProductDetailsScreen() {
     setRefreshing(false);
   };
 
-  /**
-   * Mutation: Movimentar estoque
-   */
-  const stockMutation = useMutation({
-    mutationFn: async () => {
-      const qty = parseInt(quantity);
-      
-      // Validação básica no frontend
-      if (isNaN(qty) || qty <= 0) {
-        throw new Error('Quantidade inválida');
-      }
-
-      // Buscar estoque atual (mais fresco possível)
-      let current = inventory?.quantity || 0;
-      try {
-        const fresh = await getProductStock(productId);
-        current = fresh.quantity || current;
-      } catch {}
-
-      const newQty = movementType === MovementType.IN ? current + qty : current - qty;
-      if (newQty < 0) {
-        throw new Error('Estoque insuficiente para esta saída');
-      }
-
-      const payload: any = {
-        new_quantity: newQty,
-        reason: notes.trim() || (movementType === MovementType.IN ? 'Entrada manual' : 'Saída manual'),
-      };
-
-      // Usa o endpoint que respeita FIFO e atualiza EntryItems
-      return adjustProductQuantity(productId, payload);
-    },
-    onSuccess: async () => {
-      // Invalidar e refetch imediato para garantir dados frescos
-      await queryClient.invalidateQueries({ queryKey: ['product', productId] });
-      await queryClient.invalidateQueries({ queryKey: ['inventory', productId] });
-      await queryClient.invalidateQueries({ queryKey: ['products'] });
-      
-      // Refetch explícito para forçar atualização
-      await refetchProduct();
-      await refetchInventory();
-      
-      setStockModalVisible(false);
-      setQuantity('');
-      setNotes('');
-        setIncreaseUnitCost('');
-      setDialog({
-        visible: true,
-        type: 'success',
-        title: 'Sucesso!',
-        message: 'Estoque atualizado com sucesso',
-        confirmText: 'OK',
-        cancelText: '',
-        onConfirm: () => setDialog({ ...dialog, visible: false }),
-      });
-    },
-    onError: (error: any) => {
-      const errorMessage = error?.response?.data?.detail || error.message || 'Erro ao atualizar estoque';
-      setDialog({
-        visible: true,
-        type: 'danger',
-        title: 'Erro',
-        message: errorMessage,
-        confirmText: 'OK',
-        cancelText: '',
-        onConfirm: () => setDialog({ ...dialog, visible: false }),
-      });
-    },
-  });
+  // Mutation de movimentação de estoque REMOVIDA - agora usa sistema FIFO com Entradas
 
   /**
    * Mutation: Deletar produto
@@ -199,19 +119,19 @@ export default function ProductDetailsScreen() {
   const deleteMutation = useMutation({
     mutationFn: () => deleteProduct(productId),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      setDialog({
-        visible: true,
-        type: 'success',
-        title: 'Sucesso!',
-        message: 'Produto deletado com sucesso',
-        confirmText: 'OK',
-        cancelText: '',
-        onConfirm: () => {
-          setDialog({ ...dialog, visible: false });
-          goBack();
-        },
-      });
+      // Navegar de volta IMEDIATAMENTE
+      goBack();
+
+      // Invalidar queries DEPOIS da navegação (com delay para garantir que a tela carregou)
+      setTimeout(async () => {
+        await Promise.all([
+          queryClient.removeQueries({ queryKey: ['product', productId] }),
+          queryClient.invalidateQueries({ queryKey: ['products'] }),
+          queryClient.invalidateQueries({ queryKey: ['active-products'] }),
+          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
+          queryClient.invalidateQueries({ queryKey: ['low-stock'] }),
+        ]);
+      }, 100);
     },
     onError: (error: any) => {
       setDialog({
@@ -244,64 +164,7 @@ export default function ProductDetailsScreen() {
     });
   };
 
-  /**
-   * Abrir modal de estoque
-   */
-  const handleStockModal = (type: MovementType) => {
-    setMovementType(type);
-    setQuantity('');
-    setNotes('');
-    setQuantityError('');
-    setStockModalVisible(true);
-  };
-
-  /**
-   * Fechar modal
-   */
-  const handleCloseModal = () => {
-    setStockModalVisible(false);
-    setQuantity('');
-    setNotes('');
-    setQuantityError('');
-  };
-
-  /**
-   * Salvar movimentação
-   */
-  const handleSaveStock = () => {
-    if (!quantity || parseInt(quantity) <= 0) {
-      setQuantityError('Informe uma quantidade válida (> 0)');
-      return;
-    }
-
-    // Confirmação explicando o impacto
-    const qty = parseInt(quantity);
-    const curr = inventory?.quantity || 0;
-    const target = movementType === MovementType.IN ? curr + qty : curr - qty;
-    const impact = movementType === MovementType.IN ? 'AUMENTAR' : 'REDUZIR';
-
-
-    // Fechar o modal antes de abrir a confirmação (evita sobreposição/z-index)
-    setStockModalVisible(false);
-
-    const extra = '';
-
-    // Pequeno delay garante que o modal fechou antes de abrir o diálogo
-    setTimeout(() => {
-      setDialog({
-        visible: true,
-        type: 'warning',
-        title: 'Confirmar ajuste de estoque',
-        message: `Isso irá ${impact} o estoque de ${curr} para ${target}.\nEste ajuste atualiza a base FIFO e afeta os valores do dashboard.${extra}`,
-        confirmText: 'Sim, aplicar',
-        cancelText: 'Cancelar',
-        onConfirm: () => {
-          setDialog({ ...dialog, visible: false });
-          stockMutation.mutate();
-        },
-      });
-    }, 100);
-  };
+  // Funções de movimentação de estoque REMOVIDAS - agora usa sistema FIFO com Entradas
 
   // Verificar ID inválido
   if (!isValidId) {
@@ -322,9 +185,11 @@ export default function ProductDetailsScreen() {
 
   if (isLoading || !product) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
-        <Text style={{ marginTop: 16, color: '#666' }}>Carregando produto...</Text>
+      <View style={styles.container}>
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <Text style={styles.loadingText}>Carregando produto...</Text>
+        </View>
       </View>
     );
   }
@@ -405,30 +270,27 @@ export default function ProductDetailsScreen() {
               ]} />
             </View>
 
-            {/* Botões de movimentação */}
-            <View style={styles.stockButtons}>
-              <Button
-                mode="contained"
-                icon="plus"
-                onPress={() => handleStockModal(MovementType.IN)}
-                style={styles.stockButton}
-                buttonColor={Colors.light.success}
-                contentStyle={styles.buttonContent}
-              >
-                Adicionar
-              </Button>
-              <Button
-                mode="contained"
-                icon="minus"
-                onPress={() => handleStockModal(MovementType.OUT)}
-                style={styles.stockButton}
-                buttonColor={Colors.light.error}
-                contentStyle={styles.buttonContent}
-                disabled={currentStock === 0}
-              >
-                Remover
-              </Button>
+            {/* Informação sobre gerenciamento FIFO */}
+            <View style={styles.fifoInfoBox}>
+              <Ionicons name="layers-outline" size={20} color={Colors.light.primary} />
+              <View style={styles.fifoInfoContent}>
+                <Text style={styles.fifoInfoTitle}>Gerenciamento FIFO</Text>
+                <Text style={styles.fifoInfoText}>
+                  Estoque é gerenciado via Entradas. Veja o histórico abaixo ou crie uma nova entrada.
+                </Text>
+              </View>
             </View>
+
+            {/* Botão para criar nova entrada */}
+            <Button
+              mode="contained"
+              icon="plus-circle-outline"
+              onPress={() => router.push('/(tabs)/entries')}
+              style={styles.newEntryButton}
+              buttonColor={Colors.light.primary}
+            >
+              Nova Entrada de Estoque
+            </Button>
           </View>
 
           {/* Informações do produto */}
@@ -513,57 +375,98 @@ export default function ProductDetailsScreen() {
           </View>
         </Card.Content>
       </Card>
+
+      {/* Histórico FIFO - Entradas do Produto */}
+      {product.entry_items && product.entry_items.length > 0 && (
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="list-outline" size={20} color={Colors.light.primary} />
+              <Text variant="titleMedium" style={styles.sectionTitle}>
+                Histórico de Entradas (FIFO)
+              </Text>
+            </View>
+
+            <Text variant="bodySmall" style={styles.fifoExplanation}>
+              Mostra de onde veio o estoque deste produto, ordenado do mais antigo para o mais recente (FIFO).
+            </Text>
+
+            {product.entry_items.map((item, index) => (
+              <TouchableOpacity
+                key={item.entry_item_id}
+                style={styles.entryItemCard}
+                onPress={() => router.push(`/entries/${item.entry_id}`)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.entryItemHeader}>
+                  <View style={styles.entryItemTitleRow}>
+                    <Ionicons name="cube-outline" size={18} color={Colors.light.primary} />
+                    <Text variant="titleSmall" style={styles.entryCode}>
+                      {item.entry_code}
+                    </Text>
+                    {item.quantity_sold > 0 && (
+                      <View style={styles.soldBadge}>
+                        <Text style={styles.soldBadgeText}>
+                          {item.quantity_sold} vendidos
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+
+                  {item.supplier_name && (
+                    <Text variant="bodySmall" style={styles.supplierName}>
+                      {item.supplier_name}
+                    </Text>
+                  )}
+                </View>
+
+                <View style={styles.entryItemMetrics}>
+                  <View style={styles.entryMetric}>
+                    <Text style={styles.entryMetricLabel}>Recebido</Text>
+                    <Text style={styles.entryMetricValue}>
+                      {item.quantity_received} un
+                    </Text>
+                  </View>
+
+                  <View style={styles.entryMetric}>
+                    <Text style={styles.entryMetricLabel}>Restante</Text>
+                    <Text style={[
+                      styles.entryMetricValue,
+                      item.quantity_remaining === 0 && styles.entryMetricValueDepleted
+                    ]}>
+                      {item.quantity_remaining} un
+                    </Text>
+                  </View>
+
+                  <View style={styles.entryMetric}>
+                    <Text style={styles.entryMetricLabel}>Custo Unit.</Text>
+                    <Text style={styles.entryMetricValue}>
+                      {formatCurrency(item.unit_cost)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.entryItemFooter}>
+                  <Text variant="bodySmall" style={styles.entryDate}>
+                    {formatDate(item.entry_date)}
+                  </Text>
+                  <View style={styles.viewEntryButton}>
+                    <Text style={styles.viewEntryButtonText}>Ver Entrada</Text>
+                    <Ionicons name="chevron-forward" size={16} color={Colors.light.primary} />
+                  </View>
+                </View>
+
+                {item.quantity_remaining === 0 && (
+                  <View style={styles.depletedOverlay}>
+                    <Text style={styles.depletedText}>ESGOTADO</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            ))}
+          </Card.Content>
+        </Card>
+      )}
       </ScrollView>
-
-      {/* Modal de movimentação de estoque */}
-      <CustomModal
-        visible={stockModalVisible}
-        onDismiss={handleCloseModal}
-        title={movementType === MovementType.IN ? 'Entrada de Estoque' : 'Saída de Estoque'}
-        subtitle={`${product.name} • Estoque atual: ${currentStock} unidades`}
-      >
-        <TextInput
-          label="Quantidade *"
-          value={quantity}
-          onChangeText={(t) => { setQuantity(t); if (quantityError) setQuantityError(''); }}
-          keyboardType="numeric"
-          mode="outlined"
-          style={styles.input}
-          placeholder="Digite a quantidade"
-          autoFocus
-          error={!!quantityError}
-        />
-        {quantityError ? (
-          <HelperText type="error" visible={true}>
-            {quantityError}
-          </HelperText>
-        ) : null}
-
-
-        <TextInput
-          label="Observações (opcional)"
-          value={notes}
-          onChangeText={setNotes}
-          mode="outlined"
-          style={styles.input}
-          placeholder="Motivo da movimentação"
-          multiline
-          numberOfLines={3}
-        />
-
-        <ModalActions
-          onCancel={handleCloseModal}
-          onConfirm={handleSaveStock}
-          cancelText="Cancelar"
-          confirmText="Salvar"
-          loading={stockMutation.isPending}
-          confirmColor={
-            movementType === MovementType.IN
-              ? Colors.light.success
-              : Colors.light.error
-          }
-        />
-      </CustomModal>
 
       {/* Confirm Dialog */}
       <ConfirmDialog
@@ -589,6 +492,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 24,
+  },
+  loadingText: {
+    marginTop: 12,
+    color: Colors.light.textSecondary,
+    fontSize: 14,
   },
   scrollContent: {
     flex: 1,
@@ -659,17 +568,34 @@ const styles = StyleSheet.create({
   stockStatusEmpty: {
     backgroundColor: Colors.light.error,
   },
-  stockButtons: {
+  fifoInfoBox: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
     gap: 12,
-    width: '100%',
-  },
-  stockButton: {
-    flex: 1,
+    backgroundColor: Colors.light.primary + '10',
+    padding: 16,
     borderRadius: 12,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.light.primary,
   },
-  buttonContent: {
-    paddingVertical: 8,
+  fifoInfoContent: {
+    flex: 1,
+  },
+  fifoInfoTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.light.text,
+    marginBottom: 4,
+  },
+  fifoInfoText: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    lineHeight: 18,
+  },
+  newEntryButton: {
+    borderRadius: 12,
+    marginTop: 8,
   },
   infoSection: {
     marginTop: 8,
@@ -737,5 +663,109 @@ const styles = StyleSheet.create({
     color: Colors.light.primary,
     marginTop: 16,
     textDecorationLine: 'underline',
+  },
+  // Histórico FIFO
+  fifoExplanation: {
+    color: Colors.light.textSecondary,
+    marginBottom: 16,
+    lineHeight: 20,
+  },
+  entryItemCard: {
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.light.primary,
+    position: 'relative',
+  },
+  entryItemHeader: {
+    marginBottom: 12,
+  },
+  entryItemTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+    flexWrap: 'wrap',
+  },
+  entryCode: {
+    fontWeight: '700',
+    color: Colors.light.text,
+    fontSize: 15,
+  },
+  soldBadge: {
+    backgroundColor: Colors.light.success,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+    marginLeft: 4,
+  },
+  soldBadgeText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  supplierName: {
+    color: Colors.light.textSecondary,
+    marginLeft: 26,
+  },
+  entryItemMetrics: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+    marginBottom: 12,
+  },
+  entryMetric: {
+    alignItems: 'center',
+  },
+  entryMetricLabel: {
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+  },
+  entryMetricValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  entryMetricValueDepleted: {
+    color: Colors.light.error,
+  },
+  entryItemFooter: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  entryDate: {
+    color: Colors.light.textSecondary,
+  },
+  viewEntryButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  viewEntryButtonText: {
+    color: Colors.light.primary,
+    fontWeight: '600',
+    fontSize: 13,
+  },
+  depletedOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: Colors.light.error,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderTopRightRadius: 12,
+    borderBottomLeftRadius: 12,
+  },
+  depletedText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
   },
 });

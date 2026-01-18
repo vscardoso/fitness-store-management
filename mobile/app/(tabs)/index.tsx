@@ -128,6 +128,7 @@ export default function DashboardScreen() {
     'stock-cost': 'Valor total investido no estoque atual, calculado com base no custo de aquisição (preço de compra) de cada produto.',
     'stock-retail': 'Valor potencial de venda do estoque atual. Representa quanto você pode faturar vendendo todo o estoque ao preço de venda cadastrado.',
     'stock-margin': 'Diferença entre o valor de venda e o custo do estoque. Indica o lucro potencial caso todo o estoque seja vendido. O percentual mostra a margem média.',
+    'conditional-shipments': 'Envios condicionais ativos (produtos enviados para clientes experimentarem antes de comprar). O valor total representa o estoque temporariamente nas mãos dos clientes.',
     'realized-profit': 'Lucro efetivo obtido com as vendas já realizadas. Calculado subtraindo o CMV (Custo das Mercadorias Vendidas) do total de vendas. O percentual mostra a margem de lucro real.',
   };
 
@@ -141,6 +142,16 @@ export default function DashboardScreen() {
       onPress: () => {
         setQuickActionsVisible(false);
         router.push('/(tabs)/sale');
+      },
+    },
+    {
+      id: 'conditional-shipments',
+      title: 'Envios Condici...',
+      icon: 'cube-outline',
+      colors: ['#f093fb', '#f5576c'],
+      onPress: () => {
+        setQuickActionsVisible(false);
+        router.push('/(tabs)/conditional');
       },
     },
     {
@@ -167,7 +178,7 @@ export default function DashboardScreen() {
       id: 'new-entry',
       title: 'Nova Entrada',
       icon: 'layers',
-      colors: ['#667eea', '#764ba2'],
+      colors: ['#fa709a', '#fee140'],
       onPress: () => {
         setQuickActionsVisible(false);
         router.push('/entries/add');

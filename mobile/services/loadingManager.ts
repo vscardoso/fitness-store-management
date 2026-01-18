@@ -23,8 +23,14 @@ class LoadingManager {
   private minimumDisplayTimer: NodeJS.Timeout | null = null;
   private timeoutWarningTimer: NodeJS.Timeout | null = null;
   private autoHideTimer: NodeJS.Timeout | null = null;
+  private showDelayTimer: NodeJS.Timeout | null = null;
   private isDisplaying = false;
   private showTimeoutWarning = false;
+
+  /**
+   * Delay before showing loading (200ms) - avoids flicker for fast requests
+   */
+  private readonly SHOW_DELAY = 200;
 
   /**
    * Minimum display time to avoid flicker (300ms)
@@ -42,7 +48,7 @@ class LoadingManager {
   private readonly AUTO_HIDE_DELAY = 30000;
 
   /**
-   * Show loading with optional message
+   * Show loading with optional message (with delay for fast requests)
    */
   show(message?: string) {
     this.requestCounter++;
@@ -50,38 +56,59 @@ class LoadingManager {
     // Only start timers on first request
     if (this.requestCounter === 1) {
       this.currentMessage = message;
-      this.isDisplaying = true;
-      this.showTimeoutWarning = false;
-      this.notifyListeners();
 
-      // Start minimum display timer
-      this.minimumDisplayTimer = setTimeout(() => {
-        this.minimumDisplayTimer = null;
-      }, this.MINIMUM_DISPLAY_TIME);
+      // Delay showing loading to avoid flicker on fast requests
+      this.showDelayTimer = setTimeout(() => {
+        this.showDelayTimer = null;
 
-      // Start timeout warning timer
-      this.timeoutWarningTimer = setTimeout(() => {
-        if (this.isDisplaying) {
-          this.showTimeoutWarning = true;
+        // Only show if still loading (request didn't complete during delay)
+        if (this.requestCounter > 0) {
+          this.isDisplaying = true;
+          this.showTimeoutWarning = false;
           this.notifyListeners();
-        }
-      }, this.TIMEOUT_WARNING_DELAY);
 
-      // Start auto-hide timer (safety mechanism)
-      this.autoHideTimer = setTimeout(() => {
-        if (this.isDisplaying) {
-          console.warn(
-            '⚠️ Loading overlay auto-hidden after 30s. Possible stuck request.'
-          );
-          this.forceHide();
+          // Start minimum display timer
+          this.minimumDisplayTimer = setTimeout(() => {
+            this.minimumDisplayTimer = null;
+          }, this.MINIMUM_DISPLAY_TIME);
+
+          // Start timeout warning timer
+          this.timeoutWarningTimer = setTimeout(() => {
+            if (this.isDisplaying) {
+              this.showTimeoutWarning = true;
+              this.notifyListeners();
+            }
+          }, this.TIMEOUT_WARNING_DELAY);
+
+          // Start auto-hide timer (safety mechanism)
+          this.autoHideTimer = setTimeout(() => {
+            if (this.isDisplaying) {
+              console.warn(
+                '⚠️ Loading overlay auto-hidden after 30s. Possible stuck request.'
+              );
+              this.forceHide();
+            }
+          }, this.AUTO_HIDE_DELAY);
+
+          if (__DEV__) {
+            console.log(
+              `🔄 Loading shown (counter: ${this.requestCounter})${message ? `: ${message}` : ''}`
+            );
+          }
+        } else if (__DEV__) {
+          console.log(`⚡ Fast request - loading skipped (< ${this.SHOW_DELAY}ms)`);
         }
-      }, this.AUTO_HIDE_DELAY);
+      }, this.SHOW_DELAY);
 
       if (__DEV__) {
-        console.log(`🔄 Loading started (counter: ${this.requestCounter})`, message);
+        console.log(
+          `🔄 Loading queued (counter: ${this.requestCounter})${message ? `: ${message}` : ''}`
+        );
       }
     } else if (__DEV__) {
-      console.log(`🔄 Loading increment (counter: ${this.requestCounter})`, message);
+      console.log(
+        `🔄 Loading increment (counter: ${this.requestCounter})${message ? `: ${message}` : ''}`
+      );
     }
   }
 
@@ -144,6 +171,10 @@ class LoadingManager {
    * Clear all timers
    */
   private clearTimers() {
+    if (this.showDelayTimer) {
+      clearTimeout(this.showDelayTimer);
+      this.showDelayTimer = null;
+    }
     if (this.minimumDisplayTimer) {
       clearTimeout(this.minimumDisplayTimer);
       this.minimumDisplayTimer = null;

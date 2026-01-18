@@ -14,7 +14,7 @@
 // const API_BASE_URL = 'http://localhost:8000/api/v1';
 
 // 🟡 OPÇÃO 3: Dispositivo Físico (mesma rede WiFi) ✅ ATIVO
-// ⚠️ IP WiFi detectado: 192.168.100.158
+// ⚠️ IP WiFi atual: 192.168.100.158 (adaptador Wi-Fi)
 const API_BASE_URL = 'http://192.168.100.158:8000/api/v1';
 
 // 🔴 OPÇÃO 4: Tunnel (qualquer rede, mais instável) - TUNNEL EXPIROU!

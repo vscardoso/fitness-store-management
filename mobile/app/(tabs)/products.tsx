@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -10,7 +10,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Searchbar, Text, Button } from 'react-native-paper';
 import { useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
@@ -21,29 +21,71 @@ import { getActiveProducts, searchProducts, getCatalogProducts } from '@/service
 import { Colors, theme } from '@/constants/Colors';
 import type { Product } from '@/types';
 
+const PAGE_SIZE = 20;
+
 export default function ProductsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
+  const [showOnlyWithStock, setShowOnlyWithStock] = useState(true); // Começa com filtro ativo
 
   /**
-   * Query para buscar produtos ATIVOS (não inclui catálogo)
+   * Infinite Query para buscar produtos ATIVOS com paginação
    */
   const {
-    data: products,
+    data,
     isLoading,
     isError,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
     refetch,
     isRefetching,
-  } = useQuery({
+  } = useInfiniteQuery({
     queryKey: ['active-products', searchQuery],
-    queryFn: () => {
+    queryFn: async ({ pageParam = 0 }) => {
       if (searchQuery.trim()) {
+        // Para busca, retornar todos os resultados de uma vez
         return searchProducts(searchQuery);
       }
-      return getActiveProducts({ limit: 100 });
+      // Para listagem normal, paginar de 20 em 20
+      const products = await getActiveProducts({
+        limit: PAGE_SIZE,
+        skip: pageParam * PAGE_SIZE,
+      });
+      return products;
     },
+    getNextPageParam: (lastPage, allPages) => {
+      // Se tem busca ativa, não paginar
+      if (searchQuery.trim()) {
+        return undefined;
+      }
+      // Se a última página tem menos produtos que PAGE_SIZE, não há mais páginas
+      if (!lastPage || lastPage.length < PAGE_SIZE) {
+        return undefined;
+      }
+      return allPages.length;
+    },
+    initialPageParam: 0,
   });
+
+  /**
+   * Flatten all pages into a single array and filter based on stock toggle
+   */
+  const products = useMemo(() => {
+    const allProducts = data?.pages?.flat() ?? [];
+
+    // Se toggle está ativado, filtrar apenas produtos COM estoque
+    if (showOnlyWithStock) {
+      return allProducts.filter((product) => {
+        const qty = product.current_stock ?? 0;
+        return qty > 0;
+      });
+    }
+
+    // Se toggle desativado (padrão), mostrar TODOS os produtos
+    return allProducts;
+  }, [data, showOnlyWithStock]);
 
   /**
    * Query para contar produtos de catálogo
@@ -217,23 +259,59 @@ export default function ProductsScreen() {
         />
 
         {/* Botões de ações */}
-        <View style={styles.actionsRow}>
-          <Button
-            mode="contained"
-            onPress={() => router.push('/catalog')}
-            style={styles.catalogButton}
-            icon="storefront-outline"
-          >
-            Explorar Catálogo
-          </Button>
-          <Button
-            mode="outlined"
-            onPress={() => router.push('/(tabs)/entries')}
-            style={styles.batchesButton}
-            icon="layers-outline"
-          >
-            Entradas
-          </Button>
+        <View style={styles.actionsContainer}>
+          <View style={styles.actionsRow}>
+            <Button
+              mode="contained-tonal"
+              onPress={() => router.push('/catalog')}
+              style={styles.actionButton}
+              labelStyle={styles.actionButtonLabel}
+              contentStyle={styles.actionButtonContent}
+            >
+              <View style={styles.buttonContent}>
+                <Ionicons name="storefront-outline" size={18} color={Colors.light.primary} />
+                <Text style={styles.buttonText}>Catálogo</Text>
+              </View>
+            </Button>
+
+            <Button
+              mode="contained-tonal"
+              onPress={() => router.push('/(tabs)/entries')}
+              style={styles.actionButton}
+              labelStyle={styles.actionButtonLabel}
+              contentStyle={styles.actionButtonContent}
+            >
+              <View style={styles.buttonContent}>
+                <Ionicons name="layers-outline" size={18} color={Colors.light.primary} />
+                <Text style={styles.buttonText}>Entradas</Text>
+              </View>
+            </Button>
+
+            <Button
+              mode={showOnlyWithStock ? "contained" : "contained-tonal"}
+              onPress={() => setShowOnlyWithStock(!showOnlyWithStock)}
+              style={[
+                styles.actionButton,
+                showOnlyWithStock && styles.actionButtonActive
+              ]}
+              labelStyle={styles.actionButtonLabel}
+              contentStyle={styles.actionButtonContent}
+            >
+              <View style={styles.buttonContent}>
+                <Ionicons 
+                  name={showOnlyWithStock ? "checkmark-circle" : "cube-outline"} 
+                  size={18} 
+                  color={showOnlyWithStock ? "#fff" : Colors.light.primary} 
+                />
+                <Text style={[
+                  styles.buttonText,
+                  showOnlyWithStock && styles.buttonTextActive
+                ]}>
+                  {showOnlyWithStock ? "C/ Estoque" : "Todos"}
+                </Text>
+              </View>
+            </Button>
+          </View>
         </View>
 
         {/* Lista de produtos */}
@@ -250,6 +328,20 @@ export default function ProductsScreen() {
               onRefresh={refetch}
               colors={[Colors.light.primary]}
             />
+          }
+          onEndReached={() => {
+            if (hasNextPage && !isFetchingNextPage) {
+              fetchNextPage();
+            }
+          }}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <View style={styles.loadingMore}>
+                <ActivityIndicator size="small" color={Colors.light.primary} />
+                <Text style={styles.loadingMoreText}>Carregando mais...</Text>
+              </View>
+            ) : null
           }
           ListEmptyComponent={
             <View>
@@ -355,22 +447,59 @@ const styles = StyleSheet.create({
     marginTop: 16,
     color: Colors.light.icon,
   },
+  actionsContainer: {
+    paddingHorizontal: 16,
+    marginBottom: 12,
+  },
   actionsRow: {
     flexDirection: 'row',
     gap: 8,
-    marginHorizontal: 16,
-    marginBottom: 8,
+    alignItems: 'center',
   },
-  catalogButton: {
+  actionButton: {
     flex: 1,
+    borderRadius: 12,
+    backgroundColor: Colors.light.primary + '15',
+  },
+  actionButtonActive: {
     backgroundColor: Colors.light.primary,
   },
-  batchesButton: {
-    flex: 1,
-    borderColor: Colors.light.primary,
+  actionButtonLabel: {
+    marginVertical: 0,
+    marginHorizontal: 0,
+  },
+  actionButtonContent: {
+    paddingHorizontal: 4,
+    paddingVertical: 8,
+    height: 44,
+  },
+  buttonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  buttonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.primary,
+  },
+  buttonTextActive: {
+    color: '#fff',
   },
   emptyActions: {
     paddingHorizontal: 24,
     marginTop: 24,
+  },
+  loadingMore: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 20,
+    gap: 10,
+  },
+  loadingMoreText: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
   },
 });

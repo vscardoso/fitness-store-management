@@ -2,101 +2,170 @@
  * Serviço de API para envios condicionais (try before you buy).
  */
 import api from './api';
-import {
+import type {
   ConditionalShipment,
   ConditionalShipmentList,
   CreateShipmentDTO,
   ProcessReturnDTO,
-  ShipmentFilters,
 } from '../types/conditional';
-
-const BASE_URL = '/conditional-shipments';
 
 /**
  * Criar novo envio condicional
  */
-export async function createShipment(data: CreateShipmentDTO): Promise<ConditionalShipment> {
-  const response = await api.post<ConditionalShipment>(BASE_URL, data);
-  return response.data;
-}
+export const createShipment = async (data: CreateShipmentDTO): Promise<ConditionalShipment> => {
+  try {
+    const { data: response } = await api.post<ConditionalShipment>('/conditional-shipments/', data);
+    return response;
+  } catch (error) {
+    throw error;
+  }
+};
 
 /**
  * Listar envios condicionais com filtros
  */
-export async function listShipments(
-  filters?: ShipmentFilters
-): Promise<ConditionalShipmentList[]> {
-  const params: Record<string, any> = {};
-  
-  if (filters?.status) params.status = filters.status;
-  if (filters?.customer_id) params.customer_id = filters.customer_id;
-  if (filters?.is_overdue !== undefined) params.is_overdue = filters.is_overdue;
-  if (filters?.skip !== undefined) params.skip = filters.skip;
-  if (filters?.limit !== undefined) params.limit = filters.limit;
-  
-  const response = await api.get<ConditionalShipmentList[]>(BASE_URL, { params });
-  return response.data;
-}
+export const listShipments = async (params?: {
+  status?: string;
+  customer_id?: number;
+  is_overdue?: boolean;
+  skip?: number;
+  limit?: number;
+}): Promise<ConditionalShipmentList[]> => {
+  try {
+    const { data } = await api.get<ConditionalShipmentList[]>('/conditional-shipments/', { params });
+    return data;
+  } catch (error) {
+    throw error;
+  }
+};
 
 /**
  * Buscar envio por ID com detalhes completos
  */
-export async function getShipment(id: number): Promise<ConditionalShipment> {
-  const response = await api.get<ConditionalShipment>(`${BASE_URL}/${id}`);
-  return response.data;
-}
+export const getShipment = async (id: number): Promise<ConditionalShipment> => {
+  try {
+    const { data } = await api.get<ConditionalShipment>(`/conditional-shipments/${id}`);
+    return data;
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Marcar envio como SENT (enviado ao cliente)
+ */
+export const markAsSent = async (
+  id: number,
+  data: {
+    carrier?: string;
+    tracking_code?: string;
+    sent_notes?: string;
+  }
+): Promise<ConditionalShipment> => {
+  try {
+    const { data: response } = await api.put<ConditionalShipment>(
+      `/conditional-shipments/${id}/mark-as-sent`,
+      data
+    );
+    return response;
+  } catch (error) {
+    throw error;
+  }
+};
 
 /**
  * Processar devolução de envio
  */
-export async function processReturn(
+export const processReturn = async (
   id: number,
   data: ProcessReturnDTO
-): Promise<ConditionalShipment> {
-  const response = await api.put<ConditionalShipment>(
-    `${BASE_URL}/${id}/process-return`,
-    data
-  );
-  return response.data;
-}
+): Promise<ConditionalShipment> => {
+  try {
+    const { data: response } = await api.put<ConditionalShipment>(
+      `/conditional-shipments/${id}/process-return`,
+      data
+    );
+    return response;
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Atualizar envio condicional
+ */
+export const updateShipment = async (
+  id: number,
+  data: { status?: string; shipping_address?: string; notes?: string }
+): Promise<ConditionalShipment> => {
+  try {
+    const { data: response } = await api.put<ConditionalShipment>(
+      `/conditional-shipments/${id}`,
+      data
+    );
+    return response;
+  } catch (error) {
+    throw error;
+  }
+};
 
 /**
  * Cancelar envio condicional
  */
-export async function cancelShipment(id: number, reason: string): Promise<void> {
-  await api.delete(`${BASE_URL}/${id}`, {
-    params: { reason },
-  });
-}
+export const cancelShipment = async (id: number, reason: string): Promise<void> => {
+  try {
+    await api.delete(`/conditional-shipments/${id}`, {
+      params: { reason },
+    });
+  } catch (error) {
+    throw error;
+  }
+};
 
 /**
  * Checar envios atrasados (atualiza status automaticamente)
  */
-export async function checkOverdueShipments(): Promise<ConditionalShipmentList[]> {
-  const response = await api.get<ConditionalShipmentList[]>(`${BASE_URL}/overdue/check`);
-  return response.data;
-}
+export const checkOverdueShipments = async (): Promise<ConditionalShipmentList[]> => {
+  try {
+    const { data } = await api.get<ConditionalShipmentList[]>('/conditional-shipments/overdue/check');
+    return data;
+  } catch (error) {
+    throw error;
+  }
+};
 
 /**
  * Helper: Buscar envios pendentes (SENT ou PARTIAL_RETURN)
  */
-export async function getPendingShipments(): Promise<ConditionalShipmentList[]> {
-  return listShipments({ status: 'SENT', limit: 100 });
-}
+export const getPendingShipments = async (): Promise<ConditionalShipmentList[]> => {
+  try {
+    return await listShipments({ status: 'SENT', limit: 100 });
+  } catch (error) {
+    throw error;
+  }
+};
 
 /**
  * Helper: Buscar envios atrasados
  */
-export async function getOverdueShipments(): Promise<ConditionalShipmentList[]> {
-  return listShipments({ is_overdue: true, limit: 100 });
-}
+export const getOverdueShipments = async (): Promise<ConditionalShipmentList[]> => {
+  try {
+    return await listShipments({ is_overdue: true, limit: 100 });
+  } catch (error) {
+    throw error;
+  }
+};
 
 /**
  * Helper: Buscar envios concluídos
  */
-export async function getCompletedShipments(limit = 50): Promise<ConditionalShipmentList[]> {
-  return listShipments({ status: 'COMPLETED', limit });
-}
+export const getCompletedShipments = async (limit = 50): Promise<ConditionalShipmentList[]> => {
+  try {
+    return await listShipments({ status: 'COMPLETED', limit });
+  } catch (error) {
+    throw error;
+  }
+};
 
 /**
  * Helper: Buscar envios por cliente
@@ -111,6 +180,8 @@ export default {
   createShipment,
   listShipments,
   getShipment,
+  markAsSent,
+  updateShipment,
   processReturn,
   cancelShipment,
   checkOverdueShipments,

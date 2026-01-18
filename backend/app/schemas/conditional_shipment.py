@@ -5,6 +5,8 @@ from pydantic import BaseModel, Field, field_validator
 from datetime import datetime
 from typing import Optional, List
 from decimal import Decimal
+from app.models.enums import ShipmentStatus
+from app.models.sale import PaymentMethod
 
 
 # ============================================================================
@@ -26,6 +28,7 @@ class ConditionalShipmentItemCreate(ConditionalShipmentItemBase):
 
 class ConditionalShipmentItemUpdate(BaseModel):
     """Schema para atualização de item durante processamento de devolução"""
+    id: int = Field(..., gt=0, description="ID do item")
     quantity_kept: int = Field(0, ge=0, description="Quantidade que cliente ficou")
     quantity_returned: int = Field(0, ge=0, description="Quantidade devolvida")
     status: str = Field("SENT", description="SENT, KEPT, RETURNED, DAMAGED, LOST")
@@ -68,7 +71,26 @@ class ConditionalShipmentBase(BaseModel):
     """Base schema para envio condicional"""
     customer_id: int = Field(..., gt=0, description="ID do cliente")
     shipping_address: str = Field(..., min_length=10, max_length=500, description="Endereço de entrega")
+    scheduled_ship_date: Optional[datetime] = Field(None, description="Data/hora planejada para envio")
+    
+    # Datas de ida e devolução (NOVO)
+    departure_datetime: Optional[datetime] = Field(None, description="Data/hora de ida ao cliente")
+    return_datetime: Optional[datetime] = Field(None, description="Data/hora prevista para devolução")
+    
+    # LEGACY - manter por compatibilidade
+    deadline_type: str = Field("days", description="Tipo de prazo: 'days' ou 'hours'")
+    deadline_value: int = Field(7, ge=1, description="Valor do prazo (ex: 7 dias, 48 horas)")
+    
+    carrier: Optional[str] = Field(None, max_length=100, description="Transportadora")
+    tracking_code: Optional[str] = Field(None, max_length=100, description="Código de rastreio")
     notes: Optional[str] = Field(None, max_length=1000, description="Observações gerais")
+
+    @field_validator('deadline_type')
+    @classmethod
+    def validate_deadline_type(cls, v: str) -> str:
+        if v not in ["days", "hours"]:
+            raise ValueError("deadline_type deve ser 'days' ou 'hours'")
+        return v
 
 
 class ConditionalShipmentCreate(ConditionalShipmentBase):
@@ -95,32 +117,51 @@ class ConditionalShipmentCreate(ConditionalShipmentBase):
 
 class ConditionalShipmentUpdate(BaseModel):
     """Schema para atualização básica do envio"""
-    status: Optional[str] = Field(None, description="PENDING, SENT, PARTIAL_RETURN, COMPLETED, CANCELLED, OVERDUE")
+    status: Optional[str] = Field(
+        None,
+        description="PENDING, SENT, RETURNED_NO_SALE, COMPLETED_PARTIAL_SALE, COMPLETED_FULL_SALE"
+    )
     shipping_address: Optional[str] = Field(None, min_length=10, max_length=500)
     notes: Optional[str] = Field(None, max_length=1000)
-    
+
     @field_validator('status')
     @classmethod
     def validate_status(cls, v: Optional[str]) -> Optional[str]:
         if v is not None:
-            allowed = ["PENDING", "SENT", "PARTIAL_RETURN", "COMPLETED", "CANCELLED", "OVERDUE"]
+            allowed = ShipmentStatus.get_all_values()
             if v not in allowed:
                 raise ValueError(f"Status deve ser um de: {', '.join(allowed)}")
         return v
 
 
+class MarkAsSentRequest(BaseModel):
+    """Schema para marcar envio como enviado"""
+    carrier: Optional[str] = Field(None, max_length=100, description="Nome da transportadora")
+    tracking_code: Optional[str] = Field(None, max_length=100, description="Código de rastreio")
+    sent_notes: Optional[str] = Field(None, max_length=500, description="Observações sobre o envio")
+
+
 class ProcessReturnRequest(BaseModel):
     """Schema para processar devolução de itens"""
     items: List[ConditionalShipmentItemUpdate] = Field(
-        ..., 
+        ...,
         min_length=1,
         description="Lista de itens com quantidades processadas"
     )
     create_sale: bool = Field(
-        True, 
+        True,
         description="Se True, cria venda automaticamente para itens mantidos"
     )
+    payment_method: PaymentMethod | None = Field(
+        PaymentMethod.PIX,
+        description="Forma de pagamento para venda gerada (cash, credit_card, debit_card, pix, bank_transfer, installments, loyalty_points)"
+    )
     notes: Optional[str] = Field(None, max_length=1000, description="Observações sobre a devolução")
+
+    @field_validator('payment_method')
+    @classmethod
+    def validate_payment_method(cls, v: PaymentMethod | None) -> PaymentMethod | None:
+        return v
 
 
 class ConditionalShipmentResponse(ConditionalShipmentBase):
@@ -128,11 +169,21 @@ class ConditionalShipmentResponse(ConditionalShipmentBase):
     id: int
     tenant_id: int
     status: str
+    scheduled_ship_date: Optional[datetime]
     sent_at: Optional[datetime]
+    
+    # Datas de ida e devolução
+    departure_datetime: Optional[datetime]
+    return_datetime: Optional[datetime]
+    
+    deadline_type: str
+    deadline_value: int
     deadline: Optional[datetime]
     returned_at: Optional[datetime]
     completed_at: Optional[datetime]
-    
+    carrier: Optional[str]
+    tracking_code: Optional[str]
+
     # Propriedades calculadas
     is_overdue: bool
     days_remaining: int
@@ -141,16 +192,16 @@ class ConditionalShipmentResponse(ConditionalShipmentBase):
     total_items_returned: int
     total_value_sent: float
     total_value_kept: float
-    
+
     # Dados aninhados
     items: List[ConditionalShipmentItemResponse] = []
     customer_name: Optional[str] = None
     customer_phone: Optional[str] = None
-    
+
     created_at: datetime
     updated_at: datetime
     is_active: bool
-    
+
     model_config = {"from_attributes": True}
 
 
@@ -170,7 +221,11 @@ class ConditionalShipmentListResponse(BaseModel):
     total_value_sent: float
     total_value_kept: float
     created_at: datetime
-    
+
+    # Agendamento de envio e retorno
+    departure_datetime: Optional[datetime] = None
+    return_datetime: Optional[datetime] = None
+
     model_config = {"from_attributes": True}
 
 
@@ -181,12 +236,12 @@ class ConditionalShipmentFilters(BaseModel):
     is_overdue: Optional[bool] = Field(None, description="Mostrar apenas atrasados")
     skip: int = Field(0, ge=0, description="Paginação: offset")
     limit: int = Field(100, ge=1, le=1000, description="Paginação: limite")
-    
+
     @field_validator('status')
     @classmethod
     def validate_status(cls, v: Optional[str]) -> Optional[str]:
         if v is not None:
-            allowed = ["PENDING", "SENT", "PARTIAL_RETURN", "COMPLETED", "CANCELLED", "OVERDUE"]
+            allowed = ShipmentStatus.get_all_values()
             if v not in allowed:
                 raise ValueError(f"Status deve ser um de: {', '.join(allowed)}")
         return v

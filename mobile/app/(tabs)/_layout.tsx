@@ -43,8 +43,8 @@ export default function TabsLayout() {
         headerShown: false,
       }}
     >
-      {/* ========== TABS VISÍVEIS (3) ========== */}
-      
+      {/* ========== TABS VISÍVEIS (4) ========== */}
+
       {/* Tab 1: Início (Esquerda) */}
       <Tabs.Screen
         name="index"
@@ -118,6 +118,9 @@ export default function TabsLayout() {
       <Tabs.Screen name="more" options={{ href: null }} />
       <Tabs.Screen name="reports" options={{ href: null }} />
       <Tabs.Screen name="trips" options={{ href: null }} />
+      
+      {/* Envios Condicionais: oculto do tab bar mas mantém rotas acessíveis */}
+      <Tabs.Screen name="conditional" options={{ href: null }} />
       
       {/* Entries: oculto do tab bar mas mantém rotas acessíveis com tab bar visível */}
       <Tabs.Screen name="entries" options={{ href: null }} />

@@ -16,7 +16,7 @@ from app.schemas.stock_entry import (
     StockEntryUpdate,
     StockEntryWithItems
 )
-from app.schemas.entry_item import EntryItemCreate, EntryItemResponse
+from app.schemas.entry_item import EntryItemCreate, EntryItemResponse, EntryItemUpdate
 from app.services.stock_entry_service import StockEntryService
 from app.api.deps import get_current_active_user, require_role, get_current_tenant_id
 from app.models.user import User, UserRole
@@ -768,4 +768,105 @@ async def delete_stock_entry(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao deletar entrada: {str(e)}"
+        )
+
+
+@router.put(
+    "/entry-items/{item_id}",
+    response_model=EntryItemResponse,
+    summary="Atualizar item de entrada",
+    description="Atualiza quantidade e custo de um item de entrada com recálculo automático de inventário. Requer permissões de admin ou seller."
+)
+async def update_entry_item(
+    item_id: int,
+    item_data: EntryItemUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Atualiza um item de entrada com recálculo automático de inventário.
+
+    FUNCIONALIDADES:
+    - Atualiza quantity_received, unit_cost, notes
+    - Recalcula inventário automaticamente quando quantidade muda
+    - Recalcula total_cost da entrada quando custo/quantidade mudam
+    - BLOQUEIA edição se o item já teve vendas (rastreabilidade FIFO)
+
+    Campos atualizáveis:
+    - quantity_received: Nova quantidade recebida (recalcula inventário)
+    - unit_cost: Novo custo unitário (recalcula total da entrada)
+    - notes: Observações do item
+
+    VALIDAÇÕES:
+    - Bloqueia edição se quantity_sold > 0 (rastreabilidade)
+    - quantity_received deve ser > 0
+    - unit_cost deve ser >= 0
+
+    Args:
+        item_id: ID do item a atualizar
+        item_data: Dados para atualização (EntryItemUpdate)
+        db: Sessão do banco de dados
+        current_user: Usuário autenticado (admin ou seller)
+        tenant_id: ID do tenant
+
+    Returns:
+        EntryItemResponse: Item atualizado com inventário recalculado
+
+    Raises:
+        HTTPException 404: Se item não encontrado
+        HTTPException 400: Se item tem vendas ou dados inválidos
+        HTTPException 403: Se não tiver permissões
+
+    Examples:
+        PUT /stock-entries/entry-items/1
+        {
+            "quantity_received": 150,
+            "unit_cost": 12.50,
+            "notes": "Quantidade corrigida após recontagem"
+        }
+
+        Error response (item com vendas):
+        {
+            "detail": "Não é possível editar item que já teve vendas.
+                       Este item já vendeu 25 unidade(s).
+                       A rastreabilidade FIFO exige que itens com vendas não sejam modificados."
+        }
+    """
+    try:
+        service = StockEntryService(db)
+
+        # Converter Pydantic model para dict
+        item_dict = item_data.model_dump(exclude_unset=True)
+
+        # Atualizar item com recálculo automático
+        updated_item = await service.update_entry_item(
+            item_id=item_id,
+            item_data=item_dict,
+            tenant_id=tenant_id,
+        )
+
+        return updated_item
+
+    except ValueError as e:
+        error_msg = str(e).lower()
+
+        # Erro 404: Item não encontrado
+        if "não encontrado" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e)
+            )
+        # Erro 400: Validação (vendas, valores inválidos, etc.)
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao atualizar item: {str(e)}"
         )

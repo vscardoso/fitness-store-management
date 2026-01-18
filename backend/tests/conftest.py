@@ -43,7 +43,10 @@ async def test_engine():
     # Criar dados iniciais necessários para os testes
     from app.models.user import User
     from app.models.category import Category
+    from app.models.store import Store
+    from app.models.subscription import Subscription
     from app.core.security import get_password_hash
+    from datetime import datetime, timedelta
     
     async_session_maker_temp = sessionmaker(
         engine,
@@ -52,21 +55,50 @@ async def test_engine():
     )
     
     async with async_session_maker_temp() as session:
+        # Criar store (tenant) primeiro
+        store = Store(
+            name="Loja Teste",
+            slug="test",
+            domain="test",
+            is_default=True,
+            is_active=True
+        )
+        session.add(store)
+        await session.flush()  # Garante que store.id está disponível
+        
+        # Criar subscription para o tenant
+        subscription = Subscription(
+            tenant_id=store.id,
+            plan="PRO",
+            status="active",
+            is_trial=False,
+            current_period_start=datetime.utcnow(),
+            current_period_end=datetime.utcnow() + timedelta(days=365),
+            max_products=999999,
+            max_users=5,
+            feature_advanced_reports=True,
+            feature_api_access=True,
+            is_active=True
+        )
+        session.add(subscription)
+        
         # Criar usuário admin para testes
+        # Usamos hash fixo para evitar problemas com bcrypt durante testes
         admin_user = User(
             email="admin@fitness.com",
             full_name="Admin User",
-            hashed_password=get_password_hash("admin123"),
+            hashed_password="$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewY5NU7qNVlQzKH2",  # Hash de "admin123"
             role="ADMIN",
+            tenant_id=store.id,
             is_active=True
         )
         session.add(admin_user)
         
         # Criar categorias básicas para testes
         categories = [
-            Category(name="Suplementos", slug="suplementos", description="Suplementos alimentares"),
-            Category(name="Equipamentos", slug="equipamentos", description="Equipamentos fitness"),
-            Category(name="Acessórios", slug="acessorios", description="Acessórios diversos"),
+            Category(name="Suplementos", slug="suplementos", description="Suplementos alimentares", tenant_id=store.id),
+            Category(name="Equipamentos", slug="equipamentos", description="Equipamentos fitness", tenant_id=store.id),
+            Category(name="Acessórios", slug="acessorios", description="Acessórios diversos", tenant_id=store.id),
         ]
         session.add_all(categories)
         
@@ -96,16 +128,48 @@ async def async_session(test_engine) -> AsyncGenerator[AsyncSession, None]:
 
 
 @pytest.fixture
-async def test_client(async_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
-    """Cria cliente HTTP de teste"""
+async def test_client(async_session: AsyncSession, test_engine) -> AsyncGenerator[AsyncClient, None]:
+    """Cria cliente HTTP de teste com banco de teste compartilhado"""
+    from app.api.deps import get_current_tenant_id
+    from app.core.database import async_session_maker as app_session_maker
+    from app.middleware.tenant import TenantMiddleware
     
+    # Override database session maker for the whole app
+    # This makes middleware queries use test database
+    import app.core.database as db_module
+    import app.middleware.tenant as tenant_module
+    
+    original_session_maker = db_module.async_session_maker
+    original_tenant_session_maker = tenant_module.async_session_maker
+    
+    # Replace with test session maker
+    from sqlalchemy.orm import sessionmaker
+    test_session_maker = sessionmaker(
+        test_engine,
+        class_=AsyncSession,
+        expire_on_commit=False
+    )
+    
+    db_module.async_session_maker = test_session_maker
+    tenant_module.async_session_maker = test_session_maker
+    
+    # Override da função get_db
     async def override_get_db():
         yield async_session
     
+    # Override get_current_tenant_id
+    async def override_get_current_tenant_id():
+        return 1
+    
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_current_tenant_id] = override_get_current_tenant_id
     
     async with AsyncClient(app=app, base_url="http://test") as client:
         yield client
+    
+    # Restore original session makers
+    db_module.async_session_maker = original_session_maker
+    tenant_module.async_session_maker = original_tenant_session_maker
     
     app.dependency_overrides.clear()
 

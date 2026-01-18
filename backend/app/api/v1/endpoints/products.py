@@ -2,6 +2,7 @@
 Endpoints de produtos - Listagem, Detalhes, Criação, Atualização e Deleção.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
@@ -18,8 +19,10 @@ from app.schemas.product import (
 from app.services.product_service import ProductService
 from app.repositories.product_repository import ProductRepository
 from app.repositories.inventory_repository import InventoryRepository
+from app.repositories.entry_item_repository import EntryItemRepository
 from app.api.deps import get_current_active_user, require_role, get_current_tenant_id
 from app.models.user import User, UserRole
+from app.models.product import Product
 
 router = APIRouter(prefix="/products", tags=["Produtos"])
 
@@ -52,6 +55,7 @@ async def list_products(
     limit: int = Query(100, ge=1, le=1000, description="Limite de registros por página"),
     category_id: Optional[int] = Query(None, description="Filtrar por ID da categoria"),
     search: Optional[str] = Query(None, description="Buscar por nome, SKU ou marca"),
+    has_stock: bool = Query(False, description="Filtrar apenas produtos com estoque disponível"),
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db)
 ):
@@ -76,23 +80,75 @@ async def list_products(
     """
     product_repo = ProductRepository(db)
     inventory_repo = InventoryRepository(db)
+    entry_item_repo = EntryItemRepository()
     
     try:
+        # NOVA LÓGICA: Se has_stock=True, buscar APENAS produtos com estoque no FIFO
+        if has_stock:
+            # 1. Buscar IDs de produtos com estoque (FIFO é fonte da verdade)
+            products_with_stock_ids = await entry_item_repo.get_products_with_stock(db, tenant_id)
+            
+            if not products_with_stock_ids:
+                return []  # Nenhum produto com estoque
+            
+            # 2. Buscar produtos diretamente pelos IDs (não precisa paginar muito, são poucos)
+            stmt = select(Product).where(
+                Product.id.in_(products_with_stock_ids),
+                Product.is_catalog == False,
+                Product.is_active == True,
+                Product.tenant_id == tenant_id
+            )
+            
+            # Aplicar filtros adicionais
+            if search:
+                search_term = f"%{search}%"
+                stmt = stmt.where(
+                    or_(
+                        Product.name.ilike(search_term),
+                        Product.sku.ilike(search_term),
+                        Product.brand.ilike(search_term)
+                    )
+                )
+            
+            if category_id:
+                stmt = stmt.where(Product.category_id == category_id)
+            
+            # Ordenar e paginar
+            stmt = stmt.order_by(Product.name).offset(skip).limit(limit)
+            
+            result = await db.execute(stmt)
+            products = result.scalars().all()
+            
+            # 3. Enriquecer com estoque do Inventory
+            filtered_products = []
+            for product in products:
+                await enrich_product_with_stock(product, inventory_repo)
+                filtered_products.append(product)
+            
+            print(f"🔍 DEBUG - has_stock=True, tenant={tenant_id}")
+            print(f"  - Produtos com estoque (FIFO): {len(products_with_stock_ids)} IDs: {sorted(products_with_stock_ids)}")
+            print(f"  - Produtos retornados (paginados): {len(filtered_products)}")
+            print(f"  - IDs retornados: {[p.id for p in filtered_products]}")
+            
+            return filtered_products
+        
+        # LÓGICA ORIGINAL: Listar todos os produtos (sem filtro de estoque)
         if search:
-            # Busca por nome, SKU ou marca
             products = await product_repo.search(search, tenant_id=tenant_id)
         elif category_id:
-            # Filtro por categoria
             products = await product_repo.get_by_category(category_id, tenant_id=tenant_id)
         else:
-            # Lista todos os produtos
             products = await product_repo.get_multi(db, skip=skip, limit=limit, tenant_id=tenant_id)
         
-        # Adicionar informações de estoque
+        # Filtrar apenas produtos não-catálogo e enriquecer com estoque
+        filtered_products = []
         for product in products:
+            if product.is_catalog:
+                continue
             await enrich_product_with_stock(product, inventory_repo)
+            filtered_products.append(product)
         
-        return products
+        return filtered_products
         
     except Exception as e:
         raise HTTPException(
@@ -399,20 +455,25 @@ async def get_product(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Obter detalhes de um produto.
+    Obter detalhes de um produto com histórico FIFO de entradas.
 
     Args:
         product_id: ID do produto
         db: Sessão do banco de dados
 
     Returns:
-        ProductResponse: Dados completos do produto
+        ProductResponse: Dados completos do produto incluindo entry_items
 
     Raises:
         HTTPException 404: Se produto não for encontrado
         HTTPException 500: Se houver erro ao buscar produto
     """
+    from app.repositories.entry_item_repository import EntryItemRepository
+    from app.schemas.product import ProductEntryItem
+
     product_repo = ProductRepository(db)
+    inventory_repo = InventoryRepository(db)
+    entry_item_repo = EntryItemRepository()
 
     try:
         product = await product_repo.get(db, product_id, tenant_id=tenant_id)
@@ -423,7 +484,66 @@ async def get_product(
                 detail=f"Produto com ID {product_id} não encontrado"
             )
 
-        return product
+        # Buscar inventory de forma assíncrona
+        inventory = await inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
+        current_stock = inventory.quantity if inventory else 0
+        min_stock_threshold = inventory.min_stock if inventory else None
+
+        # Buscar entry items - não quebrar se falhar
+        product_entry_items = []
+        try:
+            entry_items = await entry_item_repo.get_by_product(db, product_id)
+            from app.repositories.stock_entry_repository import StockEntryRepository
+            entry_repo = StockEntryRepository()
+
+            for item in entry_items:
+                try:
+                    entry = await entry_repo.get_by_id(db, item.entry_id, include_items=False, tenant_id=tenant_id)
+                    if entry:
+                        product_entry_items.append(ProductEntryItem(
+                            entry_item_id=item.id,
+                            entry_id=item.entry_id,
+                            entry_code=entry.entry_code,
+                            entry_date=entry.entry_date,
+                            entry_type=entry.entry_type.value,
+                            quantity_received=item.quantity_received,
+                            quantity_remaining=item.quantity_remaining,
+                            quantity_sold=item.quantity_sold,
+                            unit_cost=item.unit_cost,
+                            supplier_name=entry.supplier_name
+                        ))
+                except:
+                    pass  # Continuar se falhar um item específico
+        except:
+            pass  # Se falhar busca de entry_items, retornar lista vazia
+
+        # Adicionar entry_items ao product response
+        product_dict = {
+            "id": product.id,
+            "name": product.name,
+            "description": product.description,
+            "sku": product.sku,
+            "barcode": product.barcode,
+            "price": product.price,
+            "cost_price": product.cost_price,
+            "category_id": product.category_id,
+            "brand": product.brand,
+            "color": product.color,
+            "size": product.size,
+            "gender": product.gender,
+            "material": product.material,
+            "is_digital": product.is_digital,
+            "is_activewear": product.is_activewear,
+            "is_catalog": product.is_catalog,
+            "is_active": product.is_active,
+            "created_at": product.created_at,
+            "updated_at": product.updated_at,
+            "current_stock": current_stock,
+            "min_stock_threshold": min_stock_threshold,
+            "entry_items": product_entry_items
+        }
+
+        return product_dict
 
     except HTTPException:
         raise

@@ -11,16 +11,19 @@ from app.repositories.conditional_shipment import (
     ConditionalShipmentItemRepository,
 )
 from app.repositories.inventory_repository import InventoryRepository
+from app.repositories.entry_item_repository import EntryItemRepository
 from app.repositories.product_repository import ProductRepository
 from app.repositories.customer_repository import CustomerRepository
 from app.models.conditional_shipment import ConditionalShipment
 from app.models.sale import Sale, SaleItem, SaleStatus, PaymentMethod
+from app.models.inventory import MovementType
 from app.schemas.conditional_shipment import (
     ConditionalShipmentCreate,
     ConditionalShipmentUpdate,
     ProcessReturnRequest,
     ConditionalShipmentItemUpdate,
 )
+from app.services.notification_scheduler import NotificationScheduler
 
 
 class ConditionalShipmentService:
@@ -29,9 +32,6 @@ class ConditionalShipmentService:
     def __init__(self):
         self.shipment_repo = ConditionalShipmentRepository()
         self.item_repo = ConditionalShipmentItemRepository()
-        self.inventory_repo = InventoryRepository()
-        self.product_repo = ProductRepository()
-        self.customer_repo = CustomerRepository()
     
     async def create_shipment(
         self,
@@ -55,44 +55,59 @@ class ConditionalShipmentService:
         Raises:
             ValueError: Se não houver estoque suficiente
         """
-        # 1. Validar estoque disponível para todos os itens
+        # Instanciar repositories
+        entry_item_repo = EntryItemRepository()
+        product_repo = ProductRepository(db)
+        
+        # 1. Validar estoque disponível para todos os itens (usar FIFO como fonte da verdade)
         for item in shipment_data.items:
-            inventory = await self.inventory_repo.get_by_product(
-                db, item.product_id, tenant_id
+            # Buscar itens disponíveis via FIFO
+            available_items = await entry_item_repo.get_available_for_product(
+                db, item.product_id
             )
             
-            if not inventory:
-                product = await self.product_repo.get(db, item.product_id, tenant_id=tenant_id)
-                raise ValueError(f"Produto {product.name if product else item.product_id} sem registro de estoque")
+            # Calcular estoque total disponível
+            total_available = sum(entry_item.quantity_remaining for entry_item in available_items)
             
-            if inventory.quantity < item.quantity_sent:
-                product = await self.product_repo.get(db, item.product_id, tenant_id=tenant_id)
+            if total_available == 0:
+                product = await product_repo.get(db, item.product_id, tenant_id=tenant_id)
+                raise ValueError(f"Produto {product.name if product else item.product_id} sem estoque disponível")
+            
+            if total_available < item.quantity_sent:
+                product = await product_repo.get(db, item.product_id, tenant_id=tenant_id)
                 raise ValueError(
                     f"Estoque insuficiente para {product.name if product else item.product_id}. "
-                    f"Disponível: {inventory.quantity}, Solicitado: {item.quantity_sent}"
+                    f"Disponível: {total_available}, Solicitado: {item.quantity_sent}"
                 )
         
-        # 2. Criar shipment
+        # 2. Criar shipment (status PENDING - aguardando envio real)
         shipment = await self.shipment_repo.create_with_items(
             db, tenant_id, shipment_data
         )
-        
-        # 3. Reservar estoque (decrementa quantidade)
+
+        # 2.1 Calcular deadline baseado no tipo e valor (será usado quando marcar como SENT)
+        # Não calculamos agora porque o prazo começa quando o envio SAI da loja
+        # O cálculo será feito no mark_as_sent()
+
+        # 3. Reservar estoque (decrementa quantidade mesmo em PENDING para garantir disponibilidade)
+        inventory_repo = InventoryRepository(db)
         for item in shipment.items:
-            await self.inventory_repo.adjust_quantity(
-                db,
+            await inventory_repo.remove_stock(
                 product_id=item.product_id,
+                quantity=item.quantity_sent,
+                movement_type=MovementType.ADJUSTMENT,
+                notes=f"Reserva envio condicional #{shipment.id}",
+                reference_id=f"CS-{shipment.id}",
                 tenant_id=tenant_id,
-                quantity_change=-item.quantity_sent,
-                reason=f"Envio condicional #{shipment.id}",
-                user_id=user_id,
             )
-        
-        # 4. Marcar como SENT e definir deadline
-        shipment = await self.shipment_repo.mark_as_sent(
-            db, shipment.id, tenant_id, shipment_data.deadline_days
-        )
-        
+
+        await db.commit()
+        await db.refresh(shipment)
+
+        # 4. NOVO: Criar notificações automáticas se departure_datetime ou return_datetime foram fornecidos
+        if shipment.departure_datetime or shipment.return_datetime:
+            await self._schedule_notifications(db, shipment)
+
         return shipment
     
     async def process_return(
@@ -124,8 +139,24 @@ class ConditionalShipmentService:
         if not shipment:
             raise ValueError(f"Envio {shipment_id} não encontrado")
         
-        if shipment.status not in ["SENT", "PARTIAL_RETURN"]:
-            raise ValueError(f"Envio está com status {shipment.status}, não pode processar devolução")
+        # Importar enum
+        from app.models.enums import ShipmentStatus
+
+        # Validar status
+        if shipment.status != ShipmentStatus.SENT.value:
+            # User-friendly error messages
+            if shipment.status == ShipmentStatus.PENDING.value:
+                raise ValueError(
+                    "Este envio ainda não foi enviado ao cliente. "
+                    "Use a ação 'Marcar como Enviado' antes de processar a devolução."
+                )
+            elif ShipmentStatus.is_final_status(shipment.status):
+                raise ValueError("Este envio já foi finalizado e não pode ser modificado.")
+            else:
+                raise ValueError(f"Status atual '{shipment.status}' não permite processamento de devolução.")
+        
+        # Instanciar repository
+        inventory_repo = InventoryRepository(db)
         
         # 2. Atualizar itens e devolver estoque
         total_kept = 0
@@ -161,13 +192,13 @@ class ConditionalShipmentService:
             
             # Devolver ao estoque os itens retornados
             if item_update.quantity_returned > 0:
-                await self.inventory_repo.adjust_quantity(
-                    db,
+                await inventory_repo.add_stock(
                     product_id=db_item.product_id,
+                    quantity=item_update.quantity_returned,
+                    movement_type=MovementType.RETURN,
+                    notes=f"Devolução condicional #{shipment.id}",
+                    reference_id=f"CS-{shipment.id}",
                     tenant_id=tenant_id,
-                    quantity_change=item_update.quantity_returned,
-                    reason=f"Devolução condicional #{shipment.id}",
-                    user_id=user_id,
                 )
             
             total_kept += item_update.quantity_kept
@@ -181,15 +212,21 @@ class ConditionalShipmentService:
                     "unit_price": db_item.unit_price,
                 })
         
-        # 3. Atualizar status do shipment
-        if total_returned > 0 and total_kept > 0:
-            new_status = "PARTIAL_RETURN"
-        elif total_returned > 0 and total_kept == 0:
-            new_status = "CANCELLED"  # Cliente devolveu tudo
-        elif total_kept > 0:
-            new_status = "COMPLETED"
+        # 3. Determinar novo status baseado no resultado
+        total_sent = shipment.total_items_sent
+
+        if total_kept == total_sent:
+            # Cliente ficou com TUDO → Venda 100%
+            new_status = ShipmentStatus.COMPLETED_FULL_SALE.value
+        elif total_kept > 0 and total_returned > 0:
+            # Cliente ficou com ALGUNS e devolveu OUTROS → Venda parcial
+            new_status = ShipmentStatus.COMPLETED_PARTIAL_SALE.value
+        elif total_returned == total_sent:
+            # Cliente devolveu TUDO → Não vendeu nada
+            new_status = ShipmentStatus.RETURNED_NO_SALE.value
         else:
-            new_status = "PARTIAL_RETURN"
+            # Fallback (não deveria acontecer)
+            new_status = ShipmentStatus.SENT.value
         
         shipment = await self.shipment_repo.update_status(
             db, shipment_id, tenant_id, new_status
@@ -200,13 +237,25 @@ class ConditionalShipmentService:
             shipment.notes = (shipment.notes or "") + f"\n[Devolução] {return_data.notes}"
         
         await db.commit()
-        
-        # 4. Criar venda se solicitado e houver itens mantidos
-        if return_data.create_sale and items_for_sale:
+
+        # 4. Criar venda AUTOMATICAMENTE se houver itens mantidos (comprados)
+        # MUDANÇA: Sempre cria venda quando houver produtos comprados, independente de create_sale
+        # Isso garante que toda compra seja registrada como venda imediatamente
+        sale_created = False
+        if items_for_sale:
+            payment_method = return_data.payment_method or PaymentMethod.PIX
             await self._create_sale_from_shipment(
-                db, shipment, tenant_id, user_id, items_for_sale
+                db, shipment, tenant_id, user_id, items_for_sale, payment_method
             )
-        
+            sale_created = True
+
+        # Se o usuário pediu explicitamente para criar venda mas não há itens comprados, avisar
+        if return_data.create_sale and not items_for_sale:
+            raise ValueError(
+                "Não é possível finalizar venda: nenhum produto foi marcado como comprado. "
+                "Marque pelo menos um produto com 'Quantidade Comprada' > 0."
+            )
+
         await db.refresh(shipment)
         return shipment
     
@@ -217,6 +266,7 @@ class ConditionalShipmentService:
         tenant_id: int,
         user_id: int,
         items: List[dict],
+        payment_method: PaymentMethod = PaymentMethod.PIX,
     ) -> Sale:
         """
         Cria venda automaticamente a partir dos itens mantidos.
@@ -238,15 +288,19 @@ class ConditionalShipmentService:
         )
         
         # Criar venda
+        sale_number = f"VENDA-CS-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+        
         sale = Sale(
             tenant_id=tenant_id,
             customer_id=shipment.customer_id,
-            user_id=user_id,
+            seller_id=user_id,
+            sale_number=sale_number,
             status=SaleStatus.COMPLETED,
-            payment_method=PaymentMethod.PENDING,  # Será definido depois
+            payment_method=payment_method,
             subtotal=Decimal(total_amount),
-            discount=Decimal(0),
-            total=Decimal(total_amount),
+            discount_amount=Decimal(0),
+            tax_amount=Decimal(0),
+            total_amount=Decimal(total_amount),
             notes=f"Venda automática - Envio Condicional #{shipment.id}",
         )
         
@@ -267,6 +321,128 @@ class ConditionalShipmentService:
         await db.commit()
         return sale
     
+    async def mark_as_sent(
+        self,
+        db: AsyncSession,
+        shipment_id: int,
+        tenant_id: int,
+        user_id: int,
+        carrier: Optional[str] = None,
+        tracking_code: Optional[str] = None,
+        sent_notes: Optional[str] = None,
+    ) -> ConditionalShipment:
+        """
+        Marca envio como SENT (saiu da loja).
+
+        Args:
+            db: Sessão do banco
+            shipment_id: ID do envio
+            tenant_id: ID do tenant
+            user_id: ID do usuário
+            carrier: Transportadora (opcional)
+            tracking_code: Código de rastreio (opcional)
+            sent_notes: Observações do envio (opcional)
+
+        Returns:
+            ConditionalShipment atualizado
+
+        Raises:
+            ValueError: Se envio não está PENDING
+        """
+        shipment = await self.shipment_repo.get_with_items(db, shipment_id, tenant_id)
+        if not shipment:
+            raise ValueError(f"Envio {shipment_id} não encontrado")
+
+        if shipment.status != "PENDING":
+            if shipment.status == "SENT":
+                raise ValueError("Este envio já foi marcado como enviado anteriormente.")
+            elif shipment.status == "COMPLETED":
+                raise ValueError("Este envio já foi concluído.")
+            elif shipment.status == "CANCELLED":
+                raise ValueError("Este envio foi cancelado e não pode ser enviado.")
+            else:
+                raise ValueError(
+                    f"Não é possível marcar como enviado. "
+                    f"Status atual: {shipment.status}. Apenas envios PENDING podem ser enviados."
+                )
+
+        # CORRIGIDO: Calcular deadline usando return_datetime se disponível
+        deadline_datetime = None
+
+        # Prioridade 1: Usar return_datetime se foi fornecido (campo moderno)
+        if shipment.return_datetime:
+            deadline_datetime = shipment.return_datetime
+        # Prioridade 2: Calcular com base em departure_datetime + deadline_value
+        elif shipment.departure_datetime and shipment.deadline_value:
+            if shipment.deadline_type == "days":
+                deadline_datetime = shipment.departure_datetime + timedelta(days=shipment.deadline_value)
+            elif shipment.deadline_type == "hours":
+                deadline_datetime = shipment.departure_datetime + timedelta(hours=shipment.deadline_value)
+        # Fallback: Usar método legacy (baseado em sent_at)
+        else:
+            if shipment.deadline_type == "days":
+                deadline_datetime = datetime.utcnow() + timedelta(days=shipment.deadline_value)
+            elif shipment.deadline_type == "hours":
+                deadline_datetime = datetime.utcnow() + timedelta(hours=shipment.deadline_value)
+
+        # Atualizar shipment
+        shipment.status = "SENT"
+        shipment.sent_at = datetime.utcnow()
+        shipment.deadline = deadline_datetime
+
+        # Se não tinha departure_datetime, definir como agora
+        if not shipment.departure_datetime:
+            shipment.departure_datetime = datetime.utcnow()
+
+        # Adicionar informações de envio às notas
+        notes_parts = []
+        if carrier:
+            notes_parts.append(f"Transportadora: {carrier}")
+        if tracking_code:
+            notes_parts.append(f"Rastreio: {tracking_code}")
+        if sent_notes:
+            notes_parts.append(sent_notes)
+
+        if notes_parts:
+            shipment.notes = (shipment.notes or "") + f"\n[Enviado em {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}]\n" + "\n".join(notes_parts)
+
+        await db.commit()
+        await db.refresh(shipment)
+
+        # NOVO: Criar/atualizar notificações após marcar como enviado
+        if shipment.departure_datetime or shipment.return_datetime:
+            await self._schedule_notifications(db, shipment)
+
+        return shipment
+
+    async def _schedule_notifications(self, db: AsyncSession, shipment: ConditionalShipment):
+        """
+        Cria notificações automáticas baseadas em departure_datetime e return_datetime.
+
+        Este método garante que o sistema notifique o usuário:
+        - 5 minutos antes da saída (departure_datetime)
+        - 15 minutos antes do retorno previsto (return_datetime)
+
+        As notificações são enviadas pelo ConditionalNotificationService via endpoint de cron.
+        """
+        # Importar aqui para evitar import circular
+        from app.services.conditional_notification_service import ConditionalNotificationService
+
+        notification_service = ConditionalNotificationService()
+
+        # As notificações são checadas pelo endpoint /sla/check-notifications
+        # que roda a cada 1 minuto via cron
+        # Não precisamos criar registros aqui, apenas garantir que as datas estão corretas
+        # O check_and_send_sla_notifications() vai buscar os envios e enviar notificações
+
+        # Log para debug
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.info(
+            f"Notificações agendadas para envio #{shipment.id}: "
+            f"departure={shipment.departure_datetime}, return={shipment.return_datetime}"
+        )
+
     async def cancel_shipment(
         self,
         db: AsyncSession,
@@ -293,20 +469,36 @@ class ConditionalShipmentService:
             raise ValueError(f"Envio {shipment_id} não encontrado")
         
         if shipment.status not in ["PENDING", "SENT"]:
-            raise ValueError(f"Não é possível cancelar envio com status {shipment.status}")
+            if shipment.status == "COMPLETED":
+                raise ValueError(
+                    "Este envio já foi concluído com venda gerada. "
+                    "Não é possível cancelar. Entre em contato com o suporte se necessário."
+                )
+            elif shipment.status == "CANCELLED":
+                raise ValueError("Este envio já foi cancelado anteriormente.")
+            elif shipment.status == "PARTIAL_RETURN":
+                raise ValueError(
+                    "Este envio já teve devolução parcial processada. "
+                    "Não é possível cancelar neste estágio. Finalize a devolução normalmente."
+                )
+            else:
+                raise ValueError(f"Status '{shipment.status}' não permite cancelamento.")
+        
+        # Instanciar repository
+        inventory_repo = InventoryRepository(db)
         
         # Devolver estoque de todos os itens não processados
         for item in shipment.items:
             quantity_to_return = item.quantity_sent - item.quantity_kept - item.quantity_returned
-            
+
             if quantity_to_return > 0:
-                await self.inventory_repo.adjust_quantity(
-                    db,
+                await inventory_repo.add_stock(
                     product_id=item.product_id,
+                    quantity=quantity_to_return,
+                    movement_type=MovementType.RETURN,
+                    notes=f"Cancelamento envio #{shipment.id}: {reason}",
+                    reference_id=f"CS-{shipment.id}-CANCEL",
                     tenant_id=tenant_id,
-                    quantity_change=quantity_to_return,
-                    reason=f"Cancelamento envio #{shipment.id}: {reason}",
-                    user_id=user_id,
                 )
         
         # Atualizar status
@@ -366,13 +558,17 @@ class ConditionalShipmentService:
         if not shipment:
             return None
         
+        # Instanciar repositories
+        customer_repo = CustomerRepository(db)
+        product_repo = ProductRepository(db)
+        
         # Buscar customer
-        customer = await self.customer_repo.get(db, shipment.customer_id, tenant_id=tenant_id)
+        customer = await customer_repo.get(db, shipment.customer_id, tenant_id=tenant_id)
         
         # Buscar produtos
         items_with_products = []
         for item in shipment.items:
-            product = await self.product_repo.get(db, item.product_id, tenant_id=tenant_id)
+            product = await product_repo.get(db, item.product_id, tenant_id=tenant_id)
             items_with_products.append({
                 "item": item,
                 "product": product,

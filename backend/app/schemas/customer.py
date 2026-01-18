@@ -17,6 +17,7 @@ class CustomerBase(BaseModel):
     birth_date: Optional[date] = None
     address: Optional[str] = Field(None, max_length=255)
     address_number: Optional[str] = Field(None, max_length=20)
+    neighborhood: Optional[str] = Field(None, max_length=100)
     city: Optional[str] = Field(None, max_length=100)
     state: Optional[str] = Field(None, max_length=50)
     zip_code: Optional[str] = Field(None, max_length=10)
@@ -38,6 +39,7 @@ class CustomerUpdate(BaseModel):
     birth_date: Optional[date] = None
     address: Optional[str] = Field(None, max_length=255)
     address_number: Optional[str] = Field(None, max_length=20)
+    neighborhood: Optional[str] = Field(None, max_length=100)
     city: Optional[str] = Field(None, max_length=100)
     state: Optional[str] = Field(None, max_length=50)
     zip_code: Optional[str] = Field(None, max_length=10)

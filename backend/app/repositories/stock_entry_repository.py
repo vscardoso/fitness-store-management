@@ -108,27 +108,30 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         return result.scalar_one_or_none()
     
     async def get_by_code(
-        self, 
-        db: AsyncSession, 
+        self,
+        db: AsyncSession,
         entry_code: str,
         *,
         tenant_id: int | None = None,
     ) -> Optional[StockEntry]:
         """
-        Busca uma entrada por código.
-        
+        Busca uma entrada por código (inclui entradas inativas).
+
+        IMPORTANTE: Não filtra por is_active para validar códigos duplicados,
+        pois a constraint UNIQUE do banco se aplica a TODAS as entradas.
+
         Args:
             db: Database session
             entry_code: Código da entrada
             tenant_id: ID do tenant
-            
+
         Returns:
             StockEntry encontrado ou None
         """
-        conditions = [StockEntry.entry_code == entry_code, StockEntry.is_active == True]
+        conditions = [StockEntry.entry_code == entry_code]
         if tenant_id is not None and hasattr(StockEntry, "tenant_id"):
             conditions.append(StockEntry.tenant_id == tenant_id)
-        
+
         query = select(StockEntry).where(and_(*conditions))
         result = await db.execute(query)
         return result.scalar_one_or_none()

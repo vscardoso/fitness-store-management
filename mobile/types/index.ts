@@ -118,6 +118,19 @@ export interface CheckSlugResponse {
 // PRODUCT TYPES
 // ============================================
 
+export interface ProductEntryItem {
+  entry_item_id: number;
+  entry_id: number;
+  entry_code: string;
+  entry_date: string;
+  entry_type: string;
+  quantity_received: number;
+  quantity_remaining: number;
+  quantity_sold: number;
+  unit_cost: number;
+  supplier_name?: string;
+}
+
 export interface Product {
   id: number;
   name: string;
@@ -141,6 +154,7 @@ export interface Product {
   updated_at: string;
   current_stock?: number; // Estoque atual
   min_stock_threshold?: number; // Estoque mínimo
+  entry_items?: ProductEntryItem[]; // Histórico FIFO de entradas
   category?: Category;
   batch?: Batch;
 }
@@ -384,6 +398,7 @@ export interface Customer {
   birth_date?: string;
   address?: string;
   address_number?: string;
+  neighborhood?: string;
   city?: string;
   state?: string;
   zip_code?: string;
@@ -403,6 +418,7 @@ export interface CustomerCreate {
   birth_date?: string;
   address?: string;
   address_number?: string;
+  neighborhood?: string;
   city?: string;
   state?: string;
   zip_code?: string;
@@ -562,6 +578,9 @@ export interface EntryItemResponse extends EntryItem {
   quantity_sold: number;
   depletion_percentage: number;
   is_depleted: boolean;
+  product_name?: string;
+  product_sku?: string;
+  product_barcode?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;

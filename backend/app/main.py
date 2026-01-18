@@ -13,6 +13,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
 from app.core.database import init_db, close_db
+from app.core.scheduler import start_scheduler, shutdown_scheduler
 from app.api.v1.router import api_router
 from app.middleware.tenant import TenantMiddleware
 
@@ -28,18 +29,24 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     Application lifespan manager.
-    
+
     Handles startup and shutdown events.
     """
     # Startup
     logger.info("Starting up application...")
     await init_db()
     logger.info("Database initialized")
-    
+
+    # Start background scheduler
+    start_scheduler()
+    logger.info("Background scheduler started")
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down application...")
+    shutdown_scheduler()
+    logger.info("Background scheduler stopped")
     await close_db()
     logger.info("Database connections closed")
 

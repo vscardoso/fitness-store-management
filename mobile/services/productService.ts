@@ -33,6 +33,7 @@ export const getActiveProducts = async (params?: PaginationParams): Promise<Prod
 export const getProducts = async (params?: PaginationParams & {
   category_id?: number;
   search?: string;
+  has_stock?: boolean;
 }): Promise<Product[]> => {
   try {
     const { data } = await api.get<Product[]>('/products/', { params });

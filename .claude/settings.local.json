@@ -16,7 +16,16 @@
       "Bash(.venvScriptspython.exe test_sale_direct.py)",
       "Bash(./venv/Scripts/python.exe:*)",
       "Bash(powershell -ExecutionPolicy Bypass -File run_test.ps1)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(npm install:*)",
+      "Bash(.venv/Scripts/python.exe:*)",
+      "Bash(test:*)",
+      "Bash(..venvScriptspython.exe -m pip:*)",
+      "Bash(..venvScriptspython.exe -m pip install bcrypt==3.2.2)",
+      "Bash(../venv/Scripts/python.exe -m pip:*)",
+      "Bash(../venv/Scripts/python.exe -m pip install:*)",
+      "Bash(../venv/Scripts/python.exe test_notification_system.py)",
+      "Bash(../venv/Scripts/python.exe -m alembic upgrade:*)"
     ],
     "deny": [],
     "ask": []

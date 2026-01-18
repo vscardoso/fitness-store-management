@@ -1,7 +1,7 @@
 """Product schemas for request/response validation."""
 
-from typing import Optional
-from datetime import datetime
+from typing import Optional, List
+from datetime import datetime, date
 from decimal import Decimal
 from pydantic import BaseModel, Field
 from pydantic import model_validator, computed_field
@@ -79,6 +79,23 @@ class ActivateProductRequest(BaseModel):
     quantity: Optional[int] = Field(None, gt=0, description="Quantidade inicial do produto")
 
 
+class ProductEntryItem(BaseModel):
+    """Schema resumido de um entry item para exibição no produto."""
+    entry_item_id: int
+    entry_id: int
+    entry_code: str
+    entry_date: date
+    entry_type: str
+    quantity_received: int
+    quantity_remaining: int
+    quantity_sold: int
+    unit_cost: Decimal
+    supplier_name: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
 class ProductResponse(ProductBase):
     """Schema for product response."""
     id: int
@@ -88,12 +105,14 @@ class ProductResponse(ProductBase):
     updated_at: datetime
     current_stock: Optional[int] = Field(None, description="Quantidade atual em estoque")
     min_stock_threshold: Optional[int] = Field(None, description="Estoque mínimo")
+    entry_items: Optional[List[ProductEntryItem]] = Field(None, description="Histórico FIFO de entradas do produto")
+
     # Expor sale_price no response (espelha "price") para compatibilidade
     @computed_field(return_type=Decimal)
     def sale_price(self) -> Decimal:
         # price não deve ser None aqui, já validado nos schemas de entrada
         return self.price  # type: ignore
-    
+
     class Config:
         from_attributes = True
 

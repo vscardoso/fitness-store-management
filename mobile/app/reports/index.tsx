@@ -388,8 +388,8 @@ export default function ReportsScreen() {
           value={activeTab}
           onValueChange={(value) => setActiveTab(value as ReportTab)}
           buttons={[
-            { value: 'trips', label: 'Viagens', icon: 'car-outline' },
-            { value: 'suppliers', label: 'Fornecedores', icon: 'store-outline' },
+            { value: 'trips', label: 'Viagens', icon: 'car' },
+            { value: 'suppliers', label: 'Fornecedores', icon: 'store' },
             { value: 'products', label: 'Best Sellers', icon: 'trending-up' },
             { value: 'slow', label: 'Encalhados', icon: 'clock-outline' },
           ]}
@@ -463,7 +463,7 @@ export default function ReportsScreen() {
               ))
             ) : (
               <Surface style={styles.emptyState}>
-                <Ionicons name="store-outline" size={48} color={Colors.light.textSecondary} />
+                <Ionicons name="storefront-outline" size={48} color={Colors.light.textSecondary} />
                 <Text style={styles.emptyText}>Nenhuma entrada cadastrada</Text>
                 <Button
                   mode="contained"

@@ -12,25 +12,54 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.fitnessstore.mobile",
       "infoPlist": {
-        "NSCameraUsageDescription": "Este app precisa acessar sua câmera para escanear códigos de barras de produtos."
+        "NSCameraUsageDescription": "Este app precisa acessar sua câmera para escanear códigos de barras de produtos.",
+        "NSUserNotificationsUsageDescription": "Este app precisa enviar notificações sobre envios condicionais e prazos."
       }
     },
     "android": {
       "package": "com.fitnessstore.mobile",
       "permissions": [
-        "android.permission.CAMERA"
-      ]
+        "android.permission.CAMERA",
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE"
+      ],
+      "useNextNotificationsApi": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
     },
     "web": {
       "bundler": "metro"
     },
     "scheme": "fitness-store",
+    "extra": {
+      "eas": {
+        "projectId": "your-expo-project-id-here"
+      }
+    },
+    "notification": {
+      "icon": "./assets/notification-icon.png",
+      "color": "#667eea",
+      "androidMode": "default",
+      "androidCollapsedTitle": "Fitness Store"
+    },
     "plugins": [
       "expo-router",
       [
         "expo-barcode-scanner",
         {
           "cameraPermission": "Permitir $(PRODUCT_NAME) acessar sua câmera para escanear códigos de barras"
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#667eea",
+          "sounds": ["./assets/sounds/notification.wav"],
+          "androidMode": "default",
+          "androidCollapsedTitle": "Fitness Store"
         }
       ]
     ]

@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Numeric, T
 from sqlalchemy.orm import relationship
 from datetime import datetime, timedelta
 from app.models.base import BaseModel
+from app.models.enums import ShipmentStatus
 
 
 class ConditionalShipment(BaseModel):
@@ -11,22 +12,37 @@ class ConditionalShipment(BaseModel):
     """
     __tablename__ = "conditional_shipments"
 
-    tenant_id = Column(Integer, ForeignKey("tenants.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
     customer_id = Column(Integer, ForeignKey("customers.id"), nullable=False, index=True)
-    
-    # Status: PENDING, SENT, PARTIAL_RETURN, COMPLETED, CANCELLED, OVERDUE
-    status = Column(String(20), default="PENDING", nullable=False, index=True)
-    
-    sent_at = Column(DateTime, nullable=True)
-    deadline = Column(DateTime, nullable=True)  # Data limite para devolução
+
+    # Status: PENDING, SENT, RETURNED_NO_SALE, COMPLETED_PARTIAL_SALE, COMPLETED_FULL_SALE
+    status = Column(String(30), default=ShipmentStatus.PENDING.value, nullable=False, index=True)
+
+    # Agendamento de envio
+    scheduled_ship_date = Column(DateTime, nullable=True)  # Data/hora planejada para envio
+    sent_at = Column(DateTime, nullable=True)  # Data/hora real do envio
+
+    # Datas de ida e devolução (NOVO)
+    departure_datetime = Column(DateTime, nullable=True)  # Data/hora de ida ao cliente
+    return_datetime = Column(DateTime, nullable=True)  # Data/hora de devolução prevista
+
+    # Prazo de devolução (LEGACY - manter por compatibilidade)
+    deadline_type = Column(String(10), default="days", nullable=False)  # "days" ou "hours"
+    deadline_value = Column(Integer, default=7, nullable=False)  # Quantidade (7 dias, 48 horas, etc)
+    deadline = Column(DateTime, nullable=True)  # Data/hora limite calculada
+
     returned_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
-    
+
+    # Informações de transporte
+    carrier = Column(String(100), nullable=True)  # Transportadora
+    tracking_code = Column(String(100), nullable=True)  # Código de rastreio
+
     notes = Column(Text, nullable=True)
     shipping_address = Column(Text, nullable=False)
     
     # Relacionamentos
-    tenant = relationship("Tenant", back_populates="conditional_shipments")
+    tenant = relationship("Store", back_populates="conditional_shipments")
     customer = relationship("Customer", back_populates="conditional_shipments")
     items = relationship(
         "ConditionalShipmentItem",
@@ -36,8 +52,8 @@ class ConditionalShipment(BaseModel):
     
     @property
     def is_overdue(self) -> bool:
-        """Verifica se o envio está atrasado"""
-        if self.deadline and self.status in ["SENT", "PARTIAL_RETURN"]:
+        """Verifica se o envio está atrasado (só se SENT e passou do deadline)"""
+        if self.deadline and self.status == ShipmentStatus.SENT.value:
             return datetime.utcnow() > self.deadline
         return False
     
@@ -52,27 +68,42 @@ class ConditionalShipment(BaseModel):
     @property
     def total_items_sent(self) -> int:
         """Total de itens enviados"""
-        return sum(item.quantity_sent for item in self.items)
-    
+        try:
+            return sum(item.quantity_sent for item in self.items)
+        except:
+            return 0
+
     @property
     def total_items_kept(self) -> int:
         """Total de itens que o cliente ficou"""
-        return sum(item.quantity_kept for item in self.items)
-    
+        try:
+            return sum(item.quantity_kept for item in self.items)
+        except:
+            return 0
+
     @property
     def total_items_returned(self) -> int:
         """Total de itens devolvidos"""
-        return sum(item.quantity_returned for item in self.items)
-    
+        try:
+            return sum(item.quantity_returned for item in self.items)
+        except:
+            return 0
+
     @property
     def total_value_sent(self) -> float:
         """Valor total dos itens enviados"""
-        return sum(item.quantity_sent * float(item.unit_price) for item in self.items)
-    
+        try:
+            return sum(item.quantity_sent * float(item.unit_price) for item in self.items)
+        except:
+            return 0.0
+
     @property
     def total_value_kept(self) -> float:
         """Valor total dos itens que o cliente comprou"""
-        return sum(item.quantity_kept * float(item.unit_price) for item in self.items)
+        try:
+            return sum(item.quantity_kept * float(item.unit_price) for item in self.items)
+        except:
+            return 0.0
 
 
 class ConditionalShipmentItem(BaseModel):

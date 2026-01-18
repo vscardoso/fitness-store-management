@@ -168,7 +168,7 @@ export default function StockEntriesScreen() {
       [EntryType.LOCAL]: { 
         label: 'Local', 
         color: Colors.light.success, 
-        icon: 'store-outline',
+        icon: 'storefront-outline',
         bgColor: Colors.light.success + '20',
       },
       [EntryType.INITIAL_INVENTORY]: {

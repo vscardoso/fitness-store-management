@@ -73,6 +73,11 @@ class Customer(BaseModel):
         comment="Address number"
     )
     
+    neighborhood: Mapped[str | None] = mapped_column(
+        String(100),
+        comment="Customer neighborhood"
+    )
+    
     city: Mapped[str | None] = mapped_column(
         String(100),
         comment="Customer city"

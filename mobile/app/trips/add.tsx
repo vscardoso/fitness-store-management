@@ -513,7 +513,7 @@ export default function AddTripScreen() {
                   placeholder="HH:MM"
                   keyboardType="number-pad"
                   maxLength={5}
-                  left={<TextInput.Icon icon="clock-outline" />}
+                  left={<TextInput.Icon icon="time-outline" />}
                   right={
                     departureTime ? (
                       <TextInput.Icon

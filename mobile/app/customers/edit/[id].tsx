@@ -47,6 +47,7 @@ export default function EditCustomerScreen() {
   const [birthDate, setBirthDate] = useState('');
   const [address, setAddress] = useState('');
   const [addressNumber, setAddressNumber] = useState('');
+  const [neighborhood, setNeighborhood] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [zipCode, setZipCode] = useState('');
@@ -83,6 +84,7 @@ export default function EditCustomerScreen() {
       }
       setAddress(customer.address || '');
       setAddressNumber(customer.address_number || '');
+      setNeighborhood(customer.neighborhood || '');
       setCity(customer.city || '');
       setState(customer.state || '');
       setZipCode(customer.zip_code ? cepMask(customer.zip_code) : '');
@@ -106,6 +108,7 @@ export default function EditCustomerScreen() {
 
       if (cepData) {
         setAddress(cepData.logradouro || '');
+        setNeighborhood(cepData.bairro || '');
         setCity(cepData.localidade || '');
         setState(cepData.uf || '');
       } else {
@@ -185,6 +188,7 @@ export default function EditCustomerScreen() {
       birth_date: birthDate ? formatDateToISO(birthDate) : undefined,
       address: address.trim() || undefined,
       address_number: addressNumber.trim() || undefined,
+      neighborhood: neighborhood.trim() || undefined,
       city: city.trim() || undefined,
       state: state.trim() || undefined,
       zip_code: zipCode ? zipCode.replace(/\D/g, '') : undefined,
@@ -395,6 +399,15 @@ export default function EditCustomerScreen() {
               style={styles.input}
               keyboardType="numeric"
               placeholder="123"
+            />
+
+            <TextInput
+              label="Bairro"
+              value={neighborhood}
+              onChangeText={setNeighborhood}
+              mode="outlined"
+              style={styles.input}
+              placeholder="Nome do bairro"
             />
 
             <View style={styles.row}>

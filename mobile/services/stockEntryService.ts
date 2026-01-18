@@ -152,3 +152,30 @@ export async function getStockEntriesStats(): Promise<{
   const response = await api.get(`${ENTRIES_ENDPOINT}stats`);
   return response.data;
 }
+
+/**
+ * Atualizar item de entrada (quantity_received, unit_cost, notes)
+ * VALIDAÇÃO: Bloqueia edição se o item já teve vendas (rastreabilidade FIFO)
+ * Recalcula inventário automaticamente quando quantidade muda
+ */
+export async function updateEntryItem(
+  itemId: number,
+  data: {
+    quantity_received?: number;
+    unit_cost?: number;
+    notes?: string;
+  }
+): Promise<{
+  id: number;
+  entry_id: number;
+  product_id: number;
+  quantity_received: number;
+  quantity_remaining: number;
+  quantity_sold: number;
+  unit_cost: number;
+  total_cost: number;
+  notes?: string;
+}> {
+  const response = await api.put(`${ENTRIES_ENDPOINT}entry-items/${itemId}`, data);
+  return response.data;
+}
