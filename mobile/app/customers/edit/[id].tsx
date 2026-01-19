@@ -25,7 +25,7 @@ import useBackToList from '@/hooks/useBackToList';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getCustomerById, updateCustomer } from '@/services/customerService';
 import { searchCep } from '@/services/cepService';
-import { phoneMask, cpfMask, cepMask, dateMask } from '@/utils/masks';
+import { phoneMask, cpfMask, cepMask, dateMask, isValidDate } from '@/utils/masks';
 import { Colors, theme } from '@/constants/Colors';
 import type { CustomerUpdate } from '@/types';
 
@@ -141,7 +141,7 @@ export default function EditCustomerScreen() {
       newErrors.cpf = 'CPF inválido';
     }
 
-    if (birthDate && birthDate.replace(/\D/g, '').length !== 8) {
+    if (birthDate && !isValidDate(birthDate)) {
       newErrors.birthDate = 'Data inválida (DD/MM/AAAA)';
     }
 

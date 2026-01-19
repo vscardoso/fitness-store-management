@@ -24,7 +24,7 @@ import { useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { createCustomer } from '@/services/customerService';
 import { searchCep } from '@/services/cepService';
-import { phoneMask, cpfMask, cepMask, dateMask } from '@/utils/masks';
+import { phoneMask, cpfMask, cepMask, dateMask, isValidDate } from '@/utils/masks';
 import { Colors, theme } from '@/constants/Colors';
 import type { CustomerCreate } from '@/types';
 
@@ -102,7 +102,7 @@ export default function AddCustomerScreen() {
       newErrors.cpf = 'CPF inválido';
     }
 
-    if (birthDate && birthDate.replace(/\D/g, '').length !== 8) {
+    if (birthDate && !isValidDate(birthDate)) {
       newErrors.birthDate = 'Data inválida (DD/MM/AAAA)';
     }
 

@@ -66,11 +66,43 @@ export const cepMask = (value: string): string => {
  */
 export const dateMask = (value: string): string => {
   const numbers = value.replace(/\D/g, '');
-  
+
   return numbers
     .replace(/(\d{2})(\d)/, '$1/$2')
     .replace(/(\d{2})(\d)/, '$1/$2')
     .substring(0, 10);
+};
+
+/**
+ * Valida se uma data no formato DD/MM/AAAA é válida
+ * Retorna true se válida, false se inválida
+ */
+export const isValidDate = (dateStr: string): boolean => {
+  const numbers = dateStr.replace(/\D/g, '');
+
+  if (numbers.length !== 8) return false;
+
+  const day = parseInt(numbers.substring(0, 2), 10);
+  const month = parseInt(numbers.substring(2, 4), 10);
+  const year = parseInt(numbers.substring(4, 8), 10);
+
+  // Validar mês (1-12)
+  if (month < 1 || month > 12) return false;
+
+  // Validar ano razoável (1900-2100)
+  if (year < 1900 || year > 2100) return false;
+
+  // Dias por mês
+  const daysInMonth = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+  // Verificar ano bissexto
+  const isLeapYear = (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+  if (isLeapYear) daysInMonth[1] = 29;
+
+  // Validar dia
+  if (day < 1 || day > daysInMonth[month - 1]) return false;
+
+  return true;
 };
 
 /**
