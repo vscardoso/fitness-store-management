@@ -13,20 +13,23 @@
 // 🟢 OPÇÃO 2: Emulador iOS / Simulator
 // const API_BASE_URL = 'http://localhost:8000/api/v1';
 
-// 🟡 OPÇÃO 3: Dispositivo Físico (mesma rede WiFi) ✅ ATIVO
+// 🟡 OPÇÃO 3: Dispositivo Físico (mesma rede WiFi) - Dev local
 // ⚠️ IP WiFi atual: 192.168.100.158 (adaptador Wi-Fi)
-const API_BASE_URL = 'http://192.168.100.158:8000/api/v1';
+// const API_BASE_URL = 'http://192.168.100.158:8000/api/v1';
 
-// 🔴 OPÇÃO 4: Tunnel (qualquer rede, mais instável) - TUNNEL EXPIROU!
+// 🔴 OPÇÃO 4: Tunnel (qualquer rede, mais instável)
 // ⚠️ Crie um novo tunnel: npx localtunnel --port 8000
 // ⚠️ Atualize CORS no backend/.env
 // const API_BASE_URL = 'https://happy-zebras-brush.loca.lt/api/v1';
+
+// 🟢 OPÇÃO 5: Produção Render.com ✅ ATIVO
+const API_BASE_URL = 'https://fitness-backend-x1qn.onrender.com/api/v1';
 
 // ============================================================================
 
 // URL base da API
 export const API_CONFIG = {
-  BASE_URL: __DEV__ ? API_BASE_URL : 'https://api.sualoja.com/api/v1',
+  BASE_URL: __DEV__ ? API_BASE_URL : 'https://fitness-backend-x1qn.onrender.com/api/v1',
   TIMEOUT: 30000, // 30 segundos
 };
 
