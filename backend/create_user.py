@@ -4,11 +4,10 @@ from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from app.core.security import get_password_hash
 from app.models.user import User
-
-DATABASE_URL = "sqlite+aiosqlite:///./fitness_store.db"
+from app.core.config import settings
 
 async def create_test_user():
-    engine = create_async_engine(DATABASE_URL, echo=False)
+    engine = create_async_engine(settings.DATABASE_URL, echo=False)
     async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
     
     async with async_session() as session:
