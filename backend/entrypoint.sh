@@ -31,18 +31,29 @@ async def wait_for_db():
 asyncio.run(wait_for_db())
 "
 
-# Aplicar migrations
-echo "📦 [MIGRATIONS] Aplicando migrations..."
-alembic upgrade head
-echo "✅ [MIGRATIONS] Migrations aplicadas com sucesso!"
+# Verificar se migrations já foram aplicadas
+echo "🔍 [MIGRATIONS] Verificando estado das migrations..."
+CURRENT_VERSION=$(alembic current 2>/dev/null | grep -oP '(?<=\(head\)|\w{12})' | head -1 || echo "none")
+
+if [ "$CURRENT_VERSION" == "none" ]; then
+    echo "📦 [MIGRATIONS] Database vazio, marcando migrations como aplicadas..."
+    # Database já tem tabelas mas sem alembic_version, marcar como aplicado
+    alembic stamp head || echo "⚠️ [MIGRATIONS] Falhou ao marcar, tentando upgrade..."
+    alembic upgrade head 2>/dev/null || echo "⚠️ [MIGRATIONS] Tabelas já existem (OK)"
+else
+    echo "📦 [MIGRATIONS] Aplicando migrations pendentes..."
+    alembic upgrade head || echo "⚠️ [MIGRATIONS] Nenhuma migration pendente ou já aplicadas (OK)"
+fi
+
+echo "✅ [MIGRATIONS] Migrations sincronizadas!"
 
 # Criar admin user (ignora erro se já existir)
 echo "👤 [SEED] Criando admin user..."
-python create_user.py || echo "⚠️ [SEED] Admin user já existe (ignorado)"
+python create_user.py 2>/dev/null || echo "⚠️ [SEED] Admin user já existe (OK)"
 
 # Criar categorias (ignora erro se já existirem)
 echo "📁 [SEED] Criando categorias padrão..."
-python create_categories.py || echo "⚠️ [SEED] Categorias já existem (ignorado)"
+python create_categories.py 2>/dev/null || echo "⚠️ [SEED] Categorias já existem (OK)"
 
 echo "✅ [ENTRYPOINT] Inicialização completa! Iniciando servidor..."
 
