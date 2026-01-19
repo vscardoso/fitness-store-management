@@ -22,10 +22,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
-import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { getStockEntries } from '@/services/stockEntryService';
-import { useCategories } from '@/hooks/useCategories';
-import { createProduct } from '@/services/productService';
+import { useCategories, useCreateProduct } from '@/hooks';
 import { Colors, theme } from '@/constants/Colors';
 import type { ProductCreate } from '@/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -33,8 +32,8 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 export default function AddProductScreen() {
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/products');
-  const queryClient = useQueryClient();
   const { categories, isLoading: loadingCategories } = useCategories();
+  const createMutation = useCreateProduct();
 
   // Estados do formulário
   const [name, setName] = useState('');
@@ -71,24 +70,7 @@ export default function AddProductScreen() {
     }
   }, [categories]);
 
-  /**
-   * Mutation para criar produto
-   */
-  const createMutation = useMutation({
-    mutationFn: createProduct,
-    onSuccess: async (created) => {
-      await queryClient.invalidateQueries({ queryKey: ['products'] });
-      await queryClient.invalidateQueries({ queryKey: ['active-products'] });
-      setCreatedProductId(created?.id ?? null);
-      // Após criar produto, oferecer fluxo de vinculação de entrada
-      setShowSuccessDialog(true);
-    },
-    onError: (error: any) => {
-      const message = error.message || 'Erro ao cadastrar produto';
-      setErrorMessage(message);
-      setShowErrorDialog(true);
-    },
-  });
+
 
   /**
    * Validar campos obrigatórios
@@ -148,7 +130,17 @@ export default function AddProductScreen() {
     };
 
     console.log('Dados do produto a serem enviados:', JSON.stringify(productData, null, 2));
-    createMutation.mutate(productData);
+    createMutation.mutate(productData, {
+      onSuccess: (created) => {
+        setCreatedProductId(created?.id ?? null);
+        setShowSuccessDialog(true);
+      },
+      onError: (error: any) => {
+        const message = error.message || 'Erro ao cadastrar produto';
+        setErrorMessage(message);
+        setShowErrorDialog(true);
+      },
+    });
   };
 
   /**

@@ -22,8 +22,9 @@ import DetailHeader from '@/components/layout/DetailHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { getCustomerById, updateCustomer } from '@/services/customerService';
+import { useQuery } from '@tanstack/react-query';
+import { useUpdateCustomer } from '@/hooks';
+import { getCustomerById } from '@/services/customerService';
 import { searchCep } from '@/services/cepService';
 import { phoneMask, cpfMask, cepMask, dateMask, isValidDate } from '@/utils/masks';
 import { Colors, theme } from '@/constants/Colors';
@@ -33,7 +34,7 @@ export default function EditCustomerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/customers');
-  const queryClient = useQueryClient();
+  const updateMutation = useUpdateCustomer();
 
   // Validar ID do cliente
   const customerId = id ? parseInt(id as string) : NaN;
@@ -153,22 +154,7 @@ export default function EditCustomerScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
-  /**
-   * Mutation: Atualizar cliente
-   */
-  const updateMutation = useMutation({
-    mutationFn: (data: CustomerUpdate) => updateCustomer(customerId, data),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['customers'] });
-      await queryClient.invalidateQueries({ queryKey: ['customer', customerId] });
-      setShowSuccessDialog(true);
-    },
-    onError: (error: any) => {
-      const message = error?.response?.data?.detail || error.message || 'Erro ao atualizar cliente';
-      setErrorMessage(message);
-      setShowErrorDialog(true);
-    },
-  });
+
 
   /**
    * Submeter formulário
@@ -194,7 +180,19 @@ export default function EditCustomerScreen() {
       zip_code: zipCode ? zipCode.replace(/\D/g, '') : undefined,
     };
 
-    updateMutation.mutate(customerData);
+    updateMutation.mutate(
+      { id: customerId, data: customerData },
+      {
+        onSuccess: () => {
+          setShowSuccessDialog(true);
+        },
+        onError: (error: any) => {
+          const message = error?.response?.data?.detail || error.message || 'Erro ao atualizar cliente';
+          setErrorMessage(message);
+          setShowErrorDialog(true);
+        },
+      }
+    );
   };
 
   /**

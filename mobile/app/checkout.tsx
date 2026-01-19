@@ -12,7 +12,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
 import useBackToList from '@/hooks/useBackToList';
 import { useCart } from '@/hooks/useCart';
-import { createSale } from '@/services/saleService';
+import { useCreateSale } from '@/hooks';
 import { getCustomerById } from '@/services/customerService';
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
@@ -49,6 +49,7 @@ export default function CheckoutScreen() {
   const cart = useCart();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/sale');
+  const createSaleMutation = useCreateSale();
 
   // Estado local
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | 'MIXED'>(PaymentMethod.PIX);
@@ -397,34 +398,40 @@ export default function CheckoutScreen() {
         saleData.customer_id = cart.customer_id;
       }
 
-      // Criar venda
-      const sale = await createSale(saleData);
+      // Criar venda usando mutation hook
+      createSaleMutation.mutate(saleData, {
+        onSuccess: (sale) => {
+          haptics.success();
 
-      haptics.success();
+          // Limpar carrinho
+          cart.clear();
 
-      // Limpar carrinho
-      cart.clear();
+          // Navegar para tela de sucesso
+          router.replace({
+            pathname: '/checkout/success',
+            params: { sale_number: sale.sale_number }
+          });
+        },
+        onError: (error: any) => {
+          haptics.error();
+          console.error('Erro ao finalizar venda:', error);
 
-      // Navegar para tela de sucesso
-      router.replace({
-        pathname: '/checkout/success',
-        params: { sale_number: sale.sale_number }
+          const message = error.response?.data?.detail || 'Erro ao processar venda. Tente novamente.';
+          setDialog({
+            visible: true,
+            type: 'danger',
+            title: 'Erro',
+            message: message,
+            confirmText: 'OK',
+            cancelText: '',
+            onConfirm: () => setDialog({ ...dialog, visible: false }),
+          });
+        },
       });
 
     } catch (error: any) {
-      haptics.error();
-      console.error('Erro ao finalizar venda:', error);
-
-      const message = error.response?.data?.detail || 'Erro ao processar venda. Tente novamente.';
-      setDialog({
-        visible: true,
-        type: 'danger',
-        title: 'Erro',
-        message: message,
-        confirmText: 'OK',
-        cancelText: '',
-        onConfirm: () => setDialog({ ...dialog, visible: false }),
-      });
+      // Error handling agora é feito no callback onError da mutation
+      console.error('Erro inesperado:', error);
     } finally {
       setLoading(false);
     }

@@ -22,9 +22,9 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import DetailHeader from '@/components/layout/DetailHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import useBackToList from '@/hooks/useBackToList';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCategories } from '@/hooks/useCategories';
-import { getProductById, updateProduct, adjustProductQuantity } from '@/services/productService';
+import { useQuery } from '@tanstack/react-query';
+import { useCategories, useUpdateProduct } from '@/hooks';
+import { getProductById, adjustProductQuantity } from '@/services/productService';
 import { getProductStock } from '@/services/inventoryService';
 import { Colors, theme } from '@/constants/Colors';
 import type { ProductUpdate } from '@/types';
@@ -32,8 +32,8 @@ import type { ProductUpdate } from '@/types';
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const queryClient = useQueryClient();
   const { categories, isLoading: loadingCategories } = useCategories();
+  const updateMutation = useUpdateProduct();
 
   // Validar ID do produto
   const productId = id ? parseInt(id as string) : NaN;
@@ -121,58 +121,8 @@ export default function EditProductScreen() {
     return num.toFixed(2).replace('.', ',');
   };
 
-  /**
-   * Mutation para atualizar produto (inclui ajuste de estoque automático se quantidade mudou)
-   */
-  const updateMutation = useMutation({
-    mutationFn: (data: ProductUpdate) => updateProduct(productId, data),
-    onSuccess: async () => {
-      console.log('✅ updateProduct sucesso: iniciando fluxo pós-salvar');
-
-      // Verificar necessidade de ajuste de estoque
-      const target = parseInt(newStock || '0', 10);
-      const hasValidTarget = !isNaN(target);
-      const needsAdjust = hasValidTarget && target !== currentStock;
-
-      if (needsAdjust) {
-        try {
-          const increasing = target > currentStock;
-          const payload: any = {
-            new_quantity: target,
-            reason: `Ajuste automático na edição (de ${currentStock} para ${target})`,
-          };
-          if (increasing) {
-            // Usar custo informado para aumento ou cair para costPrice
-            let unitCostRaw = increaseUnitCost || costPrice;
-            let unitCost = parseFloat(String(unitCostRaw).replace(',', '.'));
-            if (!isNaN(unitCost) && unitCost > 0) {
-              payload.unit_cost = unitCost;
-            }
-          }
-          console.log('🔄 Ajustando estoque com payload:', payload);
-          await adjustProductQuantity(productId, payload);
-          setCurrentStock(target);
-        } catch (err: any) {
-          console.log('❌ Falha ao ajustar estoque após updateProduct:', err?.response?.data || err?.message);
-          setErrors(prev => ({ ...prev, global: err?.response?.data?.detail || 'Falha ao ajustar estoque.' }));
-          return; // Não mostrar diálogo de sucesso se ajuste falhar
-        }
-      }
-
-      // Invalidar queries (produto, estoque e listas)
-      await queryClient.invalidateQueries({ queryKey: ['product', productId] });
-      await queryClient.invalidateQueries({ queryKey: ['inventory', productId] });
-      await queryClient.invalidateQueries({ queryKey: ['products'] });
-      await queryClient.invalidateQueries({ queryKey: ['active-products'] });
-
-      // Mostrar diálogo de sucesso
-      setShowSuccessDialog(true);
-    },
-    onError: (error: any) => {
-      console.log('❌ updateProduct erro:', error?.response?.status, error?.response?.data || error?.message);
-      setErrors(prev => ({ ...prev, global: 'Falha ao atualizar produto. Verifique os dados.' }));
-    },
-  });
+  // Usar hook que automaticamente invalida cache
+  const updateMutation = useUpdateProduct();
 
   /**
    * Validar campos obrigatórios
@@ -249,7 +199,74 @@ export default function EditProductScreen() {
     } else {
       // Sem mudança no custo - salvar direto
       console.log('✅ Sem mudança no custo, salvando direto');
-      updateMutation.mutate(productData);
+      updateMutation.mutate(
+      { id: productId, data: productData },
+      {
+        onSuccess: async () => {
+          console.log('✅ updateProduct sucesso: iniciando fluxo pós-salvar');
+
+          // Verificar necessidade de ajuste de estoque
+          const target = parseInt(newStock || '0', 10);
+          const hasValidTarget = !isNaN(target);
+          const needsAdjust = hasValidTarget && target !== currentStock;
+
+          if (needsAdjust) {
+            try {
+              const increasing = target > currentStock;
+              const payload: any = {
+                new_quantity: target,
+                reason: `Ajuste automático na edição (de ${currentStock} para ${target})`,
+              };
+              if (increasing) {
+                // Usar custo informado para aumento ou cair para costPrice
+                let unitCostRaw = increaseUnitCost || costPrice;
+                let unitCost = parseFloat(String(unitCostRaw).replace(',', '.'));
+                if (!isNaN(unitCost) && unitCost > 0) {
+                  payload.unit_cost = unitCost;
+                }
+              }
+              console.log('🔄 Ajustando estoque com payload:', payload);
+              await adjustProductQuantity(productId, payload);
+              setCurrentStock(target);
+            } catch (err: any) {
+              console.log('❌ Falha ao ajustar estoque após updateProduct:', err?.response?.data || err?.message);
+              setErrors(prev => ({ ...prev, global: err?.response?.data?.detail || 'Falha ao ajustar estoque.' }));
+              return; // Não mostrar diálogo de sucesso se ajuste falhar
+            }
+          }
+
+          // Mostrar diálogo de sucesso
+          setShowSuccessDialog(true);
+        },
+        onError: (error: any) => {
+          console.log('❌ updateProduct erro:', error?.response?.status, error?.response?.data || error?.message);
+          setErrors(prev => ({ ...prev, global: 'Falha ao atualizar produto. Verifique os dados.' }));
+        },
+      }
+    );
+              // Não bloqueia o fluxo - produto foi salvo
+              setErrorMessage(
+                `Produto atualizado, mas houve erro ao ajustar estoque: ${
+                  err?.response?.data?.detail || err.message || 'Erro desconhecido'
+                }`
+              );
+              setShowErrorDialog(true);
+              return;
+            }
+          }
+
+          setShowSuccessDialog(true);
+        },
+        onError: (error: any) => {
+          console.log('❌ updateProduct erro:', error?.response?.status, error?.response?.data || error?.message);
+
+          const message =
+            error?.response?.data?.detail || error.message || 'Erro ao atualizar produto';
+          setErrorMessage(message);
+          setShowErrorDialog(true);
+        },
+      }
+    );
     }
   };
 
@@ -261,7 +278,46 @@ export default function EditProductScreen() {
     setShowCostChangeDialog(false);
     if (pendingProductData) {
       console.log('📤 Enviando atualização:', pendingProductData);
-      updateMutation.mutate(pendingProductData);
+      updateMutation.mutate(
+        { id: productId, data: pendingProductData },
+        {
+          onSuccess: async () => {
+            console.log('✅ updateProduct sucesso (custo mudou)');
+            
+            // Verificar necessidade de ajuste de estoque
+            const target = parseInt(newStock || '0', 10);
+            const hasValidTarget = !isNaN(target);
+            const needsAdjust = hasValidTarget && target !== currentStock;
+
+            if (needsAdjust) {
+              try {
+                const increasing = target > currentStock;
+                const payload: any = {
+                  new_quantity: target,
+                  reason: `Ajuste automático na edição (de ${currentStock} para ${target})`,
+                };
+                if (increasing) {
+                  let unitCostRaw = increaseUnitCost || costPrice;
+                  let unitCost = parseFloat(String(unitCostRaw).replace(',', '.'));
+                  if (!isNaN(unitCost) && unitCost > 0) {
+                    payload.unit_cost = unitCost;
+                  }
+                }
+                await adjustProductQuantity(productId, payload);
+                setCurrentStock(target);
+              } catch (err: any) {
+                setErrors(prev => ({ ...prev, global: err?.response?.data?.detail || 'Falha ao ajustar estoque.' }));
+                return;
+              }
+            }
+
+            setShowSuccessDialog(true);
+          },
+          onError: (error: any) => {
+            setErrors(prev => ({ ...prev, global: 'Falha ao atualizar produto. Verifique os dados.' }));
+          },
+        }
+      );
       setPendingProductData(null);
     }
   };

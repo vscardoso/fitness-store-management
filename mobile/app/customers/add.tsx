@@ -21,8 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useRouter } from 'expo-router';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { createCustomer } from '@/services/customerService';
+import { useCreateCustomer } from '@/hooks';
 import { searchCep } from '@/services/cepService';
 import { phoneMask, cpfMask, cepMask, dateMask, isValidDate } from '@/utils/masks';
 import { Colors, theme } from '@/constants/Colors';
@@ -30,7 +29,7 @@ import type { CustomerCreate } from '@/types';
 
 export default function AddCustomerScreen() {
   const router = useRouter();
-  const queryClient = useQueryClient();
+  const createMutation = useCreateCustomer();
 
   // Estados do formulário
   const [fullName, setFullName] = useState('');
@@ -114,21 +113,7 @@ export default function AddCustomerScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
-  /**
-   * Mutation: Criar cliente
-   */
-  const createMutation = useMutation({
-    mutationFn: (customerData: CustomerCreate) => createCustomer(customerData),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['customers'] });
-      setShowSuccessDialog(true);
-    },
-    onError: (error: any) => {
-      const message = error?.response?.data?.detail || error.message || 'Erro ao cadastrar cliente';
-      setErrorMessage(message);
-      setShowErrorDialog(true);
-    },
-  });
+
 
   /**
    * Submeter formulário
@@ -154,7 +139,16 @@ export default function AddCustomerScreen() {
       zip_code: zipCode ? zipCode.replace(/\D/g, '') : undefined,
     };
 
-    createMutation.mutate(customerData);
+    createMutation.mutate(customerData, {
+      onSuccess: () => {
+        setShowSuccessDialog(true);
+      },
+      onError: (error: any) => {
+        const message = error?.response?.data?.detail || error.message || 'Erro ao cadastrar cliente';
+        setErrorMessage(message);
+        setShowErrorDialog(true);
+      },
+    });
   };
 
   /**
