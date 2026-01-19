@@ -25,7 +25,8 @@
       "Bash(../venv/Scripts/python.exe -m pip:*)",
       "Bash(../venv/Scripts/python.exe -m pip install:*)",
       "Bash(../venv/Scripts/python.exe test_notification_system.py)",
-      "Bash(../venv/Scripts/python.exe -m alembic upgrade:*)"
+      "Bash(../venv/Scripts/python.exe -m alembic upgrade:*)",
+      "Bash(git push:*)"
     ],
     "deny": [],
     "ask": []

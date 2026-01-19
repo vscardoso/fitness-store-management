@@ -32,6 +32,10 @@ export default function AddTripScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
     from?: string;
+    // New params (full product data from catalog)
+    preselectedProductData?: string;
+    fromCatalog?: string;
+    // Legacy params
     preselectedProductId?: string;
     preselectedQuantity?: string;
     preselectedPrice?: string;
@@ -77,8 +81,14 @@ export default function AddTripScreen() {
           params: {
             newTripId: data.id,
             newTripCode: data.trip_code || tripCode,
-            // Preservar produto pré-selecionado (se houver)
-            ...(params.preselectedProductId && {
+            // Preservar produto pré-selecionado (novo fluxo com dados completos)
+            ...(params.preselectedProductData && {
+              preselectedProductData: params.preselectedProductData,
+              preselectedQuantity: params.preselectedQuantity,
+              fromCatalog: params.fromCatalog,
+            }),
+            // Legacy: Preservar produto pré-selecionado (se houver)
+            ...(params.preselectedProductId && !params.preselectedProductData && {
               preselectedProductId: params.preselectedProductId,
               preselectedQuantity: params.preselectedQuantity,
               preselectedPrice: params.preselectedPrice
@@ -262,8 +272,17 @@ export default function AddTripScreen() {
       return false;
     }
 
-    // Verificar se código está sendo validado
+    // Verificar se código está sendo validado ou ainda não foi validado
+    // (idle com código >= 5 chars significa que o debounce ainda não iniciou)
     if (codeValidationStatus === 'checking') {
+      setValidationMessage('Aguarde a verificação do código...');
+      setShowValidationDialog(true);
+      return false;
+    }
+
+    // Se o status é 'idle' mas o código tem 5+ chars, a validação ainda não rodou
+    // Isso pode acontecer se o usuário clicar muito rápido após digitar
+    if (codeValidationStatus === 'idle' && tripCode.trim().length >= 5) {
       setValidationMessage('Aguarde a verificação do código...');
       setShowValidationDialog(true);
       return false;
@@ -704,7 +723,13 @@ export default function AddTripScreen() {
               onPress={handleSubmit}
               style={[styles.button, styles.buttonPrimary]}
               loading={createMutation.isPending}
-              disabled={createMutation.isPending || codeValidationStatus === 'invalid' || codeValidationStatus === 'checking'}
+              disabled={
+                createMutation.isPending ||
+                codeValidationStatus === 'invalid' ||
+                codeValidationStatus === 'checking' ||
+                // Disable if code needs validation but hasn't started yet
+                (codeValidationStatus === 'idle' && tripCode.trim().length >= 5)
+              }
             >
               Salvar Viagem
             </Button>

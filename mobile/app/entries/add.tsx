@@ -37,10 +37,11 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { useTrips } from '@/hooks/useTrips';
 import { useProducts } from '@/hooks';
 import { createStockEntry, checkEntryCode } from '@/services/stockEntryService';
+import { getCatalogProducts } from '@/services/catalogService';
 import { formatCurrency } from '@/utils/format';
 import { cnpjMask, phoneMask } from '@/utils/masks';
 import { Colors, theme } from '@/constants/Colors';
@@ -58,10 +59,15 @@ export default function AddStockEntryScreen() {
 
   // Ler parâmetros da navegação (produto pré-selecionado do catálogo + viagem criada)
   const params = useLocalSearchParams<{
+    // Legacy params (for backwards compatibility)
     preselectedProductId?: string;
     preselectedProductName?: string;
     preselectedQuantity?: string;
     preselectedPrice?: string;
+    // New params (full product data from catalog)
+    preselectedProductData?: string;
+    fromCatalog?: string;
+    // Trip params
     newTripId?: string;
     newTripCode?: string;
   }>();
@@ -96,14 +102,83 @@ export default function AddStockEntryScreen() {
   const [itemToDelete, setItemToDelete] = useState<number | null>(null);
 
   // Queries
-  const { data: trips = [] } = useTrips({ status: undefined, limit: 100 });
-  const { data: products = [] } = useProducts({ limit: 100 });
+  const { data: trips = [], refetch: refetchTrips } = useTrips({ status: undefined, limit: 100 });
+  const { data: products = [], isLoading: isLoadingProducts } = useProducts({ limit: 100 });
+
+  // Fetch catalog products for the modal
+  const { data: catalogProducts = [], isLoading: isLoadingCatalog } = useQuery({
+    queryKey: ['catalog-products-for-entry'],
+    queryFn: () => getCatalogProducts({ limit: 200 }),
+  });
+
+  // Combine active products and catalog products for the modal
+  // Mark catalog products with is_catalog flag
+  const allAvailableProducts = [
+    ...products,
+    ...catalogProducts
+      .filter(cp => !products.some(p => p.sku === cp.sku)) // Avoid duplicates
+      .map(cp => ({ ...cp, is_catalog: true } as Product)),
+  ];
+
+  // Flag to show catalog option when no active products
+  const showCatalogHint = !isLoadingProducts && products.length === 0;
+
+  // Force refetch trips when returning from trip creation
+  useEffect(() => {
+    if (params.newTripId) {
+      // Refetch trips to ensure the new trip is in the list
+      refetchTrips();
+    }
+  }, [params.newTripId, refetchTrips]);
 
   /**
    * Pré-adicionar produto do catálogo (se veio dos parâmetros)
    */
   useEffect(() => {
-    if (params.preselectedProductId && products.length > 0 && items.length === 0) {
+    // Skip if already has items
+    if (items.length > 0) return;
+
+    // New flow: full product data from catalog
+    if (params.preselectedProductData && params.fromCatalog === 'true') {
+      try {
+        const productData = JSON.parse(params.preselectedProductData);
+        const quantity = params.preselectedQuantity ? parseInt(params.preselectedQuantity) : 1;
+        const price = productData.cost_price || 0;
+
+        // Converter price para formato aceito por formatCostInput (números inteiros representando centavos)
+        const priceInCents = Math.round(price * 100).toString();
+        const costFormatted = formatCostInput(priceInCents);
+
+        // Create a virtual product for the catalog item
+        const catalogProduct: Product = {
+          id: productData.id,
+          name: productData.name,
+          sku: productData.sku || `CAT-${productData.id}`,
+          cost_price: productData.cost_price,
+          price: productData.price,
+          is_active: true,
+          is_catalog: true,
+        } as Product;
+
+        const newItem: EntryItemForm = {
+          id: Date.now().toString(),
+          product_id: productData.id,
+          quantity_received: quantity,
+          unit_cost: price,
+          notes: '',
+          product: catalogProduct,
+        };
+
+        setItems([newItem]);
+        setItemCosts({ [newItem.id]: costFormatted });
+        return;
+      } catch (e) {
+        console.error('Error parsing preselectedProductData:', e);
+      }
+    }
+
+    // Legacy flow: product ID lookup in active products
+    if (params.preselectedProductId && products.length > 0) {
       const productId = parseInt(params.preselectedProductId);
       const product = products.find((p: Product) => p.id === productId);
 
@@ -128,26 +203,33 @@ export default function AddStockEntryScreen() {
         setItemCosts({ [newItem.id]: costFormatted });
       }
     }
-  }, [params.preselectedProductId, products]);
+  }, [params.preselectedProductData, params.preselectedProductId, params.fromCatalog, products]);
 
   /**
    * Auto-selecionar viagem recém-criada (quando volta de /trips/add)
    */
   useEffect(() => {
-    if (params.newTripId && trips.length > 0) {
+    if (params.newTripId) {
       const newTripIdNum = parseInt(params.newTripId);
+
+      // Always set trip type and ID immediately
+      setSelectedType(EntryType.TRIP);
+      setTripId(newTripIdNum);
+
+      // Try to find trip in list for full info
       const trip = trips.find((t) => t.id === newTripIdNum);
 
       if (trip) {
-        setSelectedType(EntryType.TRIP);
-        setTripId(trip.id);
-
-        // Mostrar feedback de sucesso
+        // Show feedback with full trip info
         setLinkedTripInfo({ code: trip.trip_code, destination: trip.destination });
+        setShowTripLinkedDialog(true);
+      } else if (params.newTripCode && !showTripLinkedDialog) {
+        // Trip not in list yet, use params data for feedback
+        setLinkedTripInfo({ code: params.newTripCode, destination: 'Carregando...' });
         setShowTripLinkedDialog(true);
       }
     }
-  }, [params.newTripId, trips]);
+  }, [params.newTripId, params.newTripCode, trips]);
 
   /**
    * Validar código de entrada em tempo real (com debounce)
@@ -191,11 +273,11 @@ export default function AddStockEntryScreen() {
   }, [entryCode]);
 
   /**
-   * Filtrar produtos por busca
+   * Filtrar produtos por busca (inclui catálogo e ativos)
    */
-  const filteredProducts = products.filter((p: Product) =>
+  const filteredProducts = allAvailableProducts.filter((p: Product) =>
     p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-    p.sku.toLowerCase().includes(productSearch.toLowerCase())
+    (p.sku && p.sku.toLowerCase().includes(productSearch.toLowerCase()))
   );
 
   /**
@@ -240,17 +322,30 @@ export default function AddStockEntryScreen() {
   };
 
   /**
-   * Adicionar produto à lista
+   * Adicionar produto à lista (suporta catálogo e ativos)
    */
   const handleAddProduct = (product: Product) => {
+    // Check if this product is already in the list
+    const alreadyAdded = items.some(item => item.product_id === product.id);
+    if (alreadyAdded) {
+      Alert.alert('Atenção', 'Este produto já foi adicionado à entrada.');
+      return;
+    }
+
     const costFormatted = formatCostInput((product.cost_price || 0).toString().replace('.', ''));
+
+    // Mark catalog products appropriately
+    const productWithFlag = product.is_catalog
+      ? { ...product, is_catalog: true }
+      : product;
+
     const newItem: EntryItemForm = {
       id: Date.now().toString(),
       product_id: product.id,
       quantity_received: 1,
       unit_cost: product.cost_price || 0,
       notes: '',
-      product,
+      product: productWithFlag,
     };
 
     setItems([...items, newItem]);
@@ -816,28 +911,50 @@ export default function AddStockEntryScreen() {
                   style={styles.searchInput}
                 />
 
-                <ScrollView style={styles.productList}>
-                  {filteredProducts.map((product: Product) => (
-                    <TouchableOpacity
-                      key={product.id}
-                      style={styles.productItem}
-                      onPress={() => handleAddProduct(product)}
-                    >
-                      <View>
-                        <Text style={styles.productName}>{product.name}</Text>
-                        <Text style={styles.productPrice}>
-                          Custo: {formatCurrency(product.cost_price || 0)}
+                {(isLoadingProducts || isLoadingCatalog) ? (
+                  <View style={styles.loadingContainer}>
+                    <Text style={styles.loadingText}>Carregando produtos...</Text>
+                  </View>
+                ) : (
+                  <ScrollView style={styles.productList}>
+                    {filteredProducts.map((product: Product) => (
+                      <TouchableOpacity
+                        key={`${product.is_catalog ? 'cat' : 'act'}-${product.id}`}
+                        style={styles.productItem}
+                        onPress={() => handleAddProduct(product)}
+                      >
+                        <View style={styles.productItemContent}>
+                          <View style={styles.productItemHeader}>
+                            <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
+                            {product.is_catalog && (
+                              <View style={styles.catalogBadge}>
+                                <Text style={styles.catalogBadgeText}>Catálogo</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={styles.productPrice}>
+                            Custo: {formatCurrency(product.cost_price || 0)}
+                          </Text>
+                          {product.sku && (
+                            <Text style={styles.productSku}>SKU: {product.sku}</Text>
+                          )}
+                        </View>
+                        <IconButton icon="plus" size={20} />
+                      </TouchableOpacity>
+                    ))}
+                    {filteredProducts.length === 0 && (
+                      <View style={styles.emptyState}>
+                        <Ionicons name="cube-outline" size={48} color={Colors.light.textSecondary} />
+                        <Text style={styles.emptyText}>
+                          Nenhum produto encontrado
+                        </Text>
+                        <Text style={styles.emptySubtext}>
+                          Tente buscar por outro termo
                         </Text>
                       </View>
-                      <IconButton icon="plus" size={20} />
-                    </TouchableOpacity>
-                  ))}
-                  {filteredProducts.length === 0 && (
-                    <View style={styles.emptyState}>
-                      <Text style={styles.emptyText}>Nenhum produto encontrado</Text>
-                    </View>
-                  )}
-                </ScrollView>
+                    )}
+                  </ScrollView>
+                )}
               </View>
             </View>
           </Modal>
@@ -969,8 +1086,14 @@ export default function AddStockEntryScreen() {
             pathname: '/trips/add',
             params: {
               from: 'entries',
-              // Preservar produto pré-selecionado (se houver)
-              ...(params.preselectedProductId && {
+              // Preservar produto pré-selecionado (novo fluxo com dados completos)
+              ...(params.preselectedProductData && {
+                preselectedProductData: params.preselectedProductData,
+                preselectedQuantity: params.preselectedQuantity,
+                fromCatalog: params.fromCatalog,
+              }),
+              // Legacy: Preservar produto pré-selecionado (se houver)
+              ...(params.preselectedProductId && !params.preselectedProductData && {
                 preselectedProductId: params.preselectedProductId,
                 preselectedQuantity: params.preselectedQuantity,
                 preselectedPrice: params.preselectedPrice,
@@ -1284,13 +1407,46 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#f0f0f0',
   },
+  productItemContent: {
+    flex: 1,
+  },
+  productItemHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
   productName: {
     fontSize: 16,
     fontWeight: '500',
     color: Colors.light.text,
-    marginBottom: 4,
+    flex: 1,
   },
   productPrice: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+  },
+  productSku: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  catalogBadge: {
+    backgroundColor: '#e3f2fd',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  catalogBadgeText: {
+    fontSize: 10,
+    color: '#1976d2',
+    fontWeight: '600',
+  },
+  loadingContainer: {
+    padding: 32,
+    alignItems: 'center',
+  },
+  loadingText: {
     fontSize: 14,
     color: Colors.light.textSecondary,
   },
@@ -1299,8 +1455,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   emptyText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.light.text,
+    marginTop: 12,
+  },
+  emptySubtext: {
     fontSize: 14,
     color: Colors.light.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  catalogButton: {
+    marginTop: 16,
+    backgroundColor: Colors.light.primary,
   },
   itemCard: {
     marginBottom: 12,

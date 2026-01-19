@@ -678,13 +678,20 @@ export default function CatalogScreen() {
         onConfirm={() => {
           setShowCreateEntryDialog(false);
           if (selectedProduct) {
+            // Pass full product data as JSON to avoid ID mismatch between catalog and active products
+            const productData = {
+              id: selectedProduct.id,
+              name: customName || selectedProduct.name,
+              sku: selectedProduct.sku,
+              cost_price: parseCurrency(customCostPrice),
+              price: parseCurrency(customPrice),
+            };
             router.push({
               pathname: '/entries/add',
               params: {
-                preselectedProductId: selectedProduct.id,
-                preselectedProductName: customName,
+                preselectedProductData: JSON.stringify(productData),
                 preselectedQuantity: quantity,
-                preselectedPrice: parseCurrency(customCostPrice),
+                fromCatalog: 'true',
               },
             });
           }
