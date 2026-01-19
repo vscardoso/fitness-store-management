@@ -33,35 +33,21 @@
       "bundler": "metro"
     },
     "scheme": "fitness-store",
-    "extra": {
-      "eas": {
-        "projectId": "your-expo-project-id-here"
-      }
-    },
-    "notification": {
-      "icon": "./assets/notification-icon.png",
-      "color": "#667eea",
-      "androidMode": "default",
-      "androidCollapsedTitle": "Fitness Store"
-    },
     "plugins": [
       "expo-router",
       [
-        "expo-barcode-scanner",
+        "expo-camera",
         {
           "cameraPermission": "Permitir $(PRODUCT_NAME) acessar sua câmera para escanear códigos de barras"
         }
-      ],
-      [
-        "expo-notifications",
-        {
-          "icon": "./assets/notification-icon.png",
-          "color": "#667eea",
-          "sounds": ["./assets/sounds/notification.wav"],
-          "androidMode": "default",
-          "androidCollapsedTitle": "Fitness Store"
-        }
       ]
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "f0cb590f-2113-48d5-ae4b-b3ca15d26639"
+      }
+    },
+    "owner": "vscardoso2005"
   }
 }

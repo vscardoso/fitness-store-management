@@ -27,9 +27,13 @@ const API_BASE_URL = 'https://fitness-backend-x1qn.onrender.com/api/v1';
 
 // ============================================================================
 
-// URL base da API
+// URL base da API - usa variável de ambiente ou fallback
+const PRODUCTION_URL = process.env.EXPO_PUBLIC_API_URL || 'https://fitness-backend-x1qn.onrender.com/api/v1';
+
 export const API_CONFIG = {
-  BASE_URL: __DEV__ ? API_BASE_URL : 'https://fitness-backend-x1qn.onrender.com/api/v1',
+  // Para testes via Expo Go/EAS Update, sempre usar produção
+  // Mude para API_BASE_URL se quiser testar localmente
+  BASE_URL: PRODUCTION_URL,
   TIMEOUT: 30000, // 30 segundos
 };
 

@@ -1,7 +1,7 @@
 """
 Modelo de viagem para rastrear viagens de compra de produtos.
 """
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from decimal import Decimal
 from sqlalchemy import String, Text, Numeric, Date, DateTime, Enum as SQLEnum, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -142,7 +142,7 @@ class Trip(BaseModel):
         Returns:
             TripStatus: Status calculado automaticamente
         """
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
 
         # Se tem horário de retorno e já passou, está completada
         if self.return_time and now >= self.return_time:

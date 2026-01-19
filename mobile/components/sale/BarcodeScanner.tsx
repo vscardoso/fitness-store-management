@@ -1,21 +1,20 @@
 /**
  * Scanner de código de barras para PDV
  *
- * Utiliza expo-barcode-scanner para ler códigos de barras
+ * Utiliza expo-camera (CameraView) para ler códigos de barras
  * e buscar produtos automaticamente
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import {
   View,
   StyleSheet,
-  Platform,
   Alert,
 } from 'react-native';
 import { Modal, Portal, Button, Text, ActivityIndicator } from 'react-native-paper';
-import { BarCodeScanner, BarCodeScannerResult } from 'expo-barcode-scanner';
+import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors } from '@/constants/Colors';
 import { haptics } from '@/utils/haptics';
 import { getProductByBarcode } from '@/services/productService';
 import type { Product } from '@/types';
@@ -31,39 +30,32 @@ export default function BarcodeScanner({
   onDismiss,
   onProductFound,
 }: BarcodeScannerProps) {
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null);
+  const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-
-  /**
-   * Solicitar permissões de câmera ao montar
-   */
-  useEffect(() => {
-    (async () => {
-      const { status } = await BarCodeScanner.requestPermissionsAsync();
-      setHasPermission(status === 'granted');
-    })();
-  }, []);
+  const lastScannedRef = useRef<string | null>(null);
 
   /**
    * Reset estado ao abrir/fechar
    */
-  useEffect(() => {
-    if (visible) {
-      setIsScanning(true);
-      setIsLoading(false);
-    }
-  }, [visible]);
+  const handleModalShow = () => {
+    setIsScanning(true);
+    setIsLoading(false);
+    lastScannedRef.current = null;
+  };
 
   /**
    * Handler para quando um código é escaneado
    */
-  const handleBarCodeScanned = async ({ type, data }: BarCodeScannerResult) => {
-    // Prevenir múltiplos scans simultâneos
-    if (!isScanning || isLoading) {
+  const handleBarcodeScanned = async (result: BarcodeScanningResult) => {
+    const { data } = result;
+
+    // Prevenir múltiplos scans simultâneos do mesmo código
+    if (!isScanning || isLoading || lastScannedRef.current === data) {
       return;
     }
 
+    lastScannedRef.current = data;
     setIsScanning(false);
     setIsLoading(true);
     haptics.medium();
@@ -91,6 +83,7 @@ export default function BarcodeScanner({
           onPress: () => {
             setIsScanning(true);
             setIsLoading(false);
+            lastScannedRef.current = null;
           },
         },
         {
@@ -107,17 +100,17 @@ export default function BarcodeScanner({
    */
   const renderContent = () => {
     // Permissão não verificada ainda
-    if (hasPermission === null) {
+    if (!permission) {
       return (
         <View style={styles.centerContent}>
           <ActivityIndicator size="large" color={Colors.light.primary} />
-          <Text style={styles.statusText}>Solicitando permissão da câmera...</Text>
+          <Text style={styles.statusText}>Verificando permissão da câmera...</Text>
         </View>
       );
     }
 
     // Permissão negada
-    if (hasPermission === false) {
+    if (!permission.granted) {
       return (
         <View style={styles.centerContent}>
           <Ionicons name="camera-outline" size={64} color={Colors.light.textSecondary} />
@@ -125,12 +118,20 @@ export default function BarcodeScanner({
             Câmera não disponível
           </Text>
           <Text style={styles.errorDescription}>
-            Permita o acesso à câmera nas configurações do seu dispositivo para usar o scanner.
+            Permita o acesso à câmera para usar o scanner de código de barras.
           </Text>
           <Button
             mode="contained"
-            onPress={onDismiss}
+            onPress={requestPermission}
             style={styles.button}
+            icon="camera"
+          >
+            Permitir Câmera
+          </Button>
+          <Button
+            mode="outlined"
+            onPress={onDismiss}
+            style={[styles.button, { marginTop: 12 }]}
           >
             Fechar
           </Button>
@@ -141,18 +142,21 @@ export default function BarcodeScanner({
     // Scanner ativo
     return (
       <View style={styles.scannerContainer}>
-        <BarCodeScanner
-          onBarCodeScanned={isScanning ? handleBarCodeScanned : undefined}
+        <CameraView
           style={StyleSheet.absoluteFillObject}
-          barCodeTypes={[
-            BarCodeScanner.Constants.BarCodeType.ean13,
-            BarCodeScanner.Constants.BarCodeType.ean8,
-            BarCodeScanner.Constants.BarCodeType.upc_a,
-            BarCodeScanner.Constants.BarCodeType.upc_e,
-            BarCodeScanner.Constants.BarCodeType.code39,
-            BarCodeScanner.Constants.BarCodeType.code128,
-            BarCodeScanner.Constants.BarCodeType.qr,
-          ]}
+          facing="back"
+          barcodeScannerSettings={{
+            barcodeTypes: [
+              'ean13',
+              'ean8',
+              'upc_a',
+              'upc_e',
+              'code39',
+              'code128',
+              'qr',
+            ],
+          }}
+          onBarcodeScanned={isScanning ? handleBarcodeScanned : undefined}
         />
 
         {/* Overlay com guia de escaneamento */}
@@ -206,6 +210,7 @@ export default function BarcodeScanner({
       <Modal
         visible={visible}
         onDismiss={onDismiss}
+        onShow={handleModalShow}
         contentContainerStyle={styles.modal}
       >
         {renderContent()}

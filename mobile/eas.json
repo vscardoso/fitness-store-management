@@ -1,22 +1,55 @@
 {
   "cli": {
-    "version": ">= 8.0.0"
+    "version": ">= 8.0.0",
+    "appVersionSource": "remote"
   },
   "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
+      }
+    },
     "preview": {
       "distribution": "internal",
-      "android": { "buildType": "apk" },
-      "ios": { "simulator": false }
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://fitness-backend-x1qn.onrender.com/api/v1",
+        "EAS_NO_VCS": "1"
+      },
+      "cache": {
+        "disabled": true
+      }
     },
     "production": {
-      "android": { "buildType": "app-bundle" },
-      "ios": { "simulator": false }
+      "autoIncrement": true,
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "simulator": false
+      },
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://fitness-backend-x1qn.onrender.com/api/v1"
+      }
     }
   },
   "submit": {
     "production": {
-      "android": { "track": "production" },
-      "ios": { }
+      "android": {
+        "track": "production"
+      },
+      "ios": {}
     }
   }
 }
