@@ -183,87 +183,51 @@ export default function EditProductScreen() {
 
     // Verificar se cost_price mudou
     const newCost = parseFloat(costPrice);
-    console.log('💰 Verificando mudança de custo:');
-    console.log('  - Custo original:', originalCostPrice);
-    console.log('  - Custo novo:', newCost);
-    console.log('  - Diferença:', originalCostPrice !== null ? Math.abs(newCost - originalCostPrice) : 'N/A');
     
     if (originalCostPrice !== null && !isNaN(newCost) && Math.abs(newCost - originalCostPrice) > 0.01) {
-      // Cost_price mudou - mostrar dialog de confirmação
-      console.log('⚠️ Custo mudou! Mostrando dialog de confirmação');
+      // Cost_price mudou - mostrar dialog de confirmacao
       setPendingProductData(productData);
       setShowCostChangeDialog(true);
     } else {
-      // Sem mudança no custo - salvar direto
-      console.log('✅ Sem mudança no custo, salvando direto');
+      // Sem mudanca no custo - salvar direto
       updateMutation.mutate(
-      { id: productId, data: productData },
-      {
-        onSuccess: async () => {
-          console.log('✅ updateProduct sucesso: iniciando fluxo pós-salvar');
+        { id: productId, data: productData },
+        {
+          onSuccess: async () => {
+            // Verificar necessidade de ajuste de estoque
+            const target = parseInt(newStock || '0', 10);
+            const hasValidTarget = !isNaN(target);
+            const needsAdjust = hasValidTarget && target !== currentStock;
 
-          // Verificar necessidade de ajuste de estoque
-          const target = parseInt(newStock || '0', 10);
-          const hasValidTarget = !isNaN(target);
-          const needsAdjust = hasValidTarget && target !== currentStock;
-
-          if (needsAdjust) {
-            try {
-              const increasing = target > currentStock;
-              const payload: any = {
-                new_quantity: target,
-                reason: `Ajuste automático na edição (de ${currentStock} para ${target})`,
-              };
-              if (increasing) {
-                // Usar custo informado para aumento ou cair para costPrice
-                let unitCostRaw = increaseUnitCost || costPrice;
-                let unitCost = parseFloat(String(unitCostRaw).replace(',', '.'));
-                if (!isNaN(unitCost) && unitCost > 0) {
-                  payload.unit_cost = unitCost;
+            if (needsAdjust) {
+              try {
+                const increasing = target > currentStock;
+                const payload: any = {
+                  new_quantity: target,
+                  reason: `Ajuste automatico na edicao (de ${currentStock} para ${target})`,
+                };
+                if (increasing) {
+                  let unitCostRaw = increaseUnitCost || costPrice;
+                  let unitCost = parseFloat(String(unitCostRaw).replace(',', '.'));
+                  if (!isNaN(unitCost) && unitCost > 0) {
+                    payload.unit_cost = unitCost;
+                  }
                 }
+                await adjustProductQuantity(productId, payload);
+                setCurrentStock(target);
+              } catch (err: any) {
+                setErrors(prev => ({ ...prev, global: err?.response?.data?.detail || 'Falha ao ajustar estoque.' }));
+                return;
               }
-              console.log('🔄 Ajustando estoque com payload:', payload);
-              await adjustProductQuantity(productId, payload);
-              setCurrentStock(target);
-            } catch (err: any) {
-              console.log('❌ Falha ao ajustar estoque após updateProduct:', err?.response?.data || err?.message);
-              setErrors(prev => ({ ...prev, global: err?.response?.data?.detail || 'Falha ao ajustar estoque.' }));
-              return; // Não mostrar diálogo de sucesso se ajuste falhar
             }
-          }
 
-          // Mostrar diálogo de sucesso
-          setShowSuccessDialog(true);
-        },
-        onError: (error: any) => {
-          console.log('❌ updateProduct erro:', error?.response?.status, error?.response?.data || error?.message);
-          setErrors(prev => ({ ...prev, global: 'Falha ao atualizar produto. Verifique os dados.' }));
-        },
-      }
-    );
-              // Não bloqueia o fluxo - produto foi salvo
-              setErrorMessage(
-                `Produto atualizado, mas houve erro ao ajustar estoque: ${
-                  err?.response?.data?.detail || err.message || 'Erro desconhecido'
-                }`
-              );
-              setShowErrorDialog(true);
-              return;
-            }
-          }
-
-          setShowSuccessDialog(true);
-        },
-        onError: (error: any) => {
-          console.log('❌ updateProduct erro:', error?.response?.status, error?.response?.data || error?.message);
-
-          const message =
-            error?.response?.data?.detail || error.message || 'Erro ao atualizar produto';
-          setErrorMessage(message);
-          setShowErrorDialog(true);
-        },
-      }
-    );
+            setShowSuccessDialog(true);
+          },
+          onError: (error: any) => {
+            setErrors(prev => ({ ...prev, global: 'Falha ao atualizar produto. Verifique os dados.' }));
+          },
+        }
+      );
     }
   };
 
