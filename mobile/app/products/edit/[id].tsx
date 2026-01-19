@@ -121,9 +121,6 @@ export default function EditProductScreen() {
     return num.toFixed(2).replace('.', ',');
   };
 
-  // Usar hook que automaticamente invalida cache
-  const updateMutation = useUpdateProduct();
-
   /**
    * Validar campos obrigatórios
    */
