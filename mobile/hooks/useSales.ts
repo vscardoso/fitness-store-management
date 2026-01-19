@@ -63,9 +63,14 @@ export const useCreateSale = () => {
     onSuccess: () => {
       // Invalida lista de vendas e totais do dia
       queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['recent-sales'] });
       queryClient.invalidateQueries({ queryKey: ['sales', 'reports', 'daily'] });
       // Invalida produtos (estoque pode ter mudado)
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      // Invalida dashboard (metricas foram atualizadas)
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-valuation'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-health'] });
     },
   });
 };
