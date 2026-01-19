@@ -85,6 +85,10 @@ export const useCreateProduct = () => {
     mutationFn: (productData: ProductCreate) => createProduct(productData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      // Invalida dashboard (estoque foi atualizado)
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-valuation'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-health'] });
     },
   });
 };
@@ -101,6 +105,10 @@ export const useUpdateProduct = () => {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['products', variables.id] });
+      // Invalida dashboard (estoque pode ter mudado)
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-valuation'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-health'] });
     },
   });
 };
@@ -115,6 +123,10 @@ export const useDeleteProduct = () => {
     mutationFn: (id: number) => deleteProduct(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      // Invalida dashboard (estoque foi removido)
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-valuation'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-health'] });
     },
   });
 };
