@@ -15,7 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
-import { getDashboardStats, getInventoryValuation, getInventoryHealth } from '@/services/dashboardService';
+import { getDashboardStats, getInventoryValuation, getInventoryHealth, getMonthlySalesStats } from '@/services/dashboardService';
 import { getActiveProducts, getLowStockProducts } from '@/services/productService';
 import { getDailySalesTotal, getSales } from '@/services/saleService';
 import { getCustomers } from '@/services/customerService';
@@ -84,6 +84,13 @@ export default function DashboardScreen() {
     enabled: !!user,
   });
 
+  // Métricas mensais de vendas
+  const { data: monthlyStats, refetch: refetchMonthly } = useQuery({
+    queryKey: ['monthly-sales'],
+    queryFn: getMonthlySalesStats,
+    enabled: !!user,
+  });
+
   // Função de refresh completa
   const onRefresh = async () => {
     setRefreshing(true);
@@ -92,6 +99,7 @@ export default function DashboardScreen() {
       refetchValuation(),
       refetchHealth(),
       refetchRecentSales(),
+      refetchMonthly(),
     ]);
     setRefreshing(false);
   };
@@ -119,17 +127,27 @@ export default function DashboardScreen() {
 
   const totalCustomers = dashboardStats?.customers.total || 0;
 
+  // Métricas mensais
+  const totalSalesMonth = monthlyStats?.total_month || 0;
+  const countSalesMonth = monthlyStats?.count_month || 0;
+  const profitMonth = monthlyStats?.profit_month || 0;
+  const averageTicketMonth = monthlyStats?.average_ticket_month || 0;
+  const marginPercentMonth = monthlyStats?.margin_percent_month || 0;
+
   // Explicações dos cards
   const cardExplanations: Record<string, string> = {
     'sales-today': 'Total de vendas realizadas no dia atual. O percentual mostra a variação em relação ao dia anterior.',
     'sales-total': 'Soma de todas as vendas realizadas desde o início. Inclui o número total de transações concluídas.',
     'products': 'Quantidade total de produtos cadastrados que possuem estoque disponível para venda.',
     'customers': 'Número de clientes ativos cadastrados no sistema. Clientes inativos não são contabilizados.',
-    'stock-cost': 'Valor total investido no estoque atual, calculado com base no custo de aquisição (preço de compra) de cada produto.',
-    'stock-retail': 'Valor potencial de venda do estoque atual. Representa quanto você pode faturar vendendo todo o estoque ao preço de venda cadastrado.',
+    'stock-cost': 'Valor do estoque atual em mãos. Este valor diminui conforme as vendas são realizadas, representando o capital investido no inventário disponível.',
+    'stock-retail': 'Receita potencial caso todo o estoque atual seja vendido ao preço de venda cadastrado. Representa o faturamento máximo possível com o inventário disponível.',
     'stock-margin': 'Diferença entre o valor de venda e o custo do estoque. Indica o lucro potencial caso todo o estoque seja vendido. O percentual mostra a margem média.',
     'conditional-shipments': 'Envios condicionais ativos (produtos enviados para clientes experimentarem antes de comprar). O valor total representa o estoque temporariamente nas mãos dos clientes.',
     'realized-profit': 'Lucro efetivo obtido com as vendas já realizadas. Calculado subtraindo o CMV (Custo das Mercadorias Vendidas) do total de vendas. O percentual mostra a margem de lucro real.',
+    'sales-month': 'Total de vendas realizadas no mês atual. Mostra o faturamento mensal consolidado.',
+    'profit-month': 'Lucro líquido obtido no mês atual (vendas - CMV). O percentual indica a margem de lucro média do mês.',
+    'ticket-month': 'Valor médio por venda no mês atual. Calculado dividindo o total de vendas pela quantidade de transações.',
   };
 
   // Ações rápidas
@@ -230,18 +248,18 @@ export default function DashboardScreen() {
     },
     {
       id: 'stock-cost',
-      title: 'Estoque (Custo)',
+      title: 'Valor Estoque Atual',
       value: formatCurrency(stockValue),
-      subtitle: 'valor investido',
+      subtitle: 'capital em estoque',
       icon: 'wallet',
       colors: ['#4776e6', '#8e54e9'],
       onPress: () => router.push('/(tabs)/products'),
     },
     {
       id: 'stock-retail',
-      title: 'Estoque (Venda)',
+      title: 'Potencial de Venda',
       value: formatCurrency(potentialRevenue),
-      subtitle: 'valor potencial',
+      subtitle: 'se vender todo estoque',
       icon: 'cash',
       colors: ['#11998e', '#38ef7d'],
       onPress: () => router.push('/(tabs)/products'),
@@ -263,6 +281,33 @@ export default function DashboardScreen() {
       icon: 'stats-chart',
       colors: ['#fa709a', '#fee140'],
       onPress: () => router.push('/(tabs)/sales'),
+    },
+    {
+      id: 'sales-month',
+      title: 'Vendas do Mês',
+      value: formatCurrency(totalSalesMonth),
+      subtitle: `${countSalesMonth} vendas`,
+      icon: 'calendar',
+      colors: ['#a8edea', '#fed6e3'],
+      onPress: () => router.push('/reports/sales-period' as any),
+    },
+    {
+      id: 'profit-month',
+      title: 'Lucro do Mês',
+      value: formatCurrency(profitMonth),
+      subtitle: `${marginPercentMonth.toFixed(1)}% margem`,
+      icon: 'trending-up',
+      colors: ['#ff9a9e', '#fecfef'],
+      onPress: () => router.push('/reports/sales-period' as any),
+    },
+    {
+      id: 'ticket-month',
+      title: 'Ticket Médio Mensal',
+      value: formatCurrency(averageTicketMonth),
+      subtitle: 'por venda',
+      icon: 'receipt',
+      colors: ['#ffecd2', '#fcb69f'],
+      onPress: () => router.push('/reports/sales-period' as any),
     },
   ];
 

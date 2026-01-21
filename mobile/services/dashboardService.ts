@@ -73,3 +73,20 @@ export const getInventoryHealth = async (): Promise<InventoryHealth> => {
   const { data } = await api.get<InventoryHealth>('/dashboard/inventory/health');
   return data;
 };
+
+// Métricas mensais de vendas
+export interface MonthlySalesStats {
+  total_month: number;
+  count_month: number;
+  profit_month: number;
+  average_ticket_month: number;
+  margin_percent_month: number;
+  cmv_month: number;
+  period: { from: string; to: string };
+}
+
+export const getMonthlySalesStats = async (): Promise<MonthlySalesStats> => {
+  const { data } = await api.get<MonthlySalesStats>('/dashboard/sales/monthly');
+  return data;
+};
+

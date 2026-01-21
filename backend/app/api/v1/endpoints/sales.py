@@ -808,3 +808,78 @@ async def get_top_customers(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao buscar top clientes: {str(e)}"
         )
+
+
+@router.get(
+    "/reports/by-period",
+    summary="Relatório de vendas por período",
+    description="Retorna vendas agrupadas por mês/ano para relatórios analíticos"
+)
+async def get_sales_by_period(
+    year: Optional[int] = Query(None, description="Ano (ex: 2025)"),
+    month: Optional[int] = Query(None, ge=1, le=12, description="Mês (1-12)"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Relatório de vendas filtrado por período (mês/ano).
+    
+    Se nenhum filtro for fornecido, retorna vendas do mês atual.
+    
+    Returns:
+        Lista de vendas com detalhes para análise
+    """
+    from datetime import datetime
+    
+    # Se não fornecido, usa mês/ano atual
+    if year is None or month is None:
+        today = datetime.now()
+        year = year or today.year
+        month = month or today.month
+    
+    # Calcular primeiro e último dia do mês
+    from calendar import monthrange
+    first_day = date(year, month, 1)
+    last_day = date(year, month, monthrange(year, month)[1])
+    
+    sale_repo = SaleRepository(db)
+    
+    try:
+        # Buscar vendas do período
+        sales = await sale_repo.get_by_date_range(
+            start_date=first_day,
+            end_date=last_day,
+            tenant_id=tenant_id
+        )
+        
+        # Aplicar paginação
+        paginated_sales = sales[skip:skip + limit]
+        
+        # Calcular totais do período
+        total_sales = sum(float(s.total_amount) for s in sales)
+        total_count = len(sales)
+        
+        return {
+            "sales": paginated_sales,
+            "summary": {
+                "period": f"{month:02d}/{year}",
+                "total_sales": total_sales,
+                "total_count": total_count,
+                "average_ticket": total_sales / total_count if total_count > 0 else 0.0,
+            },
+            "pagination": {
+                "skip": skip,
+                "limit": limit,
+                "total": total_count,
+            },
+        }
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao buscar vendas por período: {str(e)}"
+        )
+

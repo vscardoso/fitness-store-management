@@ -71,6 +71,8 @@ export const useCreateSale = () => {
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['inventory-valuation'] });
       queryClient.invalidateQueries({ queryKey: ['inventory-health'] });
+      queryClient.invalidateQueries({ queryKey: ['monthly-sales'] });
+      queryClient.invalidateQueries({ queryKey: ['sales-by-period'] });
     },
   });
 };

@@ -528,3 +528,73 @@ async def get_inventory_health(
             "to": str(today),
         },
     }
+
+
+@router.get("/sales/monthly", response_model=Dict[str, Any])
+async def get_monthly_sales_stats(
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Retorna estatísticas de vendas do mês atual.
+    
+    - total_month: total de vendas do mês
+    - count_month: quantidade de vendas do mês
+    - profit_month: lucro realizado no mês (vendas - CMV)
+    - average_ticket_month: ticket médio do mês
+    - margin_percent_month: margem de lucro do mês (%)
+    """
+    from datetime import date
+    
+    today = date.today()
+    month_start = date(today.year, today.month, 1)
+    
+    # Vendas do mês
+    sales_month_query = select(
+        func.coalesce(func.sum(Sale.total_amount), 0).label("total_month"),
+        func.count(Sale.id).label("count_month"),
+    ).where(
+        Sale.tenant_id == tenant_id,
+        func.date(Sale.created_at) >= month_start,
+        func.date(Sale.created_at) <= today,
+        Sale.is_active == True,
+    )
+    
+    result = await db.execute(sales_month_query)
+    sales_stats = result.first()
+    total_month = float(sales_stats.total_month) if sales_stats.total_month else 0.0
+    count_month = int(sales_stats.count_month) if sales_stats.count_month else 0
+    
+    # CMV do mês
+    cmv_month_query = select(
+        func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_cost), 0).label("cmv_month"),
+    ).join(Sale, SaleItem.sale_id == Sale.id).where(
+        Sale.tenant_id == tenant_id,
+        func.date(Sale.created_at) >= month_start,
+        func.date(Sale.created_at) <= today,
+        Sale.is_active == True,
+        SaleItem.is_active == True,
+    )
+    
+    result = await db.execute(cmv_month_query)
+    cmv_month = float(result.scalar() or 0.0)
+    
+    # Cálculos
+    profit_month = total_month - cmv_month
+    margin_percent_month = (profit_month / total_month * 100) if total_month > 0 else 0.0
+    average_ticket_month = total_month / count_month if count_month > 0 else 0.0
+    
+    return {
+        "total_month": total_month,
+        "count_month": count_month,
+        "profit_month": profit_month,
+        "average_ticket_month": average_ticket_month,
+        "margin_percent_month": round(margin_percent_month, 2),
+        "cmv_month": cmv_month,
+        "period": {
+            "from": str(month_start),
+            "to": str(today),
+        },
+    }
+
