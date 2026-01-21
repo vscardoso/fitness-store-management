@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { formatCurrency } from '@/utils/format';
-import { theme } from '@/constants/theme';
+import { theme } from '@/constants/Colors';
 
 interface Sale {
   id: number;
@@ -110,7 +110,7 @@ export default function SalesPeriodScreen() {
         </View>
         <View style={styles.salePrice}>
           <Text style={styles.saleAmount}>{formatCurrency(item.total_amount)}</Text>
-          <Ionicons name="chevron-forward" size={20} color={theme.colors.gray} />
+          <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
         </View>
       </View>
     </TouchableOpacity>
@@ -129,7 +129,7 @@ export default function SalesPeriodScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.summaryCard}
             >
-              <Ionicons name="cash-outline" size={32} color={theme.colors.white} />
+              <Ionicons name="cash-outline" size={32} color="#fff" />
               <Text style={styles.summaryValue}>
                 {formatCurrency(data.summary.total_sales)}
               </Text>
@@ -145,7 +145,7 @@ export default function SalesPeriodScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.summaryCard}
             >
-              <Ionicons name="cart-outline" size={32} color={theme.colors.white} />
+              <Ionicons name="cart-outline" size={32} color="#fff" />
               <Text style={styles.summaryValue}>{data.summary.total_count}</Text>
               <Text style={styles.summaryLabel}>Vendas Realizadas</Text>
             </LinearGradient>
@@ -159,7 +159,7 @@ export default function SalesPeriodScreen() {
               end={{ x: 1, y: 1 }}
               style={styles.summaryCard}
             >
-              <Ionicons name="stats-chart-outline" size={32} color={theme.colors.white} />
+              <Ionicons name="stats-chart-outline" size={32} color="#fff" />
               <Text style={styles.summaryValue}>
                 {formatCurrency(data.summary.average_ticket)}
               </Text>
@@ -181,7 +181,7 @@ export default function SalesPeriodScreen() {
 
   const ListEmpty = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="cart-outline" size={64} color={theme.colors.gray} />
+      <Ionicons name="cart-outline" size={64} color={theme.colors.textSecondary} />
       <Text style={styles.emptyText}>Nenhuma venda neste período</Text>
     </View>
   );
@@ -197,7 +197,7 @@ export default function SalesPeriodScreen() {
       >
         <View style={styles.headerTop}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color={theme.colors.white} />
+            <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Vendas por Período</Text>
           <View style={{ width: 40 }} />
@@ -209,7 +209,7 @@ export default function SalesPeriodScreen() {
             onPress={goToPreviousMonth}
             style={styles.monthButton}
           >
-            <Ionicons name="chevron-back" size={28} color={theme.colors.white} />
+            <Ionicons name="chevron-back" size={28} color="#fff" />
           </TouchableOpacity>
           
           <Text style={styles.monthText}>
@@ -224,7 +224,7 @@ export default function SalesPeriodScreen() {
             <Ionicons 
               name="chevron-forward" 
               size={28} 
-              color={isCurrentMonth() ? 'rgba(255,255,255,0.3)' : theme.colors.white} 
+              color={isCurrentMonth() ? 'rgba(255,255,255,0.3)' : '#fff'} 
             />
           </TouchableOpacity>
         </View>
@@ -297,7 +297,7 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 20,
     fontWeight: '700',
-    color: theme.colors.white,
+    color: '#fff',
   },
   monthSelector: {
     flexDirection: 'row',
@@ -314,7 +314,7 @@ const styles = StyleSheet.create({
   monthText: {
     fontSize: 18,
     fontWeight: '600',
-    color: theme.colors.white,
+    color: '#fff',
   },
   summaryContainer: {
     flexDirection: 'row',
@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
   summaryValue: {
     fontSize: 20,
     fontWeight: '700',
-    color: theme.colors.white,
+    color: '#fff',
     marginTop: theme.spacing.sm,
   },
   summaryLabel: {
@@ -370,7 +370,7 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.xl,
   },
   saleCard: {
-    backgroundColor: theme.colors.white,
+    backgroundColor: '#fff',
     marginHorizontal: theme.spacing.lg,
     marginBottom: theme.spacing.sm,
     borderRadius: theme.borderRadius.lg,
@@ -436,7 +436,7 @@ const styles = StyleSheet.create({
   retryText: {
     fontSize: 14,
     fontWeight: '600',
-    color: theme.colors.white,
+    color: '#fff',
   },
   emptyContainer: {
     alignItems: 'center',

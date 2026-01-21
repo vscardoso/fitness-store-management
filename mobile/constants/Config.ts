@@ -17,7 +17,15 @@
 // ⚠️ DESCUBRA SEU IP: ipconfig (Windows) ou ifconfig (Mac/Linux)
 // ⚠️ Procure por "Adaptador de Rede sem Fio Wi-Fi" → IPv4
 // ⚠️ Backend deve estar rodando: uvicorn app.main:app --reload --host 0.0.0.0
-const LOCAL_API_URL = 'http://192.168.200.52:8000/api/v1';
+// const LOCAL_API_URL = 'http://172.29.5.48:8000/api/v1';
+
+// 🟠 OPÇÃO 4: Tunnel (ngrok) - Para VPN ou redes diferentes
+// ⚠️ Rode: ngrok http 8000
+// ⚠️ Cole a URL gerada abaixo (ex: https://abc123.ngrok-free.app)
+// const LOCAL_API_URL = 'https://COLE_SUA_URL_NGROK_AQUI.ngrok-free.app/api/v1';
+
+// 🟢 OPÇÃO 5: Dev local usando Backend de Produção (Render)
+const LOCAL_API_URL = 'https://fitness-backend-x1qn.onrender.com/api/v1';
 
 // 🟢 OPÇÃO 5: Produção Render.com
 const PRODUCTION_URL = process.env.EXPO_PUBLIC_API_URL || 'https://fitness-backend-x1qn.onrender.com/api/v1';
