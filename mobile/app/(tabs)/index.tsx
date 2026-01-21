@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -13,7 +13,7 @@ import { Text, Card, Badge, IconButton, Portal, Modal } from 'react-native-paper
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { getDashboardStats, getInventoryValuation, getInventoryHealth, getMonthlySalesStats } from '@/services/dashboardService';
 import { getActiveProducts, getLowStockProducts } from '@/services/productService';
@@ -104,6 +104,18 @@ export default function DashboardScreen() {
     setRefreshing(false);
   };
 
+  // Auto-refresh quando a tela recebe foco (ex: volta de checkout)
+  useFocusEffect(
+    useCallback(() => {
+      // Refetch todas as queries quando a tela recebe foco
+      refetchStats();
+      refetchValuation();
+      refetchHealth();
+      refetchRecentSales();
+      refetchMonthly();
+    }, [refetchStats, refetchValuation, refetchHealth, refetchRecentSales, refetchMonthly])
+  );
+
   // Extrair métricas do dashboard stats (com rastreabilidade)
   // PRIORIDADE: usar valuation (dados separados) ao invés de dashboardStats (agregado)
   const stockValue = valuation?.cost_value || dashboardStats?.stock.invested_value || 0;
@@ -137,17 +149,14 @@ export default function DashboardScreen() {
   // Explicações dos cards
   const cardExplanations: Record<string, string> = {
     'sales-today': 'Total de vendas realizadas no dia atual. O percentual mostra a variação em relação ao dia anterior.',
-    'sales-total': 'Soma de todas as vendas realizadas desde o início. Inclui o número total de transações concluídas.',
+    'sales-month': 'Total de vendas realizadas no mês atual. Mostra o faturamento mensal consolidado com a quantidade de transações.',
+    'profit-month': 'Lucro líquido obtido no mês atual (vendas - CMV). O percentual indica a margem de lucro média do mês.',
+    'ticket-month': 'Valor médio por venda no mês atual. Calculado dividindo o total de vendas pela quantidade de transações.',
     'products': 'Quantidade total de produtos cadastrados que possuem estoque disponível para venda.',
     'customers': 'Número de clientes ativos cadastrados no sistema. Clientes inativos não são contabilizados.',
     'stock-cost': 'Valor do estoque atual em mãos. Este valor diminui conforme as vendas são realizadas, representando o capital investido no inventário disponível.',
     'stock-retail': 'Receita potencial caso todo o estoque atual seja vendido ao preço de venda cadastrado. Representa o faturamento máximo possível com o inventário disponível.',
     'stock-margin': 'Diferença entre o valor de venda e o custo do estoque. Indica o lucro potencial caso todo o estoque seja vendido. O percentual mostra a margem média.',
-    'conditional-shipments': 'Envios condicionais ativos (produtos enviados para clientes experimentarem antes de comprar). O valor total representa o estoque temporariamente nas mãos dos clientes.',
-    'realized-profit': 'Lucro efetivo obtido com as vendas já realizadas. Calculado subtraindo o CMV (Custo das Mercadorias Vendidas) do total de vendas. O percentual mostra a margem de lucro real.',
-    'sales-month': 'Total de vendas realizadas no mês atual. Mostra o faturamento mensal consolidado.',
-    'profit-month': 'Lucro líquido obtido no mês atual (vendas - CMV). O percentual indica a margem de lucro média do mês.',
-    'ticket-month': 'Valor médio por venda no mês atual. Calculado dividindo o total de vendas pela quantidade de transações.',
   };
 
   // Ações rápidas
@@ -220,13 +229,31 @@ export default function DashboardScreen() {
       },
     },
     {
-      id: 'sales-total',
-      title: 'Vendas Totais',
-      value: formatCurrency(totalSalesAll),
-      subtitle: `${salesCountAll} ${salesCountAll === 1 ? 'venda' : 'vendas'}`,
-      icon: 'cash-outline',
+      id: 'sales-month',
+      title: 'Vendas do Mês',
+      value: formatCurrency(totalSalesMonth),
+      subtitle: `${countSalesMonth} vendas`,
+      icon: 'calendar',
+      colors: ['#667eea', '#764ba2'],
+      onPress: () => router.push('/reports/sales-period' as any),
+    },
+    {
+      id: 'profit-month',
+      title: 'Lucro do Mês',
+      value: formatCurrency(profitMonth),
+      subtitle: `${marginPercentMonth.toFixed(1)}% margem`,
+      icon: 'stats-chart',
       colors: ['#f093fb', '#f5576c'],
-      onPress: () => router.push('/(tabs)/sales'),
+      onPress: () => router.push('/reports/sales-period' as any),
+    },
+    {
+      id: 'ticket-month',
+      title: 'Ticket Médio',
+      value: formatCurrency(averageTicketMonth),
+      subtitle: 'este mês',
+      icon: 'receipt',
+      colors: ['#fa709a', '#fee140'],
+      onPress: () => router.push('/reports/sales-period' as any),
     },
     {
       id: 'products',
@@ -234,7 +261,7 @@ export default function DashboardScreen() {
       value: totalProducts.toString(),
       subtitle: 'com estoque',
       icon: 'cube',
-      colors: ['#667eea', '#764ba2'],
+      colors: ['#4776e6', '#8e54e9'],
       onPress: () => router.push('/(tabs)/products'),
     },
     {
@@ -252,7 +279,7 @@ export default function DashboardScreen() {
       value: formatCurrency(stockValue),
       subtitle: 'capital em estoque',
       icon: 'wallet',
-      colors: ['#4776e6', '#8e54e9'],
+      colors: ['#667eea', '#764ba2'],
       onPress: () => router.push('/(tabs)/products'),
     },
     {
@@ -271,42 +298,6 @@ export default function DashboardScreen() {
       subtitle: `${averageMargin.toFixed(1)}% média`,
       icon: 'trending-up',
       colors: ['#30cfd0', '#330867'],
-      onPress: () => router.push('/reports'),
-    },
-    {
-      id: 'realized-profit',
-      title: 'Lucro Realizado',
-      value: formatCurrency(realizedProfit),
-      subtitle: `${realizedMarginPercent.toFixed(1)}% margem`,
-      icon: 'stats-chart',
-      colors: ['#fa709a', '#fee140'],
-      onPress: () => router.push('/(tabs)/sales'),
-    },
-    {
-      id: 'sales-month',
-      title: 'Vendas do Mês',
-      value: formatCurrency(totalSalesMonth),
-      subtitle: `${countSalesMonth} vendas`,
-      icon: 'calendar',
-      colors: ['#a8edea', '#fed6e3'],
-      onPress: () => router.push('/reports/sales-period' as any),
-    },
-    {
-      id: 'profit-month',
-      title: 'Lucro do Mês',
-      value: formatCurrency(profitMonth),
-      subtitle: `${marginPercentMonth.toFixed(1)}% margem`,
-      icon: 'trending-up',
-      colors: ['#ff9a9e', '#fecfef'],
-      onPress: () => router.push('/reports/sales-period' as any),
-    },
-    {
-      id: 'ticket-month',
-      title: 'Ticket Médio Mensal',
-      value: formatCurrency(averageTicketMonth),
-      subtitle: 'por venda',
-      icon: 'receipt',
-      colors: ['#ffecd2', '#fcb69f'],
       onPress: () => router.push('/reports/sales-period' as any),
     },
   ];
@@ -768,6 +759,8 @@ const styles = StyleSheet.create({
   metricCardInner: {
     borderRadius: theme.borderRadius.xl,
     elevation: theme.elevation.md,
+    overflow: 'hidden',
+    backgroundColor: 'transparent',
   },
   metricGradient: {
     padding: theme.spacing.md,

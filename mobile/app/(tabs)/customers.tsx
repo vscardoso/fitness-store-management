@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,7 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Searchbar, Text, Card } from 'react-native-paper';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -40,6 +40,15 @@ export default function CustomersScreen() {
     enabled: isAuthenticated,
     retry: false,
   });
+
+  // Auto-refresh quando a tela recebe foco
+  useFocusEffect(
+    useCallback(() => {
+      if (isAuthenticated) {
+        refetch();
+      }
+    }, [isAuthenticated, refetch])
+  );
 
   /**
    * Filtrar clientes por busca

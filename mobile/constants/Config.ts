@@ -14,26 +14,24 @@
 // const API_BASE_URL = 'http://localhost:8000/api/v1';
 
 // 🟡 OPÇÃO 3: Dispositivo Físico (mesma rede WiFi) - Dev local
-// ⚠️ IP WiFi atual: 192.168.100.158 (adaptador Wi-Fi)
-// const API_BASE_URL = 'http://192.168.100.158:8000/api/v1';
+// ⚠️ DESCUBRA SEU IP: ipconfig (Windows) ou ifconfig (Mac/Linux)
+// ⚠️ Procure por "Adaptador de Rede sem Fio Wi-Fi" → IPv4
+// ⚠️ Backend deve estar rodando: uvicorn app.main:app --reload --host 0.0.0.0
+const LOCAL_API_URL = 'http://192.168.200.52:8000/api/v1';
 
-// 🔴 OPÇÃO 4: Tunnel (qualquer rede, mais instável)
-// ⚠️ Crie um novo tunnel: npx localtunnel --port 8000
-// ⚠️ Atualize CORS no backend/.env
-// const API_BASE_URL = 'https://happy-zebras-brush.loca.lt/api/v1';
-
-// 🟢 OPÇÃO 5: Produção Render.com ✅ ATIVO
-const API_BASE_URL = 'https://fitness-backend-x1qn.onrender.com/api/v1';
-
-// ============================================================================
-
-// URL base da API - usa variável de ambiente ou fallback
+// 🟢 OPÇÃO 5: Produção Render.com
 const PRODUCTION_URL = process.env.EXPO_PUBLIC_API_URL || 'https://fitness-backend-x1qn.onrender.com/api/v1';
 
+// ============================================================================
+// 🎯 SELEÇÃO AUTOMÁTICA DE AMBIENTE
+// ============================================================================
+// - Desenvolvimento (npx expo start): usa LOCAL_API_URL
+// - Produção (eas update): usa PRODUCTION_URL
+// ============================================================================
+
 export const API_CONFIG = {
-  // Para testes via Expo Go/EAS Update, sempre usar produção
-  // Mude para API_BASE_URL se quiser testar localmente
-  BASE_URL: PRODUCTION_URL,
+  // Usa local em dev, produção em builds
+  BASE_URL: __DEV__ ? LOCAL_API_URL : PRODUCTION_URL,
   TIMEOUT: 30000, // 30 segundos
 };
 

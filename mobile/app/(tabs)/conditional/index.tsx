@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Searchbar, Text, FAB, Card, Chip, Badge } from 'react-native-paper';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -92,6 +92,15 @@ export default function ConditionalShipmentsScreen() {
     queryFn: getQueryFn(),
     enabled: !!user,
   });
+
+  // Auto-refresh quando a tela recebe foco
+  useFocusEffect(
+    useCallback(() => {
+      if (user) {
+        refetch();
+      }
+    }, [user, refetch])
+  );
 
   // Filtro de busca local (por nome de cliente) + ordenação por data
   const filteredShipments = (searchQuery
