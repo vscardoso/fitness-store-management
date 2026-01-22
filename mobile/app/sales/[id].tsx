@@ -8,6 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRef } from 'react';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
+import useBackToList from '@/hooks/useBackToList';
 import { getSaleById } from '@/services/saleService';
 import { formatCurrency, formatDateTime } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
@@ -41,6 +42,7 @@ export default function SaleDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const saleId = Number(id);
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/sales');
   const receiptRef = useRef<View>(null);
   const { user } = useAuthStore();
 
@@ -48,8 +50,6 @@ export default function SaleDetailsScreen() {
     queryKey: ['sale', saleId],
     queryFn: () => getSaleById(saleId),
   });
-
-  const handleGoBack = () => router.back();
 
   const handleShareReceipt = async () => {
     if (!sale || !receiptRef.current) return;
@@ -91,7 +91,7 @@ export default function SaleDetailsScreen() {
               <View style={styles.headerTop}>
                 <TouchableOpacity
                   style={styles.backButton}
-                  onPress={handleGoBack}
+                  onPress={goBack}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="arrow-back" size={24} color="#fff" />
@@ -125,7 +125,7 @@ export default function SaleDetailsScreen() {
               <View style={styles.headerTop}>
                 <TouchableOpacity
                   style={styles.backButton}
-                  onPress={handleGoBack}
+                  onPress={goBack}
                   activeOpacity={0.8}
                 >
                   <Ionicons name="arrow-back" size={24} color="#fff" />
@@ -167,7 +167,7 @@ export default function SaleDetailsScreen() {
             <View style={styles.headerTop}>
               <TouchableOpacity
                 style={styles.backButton}
-                onPress={handleGoBack}
+                onPress={goBack}
                 activeOpacity={0.8}
               >
                 <Ionicons name="arrow-back" size={24} color="#fff" />

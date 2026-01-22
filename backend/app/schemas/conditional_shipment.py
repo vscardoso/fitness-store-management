@@ -85,6 +85,14 @@ class ConditionalShipmentBase(BaseModel):
     tracking_code: Optional[str] = Field(None, max_length=100, description="Código de rastreio")
     notes: Optional[str] = Field(None, max_length=1000, description="Observações gerais")
 
+    @field_validator('scheduled_ship_date', 'departure_datetime', 'return_datetime')
+    @classmethod
+    def remove_timezone(cls, v: Optional[datetime]) -> Optional[datetime]:
+        """Remove timezone para compatibilidade com TIMESTAMP WITHOUT TIME ZONE"""
+        if v and v.tzinfo is not None:
+            return v.replace(tzinfo=None)
+        return v
+
     @field_validator('deadline_type')
     @classmethod
     def validate_deadline_type(cls, v: str) -> str:

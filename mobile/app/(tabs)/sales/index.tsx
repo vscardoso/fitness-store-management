@@ -192,24 +192,29 @@ export default function SalesListScreen() {
         </LinearGradient>
       </View>
 
-      <View style={styles.filterRow}>
-        <PeriodFilter
-          value={selectedPeriod}
-          onChange={(value) => {
-            setSelectedPeriod(value);
-            setSkip(0);
-          }}
-          compact
-        />
-        <Searchbar
-          placeholder="Buscar nº venda..."
-          onChangeText={(text) => {
-            setSearch(text);
-            setSkip(0);
-          }}
-          value={search}
-          style={styles.searchbarInline}
-        />
+      <View style={styles.filtersRow}>
+        <View style={styles.periodFilterWrapper}>
+          <PeriodFilter
+            value={selectedPeriod}
+            onChange={(value) => {
+              setSelectedPeriod(value);
+              setSkip(0);
+            }}
+            compact
+          />
+        </View>
+        <View style={styles.searchWrapper}>
+          <Searchbar
+            placeholder="Buscar..."
+            onChangeText={(text) => {
+              setSearch(text);
+              setSkip(0);
+            }}
+            value={search}
+            style={styles.searchbar}
+            inputStyle={styles.searchInput}
+          />
+        </View>
       </View>
 
       <FlatList
@@ -298,6 +303,39 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 4,
     gap: 10,
+  },
+  filtersRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 8,
+  },
+  periodFilterWrapper: {
+    flex: 0,
+    minWidth: 140,
+  },
+  searchWrapper: {
+    flex: 1,
+  },
+  filtersContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 4,
+  },
+  searchbar: {
+    elevation: 2,
+    height: 48,
+  },
+  searchInput: {
+    fontSize: 14,
+    minHeight: 48,
+    lineHeight: 20,
   },
   searchbarInline: {
     flex: 1,
