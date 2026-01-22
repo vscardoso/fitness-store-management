@@ -219,7 +219,7 @@ export default function ProductDetailsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#667eea" />
+      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
       <DetailHeader
         title="Detalhes do Produto"
         entityName={product.name}

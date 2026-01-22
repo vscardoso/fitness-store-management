@@ -427,7 +427,7 @@ export default function CreateConditionalShipmentScreen() {
     <View style={styles.container}>
       {/* Header Premium com gradiente */}
       <LinearGradient
-        colors={['#667eea', '#764ba2']}
+        colors={[Colors.light.primary, Colors.light.secondary]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.headerGradient}

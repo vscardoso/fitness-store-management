@@ -34,7 +34,7 @@ const ONBOARDING_SLIDES: OnboardingSlide[] = [
     subtitle: 'Completa e Inteligente',
     description: 'Gerencie produtos, estoque e vendas em um único lugar.',
     icon: 'fitness',
-    gradient: ['#667eea', '#764ba2'],
+    gradient: [Colors.light.primary, Colors.light.secondary],
     features: ['Catálogo completo', 'Controle de lotes', 'Multi-tenant'],
   },
   {

@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 6,
     borderRadius: 6,
-    backgroundColor: '#007AFF',
+    backgroundColor: Colors.light.info,
   },
   actionButtonDestructive: {
     backgroundColor: '#FF3B30',

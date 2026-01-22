@@ -147,3 +147,45 @@ export const getMonthlySalesStats = async (
   return getPeriodSalesStats(period || 'this_month');
 };
 
+// Compras/Entradas por periodo
+export interface PeriodPurchasesStats {
+  total_invested: number;
+  entries_count: number;
+  items_count: number;
+  average_per_entry: number;
+  by_type: {
+    [key: string]: {
+      total: number;
+      count: number;
+    };
+  };
+  type_labels: {
+    [key: string]: string;
+  };
+  comparison: {
+    prev_total: number;
+    prev_count: number;
+    total_change_percent: number;
+    count_change_percent: number;
+  };
+  period: {
+    filter: string;
+    label: string;
+    from: string;
+    to: string;
+  };
+}
+
+/**
+ * Busca estatisticas de compras/entradas por periodo
+ * @param period - Filtro de periodo (padrao: this_month)
+ */
+export const getPeriodPurchases = async (
+  period: PeriodFilterValue = 'this_month'
+): Promise<PeriodPurchasesStats> => {
+  const { data } = await api.get<PeriodPurchasesStats>('/dashboard/purchases', {
+    params: { period },
+  });
+  return data;
+};
+

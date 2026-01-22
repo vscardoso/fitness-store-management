@@ -55,7 +55,7 @@ export default function ManagementScreen() {
       title: 'Produtos',
       subtitle: 'Catálogo completo',
       icon: 'cube',
-      colors: ['#667eea', '#764ba2'],
+      colors: [Colors.light.primary, Colors.light.secondary],
       route: '/(tabs)/products',
       badge: lowStockCount > 0 ? lowStockCount : undefined,
     },

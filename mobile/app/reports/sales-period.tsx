@@ -14,7 +14,7 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { formatCurrency } from '@/utils/format';
-import { theme } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
 
 interface Sale {
   id: number;
@@ -124,7 +124,7 @@ export default function SalesPeriodScreen() {
           {/* Card Total de Vendas */}
           <View style={styles.summaryCardWrapper}>
             <LinearGradient
-              colors={['#667eea', '#764ba2']}
+              colors={[Colors.light.primary, Colors.light.secondary]}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
               style={styles.summaryCard}
@@ -185,7 +185,7 @@ export default function SalesPeriodScreen() {
       {/* Header com Gradiente */}
       <View style={styles.headerContainer}>
         <LinearGradient
-          colors={['#667eea', '#764ba2']}
+          colors={[Colors.light.primary, Colors.light.secondary]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.headerGradient}

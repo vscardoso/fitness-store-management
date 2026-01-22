@@ -229,7 +229,7 @@ export default function EditCustomerScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#667eea" />
+      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
       {customer && (
         <DetailHeader
           title="Editar Cliente"

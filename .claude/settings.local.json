@@ -33,7 +33,12 @@
       "Bash(powershell.exe -Command \"Set-Location ''C:\\\\Users\\\\Victor\\\\Desktop\\\\fitness-store-management\\\\backend''; & .\\\\venv\\\\Scripts\\\\python.exe -c ''import app.api.v1.endpoints.dashboard''\")",
       "Bash(powershell.exe -Command \"Set-Location ''C:\\\\Users\\\\Victor\\\\Desktop\\\\fitness-store-management\\\\mobile''; npx tsc --noEmit 2>&1 | Select-Object -First 30\")",
       "Bash(powershell.exe -Command \"Set-Location ''C:\\\\Users\\\\Victor\\\\Desktop\\\\fitness-store-management\\\\mobile''; npx tsc --noEmit 2>&1 | Select-String -Pattern ''index.tsx|dashboardService|PeriodFilter''\")",
-      "Bash(powershell.exe -Command \"Get-Content ''C:\\\\Users\\\\Victor\\\\Desktop\\\\fitness-store-management\\\\backend\\\\entrypoint.sh'' | Select-String -Pattern ''[^\\\\x00-\\\\x7F]''\")"
+      "Bash(powershell.exe -Command \"Get-Content ''C:\\\\Users\\\\Victor\\\\Desktop\\\\fitness-store-management\\\\backend\\\\entrypoint.sh'' | Select-String -Pattern ''[^\\\\x00-\\\\x7F]''\")",
+      "Bash(powershell.exe -Command \"cd ''C:\\\\Users\\\\Victor\\\\Desktop\\\\fitness-store-management\\\\mobile''; npx expo-doctor 2>&1\")",
+      "Bash(powershell.exe -Command \"where.exe adb 2>$null; if \\($LASTEXITCODE -ne 0\\) { ''ADB nao encontrado'' }\")",
+      "Bash(powershell.exe -Command \"Test-Path ''C:\\\\Users\\\\Victor\\\\AppData\\\\Local\\\\Android\\\\Sdk'' ; Test-Path ''C:\\\\Program Files\\\\Android\\\\Android Studio''\")",
+      "Bash(powershell.exe -Command \"cd ''C:\\\\Users\\\\Victor\\\\Desktop\\\\fitness-store-management\\\\mobile''; npx expo install expo-font react-native-worklets --fix 2>&1\")",
+      "Bash(powershell.exe -Command:*)"
     ],
     "deny": [],
     "ask": []

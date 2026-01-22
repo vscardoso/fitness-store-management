@@ -32,7 +32,6 @@ export default {
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE"
       ],
-      useNextNotificationsApi: true,
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#ffffff"
@@ -47,16 +46,18 @@ export default {
 
     scheme: "fitness-store",
 
-    // EAS Update configuration
-    updates: {
-      url: "https://u.expo.dev/f0cb590f-2113-48d5-ae4b-b3ca15d26639"
-    },
-    runtimeVersion: {
-      policy: "appVersion"
-    },
+    // EAS Update configuration - COMENTADO para permitir Expo Go
+    // Descomentar quando for fazer build de producao
+    // updates: {
+    //   url: "https://u.expo.dev/f0cb590f-2113-48d5-ae4b-b3ca15d26639"
+    // },
+    // runtimeVersion: {
+    //   policy: "appVersion"
+    // },
 
     plugins: [
       "expo-router",
+      "expo-font",
       [
         "expo-camera",
         {

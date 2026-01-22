@@ -395,7 +395,7 @@ export default function ConditionalShipmentDetailsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#667eea" />
+      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
       <DetailHeader
         title="Envio Condicional"
         entityName={`#${shipment.id}`}

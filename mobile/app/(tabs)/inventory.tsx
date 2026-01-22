@@ -51,12 +51,12 @@ interface StatCardProps {
 function StatCard({ icon, label, value, trend, iconColor, iconBg, onPress }: StatCardProps) {
   // Determinar cores do gradiente baseado no iconColor
   const getGradientColors = (): [string, string] => {
-    if (iconColor === Colors.light.info) return ['#667eea', '#764ba2'];
+    if (iconColor === Colors.light.info) return [Colors.light.primary, Colors.light.secondary];
     if (iconColor === Colors.light.primary) return ['#4776e6', '#8e54e9'];
     if (iconColor === Colors.light.success) return ['#11998e', '#38ef7d'];
     if (iconColor === Colors.light.error) return ['#eb3349', '#f45c43'];
     if (iconColor === Colors.light.warning) return ['#f093fb', '#f5576c'];
-    return ['#667eea', '#764ba2'];
+    return [Colors.light.primary, Colors.light.secondary];
   };
 
   return (
@@ -262,7 +262,7 @@ export default function InventoryDashboard() {
       {/* Header Premium */}
       <View style={styles.headerContainer}>
         <LinearGradient
-          colors={['#667eea', '#764ba2']}
+          colors={[Colors.light.primary, Colors.light.secondary]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.headerGradient}

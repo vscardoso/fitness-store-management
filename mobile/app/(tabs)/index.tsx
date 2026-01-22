@@ -13,7 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
-import { getDashboardStats, getInventoryValuation, getPeriodSalesStats } from '@/services/dashboardService';
+import { getDashboardStats, getInventoryValuation, getPeriodSalesStats, getPeriodPurchases } from '@/services/dashboardService';
 import { getSales } from '@/services/saleService';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
@@ -56,6 +56,12 @@ export default function DashboardScreen() {
     enabled: !!user,
   });
 
+  const { data: purchasesStats, refetch: refetchPurchases } = useQuery({
+    queryKey: ['period-purchases', selectedPeriod],
+    queryFn: () => getPeriodPurchases(selectedPeriod),
+    enabled: !!user,
+  });
+
   const { data: recentSales, refetch: refetchRecentSales } = useQuery({
     queryKey: ['recent-sales'],
     queryFn: () => getSales({ limit: 5, skip: 0 }),
@@ -69,6 +75,7 @@ export default function DashboardScreen() {
       refetchStats(),
       refetchValuation(),
       refetchPeriod(),
+      refetchPurchases(),
       refetchRecentSales(),
     ]);
     setRefreshing(false);
@@ -80,8 +87,9 @@ export default function DashboardScreen() {
       refetchStats();
       refetchValuation();
       refetchPeriod();
+      refetchPurchases();
       refetchRecentSales();
-    }, [refetchStats, refetchValuation, refetchPeriod, refetchRecentSales])
+    }, [refetchStats, refetchValuation, refetchPeriod, refetchPurchases, refetchRecentSales])
   );
 
   // Dados extraídos
@@ -103,6 +111,13 @@ export default function DashboardScreen() {
   const comparison = periodStats?.comparison;
   const totalChangePercent = comparison?.total_change_percent || 0;
   const profitChangePercent = comparison?.profit_change_percent || 0;
+
+  // Compras do período
+  const purchasesTotal = purchasesStats?.total_invested || 0;
+  const purchasesCount = purchasesStats?.entries_count || 0;
+  const purchasesItems = purchasesStats?.items_count || 0;
+  const purchasesComparison = purchasesStats?.comparison;
+  const purchasesChangePercent = purchasesComparison?.total_change_percent || 0;
 
   // Estoque
   const stockCost = valuation?.cost_value || dashboardStats?.stock.invested_value || 0;
@@ -161,7 +176,7 @@ export default function DashboardScreen() {
     <View style={styles.container}>
       {/* Header */}
       <LinearGradient
-        colors={['#667eea', '#764ba2']}
+        colors={[Colors.light.primary, Colors.light.secondary]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.header}
@@ -315,6 +330,52 @@ export default function DashboardScreen() {
             </View>
           </TouchableOpacity>
         </View>
+
+        {/* ========== COMPRAS DO PERIODO ========== */}
+        <TouchableOpacity
+          style={styles.purchasesCard}
+          activeOpacity={0.8}
+          onPress={() => router.push('/entries' as any)}
+        >
+          <View style={styles.purchasesHeader}>
+            <View style={styles.purchasesIconContainer}>
+              <Ionicons name="cart-outline" size={22} color="#F59E0B" />
+            </View>
+            <View style={styles.purchasesInfo}>
+              <Text style={styles.purchasesLabel}>Compras do Periodo</Text>
+              <Text style={styles.purchasesValue}>{formatCurrency(purchasesTotal)}</Text>
+            </View>
+            {purchasesChangePercent !== 0 && (
+              <View style={[
+                styles.changeBadge,
+                { backgroundColor: purchasesChangePercent >= 0 ? '#FEF3C7' : '#ECFDF5' }
+              ]}>
+                <Ionicons
+                  name={purchasesChangePercent >= 0 ? 'arrow-up' : 'arrow-down'}
+                  size={10}
+                  color={purchasesChangePercent >= 0 ? '#F59E0B' : '#10B981'}
+                />
+                <Text style={[
+                  styles.changeText,
+                  { color: purchasesChangePercent >= 0 ? '#F59E0B' : '#10B981' }
+                ]}>
+                  {Math.abs(purchasesChangePercent).toFixed(0)}%
+                </Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.purchasesStats}>
+            <View style={styles.purchasesStat}>
+              <Text style={styles.purchasesStatValue}>{purchasesCount}</Text>
+              <Text style={styles.purchasesStatLabel}>entradas</Text>
+            </View>
+            <View style={styles.purchasesStatDivider} />
+            <View style={styles.purchasesStat}>
+              <Text style={styles.purchasesStatValue}>{purchasesItems}</Text>
+              <Text style={styles.purchasesStatLabel}>itens</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
 
         {/* ========== SEU ESTOQUE ========== */}
         <Text style={styles.sectionTitle}>Seu Estoque</Text>
@@ -659,6 +720,73 @@ const styles = StyleSheet.create({
   changeText: {
     fontSize: 10,
     fontWeight: '600',
+  },
+
+  // Card de Compras do Periodo
+  purchasesCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+    borderLeftWidth: 4,
+    borderLeftColor: '#F59E0B',
+  },
+  purchasesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  purchasesIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: '#FEF3C7',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  purchasesInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  purchasesLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  purchasesValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  purchasesStats: {
+    flexDirection: 'row',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    padding: 12,
+  },
+  purchasesStat: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  purchasesStatValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#F59E0B',
+  },
+  purchasesStatLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  purchasesStatDivider: {
+    width: 1,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 8,
   },
 
   // Card de Estoque

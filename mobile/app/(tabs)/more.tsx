@@ -97,7 +97,7 @@ export default function MoreScreen() {
       {/* Header Premium */}
       <View style={styles.headerContainer}>
         <LinearGradient
-          colors={['#667eea', '#764ba2']}
+          colors={[Colors.light.primary, Colors.light.secondary]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.headerGradient}

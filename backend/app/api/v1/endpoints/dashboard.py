@@ -20,6 +20,7 @@ from app.models.inventory import Inventory
 from app.models.customer import Customer
 from app.models.sale import Sale, SaleItem
 from app.models.user import User
+from app.models.stock_entry import StockEntry, EntryType
 
 router = APIRouter()
 
@@ -751,3 +752,148 @@ async def get_monthly_sales_stats(
         },
     }
 
+
+@router.get("/purchases", response_model=Dict[str, Any])
+async def get_period_purchases(
+    period: Optional[PeriodFilter] = Query(
+        default=PeriodFilter.THIS_MONTH,
+        description="Filtro de periodo predefinido"
+    ),
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Retorna estatisticas de compras/entradas de estoque do periodo.
+
+    **Metricas:**
+    - total_invested: valor total investido em compras
+    - entries_count: quantidade de entradas
+    - items_count: quantidade de itens/produtos comprados
+    - by_type: distribuicao por tipo de entrada (trip, online, local)
+    - comparison: comparacao com periodo anterior
+    """
+    start_date, end_date = get_period_dates(period)
+    prev_start, prev_end = get_previous_period_dates(start_date, end_date)
+
+    # Compras do periodo atual
+    purchases_query = select(
+        func.coalesce(func.sum(StockEntry.total_cost), 0).label("total_invested"),
+        func.count(StockEntry.id).label("entries_count"),
+    ).where(
+        StockEntry.tenant_id == tenant_id,
+        StockEntry.entry_date >= start_date,
+        StockEntry.entry_date <= end_date,
+        StockEntry.is_active == True,
+    )
+
+    result = await db.execute(purchases_query)
+    stats = result.first()
+    total_invested = float(stats.total_invested) if stats.total_invested else 0.0
+    entries_count = int(stats.entries_count) if stats.entries_count else 0
+
+    # Quantidade de itens comprados no periodo
+    items_query = select(
+        func.coalesce(func.sum(EntryItem.quantity_received), 0).label("items_count"),
+    ).join(StockEntry, EntryItem.entry_id == StockEntry.id).where(
+        StockEntry.tenant_id == tenant_id,
+        StockEntry.entry_date >= start_date,
+        StockEntry.entry_date <= end_date,
+        StockEntry.is_active == True,
+        EntryItem.is_active == True,
+    )
+
+    result = await db.execute(items_query)
+    items_count = int(result.scalar() or 0)
+
+    # Distribuicao por tipo de entrada
+    by_type_query = select(
+        StockEntry.entry_type,
+        func.coalesce(func.sum(StockEntry.total_cost), 0).label("total"),
+        func.count(StockEntry.id).label("count"),
+    ).where(
+        StockEntry.tenant_id == tenant_id,
+        StockEntry.entry_date >= start_date,
+        StockEntry.entry_date <= end_date,
+        StockEntry.is_active == True,
+    ).group_by(StockEntry.entry_type)
+
+    result = await db.execute(by_type_query)
+    by_type_rows = result.fetchall()
+
+    by_type = {}
+    for row in by_type_rows:
+        entry_type = row.entry_type.value if hasattr(row.entry_type, 'value') else str(row.entry_type)
+        by_type[entry_type] = {
+            "total": float(row.total or 0),
+            "count": int(row.count or 0),
+        }
+
+    # Compras do periodo anterior (para comparacao)
+    prev_purchases_query = select(
+        func.coalesce(func.sum(StockEntry.total_cost), 0).label("total_invested"),
+        func.count(StockEntry.id).label("entries_count"),
+    ).where(
+        StockEntry.tenant_id == tenant_id,
+        StockEntry.entry_date >= prev_start,
+        StockEntry.entry_date <= prev_end,
+        StockEntry.is_active == True,
+    )
+
+    result = await db.execute(prev_purchases_query)
+    prev_stats = result.first()
+    prev_total = float(prev_stats.total_invested) if prev_stats.total_invested else 0.0
+    prev_count = int(prev_stats.entries_count) if prev_stats.entries_count else 0
+
+    # Calcular variacoes
+    total_change = ((total_invested - prev_total) / prev_total * 100) if prev_total > 0 else (100.0 if total_invested > 0 else 0.0)
+    count_change = ((entries_count - prev_count) / prev_count * 100) if prev_count > 0 else (100.0 if entries_count > 0 else 0.0)
+
+    # Labels para tipo de entrada
+    type_labels = {
+        "trip": "Viagem",
+        "online": "Online",
+        "local": "Local",
+        "initial": "Estoque Inicial",
+        "adjustment": "Ajuste",
+        "return": "Devolucao",
+        "donation": "Doacao",
+    }
+
+    # Labels para periodo
+    period_labels = {
+        PeriodFilter.THIS_MONTH: "Este Mes",
+        PeriodFilter.LAST_30_DAYS: "Ultimos 30 dias",
+        PeriodFilter.LAST_2_MONTHS: "Ultimos 2 meses",
+        PeriodFilter.LAST_3_MONTHS: "Ultimos 3 meses",
+        PeriodFilter.LAST_6_MONTHS: "Ultimos 6 meses",
+        PeriodFilter.THIS_YEAR: "Este Ano",
+    }
+
+    return {
+        # Dados do periodo atual
+        "total_invested": total_invested,
+        "entries_count": entries_count,
+        "items_count": items_count,
+        "average_per_entry": round(total_invested / entries_count, 2) if entries_count > 0 else 0.0,
+
+        # Distribuicao por tipo
+        "by_type": by_type,
+        "type_labels": type_labels,
+
+        # Comparacao com periodo anterior
+        "comparison": {
+            "prev_total": prev_total,
+            "prev_count": prev_count,
+            "total_change_percent": round(total_change, 2),
+            "count_change_percent": round(count_change, 2),
+        },
+
+        # Metadados do periodo
+        "period": {
+            "filter": period.value,
+            "label": period_labels.get(period, "Periodo"),
+            "from": str(start_date),
+            "to": str(end_date),
+        },
+    }

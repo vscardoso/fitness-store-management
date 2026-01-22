@@ -165,7 +165,7 @@ export default function AddCustomerScreen() {
       {/* Header com gradiente */}
       <View style={styles.headerContainer}>
         <LinearGradient
-          colors={['#667eea', '#764ba2']}
+          colors={[Colors.light.primary, Colors.light.secondary]}
           style={styles.headerGradient}
         >
           <View style={styles.headerContent}>
