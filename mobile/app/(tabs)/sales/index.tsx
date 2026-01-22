@@ -1,16 +1,16 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Text, Card, Searchbar } from 'react-native-paper';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { getSales } from '@/services/saleService';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';
+import PeriodFilter, { PeriodFilterValue } from '@/components/PeriodFilter';
 import type { Sale } from '@/types';
 
 export default function SalesListScreen() {
@@ -18,12 +18,43 @@ export default function SalesListScreen() {
   const [skip, setSkip] = useState(0);
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilterValue>('this_month');
+
+  const dateRange = useMemo(() => {
+    const now = new Date();
+    let start: Date;
+
+    switch (selectedPeriod) {
+      case 'this_month':
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+        break;
+      case 'last_30_days':
+        start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+        break;
+      case 'last_2_months':
+        start = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate());
+        break;
+      case 'last_3_months':
+        start = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
+        break;
+      case 'last_6_months':
+        start = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
+        break;
+      case 'this_year':
+        start = new Date(now.getFullYear(), 0, 1);
+        break;
+      default:
+        start = new Date(now.getFullYear(), now.getMonth(), 1);
+    }
+
+    const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    return { start_date: fmt(start), end_date: fmt(now) };
+  }, [selectedPeriod]);
 
   const { data: sales, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ['sales', skip, search],
+    queryKey: ['sales', skip, search, dateRange],
     queryFn: async () => {
-      const params: any = { skip, limit: 20 };
-      // Futuro: implementar filtro por sale_number ou status
+      const params: any = { skip, limit: 50, ...dateRange };
       if (search.trim().length > 0) {
         params.sale_number = search.trim();
       }
@@ -45,8 +76,8 @@ export default function SalesListScreen() {
   };
 
   const loadMore = () => {
-    if (sales && sales.length === 20) {
-      setSkip(prev => prev + 20);
+    if (sales && sales.length === 50) {
+      setSkip(prev => prev + 50);
     }
   };
 
@@ -161,12 +192,25 @@ export default function SalesListScreen() {
         </LinearGradient>
       </View>
 
-      <Searchbar
-        placeholder="Buscar por número da venda..."
-        onChangeText={setSearch}
-        value={search}
-        style={styles.searchbar}
-      />
+      <View style={styles.filterRow}>
+        <PeriodFilter
+          value={selectedPeriod}
+          onChange={(value) => {
+            setSelectedPeriod(value);
+            setSkip(0);
+          }}
+          compact
+        />
+        <Searchbar
+          placeholder="Buscar nº venda..."
+          onChangeText={(text) => {
+            setSearch(text);
+            setSkip(0);
+          }}
+          value={search}
+          style={styles.searchbarInline}
+        />
+      </View>
 
       <FlatList
         data={sales || []}
@@ -247,9 +291,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  searchbar: {
-    margin: 16,
+  filterRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 4,
+    gap: 10,
+  },
+  searchbarInline: {
+    flex: 1,
     elevation: 2,
+    height: 40,
   },
   listContent: {
     paddingTop: 8,
