@@ -154,15 +154,17 @@ export async function getStockEntriesStats(): Promise<{
 }
 
 /**
- * Atualizar item de entrada (quantity_received, unit_cost, notes)
+ * Atualizar item de entrada (quantity_received, unit_cost, sell_price, notes)
  * VALIDAÇÃO: Bloqueia edição se o item já teve vendas (rastreabilidade FIFO)
  * Recalcula inventário automaticamente quando quantidade muda
+ * Atualiza preço de venda do produto quando sell_price é fornecido
  */
 export async function updateEntryItem(
   itemId: number,
   data: {
     quantity_received?: number;
     unit_cost?: number;
+    sell_price?: number;
     notes?: string;
   }
 ): Promise<{

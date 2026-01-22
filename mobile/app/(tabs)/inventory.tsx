@@ -236,15 +236,26 @@ export default function InventoryDashboard() {
    * Calcular entradas por mês (últimos 6 meses)
    */
   const calculateMonthlyEntries = () => {
-    const monthlyData: Record<string, { count: number; value: number }> = {};
+    const monthlyData: Record<string, { count: number; value: number; totalProducts: number }> = {};
 
     entries.forEach(entry => {
       const month = entry.entry_date.substring(0, 7); // YYYY-MM
       if (!monthlyData[month]) {
-        monthlyData[month] = { count: 0, value: 0 };
+        monthlyData[month] = { count: 0, value: 0, totalProducts: 0 };
       }
       monthlyData[month].count++;
-      monthlyData[month].value += entry.total_cost || 0;
+      
+      // Garantir que total_cost é um número válido
+      const cost = typeof entry.total_cost === 'number' && !isNaN(entry.total_cost) 
+        ? entry.total_cost 
+        : 0;
+      monthlyData[month].value += cost;
+      
+      // Somar total de produtos/itens da entrada
+      const items = typeof entry.total_items === 'number' && !isNaN(entry.total_items)
+        ? entry.total_items
+        : 0;
+      monthlyData[month].totalProducts += items;
     });
 
     // Ordenar por mês
@@ -422,28 +433,79 @@ export default function InventoryDashboard() {
           {monthlyEntries.length > 0 ? (
             <Card style={styles.chartCard}>
               <Card.Content>
-                {monthlyEntries.map(([month, data]) => {
-                  const maxValue = Math.max(...monthlyEntries.map(([, d]) => d.value));
-                  const percentage = maxValue > 0 ? data.value / maxValue : 0;
+                {monthlyEntries.map(([month, data], index) => {
+                  // Validar valores para evitar NaN
+                  const safeValue = typeof data.value === 'number' && !isNaN(data.value) ? data.value : 0;
+                  const safeCount = typeof data.count === 'number' && !isNaN(data.count) ? data.count : 0;
+                  const safeProducts = typeof data.totalProducts === 'number' && !isNaN(data.totalProducts) ? data.totalProducts : 0;
+                  
+                  const maxValue = Math.max(...monthlyEntries.map(([, d]) => 
+                    typeof d.value === 'number' && !isNaN(d.value) ? d.value : 0
+                  ));
+                  const totalValue = monthlyEntries.reduce((sum, [, d]) => {
+                    const val = typeof d.value === 'number' && !isNaN(d.value) ? d.value : 0;
+                    return sum + val;
+                  }, 0);
+                  
+                  const progressPercentage = maxValue > 0 ? safeValue / maxValue : 0;
+                  const sharePercentage = totalValue > 0 ? (safeValue / totalValue) * 100 : 0;
 
                   // Formatar mês (YYYY-MM -> MMM/YYYY)
                   const [year, monthNum] = month.split('-');
                   const monthNames = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
                   const monthLabel = `${monthNames[parseInt(monthNum) - 1]}/${year}`;
 
+                  // Cores graduais (mais intenso = maior valor)
+                  const barColor = progressPercentage > 0.7 
+                    ? Colors.light.success
+                    : progressPercentage > 0.4
+                    ? Colors.light.primary
+                    : Colors.light.warning;
+
                   return (
-                    <View key={month} style={styles.chartRow}>
-                      <Text style={styles.chartMonth}>{monthLabel}</Text>
-                      <View style={styles.chartBarContainer}>
-                        <ProgressBar
-                          progress={percentage}
-                          color={Colors.light.primary}
-                          style={styles.chartBar}
+                    <View 
+                      key={month} 
+                      style={[
+                        styles.chartRowImproved,
+                        index !== monthlyEntries.length - 1 && styles.chartRowBorder
+                      ]}
+                    >
+                      {/* Cabeçalho com Mês e % Participação */}
+                      <View style={styles.chartRowHeader}>
+                        <Text style={styles.chartMonthImproved}>{monthLabel}</Text>
+                        <View style={styles.shareChip}>
+                          <Text style={styles.shareText}>{sharePercentage.toFixed(0)}%</Text>
+                        </View>
+                      </View>
+
+                      {/* Barra de Progresso */}
+                      <View style={styles.chartBarContainerImproved}>
+                        <LinearGradient
+                          colors={[barColor, `${barColor}80`]}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={[
+                            styles.chartBarImproved,
+                            { width: `${progressPercentage * 100}%` }
+                          ]}
                         />
                       </View>
-                      <View style={styles.chartData}>
-                        <Text style={styles.chartValue}>{formatCurrency(data.value)}</Text>
-                        <Text style={styles.chartCount}>{data.count} entrada(s)</Text>
+
+                      {/* Dados: Valor e Quantidade */}
+                      <View style={styles.chartDataImproved}>
+                        <View style={styles.chartMetricBox}>
+                          <Ionicons name="cash-outline" size={14} color={Colors.light.textSecondary} />
+                          <Text style={styles.chartValueImproved}>{formatCurrency(safeValue)}</Text>
+                        </View>
+                        <View style={styles.chartMetricBox}>
+                          <Ionicons name="documents-outline" size={14} color={Colors.light.textSecondary} />
+                          <Text style={styles.chartCountImproved}>
+                            {safeCount} {safeCount === 1 ? 'entrada' : 'entradas'}
+                            {safeProducts > 0 && (
+                              <Text style={styles.chartProductCount}> ({safeProducts} {safeProducts === 1 ? 'produto' : 'produtos'})</Text>
+                            )}
+                          </Text>
+                        </View>
                       </View>
                     </View>
                   );
@@ -736,6 +798,74 @@ const styles = StyleSheet.create({
   chartCount: {
     fontSize: 11,
     color: Colors.light.textSecondary,
+  },
+  // Novos estilos para card melhorado
+  chartRowImproved: {
+    marginBottom: 20,
+    paddingBottom: 16,
+  },
+  chartRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.divider,
+  },
+  chartRowHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  chartMonthImproved: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  shareChip: {
+    backgroundColor: Colors.light.primaryLight,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  shareText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.light.primary,
+  },
+  chartBarContainerImproved: {
+    height: 12,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: 6,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  chartBarImproved: {
+    height: 12,
+    borderRadius: 6,
+  },
+  chartDataImproved: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  chartMetricBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  chartValueImproved: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  chartCountImproved: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+  },
+  chartProductCount: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: Colors.light.textTertiary,
   },
   entryCard: {
     backgroundColor: Colors.light.card,

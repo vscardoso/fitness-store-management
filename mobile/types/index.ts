@@ -567,6 +567,7 @@ export interface EntryItem {
   product_id: number;
   quantity_received: number;
   unit_cost: number;
+  selling_price?: number;
   notes?: string;
 }
 

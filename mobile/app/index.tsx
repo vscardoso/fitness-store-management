@@ -9,6 +9,7 @@ import { View, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '@/store/authStore';
 import { getAccessToken } from '@/services/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Colors } from '@/constants/Colors';
 
 const ONBOARDING_COMPLETED_KEY = '@fitness_store:onboarding_completed';
 

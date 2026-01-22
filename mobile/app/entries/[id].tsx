@@ -104,6 +104,7 @@ export default function StockEntryDetailsScreen() {
   }>({ visible: false, item: null });
   const [editQuantity, setEditQuantity] = useState('');
   const [editCost, setEditCost] = useState('');
+  const [editPrice, setEditPrice] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
   /**
@@ -239,6 +240,7 @@ export default function StockEntryDetailsScreen() {
     // Preencher valores atuais com máscara
     setEditQuantity(item.quantity_received.toString());
     setEditCost(toBRNumber(item.unit_cost));
+    setEditPrice(toBRNumber(item.product_price || 0));
     setEditNotes(item.notes || '');
     setEditItemDialog({ visible: true, item });
   };
@@ -269,11 +271,22 @@ export default function StockEntryDetailsScreen() {
       return;
     }
 
+    // Validar preço de venda (desmascarar antes de validar)
+    const price = unmaskCurrency(editPrice);
+    if (isNaN(price) || price < 0) {
+      setErrorDialog({
+        visible: true,
+        message: 'Preço de venda deve ser maior ou igual a zero',
+      });
+      return;
+    }
+
     // Enviar atualização
     updateItemMutation.mutate({
       itemId: editItemDialog.item.id,
       quantity_received: quantity,
       unit_cost: cost,
+      sell_price: price,
       notes: editNotes.trim() || undefined,
     });
   };
@@ -285,6 +298,7 @@ export default function StockEntryDetailsScreen() {
     setEditItemDialog({ visible: false, item: null });
     setEditQuantity('');
     setEditCost('');
+    setEditPrice('');
     setEditNotes('');
   };
 
@@ -786,6 +800,27 @@ export default function StockEntryDetailsScreen() {
             placeholder="0,00"
             left={<TextInput.Affix text="R$" />}
           />
+
+          <TextInput
+            label="Preço de Venda (R$)"
+            value={editPrice}
+            onChangeText={(text) => setEditPrice(maskCurrencyBR(text))}
+            keyboardType="numeric"
+            mode="outlined"
+            style={styles.input}
+            placeholder="0,00"
+            left={<TextInput.Affix text="R$" />}
+            right={
+              unmaskCurrency(editPrice) < unmaskCurrency(editCost) ? (
+                <TextInput.Icon icon="alert" color="#ff9800" />
+              ) : undefined
+            }
+          />
+          {unmaskCurrency(editPrice) < unmaskCurrency(editCost) && (
+            <HelperText type="info" visible={true} style={{ color: '#ff9800' }}>
+              ⚠️ Preço menor que o custo
+            </HelperText>
+          )}
 
           <TextInput
             label="Observações"

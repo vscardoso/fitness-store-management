@@ -3,7 +3,7 @@
 from typing import Optional, List
 from datetime import datetime, date
 from decimal import Decimal
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, field_serializer
 
 from app.models.stock_entry import EntryType
 
@@ -92,6 +92,11 @@ class StockEntryResponse(StockEntryBase):
     trip_code: Optional[str] = Field(None, description="Código da viagem")
     trip_destination: Optional[str] = Field(None, description="Destino da viagem")
 
+    @field_serializer('total_cost')
+    def serialize_total_cost(self, value: Decimal) -> float:
+        """Serializa Decimal para float para compatibilidade com JSON."""
+        return float(value) if value is not None else 0.0
+
     class Config:
         from_attributes = True
 
@@ -108,6 +113,11 @@ class StockEntrySummary(BaseModel):
     total_quantity: int = 0
     is_active: bool
     created_at: datetime
+
+    @field_serializer('total_cost')
+    def serialize_total_cost(self, value: Decimal) -> float:
+        """Serializa Decimal para float para compatibilidade com JSON."""
+        return float(value) if value is not None else 0.0
 
     class Config:
         from_attributes = True

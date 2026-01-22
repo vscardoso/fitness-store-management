@@ -12,9 +12,6 @@ export default {
     userInterfaceStyle: "automatic",
     assetBundlePatterns: ["**/*"],
 
-    // Desabilitar New Architecture para compatibilidade com react-native-reanimated
-    newArchEnabled: false,
-
     ios: {
       supportsTablet: true,
       bundleIdentifier: "com.fitnessstore.mobile",
@@ -35,9 +32,7 @@ export default {
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#ffffff"
-      },
-      // Desabilitar New Architecture no Android
-      newArchEnabled: false
+      }
     },
 
     web: {
@@ -48,12 +43,12 @@ export default {
 
     // EAS Update configuration - COMENTADO para permitir Expo Go
     // Descomentar quando for fazer build de producao
-    updates: {
-      url: "https://u.expo.dev/f0cb590f-2113-48d5-ae4b-b3ca15d26639"
-    },
-    runtimeVersion: {
-      policy: "appVersion"
-    },
+    // updates: {
+    //   url: "https://u.expo.dev/f0cb590f-2113-48d5-ae4b-b3ca15d26639"
+    // },
+    // runtimeVersion: {
+    //   policy: "appVersion"
+    // },
 
     plugins: [
       "expo-router",

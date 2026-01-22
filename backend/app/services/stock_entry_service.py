@@ -151,6 +151,9 @@ class StockEntryService:
                 if 'quantity_remaining' not in item_dict:
                     item_dict['quantity_remaining'] = item_dict['quantity_received']
                 
+                # Extrair selling_price se fornecido (não é campo do EntryItem, é do Product)
+                selling_price = item_dict.pop('selling_price', None)
+                
                 # EntryItem não tem tenant_id próprio, herda da StockEntry
                 item_dict['tenant_id'] = tenant_id
                 item = await self.item_repo.create(self.db, item_dict)
@@ -158,6 +161,13 @@ class StockEntryService:
                 
                 # Calcular custo total
                 total_cost += item.quantity_received * item.unit_cost
+                
+                # Atualizar produto com selling_price se fornecido
+                if selling_price is not None and selling_price > 0:
+                    product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
+                    if product:
+                        product.selling_price = selling_price
+                        # Commit será feito ao final
                 
                 # Atualizar estoque do produto
                 await self._update_product_inventory(
@@ -809,6 +819,24 @@ class StockEntryService:
         # Atualizar notes se fornecido
         if 'notes' in item_data and item_data['notes'] is not None:
             update_data['notes'] = item_data['notes']
+
+        # Atualizar sell_price do produto se fornecido
+        if 'sell_price' in item_data and item_data['sell_price'] is not None:
+            new_sell_price = item_data['sell_price']
+            if new_sell_price < 0:
+                raise ValueError("sell_price não pode ser negativo")
+            
+            # Atualizar o preço do produto associado
+            product = await self.product_repo.get_by_id(self.db, item.product_id, tenant_id=tenant_id)
+            if product:
+                product.selling_price = new_sell_price
+                await self.db.flush()
+                
+                if __DEV__ if '__DEV__' in dir() else True:
+                    print(
+                        f"  [EntryItem Update] Produto {product.name}: "
+                        f"preço de venda atualizado para R$ {new_sell_price:.2f}"
+                    )
 
         # Se não há nada para atualizar, retornar item atual
         if not update_data:

@@ -11,7 +11,7 @@
  * - FAB para nova entrada
  */
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -21,7 +21,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Text, Card, Searchbar, Menu, Button, Chip } from 'react-native-paper';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
@@ -49,7 +49,7 @@ export default function StockEntriesScreen() {
   /**
    * Query para buscar estatísticas gerais (total investido, etc.)
    */
-  const { data: apiStats } = useQuery({
+  const { data: apiStats, refetch: refetchStats } = useQuery({
     queryKey: ['stock-entries-stats'],
     queryFn: getStockEntriesStats,
   });
@@ -104,6 +104,16 @@ export default function StockEntriesScreen() {
       if (saved) setFilter(saved as FilterType);
     });
   }, []);
+
+  /**
+   * Auto-refresh ao focar na tela
+   */
+  useFocusEffect(
+    useCallback(() => {
+      refetchStats();
+      refetch();
+    }, [refetchStats, refetch])
+  );
 
   /**
    * Calcular contadores para cada filtro
@@ -536,7 +546,7 @@ export default function StockEntriesScreen() {
               <Text style={styles.statValue}>{stats.totalItems}</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Média S-T</Text>
+              <Text style={styles.statLabel}>Vendido (Média)</Text>
               <Text style={[
                 styles.statValue,
                 { color: stats.avgSellThrough >= 70 ? Colors.light.success : Colors.light.warning }

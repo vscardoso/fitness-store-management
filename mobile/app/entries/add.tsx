@@ -84,6 +84,7 @@ export default function AddStockEntryScreen() {
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<EntryItemForm[]>([]);
   const [itemCosts, setItemCosts] = useState<Record<string, string>>({});
+  const [itemPrices, setItemPrices] = useState<Record<string, string>>({});
 
   // Estados de UI
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -288,10 +289,14 @@ export default function AddStockEntryScreen() {
     onSuccess: (createdEntry) => {
       // Invalidate stock entries queries
       queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
+      queryClient.invalidateQueries({ queryKey: ['stock-entries-stats'] });
       queryClient.invalidateQueries({ queryKey: ['trips'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['active-products'] });
       queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-valuation'] });
+      queryClient.invalidateQueries({ queryKey: ['period-purchases'] });
 
       setCreatedEntryCode(createdEntry.entry_code);
       setShowSuccessDialog(true);
@@ -333,6 +338,7 @@ export default function AddStockEntryScreen() {
     }
 
     const costFormatted = formatCostInput((product.cost_price || 0).toString().replace('.', ''));
+    const priceFormatted = formatCostInput((product.price || 0).toString().replace('.', ''));
 
     // Mark catalog products appropriately
     const productWithFlag = product.is_catalog
@@ -350,6 +356,7 @@ export default function AddStockEntryScreen() {
 
     setItems([...items, newItem]);
     setItemCosts({ ...itemCosts, [newItem.id]: costFormatted });
+    setItemPrices({ ...itemPrices, [newItem.id]: priceFormatted });
     setProductMenuVisible(false);
     setProductSearch('');
   };
@@ -370,6 +377,25 @@ export default function AddStockEntryScreen() {
     const numericValue = parseCost(formattedValue);
     setItemCosts({ ...itemCosts, [itemId]: formattedValue });
     handleUpdateItem(index, 'unit_cost', numericValue);
+  };
+
+  /**
+   * Atualizar preço de venda do item
+   */
+  const handleUpdateItemPrice = (itemId: string, index: number, formattedValue: string) => {
+    const numericValue = parseCost(formattedValue);
+    setItemPrices({ ...itemPrices, [itemId]: formattedValue });
+    
+    // Atualizar o preço de venda no produto do item
+    const newItems = [...items];
+    if (newItems[index].product) {
+      newItems[index].product = {
+        ...newItems[index].product!,
+        selling_price: numericValue,
+        price: numericValue, // Manter ambos para compatibilidade
+      };
+      setItems(newItems);
+    }
   };
 
   /**
@@ -491,6 +517,7 @@ export default function AddStockEntryScreen() {
         product_id: item.product_id,
         quantity_received: item.quantity_received,
         unit_cost: item.unit_cost,
+        selling_price: item.product?.selling_price || item.product?.price || undefined,
         notes: item.notes || undefined,
       })),
     };
@@ -1003,6 +1030,27 @@ export default function AddStockEntryScreen() {
                   </View>
                 </View>
 
+                <View style={styles.itemRow}>
+                  <View style={styles.itemInputFull}>
+                    <TextInput
+                      label="Preço Venda (R$)"
+                      value={itemPrices[item.id] || '0,00'}
+                      onChangeText={(text) => handleUpdateItemPrice(item.id, index, formatCostInput(text))}
+                      keyboardType="decimal-pad"
+                      mode="outlined"
+                      dense
+                      right={
+                        parseCost(itemPrices[item.id] || '0') < parseCost(itemCosts[item.id] || '0') ? (
+                          <TextInput.Icon icon="alert" color="#ff9800" />
+                        ) : undefined
+                      }
+                    />
+                    {parseCost(itemPrices[item.id] || '0') < parseCost(itemCosts[item.id] || '0') && (
+                      <Text style={styles.warningText}>⚠️ Preço menor que o custo</Text>
+                    )}
+                  </View>
+                </View>
+
                 <View style={styles.itemTotal}>
                   <Text style={styles.itemTotalLabel}>Subtotal:</Text>
                   <Text style={styles.itemTotalValue}>
@@ -1498,6 +1546,14 @@ const styles = StyleSheet.create({
   },
   itemInput: {
     flex: 1,
+  },
+  itemInputFull: {
+    flex: 1,
+  },
+  warningText: {
+    fontSize: 11,
+    color: '#ff9800',
+    marginTop: 4,
   },
   itemTotal: {
     flexDirection: 'row',

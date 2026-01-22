@@ -157,6 +157,13 @@ export default function DashboardScreen() {
       onPress: () => router.push('/(tabs)/customers'),
     },
     {
+      id: 'conditional-shipments',
+      title: 'Condicionais',
+      icon: 'swap-horizontal',
+      color: '#EC4899',
+      onPress: () => router.push('/(tabs)/conditional'),
+    },
+    {
       id: 'new-entry',
       title: 'Entrada',
       icon: 'add-circle',
@@ -167,7 +174,7 @@ export default function DashboardScreen() {
       id: 'reports',
       title: 'Relatórios',
       icon: 'bar-chart',
-      color: '#EC4899',
+      color: '#8B5CF6',
       onPress: () => router.push('/reports/sales-period' as any),
     },
   ];
@@ -249,6 +256,28 @@ export default function DashboardScreen() {
             </Text>
           </LinearGradient>
         </TouchableOpacity>
+
+        {/* ========== AÇÕES RÁPIDAS ========== */}
+        <Text style={styles.sectionTitle}>Ações Rápidas</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.quickActionsContainer}
+        >
+          {quickActions.map((action) => (
+            <TouchableOpacity
+              key={action.id}
+              style={styles.quickActionButton}
+              activeOpacity={0.7}
+              onPress={action.onPress}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: action.color + '15' }]}>
+                <Ionicons name={action.icon} size={24} color={action.color} />
+              </View>
+              <Text style={styles.quickActionText}>{action.title}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
 
         {/* ========== RESUMO DO PERÍODO ========== */}
         <View style={styles.periodHeader}>
@@ -443,27 +472,6 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         )}
 
-        {/* ========== AÇÕES RÁPIDAS ========== */}
-        <Text style={styles.sectionTitle}>Ações Rápidas</Text>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.quickActionsContainer}
-        >
-          {quickActions.map((action) => (
-            <TouchableOpacity
-              key={action.id}
-              style={styles.quickActionButton}
-              activeOpacity={0.7}
-              onPress={action.onPress}
-            >
-              <View style={[styles.quickActionIcon, { backgroundColor: action.color + '15' }]}>
-                <Ionicons name={action.icon} size={24} color={action.color} />
-              </View>
-              <Text style={styles.quickActionText}>{action.title}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
 
         {/* ========== RESUMO RÁPIDO ========== */}
         <View style={styles.quickStatsRow}>

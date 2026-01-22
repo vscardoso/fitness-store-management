@@ -28,6 +28,7 @@ class EntryItemCreate(BaseModel):
     product_id: int = Field(..., description="ID do produto")
     quantity_received: int = Field(..., gt=0, description="Quantidade comprada/recebida")
     unit_cost: Decimal = Field(..., ge=0, description="Custo unitário")
+    selling_price: Optional[Decimal] = Field(None, ge=0, description="Preço de venda do produto (atualiza o produto)")
     notes: Optional[str] = Field(None, max_length=500, description="Observações")
 
     @field_validator('quantity_received')
@@ -45,6 +46,7 @@ class EntryItemUpdate(BaseModel):
     quantity_received: Optional[int] = Field(None, gt=0)
     quantity_remaining: Optional[int] = Field(None, ge=0)
     unit_cost: Optional[Decimal] = Field(None, ge=0)
+    sell_price: Optional[Decimal] = Field(None, ge=0, description="Preço de venda do produto")
     notes: Optional[str] = Field(None, max_length=500)
     is_active: Optional[bool] = None
 
