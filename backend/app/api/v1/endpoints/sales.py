@@ -183,7 +183,7 @@ async def list_sales(
         # Aplicar filtros na ordem de prioridade
         if start_date and end_date:
             # Filtro por período
-            sales = await sale_repo.get_by_date_range(start_date, end_date, skip, limit, tenant_id=tenant_id)
+            sales = await sale_repo.get_by_date_range(start_date, end_date, tenant_id=tenant_id)
         elif customer_id:
             # Filtro por cliente
             sales = await sale_repo.get_by_customer(customer_id, skip, limit, tenant_id=tenant_id)
