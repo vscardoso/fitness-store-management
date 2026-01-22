@@ -17,13 +17,13 @@ async def create_test_user():
         existing_user = result.scalar_one_or_none()
         
         if existing_user:
-            print("✅ Usuário admin já existe!")
+            print("[OK] Usuario admin ja existe!")
             print(f"   Email: admin@fitness.com")
             print(f"   Senha: admin123")
             print(f"   Nome: {existing_user.full_name}")
             print(f"   Cargo: {existing_user.role}")
         else:
-            # Criar novo usuário admin
+            # Criar novo usuario admin
             user = User(
                 email="admin@fitness.com",
                 hashed_password=get_password_hash("admin123"),
@@ -33,7 +33,7 @@ async def create_test_user():
             )
             session.add(user)
             await session.commit()
-            print("✅ Usuário admin criado com sucesso!")
+            print("[OK] Usuario admin criado com sucesso!")
             print(f"   Email: admin@fitness.com")
             print(f"   Senha: admin123")
             print(f"   Nome: Administrador")

@@ -692,7 +692,12 @@ export default function AddStockEntryScreen() {
               anchor={
                 <TouchableOpacity
                   style={[styles.selectButton, errors.tripId && styles.selectButtonError]}
-                  onPress={() => setTripMenuVisible(true)}
+                  onPress={() => {
+                    if (!tripMenuVisible) {
+                      setTripMenuVisible(true);
+                    }
+                  }}
+                  activeOpacity={0.7}
                 >
                   <Text style={styles.selectButtonText}>
                     {selectedTrip ? `${selectedTrip.trip_code} - ${selectedTrip.destination}` : 'Selecionar viagem'}

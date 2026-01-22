@@ -308,11 +308,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     opacity: 0.9,
   },
-  headerSubtitle: {
-    fontSize: theme.fontSize.md,
-    color: '#fff',
-    opacity: 0.9,
-  },
   monthSelector: {
     flexDirection: 'row',
     alignItems: 'center',

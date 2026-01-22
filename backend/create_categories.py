@@ -57,7 +57,7 @@ async def create_default_categories():
             existing = result.scalars().all()
             
             if existing:
-                print(f"✓ Já existem {len(existing)} categorias no banco:")
+                print(f"[OK] Ja existem {len(existing)} categorias no banco:")
                 for cat in existing:
                     print(f"  - {cat.name}")
                 return
@@ -72,11 +72,11 @@ async def create_default_categories():
             
             await session.commit()
             
-            print(f"\n✓ {len(categories_data)} categorias criadas com sucesso!")
-            
+            print(f"\n[OK] {len(categories_data)} categorias criadas com sucesso!")
+
         except Exception as e:
             await session.rollback()
-            print(f"\n✗ Erro ao criar categorias: {str(e)}")
+            print(f"\n[ERROR] Erro ao criar categorias: {str(e)}")
             raise
 
 
