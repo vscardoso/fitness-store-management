@@ -162,12 +162,15 @@ class StockEntryService:
                 # Calcular custo total
                 total_cost += item.quantity_received * item.unit_cost
                 
-                # Atualizar produto com selling_price se fornecido
-                if selling_price is not None and selling_price > 0:
-                    product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
-                    if product:
+                # Atualizar produto com selling_price e cost_price se fornecidos
+                product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
+                if product:
+                    if selling_price is not None and selling_price > 0:
                         product.price = selling_price
-                        # Commit será feito ao final
+                    # Sempre atualizar cost_price com o unit_cost mais recente
+                    if item.unit_cost is not None and item.unit_cost > 0:
+                        product.cost_price = item.unit_cost
+                    # Commit será feito ao final
                 
                 # Atualizar estoque do produto
                 await self._update_product_inventory(
@@ -817,30 +820,35 @@ class StockEntryService:
                 raise ValueError("unit_cost não pode ser negativo")
             update_data['unit_cost'] = new_unit_cost
 
+            # Atualizar cost_price do produto associado
+            product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
+            if product:
+                product.cost_price = new_unit_cost
+                await self.db.flush()
+
         # Atualizar notes se fornecido
         if 'notes' in item_data and item_data['notes'] is not None:
             update_data['notes'] = item_data['notes']
 
         # Atualizar sell_price do produto se fornecido
+        sell_price_updated = False
         if 'sell_price' in item_data and item_data['sell_price'] is not None:
             new_sell_price = item_data['sell_price']
             if new_sell_price < 0:
                 raise ValueError("sell_price não pode ser negativo")
-            
+
             # Atualizar o preço do produto associado
             product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
             if product:
                 product.price = new_sell_price
+                sell_price_updated = True
                 await self.db.flush()
-                
-                if __DEV__ if '__DEV__' in dir() else True:
-                    print(
-                        f"  [EntryItem Update] Produto {product.name}: "
-                        f"preço de venda atualizado para R$ {new_sell_price:.2f}"
-                    )
 
-        # Se não há nada para atualizar, retornar item atual
+        # Se não há nada para atualizar, commit se sell_price mudou e retornar
         if not update_data:
+            if sell_price_updated:
+                await self.db.commit()
+                await self.db.refresh(item)
             return item
 
         # Atualizar o item (sem commit ainda)

@@ -178,6 +178,26 @@ class EntryItem(BaseModel):
         """
         return self.quantity_remaining >= quantity
     
+    @property
+    def product_name(self) -> str | None:
+        """Nome do produto associado."""
+        return self.product.name if self.product else None
+
+    @property
+    def product_sku(self) -> str | None:
+        """SKU do produto associado."""
+        return self.product.sku if self.product else None
+
+    @property
+    def product_barcode(self) -> str | None:
+        """Código de barras do produto associado."""
+        return getattr(self.product, 'barcode', None) if self.product else None
+
+    @property
+    def product_price(self) -> Decimal | None:
+        """Preço de venda do produto associado."""
+        return self.product.price if self.product else None
+
     def get_product_info(self) -> dict:
         """
         Retorna informações básicas do produto associado.

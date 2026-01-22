@@ -607,13 +607,13 @@ export default function StockEntryDetailsScreen() {
             icon="cart-outline"
           />
           <StatCard
-            label="Sell-Through"
+            label="Taxa de Venda"
             value={`${entry.sell_through_rate.toFixed(1)}%`}
             icon="trending-up"
           />
           {entry.roi !== null && entry.roi !== undefined && (
             <StatCard
-              label="ROI"
+              label="Retorno"
               value={`${entry.roi >= 0 ? '+' : ''}${entry.roi.toFixed(1)}%`}
               icon="analytics-outline"
             />

@@ -87,22 +87,6 @@ class EntryItemResponse(EntryItemBase):
     product_barcode: Optional[str] = Field(None, description="Código de barras")
     product_price: Optional[Decimal] = Field(None, description="Preço de venda do produto")
 
-    @classmethod
-    def model_validate(cls, obj, **kwargs):
-        """Popula campos do produto a partir do relacionamento."""
-        # Se obj é um EntryItem model do SQLAlchemy, popular campos do produto
-        if hasattr(obj, 'product') and obj.product:
-            # Criar dict base do objeto
-            data = super().model_validate(obj, **kwargs).model_dump()
-            # Adicionar informações do produto
-            data['product_name'] = obj.product.name
-            data['product_sku'] = obj.product.sku
-            data['product_barcode'] = obj.product.barcode
-            data['product_price'] = obj.product.price
-            # Retornar nova instância com dados completos
-            return cls.model_construct(**data)
-        return super().model_validate(obj, **kwargs)
-
     class Config:
         from_attributes = True
 

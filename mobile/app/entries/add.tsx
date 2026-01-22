@@ -345,8 +345,8 @@ export default function AddStockEntryScreen() {
       return;
     }
 
-    const costFormatted = formatCostInput((product.cost_price || 0).toString().replace('.', ''));
-    const priceFormatted = formatCostInput((product.price || 0).toString().replace('.', ''));
+    const costFormatted = formatCostInput(Math.round((product.cost_price || 0) * 100).toString());
+    const priceFormatted = formatCostInput(Math.round((product.price || 0) * 100).toString());
 
     console.log('🔍 ADD PRODUCT DEBUG:', {
       product_name: product.name,
