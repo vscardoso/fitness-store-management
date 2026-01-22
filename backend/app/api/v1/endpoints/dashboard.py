@@ -3,11 +3,13 @@ Dashboard API endpoints.
 
 Fornece estatísticas e métricas para o dashboard do app mobile.
 """
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func, case, Integer
 from sqlalchemy.ext.asyncio import AsyncSession
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from decimal import Decimal
+from datetime import date, timedelta
+from enum import Enum
 
 from app.core.database import get_db
 from app.api.deps import get_current_tenant_id, get_current_active_user
@@ -20,6 +22,70 @@ from app.models.sale import Sale, SaleItem
 from app.models.user import User
 
 router = APIRouter()
+
+
+class PeriodFilter(str, Enum):
+    """Filtros de período predefinidos para o dashboard."""
+    THIS_MONTH = "this_month"
+    LAST_30_DAYS = "last_30_days"
+    LAST_2_MONTHS = "last_2_months"
+    LAST_3_MONTHS = "last_3_months"
+    LAST_6_MONTHS = "last_6_months"
+    THIS_YEAR = "this_year"
+
+
+def get_period_dates(period: PeriodFilter) -> tuple[date, date]:
+    """Retorna (start_date, end_date) baseado no filtro de período."""
+    today = date.today()
+
+    if period == PeriodFilter.THIS_MONTH:
+        start = date(today.year, today.month, 1)
+        end = today
+    elif period == PeriodFilter.LAST_30_DAYS:
+        start = today - timedelta(days=30)
+        end = today
+    elif period == PeriodFilter.LAST_2_MONTHS:
+        # Início de 2 meses atrás
+        month = today.month - 2
+        year = today.year
+        if month <= 0:
+            month += 12
+            year -= 1
+        start = date(year, month, 1)
+        end = today
+    elif period == PeriodFilter.LAST_3_MONTHS:
+        month = today.month - 3
+        year = today.year
+        if month <= 0:
+            month += 12
+            year -= 1
+        start = date(year, month, 1)
+        end = today
+    elif period == PeriodFilter.LAST_6_MONTHS:
+        month = today.month - 6
+        year = today.year
+        if month <= 0:
+            month += 12
+            year -= 1
+        start = date(year, month, 1)
+        end = today
+    elif period == PeriodFilter.THIS_YEAR:
+        start = date(today.year, 1, 1)
+        end = today
+    else:
+        # Default: este mês
+        start = date(today.year, today.month, 1)
+        end = today
+
+    return start, end
+
+
+def get_previous_period_dates(start: date, end: date) -> tuple[date, date]:
+    """Calcula o período anterior de mesma duração para comparação."""
+    duration = (end - start).days + 1
+    prev_end = start - timedelta(days=1)
+    prev_start = prev_end - timedelta(days=duration - 1)
+    return prev_start, prev_end
 
 
 @router.get("/stats", response_model=Dict[str, Any])
@@ -532,69 +598,156 @@ async def get_inventory_health(
 
 @router.get("/sales/monthly", response_model=Dict[str, Any])
 async def get_monthly_sales_stats(
+    period: Optional[PeriodFilter] = Query(
+        default=PeriodFilter.THIS_MONTH,
+        description="Filtro de período predefinido"
+    ),
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Retorna estatísticas de vendas do mês atual.
-    
-    - total_month: total de vendas do mês
-    - count_month: quantidade de vendas do mês
-    - profit_month: lucro realizado no mês (vendas - CMV)
-    - average_ticket_month: ticket médio do mês
-    - margin_percent_month: margem de lucro do mês (%)
+    Retorna estatísticas de vendas do período selecionado.
+
+    **Filtros disponíveis:**
+    - this_month: Mês atual (padrão)
+    - last_30_days: Últimos 30 dias
+    - last_2_months: Últimos 2 meses
+    - last_3_months: Últimos 3 meses
+    - last_6_months: Últimos 6 meses
+    - this_year: Este ano
+
+    **Retorno:**
+    - total: total de vendas do período
+    - count: quantidade de vendas
+    - profit: lucro realizado (vendas - CMV)
+    - average_ticket: ticket médio
+    - margin_percent: margem de lucro (%)
+    - cmv: custo das mercadorias vendidas
+    - comparison: comparação com período anterior
     """
-    from datetime import date
-    
-    today = date.today()
-    month_start = date(today.year, today.month, 1)
-    
-    # Vendas do mês
-    sales_month_query = select(
-        func.coalesce(func.sum(Sale.total_amount), 0).label("total_month"),
-        func.count(Sale.id).label("count_month"),
+    start_date, end_date = get_period_dates(period)
+    prev_start, prev_end = get_previous_period_dates(start_date, end_date)
+
+    # Vendas do período atual
+    sales_query = select(
+        func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
+        func.count(Sale.id).label("count"),
     ).where(
         Sale.tenant_id == tenant_id,
-        func.date(Sale.created_at) >= month_start,
-        func.date(Sale.created_at) <= today,
+        func.date(Sale.created_at) >= start_date,
+        func.date(Sale.created_at) <= end_date,
         Sale.is_active == True,
     )
-    
-    result = await db.execute(sales_month_query)
+
+    result = await db.execute(sales_query)
     sales_stats = result.first()
-    total_month = float(sales_stats.total_month) if sales_stats.total_month else 0.0
-    count_month = int(sales_stats.count_month) if sales_stats.count_month else 0
-    
-    # CMV do mês
-    cmv_month_query = select(
-        func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_cost), 0).label("cmv_month"),
+    total = float(sales_stats.total) if sales_stats.total else 0.0
+    count = int(sales_stats.count) if sales_stats.count else 0
+
+    # CMV do período
+    cmv_query = select(
+        func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_cost), 0).label("cmv"),
     ).join(Sale, SaleItem.sale_id == Sale.id).where(
         Sale.tenant_id == tenant_id,
-        func.date(Sale.created_at) >= month_start,
-        func.date(Sale.created_at) <= today,
+        func.date(Sale.created_at) >= start_date,
+        func.date(Sale.created_at) <= end_date,
         Sale.is_active == True,
         SaleItem.is_active == True,
     )
-    
-    result = await db.execute(cmv_month_query)
-    cmv_month = float(result.scalar() or 0.0)
-    
+
+    result = await db.execute(cmv_query)
+    cmv = float(result.scalar() or 0.0)
+
+    # Vendas do período anterior (para comparação)
+    prev_sales_query = select(
+        func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
+        func.count(Sale.id).label("count"),
+    ).where(
+        Sale.tenant_id == tenant_id,
+        func.date(Sale.created_at) >= prev_start,
+        func.date(Sale.created_at) <= prev_end,
+        Sale.is_active == True,
+    )
+
+    result = await db.execute(prev_sales_query)
+    prev_stats = result.first()
+    prev_total = float(prev_stats.total) if prev_stats.total else 0.0
+    prev_count = int(prev_stats.count) if prev_stats.count else 0
+
+    # CMV do período anterior
+    prev_cmv_query = select(
+        func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_cost), 0).label("cmv"),
+    ).join(Sale, SaleItem.sale_id == Sale.id).where(
+        Sale.tenant_id == tenant_id,
+        func.date(Sale.created_at) >= prev_start,
+        func.date(Sale.created_at) <= prev_end,
+        Sale.is_active == True,
+        SaleItem.is_active == True,
+    )
+
+    result = await db.execute(prev_cmv_query)
+    prev_cmv = float(result.scalar() or 0.0)
+
     # Cálculos
-    profit_month = total_month - cmv_month
-    margin_percent_month = (profit_month / total_month * 100) if total_month > 0 else 0.0
-    average_ticket_month = total_month / count_month if count_month > 0 else 0.0
-    
+    profit = total - cmv
+    margin_percent = (profit / total * 100) if total > 0 else 0.0
+    average_ticket = total / count if count > 0 else 0.0
+
+    prev_profit = prev_total - prev_cmv
+
+    # Calcular variações percentuais
+    total_change = ((total - prev_total) / prev_total * 100) if prev_total > 0 else (100.0 if total > 0 else 0.0)
+    count_change = ((count - prev_count) / prev_count * 100) if prev_count > 0 else (100.0 if count > 0 else 0.0)
+    profit_change = ((profit - prev_profit) / prev_profit * 100) if prev_profit > 0 else (100.0 if profit > 0 else 0.0)
+
+    # Labels para período
+    period_labels = {
+        PeriodFilter.THIS_MONTH: "Este Mês",
+        PeriodFilter.LAST_30_DAYS: "Últimos 30 dias",
+        PeriodFilter.LAST_2_MONTHS: "Últimos 2 meses",
+        PeriodFilter.LAST_3_MONTHS: "Últimos 3 meses",
+        PeriodFilter.LAST_6_MONTHS: "Últimos 6 meses",
+        PeriodFilter.THIS_YEAR: "Este Ano",
+    }
+
     return {
-        "total_month": total_month,
-        "count_month": count_month,
-        "profit_month": profit_month,
-        "average_ticket_month": average_ticket_month,
-        "margin_percent_month": round(margin_percent_month, 2),
-        "cmv_month": cmv_month,
+        # Dados do período atual
+        "total": total,
+        "count": count,
+        "profit": profit,
+        "average_ticket": average_ticket,
+        "margin_percent": round(margin_percent, 2),
+        "cmv": cmv,
+
+        # Compatibilidade com versão anterior
+        "total_month": total,
+        "count_month": count,
+        "profit_month": profit,
+        "average_ticket_month": average_ticket,
+        "margin_percent_month": round(margin_percent, 2),
+        "cmv_month": cmv,
+
+        # Comparação com período anterior
+        "comparison": {
+            "prev_total": prev_total,
+            "prev_count": prev_count,
+            "prev_profit": prev_profit,
+            "total_change_percent": round(total_change, 2),
+            "count_change_percent": round(count_change, 2),
+            "profit_change_percent": round(profit_change, 2),
+        },
+
+        # Metadados do período
         "period": {
-            "from": str(month_start),
-            "to": str(today),
+            "filter": period.value,
+            "label": period_labels.get(period, "Período"),
+            "from": str(start_date),
+            "to": str(end_date),
+        },
+        "previous_period": {
+            "from": str(prev_start),
+            "to": str(prev_end),
         },
     }
 

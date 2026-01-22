@@ -27,7 +27,12 @@
       "Bash(../venv/Scripts/python.exe test_notification_system.py)",
       "Bash(../venv/Scripts/python.exe -m alembic upgrade:*)",
       "Bash(git push:*)",
-      "Bash(ipconfig:*)"
+      "Bash(ipconfig:*)",
+      "Bash(.venvScriptspython.exe -c \"from app.api.v1.endpoints.dashboard import *; print\\(''Backend OK''\\)\")",
+      "Bash(powershell.exe -Command \"cd ''C:\\\\Users\\\\Victor\\\\Desktop\\\\fitness-store-management\\\\backend''; .\\\\venv\\\\Scripts\\\\python.exe -c ''from app.api.v1.endpoints.dashboard import router; print\\(\"\"Backend OK\"\"\\)''\")",
+      "Bash(powershell.exe -Command \"Set-Location ''C:\\\\Users\\\\Victor\\\\Desktop\\\\fitness-store-management\\\\backend''; & .\\\\venv\\\\Scripts\\\\python.exe -c ''import app.api.v1.endpoints.dashboard''\")",
+      "Bash(powershell.exe -Command \"Set-Location ''C:\\\\Users\\\\Victor\\\\Desktop\\\\fitness-store-management\\\\mobile''; npx tsc --noEmit 2>&1 | Select-Object -First 30\")",
+      "Bash(powershell.exe -Command \"Set-Location ''C:\\\\Users\\\\Victor\\\\Desktop\\\\fitness-store-management\\\\mobile''; npx tsc --noEmit 2>&1 | Select-String -Pattern ''index.tsx|dashboardService|PeriodFilter''\")"
     ],
     "deny": [],
     "ask": []

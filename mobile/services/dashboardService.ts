@@ -6,6 +6,7 @@
  */
 
 import api from './api';
+import type { PeriodFilterValue } from '@/components/PeriodFilter';
 
 export interface DashboardStats {
   stock: {
@@ -21,6 +22,9 @@ export interface DashboardStats {
     total_today: number;
     count_today: number;
     average_ticket: number;
+    total_yesterday?: number;
+    count_yesterday?: number;
+    trend_percent?: number;
   };
   customers: {
     total: number;
@@ -74,19 +78,72 @@ export const getInventoryHealth = async (): Promise<InventoryHealth> => {
   return data;
 };
 
-// Métricas mensais de vendas
-export interface MonthlySalesStats {
+// Comparação com período anterior
+export interface PeriodComparison {
+  prev_total: number;
+  prev_count: number;
+  prev_profit: number;
+  total_change_percent: number;
+  count_change_percent: number;
+  profit_change_percent: number;
+}
+
+// Métricas de vendas por período
+export interface PeriodSalesStats {
+  // Dados do período atual
+  total: number;
+  count: number;
+  profit: number;
+  average_ticket: number;
+  margin_percent: number;
+  cmv: number;
+
+  // Compatibilidade com versão anterior
   total_month: number;
   count_month: number;
   profit_month: number;
   average_ticket_month: number;
   margin_percent_month: number;
   cmv_month: number;
-  period: { from: string; to: string };
+
+  // Comparação com período anterior
+  comparison: PeriodComparison;
+
+  // Metadados do período
+  period: {
+    filter: string;
+    label: string;
+    from: string;
+    to: string;
+  };
+  previous_period: {
+    from: string;
+    to: string;
+  };
 }
 
-export const getMonthlySalesStats = async (): Promise<MonthlySalesStats> => {
-  const { data } = await api.get<MonthlySalesStats>('/dashboard/sales/monthly');
+// Alias para compatibilidade
+export type MonthlySalesStats = PeriodSalesStats;
+
+/**
+ * Busca estatísticas de vendas por período
+ * @param period - Filtro de período (padrão: this_month)
+ */
+export const getPeriodSalesStats = async (
+  period: PeriodFilterValue = 'this_month'
+): Promise<PeriodSalesStats> => {
+  const { data } = await api.get<PeriodSalesStats>('/dashboard/sales/monthly', {
+    params: { period },
+  });
   return data;
+};
+
+/**
+ * @deprecated Use getPeriodSalesStats com parâmetro de período
+ */
+export const getMonthlySalesStats = async (
+  period?: PeriodFilterValue
+): Promise<PeriodSalesStats> => {
+  return getPeriodSalesStats(period || 'this_month');
 };
 

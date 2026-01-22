@@ -781,9 +781,6 @@ const styles = StyleSheet.create({
     gap: 8,
     marginTop: 8,
   },
-  filterChip: {
-    backgroundColor: Colors.light.primaryLight,
-  },
   listContainer: {
     paddingHorizontal: 16,
     paddingBottom: 100,

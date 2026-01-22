@@ -13,11 +13,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
-import { getDashboardStats, getInventoryValuation, getMonthlySalesStats } from '@/services/dashboardService';
+import { getDashboardStats, getInventoryValuation, getPeriodSalesStats } from '@/services/dashboardService';
 import { getSales } from '@/services/saleService';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import FAB from '@/components/FAB';
+import PeriodFilter, { type PeriodFilterValue, PERIOD_OPTIONS } from '@/components/PeriodFilter';
 
 const { width } = Dimensions.get('window');
 
@@ -34,6 +35,7 @@ export default function DashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilterValue>('this_month');
 
   // Queries
   const { data: dashboardStats, refetch: refetchStats } = useQuery({
@@ -48,9 +50,9 @@ export default function DashboardScreen() {
     enabled: !!user,
   });
 
-  const { data: monthlyStats, refetch: refetchMonthly } = useQuery({
-    queryKey: ['monthly-sales'],
-    queryFn: getMonthlySalesStats,
+  const { data: periodStats, refetch: refetchPeriod } = useQuery({
+    queryKey: ['period-sales', selectedPeriod],
+    queryFn: () => getPeriodSalesStats(selectedPeriod),
     enabled: !!user,
   });
 
@@ -66,7 +68,7 @@ export default function DashboardScreen() {
     await Promise.all([
       refetchStats(),
       refetchValuation(),
-      refetchMonthly(),
+      refetchPeriod(),
       refetchRecentSales(),
     ]);
     setRefreshing(false);
@@ -77,9 +79,9 @@ export default function DashboardScreen() {
     useCallback(() => {
       refetchStats();
       refetchValuation();
-      refetchMonthly();
+      refetchPeriod();
       refetchRecentSales();
-    }, [refetchStats, refetchValuation, refetchMonthly, refetchRecentSales])
+    }, [refetchStats, refetchValuation, refetchPeriod, refetchRecentSales])
   );
 
   // Dados extraídos
@@ -90,11 +92,17 @@ export default function DashboardScreen() {
   const totalProducts = dashboardStats?.stock.total_products || 0;
   const totalCustomers = dashboardStats?.customers.total || 0;
 
-  // Mensais
-  const totalSalesMonth = monthlyStats?.total_month || 0;
-  const countSalesMonth = monthlyStats?.count_month || 0;
-  const profitMonth = monthlyStats?.profit_month || 0;
-  const marginPercentMonth = monthlyStats?.margin_percent_month || 0;
+  // Período selecionado
+  const periodTotal = periodStats?.total || 0;
+  const periodCount = periodStats?.count || 0;
+  const periodProfit = periodStats?.profit || 0;
+  const periodMargin = periodStats?.margin_percent || 0;
+  const periodLabel = periodStats?.period?.label || 'Este Mês';
+
+  // Comparação com período anterior
+  const comparison = periodStats?.comparison;
+  const totalChangePercent = comparison?.total_change_percent || 0;
+  const profitChangePercent = comparison?.profit_change_percent || 0;
 
   // Estoque
   const stockCost = valuation?.cost_value || dashboardStats?.stock.invested_value || 0;
@@ -227,8 +235,15 @@ export default function DashboardScreen() {
           </LinearGradient>
         </TouchableOpacity>
 
-        {/* ========== RESUMO DO MÊS ========== */}
-        <Text style={styles.sectionTitle}>Este Mês</Text>
+        {/* ========== RESUMO DO PERÍODO ========== */}
+        <View style={styles.periodHeader}>
+          <Text style={styles.sectionTitle}>{periodLabel}</Text>
+          <PeriodFilter
+            value={selectedPeriod}
+            onChange={setSelectedPeriod}
+            compact
+          />
+        </View>
         <View style={styles.monthGrid}>
           {/* Faturamento */}
           <TouchableOpacity
@@ -240,8 +255,28 @@ export default function DashboardScreen() {
               <Ionicons name="wallet-outline" size={22} color="#6366F1" />
             </View>
             <Text style={styles.monthCardLabel}>Faturamento</Text>
-            <Text style={styles.monthCardValue}>{formatCurrency(totalSalesMonth)}</Text>
-            <Text style={styles.monthCardSubtitle}>{countSalesMonth} vendas</Text>
+            <Text style={styles.monthCardValue}>{formatCurrency(periodTotal)}</Text>
+            <View style={styles.monthCardFooter}>
+              <Text style={styles.monthCardSubtitle}>{periodCount} vendas</Text>
+              {totalChangePercent !== 0 && (
+                <View style={[
+                  styles.changeBadge,
+                  { backgroundColor: totalChangePercent >= 0 ? '#ECFDF5' : '#FEF2F2' }
+                ]}>
+                  <Ionicons
+                    name={totalChangePercent >= 0 ? 'arrow-up' : 'arrow-down'}
+                    size={10}
+                    color={totalChangePercent >= 0 ? '#10B981' : '#EF4444'}
+                  />
+                  <Text style={[
+                    styles.changeText,
+                    { color: totalChangePercent >= 0 ? '#10B981' : '#EF4444' }
+                  ]}>
+                    {Math.abs(totalChangePercent).toFixed(0)}%
+                  </Text>
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
 
           {/* Lucro */}
@@ -255,9 +290,29 @@ export default function DashboardScreen() {
             </View>
             <Text style={styles.monthCardLabel}>Lucro Líquido</Text>
             <Text style={[styles.monthCardValue, { color: '#10B981' }]}>
-              {formatCurrency(profitMonth)}
+              {formatCurrency(periodProfit)}
             </Text>
-            <Text style={styles.monthCardSubtitle}>{marginPercentMonth.toFixed(0)}% de margem</Text>
+            <View style={styles.monthCardFooter}>
+              <Text style={styles.monthCardSubtitle}>{periodMargin.toFixed(0)}% margem</Text>
+              {profitChangePercent !== 0 && (
+                <View style={[
+                  styles.changeBadge,
+                  { backgroundColor: profitChangePercent >= 0 ? '#ECFDF5' : '#FEF2F2' }
+                ]}>
+                  <Ionicons
+                    name={profitChangePercent >= 0 ? 'arrow-up' : 'arrow-down'}
+                    size={10}
+                    color={profitChangePercent >= 0 ? '#10B981' : '#EF4444'}
+                  />
+                  <Text style={[
+                    styles.changeText,
+                    { color: profitChangePercent >= 0 ? '#10B981' : '#EF4444' }
+                  ]}>
+                    {Math.abs(profitChangePercent).toFixed(0)}%
+                  </Text>
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
         </View>
 
@@ -372,8 +427,8 @@ export default function DashboardScreen() {
             onPress={() => router.push('/(tabs)/sales')}
           >
             <Ionicons name="receipt" size={20} color="#10B981" />
-            <Text style={styles.quickStatValue}>{countSalesMonth}</Text>
-            <Text style={styles.quickStatLabel}>Vendas/Mês</Text>
+            <Text style={styles.quickStatValue}>{periodCount}</Text>
+            <Text style={styles.quickStatLabel}>Vendas</Text>
           </TouchableOpacity>
         </View>
 
@@ -538,6 +593,15 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 
+  // Header do período com filtro
+  periodHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    marginBottom: 12,
+  },
+
   // Grid do Mês
   monthGrid: {
     flexDirection: 'row',
@@ -577,6 +641,24 @@ const styles = StyleSheet.create({
   monthCardSubtitle: {
     fontSize: 12,
     color: '#9CA3AF',
+  },
+  monthCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: 2,
+  },
+  changeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    gap: 2,
+  },
+  changeText: {
+    fontSize: 10,
+    fontWeight: '600',
   },
 
   // Card de Estoque
