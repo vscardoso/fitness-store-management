@@ -170,8 +170,12 @@ export default function AddStockEntryScreen() {
           product: catalogProduct,
         };
 
+        // Formatar preço de venda
+        const priceFormatted = formatCostInput(Math.round((productData.price || 0) * 100).toString());
+
         setItems([newItem]);
         setItemCosts({ [newItem.id]: costFormatted });
+        setItemPrices({ [newItem.id]: priceFormatted });
         return;
       } catch (e) {
         console.error('Error parsing preselectedProductData:', e);
@@ -200,8 +204,12 @@ export default function AddStockEntryScreen() {
           product,
         };
 
+        // Formatar preço de venda
+        const sellPriceFormatted = formatCostInput(Math.round((product.price || 0) * 100).toString());
+
         setItems([newItem]);
         setItemCosts({ [newItem.id]: costFormatted });
+        setItemPrices({ [newItem.id]: sellPriceFormatted });
       }
     }
   }, [params.preselectedProductData, params.preselectedProductId, params.fromCatalog, products]);
@@ -391,8 +399,7 @@ export default function AddStockEntryScreen() {
     if (newItems[index].product) {
       newItems[index].product = {
         ...newItems[index].product!,
-        selling_price: numericValue,
-        price: numericValue, // Manter ambos para compatibilidade
+        price: numericValue,
       };
       setItems(newItems);
     }
@@ -517,7 +524,7 @@ export default function AddStockEntryScreen() {
         product_id: item.product_id,
         quantity_received: item.quantity_received,
         unit_cost: item.unit_cost,
-        selling_price: item.product?.selling_price || item.product?.price || undefined,
+        selling_price: item.product?.price || undefined,
         notes: item.notes || undefined,
       })),
     };

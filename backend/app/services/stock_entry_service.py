@@ -166,7 +166,7 @@ class StockEntryService:
                 if selling_price is not None and selling_price > 0:
                     product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
                     if product:
-                        product.selling_price = selling_price
+                        product.price = selling_price
                         # Commit será feito ao final
                 
                 # Atualizar estoque do produto
@@ -829,7 +829,7 @@ class StockEntryService:
             # Atualizar o preço do produto associado
             product = await self.product_repo.get_by_id(self.db, item.product_id, tenant_id=tenant_id)
             if product:
-                product.selling_price = new_sell_price
+                product.price = new_sell_price
                 await self.db.flush()
                 
                 if __DEV__ if '__DEV__' in dir() else True:
