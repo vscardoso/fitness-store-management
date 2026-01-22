@@ -6,46 +6,27 @@ import {
   RefreshControl,
   TouchableOpacity,
   Dimensions,
-  FlatList,
-  Alert
 } from 'react-native';
-import { Text, Card, Badge, IconButton, Portal, Modal } from 'react-native-paper';
+import { Text, Card } from 'react-native-paper';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
-import { getDashboardStats, getInventoryValuation, getInventoryHealth, getMonthlySalesStats } from '@/services/dashboardService';
-import { getActiveProducts, getLowStockProducts } from '@/services/productService';
-import { getDailySalesTotal, getSales } from '@/services/saleService';
-import { getCustomers } from '@/services/customerService';
+import { getDashboardStats, getInventoryValuation, getMonthlySalesStats } from '@/services/dashboardService';
+import { getSales } from '@/services/saleService';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import FAB from '@/components/FAB';
 
 const { width } = Dimensions.get('window');
 
-// Interface para as métricas do dashboard
-interface DashboardMetric {
-  id: string;
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  colors: [string, string];
-  onPress: () => void;
-  trend?: {
-    value: string;
-    isPositive: boolean;
-  };
-}
-
 // Interface para ações rápidas
 interface QuickAction {
   id: string;
   title: string;
   icon: keyof typeof Ionicons.glyphMap;
-  colors: [string, string];
+  color: string;
   onPress: () => void;
 }
 
@@ -53,110 +34,80 @@ export default function DashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
-  const [quickActionsVisible, setQuickActionsVisible] = useState(false);
-  const [tooltipVisible, setTooltipVisible] = useState<string | null>(null);
 
-  // Query principal: Dashboard stats com rastreabilidade
+  // Queries
   const { data: dashboardStats, refetch: refetchStats } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: getDashboardStats,
     enabled: !!user,
   });
 
-  // Valoração do estoque (custo, venda, margem)
   const { data: valuation, refetch: refetchValuation } = useQuery({
     queryKey: ['inventory-valuation'],
     queryFn: getInventoryValuation,
     enabled: !!user,
   });
 
-  // Saúde do estoque (cobertura, aging, giro, score)
-  const { data: health, refetch: refetchHealth } = useQuery({
-    queryKey: ['inventory-health'],
-    queryFn: getInventoryHealth,
-    enabled: !!user,
-  });
-
-  // Query para últimas vendas
-  const { data: recentSales, refetch: refetchRecentSales } = useQuery({
-    queryKey: ['recent-sales'],
-    queryFn: () => getSales({ limit: 5, skip: 0 }),
-    enabled: !!user,
-  });
-
-  // Métricas mensais de vendas
   const { data: monthlyStats, refetch: refetchMonthly } = useQuery({
     queryKey: ['monthly-sales'],
     queryFn: getMonthlySalesStats,
     enabled: !!user,
   });
 
-  // Função de refresh completa
+  const { data: recentSales, refetch: refetchRecentSales } = useQuery({
+    queryKey: ['recent-sales'],
+    queryFn: () => getSales({ limit: 5, skip: 0 }),
+    enabled: !!user,
+  });
+
+  // Refresh
   const onRefresh = async () => {
     setRefreshing(true);
     await Promise.all([
       refetchStats(),
       refetchValuation(),
-      refetchHealth(),
-      refetchRecentSales(),
       refetchMonthly(),
+      refetchRecentSales(),
     ]);
     setRefreshing(false);
   };
 
-  // Auto-refresh quando a tela recebe foco (ex: volta de checkout)
+  // Auto-refresh no foco
   useFocusEffect(
     useCallback(() => {
-      // Refetch todas as queries quando a tela recebe foco
       refetchStats();
       refetchValuation();
-      refetchHealth();
-      refetchRecentSales();
       refetchMonthly();
-    }, [refetchStats, refetchValuation, refetchHealth, refetchRecentSales, refetchMonthly])
+      refetchRecentSales();
+    }, [refetchStats, refetchValuation, refetchMonthly, refetchRecentSales])
   );
 
-  // Extrair métricas do dashboard stats (com rastreabilidade)
-  // PRIORIDADE: usar valuation (dados separados) ao invés de dashboardStats (agregado)
-  const stockValue = valuation?.cost_value || dashboardStats?.stock.invested_value || 0;
-  const potentialRevenue = valuation?.retail_value || dashboardStats?.stock.potential_revenue || 0;
-  const potentialProfit = valuation?.potential_margin || dashboardStats?.stock.potential_profit || 0;
-  const averageMargin = valuation && valuation.cost_value > 0
-    ? ((valuation.retail_value - valuation.cost_value) / valuation.cost_value) * 100
-    : dashboardStats?.stock.average_margin_percent || 0;
-  const totalStockQuantity = dashboardStats?.stock.total_quantity || 0;
-  const totalProducts = dashboardStats?.stock.total_products || 0;
-  const lowStockCount = dashboardStats?.stock.low_stock_count || 0;
-
+  // Dados extraídos
   const totalSalesToday = dashboardStats?.sales.total_today || 0;
   const salesCountToday = dashboardStats?.sales.count_today || 0;
-  const totalSalesAll = dashboardStats?.sales.total_all || 0;
-  const salesCountAll = dashboardStats?.sales.count_all || 0;
-  const realizedProfit = dashboardStats?.sales.realized_profit || 0;
-  const realizedMarginPercent = dashboardStats?.sales.realized_margin_percent || 0;
-  const averageTicket = dashboardStats?.sales.average_ticket || 0;
   const salesTrendPercent = dashboardStats?.sales.trend_percent || 0;
-
+  const lowStockCount = dashboardStats?.stock.low_stock_count || 0;
+  const totalProducts = dashboardStats?.stock.total_products || 0;
   const totalCustomers = dashboardStats?.customers.total || 0;
 
-  // Métricas mensais
+  // Mensais
   const totalSalesMonth = monthlyStats?.total_month || 0;
   const countSalesMonth = monthlyStats?.count_month || 0;
   const profitMonth = monthlyStats?.profit_month || 0;
-  const averageTicketMonth = monthlyStats?.average_ticket_month || 0;
   const marginPercentMonth = monthlyStats?.margin_percent_month || 0;
 
-  // Explicações dos cards
-  const cardExplanations: Record<string, string> = {
-    'sales-today': 'Total de vendas realizadas no dia atual. O percentual mostra a variação em relação ao dia anterior.',
-    'sales-month': 'Total de vendas realizadas no mês atual. Mostra o faturamento mensal consolidado com a quantidade de transações.',
-    'profit-month': 'Lucro líquido obtido no mês atual (vendas - CMV). O percentual indica a margem de lucro média do mês.',
-    'ticket-month': 'Valor médio por venda no mês atual. Calculado dividindo o total de vendas pela quantidade de transações.',
-    'products': 'Quantidade total de produtos cadastrados que possuem estoque disponível para venda.',
-    'customers': 'Número de clientes ativos cadastrados no sistema. Clientes inativos não são contabilizados.',
-    'stock-cost': 'Valor do estoque atual em mãos. Este valor diminui conforme as vendas são realizadas, representando o capital investido no inventário disponível.',
-    'stock-retail': 'Receita potencial caso todo o estoque atual seja vendido ao preço de venda cadastrado. Representa o faturamento máximo possível com o inventário disponível.',
-    'stock-margin': 'Diferença entre o valor de venda e o custo do estoque. Indica o lucro potencial caso todo o estoque seja vendido. O percentual mostra a margem média.',
+  // Estoque
+  const stockCost = valuation?.cost_value || dashboardStats?.stock.invested_value || 0;
+  const stockRetail = valuation?.retail_value || dashboardStats?.stock.potential_revenue || 0;
+  const stockProfit = valuation?.potential_margin || (stockRetail - stockCost);
+  const stockMarginPercent = stockCost > 0 ? ((stockRetail - stockCost) / stockCost) * 100 : 0;
+
+  // Saudação
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Bom dia';
+    if (hour < 18) return 'Boa tarde';
+    return 'Boa noite';
   };
 
   // Ações rápidas
@@ -165,434 +116,65 @@ export default function DashboardScreen() {
       id: 'new-sale',
       title: 'Nova Venda',
       icon: 'cart',
-      colors: ['#11998e', '#38ef7d'],
-      onPress: () => {
-        setQuickActionsVisible(false);
-        router.push('/(tabs)/sale');
-      },
-    },
-    {
-      id: 'conditional-shipments',
-      title: 'Envios Condici...',
-      icon: 'cube-outline',
-      colors: ['#f093fb', '#f5576c'],
-      onPress: () => {
-        setQuickActionsVisible(false);
-        router.push('/(tabs)/conditional');
-      },
-    },
-    {
-      id: 'new-customer',
-      title: 'Novo Cliente',
-      icon: 'person-add',
-      colors: ['#667eea', '#764ba2'],
-      onPress: () => {
-        setQuickActionsVisible(false);
-        router.push('/customers/add');
-      },
-    },
-    {
-      id: 'new-product',
-      title: 'Novo Produto',
-      icon: 'cube',
-      colors: ['#4776e6', '#8e54e9'],
-      onPress: () => {
-        setQuickActionsVisible(false);
-        router.push('/products/add');
-      },
-    },
-    {
-      id: 'new-entry',
-      title: 'Nova Entrada',
-      icon: 'layers',
-      colors: ['#fa709a', '#fee140'],
-      onPress: () => {
-        setQuickActionsVisible(false);
-        router.push('/entries/add');
-      },
-    },
-  ];
-
-  // Métricas do dashboard
-  const metrics: DashboardMetric[] = [
-    {
-      id: 'sales-today',
-      title: 'Vendas Hoje',
-      value: formatCurrency(totalSalesToday),
-      subtitle: `${salesCountToday} ${salesCountToday === 1 ? 'venda' : 'vendas'}`,
-      icon: 'trending-up',
-      colors: ['#11998e', '#38ef7d'],
-      onPress: () => router.push('/(tabs)/sales'),
-      trend: {
-        value: `${salesTrendPercent > 0 ? '+' : ''}${salesTrendPercent.toFixed(1)}%`,
-        isPositive: salesTrendPercent >= 0,
-      },
-    },
-    {
-      id: 'sales-month',
-      title: 'Vendas do Mês',
-      value: formatCurrency(totalSalesMonth),
-      subtitle: `${countSalesMonth} vendas`,
-      icon: 'calendar',
-      colors: ['#667eea', '#764ba2'],
-      onPress: () => router.push('/reports/sales-period' as any),
-    },
-    {
-      id: 'profit-month',
-      title: 'Lucro do Mês',
-      value: formatCurrency(profitMonth),
-      subtitle: `${marginPercentMonth.toFixed(1)}% margem`,
-      icon: 'stats-chart',
-      colors: ['#f093fb', '#f5576c'],
-      onPress: () => router.push('/reports/sales-period' as any),
-    },
-    {
-      id: 'ticket-month',
-      title: 'Ticket Médio',
-      value: formatCurrency(averageTicketMonth),
-      subtitle: 'este mês',
-      icon: 'receipt',
-      colors: ['#fa709a', '#fee140'],
-      onPress: () => router.push('/reports/sales-period' as any),
+      color: '#10B981',
+      onPress: () => router.push('/(tabs)/sale'),
     },
     {
       id: 'products',
       title: 'Produtos',
-      value: totalProducts.toString(),
-      subtitle: 'com estoque',
       icon: 'cube',
-      colors: ['#4776e6', '#8e54e9'],
+      color: '#8B5CF6',
       onPress: () => router.push('/(tabs)/products'),
     },
     {
       id: 'customers',
       title: 'Clientes',
-      value: totalCustomers.toString(),
-      subtitle: 'ativos',
       icon: 'people',
-      colors: ['#30cfd0', '#330867'],
+      color: '#3B82F6',
       onPress: () => router.push('/(tabs)/customers'),
     },
     {
-      id: 'stock-cost',
-      title: 'Valor Estoque Atual',
-      value: formatCurrency(stockValue),
-      subtitle: 'capital em estoque',
-      icon: 'wallet',
-      colors: ['#667eea', '#764ba2'],
-      onPress: () => router.push('/(tabs)/products'),
+      id: 'new-entry',
+      title: 'Entrada',
+      icon: 'add-circle',
+      color: '#F59E0B',
+      onPress: () => router.push('/entries/add'),
     },
     {
-      id: 'stock-retail',
-      title: 'Potencial de Venda',
-      value: formatCurrency(potentialRevenue),
-      subtitle: 'se vender todo estoque',
-      icon: 'cash',
-      colors: ['#11998e', '#38ef7d'],
-      onPress: () => router.push('/(tabs)/products'),
-    },
-    {
-      id: 'stock-margin',
-      title: 'Margem Potencial',
-      value: formatCurrency(potentialProfit),
-      subtitle: `${averageMargin.toFixed(1)}% média`,
-      icon: 'trending-up',
-      colors: ['#30cfd0', '#330867'],
+      id: 'reports',
+      title: 'Relatórios',
+      icon: 'bar-chart',
+      color: '#EC4899',
       onPress: () => router.push('/reports/sales-period' as any),
     },
   ];
 
-  // Função para obter saudação baseada no horário
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Bom dia';
-    if (hour < 18) return 'Boa tarde';
-    return 'Boa noite';
-  };
-
-  // Componente de Header Premium
-  const PremiumHeader = () => (
-    <View style={styles.headerContainer}>
+  return (
+    <View style={styles.container}>
+      {/* Header */}
       <LinearGradient
         colors={['#667eea', '#764ba2']}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.headerGradient}
+        style={styles.header}
       >
         <View style={styles.headerContent}>
-          <View style={styles.headerInfo}>
+          <View>
             <Text style={styles.greeting}>
-              {getGreeting()}, {user?.full_name?.split(' ')[0] || 'Usuário'}! 👋
+              {getGreeting()}, {user?.full_name?.split(' ')[0] || 'Usuário'}!
             </Text>
-            <Text style={styles.headerSubtitle}>
-              {user?.store_name ? `${user.store_name} - Fitness Store` : 'Fitness Store Management'}
+            <Text style={styles.storeName}>
+              {user?.store_name || 'Fitness Store'}
             </Text>
           </View>
           <TouchableOpacity
             style={styles.profileButton}
             onPress={() => router.push('/(tabs)/more')}
           >
-            <View style={styles.profileIcon}>
-              <Ionicons name="person" size={24} color="#fff" />
-            </View>
+            <Ionicons name="person-circle-outline" size={40} color="#fff" />
           </TouchableOpacity>
         </View>
       </LinearGradient>
-    </View>
-  );
-
-  // Componente de Quick Actions
-  const QuickActionsSection = () => (
-    <View style={styles.quickActionsContainer}>
-      <Text style={styles.sectionTitle}>Ações Rápidas</Text>
-      <View style={styles.quickActionsGrid}>
-        {quickActions.map((action) => (
-          <TouchableOpacity
-            key={action.id}
-            style={styles.quickActionButton}
-            onPress={action.onPress}
-            activeOpacity={0.7}
-          >
-            <LinearGradient
-              colors={action.colors}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.quickActionGradient}
-            >
-              <Ionicons name={action.icon} size={24} color="#fff" />
-              <Text style={styles.quickActionText}>{action.title}</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        ))}
-      </View>
-    </View>
-  );
-
-  // Componente de Métrica
-  const MetricCard = ({ metric }: { metric: DashboardMetric }) => (
-    <TouchableOpacity
-      style={styles.metricCard}
-      onPress={metric.onPress}
-      activeOpacity={0.7}
-    >
-      <Card style={styles.metricCardInner}>
-        <LinearGradient
-          colors={metric.colors}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.metricGradient}
-        >
-          <View style={styles.metricHeader}>
-            <Ionicons name={metric.icon} size={28} color="#fff" />
-            <View style={styles.metricHeaderRight}>
-              {metric.trend && (
-                <View style={styles.trendContainer}>
-                  <Text style={styles.trendText}>{metric.trend.value}</Text>
-                  <Ionicons
-                    name={metric.trend.isPositive ? 'arrow-up' : 'arrow-down'}
-                    size={12}
-                    color="#fff"
-                  />
-                </View>
-              )}
-              <TouchableOpacity
-                onPress={() => setTooltipVisible(tooltipVisible === metric.id ? null : metric.id)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-              >
-                <Ionicons name="information-circle-outline" size={20} color="rgba(255,255,255,0.8)" />
-              </TouchableOpacity>
-            </View>
-          </View>
-          <Text style={styles.metricTitle}>{metric.title}</Text>
-          <Text style={styles.metricValue}>{metric.value}</Text>
-          <Text style={styles.metricSubtitle}>{metric.subtitle}</Text>
-          
-          {/* Tooltip */}
-          {tooltipVisible === metric.id && (
-            <View style={styles.tooltip}>
-              <Text style={styles.tooltipText}>{cardExplanations[metric.id]}</Text>
-            </View>
-          )}
-        </LinearGradient>
-      </Card>
-    </TouchableOpacity>
-  );
-
-  // Componente de Insights
-  const InsightsSection = () => (
-    <View style={styles.insightsContainer}>
-      <Text style={styles.sectionTitle}>Insights do Negócio</Text>
-
-      {/* Card de Rentabilidade */}
-      {totalProducts > 0 && (
-        <Card style={styles.insightCard}>
-          <Card.Content style={styles.insightContent}>
-            <View style={styles.insightHeader}>
-              <Ionicons name="trending-up" size={20} color={Colors.light.success} />
-              <Text style={styles.insightTitle}>Rentabilidade</Text>
-            </View>
-            <Text style={styles.insightText}>
-              Margem de lucro média de <Text style={styles.insightHighlight}>{averageMargin.toFixed(1)}%</Text>
-              {' '}com potencial de lucro de <Text style={styles.insightHighlight}>{formatCurrency(potentialProfit)}</Text>
-              {' '}sobre o estoque atual.
-            </Text>
-          </Card.Content>
-        </Card>
-      )}
-
-      {/* Card de Ticket Médio */}
-      {salesCountToday > 0 && (
-        <Card style={styles.insightCard}>
-          <Card.Content style={styles.insightContent}>
-            <View style={styles.insightHeader}>
-              <Ionicons name="calculator" size={20} color={Colors.light.primary} />
-              <Text style={styles.insightTitle}>Ticket Médio</Text>
-            </View>
-            <Text style={styles.insightText}>
-              Valor médio por venda de <Text style={styles.insightHighlight}>{formatCurrency(averageTicket)}</Text>
-              {' '}com <Text style={styles.insightHighlight}>{salesCountToday}</Text> venda{salesCountToday > 1 ? 's' : ''} hoje.
-            </Text>
-          </Card.Content>
-        </Card>
-      )}
-
-      {/* Card de Estoque - Valuation */}
-      {totalProducts > 0 && (
-        <Card style={styles.insightCard}>
-          <Card.Content style={styles.insightContent}>
-            <View style={styles.insightHeader}>
-              <Ionicons name="cube" size={20} color={Colors.light.info} />
-              <Text style={styles.insightTitle}>Gestão de Estoque</Text>
-            </View>
-            <Text style={styles.insightText}>
-              <Text style={styles.insightHighlight}>{formatCurrency(valuation?.cost_value || stockValue)}</Text> em custo
-              {' '}e <Text style={styles.insightHighlight}>{formatCurrency(valuation?.retail_value || potentialRevenue)}</Text> em venda.
-              {' '}Margem potencial de <Text style={styles.insightHighlight}>{formatCurrency(valuation?.potential_margin || potentialProfit)}</Text>.
-              {lowStockCount > 0 && ` ${lowStockCount} produto${lowStockCount > 1 ? 's' : ''} com estoque baixo.`}
-            </Text>
-          </Card.Content>
-        </Card>
-      )}
-
-      {/* Card de Alertas */}
-      {lowStockCount > 0 && (
-        <Card style={styles.alertCard}>
-          <Card.Content style={styles.insightContent}>
-            <View style={styles.insightHeader}>
-              <Ionicons name="warning" size={20} color={Colors.light.error} />
-              <Text style={styles.alertTitle}>Ação Necessária</Text>
-            </View>
-            <Text style={styles.alertText}>
-              {lowStockCount} produto{lowStockCount > 1 ? 's' : ''} com estoque crítico.
-              Reponha agora para evitar perda de vendas!
-            </Text>
-            <TouchableOpacity
-              style={styles.alertButton}
-              onPress={() => router.push('/(tabs)/products')}
-            >
-              <Text style={styles.alertButtonText}>Reabastecer Agora</Text>
-            </TouchableOpacity>
-          </Card.Content>
-        </Card>
-      )}
-
-      {/* Card de Primeiros Passos (quando não há dados) */}
-      {totalProducts === 0 && (
-        <Card style={styles.insightCard}>
-          <Card.Content style={styles.insightContent}>
-            <View style={styles.insightHeader}>
-              <Ionicons name="rocket" size={20} color={Colors.light.primary} />
-              <Text style={styles.insightTitle}>Comece Agora</Text>
-            </View>
-            <Text style={styles.insightText}>
-              Cadastre seus primeiros produtos e clientes para começar a vender e acompanhar o desempenho do seu negócio.
-            </Text>
-          </Card.Content>
-        </Card>
-      )}
-      {/* Card de Saúde do Estoque */}
-      {health && (
-        <Card style={styles.insightCard}>
-          <Card.Content style={styles.insightContent}>
-            <View style={styles.insightHeader}>
-              <Ionicons name="stats-chart" size={20} color={Colors.light.primary} />
-              <Text style={styles.insightTitle}>Saúde do Estoque</Text>
-            </View>
-            <Text style={styles.insightText}>
-              Cobertura: <Text style={styles.insightHighlight}>
-                {health.coverage_days ? `${health.coverage_days.toFixed(1)} dias` : 'N/A'}
-              </Text>. Rupturas: <Text style={styles.insightHighlight}>{lowStockCount}</Text>.
-              Giro 30d: <Text style={styles.insightHighlight}>
-                {health.turnover_30d ? `${health.turnover_30d.toFixed(2)}x` : 'N/A'}
-              </Text>. Score: <Text style={styles.insightHighlight}>{health.health_score}</Text>.
-            </Text>
-          </Card.Content>
-        </Card>
-      )}
-    </View>
-  );
-
-  // Componente de Atividades Recentes
-  const RecentActivitySection = () => (
-    <View style={styles.activityContainer}>
-      <View style={styles.activityHeader}>
-        <Text style={styles.sectionTitle}>Atividade Recente</Text>
-        <TouchableOpacity onPress={() => router.push('/(tabs)/sales')}>
-          <Text style={styles.seeAllText}>Ver todas</Text>
-        </TouchableOpacity>
-      </View>
-
-      {recentSales && recentSales.length > 0 ? (
-        <View style={styles.activityList}>
-          {recentSales.slice(0, 3).map((sale, index) => (
-            <View key={sale.id} style={styles.activityItem}>
-              <View style={styles.activityIcon}>
-                <Ionicons name="receipt" size={16} color={Colors.light.primary} />
-              </View>
-              <View style={styles.activityInfo}>
-                <Text style={styles.activityTitle}>
-                  Venda #{sale.id}
-                </Text>
-                <Text style={styles.activitySubtitle}>
-                  {formatCurrency(sale.total_amount || (sale as any).total || 0)}
-                </Text>
-              </View>
-              <Text style={styles.activityTime}>
-                {new Date(sale.created_at).toLocaleDateString('pt-BR')}
-              </Text>
-            </View>
-          ))}
-        </View>
-      ) : (
-        <Card style={styles.emptyActivityCard}>
-          <Card.Content style={styles.emptyActivityContent}>
-            <Ionicons name="receipt-outline" size={48} color={Colors.light.textTertiary} />
-            <Text style={styles.emptyActivityText}>Nenhuma venda registrada hoje</Text>
-            <TouchableOpacity
-              style={styles.emptyActivityButton}
-              onPress={() => router.push('/(tabs)/sales')}
-            >
-              <Text style={styles.emptyActivityButtonText}>Fazer primeira venda</Text>
-            </TouchableOpacity>
-          </Card.Content>
-        </Card>
-      )}
-    </View>
-  );
-
-  return (
-    <View style={styles.container}>
-      {/* Overlay transparente para fechar tooltip */}
-      {tooltipVisible && (
-        <TouchableOpacity
-          style={styles.tooltipOverlay}
-          activeOpacity={1}
-          onPress={() => setTooltipVisible(null)}
-        />
-      )}
-
-      {/* Header Premium */}
-      <PremiumHeader />
 
       <ScrollView
         style={styles.scrollView}
@@ -605,60 +187,256 @@ export default function DashboardScreen() {
           />
         }
         showsVerticalScrollIndicator={false}
-        onScroll={() => tooltipVisible && setTooltipVisible(null)}
-        scrollEventThrottle={16}
       >
-        {/* Seção de Ações Rápidas */}
-        <QuickActionsSection />
+        {/* ========== CARD PRINCIPAL: VENDAS HOJE ========== */}
+        <TouchableOpacity
+          activeOpacity={0.9}
+          onPress={() => router.push('/(tabs)/sales')}
+        >
+          <LinearGradient
+            colors={['#10B981', '#059669']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.mainCard}
+          >
+            <View style={styles.mainCardHeader}>
+              <View style={styles.mainCardIcon}>
+                <Ionicons name="trending-up" size={24} color="#fff" />
+              </View>
+              {salesTrendPercent !== 0 && (
+                <View style={[
+                  styles.trendBadge,
+                  { backgroundColor: salesTrendPercent >= 0 ? 'rgba(255,255,255,0.25)' : 'rgba(239,68,68,0.3)' }
+                ]}>
+                  <Ionicons
+                    name={salesTrendPercent >= 0 ? 'arrow-up' : 'arrow-down'}
+                    size={14}
+                    color="#fff"
+                  />
+                  <Text style={styles.trendText}>
+                    {salesTrendPercent > 0 ? '+' : ''}{salesTrendPercent.toFixed(0)}% vs ontem
+                  </Text>
+                </View>
+              )}
+            </View>
+            <Text style={styles.mainCardLabel}>Vendas Hoje</Text>
+            <Text style={styles.mainCardValue}>{formatCurrency(totalSalesToday)}</Text>
+            <Text style={styles.mainCardSubtitle}>
+              {salesCountToday} {salesCountToday === 1 ? 'venda realizada' : 'vendas realizadas'}
+            </Text>
+          </LinearGradient>
+        </TouchableOpacity>
 
-        {/* Seção de Métricas */}
-        <View style={styles.metricsContainer}>
-          <Text style={styles.sectionTitle}>Métricas do Negócio</Text>
-          <View style={styles.metricsGrid}>
-            {metrics.map((metric) => (
-              <MetricCard key={metric.id} metric={metric} />
-            ))}
-          </View>
+        {/* ========== RESUMO DO MÊS ========== */}
+        <Text style={styles.sectionTitle}>Este Mês</Text>
+        <View style={styles.monthGrid}>
+          {/* Faturamento */}
+          <TouchableOpacity
+            style={styles.monthCard}
+            activeOpacity={0.7}
+            onPress={() => router.push('/reports/sales-period' as any)}
+          >
+            <View style={[styles.monthCardIcon, { backgroundColor: '#EEF2FF' }]}>
+              <Ionicons name="wallet-outline" size={22} color="#6366F1" />
+            </View>
+            <Text style={styles.monthCardLabel}>Faturamento</Text>
+            <Text style={styles.monthCardValue}>{formatCurrency(totalSalesMonth)}</Text>
+            <Text style={styles.monthCardSubtitle}>{countSalesMonth} vendas</Text>
+          </TouchableOpacity>
+
+          {/* Lucro */}
+          <TouchableOpacity
+            style={styles.monthCard}
+            activeOpacity={0.7}
+            onPress={() => router.push('/reports/sales-period' as any)}
+          >
+            <View style={[styles.monthCardIcon, { backgroundColor: '#ECFDF5' }]}>
+              <Ionicons name="cash-outline" size={22} color="#10B981" />
+            </View>
+            <Text style={styles.monthCardLabel}>Lucro Líquido</Text>
+            <Text style={[styles.monthCardValue, { color: '#10B981' }]}>
+              {formatCurrency(profitMonth)}
+            </Text>
+            <Text style={styles.monthCardSubtitle}>{marginPercentMonth.toFixed(0)}% de margem</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Seção de Insights */}
-        <InsightsSection />
+        {/* ========== SEU ESTOQUE ========== */}
+        <Text style={styles.sectionTitle}>Seu Estoque</Text>
+        <Card style={styles.stockCard}>
+          <View style={styles.stockContent}>
+            {/* Linha 1: Investido e Valor de Venda */}
+            <View style={styles.stockRow}>
+              <View style={styles.stockItem}>
+                <View style={styles.stockItemHeader}>
+                  <Ionicons name="cube-outline" size={18} color="#6B7280" />
+                  <Text style={styles.stockItemLabel}>Capital Investido</Text>
+                </View>
+                <Text style={styles.stockItemValue}>{formatCurrency(stockCost)}</Text>
+              </View>
+              <View style={styles.stockDivider} />
+              <View style={styles.stockItem}>
+                <View style={styles.stockItemHeader}>
+                  <Ionicons name="pricetag-outline" size={18} color="#6B7280" />
+                  <Text style={styles.stockItemLabel}>Valor de Venda</Text>
+                </View>
+                <Text style={styles.stockItemValue}>{formatCurrency(stockRetail)}</Text>
+              </View>
+            </View>
 
-        {/* Seção de Atividade Recente */}
-        <RecentActivitySection />
+            {/* Linha 2: Lucro Potencial */}
+            <View style={styles.stockProfitRow}>
+              <View style={styles.stockProfitLeft}>
+                <Ionicons name="trending-up" size={20} color="#10B981" />
+                <Text style={styles.stockProfitLabel}>Lucro Potencial</Text>
+              </View>
+              <View style={styles.stockProfitRight}>
+                <Text style={styles.stockProfitValue}>{formatCurrency(stockProfit)}</Text>
+                <View style={styles.stockProfitBadge}>
+                  <Text style={styles.stockProfitPercent}>{stockMarginPercent.toFixed(0)}%</Text>
+                </View>
+              </View>
+            </View>
 
-        {/* Espaçamento final */}
-        <View style={styles.bottomSpacing} />
+            {/* Info: Total de produtos */}
+            <View style={styles.stockInfo}>
+              <Text style={styles.stockInfoText}>
+                {totalProducts} produtos em estoque
+              </Text>
+            </View>
+          </View>
+        </Card>
+
+        {/* ========== ALERTA DE ESTOQUE BAIXO ========== */}
+        {lowStockCount > 0 && (
+          <TouchableOpacity
+            style={styles.alertCard}
+            activeOpacity={0.8}
+            onPress={() => router.push('/(tabs)/products')}
+          >
+            <View style={styles.alertIcon}>
+              <Ionicons name="warning" size={24} color="#F59E0B" />
+            </View>
+            <View style={styles.alertContent}>
+              <Text style={styles.alertTitle}>Estoque Baixo</Text>
+              <Text style={styles.alertText}>
+                {lowStockCount} {lowStockCount === 1 ? 'produto precisa' : 'produtos precisam'} de reposição
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
+          </TouchableOpacity>
+        )}
+
+        {/* ========== AÇÕES RÁPIDAS ========== */}
+        <Text style={styles.sectionTitle}>Ações Rápidas</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.quickActionsContainer}
+        >
+          {quickActions.map((action) => (
+            <TouchableOpacity
+              key={action.id}
+              style={styles.quickActionButton}
+              activeOpacity={0.7}
+              onPress={action.onPress}
+            >
+              <View style={[styles.quickActionIcon, { backgroundColor: action.color + '15' }]}>
+                <Ionicons name={action.icon} size={24} color={action.color} />
+              </View>
+              <Text style={styles.quickActionText}>{action.title}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* ========== RESUMO RÁPIDO ========== */}
+        <View style={styles.quickStatsRow}>
+          <TouchableOpacity
+            style={styles.quickStatCard}
+            onPress={() => router.push('/(tabs)/products')}
+          >
+            <Ionicons name="cube" size={20} color="#8B5CF6" />
+            <Text style={styles.quickStatValue}>{totalProducts}</Text>
+            <Text style={styles.quickStatLabel}>Produtos</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickStatCard}
+            onPress={() => router.push('/(tabs)/customers')}
+          >
+            <Ionicons name="people" size={20} color="#3B82F6" />
+            <Text style={styles.quickStatValue}>{totalCustomers}</Text>
+            <Text style={styles.quickStatLabel}>Clientes</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.quickStatCard}
+            onPress={() => router.push('/(tabs)/sales')}
+          >
+            <Ionicons name="receipt" size={20} color="#10B981" />
+            <Text style={styles.quickStatValue}>{countSalesMonth}</Text>
+            <Text style={styles.quickStatLabel}>Vendas/Mês</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* ========== ÚLTIMAS VENDAS ========== */}
+        <View style={styles.recentHeader}>
+          <Text style={styles.sectionTitle}>Últimas Vendas</Text>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/sales')}>
+            <Text style={styles.seeAllText}>Ver todas</Text>
+          </TouchableOpacity>
+        </View>
+
+        {recentSales && recentSales.length > 0 ? (
+          <Card style={styles.recentCard}>
+            {recentSales.slice(0, 4).map((sale, index) => (
+              <View
+                key={sale.id}
+                style={[
+                  styles.recentItem,
+                  index < Math.min(recentSales.length - 1, 3) && styles.recentItemBorder
+                ]}
+              >
+                <View style={styles.recentItemLeft}>
+                  <View style={styles.recentItemIcon}>
+                    <Ionicons name="receipt-outline" size={16} color="#6366F1" />
+                  </View>
+                  <View>
+                    <Text style={styles.recentItemTitle}>Venda #{sale.id}</Text>
+                    <Text style={styles.recentItemDate}>
+                      {new Date(sale.created_at).toLocaleDateString('pt-BR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={styles.recentItemValue}>
+                  {formatCurrency(sale.total_amount || (sale as any).total || 0)}
+                </Text>
+              </View>
+            ))}
+          </Card>
+        ) : (
+          <Card style={styles.emptyCard}>
+            <View style={styles.emptyContent}>
+              <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
+              <Text style={styles.emptyText}>Nenhuma venda ainda</Text>
+              <TouchableOpacity
+                style={styles.emptyButton}
+                onPress={() => router.push('/(tabs)/sale')}
+              >
+                <Text style={styles.emptyButtonText}>Fazer primeira venda</Text>
+              </TouchableOpacity>
+            </View>
+          </Card>
+        )}
+
+        {/* Espaçamento para FAB */}
+        <View style={{ height: 100 }} />
       </ScrollView>
 
-      {/* FAB - Botão de Ações Rápidas */}
       <FAB />
-
-      {/* Modal de Ações Rápidas */}
-      <Portal>
-        <Modal
-          visible={quickActionsVisible}
-          onDismiss={() => setQuickActionsVisible(false)}
-          contentContainerStyle={styles.modalContainer}
-        >
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Escolha uma ação</Text>
-            {quickActions.map((action) => (
-              <TouchableOpacity
-                key={action.id}
-                style={styles.modalActionButton}
-                onPress={action.onPress}
-              >
-                <View style={styles.modalActionIcon}>
-                  <Ionicons name={action.icon} size={24} color={Colors.light.primary} />
-                </View>
-                <Text style={styles.modalActionText}>{action.title}</Text>
-                <Ionicons name="chevron-forward" size={20} color={Colors.light.textSecondary} />
-              </TouchableOpacity>
-            ))}
-          </View>
-        </Modal>
-      </Portal>
     </View>
   );
 }
@@ -666,380 +444,394 @@ export default function DashboardScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.backgroundSecondary,
+    backgroundColor: '#F3F4F6',
   },
   scrollView: {
     flex: 1,
   },
   content: {
-    paddingHorizontal: theme.spacing.md,
-    paddingBottom: theme.spacing.lg,
+    padding: 16,
   },
 
-  // Header Premium
-  headerContainer: {
-    marginBottom: theme.spacing.md,
-  },
-  headerGradient: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
+  // Header
+  header: {
+    paddingTop: 50,
+    paddingBottom: 20,
+    paddingHorizontal: 16,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
   },
   headerContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  headerInfo: {
-    flex: 1,
+    alignItems: 'center',
   },
   greeting: {
-    fontSize: theme.fontSize.xxl,
+    fontSize: 24,
     fontWeight: '700',
     color: '#fff',
-    marginBottom: theme.spacing.xs,
   },
-  headerSubtitle: {
-    fontSize: theme.fontSize.md,
-    color: '#fff',
-    opacity: 0.9,
+  storeName: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
   },
   profileButton: {
-    marginLeft: theme.spacing.md,
+    padding: 4,
   },
-  profileIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+
+  // Card Principal - Vendas Hoje
+  mainCard: {
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+  },
+  mainCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  mainCardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     justifyContent: 'center',
     alignItems: 'center',
   },
-
-  // Quick Actions
-  quickActionsContainer: {
-    marginBottom: theme.spacing.lg,
-  },
-  quickActionsGrid: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  quickActionButton: {
-    flex: 1,
-  },
-  quickActionGradient: {
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.sm,
-    borderRadius: theme.borderRadius.lg,
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    elevation: theme.elevation.sm,
-  },
-  quickActionText: {
-    color: '#fff',
-    fontSize: theme.fontSize.sm,
-    fontWeight: '500',
-    textAlign: 'center',
-  },
-
-  // Métricas
-  metricsContainer: {
-    marginBottom: theme.spacing.lg,
-  },
-  metricsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: theme.spacing.sm,
-  },
-  metricCard: {
-    width: (width - theme.spacing.md * 2 - theme.spacing.sm) / 2,
-  },
-  metricCardInner: {
-    borderRadius: theme.borderRadius.xl,
-    elevation: theme.elevation.md,
-    overflow: 'hidden',
-    backgroundColor: 'transparent',
-  },
-  metricGradient: {
-    padding: theme.spacing.md,
-    minHeight: 140,
-    justifyContent: 'space-between',
-    borderRadius: theme.borderRadius.xl,
-  },
-  metricHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: theme.spacing.sm,
-  },
-  metricHeaderRight: {
+  trendBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.xs,
-  },
-  metricIconRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-  },
-  trendContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: theme.spacing.xs,
-    paddingVertical: 2,
-    borderRadius: theme.borderRadius.md,
-    gap: 2,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+    gap: 4,
   },
   trendText: {
     color: '#fff',
-    fontSize: theme.fontSize.xs,
+    fontSize: 12,
     fontWeight: '600',
   },
-  metricTitle: {
-    color: '#fff',
-    fontSize: theme.fontSize.sm,
+  mainCardLabel: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.8)',
     fontWeight: '500',
-    opacity: 0.9,
-    marginBottom: theme.spacing.xs,
   },
-  metricValue: {
+  mainCardValue: {
+    fontSize: 36,
+    fontWeight: '800',
     color: '#fff',
-    fontSize: theme.fontSize.xl,
-    fontWeight: '700',
-    marginBottom: 2,
+    marginVertical: 4,
   },
-  metricSubtitle: {
-    color: '#fff',
-    fontSize: theme.fontSize.xs,
-    opacity: 0.8,
+  mainCardSubtitle: {
+    fontSize: 14,
+    color: 'rgba(255,255,255,0.7)',
   },
 
-  // Insights
-  insightsContainer: {
-    marginBottom: theme.spacing.lg,
+  // Seções
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginBottom: 12,
+    marginTop: 8,
   },
-  insightCard: {
-    marginBottom: theme.spacing.sm,
-    elevation: theme.elevation.sm,
-    borderRadius: theme.borderRadius.lg,
+
+  // Grid do Mês
+  monthGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
   },
-  insightContent: {
-    paddingVertical: theme.spacing.md,
+  monthCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
-  insightHeader: {
+  monthCardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  monthCardLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  monthCardValue: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginVertical: 4,
+  },
+  monthCardSubtitle: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+
+  // Card de Estoque
+  stockCard: {
+    borderRadius: 16,
+    marginBottom: 16,
+    elevation: 2,
+  },
+  stockContent: {
+    padding: 16,
+  },
+  stockRow: {
+    flexDirection: 'row',
+    marginBottom: 16,
+  },
+  stockItem: {
+    flex: 1,
+  },
+  stockItemHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme.spacing.sm,
-    gap: theme.spacing.sm,
+    gap: 6,
+    marginBottom: 6,
   },
-  insightTitle: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '600',
-    color: Colors.light.text,
+  stockItemLabel: {
+    fontSize: 12,
+    color: '#6B7280',
   },
-  insightText: {
-    fontSize: theme.fontSize.sm,
-    color: Colors.light.textSecondary,
-    lineHeight: 20,
-  },
-  insightHighlight: {
+  stockItemValue: {
+    fontSize: 18,
     fontWeight: '700',
-    color: Colors.light.primary,
+    color: '#1F2937',
   },
-
-  // Alertas
-  alertCard: {
-    backgroundColor: Colors.light.errorLight,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.light.error,
-    marginBottom: theme.spacing.sm,
-    elevation: theme.elevation.sm,
-    borderRadius: theme.borderRadius.lg,
+  stockDivider: {
+    width: 1,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 16,
   },
-  alertTitle: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '600',
-    color: Colors.light.error,
-  },
-  alertText: {
-    fontSize: theme.fontSize.sm,
-    color: Colors.light.error,
-    marginBottom: theme.spacing.sm,
-    lineHeight: 20,
-  },
-  alertButton: {
-    backgroundColor: Colors.light.error,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
-    alignSelf: 'flex-start',
-  },
-  alertButtonText: {
-    color: '#fff',
-    fontSize: theme.fontSize.sm,
-    fontWeight: '500',
-  },
-
-  // Atividade Recente
-  activityContainer: {
-    marginBottom: theme.spacing.lg,
-  },
-  activityHeader: {
+  stockProfitRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
+    backgroundColor: '#ECFDF5',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 12,
   },
-  activityList: {
-    backgroundColor: '#fff',
-    borderRadius: theme.borderRadius.lg,
-    elevation: theme.elevation.sm,
-    padding: theme.spacing.md,
-    gap: theme.spacing.md,
-  },
-  activityItem: {
+  stockProfitLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.sm,
+    gap: 8,
   },
-  activityIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: Colors.light.primaryLight,
+  stockProfitLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#065F46',
+  },
+  stockProfitRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  stockProfitValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#10B981',
+  },
+  stockProfitBadge: {
+    backgroundColor: '#10B981',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  stockProfitPercent: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  stockInfo: {
+    alignItems: 'center',
+  },
+  stockInfoText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+  },
+
+  // Alerta
+  alertCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FEF3C7',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+  },
+  alertIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: '#FEF9C3',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  activityInfo: {
+  alertContent: {
     flex: 1,
+    marginLeft: 12,
   },
-  activityTitle: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '500',
-    color: Colors.light.text,
+  alertTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#92400E',
   },
-  activitySubtitle: {
-    fontSize: theme.fontSize.sm,
-    color: Colors.light.textSecondary,
-  },
-  activityTime: {
-    fontSize: theme.fontSize.xs,
-    color: Colors.light.textTertiary,
-  },
-  emptyActivityCard: {
-    elevation: theme.elevation.sm,
-    borderRadius: theme.borderRadius.lg,
-  },
-  emptyActivityContent: {
-    alignItems: 'center',
-    paddingVertical: theme.spacing.xl,
-  },
-  emptyActivityText: {
-    fontSize: theme.fontSize.md,
-    color: Colors.light.textSecondary,
-    marginTop: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
-    textAlign: 'center',
-  },
-  emptyActivityButton: {
-    backgroundColor: Colors.light.primary,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
-  },
-  emptyActivityButtonText: {
-    color: '#fff',
-    fontSize: theme.fontSize.sm,
-    fontWeight: '500',
+  alertText: {
+    fontSize: 12,
+    color: '#A16207',
+    marginTop: 2,
   },
 
-  // Títulos de Seção
-  sectionTitle: {
-    fontSize: theme.fontSize.lg,
+  // Ações Rápidas
+  quickActionsContainer: {
+    paddingBottom: 8,
+    gap: 12,
+  },
+  quickActionButton: {
+    alignItems: 'center',
+    width: 72,
+  },
+  quickActionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  quickActionText: {
+    fontSize: 11,
+    color: '#4B5563',
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+
+  // Quick Stats
+  quickStatsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  quickStatCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 1,
+  },
+  quickStatValue: {
+    fontSize: 20,
     fontWeight: '700',
-    color: Colors.light.text,
-    marginBottom: theme.spacing.md,
+    color: '#1F2937',
+    marginTop: 6,
+  },
+  quickStatLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+
+  // Últimas Vendas
+  recentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
   },
   seeAllText: {
-    fontSize: theme.fontSize.sm,
-    color: Colors.light.primary,
-    fontWeight: '500',
+    fontSize: 14,
+    color: '#6366F1',
+    fontWeight: '600',
   },
-
-  // Modal
-  modalContainer: {
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    flex: 1,
-    justifyContent: 'center',
-    paddingHorizontal: theme.spacing.lg,
+  recentCard: {
+    borderRadius: 16,
+    elevation: 2,
+    overflow: 'hidden',
   },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: theme.borderRadius.xl,
-    padding: theme.spacing.lg,
-    elevation: theme.elevation.xl,
+  recentItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
   },
-  modalTitle: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: '700',
-    color: Colors.light.text,
-    marginBottom: theme.spacing.lg,
-    textAlign: 'center',
+  recentItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
   },
-  modalActionButton: {
+  recentItemLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
-    gap: theme.spacing.md,
+    gap: 12,
   },
-  modalActionIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: Colors.light.primaryLight,
+  recentItemIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#EEF2FF',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  modalActionText: {
-    flex: 1,
-    fontSize: theme.fontSize.md,
-    fontWeight: '500',
-    color: Colors.light.text,
+  recentItemTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  recentItemDate: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 1,
+  },
+  recentItemValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#10B981',
   },
 
-  // Tooltip
-  tooltipOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 999,
+  // Empty State
+  emptyCard: {
+    borderRadius: 16,
+    elevation: 2,
   },
-  tooltip: {
-    position: 'absolute',
-    top: 60,
-    left: 0,
-    right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    padding: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
-    zIndex: 1000,
-    elevation: theme.elevation.xl,
+  emptyContent: {
+    alignItems: 'center',
+    padding: 32,
   },
-  tooltipText: {
+  emptyText: {
+    fontSize: 14,
+    color: '#6B7280',
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  emptyButton: {
+    backgroundColor: '#6366F1',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  emptyButtonText: {
     color: '#fff',
-    fontSize: theme.fontSize.xs,
-    lineHeight: 16,
-  },
-
-  // Espaçamento
-  bottomSpacing: {
-    height: 100,
+    fontWeight: '600',
+    fontSize: 14,
   },
 });

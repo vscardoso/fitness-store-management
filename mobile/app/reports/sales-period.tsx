@@ -6,7 +6,7 @@ import {
   FlatList,
   RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { Text, ActivityIndicator } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -169,13 +169,7 @@ export default function SalesPeriodScreen() {
         </View>
       )}
 
-      {/* Título da Lista */}
-      <View style={styles.listTitleContainer}>
-        <Text style={styles.listTitle}>Vendas do Período</Text>
-        <Text style={styles.listSubtitle}>
-          {data?.pagination.total || 0} {data?.pagination.total === 1 ? 'venda' : 'vendas'}
-        </Text>
-      </View>
+      {/* Título da Lista - REMOVIDO, já está no header */}
     </>
   );
 
@@ -187,48 +181,54 @@ export default function SalesPeriodScreen() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <View style={styles.container}>
       {/* Header com Gradiente */}
-      <LinearGradient
-        colors={[theme.colors.primary, theme.colors.secondary]}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerTop}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Vendas por Período</Text>
-          <View style={{ width: 40 }} />
-        </View>
+      <View style={styles.headerContainer}>
+        <LinearGradient
+          colors={['#667eea', '#764ba2']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
+          <View style={styles.headerContent}>
+            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+              <Ionicons name="arrow-back" size={24} color="#fff" />
+            </TouchableOpacity>
+            <View style={styles.headerInfo}>
+              <Text style={styles.greeting}>Vendas por Período</Text>
+              <Text style={styles.headerSubtitle}>
+                {data?.pagination.total || 0} {data?.pagination.total === 1 ? 'venda' : 'vendas'}
+              </Text>
+            </View>
+          </View>
 
-        {/* Seletor de Mês no Header */}
-        <View style={styles.monthSelector}>
-          <TouchableOpacity 
-            onPress={goToPreviousMonth}
-            style={styles.monthButton}
-          >
-            <Ionicons name="chevron-back" size={28} color="#fff" />
-          </TouchableOpacity>
-          
-          <Text style={styles.monthText}>
-            {getMonthName(selectedMonth)} {selectedYear}
-          </Text>
-          
-          <TouchableOpacity 
-            onPress={goToNextMonth}
-            style={styles.monthButton}
-            disabled={isCurrentMonth()}
-          >
-            <Ionicons 
-              name="chevron-forward" 
-              size={28} 
-              color={isCurrentMonth() ? 'rgba(255,255,255,0.3)' : '#fff'} 
-            />
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
+          {/* Seletor de Mês no Header */}
+          <View style={styles.monthSelector}>
+            <TouchableOpacity 
+              onPress={goToPreviousMonth}
+              style={styles.monthButton}
+            >
+              <Ionicons name="chevron-back" size={28} color="#fff" />
+            </TouchableOpacity>
+            
+            <Text style={styles.monthText}>
+              {getMonthName(selectedMonth)} {selectedYear}
+            </Text>
+            
+            <TouchableOpacity 
+              onPress={goToNextMonth}
+              style={styles.monthButton}
+              disabled={isCurrentMonth()}
+            >
+              <Ionicons 
+                name="chevron-forward" 
+                size={28} 
+                color={isCurrentMonth() ? 'rgba(255,255,255,0.3)' : '#fff'} 
+              />
+            </TouchableOpacity>
+          </View>
+        </LinearGradient>
+      </View>
 
       {/* Lista de Vendas */}
       {isLoading ? (
@@ -261,7 +261,7 @@ export default function SalesPeriodScreen() {
           }
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -270,34 +270,48 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  header: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
+  headerContainer: {
+    marginBottom: 0,
+  },
+  headerGradient: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xl + 32,
+    paddingBottom: theme.spacing.lg,
     borderBottomLeftRadius: theme.borderRadius.xl,
     borderBottomRightRadius: theme.borderRadius.xl,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
   },
-  headerTop: {
+  headerContent: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.lg,
+    alignItems: 'flex-start',
+    marginBottom: theme.spacing.md,
   },
   backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: theme.spacing.md,
   },
-  headerTitle: {
-    fontSize: 20,
+  headerInfo: {
+    flex: 1,
+  },
+  greeting: {
+    fontSize: theme.fontSize.xxl,
     fontWeight: '700',
     color: '#fff',
+    marginBottom: theme.spacing.xs,
+  },
+  headerSubtitle: {
+    fontSize: theme.fontSize.md,
+    color: '#fff',
+    opacity: 0.9,
+  },
+  headerSubtitle: {
+    fontSize: theme.fontSize.md,
+    color: '#fff',
+    opacity: 0.9,
   },
   monthSelector: {
     flexDirection: 'row',
@@ -307,9 +321,10 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.lg,
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.md,
+    marginTop: theme.spacing.xs,
   },
   monthButton: {
-    padding: theme.spacing.xs,
+    padding: 4,
   },
   monthText: {
     fontSize: 18,
@@ -350,21 +365,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
     marginTop: theme.spacing.xs,
     textAlign: 'center',
-  },
-  listTitleContainer: {
-    paddingHorizontal: theme.spacing.lg,
-    marginTop: theme.spacing.xl,
-    marginBottom: theme.spacing.md,
-  },
-  listTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.text,
-  },
-  listSubtitle: {
-    fontSize: 14,
-    color: theme.colors.textSecondary,
-    marginTop: theme.spacing.xs,
   },
   listContent: {
     paddingBottom: theme.spacing.xl,
