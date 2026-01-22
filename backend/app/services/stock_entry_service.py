@@ -280,6 +280,7 @@ class StockEntryService:
                 "product_id": item.product_id,
                 "product_name": item.product.name if item.product else None,
                 "product_sku": item.product.sku if item.product else None,
+                "product_price": float(item.product.price) if item.product else None,
                 "quantity_received": item.quantity_received,
                 "quantity_remaining": item.quantity_remaining,
                 "quantity_sold": item.quantity_sold,
