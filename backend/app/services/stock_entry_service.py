@@ -827,7 +827,7 @@ class StockEntryService:
                 raise ValueError("sell_price não pode ser negativo")
             
             # Atualizar o preço do produto associado
-            product = await self.product_repo.get_by_id(self.db, item.product_id, tenant_id=tenant_id)
+            product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
             if product:
                 product.price = new_sell_price
                 await self.db.flush()

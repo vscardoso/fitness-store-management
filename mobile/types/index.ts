@@ -582,6 +582,7 @@ export interface EntryItemResponse extends EntryItem {
   product_name?: string;
   product_sku?: string;
   product_barcode?: string;
+  product_price?: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;

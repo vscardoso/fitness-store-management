@@ -348,6 +348,13 @@ export default function AddStockEntryScreen() {
     const costFormatted = formatCostInput((product.cost_price || 0).toString().replace('.', ''));
     const priceFormatted = formatCostInput((product.price || 0).toString().replace('.', ''));
 
+    console.log('🔍 ADD PRODUCT DEBUG:', {
+      product_name: product.name,
+      product_price: product.price,
+      priceFormatted,
+      costFormatted
+    });
+
     // Mark catalog products appropriately
     const productWithFlag = product.is_catalog
       ? { ...product, is_catalog: true }
@@ -362,9 +369,17 @@ export default function AddStockEntryScreen() {
       product: productWithFlag,
     };
 
+    console.log('🔍 NEW ITEM:', {
+      item_id: newItem.id,
+      product_price_in_item: newItem.product?.price
+    });
+
     setItems([...items, newItem]);
     setItemCosts({ ...itemCosts, [newItem.id]: costFormatted });
     setItemPrices({ ...itemPrices, [newItem.id]: priceFormatted });
+    
+    console.log('🔍 ITEM PRICES AFTER SET:', { ...itemPrices, [newItem.id]: priceFormatted });
+    
     setProductMenuVisible(false);
     setProductSearch('');
   };
@@ -999,7 +1014,17 @@ export default function AddStockEntryScreen() {
           </Modal>
 
           {/* Lista de Items */}
-          {items.map((item, index) => (
+          {items.map((item, index) => {
+            console.log(`🔍 RENDERING ITEM ${index}:`, {
+              item_id: item.id,
+              product_name: item.product?.name,
+              product_price: item.product?.price,
+              itemPrices_value: itemPrices[item.id],
+              itemCosts_value: itemCosts[item.id],
+              all_itemPrices: itemPrices,
+            });
+            
+            return (
             <Card key={item.id} style={styles.itemCard}>
               <Card.Content>
                 <View style={styles.itemHeader}>
@@ -1066,7 +1091,8 @@ export default function AddStockEntryScreen() {
                 </View>
               </Card.Content>
             </Card>
-          ))}
+            );
+          })}
         </View>
 
         {/* Observações */}

@@ -170,10 +170,11 @@ export default function StockEntryDetailsScreen() {
    * Mutation: Atualizar item de entrada
    */
   const updateItemMutation = useMutation({
-    mutationFn: (data: { itemId: number; quantity_received?: number; unit_cost?: number; notes?: string }) =>
+    mutationFn: (data: { itemId: number; quantity_received?: number; unit_cost?: number; sell_price?: number; notes?: string }) =>
       updateEntryItem(data.itemId, {
         quantity_received: data.quantity_received,
         unit_cost: data.unit_cost,
+        sell_price: data.sell_price,
         notes: data.notes,
       }),
     onSuccess: async () => {

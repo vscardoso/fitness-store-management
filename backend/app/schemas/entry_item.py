@@ -85,6 +85,7 @@ class EntryItemResponse(EntryItemBase):
     product_name: Optional[str] = Field(None, description="Nome do produto")
     product_sku: Optional[str] = Field(None, description="SKU do produto")
     product_barcode: Optional[str] = Field(None, description="Código de barras")
+    product_price: Optional[Decimal] = Field(None, description="Preço de venda do produto")
 
     @classmethod
     def model_validate(cls, obj, **kwargs):
@@ -97,6 +98,7 @@ class EntryItemResponse(EntryItemBase):
             data['product_name'] = obj.product.name
             data['product_sku'] = obj.product.sku
             data['product_barcode'] = obj.product.barcode
+            data['product_price'] = obj.product.price
             # Retornar nova instância com dados completos
             return cls.model_construct(**data)
         return super().model_validate(obj, **kwargs)
