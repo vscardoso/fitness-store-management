@@ -22,6 +22,9 @@ export interface DashboardStats {
     total_today: number;
     count_today: number;
     average_ticket: number;
+    profit_today: number;
+    cmv_today: number;
+    margin_today: number;
     total_yesterday?: number;
     count_yesterday?: number;
     trend_percent?: number;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -25,9 +25,9 @@ import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useAuth } from '@/hooks/useAuth';
 import { useCart } from '@/hooks/useCart';
-// import BarcodeScanner from '@/components/sale/BarcodeScanner'; // Desabilitado temporariamente - requer build nativo
 import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
 import { getCustomerById } from '@/services/customerService';
+import { getFIFOCosts } from '@/services/productService';
 import {
   validateProductForCart,
   validateCartStock,
@@ -68,7 +68,38 @@ export default function SaleScreen() {
     enabled: !!cart.customer_id,
   });
 
-  // Busca de produtos será feita pelo modal de seleção
+  // Query: FIFO costs para margem em tempo real
+  const cartProductIds = useMemo(
+    () => cart.items.map((i) => i.product_id),
+    [cart.items]
+  );
+
+  const { data: fifoCosts } = useQuery({
+    queryKey: ['fifo-costs', cartProductIds],
+    queryFn: () => getFIFOCosts(cartProductIds),
+    enabled: cartProductIds.length > 0,
+    staleTime: 30000,
+  });
+
+  // Calcula lucro estimado do carrinho
+  const cartProfit = useMemo(() => {
+    if (!fifoCosts || cart.items.length === 0) return null;
+    let totalCost = 0;
+    let totalRevenue = 0;
+    let hasData = false;
+    for (const item of cart.items) {
+      const costInfo = fifoCosts[String(item.product_id)];
+      if (costInfo && costInfo.average_unit_cost > 0) {
+        totalCost += costInfo.average_unit_cost * item.quantity;
+        hasData = true;
+      }
+      totalRevenue += item.unit_price * item.quantity;
+    }
+    if (!hasData) return null;
+    const profit = totalRevenue - totalCost;
+    const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+    return { totalCost, profit, margin };
+  }, [fifoCosts, cart.items]);
 
   const handleAddToCart = (product: any) => {
     // Validar se o produto está ativo
@@ -444,9 +475,24 @@ export default function SaleScreen() {
                       <Text variant="bodySmall" style={styles.cartItemSku}>
                         SKU: {item.product.sku}
                       </Text>
-                      <Text variant="titleSmall" style={styles.cartItemPrice}>
-                        {formatCurrency(item.unit_price)}
-                      </Text>
+                      <View style={styles.cartItemPriceRow}>
+                        <Text variant="titleSmall" style={styles.cartItemPrice}>
+                          {formatCurrency(item.unit_price)}
+                        </Text>
+                        {fifoCosts?.[String(item.product_id)]?.average_unit_cost != null && (() => {
+                          const cost = fifoCosts[String(item.product_id)].average_unit_cost;
+                          const marginPct = item.unit_price > 0
+                            ? ((item.unit_price - cost) / item.unit_price) * 100
+                            : 0;
+                          return (
+                            <View style={[styles.cartMarginBadge, { backgroundColor: marginPct >= 30 ? '#E8F5E9' : '#FFF3E0' }]}>
+                              <Text style={[styles.cartMarginText, { color: marginPct >= 30 ? '#2E7D32' : '#F57C00' }]}>
+                                {marginPct.toFixed(0)}%
+                              </Text>
+                            </View>
+                          );
+                        })()}
+                      </View>
                     </View>
 
                     <View style={styles.cartItemActions}>
@@ -512,6 +558,24 @@ export default function SaleScreen() {
                   {formatCurrency(cart.total)}
                 </Text>
               </View>
+              {cartProfit && (
+                <View style={styles.profitRow}>
+                  <View style={styles.profitRowLeft}>
+                    <Ionicons name="trending-up" size={16} color="#2E7D32" />
+                    <Text style={styles.profitRowLabel}>Lucro estimado</Text>
+                  </View>
+                  <View style={styles.profitRowRight}>
+                    <Text style={[styles.profitRowValue, { color: cartProfit.profit >= 0 ? '#2E7D32' : '#C62828' }]}>
+                      {formatCurrency(cartProfit.profit)}
+                    </Text>
+                    <View style={[styles.profitRowBadge, { backgroundColor: cartProfit.margin >= 30 ? '#E8F5E9' : '#FFF3E0' }]}>
+                      <Text style={[styles.profitRowBadgeText, { color: cartProfit.margin >= 30 ? '#2E7D32' : '#F57C00' }]}>
+                        {cartProfit.margin.toFixed(1)}%
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              )}
             </View>
 
             <Button
@@ -767,9 +831,23 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     marginBottom: 8,
   },
+  cartItemPriceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
   cartItemPrice: {
     color: Colors.light.primary,
     fontWeight: '600',
+  },
+  cartMarginBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  cartMarginText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   cartItemActions: {
     alignItems: 'flex-end',
@@ -832,6 +910,42 @@ const styles = StyleSheet.create({
   totalFinalValue: {
     fontWeight: '700',
     color: Colors.light.primary,
+  },
+  profitRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: '#E8F5E9',
+  },
+  profitRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  profitRowLabel: {
+    fontSize: 13,
+    color: '#666',
+  },
+  profitRowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  profitRowValue: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  profitRowBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  profitRowBadgeText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   checkoutButton: {
     paddingVertical: 6,

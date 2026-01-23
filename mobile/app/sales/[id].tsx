@@ -222,6 +222,36 @@ export default function SaleDetailsScreen() {
           </View>
         </View>
 
+        {/* Card de Rentabilidade FIFO */}
+        {sale.total_profit != null && (
+          <View style={styles.profitCard}>
+            <View style={styles.profitHeader}>
+              <Ionicons name="trending-up" size={20} color="#2E7D32" />
+              <Text style={styles.profitTitle}>Rentabilidade (FIFO)</Text>
+            </View>
+            <View style={styles.profitMetrics}>
+              <View style={styles.profitMetricItem}>
+                <Text style={styles.profitMetricLabel}>Custo</Text>
+                <Text style={styles.profitMetricValue}>{formatCurrency(sale.total_cost || 0)}</Text>
+              </View>
+              <View style={styles.profitMetricDivider} />
+              <View style={styles.profitMetricItem}>
+                <Text style={styles.profitMetricLabel}>Lucro</Text>
+                <Text style={[styles.profitMetricValue, { color: (sale.total_profit ?? 0) >= 0 ? '#2E7D32' : '#C62828' }]}>
+                  {formatCurrency(sale.total_profit ?? 0)}
+                </Text>
+              </View>
+              <View style={styles.profitMetricDivider} />
+              <View style={styles.profitMetricItem}>
+                <Text style={styles.profitMetricLabel}>Margem</Text>
+                <Text style={[styles.profitMetricValue, { color: (sale.profit_margin_percent ?? 0) >= 0 ? '#2E7D32' : '#C62828' }]}>
+                  {(sale.profit_margin_percent ?? 0).toFixed(1)}%
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
         {/* Recibo Compartilhável */}
         <SaleReceipt 
           ref={receiptRef}
@@ -291,11 +321,33 @@ export default function SaleDetailsScreen() {
                   <Text style={styles.itemDetailLabel}>Preço Unit.:</Text>
                   <Text style={styles.itemDetailValue}>{formatCurrency(item.unit_price)}</Text>
                 </View>
+                {item.unit_cost != null && (
+                  <View style={styles.itemDetail}>
+                    <Ionicons name="receipt-outline" size={14} color="#666" />
+                    <Text style={styles.itemDetailLabel}>Custo Unit.:</Text>
+                    <Text style={styles.itemDetailValue}>{formatCurrency(item.unit_cost)}</Text>
+                  </View>
+                )}
                 <View style={styles.divider} />
                 <View style={styles.itemTotal}>
                   <Text style={styles.itemTotalLabel}>Subtotal</Text>
                   <Text style={styles.itemTotalValue}>{formatCurrency(item.subtotal)}</Text>
                 </View>
+                {item.profit != null && (
+                  <View style={styles.itemProfitRow}>
+                    <View style={styles.itemProfitInfo}>
+                      <Text style={styles.itemProfitLabel}>Lucro:</Text>
+                      <Text style={[styles.itemProfitValue, { color: item.profit >= 0 ? '#2E7D32' : '#C62828' }]}>
+                        {formatCurrency(item.profit)}
+                      </Text>
+                    </View>
+                    <View style={[styles.itemMarginBadge, { backgroundColor: (item.margin_percent ?? 0) >= 30 ? '#E8F5E9' : '#FFF3E0' }]}>
+                      <Text style={[styles.itemMarginText, { color: (item.margin_percent ?? 0) >= 30 ? '#2E7D32' : '#F57C00' }]}>
+                        {(item.margin_percent ?? 0).toFixed(1)}%
+                      </Text>
+                    </View>
+                  </View>
+                )}
               </View>
             </View>
           ))}
@@ -718,5 +770,82 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     color: '#444',
+  },
+  profitCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    borderLeftWidth: 4,
+    borderLeftColor: '#2E7D32',
+  },
+  profitHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  profitTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#333',
+  },
+  profitMetrics: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  profitMetricItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  profitMetricLabel: {
+    fontSize: 11,
+    color: '#666',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  profitMetricValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#222',
+  },
+  profitMetricDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: '#e0e0e0',
+  },
+  itemProfitRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  itemProfitInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  itemProfitLabel: {
+    fontSize: 13,
+    color: '#666',
+  },
+  itemProfitValue: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  itemMarginBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  itemMarginText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

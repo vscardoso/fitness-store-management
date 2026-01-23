@@ -96,6 +96,8 @@ export default function DashboardScreen() {
   const totalSalesToday = dashboardStats?.sales.total_today || 0;
   const salesCountToday = dashboardStats?.sales.count_today || 0;
   const salesTrendPercent = dashboardStats?.sales.trend_percent || 0;
+  const profitToday = dashboardStats?.sales.profit_today || 0;
+  const marginToday = dashboardStats?.sales.margin_today || 0;
   const lowStockCount = dashboardStats?.stock.low_stock_count || 0;
   const totalProducts = dashboardStats?.stock.total_products || 0;
   const totalCustomers = dashboardStats?.customers.total || 0;
@@ -254,6 +256,17 @@ export default function DashboardScreen() {
             <Text style={styles.mainCardSubtitle}>
               {salesCountToday} {salesCountToday === 1 ? 'venda realizada' : 'vendas realizadas'}
             </Text>
+            {salesCountToday > 0 && (
+              <View style={styles.todayProfitRow}>
+                <Ionicons name="trending-up" size={14} color="rgba(255,255,255,0.9)" />
+                <Text style={styles.todayProfitText}>
+                  Lucro: {formatCurrency(profitToday)}
+                </Text>
+                <View style={styles.todayMarginBadge}>
+                  <Text style={styles.todayMarginText}>{marginToday.toFixed(1)}%</Text>
+                </View>
+              </View>
+            )}
           </LinearGradient>
         </TouchableOpacity>
 
@@ -651,6 +664,31 @@ const styles = StyleSheet.create({
   mainCardSubtitle: {
     fontSize: 14,
     color: 'rgba(255,255,255,0.7)',
+  },
+  todayProfitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.2)',
+  },
+  todayProfitText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.95)',
+  },
+  todayMarginBadge: {
+    backgroundColor: 'rgba(255,255,255,0.25)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  todayMarginText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#fff',
   },
 
   // Seções

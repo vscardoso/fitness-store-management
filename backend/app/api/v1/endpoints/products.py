@@ -976,8 +976,40 @@ async def adjust_product_quantity(
             unit_cost=float(payload.unit_cost) if payload.unit_cost is not None else None,
             tenant_id=tenant_id,
         )
-        return result  # pydantic fará o cast para o schema de resposta
+        return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Erro ao ajustar quantidade: {str(e)}")
+
+
+# ============================================================================
+# FIFO COSTS (para carrinho de vendas)
+# ============================================================================
+
+@router.post(
+    "/fifo-costs",
+    summary="Obter custo FIFO de produtos",
+    description="Retorna custo médio FIFO para uma lista de produtos. Usado pelo carrinho para calcular margem em tempo real.",
+)
+async def get_fifo_costs(
+    product_ids: List[int],
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """Retorna custo FIFO médio para cada produto da lista."""
+    from app.services.fifo_service import FIFOService
+    fifo_service = FIFOService(db)
+
+    results = {}
+    for pid in product_ids:
+        cost_info = await fifo_service.get_product_cost_info(pid)
+        results[str(pid)] = {
+            "product_id": pid,
+            "average_unit_cost": cost_info["average_unit_cost"],
+            "total_quantity": cost_info["total_quantity"],
+            "sources_count": cost_info["sources_count"],
+        }
+
+    return results

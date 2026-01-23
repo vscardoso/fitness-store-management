@@ -227,6 +227,20 @@ async def get_dashboard_stats(
     total_sales_today = float(sales_stats.total_today) if sales_stats.total_today else 0.0
     sales_count_today = int(sales_stats.count_today) if sales_stats.count_today else 0
 
+    # 7.0.1 CMV de hoje (custo FIFO das vendas do dia)
+    cmv_today_query = select(
+        func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_cost), 0).label("cmv_today"),
+    ).join(Sale, SaleItem.sale_id == Sale.id).where(
+        Sale.tenant_id == tenant_id,
+        func.date(Sale.created_at) == today,
+        Sale.is_active == True,
+        SaleItem.is_active == True,
+    )
+    result = await db.execute(cmv_today_query)
+    cmv_today = float(result.scalar() or 0.0)
+    profit_today = total_sales_today - cmv_today
+    margin_today = (profit_today / total_sales_today * 100) if total_sales_today > 0 else 0.0
+
     # 7.1 Vendas de ontem (para calcular trend)
     sales_yesterday_query = select(
         func.coalesce(func.sum(Sale.total_amount), 0).label("total_yesterday"),
@@ -302,6 +316,9 @@ async def get_dashboard_stats(
             "total_today": total_sales_today,
             "count_today": sales_count_today,
             "average_ticket": average_ticket,
+            "profit_today": profit_today,
+            "cmv_today": cmv_today,
+            "margin_today": round(margin_today, 2),
             "total_yesterday": total_sales_yesterday,
             "count_yesterday": sales_count_yesterday,
             "trend_percent": round(sales_trend_percent, 2),

@@ -4,13 +4,14 @@
  */
 
 import api from './api';
-import type { 
-  Product, 
-  ProductCreate, 
+import type {
+  Product,
+  ProductCreate,
   ProductUpdate,
   PaginationParams,
   ProductQuantityAdjustRequest,
   ProductQuantityAdjustResponse,
+  FIFOCostInfo,
 } from '@/types';
 
 /**
@@ -173,4 +174,17 @@ export const adjustProductQuantity = async (
   } catch (error) {
     throw error;
   }
+};
+
+/**
+ * Buscar custos FIFO para lista de produtos (usado pelo carrinho)
+ */
+export const getFIFOCosts = async (
+  productIds: number[],
+): Promise<Record<string, FIFOCostInfo>> => {
+  const { data } = await api.post<Record<string, FIFOCostInfo>>(
+    '/products/fifo-costs',
+    productIds,
+  );
+  return data;
 };

@@ -318,11 +318,26 @@ export interface SaleItemCreate {
   discount_amount: number;
 }
 
+export interface SaleSourceInfo {
+  entry_id: number;
+  entry_item_id: number;
+  quantity_taken: number;
+  unit_cost: number;
+  total_cost: number;
+  entry_code?: string;
+  entry_date?: string;
+}
+
 export interface SaleItemResponse extends Omit<SaleItem, 'discount'> {
   id: number;
   sale_id: number;
+  unit_cost?: number;
   subtotal: number;
   discount_amount: number;
+  cost_total?: number;
+  profit?: number;
+  margin_percent?: number;
+  sale_sources?: SaleSourceInfo[];
   product?: Product;
 }
 
@@ -383,6 +398,16 @@ export interface Sale {
 export interface SaleWithDetails extends Sale {
   items: SaleItemResponse[];
   payments: PaymentResponse[];
+  total_cost?: number;
+  total_profit?: number;
+  profit_margin_percent?: number;
+}
+
+export interface FIFOCostInfo {
+  product_id: number;
+  average_unit_cost: number;
+  total_quantity: number;
+  sources_count: number;
 }
 
 // ============================================
