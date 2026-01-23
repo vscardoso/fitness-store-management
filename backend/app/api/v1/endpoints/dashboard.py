@@ -12,6 +12,7 @@ from datetime import date, timedelta
 from enum import Enum
 
 from app.core.database import get_db
+from app.core.timezone import today_brazil
 from app.api.deps import get_current_tenant_id, get_current_active_user
 from app.models.product import Product
 from app.models.category import Category
@@ -36,8 +37,12 @@ class PeriodFilter(str, Enum):
 
 
 def get_period_dates(period: PeriodFilter) -> tuple[date, date]:
-    """Retorna (start_date, end_date) baseado no filtro de período."""
-    today = date.today()
+    """Retorna (start_date, end_date) baseado no filtro de período.
+    
+    IMPORTANTE: Usa timezone brasileiro (America/Sao_Paulo) para determinar
+    "hoje", garantindo que o dia vire à meia-noite local, não UTC.
+    """
+    today = today_brazil()
 
     if period == PeriodFilter.THIS_MONTH:
         start = date(today.year, today.month, 1)

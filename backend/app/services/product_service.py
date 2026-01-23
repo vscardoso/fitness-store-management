@@ -293,7 +293,7 @@ class ProductService:
                 entry_repo = StockEntryRepository()
                 item_repo = EntryItemRepository()
 
-                code_ts = datetime.now().strftime("%Y%m%d%H%M%S")
+                code_ts = now_brazil().strftime("%Y%m%d%H%M%S")
                 entry_payload = {
                     "entry_code": f"ADJ-{product.sku}-{code_ts}",
                     "entry_date": date.today(),

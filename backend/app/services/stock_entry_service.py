@@ -63,7 +63,7 @@ class StockEntryService:
             # Limite de segurança
             if counter > 1000:
                 # Usar timestamp se falhar após 1000 tentativas
-                timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+                timestamp = now_brazil().strftime("%Y%m%d%H%M%S")
                 return f"{base_code}-{timestamp}"
 
     async def check_code_exists(self, entry_code: str, tenant_id: int) -> bool:
@@ -669,7 +669,7 @@ class StockEntryService:
                 depletion_rate = ((item.quantity_received - item.quantity_remaining) / 
                                 item.quantity_received * 100) if item.quantity_received > 0 else 0
                 
-                days_in_stock = (datetime.now().date() - entry.entry_date).days
+                days_in_stock = (today_brazil() - entry.entry_date).days
                 
                 result.append({
                     "entry_item_id": item.id,

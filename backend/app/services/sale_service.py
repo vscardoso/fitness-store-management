@@ -113,7 +113,7 @@ class SaleService:
                 )
             
             # 4. Gerar nmero da venda
-            sale_number = f"VENDA-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
+            sale_number = f"VENDA-{now_brazil().strftime('%Y%m%d%H%M%S')}"
             
             # 5. Criar Sale
             print(f" Criando venda {sale_number}...")

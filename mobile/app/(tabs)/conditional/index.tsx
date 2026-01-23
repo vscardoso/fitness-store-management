@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,8 +7,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Searchbar, Text, FAB, Card, Chip, Badge } from 'react-native-paper';
+import { Searchbar, Text, FAB, Card, Chip } from 'react-native-paper';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -23,7 +22,6 @@ import {
   ConditionalShipmentList,
   SHIPMENT_STATUS_LABELS,
   SHIPMENT_STATUS_COLORS,
-  SHIPMENT_STATUS_ICONS,
   formatDeadline,
   getDeadlineColor,
 } from '@/types/conditional';
@@ -31,37 +29,6 @@ import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 
 type FilterType = 'all' | 'pending' | 'overdue';
-
-/**
- * Formata data/hora para exibição compacta
- * Ex: "25/12 14:30" ou "Hoje 14:30"
- */
-function formatDateTime(dateString: string): string {
-  const date = new Date(dateString);
-  const now = new Date();
-
-  const isToday =
-    date.getDate() === now.getDate() &&
-    date.getMonth() === now.getMonth() &&
-    date.getFullYear() === now.getFullYear();
-
-  const isTomorrow =
-    date.getDate() === now.getDate() + 1 &&
-    date.getMonth() === now.getMonth() &&
-    date.getFullYear() === now.getFullYear();
-
-  const hours = date.getHours().toString().padStart(2, '0');
-  const minutes = date.getMinutes().toString().padStart(2, '0');
-  const time = `${hours}:${minutes}`;
-
-  if (isToday) return `Hoje ${time}`;
-  if (isTomorrow) return `Amanhã ${time}`;
-
-  const day = date.getDate().toString().padStart(2, '0');
-  const month = (date.getMonth() + 1).toString().padStart(2, '0');
-
-  return `${day}/${month} ${time}`;
-}
 
 export default function ConditionalShipmentsScreen() {
   const router = useRouter();
@@ -115,168 +82,62 @@ export default function ConditionalShipmentsScreen() {
     return dateB - dateA;
   });
 
-  /**
-   * Renderizar loading inicial
-   */
-  if (isLoading && !isRefetching) {
-    return (
-      <View style={styles.container}>
-        {/* Header Premium */}
-        <View style={styles.headerContainer}>
-          <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.headerGradient}
-          >
-            <View style={styles.headerContent}>
-              <View style={styles.headerInfo}>
-                <Text style={styles.greeting}>Envios</Text>
-                <Text style={styles.headerSubtitle}>Carregando...</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.profileButton}
-                onPress={() => router.push('/(tabs)/more')}
-              >
-                <View style={styles.profileIcon}>
-                  <Ionicons name="person" size={24} color="#fff" />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </View>
-
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
-          <Text style={styles.loadingText}>Carregando envios...</Text>
-        </View>
-      </View>
-    );
-  }
-
-  /**
-   * Renderizar erro
-   */
-  if (isError) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.headerContainer}>
-          <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.headerGradient}
-          >
-            <View style={styles.headerContent}>
-              <View style={styles.headerInfo}>
-                <Text style={styles.greeting}>Envios</Text>
-                <Text style={styles.headerSubtitle}>Erro ao carregar</Text>
-              </View>
-            </View>
-          </LinearGradient>
-        </View>
-
-        <View style={styles.centerContainer}>
-          <Ionicons name="alert-circle" size={64} color={Colors.light.error} />
-          <Text style={styles.errorText}>Erro ao carregar envios</Text>
-          <Text style={styles.errorSubtext}>Tente novamente mais tarde</Text>
-        </View>
-      </View>
-    );
-  }
+  // Contadores para header
+  const counts = useMemo(() => {
+    const all = shipments || [];
+    return {
+      pending: all.filter(s => s.status === 'PENDING').length,
+      sent: all.filter(s => s.status === 'SENT').length,
+      overdue: all.filter(s => s.is_overdue).length,
+    };
+  }, [shipments]);
 
   const renderShipmentCard = ({ item }: { item: ConditionalShipmentList }) => {
     const statusColor = SHIPMENT_STATUS_COLORS[item.status] ?? Colors.light.info;
     const statusLabel = SHIPMENT_STATUS_LABELS[item.status];
-    const statusIcon = SHIPMENT_STATUS_ICONS[item.status];
     const deadlineColor = item.deadline ? getDeadlineColor(item.deadline) : undefined;
+    const isFinished = item.status === 'COMPLETED_FULL_SALE' || item.status === 'COMPLETED_PARTIAL_SALE' || item.status === 'CANCELLED';
 
     return (
       <TouchableOpacity
         onPress={() => router.push(`/(tabs)/conditional/${item.id}`)}
         activeOpacity={0.7}
       >
-        <Card style={styles.card}>
-          <Card.Content>
-            {/* Header: Cliente + Status */}
+        <Card style={[styles.card, item.is_overdue && styles.cardOverdue]}>
+          <Card.Content style={styles.cardContent}>
+            {/* Linha principal: Cliente + Valor */}
             <View style={styles.cardHeader}>
               <View style={styles.customerInfo}>
-                <Ionicons name="person" size={20} color={Colors.light.text} />
+                <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
                 <Text style={styles.customerName} numberOfLines={1}>
                   {item.customer_name}
                 </Text>
               </View>
-              <Chip
-                icon={statusIcon}
-                style={{ backgroundColor: statusColor + '20' }}
-                textStyle={{ color: statusColor, fontSize: 11 }}
-                compact
-              >
-                {statusLabel}
-              </Chip>
+              <Text style={styles.cardValue}>
+                {formatCurrency(item.total_value_sent)}
+              </Text>
             </View>
 
-            {/* Métricas */}
-            <View style={styles.metricsRow}>
-              <View style={styles.metric}>
-                <Text style={styles.metricLabel}>Itens</Text>
-                <Text style={styles.metricValue}>{item.total_items_sent}</Text>
-              </View>
-              <View style={styles.metric}>
-                <Text style={styles.metricLabel}>Valor</Text>
-                <Text style={styles.metricValue}>
-                  {formatCurrency(item.total_value_sent)}
+            {/* Linha secundária: Status + Itens + Prazo */}
+            <View style={styles.cardFooter}>
+              <Text style={[styles.statusText, { color: statusColor }]}>
+                {statusLabel}
+              </Text>
+              <Text style={styles.cardMeta}>
+                {item.total_items_sent} {item.total_items_sent === 1 ? 'item' : 'itens'}
+              </Text>
+              {item.deadline && !isFinished && (
+                <Text style={[styles.cardMeta, deadlineColor && { color: deadlineColor }]}>
+                  {formatDeadline(item.deadline)}
                 </Text>
-              </View>
-              {/* Ocultar prazo quando venda foi finalizada (total ou parcial) */}
-              {item.deadline && item.status !== 'COMPLETED_FULL_SALE' && item.status !== 'COMPLETED_PARTIAL_SALE' && (
-                <View style={styles.metric}>
-                  <Text style={styles.metricLabel}>Prazo</Text>
-                  <Text
-                    style={[
-                      styles.metricValue,
-                      deadlineColor && { color: deadlineColor },
-                    ]}
-                  >
-                    {formatDeadline(item.deadline)}
-                  </Text>
+              )}
+              {item.is_overdue && (
+                <View style={styles.overdueTag}>
+                  <Ionicons name="alert-circle" size={12} color={Colors.light.error} />
+                  <Text style={styles.overdueText}>Atrasado</Text>
                 </View>
               )}
             </View>
-
-            {/* Agendamento de Envio e Retorno */}
-            {(item.departure_datetime || item.return_datetime) && (
-              <View style={styles.schedulingInfo}>
-                {item.departure_datetime && (
-                  <View style={styles.schedulingRow}>
-                    <Ionicons name="arrow-forward-circle" size={16} color={Colors.light.primary} />
-                    <Text style={styles.schedulingLabel}>Envio:</Text>
-                    <Text style={styles.schedulingValue}>
-                      {formatDateTime(item.departure_datetime)}
-                    </Text>
-                  </View>
-                )}
-                {item.return_datetime && (
-                  <View style={styles.schedulingRow}>
-                    <Ionicons name="arrow-back-circle" size={16} color={Colors.light.info} />
-                    <Text style={styles.schedulingLabel}>Retorno:</Text>
-                    <Text style={styles.schedulingValue}>
-                      {formatDateTime(item.return_datetime)}
-                    </Text>
-                  </View>
-                )}
-              </View>
-            )}
-
-            {/* Badge de "Atrasado" se aplicável */}
-            {item.is_overdue && (
-              <Badge
-                style={[styles.overdueBadge, { backgroundColor: Colors.light.error }]}
-                size={20}
-              >
-                Atrasado
-              </Badge>
-            )}
           </Card.Content>
         </Card>
       </TouchableOpacity>
@@ -285,7 +146,7 @@ export default function ConditionalShipmentsScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header Premium */}
+      {/* Header */}
       <View style={styles.headerContainer}>
         <LinearGradient
           colors={[Colors.light.primary, Colors.light.secondary]}
@@ -295,7 +156,7 @@ export default function ConditionalShipmentsScreen() {
         >
           <View style={styles.headerContent}>
             <View style={styles.headerInfo}>
-              <Text style={styles.greeting}>Envios</Text>
+              <Text style={styles.greeting}>Condicionais</Text>
               <Text style={styles.headerSubtitle}>
                 {filteredShipments.length} {filteredShipments.length === 1 ? 'envio' : 'envios'}
               </Text>
@@ -309,6 +170,30 @@ export default function ConditionalShipmentsScreen() {
               </View>
             </TouchableOpacity>
           </View>
+
+          {/* Resumo rápido */}
+          {filterType === 'all' && (counts.pending > 0 || counts.sent > 0 || counts.overdue > 0) && (
+            <View style={styles.headerCounters}>
+              {counts.sent > 0 && (
+                <View style={styles.counterPill}>
+                  <Ionicons name="cube" size={14} color="#fff" />
+                  <Text style={styles.counterText}>{counts.sent} com cliente</Text>
+                </View>
+              )}
+              {counts.pending > 0 && (
+                <View style={styles.counterPill}>
+                  <Ionicons name="time" size={14} color="#fff" />
+                  <Text style={styles.counterText}>{counts.pending} pendentes</Text>
+                </View>
+              )}
+              {counts.overdue > 0 && (
+                <View style={[styles.counterPill, styles.counterDanger]}>
+                  <Ionicons name="alert-circle" size={14} color="#fff" />
+                  <Text style={styles.counterText}>{counts.overdue} atrasados</Text>
+                </View>
+              )}
+            </View>
+          )}
         </LinearGradient>
       </View>
 
@@ -432,6 +317,29 @@ const styles = StyleSheet.create({
     color: '#fff',
     opacity: 0.9,
   },
+  headerCounters: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  counterPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  counterDanger: {
+    backgroundColor: 'rgba(244,67,54,0.4)',
+  },
+  counterText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+  },
   profileButton: {
     marginLeft: theme.spacing.md,
   },
@@ -456,91 +364,74 @@ const styles = StyleSheet.create({
   filterChip: {
     marginRight: 4,
   },
-  filterChipText: {
-    fontSize: 12,
-  },
   listContent: {
     padding: theme.spacing.md,
     paddingBottom: 100,
   },
   card: {
-    marginBottom: theme.spacing.md,
-    elevation: 2,
-    borderRadius: theme.borderRadius.lg,
+    marginBottom: 10,
+    elevation: 1,
+    borderRadius: 12,
   },
-  emptyCard: {
-    height: 0,
+  cardOverdue: {
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.light.error,
+  },
+  cardContent: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: theme.spacing.sm,
+    marginBottom: 6,
   },
   customerInfo: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    gap: theme.spacing.xs,
+    gap: 8,
+  },
+  statusDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
   customerName: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '600',
     color: Colors.light.text,
     flex: 1,
   },
-  metricsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.sm,
-    paddingTop: theme.spacing.sm,
-    borderTopWidth: 1,
-    borderTopColor: Colors.light.border,
-  },
-  metric: {
-    alignItems: 'center',
-  },
-  metricLabel: {
-    fontSize: 12,
-    color: Colors.light.textSecondary,
-    marginBottom: 4,
-  },
-  metricValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
+  cardValue: {
+    fontSize: 15,
+    fontWeight: '700',
     color: Colors.light.text,
+    marginLeft: 8,
   },
-  sentDate: {
-    fontSize: 12,
-    color: Colors.light.textSecondary,
-    fontStyle: 'italic',
-  },
-  overdueBadge: {
-    position: 'absolute',
-    top: 16,
-    right: 16,
-  },
-  schedulingInfo: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#E0E0E0',
-    gap: 6,
-  },
-  schedulingRow: {
+  cardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 12,
   },
-  schedulingLabel: {
+  statusText: {
     fontSize: 12,
     fontWeight: '600',
+  },
+  cardMeta: {
+    fontSize: 12,
     color: Colors.light.textSecondary,
   },
-  schedulingValue: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: Colors.light.text,
+  overdueTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  overdueText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.light.error,
   },
   centerContainer: {
     flex: 1,

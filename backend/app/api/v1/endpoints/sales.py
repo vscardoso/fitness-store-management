@@ -834,9 +834,10 @@ async def get_sales_by_period(
     """
     from datetime import datetime
     
-    # Se não fornecido, usa mês/ano atual
+    # Se não fornecido, usa mês/ano atual (em horário brasileiro)
     if year is None or month is None:
-        today = datetime.now()
+        from zoneinfo import ZoneInfo
+        today = datetime.now(ZoneInfo("America/Sao_Paulo"))
         year = year or today.year
         month = month or today.month
     

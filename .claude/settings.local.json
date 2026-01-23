@@ -39,7 +39,8 @@
       "Bash(powershell.exe -Command \"Test-Path ''C:\\\\Users\\\\Victor\\\\AppData\\\\Local\\\\Android\\\\Sdk'' ; Test-Path ''C:\\\\Program Files\\\\Android\\\\Android Studio''\")",
       "Bash(powershell.exe -Command \"cd ''C:\\\\Users\\\\Victor\\\\Desktop\\\\fitness-store-management\\\\mobile''; npx expo install expo-font react-native-worklets --fix 2>&1\")",
       "Bash(powershell.exe -Command:*)",
-      "Bash(findstr:*)"
+      "Bash(findstr:*)",
+      "Bash(ls:*)"
     ],
     "deny": [],
     "ask": []

@@ -17,11 +17,8 @@ import {
   Card,
   Button,
   TextInput,
-  Badge,
   Surface,
   Chip,
-  IconButton,
-  RadioButton,
 } from 'react-native-paper';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -31,7 +28,7 @@ import InfoRow from '@/components/ui/InfoRow';
 import CustomModal from '@/components/ui/CustomModal';
 import ModalActions from '@/components/ui/ModalActions';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { getShipment, processReturn, cancelShipment, markAsSent, updateShipment } from '@/services/conditionalService';
+import { getShipment, processReturn, cancelShipment, markAsSent } from '@/services/conditionalService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors } from '@/constants/Colors';
 import type {
@@ -88,13 +85,12 @@ export default function ConditionalShipmentDetailsScreen() {
   const [processingItems, setProcessingItems] = useState<Record<number, ProcessingItem>>({});
   const [activeModal, setActiveModal] = useState<{
     visible: boolean;
-    type: 'damaged' | 'lost' | 'cancel' | 'mark_sent' | 'change_status' | null;
+    type: 'damaged' | 'lost' | 'cancel' | 'mark_sent' | null;
     itemId?: number;
     quantity?: string;
     reason?: string;
     carrier?: string;
     tracking_code?: string;
-    selectedStatus?: string;
   }>({ visible: false, type: null });
 
   const [confirmDialog, setConfirmDialog] = useState<{
@@ -253,23 +249,6 @@ export default function ConditionalShipmentDetailsScreen() {
     },
   });
 
-  /**
-   * Mutation: Atualizar status
-   */
-  const updateStatusMutation = useMutation({
-    mutationFn: (status: string) => updateShipment(shipmentId, { status }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conditional-shipments'] });
-      queryClient.invalidateQueries({ queryKey: ['conditional-shipment', shipmentId] });
-      setSuccessMessage('Status atualizado com sucesso!');
-      setSuccessDialog(true);
-    },
-    onError: (error: any) => {
-      const message = error?.response?.data?.detail || error?.message || 'Erro ao atualizar status';
-      setErrorMessage(message);
-      setErrorDialog(true);
-    },
-  });
 
   /**
    * Atualizar item individual
@@ -321,9 +300,6 @@ export default function ConditionalShipmentDetailsScreen() {
     setActiveModal({ visible: true, type: 'mark_sent', carrier: '', tracking_code: '' });
   }, []);
 
-  const handleOpenChangeStatusModal = useCallback(() => {
-    setActiveModal({ visible: true, type: 'change_status', selectedStatus: shipment?.status });
-  }, [shipment]);
 
   /**
    * Salvar modal (danificado/perdido)
@@ -571,40 +547,6 @@ export default function ConditionalShipmentDetailsScreen() {
     });
   }, [activeModal, markAsSentMutation]);
 
-  /**
-   * Alterar status
-   */
-  const handleChangeStatus = useCallback(() => {
-    const { selectedStatus } = activeModal;
-
-    if (!selectedStatus || selectedStatus === shipment?.status) {
-      setActiveModal({ visible: false, type: null });
-      return;
-    }
-
-    setActiveModal({ visible: false, type: null });
-
-    const statusLabels: Record<string, string> = {
-      PENDING: 'Pendente',
-      SENT: 'Enviado',
-      PARTIAL_RETURN: 'Devolução Parcial',
-      COMPLETED: 'Finalizado',
-      CANCELLED: 'Cancelado',
-      OVERDUE: 'Atrasado',
-    };
-
-    setConfirmDialog({
-      visible: true,
-      type: 'warning',
-      title: 'Confirmar Alteração de Status',
-      message: `Deseja alterar o status para "${statusLabels[selectedStatus]}"?`,
-      details: ['Esta ação pode afetar o fluxo do envio'],
-      onConfirm: () => {
-        setConfirmDialog({ ...confirmDialog, visible: false });
-        updateStatusMutation.mutate(selectedStatus);
-      },
-    });
-  }, [activeModal, shipment, updateStatusMutation]);
 
   // Loading state
   if (isLoading || !shipment) {
@@ -687,15 +629,6 @@ export default function ConditionalShipmentDetailsScreen() {
               <Text variant="titleMedium" style={styles.sectionTitle}>
                 Dados do Envio
               </Text>
-              <View style={{ flex: 1 }} />
-              {shipment.status !== 'COMPLETED' && shipment.status !== 'CANCELLED' && (
-                <IconButton
-                  icon="pencil"
-                  size={20}
-                  iconColor={Colors.light.primary}
-                  onPress={handleOpenChangeStatusModal}
-                />
-              )}
             </View>
 
             <View style={styles.infoGrid}>
@@ -1136,19 +1069,30 @@ export default function ConditionalShipmentDetailsScreen() {
               </Text>
 
               {summary.keptCount > 0 && (
-                <View style={{ marginTop: 16 }}>
-                  <Text variant="labelLarge" style={{ marginBottom: 8, fontWeight: '600' }}>
+                <View style={styles.paymentSection}>
+                  <Text variant="labelLarge" style={styles.paymentLabel}>
                     Forma de Pagamento:
                   </Text>
-                  <RadioButton.Group onValueChange={(value) => setPaymentMethod(value as typeof paymentMethod)} value={paymentMethod}>
-                    <RadioButton.Item label="💵 Dinheiro" value="cash" />
-                    <RadioButton.Item label="💳 Cartão de Crédito" value="credit_card" />
-                    <RadioButton.Item label="💳 Cartão de Débito" value="debit_card" />
-                    <RadioButton.Item label="📱 Pix" value="pix" />
-                    <RadioButton.Item label="🏦 Transferência Bancária" value="bank_transfer" />
-                    <RadioButton.Item label="📊 Parcelado" value="installments" />
-                    <RadioButton.Item label="⭐ Pontos de Fidelidade" value="loyalty_points" />
-                  </RadioButton.Group>
+                  <View style={styles.paymentChips}>
+                    {([
+                      { key: 'pix', label: 'Pix' },
+                      { key: 'cash', label: 'Dinheiro' },
+                      { key: 'credit_card', label: 'Crédito' },
+                      { key: 'debit_card', label: 'Débito' },
+                    ] as const).map(({ key, label }) => (
+                      <Chip
+                        key={key}
+                        selected={paymentMethod === key}
+                        onPress={() => setPaymentMethod(key)}
+                        style={[styles.paymentChip, paymentMethod === key && styles.paymentChipActive]}
+                        textStyle={paymentMethod === key ? styles.paymentChipTextActive : undefined}
+                        compact
+                        showSelectedCheck={false}
+                      >
+                        {label}
+                      </Chip>
+                    ))}
+                  </View>
                 </View>
               )}
 
@@ -1271,32 +1215,6 @@ export default function ConditionalShipmentDetailsScreen() {
         />
       </CustomModal>
 
-      {/* Modal Alterar Status */}
-      <CustomModal
-        visible={activeModal.visible && activeModal.type === 'change_status'}
-        onDismiss={() => setActiveModal({ visible: false, type: null })}
-        title="Alterar Status do Envio"
-      >
-        <RadioButton.Group
-          onValueChange={(value) => setActiveModal({ ...activeModal, selectedStatus: value })}
-          value={activeModal.selectedStatus || shipment?.status || ''}
-        >
-          <RadioButton.Item label="🟡 Pendente (Criado)" value="PENDING" />
-          <RadioButton.Item label="🚚 Enviado (Com o cliente)" value="SENT" />
-          <RadioButton.Item label="📦 Devolução Parcial" value="PARTIAL_RETURN" />
-          <RadioButton.Item label="✅ Finalizado" value="COMPLETED" />
-          <RadioButton.Item label="❌ Cancelado" value="CANCELLED" />
-          <RadioButton.Item label="⏰ Atrasado" value="OVERDUE" />
-        </RadioButton.Group>
-
-        <ModalActions
-          onCancel={() => setActiveModal({ visible: false, type: null })}
-          onConfirm={handleChangeStatus}
-          confirmText="Alterar Status"
-          cancelText="Cancelar"
-          loading={updateStatusMutation.isPending}
-        />
-      </CustomModal>
 
       {/* Confirm Dialog */}
       <ConfirmDialog
@@ -1519,6 +1437,30 @@ const styles = StyleSheet.create({
   },
   notesInput: {
     marginTop: 4,
+  },
+  paymentSection: {
+    marginTop: 16,
+  },
+  paymentLabel: {
+    marginBottom: 8,
+    fontWeight: '600',
+  },
+  paymentChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  paymentChip: {
+    backgroundColor: '#f0f0f0',
+  },
+  paymentChipActive: {
+    backgroundColor: Colors.light.primary + '20',
+    borderColor: Colors.light.primary,
+    borderWidth: 1,
+  },
+  paymentChipTextActive: {
+    color: Colors.light.primary,
+    fontWeight: '600',
   },
   actionsContainer: {
     gap: 12,
