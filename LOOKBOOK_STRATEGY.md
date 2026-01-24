@@ -685,17 +685,791 @@ DEMANDA PENDENTE:
 
 ---
 
-## 📝 PRÓXIMOS PASSOS
+## 🌐 ESTRATÉGIA DE DISTRIBUIÇÃO MULTI-CANAL
 
-1. ✅ Estratégia documentada
-2. [ ] Equalizar branches (developer ↔ main)
-3. [ ] Criar feature branch: `feature/lookbook-wishlist`
-4. [ ] Implementar Fase 1 (MVP)
-5. [ ] Testar com cliente beta
-6. [ ] Lançar oficialmente
+### Situação Atual do Sistema
+
+**Backend:**
+- ✅ FastAPI rodando (API REST acessível via web)
+- ✅ Endpoints prontos e funcionais
+
+**Frontend:**
+- ❌ React Native + Expo = **MOBILE ONLY**
+- ❌ Não roda em navegador web
+- ❌ Cliente precisa INSTALAR app (APK/IPA)
+- ❌ Barreira de entrada ALTA
+
+**Problema Real:**
+```
+Vendedora: "Baixa nosso app!"
+Cliente: "Ahn? Preciso instalar? Que saco..."
+Vendedora: "É rapidinho!"
+Cliente: "Depois eu vejo..." → NUNCA instala
+```
+
+### Solução: 3 Canais Complementares
+
+```
+┌─────────────────────────────────────┐
+│ 1. WhatsApp Business (PRINCIPAL)   │ ← Cliente JÁ USA
+│    Catálogo, Pedidos, Atendimento  │
+├─────────────────────────────────────┤
+│ 2. Landing Page Web (LOOKBOOK)     │ ← Ver looks, explorar
+│    Galeria, Filtros, Wishlist      │
+├─────────────────────────────────────┤
+│ 3. App Mobile (VENDEDORA)          │ ← Gestão completa
+│    PDV, Estoque, Condicionais      │
+└─────────────────────────────────────┘
+```
+
+---
+
+## 📱 CANAL 1: WhatsApp Business API (PRIORIDADE MÁXIMA)
+
+### Por Que WhatsApp Primeiro?
+
+- ✅ **97% dos brasileiros** usam WhatsApp
+- ✅ **ZERO fricção** - Cliente já tem instalado
+- ✅ **Confiança** - Cliente prefere WhatsApp que app desconhecido
+- ✅ **Vendedora já usa** - Fluxo natural de atendimento
+
+### Funcionalidades do WhatsApp
+
+#### A. Catálogo Nativo WhatsApp
+```
+Cliente: "Oi!"
+Loja: "Olá! 👋 Veja nosso catálogo:"
+[BOTÃO: Ver Produtos]
+
+→ Cliente vê produtos COM PREÇO dentro do WhatsApp
+→ Pode adicionar ao carrinho
+→ Finaliza pedido diretamente
+```
+
+**Vantagens:**
+- Cliente não sai do WhatsApp
+- Interface familiar
+- Checkout rápido
+
+#### B. Chatbot Inteligente
+
+**Fluxo Automático:**
+```
+Cliente: "Tem legging preta P?"
+Bot: "Tenho sim!
+Legging High Waist Preta P
+R$ 149,90
+[FOTO]
+
+Combina com:
+1. Top Rosa R$ 79
+2. Top Branco R$ 69
+Quer adicionar?"
+
+Cliente: "Top rosa"
+Bot: "Look completo: R$ 228,90
+Desconto de conjunto (10%): R$ 206
+[PEDIR CONDICIONAL] [COMPRAR AGORA]"
+```
+
+**Funcionalidades do Bot:**
+- Consultar disponibilidade de produtos
+- Sugerir combinações (lookbook)
+- Processar pedidos
+- Rastrear entregas
+- Escalonar para vendedora humana
+
+#### C. Notificações de Wishlist
+
+**Alerta Automático:**
+```
+Sistema → WhatsApp:
+"Oi Maria! 🎉
+A Legging P Rosa que você pediu CHEGOU!
+[FOTO]
+R$ 149,90
+[COMPRAR AGORA]"
+```
+
+**Quando enviar:**
+- Produto da wishlist volta ao estoque
+- Promoção em produto favorito
+- Lançamento compatível com histórico
+- Lembrete de look salvo (3 dias)
+
+#### D. Menu de Atendimento
+
+**Opções Principais:**
+```
+Olá! Sou a assistente virtual da [Nome da Loja].
+Escolha uma opção:
+
+1️⃣ Ver catálogo completo
+2️⃣ Novidades e lançamentos
+3️⃣ Meus pedidos
+4️⃣ Looks montados por você
+5️⃣ Falar com vendedora
+
+Digite o número da opção desejada.
+```
+
+### Tecnologias WhatsApp
+
+**Opção 1: Meta Business API (Oficial)**
+- **Custo:** R$ 0,05-0,15 por conversa
+- **Vantagens:** Oficial, suporte Meta, catálogo nativo
+- **Desvantagens:** Processo de aprovação, custos
+
+**Opção 2: Baileys (Open Source)**
+- **Custo:** Grátis (self-hosted)
+- **Vantagens:** Sem custos, flexível, rápido de implementar
+- **Desvantagens:** Não oficial, risco de ban
+
+**Opção 3: Twilio/MessageBird**
+- **Custo:** R$ 0,10 por mensagem
+- **Vantagens:** Infraestrutura confiável, APIs robustas
+- **Desvantagens:** Custo por mensagem
+
+**RECOMENDAÇÃO INICIAL:** Baileys para MVP/testes, migrar para Meta API em produção.
+
+### Arquitetura WhatsApp Integration
+
+**Backend:**
+```python
+# backend/app/webhooks/whatsapp.py
+from fastapi import APIRouter, Request
+
+router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
+
+@router.post("/whatsapp")
+async def whatsapp_webhook(request: Request, db: AsyncSession):
+    """
+    Recebe mensagens do WhatsApp e processa.
+    """
+    data = await request.json()
+    message_text = data['message']['text']
+    customer_phone = data['from']
+
+    # 1. Identificar intenção
+    intent = classify_intent(message_text)
+
+    # 2. Processar baseado na intenção
+    if intent == "search_product":
+        products = await search_products(db, message_text)
+        response = format_product_list(products)
+
+    elif intent == "create_order":
+        order = await create_order_from_message(db, customer_phone, data)
+        response = format_order_confirmation(order)
+
+    elif intent == "check_stock":
+        stock = await check_product_availability(db, message_text)
+        response = format_stock_response(stock)
+
+    else:
+        response = "Não entendi. Digite 'MENU' para ver opções."
+
+    # 3. Enviar resposta
+    await send_whatsapp_message(customer_phone, response)
+```
+
+**Serviços:**
+```python
+# backend/app/services/whatsapp_service.py
+class WhatsAppService:
+    async def send_message(self, to: str, message: str)
+    async def send_product_catalog(self, to: str, products: List[Product])
+    async def send_look_suggestion(self, to: str, look: Look)
+    async def send_wishlist_alert(self, customer_id: int, product_id: int)
+    async def process_order_from_chat(self, phone: str, items: List[dict])
+```
+
+---
+
+## 🌍 CANAL 2: Landing Page Web (Next.js)
+
+### Por Que Landing Page?
+
+- ✅ **Link compartilhável** - WhatsApp, Instagram, Google
+- ✅ **SEO** - Google indexa, tráfego orgânico
+- ✅ **Experiência visual rica** - Lookbook interativo
+- ✅ **Sem instalação** - Acesso imediato
+
+### Estrutura da Landing Page
+
+**URL:** `minhaloja.com.br`
+
+#### Páginas Principais
+
+**1. Home Page**
+```
+┌─────────────────────────────────────┐
+│ [LOGO] Minha Loja Fitness           │
+│ [🔍 Buscar] [🛒 0] [❤️ Wishlist]    │
+├─────────────────────────────────────┤
+│ 🔥 LOOKS EM ALTA                    │
+│ ┌──────┬──────┬──────┐              │
+│ │[IMG] │[IMG] │[IMG] │              │
+│ │Look 1│Look 2│Look 3│              │
+│ │R$ 349│R$ 289│R$ 459│              │
+│ └──────┴──────┴──────┘              │
+│                                     │
+│ 🆕 NOVIDADES                        │
+│ [Grid de produtos - 8 itens]        │
+│                                     │
+│ 💬 ATENDIMENTO WHATSAPP             │
+│ [BOTÃO VERDE FLUTUANTE FIXO]        │
+└─────────────────────────────────────┘
+```
+
+**2. Página de Produto**
+```
+┌─────────────────────────────────────┐
+│ ← Voltar                            │
+├─────────────────────────────────────┤
+│ [GALERIA DE FOTOS]                  │
+│                                     │
+│ Legging High Waist Preta            │
+│ R$ 149,90                           │
+│ ⭐⭐⭐⭐⭐ (23 avaliações)            │
+│                                     │
+│ Tamanhos: [P] [M] [G] [GG]          │
+│ Cores: [⚫] [🔵] [🟣]                │
+│                                     │
+│ ❤️ ADICIONAR À WISHLIST             │
+│ 🛒 PEDIR VIA WHATSAPP               │
+│                                     │
+│ COMBINA COM:                        │
+│ [Top Rosa] [Jaqueta] [Short]        │
+└─────────────────────────────────────┘
+```
+
+**3. Lookbook Gallery**
+```
+┌─────────────────────────────────────┐
+│ 👗 MONTE SEU LOOK                   │
+├─────────────────────────────────────┤
+│ Filtros: [Ocasião ▼] [Cor ▼] [Estilo ▼] │
+│                                     │
+│ [Grid de Looks - 12 por página]     │
+│ ┌────────┐ ┌────────┐ ┌────────┐   │
+│ │ [IMG]  │ │ [IMG]  │ │ [IMG]  │   │
+│ │ Look 1 │ │ Look 2 │ │ Look 3 │   │
+│ │ 3 peças│ │ 2 peças│ │ 4 peças│   │
+│ │ R$ 349 │ │ R$ 229 │ │ R$ 489 │   │
+│ │ ❤️ 45  │ │ ❤️ 32  │ │ ❤️ 28  │   │
+│ └────────┘ └────────┘ └────────┘   │
+└─────────────────────────────────────┘
+```
+
+**4. Minha Wishlist**
+```
+┌─────────────────────────────────────┐
+│ ❤️ MINHA LISTA DE DESEJOS           │
+├─────────────────────────────────────┤
+│ ✅ DISPONÍVEIS AGORA (2)            │
+│ • Legging High Waist P - R$ 149     │
+│   [PEDIR VIA WHATSAPP]              │
+│                                     │
+│ ⏳ AGUARDANDO ESTOQUE (3)           │
+│ • Top Sport Bra M Rosa              │
+│   Previsão: 3 dias                  │
+│   📱 Vamos te avisar!               │
+│                                     │
+│ 💬 QUER AJUDA?                      │
+│ [FALAR NO WHATSAPP]                 │
+└─────────────────────────────────────┘
+```
+
+### Fluxo do Cliente
+
+**Cenário 1: Instagram → Site → WhatsApp**
+```
+1. Cliente vê post no Instagram
+2. Clica no link da bio
+3. Entra no site
+4. Navega produtos/looks
+5. Gosta de look → Clica "Pedir via WhatsApp"
+6. WhatsApp abre com mensagem pré-preenchida:
+   "Olá! Vi o Look Athleisure no site e gostei!"
+7. Vendedora atende → Fecha venda
+```
+
+**Cenário 2: Google → Site → Wishlist → WhatsApp**
+```
+1. Cliente busca "legging fitness" no Google
+2. Site aparece nos resultados (SEO)
+3. Entra no site
+4. Adiciona produtos à wishlist
+5. Produto chega → Recebe notificação WhatsApp
+6. Compra via WhatsApp
+```
+
+### Tecnologias Landing Page
+
+**Framework:** Next.js 14 (App Router)
+- Server-Side Rendering (SSR)
+- Static Site Generation (SSG)
+- SEO otimizado
+- Performance excelente
+
+**Estilização:** Tailwind CSS
+- Componentes rápidos
+- Responsivo mobile-first
+- Dark mode nativo
+
+**API Integration:** Mesma API FastAPI
+- Endpoints já prontos
+- Autenticação JWT (opcional para wishlist)
+- Real-time stock check
+
+**Hospedagem:** Vercel
+- Deploy automático
+- CDN global
+- SSL grátis
+- **PLANO FREE** disponível
+
+**Domínio:** R$ 40/ano (.com.br)
+
+### Código Base Next.js
+
+**Estrutura de Pastas:**
+```
+web/
+├── app/
+│   ├── layout.tsx           # Layout principal
+│   ├── page.tsx             # Home page
+│   ├── produtos/
+│   │   └── [id]/page.tsx    # Produto individual
+│   ├── looks/
+│   │   └── page.tsx         # Galeria de looks
+│   └── wishlist/
+│       └── page.tsx         # Wishlist
+├── components/
+│   ├── ProductCard.tsx
+│   ├── LookCard.tsx
+│   ├── WhatsAppButton.tsx
+│   └── WishlistButton.tsx
+├── services/
+│   └── api.ts               # Cliente API (axios)
+└── public/
+    └── images/
+```
+
+**Exemplo - Home Page:**
+```typescript
+// app/page.tsx
+import { getProducts, getTrendingLooks } from '@/services/api';
+import ProductGrid from '@/components/ProductGrid';
+import LookGallery from '@/components/LookGallery';
+import WhatsAppButton from '@/components/WhatsAppButton';
+
+export default async function HomePage() {
+  const products = await getProducts({ limit: 8 });
+  const looks = await getTrendingLooks({ limit: 6 });
+
+  return (
+    <main>
+      <section className="hero">
+        <h1>Moda Fitness Feminina</h1>
+        <p>Looks exclusivos para você arrasar no treino</p>
+      </section>
+
+      <section className="trending-looks">
+        <h2>🔥 Looks em Alta</h2>
+        <LookGallery looks={looks} />
+      </section>
+
+      <section className="new-products">
+        <h2>🆕 Novidades</h2>
+        <ProductGrid products={products} />
+      </section>
+
+      <WhatsAppButton
+        number="+5534999999999"
+        message="Olá! Vi o site e gostei!"
+      />
+    </main>
+  );
+}
+```
+
+**Exemplo - Componente WhatsApp:**
+```typescript
+// components/WhatsAppButton.tsx
+'use client';
+
+interface Props {
+  number: string;
+  message?: string;
+}
+
+export default function WhatsAppButton({ number, message }: Props) {
+  const handleClick = () => {
+    const encodedMessage = encodeURIComponent(message || 'Olá!');
+    const url = `https://wa.me/${number}?text=${encodedMessage}`;
+    window.open(url, '_blank');
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      className="fixed bottom-6 right-6 bg-green-500 hover:bg-green-600
+                 text-white rounded-full p-4 shadow-lg z-50"
+    >
+      <WhatsAppIcon size={32} />
+    </button>
+  );
+}
+```
+
+---
+
+## 📱 CANAL 3: App Mobile (React Native) - VENDEDORA
+
+### Mantém Como Está
+
+**Público:** Vendedora, gerente, dono da loja
+
+**Funcionalidades:**
+- ✅ PDV completo
+- ✅ Gestão de estoque (entrada, saída, FIFO)
+- ✅ Condicionais (try before you buy)
+- ✅ Relatórios (vendas, caixa, clientes)
+- ✅ Dashboard de métricas
+- ✅ Lookbook builder (Fase 2)
+
+**Distribuição:**
+- Google Play Store (Android)
+- Apple App Store (iOS)
+- Expo Go (desenvolvimento/testes)
+
+**Por Que Separar Cliente vs Vendedora?**
+
+| Funcionalidade | Cliente (Web/WhatsApp) | Vendedora (App) |
+|----------------|------------------------|-----------------|
+| Ver catálogo | ✅ | ✅ |
+| Fazer pedido | ✅ (via WhatsApp) | ✅ (PDV) |
+| Processar pagamento | ❌ | ✅ |
+| Gestão de estoque | ❌ | ✅ |
+| Relatórios | ❌ | ✅ |
+| Condicionais | ❌ (vendedora faz) | ✅ |
+
+**Vantagens:**
+- Cliente não precisa instalar app complexo
+- Vendedora tem ferramentas profissionais
+- Menos confusão de interfaces
+- Manutenção separada (diferentes ritmos)
+
+---
+
+## 🏗️ ARQUITETURA COMPLETA MULTI-CANAL
+
+```
+                    ┌─────────────────────┐
+                    │   BACKEND FastAPI   │
+                    │   (API REST única)  │
+                    └──────────┬──────────┘
+                               │
+        ┌──────────────────────┼──────────────────────┐
+        │                      │                      │
+        ▼                      ▼                      ▼
+┌───────────────┐     ┌───────────────┐     ┌───────────────┐
+│  WhatsApp     │     │ Landing Page  │     │  App Mobile   │
+│  Business API │     │  (Next.js)    │     │ (React Native)│
+│               │     │               │     │               │
+├───────────────┤     ├───────────────┤     ├───────────────┤
+│ • Chatbot     │     │ • Home        │     │ • PDV         │
+│ • Catálogo    │     │ • Produtos    │     │ • Estoque     │
+│ • Pedidos     │     │ • Looks       │     │ • Relatórios  │
+│ • Alertas     │     │ • Wishlist    │     │ • Dashboard   │
+│ • Menu        │     │ • SEO         │     │ • Condicionais│
+└───────┬───────┘     └───────┬───────┘     └───────┬───────┘
+        │                     │                     │
+        │                     │                     │
+        ▼                     ▼                     ▼
+  CLIENTE FINAL         CLIENTE FINAL          VENDEDORA
+  (WhatsApp)            (Browser)              (Celular)
+  97% alcance           Explorar visual        Gestão completa
+```
+
+**Fluxo Integrado:**
+```
+1. Cliente vê Instagram → Clica link → Landing Page
+2. Navega produtos → Adiciona à wishlist
+3. Produto chega → Alerta WhatsApp automático
+4. Cliente responde WhatsApp → Vendedora atende via App Mobile
+5. Vendedora processa venda no PDV → Cliente recebe confirmação WhatsApp
+```
+
+---
+
+## 📅 ROADMAP DE IMPLEMENTAÇÃO MULTI-CANAL
+
+### FASE 0: WhatsApp MVP (1 SEMANA) - **IMPLEMENTAR AGORA**
+
+**Objetivo:** Validar conceito com ZERO investimento
+
+**Dia 1-2: WhatsApp Bot Básico**
+```python
+# backend/app/webhooks/whatsapp.py
+@router.post("/whatsapp")
+async def whatsapp_webhook(request: Request):
+    data = await request.json()
+    message = data['message']['text']
+
+    # Menu simples
+    if "catalogo" in message.lower():
+        send_whatsapp_message(
+            to=data['from'],
+            message="Veja nosso catálogo: minhaloja.com.br"
+        )
+
+    elif "legging" in message.lower():
+        products = await search_products("legging")
+        send_product_list(to=data['from'], products=products)
+
+    elif "menu" in message.lower():
+        send_menu(to=data['from'])
+```
+
+**Dia 3-5: Landing Page Simples**
+```typescript
+// Next.js - 3 páginas básicas
+- Home (grid de produtos)
+- Produto individual
+- Botão WhatsApp flutuante
+```
+
+**Dia 6-7: Integração + Testes**
+- Fluxo completo: Site → WhatsApp → Venda
+- Testes com 5-10 clientes beta
+
+**Resultado:**
+- ✅ Cliente navega site
+- ✅ Clica WhatsApp
+- ✅ Vendedora atende
+- ✅ Venda fechada
+- ✅ **ZERO fricção**
+
+### FASE 1: WhatsApp Business Completo (2 SEMANAS)
+
+**Semana 1 - Setup Oficial**
+- [ ] Registrar WhatsApp Business API (Meta)
+- [ ] Configurar webhook no backend
+- [ ] Criar endpoints `/webhooks/whatsapp`
+- [ ] Testar envio/recebimento de mensagens
+- [ ] Catálogo nativo WhatsApp
+
+**Semana 2 - Features**
+- [ ] Chatbot com NLP básico (intenções)
+- [ ] Integração com pedidos
+- [ ] Notificações de wishlist
+- [ ] Menu interativo com botões
+
+### FASE 2: Landing Page Completa (2-3 SEMANAS)
+
+**Setup (3 dias)**
+- [ ] Criar projeto Next.js 14
+- [ ] Conectar com API FastAPI
+- [ ] Design system com Tailwind
+- [ ] Componentes base (Product, Look, Wishlist)
+
+**Features (1-2 semanas)**
+- [ ] Home page com looks em alta
+- [ ] Catálogo de produtos (filtros, busca)
+- [ ] Página de produto individual
+- [ ] Lookbook gallery (grid de looks)
+- [ ] Wishlist (salvar favoritos)
+- [ ] Integração WhatsApp (botões, links)
+
+**SEO & Deploy (3 dias)**
+- [ ] Meta tags otimizadas
+- [ ] Sitemap.xml
+- [ ] robots.txt
+- [ ] Open Graph (compartilhamento social)
+- [ ] Deploy na Vercel
+- [ ] Domínio customizado
+
+### FASE 3: Lookbook Features (3 SEMANAS)
+
+**Backend (1 semana)**
+- [ ] Models: Look, LookItem, Wishlist
+- [ ] Services: LookService, WishlistService
+- [ ] Endpoints: `/looks`, `/wishlist`
+- [ ] Background jobs: Wishlist notifications
+
+**Frontend Web (1 semana)**
+- [ ] Look builder interativo
+- [ ] Sugestões de combinações
+- [ ] Wishlist com alertas
+- [ ] Compartilhamento social
+
+**Frontend Mobile (1 semana)**
+- [ ] Continuar evoluindo app vendedora
+- [ ] Dashboard de demanda
+- [ ] Features exclusivas gestão
+
+---
+
+## 💰 CUSTO TOTAL ESTIMADO
+
+### Investimento Inicial
+
+**Infraestrutura:**
+- Landing Page (Vercel): **GRÁTIS** (plano free)
+- Domínio (.com.br): **R$ 40/ano**
+- SSL: **GRÁTIS** (Let's Encrypt via Vercel)
+- Backend (atual): **JÁ RODANDO**
+
+**WhatsApp:**
+- **Opção 1 (MVP):** Baileys = **GRÁTIS**
+- **Opção 2 (Produção):** Meta Business API = **R$ 0,10/conversa**
+- Estimativa: 1000 conversas/mês = **R$ 100/mês**
+
+**App Mobile:**
+- Google Play: **USD 25** (taxa única)
+- Apple Store: **USD 99/ano**
+- Expo EAS Build: **GRÁTIS** (free tier)
+
+**TOTAL ANO 1:**
+- Setup: R$ 40 (domínio) + R$ 125 (app stores) = **R$ 165**
+- Mensal: R$ 100 (WhatsApp) = **R$ 1.200/ano**
+- **TOTAL: R$ 1.365/ano** (~R$ 114/mês)
+
+### ROI vs Custo
+
+**Ganho estimado:** +R$ 192.000/ano
+**Custo:** R$ 1.365/ano
+**ROI:** **14.000%** 🚀
+
+---
+
+## 🎯 MVP RÁPIDO - IMPLEMENTAR ESTA SEMANA
+
+### Objetivo
+Validar conceito com investimento mínimo (1 semana de dev)
+
+### Entregáveis
+
+**1. Landing Page Básica (Next.js)**
+```
+Home:
+- Grid de 12 produtos
+- Botão WhatsApp flutuante
+- Design responsivo
+
+Produto:
+- Fotos + descrição
+- Botão "Pedir via WhatsApp"
+- Produtos relacionados
+
+Deploy: Vercel (grátis)
+URL: minhaloja.vercel.app
+```
+
+**2. WhatsApp Bot Simples (Baileys)**
+```python
+Funcionalidades:
+- Receber mensagens
+- Responder com link do catálogo
+- Menu básico (1-4)
+- Escalonar para vendedora
+
+Backend: Endpoint /webhooks/whatsapp
+```
+
+**3. Integração Site ↔ WhatsApp**
+```
+Fluxo:
+1. Cliente navega site
+2. Clica "Pedir via WhatsApp"
+3. WhatsApp abre com mensagem:
+   "Olá! Vi o [PRODUTO] no site e gostei!"
+4. Vendedora atende
+5. Venda fechada
+```
+
+### Métricas de Sucesso (Semana 1)
+
+- [ ] 10 clientes testaram o site
+- [ ] 5 iniciaram conversa WhatsApp
+- [ ] 3 fecharam compra
+- [ ] Taxa de conversão: 30%+
+
+**Se funcionar:** Escalar para Fase 1 (WhatsApp oficial + SEO)
+**Se não funcionar:** Ajustar e iterar
+
+---
+
+## 📝 PRÓXIMOS PASSOS ATUALIZADOS
+
+### Prioridade IMEDIATA (Esta Semana)
+
+1. ✅ Estratégia completa documentada (Lookbook + Multi-canal)
+2. ✅ Branches equalizadas (developer ↔ main)
+3. [ ] **MVP Rápido (1 semana):**
+   - [ ] Landing Page Next.js básica (3 dias)
+   - [ ] WhatsApp Bot com Baileys (2 dias)
+   - [ ] Integração Site ↔ WhatsApp (2 dias)
+4. [ ] Testar com 10 clientes beta
+5. [ ] Validar conversão (meta: 30%+)
+
+### Curto Prazo (2-4 Semanas)
+
+6. [ ] **WhatsApp Business Oficial** (se MVP validar)
+   - [ ] Registrar Meta Business API
+   - [ ] Catálogo nativo WhatsApp
+   - [ ] Chatbot inteligente
+7. [ ] **Landing Page Completa**
+   - [ ] SEO otimizado
+   - [ ] Lookbook gallery
+   - [ ] Wishlist funcional
+8. [ ] Deploy produção (Vercel + domínio)
+
+### Médio Prazo (1-2 Meses)
+
+9. [ ] **Lookbook Features** (backend + frontend)
+   - [ ] Look builder web
+   - [ ] Sugestões automáticas
+   - [ ] Wishlist com alertas
+10. [ ] **App Mobile** (continuar evoluindo)
+    - [ ] Dashboard vendedora
+    - [ ] Features exclusivas gestão
+
+### Decisão de Go/No-Go
+
+**Checkpoint 1 (Fim da semana 1):**
+- Se MVP WhatsApp + Site converter 30%+ → **GO para Fase 1**
+- Se não validar → Ajustar e iterar
+
+**Checkpoint 2 (Fim do mês 1):**
+- Se sistema completo estável → **Escalar marketing**
+- Se problemas técnicos → Corrigir antes de escalar
+
+---
+
+## 🎯 ESTRATÉGIA DE ROLLOUT
+
+### Semana 1: MVP Silencioso
+- Testar com 10 clientes próximos
+- Ajustar bugs e UX
+- NÃO divulgar amplamente
+
+### Semana 2-3: Beta Controlado
+- Abrir para 50 clientes
+- Coletar feedback
+- Iterar rápido
+
+### Semana 4+: Lançamento Público
+- Divulgar no Instagram
+- Impulsionar posts
+- Campanha WhatsApp para base
 
 ---
 
 **Documento criado em:** 24/01/2026
-**Última atualização:** 24/01/2026
-**Próxima revisão:** Após implementação Fase 1
+**Última atualização:** 24/01/2026 (adicionado estratégia multi-canal)
+**Próxima revisão:** Após MVP (1 semana)
+
+**Versão:** 2.0 - Incluindo WhatsApp, Landing Page e distribuição multi-canal
