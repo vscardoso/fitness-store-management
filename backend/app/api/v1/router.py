@@ -31,6 +31,7 @@ from app.api.v1.endpoints import (
     dashboard,
     conditional_shipments,
     notifications,
+    reports,
 )
 
 
@@ -109,4 +110,10 @@ api_router.include_router(
 api_router.include_router(
     notifications.router,
     tags=["Notificações"]
+)
+
+# Relatórios (Vendas, Caixa, Clientes)
+api_router.include_router(
+    reports.router,
+    tags=["Relatórios"]
 )

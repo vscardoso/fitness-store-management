@@ -74,16 +74,12 @@ export default function ReportsScreen() {
   const reports: ReportItem[] = [
     {
       id: 'sales',
-      title: 'Vendas',
-      subtitle: 'Relatório de vendas e faturamento',
+      title: 'Relatório de Vendas',
+      subtitle: 'Análise completa de vendas, lucro e margem',
       icon: 'bar-chart',
       iconColor: Colors.light.success,
       iconBg: Colors.light.successLight,
-      onPress: () =>
-        Alert.alert(
-          'Em desenvolvimento',
-          'Relatório de vendas será implementado em breve!'
-        ),
+      route: '/reports/sales',
     },
     {
       id: 'best-sellers',
@@ -177,7 +173,13 @@ export default function ReportsScreen() {
   }) => (
     <TouchableOpacity
       style={styles.menuItem}
-      onPress={item.onPress}
+      onPress={() => {
+        if (item.route) {
+          router.push(item.route as any);
+        } else if (item.onPress) {
+          item.onPress();
+        }
+      }}
       activeOpacity={0.7}
     >
       <View
