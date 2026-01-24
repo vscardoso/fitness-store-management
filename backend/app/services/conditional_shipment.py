@@ -231,7 +231,14 @@ class ConditionalShipmentService:
         shipment = await self.shipment_repo.update_status(
             db, shipment_id, tenant_id, new_status
         )
-        shipment.returned_at = datetime.utcnow()
+        
+        # Atualizar timestamps baseado no status final
+        current_time = datetime.utcnow()
+        shipment.returned_at = current_time
+        
+        # Se foi finalizado (qualquer status COMPLETED ou RETURNED), marcar como concluído
+        if ShipmentStatus.is_final_status(new_status):
+            shipment.completed_at = current_time
         
         if return_data.notes:
             shipment.notes = (shipment.notes or "") + f"\n[Devolução] {return_data.notes}"
@@ -404,7 +411,9 @@ class ConditionalShipmentService:
             notes_parts.append(sent_notes)
 
         if notes_parts:
-            shipment.notes = (shipment.notes or "") + f"\n[Enviado em {datetime.utcnow().strftime('%d/%m/%Y %H:%M')}]\n" + "\n".join(notes_parts)
+            # Converter UTC para BRT (GMT-3)
+            brt_time = datetime.utcnow() - timedelta(hours=3)
+            shipment.notes = (shipment.notes or "") + f"\n[Enviado em {brt_time.strftime('%d/%m/%Y %H:%M')}]\n" + "\n".join(notes_parts)
 
         await db.commit()
         await db.refresh(shipment)

@@ -3,7 +3,7 @@
  * Permite processar devolução, finalizar venda ou cancelar envio
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -29,7 +29,7 @@ import CustomModal from '@/components/ui/CustomModal';
 import ModalActions from '@/components/ui/ModalActions';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getShipment, processReturn, cancelShipment, markAsSent } from '@/services/conditionalService';
-import { formatCurrency, formatDate } from '@/utils/format';
+import { formatCurrency, formatDate, formatDateTime } from '@/utils/format';
 import { Colors } from '@/constants/Colors';
 import type {
   ConditionalShipment,
@@ -138,8 +138,8 @@ export default function ConditionalShipmentDetailsScreen() {
   /**
    * Inicializar estado de processamento quando dados carregarem
    */
-  useState(() => {
-    if (shipment?.items) {
+  useEffect(() => {
+    if (shipment?.items && Object.keys(processingItems).length === 0) {
       const initial: Record<number, ProcessingItem> = {};
       shipment.items.forEach((item) => {
         initial[item.id] = {
@@ -153,7 +153,7 @@ export default function ConditionalShipmentDetailsScreen() {
       });
       setProcessingItems(initial);
     }
-  });
+  }, [shipment?.items]);
 
   /**
    * Mutation: Processar devolução
@@ -558,16 +558,22 @@ export default function ConditionalShipmentDetailsScreen() {
     );
   }
 
-  // Configuração do badge de status
+  // Configuração do badge de status - CORRIGIDO
   const statusColor = SHIPMENT_STATUS_COLORS[shipment.status] ?? Colors.light.info;
   const statusIcon = SHIPMENT_STATUS_ICONS[shipment.status] ?? 'information';
   const statusLabel = SHIPMENT_STATUS_LABELS[shipment.status] ?? shipment.status;
+
+  // Badge type baseado no STATUS, não no deadline
+  let badgeType: 'error' | 'warning' | 'success' | 'info' = 'info';
+  if (shipment.status === 'COMPLETED') badgeType = 'success';
+  else if (shipment.status === 'CANCELLED') badgeType = 'error';
+  else if (shipment.status === 'SENT' || shipment.status === 'PARTIAL_RETURN') badgeType = 'warning';
 
   const badges = [
     {
       icon: statusIcon as any,
       label: statusLabel,
-      type: shipment.is_overdue ? ('error' as const) : ('info' as const),
+      type: badgeType,
     },
   ];
 
@@ -578,13 +584,12 @@ export default function ConditionalShipmentDetailsScreen() {
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
       <DetailHeader
-        title="Detalhes do Envio"
+        title="Envio Condicional"
         entityName={shipment.customer_name || `Cliente #${shipment.customer_id}`}
         backRoute="/(tabs)/conditional"
-        editRoute="/(tabs)/conditional"
-        onDelete={() => {}}
         badges={badges}
         metrics={[]}
+        hideActions={true}
       />
 
       <ScrollView
@@ -598,139 +603,137 @@ export default function ConditionalShipmentDetailsScreen() {
           />
         }
       >
-        {/* Informações do Cliente */}
+        {/* Card Consolidado de Informações */}
         <Card style={styles.card}>
           <Card.Content>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="person-outline" size={20} color={Colors.light.primary} />
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                Informações do Cliente
-              </Text>
-            </View>
+            <View style={styles.compactInfoGrid}>
+              {/* Cliente e Contato */}
+              <View style={styles.compactRow}>
+                <Ionicons name="person" size={18} color={Colors.light.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.compactLabel}>Cliente</Text>
+                  <Text style={styles.compactValue}>{shipment.customer_name || `#${shipment.customer_id}`}</Text>
+                  {shipment.customer_phone && (
+                    <Text style={styles.compactSecondary}>{shipment.customer_phone}</Text>
+                  )}
+                </View>
+              </View>
 
-            <View style={styles.infoGrid}>
-              <InfoRow
-                label="Cliente:"
-                value={shipment.customer_name || `#${shipment.customer_id}`}
-              />
-              {shipment.customer_phone && (
-                <InfoRow label="Telefone:" value={shipment.customer_phone} />
+              {/* Endereço */}
+              <View style={styles.compactRow}>
+                <Ionicons name="location" size={18} color={Colors.light.primary} />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.compactLabel}>Endereço</Text>
+                  <Text style={styles.compactValue}>{shipment.shipping_address}</Text>
+                </View>
+              </View>
+
+              {/* Data de Envio */}
+              {shipment.sent_at && (
+                <View style={styles.compactRow}>
+                  <Ionicons name="calendar" size={18} color={Colors.light.primary} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.compactLabel}>Enviado em</Text>
+                    <Text style={styles.compactValue}>{formatDateTime(shipment.sent_at)}</Text>
+                  </View>
+                </View>
               )}
-              <InfoRow label="Endereço:" value={shipment.shipping_address} />
-            </View>
-          </Card.Content>
-        </Card>
 
-        {/* Informações do Envio */}
-        <Card style={styles.card}>
-          <Card.Content>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="calendar-outline" size={20} color={Colors.light.primary} />
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                Dados do Envio
-              </Text>
-            </View>
-
-            <View style={styles.infoGrid}>
-              <InfoRow
-                label="Status:"
-                value={SHIPMENT_STATUS_LABELS[shipment.status]}
-              />
-              <InfoRow
-                label="Data de Envio:"
-                value={shipment.sent_at ? formatDate(shipment.sent_at) : 'Não enviado'}
-              />
-
-              {/* Ocultar prazo quando venda foi finalizada (total ou parcial) */}
-              {shipment.deadline && shipment.status !== 'COMPLETED_PARTIAL_SALE' && shipment.status !== 'COMPLETED_FULL_SALE' && (
-                <View style={styles.deadlineRow}>
-                  <Text style={styles.deadlineLabel}>Prazo:</Text>
-                  <View style={styles.deadlineValue}>
-                    <Ionicons
-                      name={shipment.is_overdue ? 'alert-circle' : 'time'}
-                      size={16}
-                      color={deadlineColor}
-                      style={styles.deadlineIcon}
-                    />
-                    <Text style={[styles.deadlineText, { color: deadlineColor }]}>
+              {/* Prazo - apenas se relevante */}
+              {shipment.deadline && shipment.status !== 'COMPLETED' && shipment.status !== 'CANCELLED' && (
+                <View style={styles.compactRow}>
+                  <Ionicons
+                    name={shipment.is_overdue ? 'alert-circle' : 'time'}
+                    size={18}
+                    color={deadlineColor}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.compactLabel}>Prazo de Devolução</Text>
+                    <Text style={[styles.compactValue, { color: deadlineColor, fontWeight: '700' }]}>
                       {deadlineText}
                     </Text>
                   </View>
                 </View>
               )}
 
-              {/* Adicionar indicador de compra parcial processada */}
-              {shipment.status === 'COMPLETED_PARTIAL_SALE' && (
-                <View style={styles.partialReturnBanner}>
-                  <Ionicons name="information-circle" size={20} color={Colors.light.primary} />
+              {/* Observações */}
+              {shipment.notes && (
+                <View style={styles.compactRow}>
+                  <Ionicons name="document-text" size={18} color={Colors.light.primary} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.partialReturnTitle}>Compra Parcial Processada</Text>
-                    <Text style={styles.partialReturnText}>
-                      Uma venda já foi criada. Complete o processamento dos itens restantes.
-                    </Text>
+                    <Text style={styles.compactLabel}>Observações</Text>
+                    <Text style={styles.compactValue}>{shipment.notes}</Text>
                   </View>
                 </View>
               )}
-
-              {shipment.notes && <InfoRow label="Observações:" value={shipment.notes} />}
             </View>
           </Card.Content>
         </Card>
 
         {/* Resumo Financeiro */}
-        <Surface style={styles.summaryCard} elevation={2}>
-          <View style={{ overflow: 'hidden', flex: 1 }}>
+        <Card style={styles.summaryCardHighlight}>
+          <Card.Content>
             <View style={styles.summaryHeader}>
-              <Ionicons name="calculator-outline" size={24} color={Colors.light.primary} />
-              <Text variant="titleMedium" style={styles.summaryTitle}>
+              <Ionicons name="cash-outline" size={24} color={Colors.light.success} />
+              <Text variant="titleMedium" style={styles.summaryTitleHighlight}>
                 Resumo Financeiro
               </Text>
             </View>
 
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Total Enviado:</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(summary.totalSent)}</Text>
-              <Text style={styles.summaryCount}>({summary.sentCount} itens)</Text>
+            {/* Linhas de valores no formato chave → valor */}
+            <View style={styles.financialSummaryList}>
+              {/* Cliente Comprou - destaque */}
+              <View style={[styles.financialRow, styles.financialRowMain]}>
+                <View style={styles.financialKey}>
+                  <Text style={styles.financialKeyTextMain}>Cliente Comprou</Text>
+                  <Text style={styles.financialKeySubtext}>{summary.keptCount} de {summary.sentCount} produtos</Text>
+                </View>
+                <Text style={styles.financialValueMain}>{formatCurrency(summary.totalKept)}</Text>
+              </View>
+
+              <View style={styles.financialDivider} />
+
+              {/* Total Enviado */}
+              <View style={styles.financialRow}>
+                <Text style={styles.financialKeyText}>Total Enviado</Text>
+                <Text style={styles.financialValue}>{formatCurrency(summary.totalSent)}</Text>
+              </View>
+
+              {/* Devolvido */}
+              <View style={styles.financialRow}>
+                <Text style={styles.financialKeyText}>Devolvido</Text>
+                <Text style={styles.financialValue}>{formatCurrency(summary.totalReturned)}</Text>
+              </View>
             </View>
 
-            <View style={styles.summaryRow}>
-              <Text style={[styles.summaryLabel, styles.summaryLabelSuccess]}>
-                Cliente Comprou:
-              </Text>
-              <Text style={[styles.summaryValue, styles.summaryValueSuccess]}>
-                {formatCurrency(summary.totalKept)}
-              </Text>
-              <Text style={styles.summaryCount}>({summary.keptCount} itens)</Text>
-            </View>
-
-            <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Devolvido:</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(summary.totalReturned)}</Text>
-              <Text style={styles.summaryCount}>({summary.returnedCount} itens)</Text>
-            </View>
-
+            {/* Alertas de Danificados/Perdidos */}
             {(summary.damagedCount > 0 || summary.lostCount > 0) && (
-              <View style={styles.summaryWarning}>
+              <View style={styles.summaryAlertRow}>
                 {summary.damagedCount > 0 && (
-                  <Text style={styles.summaryWarningText}>
-                    ⚠️ Danificados: {summary.damagedCount}
-                  </Text>
+                  <View style={styles.summaryAlert}>
+                    <Ionicons name="alert-circle" size={16} color={Colors.light.warning} />
+                    <Text style={styles.summaryAlertText}>{summary.damagedCount} danificado(s)</Text>
+                  </View>
                 )}
                 {summary.lostCount > 0 && (
-                  <Text style={styles.summaryWarningText}>
-                    ❌ Perdidos: {summary.lostCount}
-                  </Text>
+                  <View style={styles.summaryAlert}>
+                    <Ionicons name="close-circle" size={16} color={Colors.light.error} />
+                    <Text style={styles.summaryAlertText}>{summary.lostCount} perdido(s)</Text>
+                  </View>
                 )}
               </View>
             )}
-          </View>
-        </Surface>
+          </Card.Content>
+        </Card>
 
-        {/* Lista de Items */}
+        {/* Lista de Items - SIMPLIFICADO */}
         <View style={styles.itemsSection}>
-          <Text variant="titleMedium" style={styles.itemsSectionTitle}>
-            Produtos do Envio
-          </Text>
+          <View style={styles.itemsSectionHeader}>
+            <Ionicons name="cube-outline" size={20} color={Colors.light.text} />
+            <Text variant="titleMedium" style={styles.itemsSectionTitle}>
+              Produtos ({shipment.items.length})
+            </Text>
+          </View>
 
           {shipment.items.map((item) => {
             const processing = processingItems[item.id] || {
@@ -752,36 +755,24 @@ export default function ConditionalShipmentDetailsScreen() {
             return (
               <Card key={item.id} style={styles.itemCard}>
                 <Card.Content>
-                  {/* Cabeçalho do item */}
-                  <View style={styles.itemHeader}>
-                    <View style={styles.itemInfo}>
+                  {/* Cabeçalho do item - COMPACTO */}
+                  <View style={styles.itemHeaderCompact}>
+                    <View style={{ flex: 1 }}>
                       <Text variant="titleSmall" style={styles.itemName}>
                         {item.product_name || `Produto #${item.product_id}`}
                       </Text>
-                      {item.product_sku && (
-                        <Text style={styles.itemSku}>SKU: {item.product_sku}</Text>
-                      )}
+                      <View style={styles.itemMetaRow}>
+                        {item.product_sku && (
+                          <Text style={styles.itemMeta}>SKU: {item.product_sku}</Text>
+                        )}
+                        <Text style={styles.itemMeta}>
+                          {item.quantity_sent} × {formatCurrency(item.unit_price)} = {formatCurrency(item.quantity_sent * item.unit_price)}
+                        </Text>
+                      </View>
                     </View>
                     {isItemFullyProcessed && (
-                      <Chip
-                        icon="check-circle"
-                        mode="flat"
-                        style={styles.itemBadge}
-                        textStyle={styles.itemBadgeText}
-                      >
-                        Processado
-                      </Chip>
+                      <Ionicons name="checkmark-circle" size={24} color={Colors.light.success} />
                     )}
-                  </View>
-
-                  {/* Informações do item */}
-                  <View style={styles.itemDetails}>
-                    <Text style={styles.itemDetailText}>
-                      Enviado: {item.quantity_sent} un × {formatCurrency(item.unit_price)}
-                    </Text>
-                    <Text style={styles.itemDetailText}>
-                      Total: {formatCurrency(item.quantity_sent * item.unit_price)}
-                    </Text>
                   </View>
 
                   {/* Inputs de processamento - Apenas permitir edição se status for SENT */}
@@ -881,7 +872,7 @@ export default function ConditionalShipmentDetailsScreen() {
                   {shipment.status === 'PARTIAL_RETURN' && (
                     <View style={styles.partialReturnItemSummary}>
                       <View style={styles.partialReturnHeader}>
-                        <Ionicons name="lock-closed" size={16} color={Colors.light.primary} />
+                        <Ionicons name="lock-closed-outline" size={16} color={Colors.light.primary} />
                         <Text style={styles.partialReturnHeaderText}>Compra Processada</Text>
                       </View>
 
@@ -1053,75 +1044,157 @@ export default function ConditionalShipmentDetailsScreen() {
         )}
 
         {shipment?.status === 'SENT' && (
-          <Card style={styles.card}>
-            <Card.Content>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="flash-outline" size={20} color={Colors.light.primary} />
-                <Text variant="titleMedium" style={styles.sectionTitle}>
-                  Finalizar Processamento
-                </Text>
-              </View>
-
-              <Text variant="bodyMedium" style={styles.helpText}>
-                {summary.keptCount > 0
-                  ? '✅ Produtos comprados serão automaticamente registrados como venda ao finalizar.'
-                  : 'Marque os produtos comprados acima e finalize para registrar a venda.'}
-              </Text>
-
-              {summary.keptCount > 0 && (
-                <View style={styles.paymentSection}>
-                  <Text variant="labelLarge" style={styles.paymentLabel}>
-                    Forma de Pagamento:
-                  </Text>
-                  <View style={styles.paymentChips}>
-                    {([
-                      { key: 'pix', label: 'Pix' },
-                      { key: 'cash', label: 'Dinheiro' },
-                      { key: 'credit_card', label: 'Crédito' },
-                      { key: 'debit_card', label: 'Débito' },
-                    ] as const).map(({ key, label }) => (
-                      <Chip
-                        key={key}
-                        selected={paymentMethod === key}
-                        onPress={() => setPaymentMethod(key)}
-                        style={[styles.paymentChip, paymentMethod === key && styles.paymentChipActive]}
-                        textStyle={paymentMethod === key ? styles.paymentChipTextActive : undefined}
-                        compact
-                        showSelectedCheck={false}
-                      >
-                        {label}
-                      </Chip>
-                    ))}
+          <>
+            {/* BANNER DE INSTRUÇÃO DESTACADO - SEMPRE VISÍVEL NO TOPO */}
+            <Card style={!isFullyProcessed ? styles.instructionBannerUrgent : styles.instructionBannerReady}>
+              <Card.Content>
+                <View style={styles.instructionHeader}>
+                  <Ionicons
+                    name={!isFullyProcessed ? "alert-circle" : "checkmark-circle"}
+                    size={28}
+                    color={!isFullyProcessed ? Colors.light.warning : Colors.light.success}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text variant="titleMedium" style={styles.instructionTitle}>
+                      {!isFullyProcessed
+                        ? 'AÇÃO NECESSÁRIA: Processar Devolução'
+                        : 'Pronto para Finalizar!'}
+                    </Text>
+                    <Text variant="bodyMedium" style={styles.instructionText}>
+                      {!isFullyProcessed
+                        ? 'O cliente devolveu os produtos. Marque abaixo quais foram comprados e quais foram devolvidos.'
+                        : 'Todos os produtos foram processados. Clique em "Finalizar e Concluir" abaixo para registrar a venda.'}
+                    </Text>
                   </View>
                 </View>
-              )}
 
-              <View style={styles.actionsContainer}>
-                <Button
-                  mode="contained"
-                  onPress={handleFinalizeSale}
-                  style={styles.actionButton}
-                  buttonColor={Colors.light.success}
-                  icon="check-circle"
-                  loading={processReturnMutation.isPending}
-                  disabled={!isFullyProcessed || processReturnMutation.isPending || cancelMutation.isPending}
-                >
-                  {summary.keptCount > 0 ? 'Finalizar e Concluir' : 'Finalizar Devolução'}
-                </Button>
+                {/* Indicador de progresso */}
+                {!isFullyProcessed && (
+                  <View style={styles.progressIndicator}>
+                    <Ionicons name="list-outline" size={16} color={Colors.light.primary} />
+                    <Text style={styles.progressText}>
+                      Progresso: {shipment.items.filter(item => {
+                        const p = processingItems[item.id];
+                        if (!p) return false;
+                        const total = p.quantity_kept + p.quantity_returned + p.quantity_damaged + p.quantity_lost;
+                        return total === item.quantity_sent;
+                      }).length} de {shipment.items.length} produtos processados
+                    </Text>
+                  </View>
+                )}
 
-                <Button
-                  mode="text"
-                  onPress={handleOpenCancelModal}
-                  style={styles.actionButtonText}
-                  textColor={Colors.light.error}
-                  disabled={processReturnMutation.isPending || cancelMutation.isPending}
-                  icon="close-circle"
-                >
-                  Cancelar Envio
-                </Button>
-              </View>
-            </Card.Content>
-          </Card>
+                {/* Instruções passo a passo */}
+                {!isFullyProcessed && (
+                  <View style={styles.stepsContainer}>
+                    <Text style={styles.stepsTitle}>Como processar:</Text>
+                    <View style={styles.stepRow}>
+                      <Text style={styles.stepNumber}>1.</Text>
+                      <Text style={styles.stepText}>Role até a lista de produtos abaixo</Text>
+                    </View>
+                    <View style={styles.stepRow}>
+                      <Text style={styles.stepNumber}>2.</Text>
+                      <Text style={styles.stepText}>Para cada produto, marque quantos foram comprados e quantos devolvidos</Text>
+                    </View>
+                    <View style={styles.stepRow}>
+                      <Text style={styles.stepNumber}>3.</Text>
+                      <Text style={styles.stepText}>Use os botões "Comprou Tudo" ou "Devolveu Tudo" para rapidez</Text>
+                    </View>
+                    <View style={styles.stepRow}>
+                      <Text style={styles.stepNumber}>4.</Text>
+                      <Text style={styles.stepText}>Após processar todos, o botão de finalizar será habilitado</Text>
+                    </View>
+                  </View>
+                )}
+              </Card.Content>
+            </Card>
+
+            {/* Card de ações - SEMPRE VISÍVEL */}
+            <Card style={styles.card}>
+              <Card.Content>
+                <View style={styles.sectionHeader}>
+                  <Ionicons name="flash-outline" size={20} color={Colors.light.primary} />
+                  <Text variant="titleMedium" style={styles.sectionTitle}>
+                    Finalizar Processamento
+                  </Text>
+                </View>
+
+                {/* Feedback visual claro do por que o botão está desabilitado */}
+                {!isFullyProcessed && (
+                  <View style={styles.disabledReasonBox}>
+                    <Ionicons name="lock-closed-outline" size={20} color={Colors.light.warning} />
+                    <Text style={styles.disabledReasonText}>
+                      O botão de finalizar está bloqueado porque você ainda não processou todos os produtos.
+                      Role até a lista de produtos acima e marque as quantidades.
+                    </Text>
+                  </View>
+                )}
+
+                {summary.keptCount > 0 && (
+                  <View style={styles.paymentSection}>
+                    <Text variant="labelLarge" style={styles.paymentLabel}>
+                      Forma de Pagamento:
+                    </Text>
+                    <View style={styles.paymentChips}>
+                      {([
+                        { key: 'pix', label: 'Pix' },
+                        { key: 'cash', label: 'Dinheiro' },
+                        { key: 'credit_card', label: 'Crédito' },
+                        { key: 'debit_card', label: 'Débito' },
+                      ] as const).map(({ key, label }) => (
+                        <Chip
+                          key={key}
+                          selected={paymentMethod === key}
+                          onPress={() => setPaymentMethod(key)}
+                          style={[styles.paymentChip, paymentMethod === key && styles.paymentChipActive]}
+                          textStyle={paymentMethod === key ? styles.paymentChipTextActive : undefined}
+                          compact
+                          showSelectedCheck={false}
+                        >
+                          {label}
+                        </Chip>
+                      ))}
+                    </View>
+                  </View>
+                )}
+
+                <View style={styles.actionsContainer}>
+                  <Button
+                    mode="contained"
+                    onPress={handleFinalizeSale}
+                    style={[
+                      styles.actionButton,
+                      !isFullyProcessed && styles.actionButtonDisabled
+                    ]}
+                    buttonColor={isFullyProcessed ? Colors.light.success : '#cccccc'}
+                    icon={isFullyProcessed ? "check-circle-outline" : "lock-outline"}
+                    loading={processReturnMutation.isPending}
+                    disabled={!isFullyProcessed || processReturnMutation.isPending || cancelMutation.isPending}
+                  >
+                    {!isFullyProcessed
+                      ? 'Processar Produtos Primeiro'
+                      : (summary.keptCount > 0 ? 'Finalizar e Concluir' : 'Finalizar Devolução')}
+                  </Button>
+
+                  {!isFullyProcessed && (
+                    <Text style={styles.disabledHintText}>
+                      ⬆️ Marque as quantidades de cada produto acima para habilitar este botão
+                    </Text>
+                  )}
+
+                  <Button
+                    mode="text"
+                    onPress={handleOpenCancelModal}
+                    style={styles.actionButtonText}
+                    textColor={Colors.light.error}
+                    disabled={processReturnMutation.isPending || cancelMutation.isPending}
+                    icon="close-circle"
+                  >
+                    Cancelar Envio
+                  </Button>
+                </View>
+              </Card.Content>
+            </Card>
+          </>
         )}
       </ScrollView>
 
@@ -1308,73 +1381,89 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  summaryCard: {
+  summaryCardHighlight: {
     marginHorizontal: 16,
     marginTop: 16,
-    padding: 16,
     borderRadius: 12,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#ffffff',
+    borderWidth: 1,
+    borderColor: Colors.light.success + '30',
+    elevation: 2,
   },
   summaryHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
+    gap: 10,
+    marginBottom: 20,
   },
-  summaryTitle: {
+  summaryTitleHighlight: {
     fontWeight: '700',
-    color: Colors.light.text,
+    color: Colors.light.success,
   },
-  summaryRow: {
+  financialSummaryList: {
+    gap: 12,
+  },
+  financialRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
+    alignItems: 'center',
     paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
   },
-  summaryLabel: {
-    fontSize: 14,
-    color: Colors.light.textSecondary,
+  financialRowMain: {
+    paddingVertical: 12,
+    backgroundColor: Colors.light.success + '08',
+    borderRadius: 8,
+    paddingHorizontal: 12,
+  },
+  financialKey: {
     flex: 1,
   },
-  summaryValue: {
+  financialKeyText: {
+    fontSize: 15,
+    color: Colors.light.textSecondary,
+    fontWeight: '500',
+  },
+  financialKeyTextMain: {
+    fontSize: 16,
+    color: Colors.light.text,
+    fontWeight: '700',
+  },
+  financialKeySubtext: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  financialValue: {
     fontSize: 16,
     fontWeight: '700',
     color: Colors.light.text,
-    marginRight: 8,
+    marginLeft: 16,
   },
-  summaryCount: {
-    fontSize: 12,
-    color: Colors.light.textSecondary,
-  },
-  summaryLabelSuccess: {
+  financialValueMain: {
+    fontSize: 22,
+    fontWeight: '800',
     color: Colors.light.success,
-    fontWeight: '600',
+    marginLeft: 16,
   },
-  summaryValueSuccess: {
-    color: Colors.light.success,
-  },
-  summaryWarning: {
-    marginTop: 12,
-    padding: 12,
-    backgroundColor: Colors.light.warningLight,
-    borderRadius: 8,
-    gap: 4,
-  },
-  summaryWarningText: {
-    fontSize: 13,
-    color: Colors.light.warning,
-    fontWeight: '600',
+  financialDivider: {
+    height: 1,
+    backgroundColor: '#e0e0e0',
+    marginVertical: 4,
   },
   itemsSection: {
-    marginTop: 24,
+    marginTop: 16,
     marginHorizontal: 16,
+  },
+  itemsSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
   },
   itemsSectionTitle: {
     fontWeight: '700',
     color: Colors.light.text,
-    marginBottom: 12,
+    fontSize: 16,
   },
   itemCard: {
     marginBottom: 12,
@@ -1625,5 +1714,177 @@ const styles = StyleSheet.create({
     marginTop: 12,
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  // Estilos para banner de instrução URGENTE
+  instructionBannerUrgent: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    backgroundColor: '#FFF9E6',
+    borderLeftWidth: 6,
+    borderLeftColor: Colors.light.warning,
+    elevation: 4,
+  },
+  instructionBannerReady: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    backgroundColor: '#E8F5E9',
+    borderLeftWidth: 6,
+    borderLeftColor: Colors.light.success,
+    elevation: 4,
+  },
+  instructionHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: 16,
+  },
+  instructionTitle: {
+    fontWeight: '700',
+    color: Colors.light.text,
+    fontSize: 16,
+    marginBottom: 6,
+  },
+  instructionText: {
+    color: Colors.light.textSecondary,
+    lineHeight: 20,
+  },
+  progressIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    backgroundColor: 'rgba(25, 118, 210, 0.1)',
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  progressText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.light.primary,
+    flex: 1,
+  },
+  stepsContainer: {
+    marginTop: 16,
+    padding: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    borderRadius: 8,
+    gap: 8,
+  },
+  stepsTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginBottom: 4,
+  },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+  },
+  stepNumber: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.light.primary,
+    width: 20,
+  },
+  stepText: {
+    fontSize: 14,
+    color: Colors.light.text,
+    flex: 1,
+    lineHeight: 20,
+  },
+  disabledReasonBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 16,
+    backgroundColor: '#FFF3E0',
+    borderRadius: 8,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.light.warning,
+    marginBottom: 16,
+  },
+  disabledReasonText: {
+    fontSize: 14,
+    color: Colors.light.text,
+    lineHeight: 20,
+    flex: 1,
+    fontWeight: '600',
+  },
+  actionButtonDisabled: {
+    elevation: 0,
+  },
+  disabledHintText: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    marginTop: -4,
+    marginBottom: 8,
+  },
+  // Estilos para card consolidado de informações
+  compactInfoGrid: {
+    gap: 16,
+  },
+  compactRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    paddingVertical: 8,
+  },
+  compactLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  compactValue: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.light.text,
+    lineHeight: 20,
+  },
+  compactSecondary: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  // Estilos para resumo financeiro destacado
+  summaryCardHighlight: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    borderRadius: 12,
+    backgroundColor: '#E8F5E9',
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.light.success,
+    elevation: 3,
+  },
+  summaryTitleHighlight: {
+    fontWeight: '700',
+    color: Colors.light.success,
+  },
+  // Estilos para item de produto compacto
+  itemHeaderCompact: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  itemMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 4,
+  },
+  itemMeta: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    fontWeight: '500',
   },
 });
