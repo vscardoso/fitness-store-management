@@ -499,8 +499,13 @@ export default function StockEntriesScreen() {
             color={filter === 'active' ? Colors.light.primary : Colors.light.textSecondary}
           />
           <Text style={[styles.filterChipText, filter === 'active' && styles.filterChipTextActive]}>
-            Ativas ({activeCount})
+            Ativas
           </Text>
+          <View style={[styles.filterBadge, filter === 'active' && styles.filterBadgeActive]}>
+            <Text style={[styles.filterBadgeText, filter === 'active' && styles.filterBadgeTextActive]}>
+              {activeCount}
+            </Text>
+          </View>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -513,8 +518,13 @@ export default function StockEntriesScreen() {
             color={filter === 'history' ? Colors.light.primary : Colors.light.textSecondary}
           />
           <Text style={[styles.filterChipText, filter === 'history' && styles.filterChipTextActive]}>
-            Histórico ({historyCount})
+            Histórico
           </Text>
+          <View style={[styles.filterBadge, filter === 'history' && styles.filterBadgeActive]}>
+            <Text style={[styles.filterBadgeText, filter === 'history' && styles.filterBadgeTextActive]}>
+              {historyCount}
+            </Text>
+          </View>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -527,8 +537,13 @@ export default function StockEntriesScreen() {
             color={filter === 'all' ? Colors.light.primary : Colors.light.textSecondary}
           />
           <Text style={[styles.filterChipText, filter === 'all' && styles.filterChipTextActive]}>
-            Todas ({totalCount})
+            Todas
           </Text>
+          <View style={[styles.filterBadge, filter === 'all' && styles.filterBadgeActive]}>
+            <Text style={[styles.filterBadgeText, filter === 'all' && styles.filterBadgeTextActive]}>
+              {totalCount}
+            </Text>
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -888,18 +903,19 @@ const styles = StyleSheet.create({
   },
   filterContainer: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
     paddingHorizontal: 16,
     paddingVertical: 12,
-    backgroundColor: Colors.light.background,
   },
   filterChip: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    borderRadius: 12,
     backgroundColor: Colors.light.card,
     borderWidth: 1,
     borderColor: Colors.light.border,
@@ -909,12 +925,33 @@ const styles = StyleSheet.create({
     borderColor: Colors.light.primary,
   },
   filterChipText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
     color: Colors.light.textSecondary,
+    flexShrink: 1,
   },
   filterChipTextActive: {
     color: Colors.light.primary,
+  },
+  filterBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: Colors.light.backgroundSecondary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  filterBadgeActive: {
+    backgroundColor: Colors.light.primary,
+  },
+  filterBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.light.textSecondary,
+  },
+  filterBadgeTextActive: {
+    color: '#fff',
   },
   divider: {
     height: 1,

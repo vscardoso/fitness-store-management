@@ -32,6 +32,7 @@ from app.api.v1.endpoints import (
     conditional_shipments,
     notifications,
     reports,
+    payment_discounts,
 )
 
 
@@ -116,4 +117,10 @@ api_router.include_router(
 api_router.include_router(
     reports.router,
     tags=["Relatórios"]
+)
+
+# Descontos por Forma de Pagamento
+api_router.include_router(
+    payment_discounts.router,
+    tags=["Descontos de Pagamento"]
 )

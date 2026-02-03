@@ -6,14 +6,21 @@ import { useLocalSearchParams, useRouter, useSegments } from 'expo-router';
  * 1. Se houver param `from`, usa ele.
  * 2. Caso contrário, infere rota pai pelos segmentos (ex: /entries/5 -> /entries)
  * 3. Fallback final para dashboard (/(tabs))
+ * 
+ * EXCEÇÃO: Não infere pai se for '/reports' (tela oculta sem menu)
  */
 export function useBackToList(defaultFallback: string = '/(tabs)') {
   const router = useRouter();
   const params = useLocalSearchParams<{ from?: string }>();
   const segments = useSegments();
 
+  // Calcular pai inferido
   const inferredParent = segments.length > 1 ? '/' + segments.slice(0, -1).join('/') : undefined;
-  const target = params.from || inferredParent || defaultFallback;
+  
+  // Se o pai inferido é '/reports', não usar (é tela oculta)
+  const validInferredParent = inferredParent === '/reports' ? undefined : inferredParent;
+  
+  const target = params.from || validInferredParent || defaultFallback;
 
   const goBack = useCallback(() => {
     // Usar replace para evitar empilhar histórico residual

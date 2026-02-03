@@ -64,8 +64,14 @@ export default function ReportsScreen() {
   const getRoleLabel = (role: string) => {
     const roles: Record<string, string> = {
       ADMIN: 'Administrador',
+      admin: 'Administrador',
       SELLER: 'Vendedor',
+      seller: 'Vendedor',
+      MANAGER: 'Gerente',
+      manager: 'Gerente',
       EMPLOYEE: 'Funcionário',
+      CASHIER: 'Caixa',
+      cashier: 'Caixa',
     };
     return roles[role] || role;
   };

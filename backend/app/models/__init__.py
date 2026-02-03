@@ -8,6 +8,7 @@ from .product import Product
 from .inventory import Inventory, InventoryMovement, MovementType
 from .customer import Customer, CustomerType
 from .sale import Sale, SaleItem, SaleStatus, PaymentMethod
+from .payment_discount import PaymentDiscount
 from .trip import Trip, TripStatus
 from .stock_entry import StockEntry, EntryType
 from .entry_item import EntryItem
@@ -45,6 +46,9 @@ __all__ = [
     "SaleItem",
     "SaleStatus",
     "PaymentMethod",
+    
+    # Payment Discount
+    "PaymentDiscount",
 
     # Trip
     "Trip",

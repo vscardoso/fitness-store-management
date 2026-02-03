@@ -92,14 +92,14 @@ export default function TabsLayout() {
         }}
       />
 
-      {/* Tab 3: Gestão (Direita) */}
+      {/* Tab 3: Menu (Direita) */}
       <Tabs.Screen
-        name="management"
+        name="more"
         options={{
-          title: 'Gestão',
+          title: 'Menu',
           tabBarIcon: ({ color, focused, size }) => (
             <Ionicons
-              name={focused ? 'grid' : 'grid-outline'}
+              name={focused ? 'menu' : 'menu-outline'}
               size={focused ? size + 4 : size}
               color={color}
             />
@@ -112,10 +112,10 @@ export default function TabsLayout() {
       {/* Oculta módulo de Vendas do tab bar, mantendo rota acessível */}
       <Tabs.Screen name="sales" options={{ href: null }} />
 
+      <Tabs.Screen name="management" options={{ href: null }} />
       <Tabs.Screen name="products" options={{ href: null }} />
       <Tabs.Screen name="customers" options={{ href: null }} />
       <Tabs.Screen name="inventory" options={{ href: null }} />
-      <Tabs.Screen name="more" options={{ href: null }} />
       <Tabs.Screen name="reports" options={{ href: null }} />
       <Tabs.Screen name="trips" options={{ href: null }} />
       

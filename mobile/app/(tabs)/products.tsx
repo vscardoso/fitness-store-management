@@ -276,7 +276,7 @@ export default function ProductsScreen() {
               contentStyle={styles.actionButtonContent}
             >
               <View style={styles.buttonContent}>
-                <Ionicons name="storefront-outline" size={18} color={Colors.light.primary} />
+                <Ionicons name="storefront-outline" size={16} color={Colors.light.textSecondary} />
                 <Text style={styles.buttonText}>Catálogo</Text>
               </View>
             </Button>
@@ -289,7 +289,7 @@ export default function ProductsScreen() {
               contentStyle={styles.actionButtonContent}
             >
               <View style={styles.buttonContent}>
-                <Ionicons name="layers-outline" size={18} color={Colors.light.primary} />
+                <Ionicons name="layers-outline" size={16} color={Colors.light.textSecondary} />
                 <Text style={styles.buttonText}>Entradas</Text>
               </View>
             </Button>
@@ -307,8 +307,8 @@ export default function ProductsScreen() {
               <View style={styles.buttonContent}>
                 <Ionicons 
                   name={showOnlyWithStock ? "checkmark-circle" : "cube-outline"} 
-                  size={18} 
-                  color={showOnlyWithStock ? "#fff" : Colors.light.primary} 
+                  size={16} 
+                  color={showOnlyWithStock ? Colors.light.primary : Colors.light.textSecondary} 
                 />
                 <Text style={[
                   styles.buttonText,
@@ -435,8 +435,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   searchbar: {
-    margin: 16,
+    marginHorizontal: 16,
+    marginBottom: 12,
     elevation: 2,
+    backgroundColor: Colors.light.card,
   },
   row: {
     justifyContent: 'flex-start',
@@ -456,43 +458,48 @@ const styles = StyleSheet.create({
   },
   actionsContainer: {
     paddingHorizontal: 16,
-    marginBottom: 12,
+    paddingVertical: 12,
+    marginBottom: 0,
   },
   actionsRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 12,
     alignItems: 'center',
   },
   actionButton: {
     flex: 1,
     borderRadius: 12,
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
   actionButtonActive: {
-    backgroundColor: Colors.light.primary,
+    backgroundColor: Colors.light.primary + '15',
+    borderColor: Colors.light.primary,
   },
   actionButtonLabel: {
     marginVertical: 0,
     marginHorizontal: 0,
   },
   actionButtonContent: {
-    paddingHorizontal: 4,
-    paddingVertical: 8,
-    height: 44,
+    paddingHorizontal: 8,
+    paddingVertical: 10,
+    height: 'auto',
   },
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 4,
+    gap: 6,
   },
   buttonText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '600',
-    color: Colors.light.primary,
+    color: Colors.light.textSecondary,
+    flexShrink: 1,
   },
   buttonTextActive: {
-    color: '#fff',
+    color: Colors.light.primary,
   },
   emptyActions: {
     paddingHorizontal: 24,

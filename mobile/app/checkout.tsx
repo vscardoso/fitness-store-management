@@ -3,7 +3,7 @@
  * Permite adicionar pagamentos, ver resumo e confirmar venda
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, StatusBar, TouchableOpacity } from 'react-native';
 import { Text, Button, Card, Chip, TextInput, IconButton, ActivityIndicator, Divider } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,6 +14,7 @@ import useBackToList from '@/hooks/useBackToList';
 import { useCart } from '@/hooks/useCart';
 import { useCreateSale } from '@/hooks';
 import { getCustomerById } from '@/services/customerService';
+import { getPaymentDiscounts, type PaymentDiscount } from '@/services/paymentDiscountService';
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
@@ -31,10 +32,10 @@ import type { Customer } from '@/types';
  * Métodos de pagamento disponíveis
  */
 const paymentMethods: { value: PaymentMethod | 'MIXED'; label: string; icon: string }[] = [
-  { value: PaymentMethod.PIX, label: 'PIX', icon: 'qrcode' },
-  { value: PaymentMethod.DEBIT_CARD, label: 'Cartão', icon: 'credit-card' },
-  { value: PaymentMethod.CASH, label: 'Dinheiro', icon: 'cash' },
-  { value: 'MIXED', label: '2 Métodos', icon: 'swap-horizontal' },
+  { value: PaymentMethod.PIX, label: 'PIX', icon: 'qr-code-outline' },
+  { value: PaymentMethod.DEBIT_CARD, label: 'Cartão', icon: 'card-outline' },
+  { value: PaymentMethod.CASH, label: 'Dinheiro', icon: 'cash-outline' },
+  { value: 'MIXED', label: '2 Métodos', icon: 'swap-horizontal-outline' },
 ];
 
 /**
@@ -52,7 +53,7 @@ export default function CheckoutScreen() {
   const createSaleMutation = useCreateSale();
 
   // Estado local
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | 'MIXED'>(PaymentMethod.PIX);
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | 'MIXED' | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [installments, setInstallments] = useState(1);
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -60,6 +61,55 @@ export default function CheckoutScreen() {
   const [loadingCustomer, setLoadingCustomer] = useState(false);
   const [cashReceived, setCashReceived] = useState('');
   const [isMixedMode, setIsMixedMode] = useState(false);
+  const [paymentDiscounts, setPaymentDiscounts] = useState<PaymentDiscount[]>([]);
+  const [availableDiscount, setAvailableDiscount] = useState<PaymentDiscount | null>(null);
+
+  // Calcular total final com desconto aplicável
+  // Se modo misto ou sem pagamentos: usa availableDiscount
+  // Se tem pagamento único: busca desconto do método usado
+  const finalTotal = useMemo(() => {
+    if (isMixedMode) {
+      return cart.total; // Sem desconto em modo misto
+    }
+
+    // Se tem pagamento único, usar desconto do método do pagamento
+    if (cart.payments.length === 1) {
+      const paymentMethod = cart.payments[0].method;
+      const discount = paymentDiscounts.find(
+        d => d.payment_method === paymentMethod && d.is_active
+      );
+      if (discount) {
+        return cart.total - (cart.total * discount.discount_percentage) / 100;
+      }
+    }
+
+    // Se não tem pagamentos, usar availableDiscount do método selecionado
+    if (cart.payments.length === 0 && availableDiscount) {
+      return cart.total - (cart.total * availableDiscount.discount_percentage) / 100;
+    }
+
+    return cart.total;
+  }, [cart.total, cart.payments, isMixedMode, availableDiscount, paymentDiscounts]);
+
+  // Desconto aplicado (para exibição)
+  const appliedDiscount = useMemo(() => {
+    if (isMixedMode) return null;
+    
+    // Se tem pagamento único, buscar desconto do método
+    if (cart.payments.length === 1) {
+      const paymentMethod = cart.payments[0].method;
+      return paymentDiscounts.find(
+        d => d.payment_method === paymentMethod && d.is_active
+      ) || null;
+    }
+    
+    // Se não tem pagamentos, usar availableDiscount
+    if (cart.payments.length === 0) {
+      return availableDiscount;
+    }
+    
+    return null;
+  }, [cart.payments, isMixedMode, availableDiscount, paymentDiscounts]);
 
   /**
    * Voltar para tela de vendas
@@ -98,7 +148,7 @@ export default function CheckoutScreen() {
       // Resetar estados locais
       setPaymentAmount('');
       setCashReceived('');
-      setSelectedMethod(PaymentMethod.PIX);
+      setSelectedMethod(null);
       setInstallments(1);
       setIsMixedMode(false);
     }, [])
@@ -132,6 +182,38 @@ export default function CheckoutScreen() {
       loadCustomer();
     }
   }, [cart.customer_id]);
+
+  /**
+   * Buscar descont configure dos
+   */
+  useEffect(() => {
+    const loadDiscounts = async () => {
+      try {
+        const discounts = await getPaymentDiscounts(true);
+        setPaymentDiscounts(discounts);
+      } catch (error) {
+        console.error('Erro ao carregar descontos:', error);
+      }
+    };
+    loadDiscounts();
+  }, []);
+
+  /**
+   * Calcular desconto disponível quando mudar método de pagamento
+   */
+  useEffect(() => {
+    if (!selectedMethod || selectedMethod === 'MIXED' || isMixedMode) {
+      setAvailableDiscount(null);
+      return;
+    }
+
+    const discount = paymentDiscounts.find(
+      d => d.payment_method === selectedMethod && d.is_active
+    );
+    setAvailableDiscount(discount || null);
+  }, [selectedMethod, paymentDiscounts, isMixedMode]);
+
+  /**
 
   /**
    * Carregar dados do cliente
@@ -191,7 +273,7 @@ export default function CheckoutScreen() {
    * Adiciona o valor total restante automaticamente
    */
   const handleAddDirectPayment = (method: PaymentMethod) => {
-    const totalRemaining = cart.total - cart.totalPaid;
+    const totalRemaining = finalTotal - cart.totalPaid;
 
     if (totalRemaining <= 0) {
       setDialog({
@@ -246,7 +328,7 @@ export default function CheckoutScreen() {
     }
 
     // selectedMethod deve ser um PaymentMethod válido no modo misto
-    if (selectedMethod === 'MIXED') {
+    if (!selectedMethod || selectedMethod === 'MIXED') {
       setDialog({
         visible: true,
         type: 'warning',
@@ -260,7 +342,7 @@ export default function CheckoutScreen() {
     }
 
     // Verificar se excede total
-    const totalRemaining = cart.total - cart.totalPaid;
+    const totalRemaining = finalTotal - cart.totalPaid;
 
     if (amount > totalRemaining) {
       setDialog({
@@ -314,7 +396,7 @@ export default function CheckoutScreen() {
    * Preencher valor restante
    */
   const handleFillRemaining = () => {
-    const remaining = cart.total - cart.totalPaid;
+    const remaining = finalTotal - cart.totalPaid;
     setPaymentAmount(formatMoneyInput((remaining * 100).toString()));
     haptics.light();
   };
@@ -324,7 +406,7 @@ export default function CheckoutScreen() {
    */
   const handleFinalizeSale = async () => {
     // Validação completa usando validation utils
-    const validation = validateCheckout(cart.items, cart.payments, cart.total);
+    const validation = validateCheckout(cart.items, cart.payments, finalTotal);
 
     if (!validation.isValid) {
       haptics.error();
@@ -341,13 +423,13 @@ export default function CheckoutScreen() {
     }
 
     // Validação adicional: pagamento deve cobrir total
-    if (!cart.canFinalizeSale()) {
+    if (cart.totalPaid < finalTotal) {
       haptics.warning();
       setDialog({
         visible: true,
         type: 'warning',
         title: 'Pagamento incompleto',
-        message: `Valor pago: ${formatCurrency(cart.totalPaid)}\nTotal: ${formatCurrency(cart.total)}\n\nO valor pago deve cobrir o total da venda`,
+        message: `Valor pago: ${formatCurrency(cart.totalPaid)}\nTotal: ${formatCurrency(finalTotal)}\n\nO valor pago deve cobrir o total da venda`,
         confirmText: 'OK',
         cancelText: '',
         onConfirm: () => setDialog({ ...dialog, visible: false }),
@@ -529,81 +611,118 @@ export default function CheckoutScreen() {
 
           {/* Cliente */}
           {cart.customer_id && (
-            <Card style={styles.card}>
-              <Card.Content>
-                <Text variant="titleMedium" style={styles.sectionTitle}>
-                  Cliente
-                </Text>
-
-                {loadingCustomer ? (
-                  <ActivityIndicator size="small" style={styles.loader} />
-                ) : customer ? (
+            <View style={styles.section}>
+              <Text style={styles.label}>Cliente</Text>
+              {loadingCustomer ? (
+                <ActivityIndicator size="small" style={styles.loader} />
+              ) : customer ? (
+                <View style={styles.customerCard}>
                   <View style={styles.customerInfo}>
-                    <View style={styles.customerRow}>
-                      <IconButton icon="account" size={20} />
-                      <View>
-                        <Text variant="bodyLarge">{customer.full_name}</Text>
-                        {customer.phone && (
-                          <Text variant="bodySmall" style={styles.customerDetail}>
-                            {customer.phone}
-                          </Text>
-                        )}
-                      </View>
+                    <Ionicons name="person" size={20} color={Colors.light.primary} />
+                    <View style={styles.customerDetails}>
+                      <Text style={styles.customerName}>{customer.full_name}</Text>
+                      {customer.phone && (
+                        <Text style={styles.customerPhone}>{customer.phone}</Text>
+                      )}
                     </View>
-                    {customer.loyalty_points > 0 && (
-                      <Chip icon="star" compact>
-                        {customer.loyalty_points} pontos
-                      </Chip>
-                    )}
                   </View>
-                ) : null}
-              </Card.Content>
-            </Card>
+                  {customer.loyalty_points > 0 && (
+                    <View style={styles.loyaltyBadge}>
+                      <Ionicons name="star" size={14} color={Colors.light.warning} />
+                      <Text style={styles.loyaltyPoints}>{customer.loyalty_points}</Text>
+                    </View>
+                  )}
+                </View>
+              ) : null}
+            </View>
           )}
 
           {/* Formas de Pagamento */}
-          <Card style={styles.card}>
-            <Card.Content>
-              <Text variant="titleMedium" style={styles.sectionTitle}>
-                Formas de Pagamento
-              </Text>
+          <View style={styles.section}>
+            <Text style={styles.label}>Formas de Pagamento</Text>
 
-              {/* Seleção de modo: Pagamento direto ou misto */}
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.methodsScroll}
+            {/* Chips de seleção sempre visíveis (exceto em modo misto) */}
+            {!isMixedMode && (
+              <View style={styles.paymentMethodsContainer}>
+                {paymentMethods.filter(m => m.value !== 'MIXED').map((method) => {
+                  const isSelected = cart.payments.length > 0 
+                    ? cart.payments[0].method === method.value
+                    : false;
+                  
+                  return (
+                    <TouchableOpacity
+                      key={method.value}
+                      style={[styles.paymentMethodChip, isSelected && styles.paymentMethodChipActive]}
+                      onPress={() => {
+                        // Se já está selecionado, não fazer nada
+                        if (isSelected && cart.payments.length > 0) {
+                          return;
+                        }
+                        
+                        // Se há pagamento e é de outro método, limpar e adicionar o novo
+                        if (cart.payments.length > 0 && !isSelected) {
+                          cart.clearPayments();
+                          // Adicionar direto sem chamar handleAddDirectPayment para evitar validação de totalRemaining
+                          cart.addPayment(method.value as PaymentMethod, finalTotal, 1);
+                          setSelectedMethod(method.value as PaymentMethod);
+                          haptics.success();
+                        } else {
+                          // Primeiro pagamento, usar fluxo normal
+                          setSelectedMethod(method.value as PaymentMethod);
+                          handleAddDirectPayment(method.value as PaymentMethod);
+                        }
+                      }}
+                    >
+                      <Ionicons
+                        name={method.icon as any}
+                        size={18}
+                        color={isSelected ? Colors.light.primary : Colors.light.textSecondary}
+                      />
+                      <Text style={[styles.paymentMethodChipText, isSelected && styles.paymentMethodChipTextActive]}>
+                        {method.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* Botão para modo misto */}
+            {!isMixedMode && cart.payments.length === 0 && (
+              <TouchableOpacity
+                style={styles.mixedModeButton}
+                onPress={() => {
+                  setIsMixedMode(true);
+                  setSelectedMethod(null);
+                  haptics.selection();
+                }}
               >
-                {paymentMethods.map((method) => (
-                  <Chip
-                    key={method.value}
-                    selected={method.value === 'MIXED' ? isMixedMode : (!isMixedMode && selectedMethod === method.value)}
-                    onPress={() => {
-                      if (method.value === 'MIXED') {
-                        setIsMixedMode(true);
-                        setSelectedMethod(PaymentMethod.PIX);
-                        haptics.selection();
-                      } else {
-                        setIsMixedMode(false);
-                        setSelectedMethod(method.value as PaymentMethod);
-                        // Pagamento direto: adiciona total automaticamente
-                        handleAddDirectPayment(method.value as PaymentMethod);
-                      }
-                    }}
-                    icon={method.icon}
-                    style={styles.methodChip}
-                  >
-                    {method.label}
-                  </Chip>
-                ))}
-              </ScrollView>
+                <Ionicons name="swap-horizontal-outline" size={16} color={Colors.light.primary} />
+                <Text style={styles.mixedModeButtonText}>Usar 2 métodos de pagamento</Text>
+              </TouchableOpacity>
+            )}
 
               {/* Modo misto: mostrar inputs para digitar valores */}
               {isMixedMode && (
                 <>
-                  <Text variant="bodySmall" style={styles.mixedModeHelp}>
-                    💡 No modo 2 Métodos, escolha a forma e digite o valor para cada pagamento.
-                  </Text>
+                  <View style={styles.mixedModeHeader}>
+                    <Text variant="bodySmall" style={styles.mixedModeHelp}>
+                      💡 No modo 2 Métodos, escolha a forma e digite o valor para cada pagamento.
+                    </Text>
+                    <Button
+                      mode="text"
+                      compact
+                      onPress={() => {
+                        setIsMixedMode(false);
+                        cart.clearPayments();
+                        setSelectedMethod(null);
+                        haptics.light();
+                      }}
+                      labelStyle={{ fontSize: 11 }}
+                    >
+                      Cancelar
+                    </Button>
+                  </View>
 
                   {/* Seleção de método no modo misto */}
                   <ScrollView
@@ -662,8 +781,8 @@ export default function CheckoutScreen() {
                 </>
               )}
 
-              {/* Lista de pagamentos adicionados */}
-              {cart.payments.length > 0 && (
+            {/* Lista de pagamentos adicionados - APENAS para modo misto */}
+            {isMixedMode && cart.payments.length > 0 && (
                 <View style={styles.paymentsListContainer}>
                   <Text variant="bodySmall" style={styles.paymentsListTitle}>
                     Pagamentos adicionados:
@@ -690,38 +809,51 @@ export default function CheckoutScreen() {
                   ))}
                 </View>
               )}
-            </Card.Content>
-          </Card>
+          </View>
 
           {/* Cálculo de Troco (se tiver dinheiro) */}
           {hasCashPayment && (
-            <Card style={styles.card}>
-              <Card.Content>
-                <Text variant="titleMedium" style={styles.sectionTitle}>
-                  Cálculo de Troco
+            <View style={styles.section}>
+              <Text style={styles.label}>Cálculo de Troco</Text>
+
+              <TextInput
+                label="Valor Recebido"
+                value={cashReceived}
+                onChangeText={(text) => setCashReceived(formatMoneyInput(text))}
+                keyboardType="numeric"
+                mode="outlined"
+                dense
+                left={<TextInput.Affix text="R$" />}
+                style={styles.cashInput}
+              />
+
+              {cashReceived && (
+                <View style={styles.changeContainer}>
+                  <Text variant="bodyLarge">Troco:</Text>
+                  <Text variant="headlineSmall" style={styles.changeValue}>
+                    {formatCurrency(calculateChange())}
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
+
+
+
+          {/* Desconto Disponivel */}
+          {appliedDiscount && cart.payments.length === 0 && (
+            <View style={styles.discountBanner}>
+              <View style={styles.discountBannerContent}>
+                <Ionicons name="pricetag" size={16} color={Colors.light.success} />
+                <Text style={styles.discountBannerText}>
+                  <Text style={styles.discountBannerHighlight}>{appliedDiscount.discount_percentage}% OFF</Text>
+                  {' '}pagando com {appliedDiscount.payment_method.toUpperCase()}
                 </Text>
-
-                <TextInput
-                  label="Valor Recebido"
-                  value={cashReceived}
-                  onChangeText={(text) => setCashReceived(formatMoneyInput(text))}
-                  keyboardType="numeric"
-                  mode="outlined"
-                  dense
-                  left={<TextInput.Affix text="R$" />}
-                  style={styles.cashInput}
-                />
-
-                {cashReceived && (
-                  <View style={styles.changeContainer}>
-                    <Text variant="bodyLarge">Troco:</Text>
-                    <Text variant="headlineSmall" style={styles.changeValue}>
-                      {formatCurrency(calculateChange())}
-                    </Text>
-                  </View>
-                )}
-              </Card.Content>
-            </Card>
+              </View>
+              <Text style={styles.discountBannerAmount}>
+                -{formatCurrency((cart.total * appliedDiscount.discount_percentage) / 100)}
+              </Text>
+            </View>
           )}
 
           {/* Totais */}
@@ -735,10 +867,21 @@ export default function CheckoutScreen() {
               {cart.discount > 0 && (
                 <View style={styles.totalRow}>
                   <Text variant="bodyLarge" style={styles.discountText}>
-                    Desconto
+                    Desconto Manual
                   </Text>
                   <Text variant="bodyLarge" style={styles.discountText}>
                     - {formatCurrency(cart.discount)}
+                  </Text>
+                </View>
+              )}
+
+              {appliedDiscount && (
+                <View style={styles.totalRow}>
+                  <Text variant="bodyLarge" style={styles.discountText}>
+                    Desconto {appliedDiscount.payment_method.toUpperCase()} ({appliedDiscount.discount_percentage}%)
+                  </Text>
+                  <Text variant="bodyLarge" style={styles.discountText}>
+                    - {formatCurrency((cart.total * appliedDiscount.discount_percentage) / 100)}
                   </Text>
                 </View>
               )}
@@ -750,11 +893,12 @@ export default function CheckoutScreen() {
                   TOTAL
                 </Text>
                 <Text variant="headlineSmall" style={styles.totalValue}>
-                  {formatCurrency(cart.total)}
+                  {formatCurrency(finalTotal)}
                 </Text>
               </View>
 
-              {cart.payments.length > 0 && (
+              {/* Mostrar Total Pago e Restante APENAS no modo misto */}
+              {isMixedMode && cart.payments.length > 0 && (
                 <>
                   <View style={styles.totalDivider} />
 
@@ -770,15 +914,15 @@ export default function CheckoutScreen() {
                   <View style={styles.totalRow}>
                     <Text
                       variant="bodyLarge"
-                      style={cart.remaining > 0 ? styles.remainingText : styles.changeText}
+                      style={(finalTotal - cart.totalPaid) > 0 ? styles.remainingText : styles.changeText}
                     >
-                      {cart.remaining > 0 ? 'Restante' : 'Troco'}
+                      {(finalTotal - cart.totalPaid) > 0 ? 'Restante' : 'Troco'}
                     </Text>
                     <Text
                       variant="bodyLarge"
-                      style={cart.remaining > 0 ? styles.remainingText : styles.changeText}
+                      style={(finalTotal - cart.totalPaid) > 0 ? styles.remainingText : styles.changeText}
                     >
-                      {formatCurrency(Math.abs(cart.remaining))}
+                      {formatCurrency(Math.abs(finalTotal - cart.totalPaid))}
                     </Text>
                   </View>
                 </>
@@ -795,12 +939,12 @@ export default function CheckoutScreen() {
           <Button
             mode="contained"
             onPress={handleFinalizeSale}
-            disabled={!cart.canFinalizeSale() || loading}
+            disabled={cart.items.length === 0 || cart.totalPaid < finalTotal || loading}
             loading={loading}
             icon="check"
             style={[
               styles.finalizeButton,
-              cart.canFinalizeSale() && styles.finalizeButtonEnabled
+              cart.totalPaid >= finalTotal && styles.finalizeButtonEnabled
             ]}
             labelStyle={styles.finalizeButtonLabel}
           >
@@ -886,6 +1030,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 8,
   },
+  section: {
+    marginBottom: 16,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.light.text,
+    marginBottom: 8,
+  },
   sectionTitle: {
     fontWeight: '600',
     marginBottom: 12,
@@ -915,8 +1068,48 @@ const styles = StyleSheet.create({
   loader: {
     marginVertical: 16,
   },
+  customerCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    backgroundColor: Colors.light.card,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
   customerInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
+    flex: 1,
+  },
+  customerDetails: {
+    flex: 1,
+  },
+  customerName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
+  customerPhone: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  loyaltyBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.light.warningLight,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  loyaltyPoints: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.warning,
   },
   customerRow: {
     flexDirection: 'row',
@@ -926,6 +1119,58 @@ const styles = StyleSheet.create({
   customerDetail: {
     color: Colors.light.textSecondary,
   },
+  paymentMethodsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  paymentMethodChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderRadius: 12,
+    backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  paymentMethodChipActive: {
+    backgroundColor: Colors.light.primary + '15',
+    borderColor: Colors.light.primary,
+  },
+  paymentMethodChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+  },
+  paymentMethodChipTextActive: {
+    color: Colors.light.primary,
+  },
+  mixedModeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderStyle: 'dashed',
+  },
+  mixedModeButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.primary,
+  },
+  mixedModeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
   methodsScroll: {
     marginBottom: 16,
   },
@@ -934,8 +1179,8 @@ const styles = StyleSheet.create({
   },
   mixedModeHelp: {
     color: Colors.light.textSecondary,
-    marginBottom: 12,
     fontStyle: 'italic',
+    flex: 1,
   },
   paymentInputRow: {
     flexDirection: 'row',
@@ -1057,4 +1302,40 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     paddingVertical: 4,
   },
+  discountBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.light.successLight,
+    borderWidth: 1,
+    borderColor: Colors.light.success,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+  },
+  discountBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  discountBannerText: {
+    fontSize: 14,
+    color: Colors.light.text,
+    flex: 1,
+  },
+  discountBannerHighlight: {
+    fontWeight: '700',
+    color: Colors.light.success,
+    fontSize: 15,
+  },
+  discountBannerAmount: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.light.success,
+  },
 });
+
+
+
+

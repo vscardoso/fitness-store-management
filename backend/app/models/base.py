@@ -32,16 +32,17 @@ class BaseModel(Base):
         comment="Primary key"
     )
     
+    # Python-side defaults keep compatibility with SQLite (avoids NOW())
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), 
-        server_default=func.now(),
+        default=datetime.utcnow,
         comment="Record creation timestamp"
     )
     
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), 
-        server_default=func.now(), 
-        onupdate=func.now(),
+        default=datetime.utcnow, 
+        onupdate=datetime.utcnow,
         comment="Record last update timestamp"
     )
     

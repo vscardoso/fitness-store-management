@@ -1,6 +1,6 @@
 import React, { forwardRef } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Text, Card, Divider } from 'react-native-paper';
+import { Text, Card } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency, formatDateTime } from '@/utils/format';
 import { Colors } from '@/constants/Colors';
@@ -35,18 +35,15 @@ export const SaleReceipt = forwardRef<View, SaleReceiptProps>(({ sale, storeName
   return (
     <View ref={ref} collapsable={false} style={styles.receiptContainer}>
       <Card style={styles.detailsCard}>
-        <Card.Content>
+        <View style={styles.cardContent}>
           {/* Nome da Loja */}
           {storeName && (
-            <>
-              <View style={styles.storeNameContainer}>
-                <Ionicons name="storefront" size={24} color={Colors.light.primary} />
-                <Text variant="titleMedium" style={styles.storeName}>
-                  {storeName}
-                </Text>
-              </View>
-              <Divider style={styles.divider} />
-            </>
+            <View style={styles.storeNameContainer}>
+              <Ionicons name="storefront" size={20} color={Colors.light.primary} />
+              <Text variant="titleMedium" style={styles.storeName}>
+                {storeName}
+              </Text>
+            </View>
           )}
           
           {/* Número da venda */}
@@ -59,74 +56,34 @@ export const SaleReceipt = forwardRef<View, SaleReceiptProps>(({ sale, storeName
             </Text>
           </View>
 
-          <Divider style={styles.divider} />
-
           {/* Data e Hora */}
           <View style={styles.detailRow}>
             <Text variant="labelMedium" style={styles.label}>
               Data e Hora
             </Text>
-            <Text variant="bodyLarge">
+            <Text variant="bodyLarge" style={styles.detailValue}>
               {formatDateTime(sale.created_at)}
-            </Text>
-          </View>
-
-          <Divider style={styles.divider} />
-
-          {/* Total da venda */}
-          <View style={styles.totalContainer}>
-            <Text variant="labelLarge" style={styles.label}>
-              Total da Venda
-            </Text>
-            <Text variant="displaySmall" style={styles.totalValue}>
-              {formatCurrency(sale.total_amount)}
             </Text>
           </View>
 
           {/* Cliente (se houver) */}
           {sale.customer_name && (
-            <>
-              <Divider style={styles.divider} />
-              <View style={styles.detailRow}>
-                <Text variant="labelMedium" style={styles.label}>
-                  Cliente
-                </Text>
-                <Text variant="bodyLarge">{sale.customer_name}</Text>
-              </View>
-            </>
-          )}
-
-          {/* Itens da venda */}
-          <Divider style={styles.divider} />
-          <Text variant="labelMedium" style={styles.itemsTitle}>
-            Itens da Venda ({sale.items.length})
-          </Text>
-          {sale.items.map((item, index) => (
-            <View key={index} style={styles.itemRow}>
-              <Text variant="bodyMedium" style={styles.itemQuantity}>
-                {item.quantity}x
+            <View style={styles.detailRow}>
+              <Text variant="labelMedium" style={styles.label}>
+                Cliente
               </Text>
-              <Text
-                variant="bodyMedium"
-                style={styles.itemName}
-                numberOfLines={1}
-              >
-                {item.product?.name || item.product?.description || 'Produto'}
-              </Text>
-              <Text variant="bodyMedium" style={styles.itemPrice}>
-                {formatCurrency(item.subtotal)}
+              <Text variant="bodyLarge" style={styles.detailValue}>
+                {sale.customer_name}
               </Text>
             </View>
-          ))}
-
-          <Divider style={styles.divider} />
+          )}
 
           {/* Método de pagamento */}
           <View style={styles.detailRow}>
             <Text variant="labelMedium" style={styles.label}>
               Forma de Pagamento
             </Text>
-            <Text variant="bodyLarge">
+            <Text variant="bodyLarge" style={styles.detailValue}>
               {sale.payments && sale.payments.length > 0 && sale.payments[0].method
                 ? getPaymentMethodLabel(sale.payments[0].method)
                 : sale.payment_method
@@ -134,7 +91,41 @@ export const SaleReceipt = forwardRef<View, SaleReceiptProps>(({ sale, storeName
                 : 'Não especificado'}
             </Text>
           </View>
-        </Card.Content>
+
+          {/* Itens da venda */}
+          <View style={styles.itemsSection}>
+            <Text variant="labelMedium" style={styles.sectionTitle}>
+              Itens da Venda ({sale.items.length})
+            </Text>
+            {sale.items.map((item, index) => (
+              <View key={index} style={styles.itemRow}>
+                <Text variant="bodyMedium" style={styles.itemQuantity}>
+                  {item.quantity}x
+                </Text>
+                <Text
+                  variant="bodyMedium"
+                  style={styles.itemName}
+                  numberOfLines={1}
+                >
+                  {item.product?.name || item.product?.description || 'Produto'}
+                </Text>
+                <Text variant="bodyMedium" style={styles.itemPrice}>
+                  {formatCurrency(item.subtotal)}
+                </Text>
+              </View>
+            ))}
+          </View>
+
+          {/* Total da venda */}
+          <View style={styles.totalContainer}>
+            <Text variant="titleMedium" style={styles.totalLabel}>
+              Total da Venda
+            </Text>
+            <Text variant="headlineLarge" style={styles.totalValue}>
+              {formatCurrency(sale.total_amount)}
+            </Text>
+          </View>
+        </View>
       </Card>
     </View>
   );
@@ -148,54 +139,53 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   detailsCard: {
-    marginBottom: 24,
-    elevation: 4,
+    marginBottom: 16,
+    elevation: 2,
+  },
+  cardContent: {
+    padding: 16,
   },
   storeNameContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 12,
+    gap: 6,
+    marginBottom: 16,
   },
   storeName: {
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: Colors.light.primary,
   },
   saleNumberContainer: {
     alignItems: 'center',
-    paddingVertical: 8,
+    marginBottom: 20,
   },
   saleNumber: {
     fontWeight: 'bold',
     color: Colors.light.primary,
-    marginVertical: 8,
+    marginTop: 4,
     letterSpacing: 1,
   },
   label: {
     color: Colors.light.textSecondary,
-  },
-  divider: {
-    marginVertical: 16,
+    fontSize: 13,
   },
   detailRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginTop: 12,
   },
-  totalContainer: {
-    alignItems: 'center',
-    paddingVertical: 16,
+  detailValue: {
+    fontWeight: '500',
   },
-  totalValue: {
-    fontWeight: 'bold',
-    color: Colors.light.success,
-    marginTop: 8,
+  itemsSection: {
+    marginTop: 20,
   },
-  itemsTitle: {
-    marginBottom: 12,
-    marginTop: 8,
+  sectionTitle: {
     color: Colors.light.textSecondary,
+    marginBottom: 8,
+    fontSize: 13,
   },
   itemRow: {
     flexDirection: 'row',
@@ -212,6 +202,23 @@ const styles = StyleSheet.create({
   },
   itemPrice: {
     fontWeight: '600',
+  },
+  totalContainer: {
+    alignItems: 'center',
+    marginTop: 24,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+  },
+  totalLabel: {
+    color: Colors.light.textSecondary,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  totalValue: {
+    fontWeight: 'bold',
+    color: Colors.light.success,
+    marginTop: 4,
   },
 });
 

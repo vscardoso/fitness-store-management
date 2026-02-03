@@ -200,7 +200,8 @@ export default function CustomerDetailsScreen() {
       />
 
       <ScrollView 
-        style={styles.scrollContent}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -445,30 +446,28 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  scrollContent: {
+  scrollView: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 32,
   },
   quickGrid: {
     flexDirection: 'row',
     gap: 12,
-    marginTop: 16,
-    marginHorizontal: 16,
+    marginBottom: 16,
   },
   quickCard: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     borderRadius: 12,
     padding: 12,
     borderWidth: 1,
     borderColor: Colors.light.border,
     elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
   },
   quickCardDisabled: {
     opacity: 0.5,
@@ -491,23 +490,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   card: {
-    margin: 16,
-    marginTop: 0,
-    marginBottom: 12,
-    borderRadius: 16,
+    marginBottom: 16,
+    borderRadius: 12,
     elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    backgroundColor: Colors.light.card,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
-    paddingBottom: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
   },
   cardHeaderIcon: {
     width: 32,
@@ -540,6 +531,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   additionalText: {
-    color: Colors.light.icon,
+    color: Colors.light.textSecondary,
   },
 });

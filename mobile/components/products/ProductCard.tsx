@@ -3,6 +3,7 @@ import { Card, Text, useTheme } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import type { Product } from '@/types';
 import { formatCurrency } from '@/utils/format';
+import { Colors } from '@/constants/Colors';
 
 interface ProductCardProps {
   product: Product;
@@ -151,7 +152,9 @@ const styles = StyleSheet.create({
     width: '47%',
     marginHorizontal: 6,
     marginBottom: 12,
-    minHeight: 200, // Altura mínima padrão
+    minHeight: 200,
+    backgroundColor: Colors.light.card,
+    elevation: 2,
   },
   content: {
     padding: 12,
@@ -181,25 +184,26 @@ const styles = StyleSheet.create({
     marginBottom: 6,
     lineHeight: 20,
     fontSize: 14,
-    minHeight: 40, // Garante espaço para 2 linhas sempre
+    minHeight: 40,
+    color: Colors.light.text,
   },
   metaRow: {
     flexDirection: 'column',
     marginBottom: 12,
   },
   meta: {
-    color: '#757575',
+    color: Colors.light.textSecondary,
     fontWeight: '500',
     fontSize: 11,
   },
   brand: {
-    color: '#757575',
+    color: Colors.light.textSecondary,
     fontSize: 11,
   },
   footer: {
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.06)',
+    borderTopColor: Colors.light.border,
     gap: 10,
   },
   priceRow: {
@@ -211,20 +215,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   label: {
-    color: '#9E9E9E',
+    color: Colors.light.textSecondary,
     marginBottom: 4,
-    textTransform: 'uppercase',
-    fontSize: 10,
-    letterSpacing: 0.5,
+    fontSize: 11,
   },
   costPrice: {
     fontWeight: '600',
-    color: '#757575',
-    fontSize: 15,
+    color: Colors.light.text,
+    fontSize: 14,
   },
   salePrice: {
     fontWeight: '700',
-    fontSize: 15,
+    fontSize: 14,
   },
   stockInfo: {
     flexDirection: 'row',
@@ -240,7 +242,7 @@ const styles = StyleSheet.create({
   },
   stockValue: {
     fontWeight: '600',
-    color: '#424242',
-    fontSize: 15,
+    color: Colors.light.text,
+    fontSize: 14,
   },
 });

@@ -11,6 +11,7 @@ import { Text, ActivityIndicator } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
+import useBackToList from '@/hooks/useBackToList';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { formatCurrency } from '@/utils/format';
@@ -50,8 +51,7 @@ const getSalesByPeriod = async (year: number, month: number): Promise<SalesByPer
 };
 
 export default function SalesPeriodScreen() {
-  const router = useRouter();
-  const today = new Date();
+  const router = useRouter();  const { goBack } = useBackToList('/(tabs)');  const today = new Date();
   const [selectedYear, setSelectedYear] = useState(today.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1);
 
@@ -191,7 +191,7 @@ export default function SalesPeriodScreen() {
           style={styles.headerGradient}
         >
           <View style={styles.headerContent}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+            <TouchableOpacity onPress={goBack} style={styles.backButton}>
               <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
             <View style={styles.headerInfo}>

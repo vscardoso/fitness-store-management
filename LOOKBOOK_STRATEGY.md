@@ -1469,7 +1469,805 @@ Fluxo:
 ---
 
 **Documento criado em:** 24/01/2026
-**Última atualização:** 24/01/2026 (adicionado estratégia multi-canal)
+**Última atualização:** 24/01/2026 (adicionado estratégia multi-canal + plano de implementação cirúrgico)
 **Próxima revisão:** Após MVP (1 semana)
 
-**Versão:** 2.0 - Incluindo WhatsApp, Landing Page e distribuição multi-canal
+**Versão:** 3.0 - Incluindo WhatsApp, Landing Page, distribuição multi-canal e PLANO DE IMPLEMENTAÇÃO EXECUTÁVEL
+
+---
+
+# 🎯 PLANO DE IMPLEMENTAÇÃO CIRÚRGICO - FASE 0 (1 SEMANA)
+
+**Status:** Pronto para execução
+**Data:** 24/01/2026
+**Objetivo:** Validar conceito Lookbook com investimento zero
+
+---
+
+## 🏗️ ARQUITETURA DA FASE 0
+
+```
+┌──────────────────┐      ┌──────────────────┐      ┌──────────────────┐
+│  Landing Page    │      │  Backend FastAPI │      │  WhatsApp Bot    │
+│  (Next.js 14)    │─────▶│  (JÁ EXISTE)     │◀─────│  (Baileys)       │
+│                  │ REST  │                  │ POST │                  │
+│ web/             │ API   │ /webhooks/       │      │ whatsapp_bot/    │
+└──────────────────┘      └──────────────────┘      └──────────────────┘
+        │                          │                          │
+        ▼                          ▼                          ▼
+   CLIENTE WEB              API ENDPOINTS              CLIENTE WHATSAPP
+```
+
+**Benefícios:**
+- ✅ **Zero mudanças no backend** - API já existe e funciona
+- ✅ **Zero fricção para cliente** - Já usa WhatsApp
+- ✅ **Validação rápida** - 1 semana para provar conceito
+- ✅ **Investimento zero** - Vercel grátis + Baileys open source
+
+---
+
+## 📅 ROADMAP EXECUTÁVEL (7 DIAS)
+
+### **DIA 1-2: Landing Page Next.js** 🚀 PRIORIDADE MÁXIMA
+
+#### Setup Inicial
+```powershell
+# Criar projeto Next.js
+cd c:\Users\Victor\Desktop\fitness-store-management
+npx create-next-app@latest web --typescript --tailwind --app
+
+# Opções durante setup:
+- TypeScript: Yes
+- ESLint: Yes
+- Tailwind CSS: Yes
+- App Router: Yes
+- Import alias: @/* (default)
+```
+
+#### Arquivos a Criar
+
+**1. `web/services/api.ts`** - Cliente API (reaproveitar do mobile)
+```typescript
+import axios from 'axios';
+
+const api = axios.create({
+  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api/v1',
+  timeout: 10000,
+});
+
+export const getProducts = async (params?: { limit?: number; offset?: number; search?: string }) => {
+  const response = await api.get('/products', { params });
+  return response.data;
+};
+
+export const getProduct = async (id: number) => {
+  const response = await api.get(`/products/${id}`);
+  return response.data;
+};
+
+export default api;
+```
+
+**2. `web/components/ProductCard.tsx`** - Card de produto
+```typescript
+import Image from 'next/image';
+import Link from 'next/link';
+
+interface Product {
+  id: number;
+  name: string;
+  description?: string;
+  price: number;
+  image_url?: string;
+}
+
+export default function ProductCard({ product }: { product: Product }) {
+  return (
+    <Link href={`/produtos/${product.id}`}>
+      <div className="border rounded-lg p-4 hover:shadow-lg transition-shadow">
+        <div className="aspect-square relative mb-4">
+          <Image
+            src={product.image_url || '/placeholder.png'}
+            alt={product.name}
+            fill
+            className="object-cover rounded"
+          />
+        </div>
+        <h3 className="font-semibold text-lg mb-2">{product.name}</h3>
+        {product.description && (
+          <p className="text-gray-600 text-sm mb-2 line-clamp-2">
+            {product.description}
+          </p>
+        )}
+        <p className="text-xl font-bold text-primary">
+          R$ {product.price.toFixed(2)}
+        </p>
+      </div>
+    </Link>
+  );
+}
+```
+
+**3. `web/components/ProductGrid.tsx`** - Grid de produtos
+```typescript
+import ProductCard from './ProductCard';
+
+interface Product {
+  id: number;
+  name: string;
+  description?: string;
+  price: number;
+  image_url?: string;
+}
+
+export default function ProductGrid({ products }: { products: Product[] }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      {products.map((product) => (
+        <ProductCard key={product.id} product={product} />
+      ))}
+    </div>
+  );
+}
+```
+
+**4. `web/components/WhatsAppButton.tsx`** - Botão flutuante
+```typescript
+'use client';
+
+import { MessageCircle } from 'lucide-react';
+
+interface Props {
+  phone: string;
+  message?: string;
+}
+
+export default function WhatsAppButton({ phone, message }: Props) {
+  const handleClick = () => {
+    const text = encodeURIComponent(message || 'Olá! Vi o site e gostei!');
+    window.open(`https://wa.me/${phone}?text=${text}`, '_blank');
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      className="fixed bottom-6 right-6 bg-green-500 hover:bg-green-600 
+                 text-white rounded-full p-4 shadow-lg z-50 
+                 transition-all hover:scale-110"
+      aria-label="Contato via WhatsApp"
+    >
+      <MessageCircle size={28} />
+    </button>
+  );
+}
+```
+
+**5. `web/app/page.tsx`** - Home page
+```typescript
+import { getProducts } from '@/services/api';
+import ProductGrid from '@/components/ProductGrid';
+import WhatsAppButton from '@/components/WhatsAppButton';
+
+export default async function HomePage() {
+  const products = await getProducts({ limit: 12 });
+
+  return (
+    <main className="container mx-auto px-4 py-8">
+      <header className="text-center mb-12">
+        <h1 className="text-4xl font-bold mb-4">
+          🏋️‍♀️ Moda Fitness Feminina
+        </h1>
+        <p className="text-xl text-gray-600">
+          Looks exclusivos para você arrasar no treino
+        </p>
+      </header>
+
+      <section>
+        <h2 className="text-2xl font-semibold mb-6">🔥 Produtos em Destaque</h2>
+        <ProductGrid products={products} />
+      </section>
+
+      <WhatsAppButton 
+        phone="5534999999999" 
+        message="Olá! Vi o site e gostei!"
+      />
+    </main>
+  );
+}
+```
+
+**6. `web/app/produtos/[id]/page.tsx`** - Página do produto
+```typescript
+import { getProduct, getProducts } from '@/services/api';
+import Image from 'next/image';
+import WhatsAppButton from '@/components/WhatsAppButton';
+
+export default async function ProductPage({ params }: { params: { id: string } }) {
+  const product = await getProduct(parseInt(params.id));
+
+  const whatsappMessage = `Olá! Vi o produto "${product.name}" no site e gostei! Link: ${process.env.NEXT_PUBLIC_SITE_URL}/produtos/${product.id}`;
+
+  return (
+    <main className="container mx-auto px-4 py-8">
+      <div className="grid md:grid-cols-2 gap-8">
+        <div className="aspect-square relative">
+          <Image
+            src={product.image_url || '/placeholder.png'}
+            alt={product.name}
+            fill
+            className="object-cover rounded-lg"
+          />
+        </div>
+
+        <div>
+          <h1 className="text-3xl font-bold mb-4">{product.name}</h1>
+          
+          {product.description && (
+            <p className="text-gray-600 mb-6">{product.description}</p>
+          )}
+
+          <p className="text-4xl font-bold text-primary mb-8">
+            R$ {product.price.toFixed(2)}
+          </p>
+
+          <button
+            onClick={() => {
+              const text = encodeURIComponent(whatsappMessage);
+              window.open(`https://wa.me/5534999999999?text=${text}`, '_blank');
+            }}
+            className="w-full bg-green-500 hover:bg-green-600 text-white 
+                       py-4 rounded-lg font-semibold text-lg 
+                       transition-colors flex items-center justify-center gap-2"
+          >
+            <MessageCircle size={24} />
+            Pedir via WhatsApp
+          </button>
+        </div>
+      </div>
+
+      <WhatsAppButton phone="5534999999999" message={whatsappMessage} />
+    </main>
+  );
+}
+```
+
+**7. `web/.env.local`** - Variáveis de ambiente
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+NEXT_PUBLIC_WHATSAPP_NUMBER=5534999999999
+```
+
+#### Comandos de Desenvolvimento
+```powershell
+cd web
+npm run dev  # Abre em http://localhost:3000
+```
+
+---
+
+### **DIA 3-4: WhatsApp Bot (Baileys)**
+
+#### Setup Backend Webhook
+
+**1. `backend/app/webhooks/__init__.py`**
+```python
+# Empty file to make it a package
+```
+
+**2. `backend/app/webhooks/whatsapp.py`**
+```python
+"""
+Webhook para receber mensagens do WhatsApp Bot.
+"""
+from fastapi import APIRouter, Request, HTTPException
+from pydantic import BaseModel
+from typing import Optional
+
+router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
+
+
+class WhatsAppMessage(BaseModel):
+    from_number: str
+    message: str
+    timestamp: Optional[str] = None
+
+
+class WhatsAppResponse(BaseModel):
+    to: str
+    message: str
+
+
+@router.post("/whatsapp")
+async def whatsapp_webhook(payload: WhatsAppMessage):
+    """
+    Recebe mensagens do WhatsApp Bot e processa.
+    
+    Fluxo:
+    1. Bot recebe mensagem do cliente
+    2. Bot envia para este webhook
+    3. Webhook processa (busca produto, menu, etc)
+    4. Retorna resposta
+    5. Bot envia resposta para cliente
+    """
+    message_text = payload.message.lower().strip()
+    
+    # Menu principal
+    if any(word in message_text for word in ['menu', 'oi', 'olá', 'ola']):
+        response = """
+Olá! 👋 Bem-vindo à nossa loja!
+
+Digite:
+1️⃣ - Ver catálogo completo
+2️⃣ - Novidades
+3️⃣ - Falar com vendedora
+
+Ou digite o nome do produto que procura!
+        """
+    
+    # Catálogo
+    elif message_text in ['1', 'catalogo', 'catálogo', 'produtos']:
+        site_url = "https://minhaloja.vercel.app"  # Atualizar após deploy
+        response = f"🛍️ Veja nosso catálogo completo:\n{site_url}"
+    
+    # Novidades
+    elif message_text in ['2', 'novidades', 'novo']:
+        response = "🆕 Chegou Legging High Waist em 3 cores novas! Quer saber mais?"
+    
+    # Vendedora
+    elif message_text in ['3', 'vendedora', 'atendimento']:
+        response = "📱 Aguarde, vou chamar nossa vendedora para te atender!"
+    
+    # Busca de produto (básico)
+    elif any(word in message_text for word in ['legging', 'top', 'conjunto']):
+        response = f"Encontrei produtos relacionados a '{message_text}'! 🔍\n\nVeja no site: https://minhaloja.vercel.app"
+    
+    # Default
+    else:
+        response = "Não entendi 😅 Digite MENU para ver as opções!"
+    
+    return WhatsAppResponse(to=payload.from_number, message=response)
+
+
+@router.get("/whatsapp/health")
+async def webhook_health():
+    """Health check do webhook."""
+    return {"status": "ok", "service": "whatsapp_webhook"}
+```
+
+**3. Registrar webhook no main.py**
+```python
+# backend/app/main.py (adicionar)
+from app.webhooks import whatsapp
+
+# Incluir router
+app.include_router(whatsapp.router)
+```
+
+#### Setup WhatsApp Bot (Baileys)
+
+**1. `backend/whatsapp_bot/package.json`**
+```json
+{
+  "name": "whatsapp-bot",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@whiskeysockets/baileys": "^6.6.0",
+    "qrcode-terminal": "^0.12.0",
+    "axios": "^1.6.0",
+    "dotenv": "^16.3.1"
+  }
+}
+```
+
+**2. `backend/whatsapp_bot/.env`**
+```env
+WEBHOOK_URL=http://localhost:8000/webhooks/whatsapp
+```
+
+**3. `backend/whatsapp_bot/index.js`**
+```javascript
+import { makeWASocket, DisconnectReason, useMultiFileAuthState } from '@whiskeysockets/baileys';
+import qrcode from 'qrcode-terminal';
+import axios from 'axios';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const WEBHOOK_URL = process.env.WEBHOOK_URL;
+
+async function connectToWhatsApp() {
+  const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+
+  const sock = makeWASocket({
+    auth: state,
+    printQRInTerminal: true,
+  });
+
+  sock.ev.on('creds.update', saveCreds);
+
+  sock.ev.on('connection.update', (update) => {
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr) {
+      console.log('📱 Escaneie o QR Code com seu WhatsApp:');
+      qrcode.generate(qr, { small: true });
+    }
+
+    if (connection === 'close') {
+      const shouldReconnect =
+        lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
+      console.log('❌ Conexão fechada. Reconectando...', shouldReconnect);
+      if (shouldReconnect) {
+        connectToWhatsApp();
+      }
+    } else if (connection === 'open') {
+      console.log('✅ Conectado ao WhatsApp!');
+    }
+  });
+
+  // Receber mensagens
+  sock.ev.on('messages.upsert', async (m) => {
+    const msg = m.messages[0];
+
+    if (!msg.message || msg.key.fromMe) return; // Ignorar mensagens próprias
+
+    const from = msg.key.remoteJid;
+    const messageText = msg.message.conversation || 
+                       msg.message.extendedTextMessage?.text || 
+                       '';
+
+    console.log(`📩 Mensagem de ${from}: ${messageText}`);
+
+    try {
+      // Enviar para webhook
+      const response = await axios.post(WEBHOOK_URL, {
+        from_number: from,
+        message: messageText,
+        timestamp: new Date().toISOString(),
+      });
+
+      // Enviar resposta
+      const replyText = response.data.message;
+      await sock.sendMessage(from, { text: replyText });
+      console.log(`✅ Resposta enviada: ${replyText}`);
+
+    } catch (error) {
+      console.error('❌ Erro ao processar mensagem:', error.message);
+      await sock.sendMessage(from, { 
+        text: 'Desculpe, ocorreu um erro. Digite MENU para tentar novamente.' 
+      });
+    }
+  });
+}
+
+// Iniciar bot
+connectToWhatsApp().catch(console.error);
+```
+
+#### Comandos para Rodar
+
+```powershell
+# Terminal 1 - Backend (webhook)
+cd backend
+.\venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload
+
+# Terminal 2 - WhatsApp Bot
+cd backend\whatsapp_bot
+npm install
+npm start
+# Escanear QR Code com WhatsApp
+```
+
+---
+
+### **DIA 5: Integração Site ↔ WhatsApp**
+
+#### Melhorias nos Componentes
+
+**Mensagem Dinâmica por Produto:**
+```typescript
+// web/app/produtos/[id]/page.tsx (já incluído acima)
+const whatsappMessage = `Olá! Vi o produto "${product.name}" no site e gostei!`;
+```
+
+**Botão Flutuante Contextual:**
+```typescript
+// web/components/WhatsAppButton.tsx
+// Adaptar mensagem baseado na página atual
+```
+
+#### Testes de Integração
+
+**Fluxo Completo:**
+1. Cliente acessa site → `localhost:3000`
+2. Navega produtos → Clica em produto
+3. Clica "Pedir via WhatsApp"
+4. WhatsApp abre com mensagem pré-preenchida
+5. Cliente envia mensagem
+6. Bot recebe → Webhook processa → Bot responde
+7. Vendedora atende (se necessário)
+
+---
+
+### **DIA 6-7: Deploy + Testes com Clientes**
+
+#### Deploy Landing Page (Vercel)
+
+**Comandos:**
+```powershell
+cd web
+
+# Instalar Vercel CLI
+npm i -g vercel
+
+# Deploy
+vercel
+
+# Configurar variáveis de ambiente no dashboard:
+# NEXT_PUBLIC_API_URL = https://seu-backend.com/api/v1
+# NEXT_PUBLIC_WHATSAPP_NUMBER = 5534999999999
+```
+
+**Resultado:**
+- URL: `https://minhaloja.vercel.app`
+- SSL: Automático (HTTPS)
+- CDN: Global
+
+#### Testes com Clientes Beta (5-10 pessoas)
+
+**Checklist de Testes:**
+- [ ] Site carrega em mobile
+- [ ] Site carrega em desktop
+- [ ] Produtos aparecem corretamente
+- [ ] Imagens carregam
+- [ ] Botão WhatsApp funciona
+- [ ] Mensagem pré-preenchida está correta
+- [ ] Bot responde mensagens
+- [ ] Menu funciona
+- [ ] Vendedora consegue atender
+
+**Métricas de Sucesso:**
+- [ ] 5+ clientes testaram
+- [ ] 3+ conversões (vendas)
+- [ ] Taxa de conversão: **60%+**
+- [ ] Feedback positivo
+
+---
+
+## 📂 ESTRUTURA FINAL DE ARQUIVOS
+
+```
+fitness-store-management/
+│
+├── backend/                        # Backend FastAPI (JÁ EXISTE)
+│   ├── app/
+│   │   ├── api/
+│   │   ├── models/
+│   │   ├── services/
+│   │   └── webhooks/              # ⚡ NOVO
+│   │       ├── __init__.py
+│   │       └── whatsapp.py        # Webhook endpoint
+│   │
+│   └── whatsapp_bot/              # ⚡ NOVO
+│       ├── index.js               # Baileys script
+│       ├── package.json
+│       ├── .env
+│       └── auth_info_baileys/     # Dados de autenticação (auto-gerado)
+│
+├── mobile/                         # App React Native (JÁ EXISTE)
+│
+└── web/                           # ⚡ NOVO PROJETO
+    ├── app/
+    │   ├── page.tsx               # Home
+    │   ├── produtos/
+    │   │   └── [id]/
+    │   │       └── page.tsx       # Produto individual
+    │   ├── layout.tsx
+    │   └── globals.css
+    │
+    ├── components/
+    │   ├── WhatsAppButton.tsx     # Botão flutuante
+    │   ├── ProductCard.tsx        # Card produto
+    │   └── ProductGrid.tsx        # Grid produtos
+    │
+    ├── services/
+    │   └── api.ts                 # Cliente Axios
+    │
+    ├── public/
+    │   └── placeholder.png        # Imagem padrão
+    │
+    ├── .env.local                 # Variáveis ambiente
+    ├── next.config.js
+    ├── tailwind.config.ts
+    ├── tsconfig.json
+    └── package.json
+```
+
+---
+
+## ✅ CRITÉRIOS DE VALIDAÇÃO (CHECKPOINT SEMANA 1)
+
+### Técnicos
+- [ ] Site no ar: `https://minhaloja.vercel.app`
+- [ ] Backend webhook funcionando: `POST /webhooks/whatsapp`
+- [ ] WhatsApp Bot conectado e respondendo
+- [ ] Integração completa: Site → WhatsApp → Webhook → Resposta
+
+### Negócio
+- [ ] 10 produtos visíveis no catálogo
+- [ ] 5+ clientes testaram o fluxo completo
+- [ ] 3+ vendas realizadas (taxa 60%+)
+- [ ] Tempo médio de resposta < 2 minutos
+- [ ] Feedback positivo dos clientes
+
+### Decisão Go/No-Go
+
+**SE VALIDAR (>60% conversão):**
+→ Partir para **FASE 1** (WhatsApp Business oficial + Lookbook models + SEO)
+
+**SE NÃO VALIDAR (<60% conversão):**
+→ Analisar gargalos:
+- Problema no fluxo? Ajustar UX
+- Mensagens confusas? Melhorar bot
+- Produtos pouco atrativos? Revisar catálogo
+→ Iterar e testar novamente (1-2 dias)
+
+---
+
+## 💰 INVESTIMENTO TOTAL (FASE 0)
+
+### Infraestrutura
+- **Landing Page (Vercel):** GRÁTIS (plano free até 100GB bandwidth/mês)
+- **Backend:** JÁ RODANDO (sem custos adicionais)
+- **WhatsApp Bot (Baileys):** GRÁTIS (open source, self-hosted)
+- **Domínio:** R$ 40/ano (opcional para MVP, pode usar `.vercel.app`)
+
+### Desenvolvimento
+- **Tempo:** 1 semana (40 horas)
+- **Custo:** R$ 0 (você mesmo desenvolve)
+
+### TOTAL MVP: **R$ 0-40** (dependendo se comprar domínio)
+
+---
+
+## 🚀 PRÓXIMO PASSO IMEDIATO
+
+Execute AGORA:
+
+```powershell
+cd c:\Users\Victor\Desktop\fitness-store-management
+npx create-next-app@latest web --typescript --tailwind --app
+```
+
+**Após setup:**
+1. Criar arquivos listados na seção DIA 1-2
+2. Testar localmente: `npm run dev`
+3. Verificar integração com backend `http://localhost:8000`
+4. Partir para WhatsApp Bot (DIA 3-4)
+
+---
+
+## 📊 MÉTRICAS A ACOMPANHAR (DASHBOARD)
+
+**Durante MVP (Semana 1):**
+- Visitas ao site (Google Analytics)
+- Cliques no botão WhatsApp (event tracking)
+- Conversas iniciadas (contador bot)
+- Mensagens processadas (webhook logs)
+- Vendas fechadas (manual)
+- Taxa de conversão: `(vendas / visitas) * 100`
+
+**Meta FASE 0:**
+- 50+ visitas ao site
+- 20+ cliques WhatsApp (40% CTR)
+- 10+ conversas iniciadas (50% engagement)
+- 6+ vendas (60% conversão) ✅
+
+---
+
+## 🔧 TROUBLESHOOTING COMUM
+
+### Problema 1: Next.js não compila
+**Solução:** Verificar versões Node.js (18+) e npm (9+)
+
+### Problema 2: API não retorna produtos
+**Solução:** 
+```powershell
+# Verificar se backend está rodando
+curl http://localhost:8000/api/v1/products
+```
+
+### Problema 3: WhatsApp Bot desconecta
+**Solução:** Manter terminal aberto, verificar internet, re-escanear QR Code
+
+### Problema 4: Webhook não recebe mensagens
+**Solução:** 
+- Verificar URL webhook no `.env`
+- Testar manualmente: `curl -X POST http://localhost:8000/webhooks/whatsapp`
+- Ver logs do backend
+
+### Problema 5: Vercel deploy falha
+**Solução:**
+- Verificar `.env.local` está no `.gitignore`
+- Configurar variáveis no dashboard Vercel
+- Ver logs: `vercel logs`
+
+---
+
+## 📚 REFERÊNCIAS TÉCNICAS
+
+### Documentação
+- Next.js 14: https://nextjs.org/docs
+- Baileys: https://github.com/WhiskeySockets/Baileys
+- Vercel: https://vercel.com/docs
+- FastAPI Webhooks: https://fastapi.tiangolo.com/
+
+### Exemplos de Código
+- Next.js Commerce: https://vercel.com/templates/next.js/nextjs-commerce
+- WhatsApp Bot Examples: https://github.com/WhiskeySockets/Baileys/tree/master/Example
+
+---
+
+## 🎯 EVOLUÇÃO PÓS-MVP (FASE 1+)
+
+**Se MVP validar, próximos passos:**
+
+### FASE 1: Landing Page Avançada (1 semana)
+- SEO completo (meta tags, sitemap, structured data)
+- Lookbook gallery (grid de looks)
+- Wishlist (salvar favoritos)
+- Filtros e busca avançada
+- Blog de conteúdo (atração orgânica)
+
+### FASE 2: WhatsApp Business Oficial (1 semana)
+- Migrar de Baileys → Meta Business API
+- Catálogo nativo WhatsApp
+- Chatbot com NLP (intents, entities)
+- Analytics oficial (Facebook Business)
+- Pagamentos via WhatsApp Pay
+
+### FASE 3: Lookbook Backend + Features (2 semanas)
+- Models: Look, LookItem, Wishlist, ProductTag
+- Services: LookService, WishlistService, SuggestionService
+- Endpoints: `/looks`, `/wishlist`, `/suggestions`
+- Background jobs: Notificações automáticas
+- Dashboard vendedora: Demanda agregada
+
+### FASE 4: App Mobile Cliente (2-3 semanas)
+- Versão mobile nativa do site (Expo)
+- Push notifications
+- Lookbook builder interativo
+- Try before you buy (condicional de looks)
+
+---
+
+## 🏁 CONCLUSÃO
+
+Este plano de implementação é **100% executável** e **cirúrgico** - sem retrabalho, sem voltar atrás.
+
+**Vantagens:**
+✅ Validação rápida (1 semana)
+✅ Investimento zero (R$ 0-40)
+✅ Sem alterar backend (API já pronta)
+✅ Cliente já usa WhatsApp (zero fricção)
+✅ Escalável (facil evoluir para Fase 1+)
+
+**Próximo comando:**
+```powershell
+npx create-next-app@latest web --typescript --tailwind --app
+```
+
+**Sucesso está a 1 semana de distância!** 🚀
+
+---
+
+**Versão do Plano:** 1.0
+**Data de Criação:** 24/01/2026
+**Status:** Pronto para execução imediata
+

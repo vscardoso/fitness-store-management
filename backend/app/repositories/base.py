@@ -4,6 +4,7 @@ Base repository class with generic CRUD operations using SQLAlchemy 2.0 async.
 
 from typing import Any, Dict, Generic, List, Optional, Type, TypeVar, Union
 from sqlalchemy import select, update, delete, func
+from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 from pydantic import BaseModel
@@ -148,6 +149,13 @@ class BaseRepository(Generic[ModelType, CreateSchemaType, UpdateSchemaType]):
 
             # Create model instance
             db_obj = self.model(**obj_data)
+
+            # Ensure timestamps are set in Python (avoids DB defaults like NOW() missing in SQLite)
+            current_ts = datetime.utcnow()
+            if hasattr(db_obj, "created_at") and getattr(db_obj, "created_at") is None:
+                setattr(db_obj, "created_at", current_ts)
+            if hasattr(db_obj, "updated_at") and getattr(db_obj, "updated_at") is None:
+                setattr(db_obj, "updated_at", current_ts)
             
             # Add to session and flush to get ID
             db.add(db_obj)

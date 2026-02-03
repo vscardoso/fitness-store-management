@@ -49,45 +49,40 @@ interface StatCardProps {
 }
 
 function StatCard({ icon, label, value, trend, iconColor, iconBg, onPress }: StatCardProps) {
-  // Determinar cores do gradiente baseado no iconColor
-  const getGradientColors = (): [string, string] => {
-    if (iconColor === Colors.light.info) return [Colors.light.primary, Colors.light.secondary];
-    if (iconColor === Colors.light.primary) return ['#4776e6', '#8e54e9'];
-    if (iconColor === Colors.light.success) return ['#11998e', '#38ef7d'];
-    if (iconColor === Colors.light.error) return ['#eb3349', '#f45c43'];
-    if (iconColor === Colors.light.warning) return ['#f093fb', '#f5576c'];
-    return [Colors.light.primary, Colors.light.secondary];
-  };
-
   return (
     <TouchableOpacity
-      style={styles.statCard}
+      style={[styles.statCard, { backgroundColor: iconBg || '#F3F4F6' }]}
       onPress={onPress}
       activeOpacity={0.7}
       disabled={!onPress}
     >
-      <LinearGradient
-        colors={getGradientColors()}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.statGradient}
-      >
-        <View style={styles.statHeader}>
-          <Ionicons name={icon} size={28} color="#fff" />
+      <View style={styles.statContent}>
+        <View style={styles.statTopRow}>
+          <View style={[styles.statIconCircle, { backgroundColor: (iconColor || Colors.light.primary) + '15' }]}>
+            <Ionicons name={icon} size={24} color={iconColor || Colors.light.primary} />
+          </View>
           {trend !== undefined && (
-            <View style={styles.trendContainer}>
-              <Text style={styles.trendText}>{trend >= 0 ? '+' : ''}{trend.toFixed(1)}%</Text>
+            <View style={[
+              styles.trendBadge,
+              { backgroundColor: trend >= 0 ? '#ECFDF5' : '#FEF2F2' }
+            ]}>
               <Ionicons
                 name={trend >= 0 ? 'arrow-up' : 'arrow-down'}
-                size={12}
-                color="#fff"
+                size={10}
+                color={trend >= 0 ? '#10B981' : '#EF4444'}
               />
+              <Text style={[
+                styles.trendBadgeText,
+                { color: trend >= 0 ? '#10B981' : '#EF4444' }
+              ]}>
+                {Math.abs(trend).toFixed(0)}%
+              </Text>
             </View>
           )}
         </View>
         <Text style={styles.statLabel}>{label}</Text>
         <Text style={styles.statValue}>{value}</Text>
-      </LinearGradient>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -404,7 +399,7 @@ export default function InventoryDashboard() {
               type="warning"
               title="Produtos Encalhados"
               message={`${metrics.slowMovingCount} produto(s) com mais de 60 dias parados`}
-              onPress={() => router.push('/reports')}
+              onPress={() => router.push('/(tabs)/products')}
             />
           )}
 
@@ -698,49 +693,55 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   statCard: {
-    borderRadius: theme.borderRadius.xl,
-    elevation: theme.elevation.md,
+    borderRadius: 16,
+    padding: 16,
     flex: 1,
+    minHeight: 120,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
   },
-  statGradient: {
-    padding: theme.spacing.md,
-    minHeight: 140,
+  statContent: {
     flex: 1,
     justifyContent: 'space-between',
-    borderRadius: theme.borderRadius.xl,
   },
-  statHeader: {
+  statTopRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: theme.spacing.sm,
+    marginBottom: 12,
+  },
+  statIconCircle: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   statLabel: {
-    color: '#fff',
-    fontSize: theme.fontSize.sm,
+    fontSize: 13,
     fontWeight: '500',
-    opacity: 0.9,
-    marginBottom: theme.spacing.xs,
+    color: Colors.light.textSecondary,
+    marginBottom: 4,
   },
   statValue: {
-    color: '#fff',
-    fontSize: theme.fontSize.xl,
+    fontSize: 24,
     fontWeight: '700',
-    marginBottom: 2,
+    color: Colors.light.text,
   },
-  trendContainer: {
+  trendBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: theme.spacing.xs,
-    paddingVertical: 2,
-    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 12,
     gap: 2,
   },
-  trendText: {
-    color: '#fff',
-    fontSize: theme.fontSize.xs,
-    fontWeight: '600',
+  trendBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   alertCard: {
     flexDirection: 'row',
@@ -802,11 +803,9 @@ const styles = StyleSheet.create({
   // Novos estilos para card melhorado
   chartRowImproved: {
     marginBottom: 20,
-    paddingBottom: 16,
   },
   chartRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.divider,
+    marginTop: 20,
   },
   chartRowHeader: {
     flexDirection: 'row',

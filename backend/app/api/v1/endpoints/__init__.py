@@ -19,7 +19,8 @@ from . import (
     sales,
     inventory,
     customers,
-    categories
+    categories,
+    payment_discounts,
 )
 
 __all__ = [
@@ -29,4 +30,5 @@ __all__ = [
     "inventory",
     "customers",
     "categories",
+    "payment_discounts",
 ]

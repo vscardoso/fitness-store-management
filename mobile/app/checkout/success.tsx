@@ -138,7 +138,7 @@ export default function CheckoutSuccessScreen() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <StatusBar barStyle="light-content" backgroundColor={Colors.light.success} />
 
-      {/* Header com gradiente */}
+      {/* Header com gradiente de sucesso */}
       <LinearGradient
         colors={[Colors.light.success, '#4caf50']}
         style={styles.headerGradient}
@@ -152,7 +152,7 @@ export default function CheckoutSuccessScreen() {
               }}
               style={styles.backButton}
             >
-              <Ionicons name="home" size={24} color="#fff" />
+              <Ionicons name="close" size={24} color="#fff" />
             </TouchableOpacity>
 
             <View style={styles.headerPlaceholder} />
@@ -168,16 +168,12 @@ export default function CheckoutSuccessScreen() {
             </TouchableOpacity>
           </View>
 
-          {/* Ícone de sucesso */}
-          <View style={styles.headerInfo}>
-            <Ionicons
-              name="checkmark-circle"
-              size={80}
-              color="#fff"
-            />
-            <Text style={styles.headerEntityName}>Venda Concluída!</Text>
-            <Text style={styles.headerSubtitle}>
-              A venda foi registrada no sistema com sucesso
+          {/* Ícone e texto de sucesso */}
+          <View style={styles.successInfo}>
+            <Ionicons name="checkmark-circle" size={64} color="#fff" />
+            <Text style={styles.successTitle}>Venda Concluída!</Text>
+            <Text style={styles.successSubtitle}>
+              {sale.sale_number}
             </Text>
           </View>
         </View>
@@ -194,7 +190,7 @@ export default function CheckoutSuccessScreen() {
           storeName={user?.store_name}
         />
 
-        {/* Botões de ação inline */}
+        {/* Botões de ação */}
         <View style={styles.actionsContainer}>
           <View style={styles.inlineButtonsRow}>
             <Button
@@ -229,27 +225,32 @@ export default function CheckoutSuccessScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.success, // ✅ Mesma cor do gradiente para evitar faixa branca
+    backgroundColor: Colors.light.success,
   },
   
   // Header com gradiente
   headerGradient: {
-    paddingTop: 0, // ✅ SafeArea já cuida do topo
-    paddingBottom: 24,
+    paddingTop: 0,
+    paddingBottom: 20,
   },
   headerContent: {
     paddingHorizontal: 16,
-    marginTop: 8, // ✅ Espaçamento interno
+    marginTop: 8,
   },
   headerTop: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 0,
   },
   backButton: {
     padding: 8,
     width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerPlaceholder: {
     flex: 1,
@@ -257,25 +258,30 @@ const styles = StyleSheet.create({
   actionButton: {
     padding: 8,
     width: 40,
-    alignItems: 'flex-end',
-  },
-  headerInfo: {
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 0,
-    marginTop: -32,
   },
-  headerEntityName: {
+  successInfo: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  successTitle: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
     marginTop: 12,
     textAlign: 'center',
   },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginTop: 8,
+  successSubtitle: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.95)',
+    marginTop: 4,
     textAlign: 'center',
+    fontWeight: '600',
+    letterSpacing: 0.5,
   },
   
   // Conteúdo
@@ -284,14 +290,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   scrollContentContainer: {
-    paddingBottom: 40,
+    paddingBottom: 24,
     backgroundColor: '#fff',
   },
 
   // Botões de ação
   actionsContainer: {
-    marginTop: 8,
     paddingHorizontal: 16,
+    marginTop: 8,
   },
   inlineButtonsRow: {
     flexDirection: 'row',
@@ -299,10 +305,9 @@ const styles = StyleSheet.create({
   },
   inlineButton: {
     flex: 1,
-    paddingVertical: 8,
   },
   buttonContent: {
-    paddingVertical: 6,
+    paddingVertical: 8,
   },
 
   // Estados de loading/erro

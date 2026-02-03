@@ -84,8 +84,14 @@ export default function MoreScreen() {
   const getRoleLabel = (role: string) => {
     const roles: Record<string, string> = {
       ADMIN: 'Administrador',
+      admin: 'Administrador',
       SELLER: 'Vendedor',
+      seller: 'Vendedor',
+      MANAGER: 'Gerente',
+      manager: 'Gerente',
       EMPLOYEE: 'Funcionário',
+      CASHIER: 'Caixa',
+      cashier: 'Caixa',
     };
     return roles[role] || role;
   };
@@ -134,6 +140,63 @@ export default function MoreScreen() {
         }
       >
 
+
+      {/* Quick Actions */}
+      <View style={styles.section}>
+        <Text variant="titleMedium" style={styles.sectionTitle}>
+          ⚡ Ações Rápidas
+        </Text>
+        <View style={styles.quickActionsGrid}>
+          <TouchableOpacity
+            style={[styles.quickActionCard, { backgroundColor: '#10B981' }]}
+            onPress={() => router.push('/(tabs)/sale')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.quickActionIcon}>
+              <Ionicons name="cart" size={28} color="#fff" />
+            </View>
+            <Text style={styles.quickActionTitle}>Nova Venda</Text>
+            <Text style={styles.quickActionSubtitle}>Registrar no PDV</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.quickActionCard, { backgroundColor: '#3B82F6' }]}
+            onPress={() => router.push('/customers/new')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.quickActionIcon}>
+              <Ionicons name="person-add" size={28} color="#fff" />
+            </View>
+            <Text style={styles.quickActionTitle}>Novo Cliente</Text>
+            <Text style={styles.quickActionSubtitle}>Cadastrar</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.quickActionCard, { backgroundColor: '#8B5CF6' }]}
+            onPress={() => router.push('/products/new')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.quickActionIcon}>
+              <Ionicons name="cube" size={28} color="#fff" />
+            </View>
+            <Text style={styles.quickActionTitle}>Novo Produto</Text>
+            <Text style={styles.quickActionSubtitle}>Adicionar ao catálogo</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.quickActionCard, { backgroundColor: '#EC4899' }]}
+            onPress={() => router.push('/entries/new')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.quickActionIcon}>
+              <Ionicons name="download" size={28} color="#fff" />
+            </View>
+            <Text style={styles.quickActionTitle}>Nova Entrada</Text>
+            <Text style={styles.quickActionSubtitle}>Registrar compra</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       {/* Menu Items */}
       <View style={styles.section}>
         <Text variant="titleMedium" style={styles.sectionTitle}>
@@ -173,10 +236,10 @@ export default function MoreScreen() {
             iconBg="#F3E8FF"
           />
           <MenuItem
-            icon="swap-horizontal-outline"
-            title="Estoque"
-            subtitle="Movimentações e controle"
-            onPress={() => Alert.alert('Em desenvolvimento', 'Tela de estoque será implementada em breve!')}
+            icon="layers-outline"
+            title="Inventário"
+            subtitle="Dashboard de estoque e alertas"
+            onPress={() => router.push('/(tabs)/inventory')}
             iconColor={Colors.light.warning}
             iconBg={Colors.light.warningLight}
           />
@@ -192,7 +255,7 @@ export default function MoreScreen() {
             icon="bar-chart-outline"
             title="Vendas"
             subtitle="Relatório de vendas e faturamento"
-            onPress={() => Alert.alert('Em desenvolvimento', 'Relatórios serão implementados em breve!')}
+            onPress={() => router.push('/reports/sales')}
             iconColor={Colors.light.success}
             iconBg={Colors.light.successLight}
           />
@@ -215,11 +278,41 @@ export default function MoreScreen() {
         </Card>
       </View>
 
+      {/* Viagens - Apenas ADMIN/MANAGER */}
+      {(user?.role === 'admin' || user?.role === 'ADMIN' || user?.role === 'manager' || user?.role === 'MANAGER') && (
+        <View style={styles.section}>
+          <Text variant="titleMedium" style={styles.sectionTitle}>
+            🚚 Viagens
+          </Text>
+          <Card style={styles.menuCard}>
+            <MenuItem
+              icon="airplane-outline"
+              title="Gerenciar Viagens"
+              subtitle="Compras em viagem e envios"
+              onPress={() => router.push('/trips')}
+              iconColor="#F97316"
+              iconBg="#FFEDD5"
+            />
+          </Card>
+        </View>
+      )}
+
       <View style={styles.section}>
         <Text variant="titleMedium" style={styles.sectionTitle}>
           Configurações
         </Text>
         <Card style={styles.menuCard}>
+          {/* Descontos - Apenas ADMIN */}
+          {(user?.role === 'admin' || user?.role === 'ADMIN') && (
+            <MenuItem
+              icon="cash-outline"
+              title="Descontos de Pagamento"
+              subtitle="Configure descontos por forma de pagamento"
+              onPress={() => router.push('/settings/payment-discounts')}
+              iconColor="#10B981"
+              iconBg="#D1FAE5"
+            />
+          )}
           <MenuItem
             icon="person-circle-outline"
             title="Meu Perfil"
@@ -411,5 +504,43 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: Colors.light.textTertiary,
     marginBottom: 32,
+  },
+  quickActionsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  quickActionCard: {
+    flex: 1,
+    minWidth: '47%',
+    borderRadius: theme.borderRadius.lg,
+    padding: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  quickActionIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  quickActionTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  quickActionSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.9)',
+    textAlign: 'center',
   },
 });

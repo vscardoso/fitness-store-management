@@ -8,6 +8,8 @@ from typing import Dict, List, Optional
 from sqlalchemy import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.timezone import now_brazil
+
 from app.models.inventory import MovementType
 from app.models.sale import Payment, Sale, SaleItem, SaleStatus
 from app.repositories.customer_repository import CustomerRepository
@@ -17,6 +19,7 @@ from app.repositories.sale_repository import SaleRepository
 from app.schemas.sale import SaleCreate
 from app.services.fifo_service import FIFOService
 from app.services.inventory_service import InventoryService
+from app.services.payment_discount_service import PaymentDiscountService
 
 
 class SaleService:
@@ -95,7 +98,25 @@ class SaleService:
                 ) - Decimal(str(item.discount_amount))
                 subtotal += item_subtotal
             
-            discount_amount = Decimal(str(sale_data.discount_amount or 0))
+            # 2.1. Aplicar desconto por forma de pagamento (se configurado)
+            payment_discount_amount = Decimal('0')
+            if sale_data.payment_method:
+                print(f"✓ Verificando desconto para forma de pagamento: {sale_data.payment_method.value}")
+                discount_service = PaymentDiscountService(self.db)
+                try:
+                    discount_calc = await discount_service.calculate_discount(
+                        tenant_id=tenant_id,
+                        payment_method=sale_data.payment_method.value,
+                        amount=subtotal
+                    )
+                    payment_discount_amount = discount_calc.discount_amount
+                    if payment_discount_amount > 0:
+                        print(f"  ✓ Desconto aplicado: {discount_calc.discount_percentage}% = R$ {payment_discount_amount:.2f}")
+                except Exception as e:
+                    print(f"  ⚠ Erro ao calcular desconto: {e}")
+                    # Continua sem desconto se houver erro
+            
+            discount_amount = Decimal(str(sale_data.discount_amount or 0)) + payment_discount_amount
             tax_amount = Decimal(str(sale_data.tax_amount or 0))
             total_amount = subtotal - discount_amount + tax_amount
             
@@ -562,3 +583,4 @@ class SaleService:
             end,
             include_relationships=include_relationships
         )
+
