@@ -351,6 +351,21 @@ export default function SaleDetailsScreen() {
               </View>
             </View>
           ))}
+
+          {/* Soma dos itens */}
+          <View style={styles.itemsSummary}>
+            <View style={styles.itemsSummaryRow}>
+              <Text style={styles.itemsSummaryLabel}>Soma dos Itens</Text>
+              <Text style={styles.itemsSummaryValue}>
+                {formatCurrency(sale.items.reduce((sum, item) => sum + item.subtotal, 0))}
+              </Text>
+            </View>
+            {sale.discount_amount > 0 && (
+              <Text style={styles.itemsSummaryNote}>
+                * Desconto aplicado no total da venda
+              </Text>
+            )}
+          </View>
         </View>
 
         {/* Pagamentos */}
@@ -380,6 +395,23 @@ export default function SaleDetailsScreen() {
               </View>
             </View>
           ))}
+
+          {/* Resumo dos pagamentos */}
+          {sale.payments.length > 0 && (
+            <View style={styles.paymentsSummary}>
+              <View style={styles.paymentsSummaryRow}>
+                <Text style={styles.paymentsSummaryLabel}>Total Pago</Text>
+                <Text style={styles.paymentsSummaryValue}>
+                  {formatCurrency(sale.payments.reduce((sum, p) => sum + p.amount, 0))}
+                </Text>
+              </View>
+              {sale.discount_amount > 0 && (
+                <Text style={styles.paymentsSummaryNote}>
+                  * Valor já inclui desconto de {formatCurrency(sale.discount_amount)}
+                </Text>
+              )}
+            </View>
+          )}
         </View>
 
         {/* Cliente */}
@@ -750,6 +782,33 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.light.primary,
   },
+  paymentsSummary: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  paymentsSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  paymentsSummaryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  paymentsSummaryValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.light.primary,
+  },
+  paymentsSummaryNote: {
+    fontSize: 12,
+    color: '#F57C00',
+    marginTop: 6,
+    fontStyle: 'italic',
+  },
   customerName: {
     fontSize: 16,
     fontWeight: '600',
@@ -847,5 +906,34 @@ const styles = StyleSheet.create({
   itemMarginText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  itemsSummary: {
+    marginTop: 12,
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 8,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 12,
+  },
+  itemsSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  itemsSummaryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  itemsSummaryValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#222',
+  },
+  itemsSummaryNote: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 6,
+    fontStyle: 'italic',
   },
 });

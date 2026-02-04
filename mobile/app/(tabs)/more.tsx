@@ -262,16 +262,16 @@ export default function MoreScreen() {
           <MenuItem
             icon="trending-up"
             title="Produtos Mais Vendidos"
-            subtitle="Análise de performance"
-            onPress={() => Alert.alert('Em desenvolvimento', 'Relatórios serão implementados em breve!')}
+            subtitle="Ranking e análise de performance"
+            onPress={() => router.push('/reports/top-products')}
             iconColor="#EC4899"
             iconBg="#FCE7F3"
           />
           <MenuItem
             icon="calendar-outline"
             title="Histórico"
-            subtitle="Vendas e movimentações"
-            onPress={() => Alert.alert('Em desenvolvimento', 'Relatórios serão implementados em breve!')}
+            subtitle="Vendas, entradas e movimentações"
+            onPress={() => router.push('/reports/history')}
             iconColor="#8B5CF6"
             iconBg="#EDE9FE"
           />

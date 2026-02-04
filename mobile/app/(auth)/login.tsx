@@ -159,6 +159,16 @@ export default function LoginScreen() {
                 </HelperText>
               ) : null}
 
+              {/* Link Esqueci Senha */}
+              <Button
+                mode="text"
+                compact
+                onPress={() => router.push('/(auth)/forgot-password')}
+                style={styles.forgotPasswordLink}
+              >
+                Esqueci minha senha
+              </Button>
+
               {/* Botão de Login */}
               <Button
                 mode="contained"
@@ -272,6 +282,11 @@ const styles = StyleSheet.create({
   },
   signupLink: {
     marginLeft: -4,
+  },
+  forgotPasswordLink: {
+    alignSelf: 'flex-end',
+    marginTop: 4,
+    marginBottom: -8,
   },
   errorText: {
     marginTop: 8,

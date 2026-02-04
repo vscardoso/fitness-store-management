@@ -884,3 +884,206 @@ async def get_sales_by_period(
             detail=f"Erro ao buscar vendas por período: {str(e)}"
         )
 
+
+@router.get(
+    "/reports/top-products",
+    response_model=dict,
+    summary="Produtos mais vendidos",
+    description="Retorna ranking dos produtos mais vendidos com métricas detalhadas"
+)
+async def get_top_products(
+    period: str = Query(
+        "this_month",
+        description="Período: this_month, last_30_days, last_2_months, last_3_months, last_6_months, this_year, all_time"
+    ),
+    limit: int = Query(10, ge=1, le=50, description="Quantidade de produtos (máximo 50)"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Ranking de produtos mais vendidos com métricas detalhadas.
+
+    Retorna informações completas para análise de performance:
+    - Ranking e posição
+    - Quantidade vendida
+    - Receita gerada
+    - Lucro e margem
+    - Comparação com período anterior
+
+    Args:
+        period: Período de análise
+        limit: Quantidade de produtos no ranking
+        db: Sessão do banco de dados
+        current_user: Usuário autenticado
+        tenant_id: ID do tenant
+
+    Returns:
+        dict: Ranking com métricas detalhadas
+    """
+    from datetime import datetime, timedelta
+    from calendar import monthrange
+    from zoneinfo import ZoneInfo
+    from sqlalchemy import func, desc
+    from app.models.sale import Sale, SaleItem
+    from app.models.product import Product
+    from app.models.category import Category
+
+    tz = ZoneInfo("America/Sao_Paulo")
+    today = datetime.now(tz).date()
+
+    # Calcular datas baseado no período
+    if period == "this_month":
+        start_date = today.replace(day=1)
+        end_date = today
+        period_label = f"{today.strftime('%B %Y')}"
+    elif period == "last_30_days":
+        start_date = today - timedelta(days=30)
+        end_date = today
+        period_label = "Últimos 30 dias"
+    elif period == "last_2_months":
+        start_date = (today.replace(day=1) - timedelta(days=60)).replace(day=1)
+        end_date = today
+        period_label = "Últimos 2 meses"
+    elif period == "last_3_months":
+        start_date = (today.replace(day=1) - timedelta(days=90)).replace(day=1)
+        end_date = today
+        period_label = "Últimos 3 meses"
+    elif period == "last_6_months":
+        start_date = (today.replace(day=1) - timedelta(days=180)).replace(day=1)
+        end_date = today
+        period_label = "Últimos 6 meses"
+    elif period == "this_year":
+        start_date = today.replace(month=1, day=1)
+        end_date = today
+        period_label = str(today.year)
+    else:  # all_time
+        start_date = None
+        end_date = None
+        period_label = "Todo o período"
+
+    try:
+        # Query para buscar top produtos (SQLAlchemy 2.x async)
+        from sqlalchemy import select as sa_select, and_
+        from sqlalchemy.orm import aliased
+
+        conditions = [
+            Sale.status == 'COMPLETED',
+            Sale.is_active == True,
+            SaleItem.is_active == True,
+        ]
+
+        # Filtro de tenant
+        if tenant_id is not None:
+            conditions.append(Sale.tenant_id == tenant_id)
+
+        # Filtro de período
+        if start_date:
+            conditions.append(func.date(Sale.created_at) >= start_date)
+        if end_date:
+            conditions.append(func.date(Sale.created_at) <= end_date)
+
+        query = (
+            sa_select(
+                Product.id.label('product_id'),
+                Product.name.label('product_name'),
+                Product.brand,
+                Product.sku,
+                Product.price.label('current_price'),
+                Product.cost_price,
+                Category.name.label('category_name'),
+                func.sum(SaleItem.quantity).label('quantity_sold'),
+                func.sum(SaleItem.subtotal).label('total_revenue'),
+                func.sum(SaleItem.quantity * SaleItem.unit_cost).label('total_cost'),
+            )
+            .select_from(SaleItem)
+            .join(Sale, SaleItem.sale_id == Sale.id)
+            .join(Product, SaleItem.product_id == Product.id)
+            .outerjoin(Category, Product.category_id == Category.id)
+            .where(and_(*conditions))
+            .group_by(
+                Product.id,
+                Product.name,
+                Product.brand,
+                Product.sku,
+                Product.price,
+                Product.cost_price,
+                Category.name
+            )
+            .order_by(desc('quantity_sold'))
+            .limit(limit)
+        )
+
+        result = await db.execute(query)
+        results = result.all()
+
+        # Calcular totais gerais para porcentagem
+        total_query = (
+            sa_select(
+                func.sum(SaleItem.quantity).label('total_qty'),
+                func.sum(SaleItem.subtotal).label('total_rev'),
+            )
+            .select_from(SaleItem)
+            .join(Sale, SaleItem.sale_id == Sale.id)
+            .where(and_(*conditions))
+        )
+
+        total_result = await db.execute(total_query)
+        totals = total_result.first()
+        total_quantity = float(totals.total_qty or 0)
+        total_revenue = float(totals.total_rev or 0)
+
+        # Formatar resultados
+        products = []
+        max_quantity = 0
+
+        for idx, row in enumerate(results):
+            quantity = int(row.quantity_sold or 0)
+            revenue = float(row.total_revenue or 0)
+            cost = float(row.total_cost or 0)
+            profit = revenue - cost
+            margin = (profit / revenue * 100) if revenue > 0 else 0
+
+            if quantity > max_quantity:
+                max_quantity = quantity
+
+            products.append({
+                "ranking": idx + 1,
+                "product_id": row.product_id,
+                "product_name": row.product_name,
+                "brand": row.brand or "",
+                "sku": row.sku or "",
+                "category": row.category_name or "Sem categoria",
+                "current_price": float(row.current_price or 0),
+                "quantity_sold": quantity,
+                "total_revenue": revenue,
+                "total_cost": cost,
+                "total_profit": profit,
+                "profit_margin": round(margin, 1),
+                "share_quantity": round((quantity / total_quantity * 100), 1) if total_quantity > 0 else 0,
+                "share_revenue": round((revenue / total_revenue * 100), 1) if total_revenue > 0 else 0,
+            })
+
+        # Adicionar barra de progresso relativa
+        for product in products:
+            product["progress"] = round((product["quantity_sold"] / max_quantity * 100), 1) if max_quantity > 0 else 0
+
+        return {
+            "period": period,
+            "period_label": period_label,
+            "start_date": start_date.isoformat() if start_date else None,
+            "end_date": end_date.isoformat() if end_date else None,
+            "total_products": len(products),
+            "total_quantity_sold": int(total_quantity),
+            "total_revenue": total_revenue,
+            "products": products,
+        }
+
+    except Exception as e:
+        import traceback
+        print(f"❌ Erro ao buscar top products: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao buscar produtos mais vendidos: {str(e)}"
+        )

@@ -116,6 +116,24 @@ export const SaleReceipt = forwardRef<View, SaleReceiptProps>(({ sale, storeName
             ))}
           </View>
 
+          {/* Resumo financeiro */}
+          <View style={styles.financialSummary}>
+            <View style={styles.summaryRow}>
+              <Text variant="bodyMedium" style={styles.summaryLabel}>Subtotal</Text>
+              <Text variant="bodyMedium" style={styles.summaryValue}>
+                {formatCurrency(sale.subtotal)}
+              </Text>
+            </View>
+            {sale.discount_amount > 0 && (
+              <View style={styles.summaryRow}>
+                <Text variant="bodyMedium" style={styles.discountLabel}>Desconto</Text>
+                <Text variant="bodyMedium" style={styles.discountValue}>
+                  -{formatCurrency(sale.discount_amount)}
+                </Text>
+              </View>
+            )}
+          </View>
+
           {/* Total da venda */}
           <View style={styles.totalContainer}>
             <Text variant="titleMedium" style={styles.totalLabel}>
@@ -202,6 +220,31 @@ const styles = StyleSheet.create({
   },
   itemPrice: {
     fontWeight: '600',
+  },
+  financialSummary: {
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  summaryLabel: {
+    color: Colors.light.textSecondary,
+  },
+  summaryValue: {
+    fontWeight: '500',
+  },
+  discountLabel: {
+    color: '#F57C00',
+  },
+  discountValue: {
+    fontWeight: '600',
+    color: '#F57C00',
   },
   totalContainer: {
     alignItems: 'center',

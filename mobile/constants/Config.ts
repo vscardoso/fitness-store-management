@@ -24,11 +24,11 @@
 // ⚠️ Cole a URL gerada abaixo (ex: https://abc123.ngrok-free.app)
 // const LOCAL_API_URL = 'https://COLE_SUA_URL_NGROK_AQUI.ngrok-free.app/api/v1';
 
-// � TESTE LOCAL - Backend rodando em localhost
+// 🔧 TESTE LOCAL - Backend rodando em localhost
 // const LOCAL_API_URL = 'http://10.0.2.2:8000/api/v1'; // Android Emulator
 // const LOCAL_API_URL = 'http://localhost:8000/api/v1'; // iOS Simulator
-// DESCUBRA SEU IP: ipconfig no PowerShell e use:
-const LOCAL_API_URL = 'http://192.168.100.158:8000/api/v1'; // Dispositivo Físico
+const LOCAL_API_URL = 'http://192.168.100.158:8000/api/v1'; // Dispositivo Físico (mesmo WiFi)
+// const LOCAL_API_URL = 'https://dull-phones-create.loca.lt/api/v1'; // Tunnel (redes diferentes)
 
 // 🟢 OPÇÃO 5: Produção Render.com
 const PRODUCTION_URL = process.env.EXPO_PUBLIC_API_URL || 'https://fitness-backend-x1qn.onrender.com/api/v1';

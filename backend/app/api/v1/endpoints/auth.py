@@ -352,20 +352,91 @@ async def check_slug(
     """
     Verifica se slug da loja está disponível.
     Se indisponível, sugere alternativa com sufixo.
-    
+
     Args:
         request: Slug a verificar
         db: Sessão do banco de dados
-        
+
     Returns:
         CheckSlugResponse: available (bool) + suggested_slug + message
     """
     signup_service = SignupService(db)
-    
+
     available, suggested_slug, message = await signup_service.check_slug_available(request.slug)
-    
+
     return CheckSlugResponse(
         available=available,
         suggested_slug=suggested_slug,
         message=message
     )
+
+
+@router.post(
+    "/forgot-password",
+    summary="Recuperar senha",
+    description="Envia instruções de recuperação de senha para o email informado"
+)
+async def forgot_password(
+    request: dict,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Solicitar recuperação de senha.
+
+    Para MVP: Gera nova senha temporária.
+    Em produção: Enviaria email com link de reset.
+
+    Args:
+        request: {"email": "usuario@email.com"}
+        db: Sessão do banco de dados
+
+    Returns:
+        dict: Mensagem de sucesso (sempre, por segurança)
+    """
+    import secrets
+    import string
+    from app.core.security import get_password_hash
+
+    email = request.get("email", "").strip().lower()
+
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email é obrigatório"
+        )
+
+    # Buscar usuário
+    result = await db.execute(
+        select(User).where(User.email == email)
+    )
+    user = result.scalar_one_or_none()
+
+    # Por segurança, sempre retornar sucesso (não revelar se email existe)
+    if not user:
+        logger.info(f"Forgot password requested for non-existent email: {email}")
+        return {
+            "success": True,
+            "message": "Se o email estiver cadastrado, você receberá instruções de recuperação."
+        }
+
+    # Gerar nova senha temporária (8 caracteres alfanuméricos)
+    alphabet = string.ascii_letters + string.digits
+    temp_password = ''.join(secrets.choice(alphabet) for _ in range(8))
+
+    # Atualizar senha no banco
+    user.hashed_password = get_password_hash(temp_password)
+    await db.commit()
+
+    logger.info(f"Password reset for user: {email}")
+
+    # Em produção, enviaria email aqui
+    # await send_password_reset_email(email, temp_password)
+
+    # Para MVP/desenvolvimento, retornar a senha temporária
+    # REMOVER EM PRODUÇÃO - apenas para facilitar testes
+    return {
+        "success": True,
+        "message": "Senha temporária gerada com sucesso.",
+        "temp_password": temp_password,  # REMOVER EM PRODUÇÃO
+        "instructions": "Use esta senha temporária para fazer login. Recomendamos alterá-la após o acesso."
+    }

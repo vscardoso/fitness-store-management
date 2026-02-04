@@ -269,11 +269,33 @@ export default function CheckoutScreen() {
   };
 
   /**
+   * Calcular total com desconto para um método específico
+   * Usado para evitar race condition do useEffect
+   */
+  const calculateTotalWithDiscount = (method: PaymentMethod): number => {
+    if (isMixedMode) {
+      return cart.total;
+    }
+
+    const discount = paymentDiscounts.find(
+      d => d.payment_method === method && d.is_active
+    );
+
+    if (discount) {
+      return cart.total - (cart.total * discount.discount_percentage) / 100;
+    }
+
+    return cart.total;
+  };
+
+  /**
    * Adicionar pagamento direto (PIX, Cartão, Dinheiro)
    * Adiciona o valor total restante automaticamente
    */
   const handleAddDirectPayment = (method: PaymentMethod) => {
-    const totalRemaining = finalTotal - cart.totalPaid;
+    // Calcular o total com desconto diretamente para evitar race condition
+    const totalWithDiscount = calculateTotalWithDiscount(method);
+    const totalRemaining = totalWithDiscount - cart.totalPaid;
 
     if (totalRemaining <= 0) {
       setDialog({
@@ -288,7 +310,7 @@ export default function CheckoutScreen() {
       return;
     }
 
-    // Adicionar pagamento com valor total
+    // Adicionar pagamento com valor total (já com desconto aplicado)
     cart.addPayment(method, totalRemaining, 1);
     haptics.success();
   };
@@ -658,18 +680,22 @@ export default function CheckoutScreen() {
                         if (isSelected && cart.payments.length > 0) {
                           return;
                         }
-                        
+
+                        const paymentMethod = method.value as PaymentMethod;
+                        // Calcular total com desconto do método selecionado
+                        const totalWithDiscount = calculateTotalWithDiscount(paymentMethod);
+
                         // Se há pagamento e é de outro método, limpar e adicionar o novo
                         if (cart.payments.length > 0 && !isSelected) {
                           cart.clearPayments();
-                          // Adicionar direto sem chamar handleAddDirectPayment para evitar validação de totalRemaining
-                          cart.addPayment(method.value as PaymentMethod, finalTotal, 1);
-                          setSelectedMethod(method.value as PaymentMethod);
+                          // Adicionar com valor já com desconto calculado
+                          cart.addPayment(paymentMethod, totalWithDiscount, 1);
+                          setSelectedMethod(paymentMethod);
                           haptics.success();
                         } else {
                           // Primeiro pagamento, usar fluxo normal
-                          setSelectedMethod(method.value as PaymentMethod);
-                          handleAddDirectPayment(method.value as PaymentMethod);
+                          setSelectedMethod(paymentMethod);
+                          handleAddDirectPayment(paymentMethod);
                         }
                       }}
                     >
