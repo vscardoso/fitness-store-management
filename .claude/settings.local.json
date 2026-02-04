@@ -40,7 +40,8 @@
       "Bash(powershell.exe -Command \"cd ''C:\\\\Users\\\\Victor\\\\Desktop\\\\fitness-store-management\\\\mobile''; npx expo install expo-font react-native-worklets --fix 2>&1\")",
       "Bash(powershell.exe -Command:*)",
       "Bash(findstr:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
