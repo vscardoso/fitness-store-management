@@ -42,7 +42,8 @@ const PRODUCTION_URL = process.env.EXPO_PUBLIC_API_URL || 'https://fitness-backe
 
 export const API_CONFIG = {
   // Usa local em dev, produção em builds
-  BASE_URL: __DEV__ ? LOCAL_API_URL : PRODUCTION_URL,
+  // BASE_URL: __DEV__ ? LOCAL_API_URL : PRODUCTION_URL,
+  BASE_URL: PRODUCTION_URL,  // Forçando Render para testes
   TIMEOUT: 30000, // 30 segundos
 };
 

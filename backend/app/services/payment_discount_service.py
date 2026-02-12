@@ -88,12 +88,13 @@ class PaymentDiscountService:
         if not discount:
             raise ValueError(f"Payment discount with ID {discount_id} not found")
         
-        # Update discount
+        # Update discount using ID-based update
         update_dict = discount_data.model_dump(exclude_unset=True)
         updated_discount = await self.repo.update(
             self.db,
-            db_obj=discount,
-            obj_in=update_dict
+            id=discount_id,
+            obj_in=update_dict,
+            tenant_id=tenant_id
         )
         
         return updated_discount
@@ -198,11 +199,12 @@ class PaymentDiscountService:
         if not discount:
             return False
         
-        # Soft delete
+        # Soft delete using ID-based update
         await self.repo.update(
             self.db,
-            db_obj=discount,
-            obj_in={'is_active': False}
+            id=discount_id,
+            obj_in={'is_active': False},
+            tenant_id=tenant_id
         )
         
         return True
