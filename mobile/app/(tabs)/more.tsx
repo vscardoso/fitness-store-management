@@ -308,7 +308,7 @@ export default function MoreScreen() {
               icon="cash-outline"
               title="Descontos de Pagamento"
               subtitle="Configure descontos por forma de pagamento"
-              onPress={() => router.push('/settings/payment-discounts')}
+              onPress={() => router.push('/(tabs)/payment-discounts')}
               iconColor="#10B981"
               iconBg="#D1FAE5"
             />

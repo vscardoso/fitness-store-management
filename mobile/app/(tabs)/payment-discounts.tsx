@@ -32,6 +32,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { haptics } from '@/utils/haptics';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import EmptyState from '@/components/ui/EmptyState';
+import FAB from '@/components/FAB';
 
 /**
  * Métodos de pagamento disponíveis
@@ -88,12 +89,19 @@ export default function PaymentDiscountsScreen() {
   const createMutation = useMutation({
     mutationFn: createPaymentDiscount,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['payment-discounts'] });
-      haptics.success();
-      setDialogMessage('Desconto criado com sucesso!');
-      setShowSuccessDialog(true);
+      // Fechar modal PRIMEIRO
       setShowFormModal(false);
       resetForm();
+      
+      // Depois invalidar query e mostrar sucesso
+      queryClient.invalidateQueries({ queryKey: ['payment-discounts'] });
+      haptics.success();
+      
+      // Pequeno delay para garantir que modal fechou antes de mostrar dialog
+      setTimeout(() => {
+        setDialogMessage('Desconto criado com sucesso!');
+        setShowSuccessDialog(true);
+      }, 100);
     },
     onError: (error: any) => {
       haptics.error();
@@ -107,13 +115,20 @@ export default function PaymentDiscountsScreen() {
     mutationFn: ({ id, data }: { id: number; data: Partial<PaymentDiscount> }) =>
       updatePaymentDiscount(id, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['payment-discounts'] });
-      haptics.success();
-      setDialogMessage('Desconto atualizado com sucesso!');
-      setShowSuccessDialog(true);
+      // Fechar modal PRIMEIRO
       setShowFormModal(false);
       setEditingId(null);
       resetForm();
+      
+      // Depois invalidar query e mostrar sucesso
+      queryClient.invalidateQueries({ queryKey: ['payment-discounts'] });
+      haptics.success();
+      
+      // Pequeno delay para garantir que modal fechou antes de mostrar dialog
+      setTimeout(() => {
+        setDialogMessage('Desconto atualizado com sucesso!');
+        setShowSuccessDialog(true);
+      }, 100);
     },
     onError: (error: any) => {
       haptics.error();
@@ -577,20 +592,7 @@ export default function PaymentDiscountsScreen() {
       />
 
       {/* FAB - Adicionar desconto */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={handleAddNew}
-        activeOpacity={0.8}
-      >
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.fabGradient}
-        >
-          <Ionicons name="add" size={32} color="#fff" />
-        </LinearGradient>
-      </TouchableOpacity>
+      <FAB onPress={handleAddNew} />
 
       {/* Modal de Formulário */}
       <Modal
@@ -967,28 +969,6 @@ const styles = StyleSheet.create({
   },
   statusTextInactive: {
     color: Colors.light.error,
-  },
-  // FAB
-  fab: {
-    position: 'absolute',
-    bottom: 90,
-    right: 20,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    elevation: 8,
-    shadowColor: Colors.light.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    zIndex: 1000,
-  },
-  fabGradient: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   // Modal
   modalOverlay: {

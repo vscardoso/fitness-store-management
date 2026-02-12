@@ -25,12 +25,21 @@ interface QuickAction {
   route: string;
 }
 
+/**
+ * Floating Action Button (FAB) com 3 modos de operação:
+ * 1. onPress: Executa ação customizada (ex: abrir modal)
+ * 2. directRoute: Navega diretamente para uma rota
+ * 3. Sem props: Abre modal com ações rápidas
+ * 
+ * Prioridade: onPress > directRoute > modal de ações
+ */
 interface FABProps {
-  bottom?: number;
-  directRoute?: string; // Se fornecido, vai direto para a rota sem modal
+  bottom?: number;        // Distância do bottom (default: 20, acima do tab bar: 90)
+  directRoute?: string;   // Navega diretamente para a rota
+  onPress?: () => void;   // Executa ação customizada
 }
 
-export default function FAB({ bottom = 20, directRoute }: FABProps) {
+export default function FAB({ bottom = 20, directRoute, onPress }: FABProps) {
   const router = useRouter();
   const [visible, setVisible] = useState(false);
   const [scaleAnim] = useState(new Animated.Value(0));
@@ -123,9 +132,11 @@ export default function FAB({ bottom = 20, directRoute }: FABProps) {
     outputRange: ['0deg', '45deg'],
   });
 
-  // Se tem rota direta, vai direto sem modal
+  // Prioridade: onPress customizado > rota direta > modal de ações
   const handleFABPress = () => {
-    if (directRoute) {
+    if (onPress) {
+      onPress();
+    } else if (directRoute) {
       router.push(directRoute as any);
     } else {
       openModal();
