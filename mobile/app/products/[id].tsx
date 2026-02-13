@@ -6,7 +6,6 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
-  StatusBar,
 } from 'react-native';
 import {
   Text,
@@ -17,7 +16,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import DetailHeader from '@/components/layout/DetailHeader';
+import PageHeader from '@/components/layout/PageHeader';
 import InfoRow from '@/components/ui/InfoRow';
 import StatCard from '@/components/ui/StatCard';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -25,12 +24,14 @@ import { getProductById, deleteProduct } from '@/services/productService';
 import { getProductStock } from '@/services/inventoryService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
+import { useTutorialContext } from '@/components/tutorial';
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/products');
   const queryClient = useQueryClient();
+  const { startTutorial } = useTutorialContext();
 
   // Validar ID do produto
   const productId = id ? parseInt(id as string) : NaN;
@@ -79,13 +80,13 @@ export default function ProductDetailsScreen() {
   });
 
   /**
-   * Query: Buscar produto
+   * Query: Buscar produto por ID (funciona para produtos ativos e do catálogo)
    */
   const { data: product, isLoading, refetch: refetchProduct } = useQuery({
     queryKey: ['product', productId],
     queryFn: () => getProductById(productId),
     enabled: isValidId,
-    retry: false, // Não tentar novamente em caso de 404
+    retry: false,
   });
 
   /**
@@ -199,35 +200,18 @@ export default function ProductDetailsScreen() {
   const isLowStock = currentStock > 0 && currentStock <= minStock;
   const isOutOfStock = currentStock === 0;
 
-  // Preparar badges de status
-  const badges = [
-    ...(isOutOfStock
-      ? [{ icon: 'alert-circle' as const, label: 'SEM ESTOQUE', type: 'error' as const }]
-      : isLowStock
-      ? [{ icon: 'warning' as const, label: 'ESTOQUE BAIXO', type: 'warning' as const }]
-      : [{ icon: 'checkmark-circle' as const, label: 'DISPONÍVEL', type: 'success' as const }]),
-    ...(product.brand
-      ? [{ icon: 'pricetag' as const, label: product.brand, type: 'info' as const }]
-      : []),
-  ];
-
-  // Preparar métricas do header
-  const metrics = [
-    { icon: 'cube-outline' as const, label: 'Estoque', value: `${currentStock} un` },
-    { icon: 'cash-outline' as const, label: 'Preço', value: formatCurrency(product.price) },
-  ];
-
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
-      <DetailHeader
-        title="Detalhes do Produto"
-        entityName={product.name}
-        backRoute="/(tabs)/products"
-        editRoute={`/products/edit/${productId}`}
-        onDelete={handleDelete}
-        badges={badges}
-        metrics={[]}
+      <PageHeader
+        title={product.name}
+        subtitle={[product.brand, product.color, product.size].filter(Boolean).join(' • ') || 'Produto'}
+        showBackButton
+        onBack={goBack}
+        rightActions={[
+          { icon: 'help-circle-outline', onPress: () => startTutorial('product-details') },
+          { icon: 'pencil', onPress: () => router.push(`/products/edit/${productId}` as any) },
+          { icon: 'trash', onPress: handleDelete },
+        ]}
       />
 
       <ScrollView 
@@ -273,26 +257,15 @@ export default function ProductDetailsScreen() {
             </View>
 
             {/* Informação sobre gerenciamento FIFO */}
-            <View style={styles.fifoInfoBox}>
-              <Ionicons name="layers-outline" size={20} color={Colors.light.primary} />
-              <View style={styles.fifoInfoContent}>
-                <Text style={styles.fifoInfoTitle}>Gerenciamento FIFO</Text>
-                <Text style={styles.fifoInfoText}>
-                  Estoque é gerenciado via Entradas. Veja o histórico abaixo ou crie uma nova entrada.
+            <View style={styles.modernInfoBox}>
+              <Ionicons name="cube-outline" size={20} color={Colors.light.primary} />
+              <View style={styles.infoContent}>
+                <Text style={styles.infoTitle}>Controle de Estoque</Text>
+                <Text style={styles.infoText}>
+                  Gerencie seu estoque de forma inteligente com controle automático.
                 </Text>
               </View>
             </View>
-
-            {/* Botão para criar nova entrada */}
-            <Button
-              mode="contained"
-              icon="plus-circle-outline"
-              onPress={() => router.push('/(tabs)/entries')}
-              style={styles.newEntryButton}
-              buttonColor={Colors.light.primary}
-            >
-              Nova Entrada de Estoque
-            </Button>
           </View>
         </Card.Content>
       </Card>
@@ -314,6 +287,14 @@ export default function ProductDetailsScreen() {
 
             {product.brand && (
               <InfoRow label="Marca:" value={product.brand} />
+            )}
+
+            {product.color && (
+              <InfoRow label="Cor:" value={product.color} />
+            )}
+
+            {product.size && (
+              <InfoRow label="Tamanho:" value={product.size} />
             )}
 
             <InfoRow
@@ -378,90 +359,36 @@ export default function ProductDetailsScreen() {
         </Card.Content>
       </Card>
 
-      {/* Histórico FIFO - Entradas do Produto */}
-      {product.entry_items && product.entry_items.length > 0 && (
+      {/* Movimentações recentes */}
+      {product.movements && product.movements.length > 0 && (
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.sectionHeader}>
-              <Ionicons name="list-outline" size={20} color={Colors.light.primary} />
-              <Text style={styles.cardTitle}>Histórico de Entradas (FIFO)</Text>
+              <Ionicons name="analytics-outline" size={20} color={Colors.light.primary} />
+              <Text style={styles.cardTitle}>Movimentações Recentes</Text>
             </View>
 
-            <Text variant="bodySmall" style={styles.fifoExplanation}>
-              Mostra de onde veio o estoque deste produto, ordenado do mais antigo para o mais recente (FIFO).
-            </Text>
-
-            {product.entry_items.map((item, index) => (
-              <TouchableOpacity
-                key={item.entry_item_id}
-                style={styles.entryItemCard}
-                onPress={() => router.push(`/entries/${item.entry_id}`)}
-                activeOpacity={0.7}
-              >
-                <View style={styles.entryItemHeader}>
-                  <View style={styles.entryItemTitleRow}>
-                    <Ionicons name="cube-outline" size={18} color={Colors.light.primary} />
-                    <Text variant="titleSmall" style={styles.entryCode}>
-                      {item.entry_code}
-                    </Text>
-                    {item.quantity_sold > 0 && (
-                      <View style={styles.soldBadge}>
-                        <Text style={styles.soldBadgeText}>
-                          {item.quantity_sold} vendidos
-                        </Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {item.supplier_name && (
-                    <Text variant="bodySmall" style={styles.supplierName}>
-                      {item.supplier_name}
-                    </Text>
-                  )}
-                </View>
-
-                <View style={styles.entryItemMetrics}>
-                  <View style={styles.entryMetric}>
-                    <Text style={styles.entryMetricLabel}>Recebido</Text>
-                    <Text style={styles.entryMetricValue}>
-                      {item.quantity_received} un
-                    </Text>
-                  </View>
-
-                  <View style={styles.entryMetric}>
-                    <Text style={styles.entryMetricLabel}>Restante</Text>
-                    <Text style={[
-                      styles.entryMetricValue,
-                      item.quantity_remaining === 0 && styles.entryMetricValueDepleted
-                    ]}>
-                      {item.quantity_remaining} un
-                    </Text>
-                  </View>
-
-                  <View style={styles.entryMetric}>
-                    <Text style={styles.entryMetricLabel}>Custo Unit.</Text>
-                    <Text style={styles.entryMetricValue}>
-                      {formatCurrency(item.unit_cost)}
-                    </Text>
-                  </View>
-                </View>
-
-                <View style={styles.entryItemFooter}>
-                  <Text variant="bodySmall" style={styles.entryDate}>
-                    {formatDate(item.entry_date)}
+            {product.movements.slice(0, 5).map((movement) => (
+              <View key={movement.id} style={styles.movementItem}>
+                <View style={styles.movementHeader}>
+                  <View style={[
+                    styles.movementTypeIndicator,
+                    { backgroundColor: movement.movement_type === 'IN' ? Colors.light.success : Colors.light.error }
+                  ]} />
+                  <Text style={styles.movementType}>
+                    {movement.movement_type === 'IN' ? 'Entrada' : 'Saída'}
                   </Text>
-                  <View style={styles.viewEntryButton}>
-                    <Text style={styles.viewEntryButtonText}>Ver Entrada</Text>
-                    <Ionicons name="chevron-forward" size={16} color={Colors.light.primary} />
-                  </View>
+                  <Text style={[
+                    styles.movementQuantity,
+                    { color: movement.movement_type === 'IN' ? Colors.light.success : Colors.light.error }
+                  ]}>
+                    {movement.movement_type === 'IN' ? '+' : '-'}{movement.quantity}
+                  </Text>
                 </View>
-
-                {item.quantity_remaining === 0 && (
-                  <View style={styles.depletedOverlay}>
-                    <Text style={styles.depletedText}>ESGOTADO</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
+                <Text style={styles.movementDate}>
+                  {new Date(movement.created_at).toLocaleDateString('pt-BR')}
+                </Text>
+              </View>
             ))}
           </Card.Content>
         </Card>
@@ -535,11 +462,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 16,
   },
-  stockInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
   stockNumbers: {
     flex: 1,
   },
@@ -594,14 +516,66 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
     marginBottom: 4,
   },
-  fifoInfoText: {
+  modernInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: 12,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.light.primary,
+    marginBottom: 16,
+  },
+  infoContent: {
+    flex: 1,
+  },
+  infoTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.light.text,
+    marginBottom: 4,
+  },
+  infoText: {
     fontSize: 13,
     color: Colors.light.textSecondary,
     lineHeight: 18,
   },
-  newEntryButton: {
-    borderRadius: 12,
-    marginTop: 8,
+  movementItem: {
+    padding: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+    marginBottom: 8,
+  },
+  movementHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
+  movementTypeIndicator: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  movementType: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.light.text,
+    flex: 1,
+  },
+  movementQuantity: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  movementDate: {
+    fontSize: 12,
+    color: Colors.light.textTertiary,
+  },
+  fifoInfoText: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    lineHeight: 18,
   },
   infoGrid: {
     gap: 12,

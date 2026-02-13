@@ -2,8 +2,9 @@
 Endpoints de produtos - Listagem, Detalhes, Criação, Atualização e Deleção.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from typing import List, Optional
 
 from app.core.database import get_db
@@ -23,8 +24,80 @@ from app.repositories.entry_item_repository import EntryItemRepository
 from app.api.deps import get_current_active_user, require_role, get_current_tenant_id
 from app.models.user import User, UserRole
 from app.models.product import Product
+from app.models.category import Category
 
 router = APIRouter(prefix="/products", tags=["Produtos"])
+
+# Cache de categorias para evitar múltiplas queries
+_category_cache: dict = {}
+
+
+async def get_category_data(db: AsyncSession, category_id: int) -> dict | None:
+    """Busca dados da categoria com cache."""
+    if category_id in _category_cache:
+        return _category_cache[category_id]
+
+    result = await db.execute(
+        text("SELECT id, name, description, parent_id, is_active, created_at, updated_at FROM categories WHERE id = :cat_id"),
+        {"cat_id": category_id}
+    )
+    row = result.fetchone()
+    if row:
+        data = {
+            "id": row[0],
+            "name": row[1],
+            "description": row[2],
+            "parent_id": row[3],
+            "is_active": row[4],
+            "created_at": row[5],
+            "updated_at": row[6]
+        }
+        _category_cache[category_id] = data
+        return data
+    return None
+
+
+async def build_product_response(
+    product: Product,
+    db: AsyncSession,
+    inventory_repo: InventoryRepository,
+    tenant_id: int,
+    include_entries: bool = False
+) -> dict:
+    """Constrói o response completo de um produto."""
+    # Categoria
+    category_data = None
+    if product.category_id:
+        category_data = await get_category_data(db, product.category_id)
+
+    # Estoque
+    inventory = await inventory_repo.get_by_product(product.id, tenant_id=tenant_id)
+
+    return {
+        "id": product.id,
+        "name": product.name,
+        "description": product.description,
+        "sku": product.sku,
+        "barcode": product.barcode,
+        "price": product.price,
+        "cost_price": product.cost_price,
+        "category_id": product.category_id,
+        "category": category_data,
+        "brand": product.brand,
+        "color": product.color,
+        "size": product.size,
+        "gender": product.gender,
+        "material": product.material,
+        "is_digital": product.is_digital,
+        "is_activewear": product.is_activewear,
+        "is_catalog": product.is_catalog,
+        "is_active": product.is_active,
+        "created_at": product.created_at,
+        "updated_at": product.updated_at,
+        "current_stock": inventory.quantity if inventory else 0,
+        "min_stock_threshold": inventory.min_stock if inventory else None,
+        "entry_items": []
+    }
 
 
 async def enrich_product_with_stock(product, inventory_repo: InventoryRepository):
@@ -119,19 +192,13 @@ async def list_products(
             result = await db.execute(stmt)
             products = result.scalars().all()
             
-            # 3. Enriquecer com estoque do Inventory
-            filtered_products = []
+            # 3. Construir responses completos
+            responses = []
             for product in products:
-                await enrich_product_with_stock(product, inventory_repo)
-                filtered_products.append(product)
-            
-            print(f"🔍 DEBUG - has_stock=True, tenant={tenant_id}")
-            print(f"  - Produtos com estoque (FIFO): {len(products_with_stock_ids)} IDs: {sorted(products_with_stock_ids)}")
-            print(f"  - Produtos retornados (paginados): {len(filtered_products)}")
-            print(f"  - IDs retornados: {[p.id for p in filtered_products]}")
-            
-            return filtered_products
-        
+                resp = await build_product_response(product, db, inventory_repo, tenant_id)
+                responses.append(resp)
+            return responses
+
         # LÓGICA ORIGINAL: Listar todos os produtos (sem filtro de estoque)
         if search:
             products = await product_repo.search(search, tenant_id=tenant_id)
@@ -139,16 +206,15 @@ async def list_products(
             products = await product_repo.get_by_category(category_id, tenant_id=tenant_id)
         else:
             products = await product_repo.get_multi(db, skip=skip, limit=limit, tenant_id=tenant_id)
-        
-        # Filtrar apenas produtos não-catálogo e enriquecer com estoque
-        filtered_products = []
+
+        # Filtrar não-catálogo e construir responses
+        responses = []
         for product in products:
             if product.is_catalog:
                 continue
-            await enrich_product_with_stock(product, inventory_repo)
-            filtered_products.append(product)
-        
-        return filtered_products
+            resp = await build_product_response(product, db, inventory_repo, tenant_id)
+            responses.append(resp)
+        return responses
         
     except Exception as e:
         raise HTTPException(
@@ -265,12 +331,13 @@ async def list_active_products(
             limit=limit
         )
 
-        # Enriquecer com informações de estoque
+        # Construir responses completos
         inventory_repo = InventoryRepository(db)
+        responses = []
         for product in products:
-            await enrich_product_with_stock(product, inventory_repo)
-
-        return products
+            resp = await build_product_response(product, db, inventory_repo, tenant_id)
+            responses.append(resp)
+        return responses
 
     except Exception as e:
         raise HTTPException(
@@ -312,8 +379,13 @@ async def list_catalog_products(
             limit=limit
         )
 
-        # Não precisa enriquecer com estoque (catálogo não tem estoque)
-        return products
+        # Construir responses completos
+        inventory_repo = InventoryRepository(db)
+        responses = []
+        for product in products:
+            resp = await build_product_response(product, db, inventory_repo, tenant_id)
+            responses.append(resp)
+        return responses
 
     except Exception as e:
         raise HTTPException(
@@ -484,6 +556,29 @@ async def get_product(
                 detail=f"Produto com ID {product_id} não encontrado"
             )
 
+# Carregar categoria com todos os campos necessários
+        category_data = None
+        if product.category_id:
+            try:
+                category_result = await db.execute(
+                    text("SELECT id, name, description, parent_id, is_active, created_at, updated_at FROM categories WHERE id = :cat_id"),
+                    {"cat_id": product.category_id}
+                )
+                category_row = category_result.fetchone()
+                if category_row:
+                    category_data = {
+                        "id": category_row[0],
+                        "name": category_row[1],
+                        "description": category_row[2],
+                        "parent_id": category_row[3],
+                        "is_active": category_row[4],
+                        "created_at": category_row[5],
+                        "updated_at": category_row[6]
+                    }
+            except Exception as e:
+                print(f"Erro ao buscar categoria: {e}")
+                category_data = None
+
         # Buscar inventory de forma assíncrona
         inventory = await inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
         current_stock = inventory.quantity if inventory else 0
@@ -527,6 +622,7 @@ async def get_product(
             "price": product.price,
             "cost_price": product.cost_price,
             "category_id": product.category_id,
+            "category": category_data,
             "brand": product.brand,
             "color": product.color,
             "size": product.size,
@@ -645,8 +741,10 @@ async def create_product(
         )
 
         logger.info(f"✅ Produto criado com sucesso - ID: {product.id}")
-        return product
-        
+
+        inventory_repo = InventoryRepository(db)
+        return await build_product_response(product, db, inventory_repo, tenant_id)
+
     except ValueError as e:
         # Erros de validação (SKU duplicado, categoria inválida, etc)
         logger.warning(f"⚠️ Erro de validação: {str(e)}")
@@ -708,11 +806,12 @@ async def update_product(
         }
     """
     product_service = ProductService(db)
-    
+    inventory_repo = InventoryRepository(db)
+
     try:
         product = await product_service.update_product(product_id, product_data, tenant_id=tenant_id)
-        return product
-        
+        return await build_product_response(product, db, inventory_repo, tenant_id)
+
     except ValueError as e:
         error_msg = str(e).lower()
         
@@ -916,11 +1015,8 @@ async def activate_catalog_product(
             quantity=request.quantity
         )
 
-        # Enriquecer com estoque (será 0)
         inventory_repo = InventoryRepository(db)
-        await enrich_product_with_stock(activated_product, inventory_repo)
-
-        return activated_product
+        return await build_product_response(activated_product, db, inventory_repo, tenant_id)
 
     except ValueError as e:
         error_msg = str(e).lower()

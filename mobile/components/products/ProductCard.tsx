@@ -83,7 +83,7 @@ export default function ProductCard({ product, onPress }: ProductCardProps) {
           style={styles.name}
           numberOfLines={2}
         >
-          {product.name}
+          {[product.name, product.color, product.size].filter(Boolean).join(' - ')}
         </Text>
 
         {/* SKU e Marca */}

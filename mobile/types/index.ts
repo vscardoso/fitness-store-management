@@ -689,3 +689,37 @@ export interface PaginationParams {
   skip?: number;
   limit?: number;
 }
+
+// ============================================
+// TEAM MANAGEMENT TYPES
+// ============================================
+
+export interface TeamMember {
+  id: number;
+  email: string;
+  full_name: string;
+  phone?: string;
+  role: UserRole;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TeamMemberCreate {
+  email: string;
+  full_name: string;
+  phone?: string;
+  password: string;
+  role: UserRole;
+}
+
+export interface TeamMemberUpdate {
+  full_name?: string;
+  phone?: string;
+  role?: UserRole;
+}
+
+export interface TeamMemberListResponse {
+  items: TeamMember[];
+  total: number;
+}

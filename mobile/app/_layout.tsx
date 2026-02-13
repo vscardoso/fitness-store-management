@@ -14,6 +14,8 @@ import Toast from 'react-native-toast-message';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { NotificationContainer } from '@/components/notifications/NotificationContainer';
+import { TutorialProvider } from '@/contexts/TutorialContext';
+import { TutorialOverlay } from '@/components/tutorial';
 // import { SENTRY_CONFIG } from '@/constants/Config'; // TEMP: Desabilitado
 import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
@@ -137,31 +139,36 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <PaperProvider theme={theme}>
-            <StatusBar style="auto" />
-            <Slot />
+            <TutorialProvider>
+              <StatusBar style="auto" />
+              <Slot />
 
-            {/* Global Loading Overlay */}
-            <LoadingOverlay />
+              {/* Global Loading Overlay */}
+              <LoadingOverlay />
 
-            {/* Notification System */}
-            <NotificationContainer />
+              {/* Tutorial System Overlay */}
+              <TutorialOverlay />
 
-            {/* Snackbar para mensagens de erro de autenticação */}
-            <Snackbar
-              visible={!!error}
-              onDismiss={clearError}
-              duration={5000}
-              action={{
-                label: 'OK',
-                onPress: clearError,
-              }}
-              style={{ marginBottom: 20 }}
-            >
-              {error}
-            </Snackbar>
+              {/* Notification System */}
+              <NotificationContainer />
 
-            {/* Toast global para notificações */}
-            <Toast />
+              {/* Snackbar para mensagens de erro de autenticação */}
+              <Snackbar
+                visible={!!error}
+                onDismiss={clearError}
+                duration={5000}
+                action={{
+                  label: 'OK',
+                  onPress: clearError,
+                }}
+                style={{ marginBottom: 20 }}
+              >
+                {error}
+              </Snackbar>
+
+              {/* Toast global para notificações */}
+              <Toast />
+            </TutorialProvider>
           </PaperProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

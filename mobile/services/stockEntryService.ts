@@ -181,3 +181,30 @@ export async function updateEntryItem(
   const response = await api.put(`${ENTRIES_ENDPOINT}entry-items/${itemId}`, data);
   return response.data;
 }
+
+/**
+ * Adicionar item a uma entrada existente
+ * Vincula um produto a uma entrada de estoque já criada
+ */
+export async function addItemToEntry(
+  entryId: number,
+  data: {
+    product_id: number;
+    quantity_received: number;
+    unit_cost: number;
+    selling_price?: number;
+    notes?: string;
+  }
+): Promise<{
+  id: number;
+  entry_id: number;
+  product_id: number;
+  product_name: string;
+  quantity_received: number;
+  quantity_remaining: number;
+  unit_cost: number;
+  total_cost: number;
+}> {
+  const response = await api.post(`${ENTRIES_ENDPOINT}${entryId}/items`, data);
+  return response.data;
+}

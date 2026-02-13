@@ -92,3 +92,65 @@ class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+
+# ========== SCHEMAS PARA GERENCIAMENTO DE EQUIPE ==========
+
+class TeamMemberCreate(BaseModel):
+    """Schema para criar um membro da equipe (usuário na mesma loja)."""
+    email: EmailStr
+    full_name: str = Field(..., min_length=3, max_length=200)
+    phone: Optional[str] = Field(None, max_length=20)
+    password: str = Field(..., min_length=6)
+    role: UserRole = UserRole.SELLER
+
+    @validator('password')
+    def validate_password(cls, v):
+        """Validação simplificada para senhas de novos membros."""
+        if len(v) < 6:
+            raise ValueError('Senha deve ter pelo menos 6 caracteres')
+        return v
+
+
+class TeamMemberUpdate(BaseModel):
+    """Schema para atualizar um membro da equipe."""
+    full_name: Optional[str] = Field(None, min_length=3, max_length=200)
+    phone: Optional[str] = Field(None, max_length=20)
+    role: Optional[UserRole] = None
+
+
+class TeamMemberResponse(BaseModel):
+    """Schema de resposta para membro da equipe."""
+    id: int
+    email: str
+    full_name: str
+    phone: Optional[str] = None
+    role: UserRole
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TeamMemberListResponse(BaseModel):
+    """Schema de resposta para lista de membros da equipe."""
+    items: list[TeamMemberResponse]
+    total: int
+
+
+class ChangeRoleRequest(BaseModel):
+    """Schema para mudar role de um usuário."""
+    role: UserRole
+
+
+class ResetPasswordRequest(BaseModel):
+    """Schema para reset de senha por admin."""
+    new_password: str = Field(..., min_length=6)
+
+    @validator('new_password')
+    def validate_password(cls, v):
+        if len(v) < 6:
+            raise ValueError('Senha deve ter pelo menos 6 caracteres')
+        return v

@@ -3,7 +3,7 @@
  * Mostra os 115 produtos templates que podem ser ativados
  */
 import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Keyboard, TouchableWithoutFeedback, ScrollView, StatusBar } from 'react-native';
+import { View, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Keyboard, ScrollView } from 'react-native';
 import {
   Searchbar,
   Card,
@@ -23,11 +23,10 @@ import { Ionicons } from '@expo/vector-icons';
 import { getCatalogProducts, activateCatalogProduct } from '@/services/catalogService';
 import { getStockEntries } from '@/services/stockEntryService';
 import { Product, StockEntry } from '@/types';
-import ListHeader from '@/components/layout/ListHeader';
-import { LinearGradient } from 'expo-linear-gradient';
+import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
 
 const PAGE_SIZE = 20;
 
@@ -59,6 +58,7 @@ export default function CatalogScreen() {
   });
 
   // Infinite Query para scroll infinito
+  // NOTA: searchQuery NÃO está no queryKey - a busca é feita localmente para ser instantânea
   const {
     data,
     isLoading,
@@ -69,12 +69,12 @@ export default function CatalogScreen() {
     refetch,
     isRefetching,
   } = useInfiniteQuery({
-    queryKey: ['catalog-products', searchQuery],
+    queryKey: ['catalog-products'], // Removido searchQuery - busca agora é local
     queryFn: async ({ pageParam = 0 }) => {
       const products = await getCatalogProducts({
         limit: PAGE_SIZE,
         skip: pageParam * PAGE_SIZE,
-        search: searchQuery || undefined,
+        // Removido: search: searchQuery - busca agora é local
       });
       return products;
     },
@@ -88,10 +88,28 @@ export default function CatalogScreen() {
     initialPageParam: 0,
   });
 
-  // Flatten all pages into a single array
+  /**
+   * Flatten all pages e aplicar filtro de busca LOCAL (instantâneo)
+   */
   const allProducts = React.useMemo(() => {
-    return data?.pages?.flat() ?? [];
-  }, [data]);
+    const flatProducts = data?.pages?.flat() ?? [];
+    
+    // FILTRO DE BUSCA LOCAL - Instantâneo, sem request ao backend
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      return flatProducts.filter((product) => {
+        // Buscar por nome, SKU, marca ou cor
+        const matchName = product.name?.toLowerCase().includes(query);
+        const matchSku = product.sku?.toLowerCase().includes(query);
+        const matchBrand = product.brand?.toLowerCase().includes(query);
+        const matchColor = product.color?.toLowerCase().includes(query);
+        const matchSize = product.size?.toLowerCase().includes(query);
+        return matchName || matchSku || matchBrand || matchColor || matchSize;
+      });
+    }
+    
+    return flatProducts;
+  }, [data, searchQuery]);
 
   // Mutation para ativar produto
   const activateMutation = useMutation({
@@ -103,7 +121,7 @@ export default function CatalogScreen() {
       queryClient.invalidateQueries({ queryKey: ['active-products'] });
 
       // Salvar nome do produto e mostrar dialog
-      setAddedProductName(selectedProduct?.name || 'Produto');
+      setAddedProductName([selectedProduct?.name, selectedProduct?.color, selectedProduct?.size].filter(Boolean).join(' - ') || 'Produto');
       setShowSuccessDialog(true);
 
       setSelectedProduct(null);
@@ -119,7 +137,7 @@ export default function CatalogScreen() {
 
   const handleActivateProduct = (product: Product) => {
     setSelectedProduct(product);
-    setCustomName(product.name || '');
+    setCustomName([product.name, product.color, product.size].filter(Boolean).join(' - ') || '');
     setCustomPrice(product.price ? formatCurrency(Number(product.price)) : '0,00');
     setCustomCostPrice(product.cost_price ? formatCurrency(Number(product.cost_price)) : '0,00');
     setQuantity('1');
@@ -202,7 +220,7 @@ export default function CatalogScreen() {
       <Card.Content>
         <View style={styles.cardHeader}>
           <Text variant="titleMedium" style={styles.productName} numberOfLines={2}>
-            {item.name}
+            {[item.name, item.color, item.size].filter(Boolean).join(' - ')}
           </Text>
           {item.brand && (
             <Chip mode="flat" compact style={styles.brandChip} textStyle={styles.brandText}>
@@ -210,6 +228,24 @@ export default function CatalogScreen() {
             </Chip>
           )}
         </View>
+
+        {/* Linha de detalhes do produto */}
+        {(item.color || item.size) && (
+          <View style={styles.detailsRow}>
+            {item.color && (
+              <View style={styles.detailChip}>
+                <Ionicons name="color-palette-outline" size={14} color={Colors.light.primary} />
+                <Text style={styles.detailText}>{item.color}</Text>
+              </View>
+            )}
+            {item.size && (
+              <View style={styles.detailChip}>
+                <Ionicons name="resize-outline" size={14} color={Colors.light.primary} />
+                <Text style={styles.detailText}>{item.size}</Text>
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={styles.priceRow}>
           <Text variant="headlineSmall" style={styles.price}>
@@ -249,36 +285,20 @@ export default function CatalogScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <PageHeader
+        title="Catálogo"
+        subtitle={`${allProducts.length} produtos disponíveis`}
+        showBackButton
+        onBack={() => router.push('/(tabs)/products')}
+      />
 
-      {/* Header Premium */}
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerContentPremium}>
-            <TouchableOpacity onPress={() => router.push('/(tabs)/products')} style={styles.backButtonPremium}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <View style={styles.headerInfo}> 
-              <Text style={styles.greeting}>Catálogo</Text>
-              <Text style={styles.headerSubtitle}>{allProducts.length} produtos</Text>
-            </View>
-            <View style={styles.headerSpacer} />
-          </View>
-        </LinearGradient>
-      </View>
-
-        {/* Barra de busca */}
-        <Searchbar
-          placeholder="Buscar por nome, SKU ou marca..."
-          onChangeText={setSearchQuery}
-          value={searchQuery}
-          style={styles.searchbar}
-        />
+      {/* Barra de busca */}
+      <Searchbar
+        placeholder="Buscar por nome, marca, cor ou tamanho..."
+        onChangeText={setSearchQuery}
+        value={searchQuery}
+        style={styles.searchbar}
+      />
 
         {/* Loading state inicial */}
         {isLoading ? (
@@ -383,6 +403,16 @@ export default function CatalogScreen() {
                   {selectedProduct.brand && (
                     <Text variant="bodySmall" style={styles.detailText}>
                       • Marca: {selectedProduct.brand}
+                    </Text>
+                  )}
+                  {selectedProduct.color && (
+                    <Text variant="bodySmall" style={styles.detailText}>
+                      • Cor: {selectedProduct.color}
+                    </Text>
+                  )}
+                  {selectedProduct.size && (
+                    <Text variant="bodySmall" style={styles.detailText}>
+                      • Tamanho: {selectedProduct.size}
                     </Text>
                   )}
                   {selectedProduct.sku && (
@@ -706,47 +736,8 @@ export default function CatalogScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.light.backgroundSecondary,
   },
-  headerContainer: {
-    overflow: 'hidden',
-  },
-  headerGradient: {
-    paddingTop: 28 + 32,
-    paddingBottom: 16,
-    paddingHorizontal: 16,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  headerContentPremium: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  backButtonPremium: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerInfo: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  greeting: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 6,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
-    fontWeight: '500',
-  },
-  headerSpacer: { width: 40 },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -754,30 +745,32 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   searchbar: {
-    marginHorizontal: 16,
-    marginVertical: 12,
+    marginHorizontal: theme.spacing.md,
+    marginVertical: theme.spacing.sm,
+    backgroundColor: Colors.light.card,
     elevation: 2,
   },
   row: {
     justifyContent: 'space-between',
-    paddingHorizontal: 4,
+    paddingHorizontal: theme.spacing.xs,
   },
   listContent: {
-    paddingTop: 8,
+    paddingTop: theme.spacing.sm,
     paddingBottom: 80,
-    paddingHorizontal: 4,
+    paddingHorizontal: theme.spacing.xs,
   },
   card: {
     width: '48%',
-    marginBottom: 12,
-    backgroundColor: '#fff',
+    marginBottom: theme.spacing.sm,
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
   },
   cardHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
-    gap: 8,
+    marginBottom: theme.spacing.sm,
+    gap: theme.spacing.sm,
   },
   productName: {
     flex: 1,
@@ -785,66 +778,86 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   brandChip: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: Colors.light.primary + '15',
     minHeight: 28,
   },
   brandText: {
-    fontSize: 12,
-    color: '#1976d2',
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.primary,
     lineHeight: 16,
+  },
+  detailsRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    flexWrap: 'wrap',
+  },
+  detailChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light.backgroundSecondary,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.md,
+    gap: theme.spacing.xs,
+  },
+  detailText: {
+    fontSize: theme.fontSize.xxs,
+    color: Colors.light.textSecondary,
+    fontWeight: '500',
   },
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 8,
+    marginBottom: theme.spacing.sm,
+    gap: theme.spacing.sm,
   },
   price: {
     fontWeight: 'bold',
     color: Colors.light.primary,
   },
   suggestedChip: {
-    backgroundColor: '#f5f5f5',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    backgroundColor: Colors.light.backgroundSecondary,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.lg,
   },
   suggestedText: {
-    fontSize: 11,
-    color: '#666',
+    fontSize: theme.fontSize.xxs,
+    color: Colors.light.textSecondary,
   },
   costPrice: {
-    color: '#666',
-    marginBottom: 4,
+    color: Colors.light.textSecondary,
+    marginBottom: theme.spacing.xs,
   },
   sku: {
-    color: '#999',
+    color: Colors.light.textTertiary,
   },
   cardActions: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.md,
   },
   buttonContent: {
     height: 40,
   },
   loadingText: {
-    marginTop: 16,
-    color: Colors.light.icon,
+    marginTop: theme.spacing.md,
+    color: Colors.light.textSecondary,
   },
   footerLoader: {
-    paddingVertical: 20,
+    paddingVertical: theme.spacing.lg,
     alignItems: 'center',
   },
   loadingMoreText: {
-    marginTop: 8,
-    color: Colors.light.icon,
-    fontSize: 12,
+    marginTop: theme.spacing.sm,
+    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.xs,
   },
   endMessage: {
     textAlign: 'center',
-    paddingVertical: 20,
-    color: '#999',
-    fontSize: 12,
+    paddingVertical: theme.spacing.lg,
+    color: Colors.light.textTertiary,
+    fontSize: theme.fontSize.xs,
   },
   modalContent: {
     backgroundColor: 'white',
@@ -855,167 +868,163 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   modalContainer: {
-    backgroundColor: 'white',
-    marginHorizontal: 20,
-    borderRadius: 12,
+    backgroundColor: Colors.light.card,
+    marginHorizontal: theme.spacing.lg,
+    borderRadius: theme.borderRadius.xl,
     maxHeight: '100%',
   },
   modalScrollView: {
     maxHeight: '100%',
   },
   modalScrollContent: {
-    padding: 24,
+    padding: theme.spacing.xl,
   },
   modalInnerContent: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.light.card,
   },
   modalTitle: {
     fontWeight: 'bold',
-    marginBottom: 8,
+    marginBottom: theme.spacing.sm,
   },
   modalSubtitle: {
-    color: '#666',
-    marginBottom: 20,
+    color: Colors.light.textSecondary,
+    marginBottom: theme.spacing.lg,
   },
   input: {
-    marginBottom: 8,
+    marginBottom: theme.spacing.sm,
   },
   detailsCard: {
-    backgroundColor: '#f5f5f5',
-    padding: 12,
-    borderRadius: 8,
-    marginBottom: 16,
+    backgroundColor: Colors.light.backgroundSecondary,
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    marginBottom: theme.spacing.md,
   },
   detailLabel: {
     fontWeight: '600',
-    marginBottom: 4,
-    color: '#333',
-  },
-  detailText: {
-    color: '#666',
-    marginTop: 2,
+    marginBottom: theme.spacing.xs,
+    color: Colors.light.text,
   },
   profitCard: {
-    backgroundColor: '#e8f5e9',
-    padding: 12,
-    borderRadius: 8,
-    marginTop: 8,
-    marginBottom: 16,
+    backgroundColor: Colors.light.success + '15',
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
     alignItems: 'center',
   },
   profitLabel: {
-    color: '#2e7d32',
-    marginBottom: 4,
+    color: Colors.light.success,
+    marginBottom: theme.spacing.xs,
   },
   profitValue: {
-    color: '#1b5e20',
+    color: Colors.light.success,
     fontWeight: 'bold',
   },
   helpText: {
-    color: '#666',
-    marginBottom: 16,
+    color: Colors.light.textSecondary,
+    marginBottom: theme.spacing.md,
   },
   modalActions: {
     flexDirection: 'row',
-    gap: 12,
+    gap: theme.spacing.sm,
   },
   modalButton: {
     flex: 1,
   },
   entrySection: {
-    marginTop: 20,
-    marginBottom: 16,
+    marginTop: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
   },
   entrySectionTitle: {
     fontWeight: '600',
-    marginBottom: 8,
-    color: '#333',
+    marginBottom: theme.spacing.sm,
+    color: Colors.light.text,
   },
   entryHelpText: {
-    color: '#666',
-    marginBottom: 16,
+    color: Colors.light.textSecondary,
+    marginBottom: theme.spacing.md,
   },
   entryOption: {
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-    backgroundColor: '#fff',
+    borderColor: Colors.light.border,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    backgroundColor: Colors.light.card,
   },
   entryOptionSelected: {
     borderColor: Colors.light.primary,
     borderWidth: 2,
-    backgroundColor: '#f0f7ff',
+    backgroundColor: Colors.light.primary + '10',
   },
   entryOptionContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: theme.spacing.sm,
   },
   entryOptionText: {
     flex: 1,
   },
   entryOptionTitle: {
     fontWeight: '600',
-    color: '#333',
-    marginBottom: 2,
+    color: Colors.light.text,
+    marginBottom: theme.spacing.xxs,
   },
   entryOptionSubtitle: {
-    color: '#666',
-    fontSize: 12,
+    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.xs,
   },
   existingEntriesSection: {
-    marginTop: 16,
+    marginTop: theme.spacing.md,
   },
   existingEntriesTitle: {
     fontWeight: '600',
-    marginBottom: 12,
-    color: '#333',
+    marginBottom: theme.spacing.sm,
+    color: Colors.light.text,
   },
   existingEntriesSearch: {
-    marginBottom: 12,
+    marginBottom: theme.spacing.sm,
   },
   entriesScrollableArea: {
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-    borderRadius: 8,
-    padding: 4,
-    backgroundColor: '#fafafa',
-    marginBottom: 8,
+    borderColor: Colors.light.border,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.xs,
+    backgroundColor: Colors.light.backgroundSecondary,
+    marginBottom: theme.spacing.sm,
   },
   entryOptionHeaderRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 4,
+    marginBottom: theme.spacing.xs,
   },
   entryTypeChip: {
-    backgroundColor: '#eef6ff',
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
+    backgroundColor: Colors.light.primary + '15',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xxs,
+    borderRadius: theme.borderRadius.sm,
   },
   entryTypeChipText: {
-    fontSize: 11,
+    fontSize: theme.fontSize.xxs,
     color: Colors.light.primary,
     textTransform: 'uppercase',
     fontWeight: '600',
   },
   entryMetricsText: {
-    color: '#444',
-    fontSize: 12,
-    marginTop: 2,
+    color: Colors.light.text,
+    fontSize: theme.fontSize.xs,
+    marginTop: theme.spacing.xxs,
   },
   entrySellThroughText: {
-    color: '#666',
-    fontSize: 11,
-    marginTop: 2,
+    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.xxs,
+    marginTop: theme.spacing.xxs,
   },
   noEntriesText: {
     textAlign: 'center',
-    color: '#666',
-    paddingVertical: 12,
-    fontSize: 12,
+    color: Colors.light.textSecondary,
+    paddingVertical: theme.spacing.sm,
+    fontSize: theme.fontSize.xs,
   },
 });

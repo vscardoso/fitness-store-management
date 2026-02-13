@@ -12,7 +12,7 @@ from datetime import date, timedelta
 from enum import Enum
 
 from app.core.database import get_db
-from app.core.timezone import today_brazil
+from app.core.timezone import today_brazil, get_day_range_utc, get_period_range_utc
 from app.api.deps import get_current_tenant_id, get_current_active_user
 from app.models.product import Product
 from app.models.category import Category
@@ -213,17 +213,21 @@ async def get_dashboard_stats(
     result = await db.execute(customers_query)
     total_customers = result.scalar() or 0
 
-    # 7. Vendas de hoje
-    from datetime import date, timedelta
-    today = date.today()
+    # 7. Vendas de hoje (usar timezone brasileiro com range UTC!)
+    today = today_brazil()
     yesterday = today - timedelta(days=1)
+
+    # Obter range UTC para hoje e ontem em horário de Brasília
+    today_start, today_end = get_day_range_utc(today)
+    yesterday_start, yesterday_end = get_day_range_utc(yesterday)
 
     sales_today_query = select(
         func.coalesce(func.sum(Sale.total_amount), 0).label("total_today"),
         func.count(Sale.id).label("count_today"),
     ).where(
         Sale.tenant_id == tenant_id,
-        func.date(Sale.created_at) == today,
+        Sale.created_at >= today_start,
+        Sale.created_at <= today_end,
         Sale.is_active == True,
     )
 
@@ -237,7 +241,8 @@ async def get_dashboard_stats(
         func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_cost), 0).label("cmv_today"),
     ).join(Sale, SaleItem.sale_id == Sale.id).where(
         Sale.tenant_id == tenant_id,
-        func.date(Sale.created_at) == today,
+        Sale.created_at >= today_start,
+        Sale.created_at <= today_end,
         Sale.is_active == True,
         SaleItem.is_active == True,
     )
@@ -252,7 +257,8 @@ async def get_dashboard_stats(
         func.count(Sale.id).label("count_yesterday"),
     ).where(
         Sale.tenant_id == tenant_id,
-        func.date(Sale.created_at) == yesterday,
+        Sale.created_at >= yesterday_start,
+        Sale.created_at <= yesterday_end,
         Sale.is_active == True,
     )
 
@@ -473,8 +479,10 @@ async def get_inventory_health(
     total_available_qty = int(res.scalar() or 0)
 
     # Média diária de vendas (quantidade) nos últimos 30 dias
-    today = date.today()
+    today = today_brazil()
     start_date = today - timedelta(days=30)
+    # Converter para range UTC
+    health_start_utc, health_end_utc = get_period_range_utc(start_date, today)
     sales_qty_q = (
         select(func.coalesce(func.sum(SaleItem.quantity), 0))
         .select_from(SaleItem)
@@ -482,8 +490,8 @@ async def get_inventory_health(
         .where(
             Sale.tenant_id == tenant_id,
             Sale.is_active == True,
-            func.date(Sale.created_at) >= start_date,
-            func.date(Sale.created_at) <= today,
+            Sale.created_at >= health_start_utc,
+            Sale.created_at <= health_end_utc,
         )
     )
     res = await db.execute(sales_qty_q)
@@ -576,8 +584,8 @@ async def get_inventory_health(
         .where(
             Sale.tenant_id == tenant_id,
             Sale.is_active == True,
-            func.date(Sale.created_at) >= start_date,
-            func.date(Sale.created_at) <= today,
+            Sale.created_at >= health_start_utc,
+            Sale.created_at <= health_end_utc,
         )
     )
     res = await db.execute(items_q)
@@ -652,14 +660,18 @@ async def get_monthly_sales_stats(
     start_date, end_date = get_period_dates(period)
     prev_start, prev_end = get_previous_period_dates(start_date, end_date)
 
+    # Converter datas para ranges UTC (timezone brasileiro)
+    period_start_utc, period_end_utc = get_period_range_utc(start_date, end_date)
+    prev_start_utc, prev_end_utc = get_period_range_utc(prev_start, prev_end)
+
     # Vendas do período atual
     sales_query = select(
         func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
         func.count(Sale.id).label("count"),
     ).where(
         Sale.tenant_id == tenant_id,
-        func.date(Sale.created_at) >= start_date,
-        func.date(Sale.created_at) <= end_date,
+        Sale.created_at >= period_start_utc,
+        Sale.created_at <= period_end_utc,
         Sale.is_active == True,
     )
 
@@ -673,8 +685,8 @@ async def get_monthly_sales_stats(
         func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_cost), 0).label("cmv"),
     ).join(Sale, SaleItem.sale_id == Sale.id).where(
         Sale.tenant_id == tenant_id,
-        func.date(Sale.created_at) >= start_date,
-        func.date(Sale.created_at) <= end_date,
+        Sale.created_at >= period_start_utc,
+        Sale.created_at <= period_end_utc,
         Sale.is_active == True,
         SaleItem.is_active == True,
     )
@@ -688,8 +700,8 @@ async def get_monthly_sales_stats(
         func.count(Sale.id).label("count"),
     ).where(
         Sale.tenant_id == tenant_id,
-        func.date(Sale.created_at) >= prev_start,
-        func.date(Sale.created_at) <= prev_end,
+        Sale.created_at >= prev_start_utc,
+        Sale.created_at <= prev_end_utc,
         Sale.is_active == True,
     )
 
@@ -703,8 +715,8 @@ async def get_monthly_sales_stats(
         func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_cost), 0).label("cmv"),
     ).join(Sale, SaleItem.sale_id == Sale.id).where(
         Sale.tenant_id == tenant_id,
-        func.date(Sale.created_at) >= prev_start,
-        func.date(Sale.created_at) <= prev_end,
+        Sale.created_at >= prev_start_utc,
+        Sale.created_at <= prev_end_utc,
         Sale.is_active == True,
         SaleItem.is_active == True,
     )

@@ -33,6 +33,7 @@ from app.api.v1.endpoints import (
     notifications,
     reports,
     payment_discounts,
+    team,
 )
 
 
@@ -123,4 +124,11 @@ api_router.include_router(
 api_router.include_router(
     payment_discounts.router,
     tags=["Descontos de Pagamento"]
+)
+
+# Gerenciamento de Equipe (Usuários da Loja)
+api_router.include_router(
+    team.router,
+    prefix="/team",
+    tags=["Equipe"]
 )

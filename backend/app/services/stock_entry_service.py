@@ -6,6 +6,7 @@ from decimal import Decimal
 from datetime import datetime
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.timezone import now_brazil, today_brazil
 from app.models.stock_entry import StockEntry, EntryType
 from app.models.entry_item import EntryItem
 from app.repositories.stock_entry_repository import StockEntryRepository
@@ -898,3 +899,97 @@ class StockEntryService:
         await self.db.refresh(item)
 
         return item
+
+    async def add_item_to_entry(
+        self,
+        entry_id: int,
+        item_data: Dict[str, Any],
+        *,
+        tenant_id: int,
+    ) -> EntryItem:
+        """
+        Adiciona um novo item a uma entrada de estoque existente.
+
+        Este método permite vincular um produto do catálogo a uma entrada existente,
+        criando o rastreamento FIFO necessário e atualizando o inventário.
+
+        Args:
+            entry_id: ID da entrada existente
+            item_data: Dados do item (product_id, quantity_received, unit_cost, selling_price, notes)
+            tenant_id: ID do tenant
+
+        Returns:
+            EntryItem criado
+
+        Raises:
+            ValueError: Se entrada não encontrada, produto não encontrado, ou dados inválidos
+        """
+        from decimal import Decimal
+
+        # Buscar entrada
+        entry = await self.entry_repo.get_by_id(self.db, entry_id, tenant_id=tenant_id)
+        if not entry:
+            raise ValueError(f"Entrada {entry_id} não encontrada")
+
+        # Validar produto
+        product_id = item_data.get('product_id')
+        if not product_id:
+            raise ValueError("product_id é obrigatório")
+
+        product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
+        if not product:
+            raise ValueError(f"Produto {product_id} não encontrado")
+
+        # Validar quantidade
+        quantity_received = item_data.get('quantity_received', 1)
+        if quantity_received <= 0:
+            raise ValueError("quantity_received deve ser maior que zero")
+
+        # Validar custo
+        unit_cost = item_data.get('unit_cost', 0)
+        if unit_cost < 0:
+            raise ValueError("unit_cost não pode ser negativo")
+
+        # Se produto é de catálogo, marcar como adicionado à loja
+        if product.is_catalog:
+            product.is_catalog = False
+
+        # Criar item da entrada
+        new_item = EntryItem(
+            entry_id=entry_id,
+            product_id=product_id,
+            quantity_received=quantity_received,
+            quantity_remaining=quantity_received,  # Novo, então todo estoque está disponível
+            unit_cost=Decimal(str(unit_cost)),
+            notes=item_data.get('notes', ''),
+            tenant_id=tenant_id,
+            is_active=True,
+        )
+
+        self.db.add(new_item)
+        await self.db.flush()
+
+        # Atualizar produto com custo e preço se fornecidos
+        selling_price = item_data.get('selling_price')
+        if selling_price is not None and selling_price > 0:
+            product.price = selling_price
+        if unit_cost > 0:
+            product.cost_price = unit_cost
+
+        # Atualizar total_cost da entrada
+        item_total_cost = Decimal(str(quantity_received)) * Decimal(str(unit_cost))
+        entry.total_cost = (entry.total_cost or Decimal('0')) + item_total_cost
+
+        # Atualizar inventário do produto
+        await self._update_product_inventory(
+            product_id,
+            quantity_received,
+            operation='add',
+            tenant_id=tenant_id,
+        )
+
+        # Commit
+        await self.db.commit()
+        await self.db.refresh(new_item)
+
+        return new_item

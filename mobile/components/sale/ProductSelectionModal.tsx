@@ -96,7 +96,7 @@ export default function ProductSelectionModal({
             {/* Product Info */}
             <View style={styles.productInfo}>
               <Text variant="titleMedium" style={styles.productName} numberOfLines={1}>
-                {item.name}
+                {[item.name, item.color, item.size].filter(Boolean).join(' - ')}
               </Text>
               <Text variant="bodySmall" style={styles.productSku} numberOfLines={1}>
                 {item.sku}

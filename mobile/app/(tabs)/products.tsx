@@ -11,14 +11,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Searchbar, Text, Button } from 'react-native-paper';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import PageHeader from '@/components/layout/PageHeader';
 import { useAuth } from '@/hooks/useAuth';
 import EmptyState from '@/components/ui/EmptyState';
 import ProductCard from '@/components/products/ProductCard';
 import FAB from '@/components/FAB';
 import { getActiveProducts, searchProducts, getCatalogProducts } from '@/services/productService';
 import { Colors, theme } from '@/constants/Colors';
+import { useTutorialContext } from '@/components/tutorial';
 import type { Product } from '@/types';
 
 const PAGE_SIZE = 20;
@@ -26,11 +27,13 @@ const PAGE_SIZE = 20;
 export default function ProductsScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const { startTutorial } = useTutorialContext();
   const [searchQuery, setSearchQuery] = useState('');
-  const [showOnlyWithStock, setShowOnlyWithStock] = useState(true); // Começa com filtro ativo
+  const [showOnlyWithStock, setShowOnlyWithStock] = useState(false); // Padrão: mostrar TODOS os produtos
 
   /**
    * Infinite Query para buscar produtos ATIVOS com paginação
+   * NOTA: searchQuery NÃO está no queryKey - a busca é feita localmente para ser instantânea
    */
   const {
     data,
@@ -42,13 +45,9 @@ export default function ProductsScreen() {
     refetch,
     isRefetching,
   } = useInfiniteQuery({
-    queryKey: ['active-products', searchQuery],
+    queryKey: ['active-products'], // Removido searchQuery - busca agora é local
     queryFn: async ({ pageParam = 0 }) => {
-      if (searchQuery.trim()) {
-        // Para busca, retornar todos os resultados de uma vez
-        return searchProducts(searchQuery);
-      }
-      // Para listagem normal, paginar de 20 em 20
+      // Sempre paginar normalmente - a busca é feita localmente
       const products = await getActiveProducts({
         limit: PAGE_SIZE,
         skip: pageParam * PAGE_SIZE,
@@ -56,10 +55,6 @@ export default function ProductsScreen() {
       return products;
     },
     getNextPageParam: (lastPage, allPages) => {
-      // Se tem busca ativa, não paginar
-      if (searchQuery.trim()) {
-        return undefined;
-      }
       // Se a última página tem menos produtos que PAGE_SIZE, não há mais páginas
       if (!lastPage || lastPage.length < PAGE_SIZE) {
         return undefined;
@@ -77,22 +72,37 @@ export default function ProductsScreen() {
   );
 
   /**
-   * Flatten all pages into a single array and filter based on stock toggle
+   * Flatten all pages into a single array and filter based on:
+   * 1. Busca em tempo real (searchQuery) - FILTRO LOCAL INSTANTÂNEO
+   * 2. Toggle de estoque (showOnlyWithStock)
+   * PADRÃO: Mostra TODOS os produtos (com e sem estoque)
    */
   const products = useMemo(() => {
     const allProducts = data?.pages?.flat() ?? [];
 
-    // Se toggle está ativado, filtrar apenas produtos COM estoque
+    // 1. FILTRO DE BUSCA (instantâneo, sem request ao backend)
+    let filtered = allProducts;
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      filtered = allProducts.filter((product) => {
+        // Buscar por nome, SKU ou marca
+        const matchName = product.name?.toLowerCase().includes(query);
+        const matchSku = product.sku?.toLowerCase().includes(query);
+        const matchBrand = product.brand?.toLowerCase().includes(query);
+        return matchName || matchSku || matchBrand;
+      });
+    }
+
+    // 2. FILTRO DE ESTOQUE
     if (showOnlyWithStock) {
-      return allProducts.filter((product) => {
+      filtered = filtered.filter((product) => {
         const qty = product.current_stock ?? 0;
         return qty > 0;
       });
     }
 
-    // Se toggle desativado (padrão), mostrar TODOS os produtos
-    return allProducts;
-  }, [data, showOnlyWithStock]);
+    return filtered;
+  }, [data, searchQuery, showOnlyWithStock]);
 
   /**
    * Query para contar produtos de catálogo
@@ -143,34 +153,13 @@ export default function ProductsScreen() {
   if (isLoading && !isRefetching) {
     return (
       <View style={styles.container}>
-        {/* Header Premium */}
-        <View style={styles.headerContainer}>
-          <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.headerGradient}
-          >
-            <View style={styles.headerContent}>
-              <View style={styles.headerInfo}>
-                <Text style={styles.greeting}>
-                  Produtos
-                </Text>
-                <Text style={styles.headerSubtitle}>
-                  0 produtos
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.profileButton}
-                onPress={() => router.push('/(tabs)/more')}
-              >
-                <View style={styles.profileIcon}>
-                  <Ionicons name="person" size={24} color="#fff" />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </View>
+        <PageHeader
+          title="Produtos"
+          subtitle="0 produtos"
+          rightActions={[
+            { icon: 'help-circle-outline', onPress: () => startTutorial('products') },
+          ]}
+        />
 
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={Colors.light.primary} />
@@ -186,34 +175,13 @@ export default function ProductsScreen() {
   if (isError) {
     return (
       <View style={styles.container}>
-        {/* Header Premium */}
-        <View style={styles.headerContainer}>
-          <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.headerGradient}
-          >
-            <View style={styles.headerContent}>
-              <View style={styles.headerInfo}>
-                <Text style={styles.greeting}>
-                  Produtos
-                </Text>
-                <Text style={styles.headerSubtitle}>
-                  0 produtos
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.profileButton}
-                onPress={() => router.push('/(tabs)/more')}
-              >
-                <View style={styles.profileIcon}>
-                  <Ionicons name="person" size={24} color="#fff" />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </View>
+        <PageHeader
+          title="Produtos"
+          subtitle="0 produtos"
+          rightActions={[
+            { icon: 'help-circle-outline', onPress: () => startTutorial('products') },
+          ]}
+        />
 
         <EmptyState
           icon="alert-circle-outline"
@@ -228,34 +196,13 @@ export default function ProductsScreen() {
 
   return (
     <View style={styles.container}>
-        {/* Header Premium */}
-        <View style={styles.headerContainer}>
-          <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.headerGradient}
-          >
-            <View style={styles.headerContent}>
-              <View style={styles.headerInfo}>
-                <Text style={styles.greeting}>
-                  Produtos
-                </Text>
-                <Text style={styles.headerSubtitle}>
-                  {productCount} {productCount === 1 ? 'produto' : 'produtos'}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.profileButton}
-                onPress={() => router.push('/(tabs)/more')}
-              >
-                <View style={styles.profileIcon}>
-                  <Ionicons name="person" size={24} color="#fff" />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </View>
+        <PageHeader
+          title="Produtos"
+          subtitle={`${productCount} ${productCount === 1 ? 'produto' : 'produtos'}`}
+          rightActions={[
+            { icon: 'help-circle-outline', onPress: () => startTutorial('products') },
+          ]}
+        />
 
         {/* Barra de busca */}
         <Searchbar
@@ -278,19 +225,6 @@ export default function ProductsScreen() {
               <View style={styles.buttonContent}>
                 <Ionicons name="storefront-outline" size={16} color={Colors.light.textSecondary} />
                 <Text style={styles.buttonText}>Catálogo</Text>
-              </View>
-            </Button>
-
-            <Button
-              mode="contained-tonal"
-              onPress={() => router.push('/(tabs)/entries')}
-              style={styles.actionButton}
-              labelStyle={styles.actionButtonLabel}
-              contentStyle={styles.actionButtonContent}
-            >
-              <View style={styles.buttonContent}>
-                <Ionicons name="layers-outline" size={16} color={Colors.light.textSecondary} />
-                <Text style={styles.buttonText}>Entradas</Text>
               </View>
             </Button>
 
@@ -392,47 +326,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
-  },
-  // Header Premium
-  headerContainer: {
-    marginBottom: 0,
-  },
-  headerGradient: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: theme.fontSize.xxl,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: theme.spacing.xs,
-  },
-  headerSubtitle: {
-    fontSize: theme.fontSize.md,
-    color: '#fff',
-    opacity: 0.9,
-  },
-  profileButton: {
-    marginLeft: theme.spacing.md,
-  },
-  profileIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   searchbar: {
     marginHorizontal: 16,

@@ -79,7 +79,11 @@ Claude vai:
 🔄 FULL-STACK FIX-INCONSISTENCY: Status permanece "PENDING" após enviar
 
 # Cache desatualizado
-🔄 FULL-STACK FIX-INCONSISTENCY: Lista não atualiza após criar item
+🔄 c Lista não atualiza após criar item
+
+🔄 FULL-STACK FIX-INFO: O que é inconsistente? Qual comportamento esperado? Qual erro aparece?
+
+🔄 FULL-STACK FIX-TEST: Teste todo o fluxo do contexto criado ou alterado
 ```
 
 ---
@@ -110,6 +114,340 @@ Claude vai:
 ```bash
 🔄 FULL-STACK MODIFY-FLOW: [Descrição da mudança desejada]
 ```
+
+---
+
+## 🎨 Padrões de Sistema, Tela e UX
+
+### Cores do Sistema (`mobile/constants/Colors.ts`)
+
+```typescript
+Colors.light = {
+  // Primárias
+  primary: '#6366F1',        // Roxo - ações principais, FAB, headers
+  secondary: '#8B5CF6',      // Roxo claro - gradientes
+
+  // Feedback
+  success: '#10B981',        // Verde - sucesso, ativo, dinheiro
+  warning: '#F59E0B',        // Amarelo - alertas, pendente
+  error: '#EF4444',          // Vermelho - erros, deletar, inativo
+  info: '#3B82F6',           // Azul - informação, links
+
+  // Fundos
+  background: '#FFFFFF',           // Fundo principal
+  backgroundSecondary: '#F3F4F6',  // Fundo de telas (cinza claro)
+  card: '#FFFFFF',                 // Cards e inputs
+
+  // Textos
+  text: '#11181C',           // Texto principal (quase preto)
+  textSecondary: '#6B7280',  // Texto secundário (cinza)
+  textTertiary: '#9CA3AF',   // Texto terciário (cinza claro)
+
+  // Bordas
+  border: '#E5E7EB',         // Bordas sutis
+}
+```
+
+### Estrutura Padrão de Telas
+
+```
+┌─────────────────────────────────┐
+│  HEADER (LinearGradient)        │  ← primary → secondary
+│  ┌─────────────────────────┐    │
+│  │ ← Back    Título    [?] │    │  ← Botão voltar + Título + HelpButton
+│  │          Subtítulo       │    │
+│  └─────────────────────────┘    │
+│  borderBottomRadius: 24         │
+├─────────────────────────────────┤
+│  SEARCHBAR (se aplicável)       │  ← marginHorizontal: 16
+├─────────────────────────────────┤
+│  FILTROS (Chips)                │  ← flexDirection: 'row', gap: 8
+├─────────────────────────────────┤
+│                                 │
+│  CONTEÚDO (FlatList/ScrollView) │  ← paddingHorizontal: 16
+│                                 │
+│  ┌─────────────────────────┐    │
+│  │ Card Item               │    │  ← borderRadius: 16, elevation: 2
+│  └─────────────────────────┘    │
+│                                 │
+│  ┌─────────────────────────┐    │
+│  │ Card Item               │    │
+│  └─────────────────────────┘    │
+│                                 │
+│                        [FAB] ●  │  ← position: absolute, bottom: 24
+└─────────────────────────────────┘
+```
+
+### Padrões de Header
+
+```typescript
+// Header com gradiente (PADRÃO)
+<LinearGradient
+  colors={[Colors.light.primary, Colors.light.secondary]}
+  start={{ x: 0, y: 0 }}
+  end={{ x: 1, y: 1 }}
+  style={{
+    paddingTop: 50,              // StatusBar + espaço
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  }}
+>
+  {/* Conteúdo */}
+</LinearGradient>
+```
+
+### Padrões de Cards
+
+```typescript
+// Card padrão para listas
+const cardStyle = {
+  borderRadius: 16,
+  elevation: 2,
+  backgroundColor: Colors.light.card,
+  shadowColor: '#000',
+  shadowOffset: { width: 0, height: 2 },
+  shadowOpacity: 0.1,
+  shadowRadius: 4,
+  marginBottom: 12,
+};
+```
+
+### Padrões de Formulários
+
+```typescript
+// TextInput padrão (react-native-paper)
+<TextInput
+  label="Nome do Campo *"
+  value={value}
+  onChangeText={setValue}
+  mode="outlined"                    // SEMPRE outlined
+  style={{
+    marginBottom: 12,
+    backgroundColor: Colors.light.card
+  }}
+  left={<TextInput.Icon icon="icon-name" />}  // Ícone opcional
+/>
+
+// Campos obrigatórios: Label + " *"
+// Validação: Alert.alert('Erro', 'Mensagem clara')
+```
+
+### Padrões de Botões
+
+```typescript
+// Botão primário (ação principal)
+<Button
+  mode="contained"
+  onPress={handleAction}
+  loading={isLoading}
+  disabled={isLoading}
+  icon="icon-name"
+  style={{ borderRadius: 12 }}
+  contentStyle={{ paddingVertical: 8 }}
+>
+  Texto da Ação
+</Button>
+
+// Botão secundário (ação alternativa)
+<Button mode="outlined" ...>
+
+// Botão destrutivo (deletar/cancelar)
+<Button mode="outlined" textColor={Colors.light.error} ...>
+```
+
+### Padrões de FAB (Floating Action Button)
+
+```typescript
+// Usar componente personalizado FAB
+import FAB from '@/components/FAB';
+
+<FAB
+  directRoute="/entity/add"   // Rota para adicionar
+  bottom={90}                 // Ajustar se tem tabs
+/>
+
+// OU FAB nativo (sem menu)
+<FAB
+  icon="plus"
+  style={{
+    position: 'absolute',
+    right: 16,
+    bottom: 24,
+    backgroundColor: Colors.light.primary,
+  }}
+  onPress={() => router.push('/entity/add')}
+  color="#fff"
+/>
+```
+
+### Padrões de Listas (FlatList)
+
+```typescript
+<FlatList
+  data={items}
+  renderItem={renderItem}
+  keyExtractor={(item) => item.id.toString()}
+  contentContainerStyle={{
+    paddingHorizontal: 16,
+    paddingBottom: 100,        // Espaço para FAB
+  }}
+  refreshControl={
+    <RefreshControl
+      refreshing={isRefetching}
+      onRefresh={refetch}
+      colors={[Colors.light.primary]}
+    />
+  }
+  ListEmptyComponent={
+    <EmptyState
+      icon="icon-outline"
+      title="Nenhum item"
+      description="Descrição útil"
+    />
+  }
+/>
+```
+
+### Padrões de Feedback
+
+```typescript
+// Loading global (automático via api interceptor)
+// NÃO precisa fazer nada, já é automático
+
+// Mensagem de sucesso
+Alert.alert('Sucesso', 'Ação realizada com sucesso');
+
+// Mensagem de erro
+Alert.alert('Erro', error.response?.data?.detail || 'Erro ao realizar ação');
+
+// Confirmação antes de ação destrutiva
+Alert.alert(
+  'Confirmar Ação',
+  'Tem certeza que deseja fazer isso?',
+  [
+    { text: 'Cancelar', style: 'cancel' },
+    { text: 'Confirmar', style: 'destructive', onPress: handleAction },
+  ]
+);
+```
+
+### Padrões de Navegação
+
+```typescript
+// Voltar
+router.back()
+
+// Ir para tela
+router.push('/entity/add')
+
+// Ir com parâmetro
+router.push(`/entity/${id}`)
+
+// Substituir (sem voltar)
+router.replace('/(auth)/login')
+```
+
+### Padrões de Badges/Chips
+
+```typescript
+// Badge de status
+<View style={{
+  backgroundColor: statusColor + '15',  // Cor com transparência
+  paddingHorizontal: 10,
+  paddingVertical: 4,
+  borderRadius: 12,
+}}>
+  <Text style={{
+    color: statusColor,
+    fontSize: 12,
+    fontWeight: '600'
+  }}>
+    {statusLabel}
+  </Text>
+</View>
+
+// Cores por status
+const statusColors = {
+  active: '#10B981',    // Verde
+  pending: '#F59E0B',   // Amarelo
+  inactive: '#EF4444',  // Vermelho
+  info: '#3B82F6',      // Azul
+};
+```
+
+### Padrões de Espaçamento (`theme.spacing`)
+
+```typescript
+theme.spacing = {
+  xxs: 2,
+  xs: 4,
+  sm: 8,
+  md: 16,
+  lg: 24,
+  xl: 32,
+  xxl: 48,
+};
+
+// Uso
+marginBottom: theme.spacing.md,  // 16
+padding: theme.spacing.lg,       // 24
+gap: theme.spacing.sm,           // 8
+```
+
+### Padrões de Tipografia (`theme.fontSize`)
+
+```typescript
+theme.fontSize = {
+  xxs: 10,
+  xs: 12,
+  sm: 14,
+  base: 16,
+  lg: 18,
+  xl: 20,
+  xxl: 24,
+  xxxl: 32,
+};
+
+// Uso
+fontSize: theme.fontSize.base,     // 16 - texto normal
+fontSize: theme.fontSize.sm,       // 14 - texto secundário
+fontSize: theme.fontSize.xxl,      // 24 - títulos de header
+```
+
+### Padrões de BorderRadius (`theme.borderRadius`)
+
+```typescript
+theme.borderRadius = {
+  sm: 4,
+  md: 8,
+  lg: 12,
+  xl: 16,
+  xxl: 24,
+  full: 9999,
+};
+
+// Uso
+borderRadius: theme.borderRadius.lg,   // 12 - cards
+borderRadius: theme.borderRadius.xxl,  // 24 - headers
+borderRadius: theme.borderRadius.full, // círculos
+```
+
+### Checklist de Consistência Visual
+
+Ao criar/modificar telas, verifique:
+
+- [ ] Header usa `LinearGradient` com `primary → secondary`
+- [ ] Header tem `borderBottomRadius: 24`
+- [ ] Cards usam `borderRadius: 16` e `elevation: 2`
+- [ ] Inputs usam `mode="outlined"`
+- [ ] Botão primário usa `mode="contained"`
+- [ ] FAB está posicionado `bottom: 24, right: 16`
+- [ ] FlatList tem `paddingBottom: 100` (espaço para FAB)
+- [ ] Cores seguem o padrão do sistema
+- [ ] Espaçamentos usam `theme.spacing`
+- [ ] Fontes usam `theme.fontSize`
 
 ---
 

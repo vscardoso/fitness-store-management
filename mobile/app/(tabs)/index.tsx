@@ -19,6 +19,8 @@ import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import FAB from '@/components/FAB';
 import PeriodFilter, { type PeriodFilterValue, PERIOD_OPTIONS } from '@/components/PeriodFilter';
+import { HelpButton } from '@/components/tutorial';
+import PageHeader from '@/components/layout/PageHeader';
 
 const { width } = Dimensions.get('window');
 
@@ -183,30 +185,14 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <LinearGradient
-        colors={[Colors.light.primary, Colors.light.secondary]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <View style={styles.headerContent}>
-          <View>
-            <Text style={styles.greeting}>
-              {getGreeting()}, {user?.full_name?.split(' ')[0] || 'Usuário'}!
-            </Text>
-            <Text style={styles.storeName}>
-              {user?.store_name || 'Fitness Store'}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.profileButton}
-            onPress={() => router.push('/(tabs)/more')}
-          >
-            <Ionicons name="person-circle-outline" size={40} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
+      <PageHeader
+        title={`${getGreeting()}, ${user?.full_name?.split(' ')[0] || 'Usuário'}!`}
+        subtitle={user?.store_name || 'Fitness Store'}
+        rightActions={[
+          { icon: 'help-circle-outline', onPress: () => {} },
+          { icon: 'person-circle-outline', onPress: () => router.push('/(tabs)/more') },
+        ]}
+      />
 
       <ScrollView
         style={styles.scrollView}
@@ -588,33 +574,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-  },
-
-  // Header
-  header: {
-    paddingTop: 50,
-    paddingBottom: 20,
-    paddingHorizontal: 16,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  greeting: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  storeName: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    marginTop: 2,
-  },
-  profileButton: {
-    padding: 4,
   },
 
   // Card Principal - Vendas Hoje

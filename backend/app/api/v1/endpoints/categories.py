@@ -382,9 +382,20 @@ async def create_category(
                     detail=f"Categoria pai com ID {category_data.parent_id} não encontrada"
                 )
         
-        # Criar categoria
+        # Criar categoria com tenant_id e slug
         category_dict = category_data.model_dump()
-        category = await category_repo.create(category_dict)
+        
+        # Gerar slug a partir do name se não fornecido
+        if "slug" not in category_dict or not category_dict.get("slug"):
+            import re
+            slug = re.sub(r'[^\w\s-]', '', category_dict["name"].lower())
+            slug = re.sub(r'[-\s]+', '-', slug)
+            category_dict["slug"] = slug
+        
+        category = await category_repo.create(
+            category_dict, 
+            tenant_id=current_user.tenant_id
+        )
         await db.commit()
         await db.refresh(category)
         

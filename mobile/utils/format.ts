@@ -105,3 +105,15 @@ export const truncate = (text: string, maxLength: number): string => {
 export const capitalize = (text: string): string => {
   return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
 };
+
+/**
+ * Capitaliza primeira letra de cada palavra
+ * Ex: "joão da silva" -> "João Da Silva"
+ */
+export const capitalizeWords = (text: string): string => {
+  return text
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};

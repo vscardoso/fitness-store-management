@@ -91,7 +91,7 @@ class ProductSeedService:
         for p in products:
             p['sku'] = self._generate_sku()  # Adicionar SKU
             p['is_catalog'] = True  # Marcar como catálogo
-            await self.product_repo.create(ProductCreate(**p), tenant_id=tenant_id)
+            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  # 🌍 GLOBAL: sem tenant_id
             count += 1
         return count
 
@@ -122,7 +122,7 @@ class ProductSeedService:
         for p in products:
             p['sku'] = self._generate_sku()  # Adicionar SKU
             p['is_catalog'] = True  # Marcar como catálogo
-            await self.product_repo.create(ProductCreate(**p), tenant_id=tenant_id)
+            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  # 🌍 GLOBAL: sem tenant_id
             count += 1
         return count
 
@@ -153,7 +153,7 @@ class ProductSeedService:
         for p in products:
             p['sku'] = self._generate_sku()  # Adicionar SKU
             p['is_catalog'] = True  # Marcar como catálogo
-            await self.product_repo.create(ProductCreate(**p), tenant_id=tenant_id)
+            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  # 🌍 GLOBAL: sem tenant_id
             count += 1
         return count
 
@@ -179,7 +179,7 @@ class ProductSeedService:
         for p in products:
             p['sku'] = self._generate_sku()  # Adicionar SKU
             p['is_catalog'] = True  # Marcar como catálogo
-            await self.product_repo.create(ProductCreate(**p), tenant_id=tenant_id)
+            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  # 🌍 GLOBAL: sem tenant_id
             count += 1
         return count
 
@@ -205,7 +205,7 @@ class ProductSeedService:
         for p in products:
             p['sku'] = self._generate_sku()  # Adicionar SKU
             p['is_catalog'] = True  # Marcar como catálogo
-            await self.product_repo.create(ProductCreate(**p), tenant_id=tenant_id)
+            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  # 🌍 GLOBAL: sem tenant_id
             count += 1
         return count
 
@@ -226,7 +226,7 @@ class ProductSeedService:
         for p in products:
             p['sku'] = self._generate_sku()  # Adicionar SKU
             p['is_catalog'] = True  # Marcar como catálogo
-            await self.product_repo.create(ProductCreate(**p), tenant_id=tenant_id)
+            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  # 🌍 GLOBAL: sem tenant_id
             count += 1
         return count
 
@@ -247,6 +247,6 @@ class ProductSeedService:
         for p in products:
             p['sku'] = self._generate_sku()  # Adicionar SKU
             p['is_catalog'] = True  # Marcar como catálogo
-            await self.product_repo.create(ProductCreate(**p), tenant_id=tenant_id)
+            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  # 🌍 GLOBAL: sem tenant_id
             count += 1
         return count

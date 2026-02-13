@@ -21,7 +21,7 @@ async def reset_password(email: str, new_password: str):
         user = result.scalar_one_or_none()
         
         if not user:
-            print(f"\n❌ Usuário {email} não encontrado!")
+            print(f"\n Usuário {email} não encontrado!")
             return False
         
         print(f"\n👤 Usuário encontrado:")

@@ -32,6 +32,7 @@ import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { EntryType } from '@/types';
 import FAB from '@/components/FAB';
+import { HelpButton } from '@/components/tutorial';
 
 const { width } = Dimensions.get('window');
 
@@ -282,14 +283,17 @@ export default function InventoryDashboard() {
                 {metrics.totalItems} produtos ativos
               </Text>
             </View>
-            <TouchableOpacity
-              style={styles.profileButton}
-              onPress={() => router.push('/(tabs)/more')}
-            >
-              <View style={styles.profileIcon}>
-                <Ionicons name="person" size={24} color="#fff" />
-              </View>
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <HelpButton tutorialId="inventory" color="#fff" showBadge />
+              <TouchableOpacity
+                style={styles.profileButton}
+                onPress={() => router.push('/(tabs)/more')}
+              >
+                <View style={styles.profileIcon}>
+                  <Ionicons name="person" size={24} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            </View>
           </View>
         </LinearGradient>
       </View>
@@ -647,8 +651,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     opacity: 0.9,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   profileButton: {
-    marginLeft: theme.spacing.md,
+    marginLeft: 0,
   },
   profileIcon: {
     width: 48,

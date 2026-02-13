@@ -161,7 +161,7 @@ export default function MoreScreen() {
 
           <TouchableOpacity
             style={[styles.quickActionCard, { backgroundColor: '#3B82F6' }]}
-            onPress={() => router.push('/customers/new')}
+            onPress={() => router.push('/customers/add')}
             activeOpacity={0.8}
           >
             <View style={styles.quickActionIcon}>
@@ -173,7 +173,7 @@ export default function MoreScreen() {
 
           <TouchableOpacity
             style={[styles.quickActionCard, { backgroundColor: '#8B5CF6' }]}
-            onPress={() => router.push('/products/new')}
+            onPress={() => router.push('/products/add')}
             activeOpacity={0.8}
           >
             <View style={styles.quickActionIcon}>
@@ -185,7 +185,7 @@ export default function MoreScreen() {
 
           <TouchableOpacity
             style={[styles.quickActionCard, { backgroundColor: '#EC4899' }]}
-            onPress={() => router.push('/entries/new')}
+            onPress={() => router.push('/entries/add')}
             activeOpacity={0.8}
           >
             <View style={styles.quickActionIcon}>
@@ -302,6 +302,17 @@ export default function MoreScreen() {
           Configurações
         </Text>
         <Card style={styles.menuCard}>
+          {/* Equipe - Apenas ADMIN */}
+          {(user?.role === 'admin' || user?.role === 'ADMIN') && (
+            <MenuItem
+              icon="people-outline"
+              title="Gerenciar Equipe"
+              subtitle="Usuários e permissões da loja"
+              onPress={() => router.push('/team')}
+              iconColor="#8B5CF6"
+              iconBg="#EDE9FE"
+            />
+          )}
           {/* Descontos - Apenas ADMIN */}
           {(user?.role === 'admin' || user?.role === 'ADMIN') && (
             <MenuItem
@@ -331,9 +342,9 @@ export default function MoreScreen() {
           />
           <MenuItem
             icon="help-circle-outline"
-            title="Ajuda e Suporte"
-            subtitle="Central de ajuda"
-            onPress={() => Alert.alert('Em desenvolvimento', 'Seção de ajuda será implementada em breve!')}
+            title="Ajuda e Tutoriais"
+            subtitle="Aprenda a usar o app"
+            onPress={() => router.push('/help')}
             iconColor="#06B6D4"
             iconBg="#CFFAFE"
           />

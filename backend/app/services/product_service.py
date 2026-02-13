@@ -11,6 +11,7 @@ from app.repositories.inventory_repository import InventoryRepository
 from app.repositories.product_repository import ProductRepository
 from app.repositories.entry_item_repository import EntryItemRepository
 from app.schemas.product import ProductCreate, ProductUpdate, ProductStatusResponse
+from app.core.timezone import now_brazil
 
 # Logger global do módulo
 logger = logging.getLogger(__name__)
@@ -83,9 +84,18 @@ class ProductService:
         # Remover campos específicos de estoque e alias sale_price do payload do produto
         product_dict = product_data.model_dump(exclude={"initial_stock", "min_stock", "sale_price"})
 
+        # REGRA DE NEGÓCIO: Produto sem estoque inicial vai para catálogo
+        # Somente produtos com entrada de estoque são considerados "ativos"
+        if initial_stock is None or initial_stock <= 0:
+            product_dict["is_catalog"] = True
+            logger.info(f"📦 Produto será criado no CATÁLOGO (sem estoque inicial)")
+        else:
+            product_dict["is_catalog"] = False
+            logger.info(f"📦 Produto será criado ATIVO com entrada de estoque inicial: {initial_stock}")
+
         # Criar produto no repositório
         product = await self.product_repo.create(product_dict, tenant_id=tenant_id)
-        logger.info(f"✅ Produto criado - ID: {product.id}, SKU: {product.sku}")
+        logger.info(f"✅ Produto criado - ID: {product.id}, SKU: {product.sku}, is_catalog: {product.is_catalog}")
 
         # Se há estoque inicial, criar entrada automática do tipo INITIAL_INVENTORY
         if initial_stock and initial_stock > 0:
@@ -117,7 +127,7 @@ class ProductService:
                     notes="Item de estoque inicial",
                 )
                 # Incluir entry_id nos dados do item e usar assinatura correta (db, data)
-                item_dict = item_data.model_dump()
+                item_dict = item_data.model_dump(exclude={"selling_price"})
                 item_dict["entry_id"] = entry.id
                 item = await item_repo.create(self.db, item_dict)
                 logger.info(f"✅ Item de entrada criado - ID: {item.id}, Qty: {initial_stock}")
@@ -136,12 +146,22 @@ class ProductService:
         # Criar/atualizar registro de inventário com min_stock
         try:
             inventory = await self.inventory_repo.get_by_product(product.id, tenant_id=tenant_id)
-            if inventory:
+            if not inventory:
+                # Criar inventory se não existir
+                inventory_data = {
+                    "product_id": product.id,
+                    "quantity": initial_stock or 0,
+                    "min_stock": min_stock_value,
+                }
+                inventory = await self.inventory_repo.create(self.db, inventory_data, tenant_id=tenant_id)
+                logger.info(f"✅ Inventory criado - Quantity: {initial_stock or 0}, Min stock: {min_stock_value}")
+            else:
+                # Atualizar min_stock se já existir
                 inventory.min_stock = min_stock_value
                 await self.db.commit()
-                logger.info(f"✅ Min stock configurado: {min_stock_value}")
+                logger.info(f"✅ Min stock atualizado: {min_stock_value}")
         except Exception as inv_err:
-            logger.error(f"Erro ao configurar min_stock para o produto {product.id}: {inv_err}")
+            logger.error(f"Erro ao criar/atualizar inventory para o produto {product.id}: {inv_err}")
 
         return product
     
@@ -190,14 +210,14 @@ class ProductService:
         
         update_dict = product_data.model_dump(exclude_unset=True)
         updated_product = await self.product_repo.update(self.db, id=product_id, obj_in=update_dict, tenant_id=tenant_id)
-        
+
         # Sincronizar unit_cost dos EntryItems com estoque se cost_price mudou
         if cost_price_changed:
             from sqlalchemy import update as sql_update
             from app.models.entry_item import EntryItem
-            
+
             logger.info(f"Sincronizando unit_cost dos EntryItems do produto {product_id}: {old_cost} → {new_cost}")
-            
+
             stmt = (
                 sql_update(EntryItem)
                 .where(
@@ -208,14 +228,17 @@ class ProductService:
                 )
                 .values(unit_cost=new_cost)
             )
-            
+
             result = await self.db.execute(stmt)
             updated_count = result.rowcount
-            await self.db.commit()
-            
+
             if updated_count > 0:
                 logger.info(f"✅ {updated_count} EntryItem(s) atualizados com novo custo: {new_cost}")
-        
+
+        # Sempre fazer commit das alterações
+        await self.db.commit()
+        await self.db.refresh(updated_product)
+
         return updated_product
 
     async def adjust_product_quantity(
@@ -634,28 +657,28 @@ class ProductService:
         limit: int = 100
     ) -> List[Product]:
         """
-        Lista produtos do CATÁLOGO (templates).
+        Lista produtos do CATÁLOGO (templates globais).
 
-        Estes são os 115 produtos padrão que aparecem para novas lojas.
+        Estes são os 115 produtos padrão que aparecem para TODAS as lojas.
+        O catálogo é GLOBAL - todos os usuários veem os mesmos templates.
         O usuário pode "ativar" produtos do catálogo para adicionar à sua loja.
 
         Args:
-            tenant_id: ID do tenant (para filtrar produtos do catálogo deste tenant)
+            tenant_id: ID do tenant (IGNORADO - catálogo é global)
             category_id: Filtrar por categoria (opcional)
             search: Buscar por nome/marca (opcional)
             skip: Paginação - registros a pular
             limit: Paginação - máximo de registros
 
         Returns:
-            Lista de produtos do catálogo
+            Lista de produtos do catálogo (global)
         """
         from sqlalchemy import select, and_
 
         # Buscar produtos do catálogo (is_catalog=true)
         stmt = select(Product).where(
             and_(
-                Product.tenant_id == tenant_id,
-                Product.is_catalog == True,
+                Product.is_catalog == True,      # 🌍 GLOBAL: catálogo é para todos os tenants
                 Product.is_active == True
             )
         )
@@ -664,14 +687,16 @@ class ProductService:
         if category_id is not None:
             stmt = stmt.where(Product.category_id == category_id)
 
-        # Buscar por nome/marca
+        # Buscar por nome/marca/cor/tamanho
         if search:
             search_pattern = f"%{search}%"
             from sqlalchemy import or_
             stmt = stmt.where(
                 or_(
                     Product.name.ilike(search_pattern),
-                    Product.brand.ilike(search_pattern)
+                    Product.brand.ilike(search_pattern),
+                    Product.color.ilike(search_pattern),
+                    Product.size.ilike(search_pattern)
                 )
             )
 
@@ -702,6 +727,7 @@ class ProductService:
             Lista de produtos ativos
         """
         from sqlalchemy import select, and_
+        from sqlalchemy.orm import selectinload
 
         stmt = select(Product).where(
             and_(
@@ -709,6 +735,9 @@ class ProductService:
                 Product.is_catalog == False,  # Apenas produtos ativos (não catálogo)
                 Product.is_active == True
             )
+        ).options(
+            selectinload(Product.category),  # 🔧 CARREGAMENTO DA RELAÇÃO
+            selectinload(Product.inventory)
         ).order_by(Product.name).offset(skip).limit(limit)
 
         result = await self.db.execute(stmt)

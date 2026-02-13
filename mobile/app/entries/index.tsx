@@ -19,17 +19,19 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { Text, Card, Searchbar, Menu, Button, Chip } from 'react-native-paper';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/hooks/useAuth';
 import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';
-import { getStockEntries, getStockEntriesStats } from '@/services/stockEntryService';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { getStockEntries, getStockEntriesStats, addItemToEntry } from '@/services/stockEntryService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { StockEntry, EntryType } from '@/types';
@@ -40,11 +42,65 @@ type FilterType = 'all' | 'active' | 'history';
 
 export default function StockEntriesScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const [typeFilter, setTypeFilter] = useState<EntryType | undefined>();
   const [searchQuery, setSearchQuery] = useState('');
   const [menuVisible, setMenuVisible] = useState(false);
   const [filter, setFilter] = useState<FilterType>('active');
+
+  // Parâmetros de navegação para modo de seleção
+  const params = useLocalSearchParams<{
+    selectMode?: string;
+    productToLink?: string;
+  }>();
+
+  // Parse produto a vincular
+  const productToLink = useMemo(() => {
+    if (params.productToLink) {
+      try {
+        return JSON.parse(params.productToLink);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }, [params.productToLink]);
+
+  const isSelectMode = params.selectMode === 'true' && productToLink;
+
+  // Estados para diálogos
+  const [showLinkDialog, setShowLinkDialog] = useState(false);
+  const [selectedEntry, setSelectedEntry] = useState<StockEntry | null>(null);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Mutation para vincular produto
+  const linkMutation = useMutation({
+    mutationFn: (data: { entryId: number; productData: any }) =>
+      addItemToEntry(data.entryId, {
+        product_id: data.productData.id,
+        quantity_received: 1,
+        unit_cost: data.productData.cost_price || 0,
+        selling_price: data.productData.price || 0,
+        notes: 'Adicionado via catálogo',
+      }),
+    onSuccess: async () => {
+      setShowLinkDialog(false);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['stock-entries'] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+        queryClient.invalidateQueries({ queryKey: ['active-products'] }),
+      ]);
+      setShowSuccessDialog(true);
+    },
+    onError: (error: any) => {
+      setShowLinkDialog(false);
+      setErrorMessage(error.message || 'Erro ao vincular produto');
+      setShowErrorDialog(true);
+    },
+  });
 
   /**
    * Query para buscar estatísticas gerais (total investido, etc.)
@@ -220,6 +276,32 @@ export default function StockEntriesScreen() {
   };
 
   /**
+   * Handler para seleção de entrada (modo normal ou seleção)
+   */
+  const handleEntryPress = (entry: StockEntry) => {
+    if (isSelectMode) {
+      // Modo de seleção: mostrar dialog para vincular produto
+      setSelectedEntry(entry);
+      setShowLinkDialog(true);
+    } else {
+      // Modo normal: navegar para detalhes
+      router.push({ pathname: `/entries/${entry.id}`, params: { from: '/(tabs)/entries' } });
+    }
+  };
+
+  /**
+   * Confirmar vinculação do produto
+   */
+  const confirmLinkProduct = () => {
+    if (selectedEntry && productToLink) {
+      linkMutation.mutate({
+        entryId: selectedEntry.id,
+        productData: productToLink,
+      });
+    }
+  };
+
+  /**
    * Renderizar card de entrada
    */
   const renderEntryCard = ({ item }: { item: StockEntry }) => {
@@ -229,10 +311,10 @@ export default function StockEntriesScreen() {
 
     return (
       <TouchableOpacity
-        onPress={() => router.push({ pathname: `/entries/${item.id}`, params: { from: '/(tabs)/entries' } })}
+        onPress={() => handleEntryPress(item)}
         activeOpacity={0.7}
       >
-        <Card style={styles.card}>
+        <Card style={[styles.card, isSelectMode && styles.cardSelectMode]}>
           <Card.Content>
             {/* Header: Código e Tipo */}
             <View style={styles.cardHeader}>
@@ -686,8 +768,81 @@ export default function StockEntriesScreen() {
           }
         />
 
-        {/* FAB: Nova Entrada */}
-        <FAB directRoute="/entries/add" />
+        {/* FAB: Nova Entrada (escondido em modo de seleção) */}
+        {!isSelectMode && <FAB directRoute="/entries/add" />}
+
+        {/* Banner de modo de seleção */}
+        {isSelectMode && (
+          <View style={styles.selectModeBanner}>
+            <View style={styles.selectModeBannerContent}>
+              <Ionicons name="link" size={20} color="#fff" />
+              <View style={styles.selectModeBannerText}>
+                <Text style={styles.selectModeBannerTitle}>Vincular Produto</Text>
+                <Text style={styles.selectModeBannerSubtitle}>
+                  Selecione uma entrada para adicionar: {productToLink?.name}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => router.back()}
+                style={styles.selectModeBannerClose}
+              >
+                <Ionicons name="close" size={20} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
+        {/* Dialog de confirmação de vinculação */}
+        <ConfirmDialog
+          visible={showLinkDialog}
+          title="Vincular Produto"
+          message={`Deseja adicionar "${productToLink?.name}" à entrada ${selectedEntry?.entry_code}?`}
+          details={[
+            `Custo: R$ ${(productToLink?.cost_price || 0).toFixed(2)}`,
+            `Preço: R$ ${(productToLink?.price || 0).toFixed(2)}`,
+            `Quantidade: 1 unidade`,
+          ]}
+          confirmText="Vincular"
+          cancelText="Cancelar"
+          onConfirm={confirmLinkProduct}
+          onCancel={() => setShowLinkDialog(false)}
+          type="info"
+          icon="link"
+          loading={linkMutation.isPending}
+        />
+
+        {/* Dialog de sucesso */}
+        <ConfirmDialog
+          visible={showSuccessDialog}
+          title="Produto Vinculado!"
+          message={`${productToLink?.name} foi adicionado à entrada ${selectedEntry?.entry_code} com sucesso.`}
+          confirmText="Ver Entrada"
+          cancelText="Voltar"
+          onConfirm={() => {
+            setShowSuccessDialog(false);
+            if (selectedEntry) {
+              router.replace({ pathname: `/entries/${selectedEntry.id}`, params: { from: '/(tabs)/entries' } });
+            }
+          }}
+          onCancel={() => {
+            setShowSuccessDialog(false);
+            router.back();
+          }}
+          type="success"
+          icon="checkmark-circle"
+        />
+
+        {/* Dialog de erro */}
+        <ConfirmDialog
+          visible={showErrorDialog}
+          title="Erro"
+          message={errorMessage}
+          confirmText="OK"
+          onConfirm={() => setShowErrorDialog(false)}
+          onCancel={() => setShowErrorDialog(false)}
+          type="danger"
+          icon="alert-circle"
+        />
       </View>
     );
   }
@@ -1009,5 +1164,46 @@ const styles = StyleSheet.create({
   footerText: {
     fontSize: 13,
     color: Colors.light.textSecondary,
+  },
+  // Estilos para modo de seleção
+  cardSelectMode: {
+    borderWidth: 2,
+    borderColor: Colors.light.primary + '50',
+  },
+  selectModeBanner: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: Colors.light.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    paddingBottom: 32,
+  },
+  selectModeBannerContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  selectModeBannerText: {
+    flex: 1,
+  },
+  selectModeBannerTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  selectModeBannerSubtitle: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.85)',
+    marginTop: 2,
+  },
+  selectModeBannerClose: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

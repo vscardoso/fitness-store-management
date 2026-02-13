@@ -6,6 +6,9 @@ from decimal import Decimal
 from pydantic import BaseModel, Field
 from pydantic import model_validator, computed_field
 
+# Import para relação de categoria
+from .category import CategoryResponse
+
 
 class ProductBase(BaseModel):
     """Base product schema."""
@@ -106,6 +109,9 @@ class ProductResponse(ProductBase):
     current_stock: Optional[int] = Field(None, description="Quantidade atual em estoque")
     min_stock_threshold: Optional[int] = Field(None, description="Estoque mínimo")
     entry_items: Optional[List[ProductEntryItem]] = Field(None, description="Histórico FIFO de entradas do produto")
+    
+    # 🔧 Relação com categoria
+    category: Optional[CategoryResponse] = Field(None, description="Categoria do produto")
 
     # Expor sale_price no response (espelha "price") para compatibilidade
     @computed_field(return_type=Decimal)

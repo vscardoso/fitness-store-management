@@ -19,6 +19,7 @@ import FAB from '@/components/FAB';
 import { getCustomers } from '@/services/customerService';
 import { formatPhone } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
+import { HelpButton } from '@/components/tutorial';
 import type { Customer } from '@/types';
 
 export default function CustomersScreen() {
@@ -248,14 +249,17 @@ export default function CustomersScreen() {
                 {customerCount} {customerCount === 1 ? 'cliente' : 'clientes'}
               </Text>
             </View>
-            <TouchableOpacity
-              style={styles.profileButton}
-              onPress={() => router.push('/(tabs)/more')}
-            >
-              <View style={styles.profileIcon}>
-                <Ionicons name="person" size={24} color="#fff" />
-              </View>
-            </TouchableOpacity>
+            <View style={styles.headerActions}>
+              <HelpButton tutorialId="customers" color="#fff" showBadge />
+              <TouchableOpacity
+                style={styles.profileButton}
+                onPress={() => router.push('/(tabs)/more')}
+              >
+                <View style={styles.profileIcon}>
+                  <Ionicons name="person" size={24} color="#fff" />
+                </View>
+              </TouchableOpacity>
+            </View>
           </View>
         </LinearGradient>
       </View>
@@ -476,8 +480,13 @@ const styles = StyleSheet.create({
     color: '#fff',
     opacity: 0.9,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   profileButton: {
-    marginLeft: theme.spacing.md,
+    marginLeft: 0,
   },
   profileIcon: {
     width: 48,

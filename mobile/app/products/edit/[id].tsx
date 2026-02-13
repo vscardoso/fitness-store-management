@@ -7,20 +7,22 @@ import {
   Platform,
   TouchableOpacity,
   StatusBar,
+  Alert,
 } from 'react-native';
 import {
   TextInput,
   Button,
   HelperText,
-  Menu,
-  TouchableRipple,
   Text,
   ActivityIndicator,
 } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import DetailHeader from '@/components/layout/DetailHeader';
+import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import CustomModal from '@/components/ui/CustomModal';
+import ModalActions from '@/components/ui/ModalActions';
+import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
 import useBackToList from '@/hooks/useBackToList';
 import { useQuery } from '@tanstack/react-query';
 import { useCategories, useUpdateProduct } from '@/hooks';
@@ -28,6 +30,7 @@ import { getProductById, adjustProductQuantity } from '@/services/productService
 import { getProductStock } from '@/services/inventoryService';
 import { Colors, theme } from '@/constants/Colors';
 import type { ProductUpdate } from '@/types';
+import api from '@/services/api';
 
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -45,6 +48,8 @@ export default function EditProductScreen() {
   const [barcode, setBarcode] = useState('');
   const [description, setDescription] = useState('');
   const [brand, setBrand] = useState('');
+  const [color, setColor] = useState('');
+  const [size, setSize] = useState('');
   const [categoryId, setCategoryId] = useState<number | undefined>();
   const [costPrice, setCostPrice] = useState('');
   const [salePrice, setSalePrice] = useState('');
@@ -53,18 +58,23 @@ export default function EditProductScreen() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [menuVisible, setMenuVisible] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [showCostChangeDialog, setShowCostChangeDialog] = useState(false);
   const [pendingProductData, setPendingProductData] = useState<ProductUpdate | null>(null);
   const [originalCostPrice, setOriginalCostPrice] = useState<number | null>(null);
-  // Estoque
+  // Estoque e Entradas
   const [currentStock, setCurrentStock] = useState<number>(0);
-  const [newStock, setNewStock] = useState<string>('');
-  const [increaseUnitCost, setIncreaseUnitCost] = useState<string>('');
+  const [entryItems, setEntryItems] = useState<any[]>([]);
+  const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
+  const [editingEntryUnitCost, setEditingEntryUnitCost] = useState<string>('');
+  const [showEntryUpdateDialog, setShowEntryUpdateDialog] = useState(false);
+  const [entryToUpdate, setEntryToUpdate] = useState<any>(null);
 
   /**
    * Query: Buscar produto
    */
-  const { data: product, isLoading: loadingProduct } = useQuery({
+  const { data: product, isLoading: loadingProduct, refetch } = useQuery({
     queryKey: ['product', productId],
     queryFn: () => getProductById(productId),
     enabled: isValidId,
@@ -80,6 +90,8 @@ export default function EditProductScreen() {
       setBarcode(product.barcode || '');
       setDescription(product.description || '');
       setBrand(product.brand || '');
+      setColor(product.color || '');
+      setSize(product.size || '');
       setCategoryId(product.category_id);
       
       const safeToFixed = (value: any): string => {
@@ -87,6 +99,13 @@ export default function EditProductScreen() {
         const num = typeof value === 'number' ? value : parseFloat(String(value).replace(',', '.'));
         if (isNaN(num)) return '';
         return num.toFixed(2);
+      };
+
+      // Helper para converter unit_cost (pode ser string ou number) para number
+      const parseUnitCost = (value: any): number => {
+        if (value == null) return 0;
+        const num = typeof value === 'number' ? value : parseFloat(String(value).replace(',', '.'));
+        return isNaN(num) ? 0 : num;
       };
 
       // Formatar custo e preço de venda com segurança (aceita number ou string vinda da API)
@@ -98,14 +117,25 @@ export default function EditProductScreen() {
       setOriginalCostPrice(isNaN(originalCost as number) ? null : originalCost);
       
       console.log('📦 Produto carregado - Custo original:', product.cost_price);
-      // Buscar estoque atual
+      
+      // Buscar estoque e entry_items
       (async () => {
         try {
           const inv = await getProductStock(productId);
           setCurrentStock(inv.quantity || 0);
-          setNewStock(String(inv.quantity || 0));
+          
+          // Carregar entry_items se disponível (normalizando unit_cost para number)
+          if (product.entry_items && Array.isArray(product.entry_items)) {
+            const normalizedEntries = product.entry_items.map((entry: any) => ({
+              ...entry,
+              unit_cost: typeof entry.unit_cost === 'number' 
+                ? entry.unit_cost 
+                : parseFloat(String(entry.unit_cost || '0').replace(',', '.')),
+            }));
+            setEntryItems(normalizedEntries);
+          }
         } catch (e) {
-          // fallback silencioso
+          console.error('Erro ao buscar dados:', e);
         }
       })();
     }
@@ -176,6 +206,8 @@ export default function EditProductScreen() {
       barcode: barcode.trim() || undefined,
       description: description.trim() || undefined,
       brand: brand.trim() || undefined,
+      color: color.trim() || undefined,
+      size: size.trim() || undefined,
       category_id: categoryId!,
       cost_price: parseFloat(costPrice),
       price: parseFloat(salePrice),
@@ -193,38 +225,12 @@ export default function EditProductScreen() {
       updateMutation.mutate(
         { id: productId, data: productData },
         {
-          onSuccess: async () => {
-            // Verificar necessidade de ajuste de estoque
-            const target = parseInt(newStock || '0', 10);
-            const hasValidTarget = !isNaN(target);
-            const needsAdjust = hasValidTarget && target !== currentStock;
-
-            if (needsAdjust) {
-              try {
-                const increasing = target > currentStock;
-                const payload: any = {
-                  new_quantity: target,
-                  reason: `Ajuste automatico na edicao (de ${currentStock} para ${target})`,
-                };
-                if (increasing) {
-                  let unitCostRaw = increaseUnitCost || costPrice;
-                  let unitCost = parseFloat(String(unitCostRaw).replace(',', '.'));
-                  if (!isNaN(unitCost) && unitCost > 0) {
-                    payload.unit_cost = unitCost;
-                  }
-                }
-                await adjustProductQuantity(productId, payload);
-                setCurrentStock(target);
-              } catch (err: any) {
-                setErrors(prev => ({ ...prev, global: err?.response?.data?.detail || 'Falha ao ajustar estoque.' }));
-                return;
-              }
-            }
-
+          onSuccess: () => {
             setShowSuccessDialog(true);
           },
           onError: (error: any) => {
-            setErrors(prev => ({ ...prev, global: 'Falha ao atualizar produto. Verifique os dados.' }));
+            setErrorMessage(error?.response?.data?.detail || 'Falha ao atualizar produto. Verifique os dados.');
+            setShowErrorDialog(true);
           },
         }
       );
@@ -242,88 +248,17 @@ export default function EditProductScreen() {
       updateMutation.mutate(
         { id: productId, data: pendingProductData },
         {
-          onSuccess: async () => {
+          onSuccess: () => {
             console.log('✅ updateProduct sucesso (custo mudou)');
-            
-            // Verificar necessidade de ajuste de estoque
-            const target = parseInt(newStock || '0', 10);
-            const hasValidTarget = !isNaN(target);
-            const needsAdjust = hasValidTarget && target !== currentStock;
-
-            if (needsAdjust) {
-              try {
-                const increasing = target > currentStock;
-                const payload: any = {
-                  new_quantity: target,
-                  reason: `Ajuste automático na edição (de ${currentStock} para ${target})`,
-                };
-                if (increasing) {
-                  let unitCostRaw = increaseUnitCost || costPrice;
-                  let unitCost = parseFloat(String(unitCostRaw).replace(',', '.'));
-                  if (!isNaN(unitCost) && unitCost > 0) {
-                    payload.unit_cost = unitCost;
-                  }
-                }
-                await adjustProductQuantity(productId, payload);
-                setCurrentStock(target);
-              } catch (err: any) {
-                setErrors(prev => ({ ...prev, global: err?.response?.data?.detail || 'Falha ao ajustar estoque.' }));
-                return;
-              }
-            }
-
             setShowSuccessDialog(true);
           },
           onError: (error: any) => {
-            setErrors(prev => ({ ...prev, global: 'Falha ao atualizar produto. Verifique os dados.' }));
+            setErrorMessage(error?.response?.data?.detail || 'Falha ao atualizar produto. Verifique os dados.');
+            setShowErrorDialog(true);
           },
         }
       );
       setPendingProductData(null);
-    }
-  };
-
-  /**
-   * Aplicar ajuste de estoque com confirmação
-   */
-  const applyStockAdjustment = async () => {
-    // Validar entrada
-    const parsedNew = parseInt(newStock || '0', 10);
-    if (isNaN(parsedNew) || parsedNew < 0) {
-      setErrors(prev => ({ ...prev, global: 'Quantidade de estoque inválida' }));
-      return;
-    }
-
-    const delta = parsedNew - currentStock;
-    if (delta === 0) {
-      setErrors(prev => ({ ...prev, global: 'Nenhuma mudança de estoque para aplicar.' }));
-      return;
-    }
-
-    // Se aumento, exigir unit_cost
-    let unitCostNumber: number | undefined = undefined;
-    if (delta > 0) {
-      const v = parseFloat((increaseUnitCost || '').replace(',', '.'));
-      if (isNaN(v) || v < 0) {
-        setErrors(prev => ({ ...prev, global: 'Informe o custo unitário para aumentar o estoque.' }));
-        return;
-      }
-      unitCostNumber = v;
-    }
-
-    try {
-      const payload: any = { new_quantity: parsedNew, reason: 'Ajuste manual pelo app' };
-      if (unitCostNumber !== undefined) payload.unit_cost = unitCostNumber;
-      await adjustProductQuantity(productId, payload);
-      await queryClient.invalidateQueries({ queryKey: ['inventory', productId] });
-      await queryClient.invalidateQueries({ queryKey: ['product', productId] });
-      await queryClient.invalidateQueries({ queryKey: ['products'] });
-      setCurrentStock(parsedNew);
-      setShowStockAdjustDialog(false);
-      setErrors(prev => ({ ...prev, global: '' }));
-      setTimeout(() => setShowSuccessDialog(true), 150);
-    } catch (error: any) {
-      setErrors(prev => ({ ...prev, global: error?.response?.data?.detail || 'Falha ao ajustar estoque.' }));
     }
   };
 
@@ -334,6 +269,70 @@ export default function EditProductScreen() {
     console.log('❌ Usuário cancelou mudança de custo');
     setShowCostChangeDialog(false);
     setPendingProductData(null);
+  };
+
+  /**
+   * Iniciar edição de custo de uma entrada
+   */
+  const handleEditEntryClick = (entry: any) => {
+    if (entry.quantity_sold > 0) {
+      setErrorMessage(
+        `Esta entrada já vendeu ${entry.quantity_sold} unidade(s). ` +
+        `Não é possível editar custos de entradas com vendas para manter a rastreabilidade FIFO. ` +
+        `Para ajustar custos, crie uma nova entrada de ajuste.`
+      );
+      setShowErrorDialog(true);
+      return;
+    }
+
+    setEntryToUpdate(entry);
+    const unitCostNum = typeof entry.unit_cost === 'number' ? entry.unit_cost : parseFloat(String(entry.unit_cost).replace(',', '.'));
+    setEditingEntryUnitCost(formatPriceDisplay(isNaN(unitCostNum) ? '0.00' : unitCostNum.toFixed(2)));
+    setShowEntryUpdateDialog(true);
+  };
+
+  /**
+   * Confirmar atualização de custo da entrada
+   */
+  const handleConfirmEntryUpdate = async () => {
+    if (!entryToUpdate) return;
+
+    const newUnitCost = parseFloat(editingEntryUnitCost.replace(',', '.'));
+    if (isNaN(newUnitCost) || newUnitCost <= 0) {
+      setErrorMessage('Custo unitário inválido');
+      setShowErrorDialog(true);
+      return;
+    }
+
+    try {
+      // Chamar API para atualizar entry_item
+      await api.put(`/stock-entries/entry-items/${entryToUpdate.entry_item_id}`, {
+        unit_cost: newUnitCost,
+      });
+
+      // Atualizar lista local
+      setEntryItems(prev =>
+        prev.map(item =>
+          item.entry_item_id === entryToUpdate.entry_item_id
+            ? { ...item, unit_cost: newUnitCost }
+            : item
+        )
+      );
+
+      // Recarregar produto para atualizar cost_price
+      refetch();
+
+      setShowEntryUpdateDialog(false);
+      setEntryToUpdate(null);
+      setEditingEntryUnitCost('');
+
+      Alert.alert('Sucesso', 'Custo unitário atualizado com sucesso!');
+    } catch (error: any) {
+      setErrorMessage(
+        error.response?.data?.detail || 'Erro ao atualizar custo da entrada'
+      );
+      setShowErrorDialog(true);
+    }
   };
 
   /**
@@ -358,6 +357,38 @@ export default function EditProductScreen() {
   const formatPriceDisplay = (value: string): string => {
     if (!value) return '';
     return value.replace('.', ',');
+  };
+
+  /**
+   * Obter cor do tipo de entrada
+   */
+  const getEntryTypeColor = (type: string): string => {
+    const colors: Record<string, string> = {
+      trip: Colors.light.info,
+      online: Colors.light.warning,
+      local: Colors.light.success,
+      initial: Colors.light.textSecondary,
+      adjustment: Colors.light.primary,
+      return: Colors.light.info,
+      donation: Colors.light.success,
+    };
+    return colors[type.toLowerCase()] || Colors.light.textSecondary;
+  };
+
+  /**
+   * Obter label do tipo de entrada
+   */
+  const getEntryTypeLabel = (type: string): string => {
+    const labels: Record<string, string> = {
+      trip: 'Viagem',
+      online: 'Online',
+      local: 'Local',
+      initial: 'Inicial',
+      adjustment: 'Ajuste',
+      return: 'Devolução',
+      donation: 'Doação',
+    };
+    return labels[type.toLowerCase()] || type;
   };
 
   // Verificar ID inválido
@@ -396,18 +427,12 @@ export default function EditProductScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
-      {product && (
-        <DetailHeader
-          title="Editar Produto"
-          entityName={product.name}
-          backRoute="/(tabs)/products"
-          editRoute=""
-          onDelete={() => {}}
-          badges={[]}
-          metrics={[]}
-        />
-      )}
+      <PageHeader
+        title={product?.name || 'Editar Produto'}
+        subtitle={[product?.brand, product?.color, product?.size].filter(Boolean).join(' • ') || 'Produto'}
+        showBackButton
+        onBack={() => router.back()}
+      />
 
       <KeyboardAvoidingView
         style={styles.keyboardView}
@@ -474,8 +499,28 @@ export default function EditProductScreen() {
               onChangeText={setBrand}
               mode="outlined"
               style={styles.input}
-              placeholder="Ex: Nike, Adidas"
+              placeholder="Ex: Nike, Adidas, Under Armour"
             />
+
+            <View style={styles.rowInputs}>
+              <TextInput
+                label="Cor"
+                value={color}
+                onChangeText={setColor}
+                mode="outlined"
+                style={[styles.input, styles.inputHalf]}
+                placeholder="Ex: Preto, Rosa, Azul"
+              />
+
+              <TextInput
+                label="Tamanho"
+                value={size}
+                onChangeText={setSize}
+                mode="outlined"
+                style={[styles.input, styles.inputHalf]}
+                placeholder="PP, P, M, G, GG"
+              />
+            </View>
 
             <TextInput
               label="Descrição"
@@ -503,40 +548,31 @@ export default function EditProductScreen() {
               <HelperText type="error">Nenhuma categoria disponível. Cadastre categorias primeiro.</HelperText>
             ) : (
               <>
-                <Menu
-                  visible={menuVisible}
-                  onDismiss={() => setMenuVisible(false)}
-                  contentStyle={{ maxHeight: 300 }}
-                  anchor={
-                    <TouchableRipple
-                      onPress={() => setMenuVisible(true)}
-                      style={styles.categoryButton}
-                    >
-                      <View style={styles.categoryButtonContent}>
-                        <Text style={categoryId ? styles.categoryText : styles.categoryPlaceholder}>
-                          {categoryId 
-                            ? categories.find(c => c.id === categoryId)?.name 
-                            : 'Selecione uma categoria'}
-                        </Text>
-                        <Ionicons name="chevron-down" size={20} color="#999" />
-                      </View>
-                    </TouchableRipple>
-                  }
+                <TouchableOpacity
+                  onPress={() => setMenuVisible(true)}
+                  style={[
+                    styles.categoryButton,
+                    errors.categoryId && styles.categoryButtonError,
+                  ]}
                 >
-                  {categories.map((category) => (
-                    <Menu.Item
-                      key={category.id}
-                      onPress={() => {
-                        setMenuVisible(false);
-                        setTimeout(() => {
-                          setCategoryId(category.id);
-                          setErrors({ ...errors, categoryId: '' });
-                        }, 100);
-                      }}
-                      title={category.name}
+                  <View style={styles.categoryButtonContent}>
+                    <Ionicons
+                      name="grid-outline"
+                      size={20}
+                      color={categoryId ? Colors.light.primary : Colors.light.textTertiary}
                     />
-                  ))}
-                </Menu>
+                    <Text style={categoryId ? styles.categoryText : styles.categoryPlaceholder}>
+                      {categoryId 
+                        ? categories.find(c => c.id === categoryId)?.name 
+                        : 'Selecione uma categoria'}
+                    </Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={Colors.light.textTertiary}
+                    />
+                  </View>
+                </TouchableOpacity>
                 {errors.categoryId ? (
                   <HelperText type="error">{errors.categoryId}</HelperText>
                 ) : null}
@@ -580,55 +616,157 @@ export default function EditProductScreen() {
           </View>
         </View>
 
-        {/* Estoque */}
+        {/* Entradas de Estoque (FIFO) */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Ionicons name="cube-outline" size={20} color={Colors.light.primary} />
-            <Text style={styles.cardTitle}>Estoque</Text>
+            <Text style={styles.cardTitle}>Entradas de Estoque (FIFO)</Text>
           </View>
           <View style={styles.cardContent}>
-            <View style={styles.infoBox}>
-              <Text style={styles.infoLabel}>Atual:</Text>
-              <Text style={styles.infoValue}>{currentStock} un</Text>
+            {/* Resumo */}
+            <View style={styles.stockSummary}>
+              <View style={styles.stockSummaryItem}>
+                <Text style={styles.stockSummaryLabel}>Estoque Total:</Text>
+                <Text style={styles.stockSummaryValue}>{currentStock} un</Text>
+              </View>
+              <View style={styles.stockSummaryItem}>
+                <Text style={styles.stockSummaryLabel}>Entradas:</Text>
+                <Text style={styles.stockSummaryValue}>{entryItems.length}</Text>
+              </View>
             </View>
-            <TextInput
-              label="Ajustar para (un)"
-              value={newStock}
-              onChangeText={(t) => setNewStock(t.replace(/[^0-9]/g, ''))}
-              mode="outlined"
-              keyboardType="numeric"
-              style={styles.input}
-              placeholder="0"
-            />
-            {(() => {
-              const parsedNew = parseInt(newStock || '0', 10);
-              const delta = (isNaN(parsedNew) ? 0 : parsedNew) - currentStock;
-              if (delta > 0) {
+
+            {/* Aviso sobre ajuste de estoque */}
+            <View style={styles.infoBox}>
+              <Ionicons name="information-circle" size={18} color={Colors.light.info} />
+              <Text style={styles.infoBoxText}>
+                Para ajustar quantidade total, utilize a tela de Entradas. Aqui você pode editar o custo unitário de entradas sem vendas.
+              </Text>
+            </View>
+
+            {/* Lista de Entradas */}
+            {entryItems.length === 0 ? (
+              <View style={styles.emptyEntries}>
+                <Ionicons name="archive-outline" size={48} color={Colors.light.textTertiary} />
+                <Text style={styles.emptyEntriesText}>Nenhuma entrada de estoque cadastrada</Text>
+                <Text style={styles.emptyEntriesSubtext}>
+                  Adicione produtos através da tela de Entradas
+                </Text>
+              </View>
+            ) : (
+              entryItems.map((entry, index) => {
+                const canEdit = entry.quantity_sold === 0;
+                const soldPercentage = (entry.quantity_sold / entry.quantity_received) * 100;
+
                 return (
-                  <TextInput
-                    label="Custo unitário (R$) para aumento"
-                    value={increaseUnitCost}
-                    onChangeText={(t) => setIncreaseUnitCost(t.replace(/[^0-9,\.]/g, '').replace(',', '.'))}
-                    mode="outlined"
-                    keyboardType="numeric"
-                    style={styles.input}
-                    placeholder="0,00"
-                    left={<TextInput.Affix text="R$" />}
-                  />
+                  <View key={`${entry.entry_item_id}-${index}`} style={styles.entryItem}>
+                    {/* Header da entrada */}
+                    <View style={styles.entryItemHeader}>
+                      <View style={styles.entryItemHeaderLeft}>
+                        <Ionicons
+                          name="receipt-outline"
+                          size={16}
+                          color={Colors.light.primary}
+                        />
+                        <Text style={styles.entryCode}>{entry.entry_code}</Text>
+                      </View>
+                      <View style={[
+                        styles.entryTypeBadge,
+                        { backgroundColor: getEntryTypeColor(entry.entry_type) + '20' }
+                      ]}>
+                        <Text style={[
+                          styles.entryTypeText,
+                          { color: getEntryTypeColor(entry.entry_type) }
+                        ]}>
+                          {getEntryTypeLabel(entry.entry_type)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Informações da entrada */}
+                    <View style={styles.entryItemContent}>
+                      <View style={styles.entryItemRow}>
+                        <Text style={styles.entryItemLabel}>Data:</Text>
+                        <Text style={styles.entryItemValue}>
+                          {new Date(entry.entry_date).toLocaleDateString('pt-BR')}
+                        </Text>
+                      </View>
+
+                      <View style={styles.entryItemRow}>
+                        <Text style={styles.entryItemLabel}>Fornecedor:</Text>
+                        <Text style={styles.entryItemValue} numberOfLines={1}>
+                          {entry.supplier_name}
+                        </Text>
+                      </View>
+
+                      <View style={styles.entryItemRow}>
+                        <Text style={styles.entryItemLabel}>Quantidade:</Text>
+                        <Text style={styles.entryItemValue}>
+                          {entry.quantity_remaining}/{entry.quantity_received} un
+                          {entry.quantity_sold > 0 && (
+                            <Text style={styles.soldText}> ({entry.quantity_sold} vendidas)</Text>
+                          )}
+                        </Text>
+                      </View>
+
+                      {/* Custo Unitário - Editável se não tiver vendas */}
+                      <View style={styles.entryItemRow}>
+                        <Text style={styles.entryItemLabel}>Custo Unit.:</Text>
+                        <View style={styles.entryItemValueContainer}>
+                          <Text style={[
+                            styles.entryItemValueMoney,
+                            !canEdit && styles.entryItemValueDisabled
+                          ]}>
+                            R$ {(typeof entry.unit_cost === 'number' ? entry.unit_cost : 0).toFixed(2).replace('.', ',')}
+                          </Text>
+                          {canEdit ? (
+                            <TouchableOpacity
+                              onPress={() => handleEditEntryClick(entry)}
+                              style={styles.editEntryButton}
+                            >
+                              <Ionicons name="pencil" size={16} color={Colors.light.primary} />
+                            </TouchableOpacity>
+                          ) : (
+                            <Ionicons name="lock-closed" size={16} color={Colors.light.textTertiary} />
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Barra de progresso de vendas */}
+                      {entry.quantity_sold > 0 && (
+                        <View style={styles.progressContainer}>
+                          <View style={styles.progressBar}>
+                            <View style={[
+                              styles.progressFill,
+                              { width: `${soldPercentage}%` }
+                            ]} />
+                          </View>
+                          <Text style={styles.progressText}>
+                            {soldPercentage.toFixed(0)}% vendido
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
                 );
-              }
-              return null;
-            })()}
+              })
+            )}
+
+            {/* Botão para ir para tela de entradas */}
+            {entryItems.length > 0 && (
+              <Button
+                mode="outlined"
+                onPress={() => router.push('/entries')}
+                style={styles.manageEntriesButton}
+                icon="storefront-outline"
+              >
+                Gerenciar Entradas
+              </Button>
+            )}
           </View>
         </View>
 
         {/* Botões de ação */}
         <View style={styles.actions}>
-          {errors.global && (
-            <Text style={{ color: Colors.light.error, textAlign: 'center', flex:1, fontSize:12 }}>
-              {errors.global}
-            </Text>
-          )}
           <Button
             mode="outlined"
             onPress={() => router.back()}
@@ -665,6 +803,20 @@ export default function EditProductScreen() {
         icon="checkmark-circle"
       />
 
+      {/* Dialog de Erro */}
+      <ConfirmDialog
+        visible={showErrorDialog}
+        title="Erro ao Atualizar"
+        message={errorMessage}
+        confirmText="OK"
+        onConfirm={() => {
+          setShowErrorDialog(false);
+          setErrorMessage('');
+        }}
+        type="danger"
+        icon="alert-circle"
+      />
+
       {/* Dialog de Confirmação de Mudança de Custo */}
       <ConfirmDialog
         visible={showCostChangeDialog}
@@ -677,6 +829,75 @@ export default function EditProductScreen() {
         type="warning"
         icon="warning"
       />
+
+      {/* Modal de Seleção de Categoria */}
+      <CategoryPickerModal
+        visible={menuVisible}
+        categories={categories}
+        selectedId={categoryId}
+        onSelect={(category) => {
+          setCategoryId(category.id);
+          setErrors({ ...errors, categoryId: '' });
+          setMenuVisible(false);
+        }}
+        onDismiss={() => setMenuVisible(false)}
+      />
+
+      {/* Dialog de Edição de Custo da Entrada */}
+      <CustomModal
+        visible={showEntryUpdateDialog}
+        onDismiss={() => {
+          setShowEntryUpdateDialog(false);
+          setEntryToUpdate(null);
+          setEditingEntryUnitCost('');
+        }}
+        title="Editar Custo Unitário"
+        subtitle={
+          entryToUpdate
+            ? `Entrada ${entryToUpdate.entry_code} • ${entryToUpdate.quantity_received} un`
+            : undefined
+        }
+      >
+        <View style={styles.warningBox}>
+          <Ionicons name="information-circle" size={20} color={Colors.light.warning} />
+          <Text style={styles.warningText}>
+            Ao editar o custo unitário, o cost_price do produto será atualizado automaticamente.
+          </Text>
+        </View>
+
+        {entryToUpdate && (
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Custo atual:</Text>
+            <Text style={styles.infoValue}>
+              R$ {(typeof entryToUpdate.unit_cost === 'number' ? entryToUpdate.unit_cost : 0).toFixed(2).replace('.', ',')}
+            </Text>
+          </View>
+        )}
+
+        <TextInput
+          label="Novo Custo Unitário (R$) *"
+          value={formatPriceDisplay(editingEntryUnitCost)}
+          onChangeText={(text) => setEditingEntryUnitCost(formatPriceInput(text))}
+          mode="outlined"
+          keyboardType="numeric"
+          style={styles.input}
+          placeholder="0,00"
+          left={<TextInput.Affix text="R$" />}
+          autoFocus
+        />
+
+        <ModalActions
+          onCancel={() => {
+            setShowEntryUpdateDialog(false);
+            setEntryToUpdate(null);
+            setEditingEntryUnitCost('');
+          }}
+          onConfirm={handleConfirmEntryUpdate}
+          cancelText="Cancelar"
+          confirmText="Atualizar Custo"
+          confirmColor={Colors.light.warning}
+        />
+      </CustomModal>
 
     </View>
   );
@@ -697,58 +918,6 @@ const styles = StyleSheet.create({
   loadingText: {
     marginTop: 12,
     color: '#666',
-  },
-  // Header com gradiente
-  headerGradient: {
-    paddingTop: 0, // SafeArea já cuidou do espaço
-    paddingBottom: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.md,
-  },
-  headerContent: {
-    marginTop: 24, // Espaço consistente após SafeArea
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.md,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: theme.fontSize.xl,
-    fontWeight: theme.fontWeight.bold,
-    color: '#fff',
-    marginHorizontal: theme.spacing.sm,
-  },
-  headerActions: {
-    width: 40, // Placeholder para botões de ação
-  },
-  headerInfo: {
-    alignItems: 'center',
-  },
-  headerEntityName: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: theme.fontWeight.semibold,
-    color: '#fff',
-    marginBottom: theme.spacing.xs,
-    textAlign: 'center',
-  },
-  headerSubtitle: {
-    fontSize: theme.fontSize.md,
-    color: '#fff',
-    opacity: 0.9,
-    textAlign: 'center',
-    maxWidth: '85%',
-    lineHeight: 20,
   },
   keyboardView: {
     flex: 1,
@@ -803,27 +972,42 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.sm,
     backgroundColor: Colors.light.background,
   },
+  rowInputs: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+  },
+  inputHalf: {
+    flex: 1,
+    marginBottom: 0,
+  },
   categoryButton: {
-    borderWidth: 1,
+    borderWidth: 1.5,
     borderColor: Colors.light.border,
-    borderRadius: 8,
+    borderRadius: 12,
     backgroundColor: '#fff',
     marginBottom: 8,
   },
+  categoryButtonError: {
+    borderColor: Colors.light.error,
+  },
   categoryButtonContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
     padding: 16,
     minHeight: 56,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    gap: 12,
   },
   categoryText: {
+    flex: 1,
     fontSize: 16,
-    color: '#000',
+    color: Colors.light.text,
+    fontWeight: '600',
   },
   categoryPlaceholder: {
+    flex: 1,
     fontSize: 16,
-    color: '#999',
+    color: Colors.light.textTertiary,
   },
   marginInfo: {
     flexDirection: 'row',
@@ -850,6 +1034,42 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#1b5e20',
     fontSize: 20,
+  },
+  warningBox: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 16,
+    backgroundColor: '#fff3e0',
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.light.warning,
+    marginBottom: 16,
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#666',
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+    marginBottom: 16,
+  },
+  infoLabel: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+    fontWeight: '600',
+  },
+  infoValue: {
+    fontSize: 16,
+    color: Colors.light.text,
+    fontWeight: '700',
   },
   actions: {
     flexDirection: 'row',
@@ -921,5 +1141,172 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.light.text,
     lineHeight: 18,
+  },
+  stockSummary: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    backgroundColor: '#f8f9fa',
+    borderRadius: 12,
+    marginBottom: 16,
+    gap: 12,
+  },
+  stockSummaryItem: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 4,
+  },
+  stockSummaryLabel: {
+    fontSize: 12,
+    color: '#666',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  stockSummaryValue: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: Colors.light.primary,
+  },
+  infoBoxText: {
+    flex: 1,
+    fontSize: 13,
+    color: '#666',
+    lineHeight: 18,
+  },
+  entryItem: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e0e0e0',
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  entryItemHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#f8f9fa',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e0e0e0',
+  },
+  entryItemHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  entryCode: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  entryTypeBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  entryTypeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#fff',
+    textTransform: 'uppercase',
+  },
+  entryItemContent: {
+    padding: 12,
+    gap: 10,
+  },
+  entryItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 6,
+  },
+  entryItemLabel: {
+    fontSize: 13,
+    color: '#666',
+    fontWeight: '600',
+    flex: 1,
+  },
+  entryItemValue: {
+    fontSize: 13,
+    color: Colors.light.text,
+    fontWeight: '500',
+    textAlign: 'right',
+  },
+  entryItemValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  entryItemValueMoney: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.light.primary,
+  },
+  entryItemValueDisabled: {
+    color: '#999',
+  },
+  soldText: {
+    fontSize: 11,
+    color: Colors.light.error,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  editEntryButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#f0f0f0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  progressContainer: {
+    marginTop: 8,
+    gap: 4,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  progressText: {
+    fontSize: 11,
+    color: '#666',
+    fontWeight: '600',
+    textAlign: 'right',
+  },
+  emptyEntries: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 32,
+    gap: 8,
+  },
+  emptyEntriesText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#666',
+    marginTop: 8,
+  },
+  emptyEntriesSubtext: {
+    fontSize: 13,
+    color: '#999',
+    textAlign: 'center',
+    marginHorizontal: 32,
+  },
+  manageEntriesButton: {
+    marginTop: 12,
+    borderRadius: 12,
+  },
+  dialogInput: {
+    marginTop: 12,
+    backgroundColor: '#fff',
   },
 });

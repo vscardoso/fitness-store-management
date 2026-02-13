@@ -870,3 +870,116 @@ async def update_entry_item(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao atualizar item: {str(e)}"
         )
+
+
+@router.post(
+    "/{entry_id}/items",
+    response_model=EntryItemResponse,
+    summary="Adicionar item a entrada existente",
+    description="Adiciona um novo produto a uma entrada de estoque existente. Atualiza inventário automaticamente."
+)
+async def add_item_to_entry(
+    entry_id: int,
+    item_data: EntryItemCreate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Adiciona um novo item a uma entrada de estoque existente.
+
+    Este endpoint permite vincular um produto (do catálogo ou ativo) a uma entrada
+    de estoque já existente, criando o rastreamento FIFO necessário.
+
+    FUNCIONALIDADES:
+    - Cria novo EntryItem vinculado à entrada
+    - Atualiza inventário do produto automaticamente
+    - Recalcula total_cost da entrada
+    - Marca produtos do catálogo como ativos
+
+    Args:
+        entry_id: ID da entrada existente
+        item_data: Dados do item (product_id, quantity_received, unit_cost, selling_price, notes)
+        db: Sessão do banco de dados
+        current_user: Usuário autenticado (admin ou seller)
+        tenant_id: ID do tenant
+
+    Returns:
+        EntryItemResponse: Item criado com dados completos
+
+    Raises:
+        HTTPException 404: Se entrada ou produto não encontrado
+        HTTPException 400: Se dados inválidos
+
+    Examples:
+        POST /stock-entries/1/items
+        {
+            "product_id": 123,
+            "quantity_received": 10,
+            "unit_cost": 25.00,
+            "selling_price": 49.90,
+            "notes": "Adicionado após criação da entrada"
+        }
+    """
+    try:
+        service = StockEntryService(db)
+
+        # Converter Pydantic model para dict
+        item_dict = item_data.model_dump(exclude_unset=True)
+
+        # Adicionar item à entrada
+        new_item = await service.add_item_to_entry(
+            entry_id=entry_id,
+            item_data=item_dict,
+            tenant_id=tenant_id,
+        )
+
+        # Buscar dados completos do produto para response
+        from sqlalchemy import select, text
+        from app.models.product import Product
+
+        product_result = await db.execute(
+            select(Product).where(Product.id == new_item.product_id)
+        )
+        product = product_result.scalar_one_or_none()
+
+        return EntryItemResponse(
+            id=new_item.id,
+            entry_id=new_item.entry_id,
+            product_id=new_item.product_id,
+            product_name=product.name if product else "Produto",
+            product_sku=product.sku if product else None,
+            product_price=product.price if product else None,
+            quantity_received=new_item.quantity_received,
+            quantity_remaining=new_item.quantity_remaining,
+            quantity_sold=0,  # Novo item, sem vendas
+            unit_cost=float(new_item.unit_cost),
+            total_cost=float(new_item.quantity_received * new_item.unit_cost),
+            notes=new_item.notes,
+            is_active=new_item.is_active,
+            created_at=new_item.created_at,
+            updated_at=new_item.updated_at,
+        )
+
+    except ValueError as e:
+        error_msg = str(e).lower()
+
+        # Erro 404: Entrada ou produto não encontrado
+        if "não encontrad" in error_msg:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=str(e)
+            )
+        # Erro 400: Validação
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=str(e)
+            )
+
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao adicionar item: {str(e)}"
+        )

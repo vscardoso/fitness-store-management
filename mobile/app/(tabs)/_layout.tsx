@@ -127,6 +127,9 @@ export default function TabsLayout() {
       
       {/* Payment Discounts: oculto do tab bar mas mantém rotas acessíveis com tab bar visível */}
       <Tabs.Screen name="payment-discounts" options={{ href: null }} />
+      
+      {/* Team: oculto do tab bar mas mantém rotas acessíveis com tab bar visível */}
+      <Tabs.Screen name="team" options={{ href: null }} />
     </Tabs>
   );
 }

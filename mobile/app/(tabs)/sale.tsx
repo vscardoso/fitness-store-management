@@ -35,6 +35,7 @@ import {
 } from '@/utils/validation';
 import type { Product, Customer } from '@/types';
 import ProductSelectionModal from '@/components/sale/ProductSelectionModal';
+import { HelpButton } from '@/components/tutorial';
 
 export default function SaleScreen() {
   const router = useRouter();
@@ -348,6 +349,7 @@ export default function SaleScreen() {
               </Text>
             </View>
             <View style={styles.headerActions}>
+              <HelpButton tutorialId="sale" color="#fff" showBadge />
               {cart.itemCount > 0 && (
                 <TouchableOpacity
                   style={styles.newSaleButton}
