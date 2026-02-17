@@ -41,7 +41,10 @@
       "Bash(powershell.exe -Command:*)",
       "Bash(findstr:*)",
       "Bash(ls:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(source venv/Scripts/activate)",
+      "Bash(pip install:*)",
+      "Bash(pip freeze:*)"
     ],
     "deny": [],
     "ask": []

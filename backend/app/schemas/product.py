@@ -28,6 +28,7 @@ class ProductBase(BaseModel):
     is_digital: bool = False
     is_activewear: bool = False
     is_catalog: bool = False
+    image_url: Optional[str] = Field(None, max_length=500, description="URL ou path da imagem do produto")
 
 
 class ProductCreate(ProductBase):
@@ -66,6 +67,7 @@ class ProductUpdate(BaseModel):
     is_digital: Optional[bool] = None
     is_activewear: Optional[bool] = None
     is_active: Optional[bool] = None
+    image_url: Optional[str] = Field(None, max_length=500)
 
     @model_validator(mode="after")
     def map_sale_price(self):

@@ -17,6 +17,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { scanProductImage } from '@/services/aiService';
 import { createProduct } from '@/services/productService';
+import { uploadProductImageWithFallback } from '@/services/uploadService';
 import type {
   WizardStep,
   WizardState,
@@ -55,6 +56,7 @@ export interface UseProductWizardReturn {
 
   // Step 3 - Entrada
   goToNewEntry: () => void;
+  goToExistingEntry: () => void;
   skipEntry: () => void;
 
   // Utils
@@ -337,7 +339,17 @@ export function useProductWizard() {
         min_stock: 5,
       };
 
-      const created = await createProduct(productData);
+      let created = await createProduct(productData);
+
+      // Se tiver imagem capturada, fazer upload
+      if (state.capturedImage) {
+        try {
+          created = await uploadProductImageWithFallback(created.id, state.capturedImage);
+        } catch (uploadError) {
+          // Log do erro mas não bloqueia criação do produto
+          console.warn('Erro ao fazer upload da imagem:', uploadError);
+        }
+      }
 
       // Invalidar cache
       queryClient.invalidateQueries({ queryKey: ['products'] });
@@ -377,7 +389,7 @@ export function useProductWizard() {
   const goToNewEntry = useCallback(() => {
     if (!state.createdProduct) return;
 
-    // Ir para entrada com o produto recém-criado
+    // Ir para criação de entrada com o produto pré-selecionado
     router.replace({
       pathname: '/entries/add',
       params: {
@@ -395,8 +407,28 @@ export function useProductWizard() {
     });
   }, [state.createdProduct, router]);
 
+  const goToExistingEntry = useCallback(() => {
+    if (!state.createdProduct) return;
+
+    // Ir para lista de entradas em modo seleção
+    router.replace({
+      pathname: '/entries',
+      params: {
+        selectMode: 'true',
+        productToLink: JSON.stringify({
+          id: state.createdProduct.id,
+          name: state.createdProduct.name,
+          sku: state.createdProduct.sku,
+          cost_price: state.createdProduct.cost_price,
+          price: state.createdProduct.price,
+          category_id: state.createdProduct.category_id,
+        }),
+      },
+    });
+  }, [state.createdProduct, router]);
+
   const skipEntry = useCallback(() => {
-    // Voltar para lista de produtos sem vincular entrada
+    // Manter no catálogo - voltar para lista de produtos
     router.replace('/(tabs)/products');
   }, [router]);
 
@@ -462,6 +494,7 @@ export function useProductWizard() {
 
     // Step 3 - Entrada
     goToNewEntry,
+    goToExistingEntry,
     skipEntry,
 
     // Utils

@@ -44,46 +44,53 @@ export default function WizardStep2({
   // Local state para edição inline
   const [formData, setFormData] = useState(state.productData);
   const [markup, setMarkup] = useState<number | null>(null);
+  
+  // Estados locais para preços (strings durante edição)
+  const [costPriceStr, setCostPriceStr] = useState(
+    state.productData.cost_price ? state.productData.cost_price.toFixed(2) : ''
+  );
+  const [salePriceStr, setSalePriceStr] = useState(
+    state.productData.price ? state.productData.price.toFixed(2) : ''
+  );
 
   // Atualizar dados no wizard quando formData mudar
   useEffect(() => {
-    wizard.updateProductData(formData);
-  }, [formData]);
+    const updatedData = {
+      ...formData,
+      cost_price: costPriceStr ? parseFloat(costPriceStr) : undefined,
+      price: salePriceStr ? parseFloat(salePriceStr) : undefined,
+    };
+    wizard.updateProductData(updatedData);
+  }, [formData, costPriceStr, salePriceStr]);
 
   // Calcular markup automaticamente
   useEffect(() => {
-    const cost = formData.cost_price || 0;
-    const price = formData.price || 0;
+    const cost = parseFloat(costPriceStr) || 0;
+    const price = parseFloat(salePriceStr) || 0;
     if (cost > 0 && price > cost) {
       const calculatedMarkup = ((price - cost) / cost) * 100;
       setMarkup(calculatedMarkup);
     } else {
       setMarkup(null);
     }
-  }, [formData.cost_price, formData.price]);
+  }, [costPriceStr, salePriceStr]);
 
   const selectedCategory = categories.find(c => c.id === formData.category_id);
 
-  // Formatar preço para exibição (ex: 45.90 → "45,90")
-  const formatCurrency = (value: number | undefined): string => {
-    if (!value) return '';
-    return value.toFixed(2).replace('.', ',');
-  };
-
-  // Parsear entrada do usuário (ex: "45,90" → 45.90)
-  const parseCurrency = (text: string): number | undefined => {
-    // Remove tudo exceto números e vírgula
-    const cleaned = text.replace(/[^\d,]/g, '');
-    // Substitui vírgula por ponto
-    const withDot = cleaned.replace(',', '.');
-    const parsed = parseFloat(withDot);
-    return isNaN(parsed) ? undefined : parsed;
-  };
-
+  /**
+   * Formatar entrada de preço com centavos
+   * Remove tudo exceto números e converte em decimal
+   */
   const formatPriceInput = (text: string): string => {
+    // Remove tudo exceto números
     const numbers = text.replace(/[^0-9]/g, '');
+    
     if (numbers.length === 0) return '';
+    
+    // Converte para número com centavos
     const value = parseInt(numbers) / 100;
+    
+    // Formata com 2 casas decimais
     return value.toFixed(2);
   };
 
@@ -218,26 +225,24 @@ export default function WizardStep2({
               <View style={styles.priceInputContainer}>
                 <TextInput
                   label="Custo (R$)"
-                  value={formatCurrency(formData.cost_price)}
-                  onChangeText={(text) => {
-                    updateField('cost_price', parseCurrency(text));
-                  }}
+                  value={costPriceStr}
+                  onChangeText={(text) => setCostPriceStr(formatPriceInput(text))}
                   mode="outlined"
                   style={styles.priceInput}
                   keyboardType="decimal-pad"
+                  placeholder="0.00"
                   left={<TextInput.Affix text="R$" />}
                 />
               </View>
               <View style={styles.priceInputContainer}>
                 <TextInput
                   label="Venda (R$) *"
-                  value={formatCurrency(formData.price)}
-                  onChangeText={(text) => {
-                    updateField('price', parseCurrency(text));
-                  }}
+                  value={salePriceStr}
+                  onChangeText={(text) => setSalePriceStr(formatPriceInput(text))}
                   mode="outlined"
                   style={styles.priceInput}
                   keyboardType="decimal-pad"
+                  placeholder="0.00"
                   left={<TextInput.Affix text="R$" />}
                   error={!!state.validationErrors.price}
                 />
@@ -259,7 +264,7 @@ export default function WizardStep2({
                   </Text>
                 </View>
                 <Text style={styles.markupHint}>
-                  Lucro por unidade: R$ {((formData.price || 0) - (formData.cost_price || 0)).toFixed(2)}
+                  Lucro por unidade: R$ {((parseFloat(salePriceStr) || 0) - (parseFloat(costPriceStr) || 0)).toFixed(2)}
                 </Text>
               </View>
             )}

@@ -2,9 +2,9 @@
  * WizardStep3 - Vincular Entrada de Estoque
  *
  * Após criar o produto, oferece opções:
- * - Nova Entrada (recomendado FIFO)
- * - Entrada Existente
- * - Pular (com aviso)
+ * - Nova Entrada (cria entrada nova com produto)
+ * - Entrada Existente (vincula a entrada já criada)
+ * - Manter no Catálogo (produto aguarda reposição)
  */
 
 import React from 'react';
@@ -13,7 +13,7 @@ import {
   StyleSheet,
   TouchableOpacity,
 } from 'react-native';
-import { Text, Button } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, theme } from '@/constants/Colors';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
@@ -25,47 +25,30 @@ interface WizardStep3Props {
 export default function WizardStep3({ wizard }: WizardStep3Props) {
   const { state } = wizard;
 
-  // Detectar se é produto novo ou existente (duplicado)
-  const isExistingProduct = state.duplicates.length > 0 && 
-                           state.duplicates.some(d => d.product_id === state.createdProduct?.id);
-
-  const handleNewEntry = () => {
-    wizard.goToNewEntry();
-  };
-
-  const handleSkip = () => {
-    wizard.skipEntry();
-  };
-
   return (
     <View style={styles.container}>
       {/* Success Header */}
       <View style={styles.successContainer}>
         <View style={styles.successIcon}>
-          <Ionicons 
-            name={isExistingProduct ? "cube" : "checkmark-circle"} 
-            size={64} 
-            color={isExistingProduct ? Colors.light.primary : Colors.light.success} 
+          <Ionicons
+            name="checkmark-circle"
+            size={64}
+            color={Colors.light.success}
           />
         </View>
-        <Text style={styles.successTitle}>
-          {isExistingProduct ? 'Produto Selecionado!' : 'Produto Criado!'}
-        </Text>
+        <Text style={styles.successTitle}>Produto Criado!</Text>
         <Text style={styles.successProduct}>
           "{state.createdProduct?.name}"
         </Text>
         <Text style={styles.successSubtitle}>
-          {isExistingProduct 
-            ? 'Agora você pode adicionar estoque a este produto.'
-            : 'foi cadastrado com sucesso no seu catálogo.'
-          }
+          Cadastrado no catálogo. Adicione estoque para ativar.
         </Text>
       </View>
 
       {/* Divider */}
       <View style={styles.divider}>
         <View style={styles.dividerLine} />
-        <Text style={styles.dividerText}>Vincular estoque?</Text>
+        <Text style={styles.dividerText}>Adicionar estoque</Text>
         <View style={styles.dividerLine} />
       </View>
 
@@ -74,7 +57,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
         {/* Nova Entrada - Recomendado */}
         <TouchableOpacity
           style={styles.optionCard}
-          onPress={handleNewEntry}
+          onPress={() => wizard.goToNewEntry()}
           activeOpacity={0.8}
         >
           <View style={styles.optionIconContainer}>
@@ -89,33 +72,54 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
               </View>
             </View>
             <Text style={styles.optionDescription}>
-              Criar uma entrada de estoque com este produto
+              Criar entrada de estoque com este produto
             </Text>
             <Text style={styles.optionHint}>
-              Melhor para rastreabilidade FIFO
+              Compra avulsa, reposição ou estoque inicial
             </Text>
           </View>
           <Ionicons name="chevron-forward" size={24} color={Colors.light.primary} />
         </TouchableOpacity>
 
-        {/* Pular */}
+        {/* Entrada Existente */}
+        <TouchableOpacity
+          style={[styles.optionCard, styles.optionCardSecondary]}
+          onPress={() => wizard.goToExistingEntry()}
+          activeOpacity={0.8}
+        >
+          <View style={[styles.optionIconContainer, styles.optionIconContainerSecondary]}>
+            <Ionicons name="link" size={28} color={Colors.light.secondary} />
+          </View>
+          <View style={styles.optionContent}>
+            <Text style={styles.optionTitle}>Entrada Existente</Text>
+            <Text style={styles.optionDescription}>
+              Vincular a uma entrada já criada
+            </Text>
+            <Text style={styles.optionHint}>
+              Viagem ou compra em andamento
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={24} color={Colors.light.secondary} />
+        </TouchableOpacity>
+
+        {/* Manter no Catálogo */}
         <TouchableOpacity
           style={[styles.optionCard, styles.optionCardOutline]}
-          onPress={handleSkip}
+          onPress={() => wizard.skipEntry()}
           activeOpacity={0.8}
         >
           <View style={[styles.optionIconContainer, styles.optionIconContainerOutline]}>
-            <Ionicons name="arrow-forward-circle" size={28} color={Colors.light.textSecondary} />
+            <Ionicons name="albums-outline" size={28} color={Colors.light.textSecondary} />
           </View>
           <View style={styles.optionContent}>
-            <Text style={styles.optionTitleOutline}>Pular por Agora</Text>
+            <Text style={styles.optionTitleOutline}>Manter no Catálogo</Text>
             <Text style={styles.optionDescription}>
-              Voltar para lista de produtos
+              Produto fica aguardando reposição
             </Text>
-            <View style={styles.warningRow}>
-              <Ionicons name="alert-circle" size={14} color={Colors.light.warning} />
-              <Text style={styles.warningText}>
-                Sem rastreabilidade FIFO
+            <View style={styles.infoRow}>
+              <Ionicons name="information-circle" size={14} color={Colors.light.info} />
+              <Text style={styles.infoRowText}>
+                Estoque = 0 até vincular entrada
               </Text>
             </View>
           </View>
@@ -125,9 +129,9 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
 
       {/* Info Card */}
       <View style={styles.infoCard}>
-        <Ionicons name="information-circle" size={20} color={Colors.light.info} />
+        <Ionicons name="cube-outline" size={20} color={Colors.light.info} />
         <Text style={styles.infoText}>
-          Vincular a uma entrada permite rastrear custo real, ROI e sell-through de cada compra.
+          Produtos no catálogo ficam disponíveis para adicionar em qualquer entrada futura.
         </Text>
       </View>
     </View>
@@ -199,6 +203,10 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     gap: theme.spacing.md,
   },
+  optionCardSecondary: {
+    backgroundColor: Colors.light.secondary + '08',
+    borderColor: Colors.light.secondary,
+  },
   optionCardOutline: {
     backgroundColor: '#fff',
     borderColor: Colors.light.border,
@@ -210,6 +218,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.primary + '20',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  optionIconContainerSecondary: {
+    backgroundColor: Colors.light.secondary + '20',
   },
   optionIconContainerOutline: {
     backgroundColor: Colors.light.backgroundSecondary,
@@ -258,14 +269,14 @@ const styles = StyleSheet.create({
     color: Colors.light.success,
     fontWeight: '500',
   },
-  warningRow: {
+  infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
   },
-  warningText: {
+  infoRowText: {
     fontSize: 12,
-    color: Colors.light.warning,
+    color: Colors.light.info,
   },
 
   // Info

@@ -1,10 +1,10 @@
 # Work In Progress - AI Scanner + Wizard
 
-**Última atualização:** 2026-02-13 (corrigido)
+**Última atualização:** 2026-02-17
 
 ## ⚡ Wizard de Criação de Produtos - FUNCIONANDO
 
-**Data:** 13/02/2026
+**Data:** 17/02/2026
 **Status:** Implementado e corrigido - pronto para teste
 **Mudança:** Novo fluxo unificado de criação de produtos em 3 etapas
 
@@ -22,13 +22,14 @@ STEP 1: Escolhe Scanner ou Manual
 
 STEP 2: Resumo dos dados
   ├── Card com nome, SKU, preços, categoria
-  ├── Botão "Editar" → modal com formulário completo
+  ├── Botão "Editar" → edição inline
   ├── Painel de duplicados (se houver similares)
   └── Botão "Criar Produto"
 
-STEP 3: Produto criado! Próximo passo:
-  ├── "Nova Entrada" (recomendado) → /entries/add
-  └── "Pular" → volta para lista de produtos
+STEP 3: Produto criado! Adicionar estoque:
+  ├── "Nova Entrada" (recomendado) → /entries/add com produto pré-selecionado
+  ├── "Entrada Existente" → /entries em modo seleção (vincular a entrada já criada)
+  └── "Manter no Catálogo" → produto fica is_catalog=true aguardando reposição
 ```
 
 ---
@@ -66,14 +67,13 @@ Etapa 1: Identificar Produto
 └── Manual (nome + categoria)
 
 Etapa 2: Confirmar Dados
-├── Resumo visual (nome, SKU, preços, categoria)
-├── Botão Editar (modal com formulário completo)
+├── Edição inline (nome, SKU, preços, categoria, etc.)
 └── Painel de Duplicados (produtos similares)
 
-Etapa 3: Vincular Entrada
-├── Nova Entrada (recomendado FIFO)
-├── Entrada Existente
-└── Pular (com aviso)
+Etapa 3: Adicionar Estoque
+├── Nova Entrada → /entries/add (produto pré-selecionado)
+├── Entrada Existente → /entries (modo seleção para vincular)
+└── Manter no Catálogo → produto aguarda reposição (estoque=0)
 ```
 
 ### Pontos de Entrada
@@ -191,6 +191,73 @@ Esses erros não afetam o funcionamento do wizard e devem ser corrigidos em uma 
 
 ---
 
+## Feature 3: Upload de Imagens de Produtos
+
+### Status: IMPLEMENTADO - Pronto para teste
+
+### O que foi feito:
+
+A foto capturada no scanner agora é salva junto com o produto para uso futuro (WhatsApp, landing page, catálogo).
+
+#### Backend
+- [x] `backend/app/models/product.py` - Campo `image_url` adicionado
+- [x] `backend/app/services/storage_service.py` - Serviço de storage abstrato (fácil trocar para S3/Cloudinary)
+- [x] `backend/app/core/config.py` - Configs: UPLOAD_DIR, UPLOAD_URL, STORAGE_TYPE
+- [x] `backend/app/schemas/product.py` - image_url em ProductBase e ProductUpdate
+- [x] `backend/app/api/v1/endpoints/products.py` - Endpoints:
+  - `POST /products/{id}/image` - Upload de arquivo (FormData)
+  - `POST /products/{id}/image/base64` - Upload de base64 (scanner)
+- [x] `backend/app/main.py` - Serve arquivos estáticos via `/uploads`
+
+#### Mobile
+- [x] `mobile/types/index.ts` - image_url em Product e ProductCreate
+- [x] `mobile/services/uploadService.ts` - Serviço de upload (FormData e base64)
+- [x] `mobile/hooks/useProductWizard.ts` - Upload automático após criar produto
+
+### Fluxo
+
+```
+Scanner → Foto → IA analisa → Cria produto → [UPLOAD AUTOMÁTICO] → Salva URL no produto
+                                                      ↓
+                                              /uploads/products/123.jpg
+                                                      ↓
+                              ┌─────────────────────────────────────────┐
+                              │ Reutiliza em:                           │
+                              │ • Catálogo do app                       │
+                              │ • WhatsApp (futuro)                     │
+                              │ • Landing page (futuro)                 │
+                              │ • Looks/Montagens (futuro)              │
+                              └─────────────────────────────────────────┘
+```
+
+### Para escalar (futuro)
+
+Quando precisar, basta trocar a implementação em `storage_service.py`:
+
+```python
+# Atual (local)
+def get_storage_service():
+    return LocalStorageService()
+
+# Futuro (S3, Cloudinary, etc.)
+def get_storage_service():
+    if settings.STORAGE_TYPE == "s3":
+        return S3StorageService()
+    elif settings.STORAGE_TYPE == "cloudinary":
+        return CloudinaryStorageService()
+    return LocalStorageService()
+```
+
+### Migration necessária
+
+Após pull, rodar:
+```powershell
+cd backend
+python migrate.py "add image_url to products"
+```
+
+---
+
 ## Possíveis melhorias futuras:
 - [ ] Cache de resultados de scan
 - [ ] Histórico de scans
@@ -198,3 +265,4 @@ Esses erros não afetam o funcionamento do wizard e devem ser corrigidos em uma 
 - [ ] Treinamento customizado por loja
 - [ ] Integração com catálogo de fornecedores
 - [ ] Opção de selecionar produto do catálogo no wizard
+- [x] **Salvar fotos dos produtos** (implementado!)

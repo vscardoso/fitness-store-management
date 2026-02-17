@@ -150,6 +150,7 @@ export interface Product {
   is_activewear?: boolean;
   is_active: boolean;
   is_catalog: boolean; // Se é produto de catálogo (template) ou produto real do tenant
+  image_url?: string; // URL da imagem do produto
   created_at: string;
   updated_at: string;
   current_stock?: number; // Estoque atual
@@ -175,6 +176,7 @@ export interface ProductCreate {
   material?: string;
   is_digital?: boolean;
   is_activewear?: boolean;
+  image_url?: string; // URL da imagem do produto
   initial_stock?: number; // Estoque inicial
   min_stock?: number; // Estoque mínimo
 }

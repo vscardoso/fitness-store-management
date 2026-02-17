@@ -102,6 +102,11 @@ class Product(BaseModel):
         comment="Whether this is a catalog template (true) or active product (false)"
     )
 
+    image_url: Mapped[str | None] = mapped_column(
+        String(500),
+        comment="URL or path to product image"
+    )
+
     # Chaves estrangeiras
     category_id: Mapped[int] = mapped_column(
         ForeignKey("categories.id", ondelete="RESTRICT"),

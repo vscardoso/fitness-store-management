@@ -85,9 +85,16 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"
     
-    # Upload
+    # Upload / Storage
     MAX_UPLOAD_SIZE: int = 10485760  # 10MB
     UPLOAD_DIR: str = "uploads"
+    UPLOAD_URL: str = "/uploads"  # URL base para servir arquivos
+    STORAGE_TYPE: str = "local"  # local, cloudinary
+
+    # Cloudinary (produção)
+    CLOUDINARY_CLOUD_NAME: str = ""
+    CLOUDINARY_API_KEY: str = ""
+    CLOUDINARY_API_SECRET: str = ""
 
     # AI Configuration (OpenAI GPT-4o Vision)
     OPENAI_API_KEY: str = ""

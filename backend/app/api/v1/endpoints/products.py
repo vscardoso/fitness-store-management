@@ -1,7 +1,7 @@
 """
 Endpoints de produtos - Listagem, Detalhes, Criação, Atualização e Deleção.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, File, UploadFile, Body
 from sqlalchemy import or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -92,6 +92,7 @@ async def build_product_response(
         "is_activewear": product.is_activewear,
         "is_catalog": product.is_catalog,
         "is_active": product.is_active,
+        "image_url": product.image_url,
         "created_at": product.created_at,
         "updated_at": product.updated_at,
         "current_stock": inventory.quantity if inventory else 0,
@@ -632,6 +633,7 @@ async def get_product(
             "is_activewear": product.is_activewear,
             "is_catalog": product.is_catalog,
             "is_active": product.is_active,
+            "image_url": product.image_url,
             "created_at": product.created_at,
             "updated_at": product.updated_at,
             "current_stock": current_stock,
@@ -1109,3 +1111,157 @@ async def get_fifo_costs(
         }
 
     return results
+
+
+# ============================================================================
+# UPLOAD DE IMAGEM
+# ============================================================================
+
+@router.post(
+    "/{product_id}/image",
+    response_model=ProductResponse,
+    summary="Upload de imagem do produto",
+    description="Faz upload de uma imagem para o produto. Suporta JPG, PNG, WebP."
+)
+async def upload_product_image(
+    product_id: int,
+    file: UploadFile = File(...),
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN]))
+):
+    """
+    Upload de imagem para um produto.
+
+    Args:
+        product_id: ID do produto
+        file: Arquivo de imagem (JPG, PNG, WebP)
+
+    Returns:
+        Produto atualizado com image_url
+
+    Raises:
+        HTTPException 400: Se arquivo não for imagem válida
+        HTTPException 404: Se produto não encontrado
+    """
+    from app.services.storage_service import get_storage_service
+
+    # Validar tipo de arquivo
+    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/jpg"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Tipo de arquivo não suportado: {file.content_type}. Use JPG, PNG ou WebP."
+        )
+
+    # Verificar se produto existe
+    product_repo = ProductRepository(db)
+    product = await product_repo.get(db, product_id, tenant_id=tenant_id)
+
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Produto com ID {product_id} não encontrado"
+        )
+
+    try:
+        # Upload da imagem
+        storage = get_storage_service()
+
+        # Gerar nome único baseado no ID do produto
+        ext = file.filename.rsplit(".", 1)[-1] if file.filename else "jpg"
+        filename = f"{product_id}.{ext}"
+
+        # Fazer upload
+        file_path = await storage.upload(file, folder="products", filename=filename)
+
+        # Atualizar produto com URL da imagem
+        product.image_url = storage.get_url(file_path)
+        await db.commit()
+        await db.refresh(product)
+
+        # Retornar produto atualizado
+        inventory_repo = InventoryRepository(db)
+        return await build_product_response(product, db, inventory_repo, tenant_id)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao fazer upload da imagem: {str(e)}"
+        )
+
+
+@router.post(
+    "/{product_id}/image/base64",
+    response_model=ProductResponse,
+    summary="Upload de imagem em base64",
+    description="Faz upload de uma imagem codificada em base64. Útil para fotos do scanner."
+)
+async def upload_product_image_base64(
+    product_id: int,
+    image_data: str = Body(..., embed=True, description="Imagem em base64 (com ou sem prefixo data:image/...)"),
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN]))
+):
+    """
+    Upload de imagem em base64 (útil para fotos do scanner mobile).
+
+    Args:
+        product_id: ID do produto
+        image_data: String base64 da imagem
+
+    Returns:
+        Produto atualizado com image_url
+    """
+    import base64
+    from app.services.storage_service import get_storage_service
+
+    # Verificar se produto existe
+    product_repo = ProductRepository(db)
+    product = await product_repo.get(db, product_id, tenant_id=tenant_id)
+
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Produto com ID {product_id} não encontrado"
+        )
+
+    try:
+        # Remover prefixo data:image/xxx;base64, se presente
+        if "," in image_data:
+            header, image_data = image_data.split(",", 1)
+            # Extrair extensão do header (data:image/jpeg;base64)
+            if "jpeg" in header or "jpg" in header:
+                ext = ".jpg"
+            elif "png" in header:
+                ext = ".png"
+            elif "webp" in header:
+                ext = ".webp"
+            else:
+                ext = ".jpg"
+        else:
+            ext = ".jpg"
+
+        # Decodificar base64
+        image_bytes = base64.b64decode(image_data)
+
+        # Upload
+        storage = get_storage_service()
+        filename = f"{product_id}{ext}"
+        file_path = await storage.upload_from_bytes(image_bytes, folder="products", filename=filename, ext=ext)
+
+        # Atualizar produto
+        product.image_url = storage.get_url(file_path)
+        await db.commit()
+        await db.refresh(product)
+
+        # Retornar produto atualizado
+        inventory_repo = InventoryRepository(db)
+        return await build_product_response(product, db, inventory_repo, tenant_id)
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao processar imagem: {str(e)}"
+        )

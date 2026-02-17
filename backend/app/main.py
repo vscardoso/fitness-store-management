@@ -4,11 +4,13 @@ import logging
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
+from pathlib import Path
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
@@ -83,6 +85,19 @@ app.add_middleware(TenantMiddleware)
 
 # Include all API v1 endpoints
 app.include_router(api_router)
+
+
+# ============================================================================
+# STATIC FILES (uploads)
+# ============================================================================
+
+# Criar pasta de uploads se não existir
+uploads_path = Path(settings.UPLOAD_DIR)
+uploads_path.mkdir(parents=True, exist_ok=True)
+
+# Montar pasta de uploads como arquivos estáticos
+# Acesso via: GET /uploads/{folder}/{filename}
+app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 
 # ============================================================================
