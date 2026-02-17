@@ -70,6 +70,7 @@ export const Colors = {
 export const theme = {
   colors: Colors.light,
   spacing: {
+    xxs: 2,
     xs: 4,
     sm: 8,
     md: 16,
@@ -86,6 +87,7 @@ export const theme = {
     full: 9999,
   },
   fontSize: {
+    xxs: 10,
     xs: 11,
     sm: 12,
     md: 14,

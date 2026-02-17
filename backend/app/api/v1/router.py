@@ -34,6 +34,7 @@ from app.api.v1.endpoints import (
     reports,
     payment_discounts,
     team,
+    ai,
 )
 
 
@@ -131,4 +132,10 @@ api_router.include_router(
     team.router,
     prefix="/team",
     tags=["Equipe"]
+)
+
+# AI - Scanner de Produtos com IA
+api_router.include_router(
+    ai.router,
+    tags=["IA"]
 )

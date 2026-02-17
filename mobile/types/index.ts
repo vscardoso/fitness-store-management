@@ -723,3 +723,76 @@ export interface TeamMemberListResponse {
   items: TeamMember[];
   total: number;
 }
+
+// ============================================
+// AI SCAN TYPES
+// ============================================
+
+export interface DuplicateMatch {
+  product_id: number;
+  product_name: string;
+  sku: string;
+  similarity_score: number;
+  reason: string;
+}
+
+export interface ProductScanResult {
+  // Dados do produto
+  name: string;
+  description?: string;
+  brand?: string;
+  color?: string;
+  size?: string;
+  gender?: string;
+  material?: string;
+
+  // Categoria
+  suggested_category: string;
+  suggested_category_id?: number;
+
+  // Identificadores
+  suggested_sku: string;
+  detected_barcode?: string;
+
+  // Pricing
+  suggested_cost_price?: number;
+  suggested_sale_price?: number;
+  markup_percentage?: number;
+  price_reasoning?: string;
+
+  // Flags de tipo
+  is_supplement: boolean;
+  is_clothing: boolean;
+  is_footwear: boolean;
+  is_accessory: boolean;
+  is_equipment: boolean;
+
+  // Qualidade e confiança
+  confidence: number;
+  image_quality: 'excellent' | 'good' | 'poor';
+  image_feedback?: string;
+
+  // Duplicados
+  possible_duplicates: DuplicateMatch[];
+
+  // Avisos
+  warnings: string[];
+}
+
+export interface ProductScanResponse {
+  success: boolean;
+  data?: ProductScanResult;
+  error?: string;
+  processing_time_ms: number;
+}
+
+export interface AIStatusResponse {
+  enabled: boolean;
+  model: string;
+  has_api_key: boolean;
+}
+
+// ============================================
+// WIZARD TYPES
+// ============================================
+export * from './wizard';

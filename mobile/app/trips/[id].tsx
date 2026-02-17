@@ -155,7 +155,7 @@ export default function TripDetailsScreen() {
                 style={styles.actionItem}
                 onPress={() => handleStatusChange(TripStatus.COMPLETED)}
               >
-                <Ionicons name="check-circle-outline" size={20} color={Colors.light.success} />
+                <Ionicons name="checkmark-circle-outline" size={20} color={Colors.light.success} />
                 <Text style={styles.actionText}>Concluir Viagem</Text>
               </TouchableOpacity>
             )}

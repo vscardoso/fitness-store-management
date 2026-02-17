@@ -10,7 +10,7 @@
  * - Suporte a produto pré-selecionado do catálogo
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -67,6 +67,7 @@ export default function AddStockEntryScreen() {
     // New params (full product data from catalog)
     preselectedProductData?: string;
     fromCatalog?: string;
+    fromAIScanner?: string; // ✨ Novo: indica que veio do AI Scanner
     // Trip params
     newTripId?: string;
     newTripCode?: string;
@@ -97,10 +98,12 @@ export default function AddStockEntryScreen() {
   const [createdEntryCode, setCreatedEntryCode] = useState<string | undefined>();
   const [codeValidationStatus, setCodeValidationStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const codeCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const preselectedProductAddedRef = useRef(false); // Previne adição dupla do produto pré-selecionado
   const [showTripLinkedDialog, setShowTripLinkedDialog] = useState(false);
   const [linkedTripInfo, setLinkedTripInfo] = useState<{ code: string; destination: string } | null>(null);
   const [showDeleteItemDialog, setShowDeleteItemDialog] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<number | null>(null);
+  const [isFromAIScanner, setIsFromAIScanner] = useState(false); // ✨ Novo: flag para UX especial
 
   // Queries
   const { data: trips = [], refetch: refetchTrips } = useTrips({ status: undefined, limit: 100 });
@@ -133,10 +136,22 @@ export default function AddStockEntryScreen() {
   }, [params.newTripId, refetchTrips]);
 
   /**
-   * Pré-adicionar produto do catálogo (se veio dos parâmetros)
+   * Detectar se veio do AI Scanner para UX especial
    */
   useEffect(() => {
-    // Skip if already has items
+    if (params.fromAIScanner === 'true') {
+      setIsFromAIScanner(true);
+      console.log('✨ Entrada de estoque iniciada do AI Scanner - FIFO obrigatório');
+    }
+  }, [params.fromAIScanner]);
+
+  /**
+   * Pré-adicionar produto do catálogo (se veio dos parâmetros)
+   * Usa ref para prevenir adição dupla em caso de re-render
+   */
+  useEffect(() => {
+    // Skip if already processed or has items
+    if (preselectedProductAddedRef.current) return;
     if (items.length > 0) return;
 
     // New flow: full product data from catalog
@@ -145,6 +160,9 @@ export default function AddStockEntryScreen() {
         const productData = JSON.parse(params.preselectedProductData);
         const quantity = params.preselectedQuantity ? parseInt(params.preselectedQuantity) : 1;
         const price = productData.cost_price || 0;
+
+        // Marcar como processado ANTES de adicionar para evitar race condition
+        preselectedProductAddedRef.current = true;
 
         // Converter price para formato aceito por formatCostInput (números inteiros representando centavos)
         const priceInCents = Math.round(price * 100).toString();
@@ -188,6 +206,9 @@ export default function AddStockEntryScreen() {
       const product = products.find((p: Product) => p.id === productId);
 
       if (product) {
+        // Marcar como processado ANTES de adicionar
+        preselectedProductAddedRef.current = true;
+
         const quantity = params.preselectedQuantity ? parseInt(params.preselectedQuantity) : 1;
         const price = params.preselectedPrice ? parseFloat(params.preselectedPrice) : (product.cost_price || 0);
 
@@ -1194,43 +1215,67 @@ export default function AddStockEntryScreen() {
       {/* Dialog de Sucesso da Entrada */}
       <ConfirmDialog
         visible={showSuccessDialog}
-        title="Entrada Criada! ✓"
-        message={`A entrada ${createdEntryCode || ''} foi registrada com sucesso.`}
-        details={[
+        title={isFromAIScanner ? "🎉 Produto Criado com Sucesso FIFO!" : "Entrada Criada! ✓"}
+        message={isFromAIScanner 
+          ? `Produto escaneado foi cadastrado e vinculado à entrada de estoque!`
+          : `A entrada ${createdEntryCode || ''} foi registrada com sucesso.`
+        }
+        details={isFromAIScanner ? [
+          '✅ Produto criado no catálogo',
+          '✅ Entrada de estoque vinculada (FIFO)',
+          '✅ Rastreabilidade completa garantida',
+          '📊 Você pode acompanhar:',
+          '  • Custo real por venda (FIFO)',
+          '  • ROI por entrada/viagem',
+          '  • Sell-Through Rate',
+          '',
+          'Cada venda usará o estoque da entrada mais antiga primeiro (FIFO)',
+        ] : [
           `${items.length} ${items.length === 1 ? 'item' : 'itens'} adicionados`,
           `Total: ${formatCurrency(total)}`,
           selectedType === EntryType.TRIP && selectedTrip ? `Viagem vinculada: ${selectedTrip.trip_code}` : 'Tipo: ' + (selectedType === EntryType.TRIP ? 'Viagem' : selectedType === EntryType.ONLINE ? 'Online' : 'Local'),
           'Você pode acompanhar performance (Sell-Through / ROI) após vendas',
         ].filter(Boolean)}
         type="success"
-        confirmText="Ver Entradas"
-        cancelText="Nova Entrada"
+        confirmText={isFromAIScanner ? "Ver Produto" : "Ver Entradas"}
+        cancelText={isFromAIScanner ? "Escanear Outro" : "Nova Entrada"}
         onConfirm={() => {
           setShowSuccessDialog(false);
-          router.push('/(tabs)/entries');
+          if (isFromAIScanner && items.length > 0 && items[0].product?.id) {
+            // Ir para detalhes do produto criado
+            router.push(`/products/${items[0].product.id}`);
+          } else {
+            router.push('/(tabs)/entries');
+          }
         }}
         onCancel={() => {
-          // Reset para nova entrada rápida
+          // Reset para nova entrada/scan rápido
           setShowSuccessDialog(false);
-          setEntryCode('');
-          setSupplierName('');
-          setSupplierCnpj('');
-          setSupplierContact('');
-          setInvoiceNumber('');
-          setPaymentMethod('');
-          setNotes('');
-          setItems([]);
-          setItemCosts({});
-          setTripId(undefined);
-          setSelectedType(EntryType.LOCAL);
+          if (isFromAIScanner) {
+            // Voltar para scanner para escanear outro produto
+            router.replace('/products/scan');
+          } else {
+            // Reset formulário para nova entrada
+            setEntryCode('');
+            setSupplierName('');
+            setSupplierCnpj('');
+            setSupplierContact('');
+            setInvoiceNumber('');
+            setPaymentMethod('');
+            setNotes('');
+            setItems([]);
+            setItemCosts({});
+            setTripId(undefined);
+            setSelectedType(EntryType.LOCAL);
+          }
         }}
-        icon="check-circle"
+        icon="checkmark-circle"
       />
 
       {/* Dialog de Viagem Vinculada */}
       <ConfirmDialog
         visible={showTripLinkedDialog}
-        title="Viagem Vinculada! ✓"
+        title="Viagem Vinculada!"
         message={`A viagem foi vinculada automaticamente a esta entrada.`}
         details={
           linkedTripInfo
@@ -1246,7 +1291,7 @@ export default function AddStockEntryScreen() {
         cancelText=""
         onConfirm={() => setShowTripLinkedDialog(false)}
         onCancel={() => setShowTripLinkedDialog(false)}
-        icon="check-circle"
+        icon="checkmark-circle"
       />
 
       {/* Dialog de Remover Item */}

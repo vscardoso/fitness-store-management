@@ -89,6 +89,13 @@ class Settings(BaseSettings):
     MAX_UPLOAD_SIZE: int = 10485760  # 10MB
     UPLOAD_DIR: str = "uploads"
 
+    # AI Configuration (OpenAI GPT-4o Vision)
+    OPENAI_API_KEY: str = ""
+    OPENAI_MODEL: str = "gpt-4o"
+    OPENAI_MAX_TOKENS: int = 2048
+    AI_SCAN_ENABLED: bool = True
+    AI_DEFAULT_MARKUP: float = 100.0  # 100% markup padrão
+
 
 # Singleton instance
 settings = Settings()

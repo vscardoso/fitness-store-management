@@ -359,40 +359,6 @@ export default function ProductDetailsScreen() {
         </Card.Content>
       </Card>
 
-      {/* Movimentações recentes */}
-      {product.movements && product.movements.length > 0 && (
-        <Card style={styles.card}>
-          <Card.Content>
-            <View style={styles.sectionHeader}>
-              <Ionicons name="analytics-outline" size={20} color={Colors.light.primary} />
-              <Text style={styles.cardTitle}>Movimentações Recentes</Text>
-            </View>
-
-            {product.movements.slice(0, 5).map((movement) => (
-              <View key={movement.id} style={styles.movementItem}>
-                <View style={styles.movementHeader}>
-                  <View style={[
-                    styles.movementTypeIndicator,
-                    { backgroundColor: movement.movement_type === 'IN' ? Colors.light.success : Colors.light.error }
-                  ]} />
-                  <Text style={styles.movementType}>
-                    {movement.movement_type === 'IN' ? 'Entrada' : 'Saída'}
-                  </Text>
-                  <Text style={[
-                    styles.movementQuantity,
-                    { color: movement.movement_type === 'IN' ? Colors.light.success : Colors.light.error }
-                  ]}>
-                    {movement.movement_type === 'IN' ? '+' : '-'}{movement.quantity}
-                  </Text>
-                </View>
-                <Text style={styles.movementDate}>
-                  {new Date(movement.created_at).toLocaleDateString('pt-BR')}
-                </Text>
-              </View>
-            ))}
-          </Card.Content>
-        </Card>
-      )}
       </ScrollView>
 
       {/* Confirm Dialog */}

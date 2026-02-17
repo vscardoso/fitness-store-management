@@ -157,6 +157,7 @@ export default function ProductsScreen() {
           title="Produtos"
           subtitle="0 produtos"
           rightActions={[
+            { icon: 'scan', onPress: () => router.push('/products/wizard?method=scanner') },
             { icon: 'help-circle-outline', onPress: () => startTutorial('products') },
           ]}
         />
@@ -179,6 +180,7 @@ export default function ProductsScreen() {
           title="Produtos"
           subtitle="0 produtos"
           rightActions={[
+            { icon: 'scan', onPress: () => router.push('/products/wizard?method=scanner') },
             { icon: 'help-circle-outline', onPress: () => startTutorial('products') },
           ]}
         />
@@ -200,6 +202,7 @@ export default function ProductsScreen() {
           title="Produtos"
           subtitle={`${productCount} ${productCount === 1 ? 'produto' : 'produtos'}`}
           rightActions={[
+            { icon: 'scan', onPress: () => router.push('/products/wizard?method=scanner') },
             { icon: 'help-circle-outline', onPress: () => startTutorial('products') },
           ]}
         />
@@ -310,8 +313,8 @@ export default function ProductsScreen() {
           }
         />
 
-        {/* Botão flutuante para adicionar */}
-        <FAB directRoute="/products/add" />
+        {/* Botão flutuante para adicionar produto - Wizard unificado */}
+        <FAB directRoute="/products/wizard" />
       </View>
     );
   }

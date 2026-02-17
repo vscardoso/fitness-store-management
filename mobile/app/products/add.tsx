@@ -19,7 +19,7 @@ import {
 } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
 import { useQuery } from '@tanstack/react-query';
 import { useCategories, useCreateProduct } from '@/hooks';
@@ -30,6 +30,7 @@ import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
 
 export default function AddProductScreen() {
   const router = useRouter();
+  const { prefillData } = useLocalSearchParams();
   const { goBack } = useBackToList('/(tabs)/products');
   const { categories, isLoading: loadingCategories } = useCategories();
   const createMutation = useCreateProduct();
@@ -64,6 +65,33 @@ export default function AddProductScreen() {
       console.log('Primeira categoria:', categories[0]);
     }
   }, [categories]);
+
+  // Preencher formulário com dados da IA (quando vem do scanner)
+  useEffect(() => {
+    if (prefillData && typeof prefillData === 'string') {
+      try {
+        const data = JSON.parse(prefillData);
+        console.log('📝 Preenchendo formulário com dados da IA:', data);
+
+        // Preencher campos
+        if (data.name) setName(data.name);
+        if (data.sku) setSku(data.sku);
+        if (data.barcode) setBarcode(data.barcode || '');
+        if (data.description) setDescription(data.description || '');
+        if (data.brand) setBrand(data.brand || '');
+        if (data.color) setColor(data.color || '');
+        if (data.size) setSize(data.size || '');
+        if (data.category_id) setCategoryId(data.category_id);
+        if (data.cost_price) setCostPrice(String(data.cost_price));
+        if (data.price) setSalePrice(String(data.price));
+
+        // Limpar erros ao preencher
+        setErrors({});
+      } catch (err) {
+        console.error('Erro ao parsear prefillData:', err);
+      }
+    }
+  }, [prefillData]);
 
 
 
@@ -122,8 +150,8 @@ export default function AddProductScreen() {
       category_id: categoryId!,
       cost_price: parseFloat(costPrice),
       price: parseFloat(salePrice), // Backend espera 'price', não 'sale_price'
-      initial_stock: parseInt(minStock) || 0, // Estoque inicial
-      min_stock: 5, // Estoque mínimo padrão
+      initial_stock: 0, // Sempre 0 - estoque é adicionado via Entrada (FIFO)
+      min_stock: parseInt(minStock) || 5, // Estoque mínimo para alerta
     };
 
     console.log('Dados do produto a serem enviados:', JSON.stringify(productData, null, 2));
@@ -245,12 +273,17 @@ export default function AddProductScreen() {
               Novo Produto
             </Text>
 
-            <View style={styles.headerPlaceholder} />
+            <TouchableOpacity
+              onPress={() => router.push('/products/scan')}
+              style={styles.scanButton}
+            >
+              <Ionicons name="scan" size={24} color="#fff" />
+            </TouchableOpacity>
           </View>
 
           <View style={styles.headerInfo}>
             <Text style={styles.headerSubtitle}>
-              Preencha os dados abaixo para cadastrar um novo produto
+              Preencha os dados abaixo ou use o Scanner IA
             </Text>
           </View>
         </View>
@@ -481,7 +514,7 @@ export default function AddProductScreen() {
             </View>
 
           <TextInput
-            label="Estoque Mínimo"
+            label="Estoque Mínimo (para alerta)"
             value={minStock}
             onChangeText={setMinStock}
             mode="outlined"
@@ -490,7 +523,7 @@ export default function AddProductScreen() {
             keyboardType="numeric"
           />
           <HelperText type="info">
-            Você será alertado quando o estoque atingir este valor
+            Alerta de estoque baixo. O estoque real é adicionado via Entrada de Estoque (rastreabilidade FIFO).
           </HelperText>
           </Card.Content>
         </Card>
@@ -673,15 +706,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  scanButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.25)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitle: {
     flex: 1,
     textAlign: 'center',
     fontSize: theme.fontSize.xl,
     fontWeight: 'bold' as const,
     color: '#fff',
-  },
-  headerPlaceholder: {
-    width: 40,
   },
   headerInfo: {
     alignItems: 'center',

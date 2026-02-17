@@ -795,10 +795,12 @@ export default function EditProductScreen() {
         title="Produto Atualizado!"
         message="As alterações foram salvas com sucesso."
         confirmText="OK"
+        cancelText=""
         onConfirm={() => {
           setShowSuccessDialog(false);
           router.replace(`/products/${productId}`);
         }}
+        onCancel={() => setShowSuccessDialog(false)}
         type="success"
         icon="checkmark-circle"
       />
@@ -809,10 +811,12 @@ export default function EditProductScreen() {
         title="Erro ao Atualizar"
         message={errorMessage}
         confirmText="OK"
+        cancelText=""
         onConfirm={() => {
           setShowErrorDialog(false);
           setErrorMessage('');
         }}
+        onCancel={() => setShowErrorDialog(false)}
         type="danger"
         icon="alert-circle"
       />
@@ -1085,25 +1089,6 @@ const styles = StyleSheet.create({
   buttonPrimary: {
     backgroundColor: Colors.light.primary,
   },
-  infoBox: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#f5f5f5',
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  infoLabel: {
-    fontSize: 14,
-    color: '#666',
-    fontWeight: '600',
-  },
-  infoValue: {
-    fontSize: 14,
-    color: '#000',
-    fontWeight: '500',
-  },
   errorTitle: {
     fontSize: 18,
     fontWeight: 'bold',
@@ -1125,18 +1110,16 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
     textAlign: 'center',
   },
-  warningBox: {
+  infoBox: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    backgroundColor: '#e3f2fd',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: Colors.light.info + '15',
     padding: 12,
     borderRadius: 8,
     marginTop: 12,
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.light.primary,
   },
-  warningText: {
+  infoBoxText: {
     flex: 1,
     fontSize: 13,
     color: Colors.light.text,

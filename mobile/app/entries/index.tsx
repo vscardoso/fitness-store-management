@@ -744,6 +744,23 @@ export default function StockEntriesScreen() {
                 title="Nenhuma entrada encontrada"
                 description="Tente ajustar os filtros de busca"
               />
+            ) : isSelectMode ? (
+              // Modo de seleção: não há entradas para vincular
+              <EmptyState
+                icon="link-outline"
+                title="Nenhuma entrada disponível"
+                description={`Crie uma nova entrada para vincular "${productToLink?.name}"`}
+                actionLabel="Criar Entrada e Vincular"
+                onAction={() => router.push({
+                  pathname: '/entries/add',
+                  params: {
+                    from: '/(tabs)/entries',
+                    preselectedProductData: JSON.stringify(productToLink),
+                    preselectedQuantity: '1',
+                    fromCatalog: 'true',
+                  }
+                })}
+              />
             ) : filter === 'history' ? (
               <EmptyState
                 icon="archive-outline"

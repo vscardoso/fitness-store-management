@@ -47,6 +47,14 @@ export default function FAB({ bottom = 20, directRoute, onPress }: FABProps) {
 
   const quickActions: QuickAction[] = [
     {
+      id: 'ai-scanner',
+      title: 'Scanner IA',
+      subtitle: 'Escanear produto com IA',
+      icon: 'scan',
+      colors: ['#8B5CF6', '#EC4899'],
+      route: '/products/wizard?method=scanner',
+    },
+    {
       id: 'new-sale',
       title: 'Nova Venda',
       subtitle: 'Registrar venda no PDV',
@@ -65,10 +73,10 @@ export default function FAB({ bottom = 20, directRoute, onPress }: FABProps) {
     {
       id: 'new-product',
       title: 'Novo Produto',
-      subtitle: 'Adicionar ao catálogo',
+      subtitle: 'Cadastrar com wizard',
       icon: 'cube',
       colors: ['#4776e6', '#8e54e9'],
-      route: '/products/add',
+      route: '/products/wizard',
     },
     {
       id: 'new-entry',

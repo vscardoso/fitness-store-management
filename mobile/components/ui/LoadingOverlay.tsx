@@ -44,6 +44,10 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
     return unsubscribe;
   }, []);
 
+  // Allow prop override for testing
+  const shouldShow = visible !== undefined ? visible : isVisible;
+  const displayMessage = message !== undefined ? message : loadingMessage;
+
   // Fade in/out animation
   useEffect(() => {
     if (shouldShow) {
@@ -76,10 +80,6 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
       }).start();
     }
   }, [shouldShow]);
-
-  // Allow prop override for testing
-  const shouldShow = visible !== undefined ? visible : isVisible;
-  const displayMessage = message !== undefined ? message : loadingMessage;
 
   if (!shouldShow) {
     return null;
