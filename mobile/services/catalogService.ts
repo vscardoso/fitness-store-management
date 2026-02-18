@@ -18,8 +18,11 @@ interface GetCatalogParams {
  */
 export const getCatalogProducts = async (params?: GetCatalogParams): Promise<Product[]> => {
   try {
-    const { data } = await api.get<Product[]>('/products/catalog', { params });
-    return data;
+    const { data } = await api.get<any>('/products/catalog', { params });
+    // Normaliza: API pode retornar array direto ou objeto paginado { items: [...] }
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.items)) return data.items;
+    return [];
   } catch (error) {
     throw error;
   }
