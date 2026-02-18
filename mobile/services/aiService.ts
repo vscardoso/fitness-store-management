@@ -4,6 +4,8 @@
  */
 
 import api from './api';
+import { skipLoading } from '@/utils/apiHelpers';
+import { logError } from './debugLog';
 import type { ProductScanResponse, AIStatusResponse } from '@/types';
 
 /**
@@ -46,11 +48,14 @@ export const scanProductImage = async (
   formData.append('suggest_price', String(options?.suggestPrice ?? true));
 
   try {
+    // Usar skipLoading() porque o wizard tem seu próprio loading (isAnalyzing)
     const { data } = await api.post<ProductScanResponse>(
       '/ai/scan-product',
       formData,
       {
+        ...skipLoading(),
         headers: {
+          ...skipLoading().headers,
           'Content-Type': 'multipart/form-data',
         },
         timeout: 60000, // 60s para processamento de IA
@@ -59,7 +64,7 @@ export const scanProductImage = async (
 
     return data;
   } catch (error: any) {
-    console.error('Error scanning product:', error);
+    logError('AIScanner', 'Erro ao escanear produto', error);
 
     // Retornar formato esperado em caso de erro
     return {

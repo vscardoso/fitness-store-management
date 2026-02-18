@@ -80,7 +80,7 @@ Esta é uma loja FITNESS com foco principal em **roupas femininas**, mas também
    - **poor:** Borrada, mal iluminada, difícil identificar
    - **Feedback:** Se poor/good, diga EXATAMENTE o que melhorar
 
-### 7. **Estimativa de Preço** ⚡ NOVO
+### 7. **Estimativa de Preço**  NOVO
    - **Preço de Custo Estimado (cost_price):** Analise o tipo de produto, marca, qualidade aparente, material
      - Legging fitness básica sem marca: R$ 25-35
      - Legging fitness marca nacional (Lupo, Live, Labellamafia): R$ 40-70
@@ -100,7 +100,7 @@ Esta é uma loja FITNESS com foco principal em **roupas femininas**, mas também
 {{
   "name": "[Tipo] [Marca] [Modelo]",
   "description": "Descrição detalhada destacando características únicas",
-  "brand": "Marca exata ou 'Desconhecida'",
+  "brand": "Marca exata ou null se não identificável",
   "color": "Nome comercial da cor principal ou null",
   "size": "PP|P|M|G|GG|XGG ou 34-44 ou null se não identificável",
   "gender": "feminino|masculino|unissex",
@@ -165,16 +165,16 @@ Esta é uma loja FITNESS com foco principal em **roupas femininas**, mas também
 ```
 
 ## REGRAS CRÍTICAS:
-✅ Seja ESPECÍFICO no nome (não genérico)
-✅ Identifique gênero SEMPRE (feminino é prioridade)
-✅ Use categorias EXATAS da lista
-✅ Leia etiquetas quando visível
-✅ Destaque características únicas na descrição
-✅ **SEMPRE estime preços** baseado no tipo/marca/qualidade do produto
-✅ **Justifique o preço** brevemente (marca, qualidade, material)
-❌ NÃO invente informações que não vê
-❌ NÃO seja genérico ("Roupa" → "Legging Fitness Cintura Alta")
-❌ NÃO use preços genéricos - ANALISE o produto específico
+ Seja ESPECÍFICO no nome (não genérico)
+ Identifique gênero SEMPRE (feminino é prioridade)
+ Use categorias EXATAS da lista
+ Leia etiquetas quando visível
+ Destaque características únicas na descrição
+ **SEMPRE estime preços** baseado no tipo/marca/qualidade do produto
+ **Justifique o preço** brevemente (marca, qualidade, material)
+ NÃO invente informações que não vê
+ NÃO seja genérico ("Roupa" → "Legging Fitness Cintura Alta")
+ NÃO use preços genéricos - ANALISE o produto específico
 
 Responda APENAS com o JSON, sem texto adicional."""
 
@@ -368,6 +368,12 @@ Responda APENAS com o JSON, sem texto adicional."""
         # Buscar duplicados
         duplicates: List[DuplicateMatch] = []
         if check_duplicates:
+            # Log dos dados usados para busca de duplicados
+            logger.info(f"Searching duplicates with: name='{ai_data.get('name')}', "
+                        f"brand='{ai_data.get('brand')}', color='{ai_data.get('color')}', "
+                        f"size='{ai_data.get('size')}', barcode='{ai_data.get('detected_barcode')}', "
+                        f"category_id={category_id}")
+
             duplicates = await self._find_duplicates(
                 ai_data.get("name", ""),
                 ai_data.get("brand"),
@@ -375,6 +381,7 @@ Responda APENAS com o JSON, sem texto adicional."""
                 ai_data.get("size"),
                 ai_data.get("detected_barcode"),
                 tenant_id,
+                category_id=category_id,  # Passar categoria para melhor detecção
             )
 
         # Sugerir preço
@@ -551,9 +558,17 @@ Responda APENAS com o JSON, sem texto adicional."""
         size: Optional[str],
         barcode: Optional[str],
         tenant_id: int,
+        category_id: Optional[int] = None,
     ) -> List[DuplicateMatch]:
         """
-        Busca produtos similares no banco.
+        Busca produtos similares no banco usando múltiplas estratégias.
+
+        Estratégias de busca (em ordem de prioridade):
+        1. Código de barras exato (100% match)
+        2. Combinação exata: marca + cor + tamanho (95% match)
+        3. Combinação parcial: marca + cor OU marca + tamanho (85% match)
+        4. Mesma categoria + cor + tamanho (80% match)
+        5. Nome similar (fallback)
 
         Args:
             name: Nome do produto
@@ -562,72 +577,139 @@ Responda APENAS com o JSON, sem texto adicional."""
             size: Tamanho
             barcode: Código de barras
             tenant_id: ID do tenant
+            category_id: ID da categoria (opcional)
 
         Returns:
             Lista de possíveis duplicados
         """
         duplicates: List[DuplicateMatch] = []
+        seen_ids: set = set()  # Evitar duplicatas na lista
 
-        # Se tem barcode, verificar match exato
+        def add_duplicate(product: Product, score: float, reason: str):
+            """Helper para adicionar duplicado evitando repetições."""
+            if product.id not in seen_ids:
+                seen_ids.add(product.id)
+                duplicates.append(DuplicateMatch(
+                    product_id=product.id,
+                    product_name=product.name,
+                    sku=product.sku,
+                    similarity_score=score,
+                    reason=reason,
+                ))
+
+        base_conditions = [
+            Product.tenant_id == tenant_id,
+            Product.is_active == True,
+        ]
+
+        # ESTRATÉGIA 1: Código de barras exato (100%)
         if barcode:
             stmt = select(Product).where(
+                *base_conditions,
                 Product.barcode == barcode,
-                Product.tenant_id == tenant_id,
-                Product.is_active == True,
             )
             result = await self.db.execute(stmt)
             exact = result.scalar_one_or_none()
 
             if exact:
-                duplicates.append(DuplicateMatch(
-                    product_id=exact.id,
-                    product_name=exact.name,
-                    sku=exact.sku,
-                    similarity_score=1.0,
-                    reason="Código de barras idêntico",
-                ))
-                return duplicates  # Match exato, não precisa buscar mais
+                add_duplicate(exact, 1.0, "️ Código de barras IDÊNTICO")
+                return duplicates  # Match exato por barcode, não precisa buscar mais
 
-        # Busca por nome similar
-        if name:
-            search_pattern = f"%{name[:20]}%"
+        # ESTRATÉGIA 2: Combinação exata marca + cor + tamanho (95%)
+        if brand and color and size:
             stmt = select(Product).where(
-                Product.name.ilike(search_pattern),
-                Product.tenant_id == tenant_id,
-                Product.is_active == True,
+                *base_conditions,
+                func.lower(Product.brand) == brand.lower(),
+                func.lower(Product.color) == color.lower(),
+                func.lower(Product.size) == size.lower(),
             ).limit(5)
-
             result = await self.db.execute(stmt)
-            similar = result.scalars().all()
 
-            for product in similar:
-                # Calcular similaridade simples
-                score = self._calculate_similarity(
-                    name, brand, color, size,
-                    product.name, product.brand, product.color, product.size,
-                )
+            for product in result.scalars().all():
+                add_duplicate(product, 0.95, "️ Mesma marca, cor e tamanho")
 
-                if score >= 0.6:  # Threshold de similaridade
-                    reason_parts = []
-                    if name.lower() in product.name.lower() or product.name.lower() in name.lower():
-                        reason_parts.append("Nome similar")
-                    if brand and product.brand and brand.lower() == product.brand.lower():
-                        reason_parts.append("Mesma marca")
-                    if color and product.color and color.lower() == product.color.lower():
-                        reason_parts.append("Mesma cor")
-                    if size and product.size and size.lower() == product.size.lower():
-                        reason_parts.append("Mesmo tamanho")
+        # ESTRATÉGIA 3a: Marca + cor (sem tamanho) - 85%
+        if brand and color and len(duplicates) < 5:
+            stmt = select(Product).where(
+                *base_conditions,
+                func.lower(Product.brand) == brand.lower(),
+                func.lower(Product.color) == color.lower(),
+            ).limit(5)
+            result = await self.db.execute(stmt)
 
-                    duplicates.append(DuplicateMatch(
-                        product_id=product.id,
-                        product_name=product.name,
-                        sku=product.sku,
-                        similarity_score=score,
-                        reason=", ".join(reason_parts) or "Produto similar",
-                    ))
+            for product in result.scalars().all():
+                add_duplicate(product, 0.85, "Mesma marca e cor")
 
-        # Ordenar por score
+        # ESTRATÉGIA 3b: Marca + tamanho (sem cor) - 85%
+        if brand and size and len(duplicates) < 5:
+            stmt = select(Product).where(
+                *base_conditions,
+                func.lower(Product.brand) == brand.lower(),
+                func.lower(Product.size) == size.lower(),
+            ).limit(5)
+            result = await self.db.execute(stmt)
+
+            for product in result.scalars().all():
+                add_duplicate(product, 0.85, "Mesma marca e tamanho")
+
+        # ESTRATÉGIA 4: Categoria + cor + tamanho (80%)
+        if category_id and color and size and len(duplicates) < 5:
+            stmt = select(Product).where(
+                *base_conditions,
+                Product.category_id == category_id,
+                func.lower(Product.color) == color.lower(),
+                func.lower(Product.size) == size.lower(),
+            ).limit(5)
+            result = await self.db.execute(stmt)
+
+            for product in result.scalars().all():
+                add_duplicate(product, 0.80, "Mesma categoria, cor e tamanho")
+
+        # ESTRATÉGIA 5: Nome similar (fallback)
+        if name and len(duplicates) < 5:
+            # Buscar por palavras-chave do nome (mais flexível que substring)
+            name_words = [w.lower() for w in name.split() if len(w) > 3][:3]
+
+            if name_words:
+                # Busca por cada palavra-chave
+                for keyword in name_words:
+                    if len(duplicates) >= 5:
+                        break
+
+                    search_pattern = f"%{keyword}%"
+                    stmt = select(Product).where(
+                        *base_conditions,
+                        Product.name.ilike(search_pattern),
+                    ).limit(5)
+
+                    result = await self.db.execute(stmt)
+
+                    for product in result.scalars().all():
+                        score = self._calculate_similarity(
+                            name, brand, color, size,
+                            product.name, product.brand, product.color, product.size,
+                        )
+
+                        if score >= 0.5:  # Threshold mais baixo para nome
+                            reason_parts = []
+                            if name.lower() in product.name.lower() or product.name.lower() in name.lower():
+                                reason_parts.append("Nome similar")
+                            if brand and product.brand and brand.lower() == product.brand.lower():
+                                reason_parts.append("Mesma marca")
+                            if color and product.color and color.lower() == product.color.lower():
+                                reason_parts.append("Mesma cor")
+                            if size and product.size and size.lower() == product.size.lower():
+                                reason_parts.append("Mesmo tamanho")
+
+                            add_duplicate(product, score, ", ".join(reason_parts) or "Produto similar")
+
+        # Ordenar por score (maior primeiro)
         duplicates.sort(key=lambda d: d.similarity_score, reverse=True)
+
+        # Log para debug
+        if duplicates:
+            logger.info(f"Found {len(duplicates)} potential duplicates: {[d.product_name for d in duplicates]}")
+
         return duplicates[:5]
 
     def _calculate_similarity(
@@ -766,7 +848,7 @@ Responda APENAS com o JSON, sem texto adicional."""
             "cost_price": base_cost,
             "sale_price": round(sale_price, 2),
             "markup": default_markup,
-            "reasoning": f"⚠️ Valores padrão do sistema (markup {default_markup}%) - sem estimativa da IA ou histórico",
+            "reasoning": f"️ Valores padrão do sistema (markup {default_markup}%) - sem estimativa da IA ou histórico",
         }
 
     async def _get_similar_prices(

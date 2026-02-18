@@ -188,3 +188,38 @@ export const getFIFOCosts = async (
   );
   return data;
 };
+
+// ============================================
+// CÓDIGO DE BARRAS
+// ============================================
+
+export interface GenerateBarcodeResponse {
+  barcode: string;
+  product_id?: number;
+  valid?: boolean;
+  format?: string;
+  message: string;
+}
+
+/**
+ * Gerar código de barras para um produto existente
+ */
+export const generateProductBarcode = async (
+  productId: number,
+): Promise<GenerateBarcodeResponse> => {
+  const { data } = await api.post<GenerateBarcodeResponse>(
+    `/products/${productId}/generate-barcode`,
+  );
+  return data;
+};
+
+/**
+ * Gerar código de barras standalone (sem associar a produto)
+ * Útil para pré-gerar durante criação de produto
+ */
+export const generateStandaloneBarcode = async (): Promise<GenerateBarcodeResponse> => {
+  const { data } = await api.post<GenerateBarcodeResponse>(
+    '/products/generate-barcode',
+  );
+  return data;
+};

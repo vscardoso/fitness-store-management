@@ -103,8 +103,12 @@ export const useUpdateProduct = () => {
     mutationFn: ({ id, data }: { id: number; data: ProductUpdate }) => 
       updateProduct(id, data),
     onSuccess: (_, variables) => {
+      // Invalida lista de produtos
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['products', variables.id] });
+      // Invalida produto específico (tela de detalhes usa 'product' no singular)
+      queryClient.invalidateQueries({ queryKey: ['product', variables.id] });
+      // Invalida estoque do produto
+      queryClient.invalidateQueries({ queryKey: ['inventory', variables.id] });
       // Invalida dashboard (estoque pode ter mudado)
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['inventory-valuation'] });

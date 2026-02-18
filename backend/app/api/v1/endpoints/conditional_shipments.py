@@ -975,7 +975,7 @@ async def send_periodic_notifications(
     1. Busca todos envios PENDING e agrupa por tenant
     2. Envia notificação de lembrete: "Você tem X envios pendentes"
     3. Busca todos envios OVERDUE (atrasados) e agrupa por tenant
-    4. Envia alerta crítico: "⚠️ X envios estão atrasados!" com lista de clientes
+    4. Envia alerta crítico: "️ X envios estão atrasados!" com lista de clientes
 
     Returns:
         Estatísticas detalhadas:

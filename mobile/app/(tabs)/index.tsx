@@ -168,11 +168,11 @@ export default function DashboardScreen() {
       onPress: () => router.push('/(tabs)/conditional'),
     },
     {
-      id: 'new-entry',
-      title: 'Entrada',
-      icon: 'add-circle',
+      id: 'entries',
+      title: 'Entradas',
+      icon: 'albums',
       color: '#F59E0B',
-      onPress: () => router.push('/entries/add'),
+      onPress: () => router.push('/entries'),
     },
     {
       id: 'reports',

@@ -9,11 +9,33 @@ import type { Product, ProductCreate, ProductScanResult, DuplicateMatch, StockEn
 // WIZARD STEPS & METHODS
 // ============================================
 
-export type WizardStep = 'identify' | 'confirm' | 'entry';
+export type WizardStep = 'identify' | 'confirm' | 'entry' | 'complete';
 
 export type IdentifyMethod = 'scanner' | 'manual' | 'catalog';
 
 export type EntryChoice = 'new' | 'existing' | 'skip';
+
+// Dados da entrada vinculada (retornados após criar entrada)
+export interface LinkedEntryData {
+  id: number;
+  code: string;
+  quantity: number;
+  supplier?: string;
+}
+
+// ============================================
+// WIZARD DIALOG (substitui Alert.alert no hook)
+// ============================================
+
+export interface WizardDialog {
+  visible: boolean;
+  title: string;
+  message: string;
+  type?: 'danger' | 'warning' | 'info' | 'success';
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm?: () => void;
+}
 
 // ============================================
 // WIZARD STATE
@@ -42,10 +64,16 @@ export interface WizardState {
   entryChoice: EntryChoice | null;
   selectedEntry: StockEntry | null;
 
+  // Step 4 - Complete (após retorno de criação de entrada)
+  linkedEntry: LinkedEntryData | null;
+
   // Meta
   isDirty: boolean;
   isCreating: boolean;
   createError: string | null;
+
+  // Dialog (substitui Alert.alert — consumido pelo componente wizard.tsx)
+  wizardDialog: WizardDialog | null;
 }
 
 // ============================================
@@ -162,9 +190,11 @@ export const INITIAL_WIZARD_STATE: WizardState = {
   createdProduct: null,
   entryChoice: null,
   selectedEntry: null,
+  linkedEntry: null,
   isDirty: false,
   isCreating: false,
   createError: null,
+  wizardDialog: null,
 };
 
 // ============================================
@@ -196,5 +226,11 @@ export const WIZARD_STEPS: WizardStepConfig[] = [
     label: 'Entrada',
     icon: 'archive-outline',
     description: 'Vincule a uma entrada de estoque',
+  },
+  {
+    key: 'complete',
+    label: 'Concluido',
+    icon: 'checkmark-done-outline',
+    description: 'Produto cadastrado com sucesso',
   },
 ];

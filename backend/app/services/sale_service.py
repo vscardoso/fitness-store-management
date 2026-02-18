@@ -73,12 +73,13 @@ class SaleService:
         """
         try:
             # 1. Validar estoque disponível via FIFO (entry_items) para TODOS os itens
-            print(f"✓ Validando estoque para {len(sale_data.items)} itens...")
+            print(f" Validando estoque para {len(sale_data.items)} itens...")
             for item in sale_data.items:
                 # Verificar disponibilidade via FIFOService (usa entry_items)
                 availability = await self.fifo_service.check_availability(
                     product_id=item.product_id,
-                    quantity=item.quantity
+                    quantity=item.quantity,
+                    tenant_id=tenant_id,
                 )
                 
                 if not availability["available"]:
@@ -101,7 +102,7 @@ class SaleService:
             # 2.1. Aplicar desconto por forma de pagamento (se configurado)
             payment_discount_amount = Decimal('0')
             if sale_data.payment_method:
-                print(f"✓ Verificando desconto para forma de pagamento: {sale_data.payment_method.value}")
+                print(f" Verificando desconto para forma de pagamento: {sale_data.payment_method.value}")
                 discount_service = PaymentDiscountService(self.db)
                 try:
                     discount_calc = await discount_service.calculate_discount(
@@ -111,9 +112,9 @@ class SaleService:
                     )
                     payment_discount_amount = discount_calc.discount_amount
                     if payment_discount_amount > 0:
-                        print(f"  ✓ Desconto aplicado: {discount_calc.discount_percentage}% = R$ {payment_discount_amount:.2f}")
+                        print(f"   Desconto aplicado: {discount_calc.discount_percentage}% = R$ {payment_discount_amount:.2f}")
                 except Exception as e:
-                    print(f"  ⚠ Erro ao calcular desconto: {e}")
+                    print(f"   Erro ao calcular desconto: {e}")
                     # Continua sem desconto se houver erro
             
             discount_amount = Decimal(str(sale_data.discount_amount or 0)) + payment_discount_amount
@@ -196,7 +197,7 @@ class SaleService:
                     product_id=item_data.product_id,
                     quantity=item_data.quantity,
                     unit_price=float(item_data.unit_price),
-                    unit_cost=float(unit_cost),  # ✅ Custo unitário médio ponderado
+                    unit_cost=float(unit_cost),  #  Custo unitário médio ponderado
                     subtotal=float(item_subtotal),
                     discount_amount=float(item_data.discount_amount),
                     sale_sources={"sources": fifo_sources},  #  Salvar fontes FIFO
@@ -576,11 +577,5 @@ class SaleService:
         
         return await self.sale_repo.get_by_date_range(
             start, end, include_relationships, tenant_id=tenant_id
-        )
-        
-        return await self.sale_repo.get_by_date_range(
-            start,
-            end,
-            include_relationships=include_relationships
         )
 

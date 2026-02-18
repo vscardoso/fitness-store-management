@@ -35,6 +35,7 @@ import {
 } from '@/utils/validation';
 import type { Product, Customer } from '@/types';
 import ProductSelectionModal from '@/components/sale/ProductSelectionModal';
+import QRCodeScanner from '@/components/sale/QRCodeScanner';
 import { HelpButton } from '@/components/tutorial';
 
 export default function SaleScreen() {
@@ -289,18 +290,24 @@ export default function SaleScreen() {
   };
 
   /**
-   * Handler quando produto é encontrado pelo scanner
+   * Handler quando produto é encontrado pelo scanner de QR Code
    */
-  const handleProductScanned = (product: Product) => {
-    // Adicionar produto ao carrinho
-    handleAddToCart(product);
+  const handleProductScanned = (product: Product, quantity: number = 1) => {
+    // Fechar scanner
+    setScannerVisible(false);
+
+    // Adicionar produto ao carrinho (com quantidade especificada)
+    for (let i = 0; i < quantity; i++) {
+      handleAddToCart(product);
+    }
 
     // Exibir feedback
+    haptics.success();
     setDialog({
       visible: true,
       type: 'success',
       title: 'Produto adicionado',
-      message: `${product.name} foi adicionado ao carrinho`,
+      message: `${quantity}x ${product.name} foi adicionado ao carrinho`,
       confirmText: 'OK',
       cancelText: '',
       onConfirm: () => {
@@ -422,23 +429,34 @@ export default function SaleScreen() {
 
         {/* Adicionar produtos */}
         <View style={styles.addProductSection}>
-          <TouchableOpacity
-            style={styles.addProductButton}
-            onPress={() => setProductModalVisible(true)}
-          >
-            <View style={styles.addProductIconContainer}>
-              <Ionicons name="add-circle" size={32} color={Colors.light.primary} />
-            </View>
-            <View style={styles.addProductTextContainer}>
-              <Text variant="titleMedium" style={styles.addProductText}>
-                Adicionar Produtos
-              </Text>
-              <Text variant="bodySmall" style={styles.addProductSubtext}>
-                Toque para buscar e adicionar produtos à venda
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={20} color={Colors.light.textTertiary} />
-          </TouchableOpacity>
+          <View style={styles.addProductRow}>
+            {/* Botão de buscar produtos */}
+            <TouchableOpacity
+              style={[styles.addProductButton, styles.addProductButtonFlex]}
+              onPress={() => setProductModalVisible(true)}
+            >
+              <View style={styles.addProductIconContainer}>
+                <Ionicons name="search" size={28} color={Colors.light.primary} />
+              </View>
+              <View style={styles.addProductTextContainer}>
+                <Text variant="titleMedium" style={styles.addProductText}>
+                  Buscar Produtos
+                </Text>
+                <Text variant="bodySmall" style={styles.addProductSubtext}>
+                  Pesquisar por nome ou SKU
+                </Text>
+              </View>
+            </TouchableOpacity>
+
+            {/* Botão de scanner QR Code */}
+            <TouchableOpacity
+              style={styles.scanQRButton}
+              onPress={handleOpenScanner}
+            >
+              <Ionicons name="qrcode" size={32} color="#fff" />
+              <Text style={styles.scanQRButtonText}>Escanear</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Carrinho de compras */}
@@ -621,6 +639,13 @@ export default function SaleScreen() {
           onSelectProduct={handleSelectProduct}
         />
 
+        {/* QR Code Scanner */}
+        <QRCodeScanner
+          visible={scannerVisible}
+          onClose={() => setScannerVisible(false)}
+          onProductScanned={handleProductScanned}
+        />
+
         {/* Confirm Dialog */}
         <ConfirmDialog
           visible={dialog.visible}
@@ -770,6 +795,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginTop: 16,
   },
+  addProductRow: {
+    flexDirection: 'row',
+    gap: 12,
+  },
   addProductButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -779,6 +808,24 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: Colors.light.primary,
     borderStyle: 'solid',
+  },
+  addProductButtonFlex: {
+    flex: 1,
+  },
+  scanQRButton: {
+    backgroundColor: Colors.light.primary,
+    borderRadius: theme.borderRadius.lg,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: 80,
+  },
+  scanQRButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 4,
   },
   addProductIconContainer: {
     marginRight: 12,

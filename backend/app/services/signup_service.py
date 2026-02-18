@@ -85,7 +85,7 @@ class SignupService:
             from app.services.product_seed_service import ProductSeedService
             seed_service = ProductSeedService(self.db)
             products_count = await seed_service.seed_fitness_products(store.id)
-            logger.info(f"✅ {products_count} produtos fitness criados para store_id={store.id}")
+            logger.info(f" {products_count} produtos fitness criados para store_id={store.id}")
 
             # Commit transaction
             await self.db.commit()
@@ -100,7 +100,7 @@ class SignupService:
             access_token = create_access_token({
                 "sub": str(user.id),
                 "role": user.role.value,
-                "tenant_id": store.id  # ✅ ADD TENANT_ID
+                "tenant_id": store.id  #  ADD TENANT_ID
             })
             refresh_token = create_refresh_token({"sub": str(user.id)})
             

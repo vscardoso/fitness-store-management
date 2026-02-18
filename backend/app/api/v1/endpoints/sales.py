@@ -573,7 +573,7 @@ async def get_daily_report(
     except Exception as e:
         # Log do erro para debug
         import traceback
-        print(f"❌ Erro no relatório diário: {str(e)}")
+        print(f" Erro no relatório diário: {str(e)}")
         print(traceback.format_exc())
         
         raise HTTPException(
@@ -1081,7 +1081,7 @@ async def get_top_products(
 
     except Exception as e:
         import traceback
-        print(f"❌ Erro ao buscar top products: {str(e)}")
+        print(f" Erro ao buscar top products: {str(e)}")
         print(traceback.format_exc())
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -157,15 +157,16 @@ export default function AddProductScreen() {
     console.log('Dados do produto a serem enviados:', JSON.stringify(productData, null, 2));
     createMutation.mutate(productData, {
       onSuccess: (created) => {
+        console.log('Produto criado com sucesso:', created);
         setCreatedProductId(created?.id ?? null);
-        // Guardar dados completos para passar para entrada de estoque
+        // Guardar dados completos retornados pela API
         setCreatedProductData({
           id: created?.id,
-          name: productData.name,
-          sku: productData.sku,
-          cost_price: productData.cost_price,
-          price: productData.price,
-          category_id: productData.category_id,
+          name: created?.name,
+          sku: created?.sku,
+          cost_price: created?.cost_price,
+          price: created?.price,
+          category_id: created?.category_id,
         });
         setShowSuccessDialog(true);
       },
@@ -569,19 +570,19 @@ export default function AddProductScreen() {
             {/* Título e Mensagem */}
             <Text style={styles.successTitle}>Produto Criado!</Text>
             <Text style={styles.successMessage}>
-              {name} foi adicionado ao seu catálogo.
+              {createdProductData?.name || name} foi adicionado ao seu catálogo.
             </Text>
 
             {/* Info Card */}
             <View style={styles.successInfoCard}>
               <View style={styles.successInfoRow}>
                 <Ionicons name="cube-outline" size={18} color="#6B7280" />
-                <Text style={styles.successInfoText}>SKU: {sku}</Text>
+                <Text style={styles.successInfoText}>SKU: {createdProductData?.sku || sku}</Text>
               </View>
               <View style={styles.successInfoRow}>
                 <Ionicons name="pricetag-outline" size={18} color="#6B7280" />
                 <Text style={styles.successInfoText}>
-                  Preço: R$ {salePrice}
+                  Preço: R$ {createdProductData?.price ? createdProductData.price.toFixed(2) : salePrice}
                 </Text>
               </View>
               <View style={styles.successInfoRow}>

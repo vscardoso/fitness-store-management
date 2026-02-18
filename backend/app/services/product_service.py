@@ -84,18 +84,33 @@ class ProductService:
         # Remover campos específicos de estoque e alias sale_price do payload do produto
         product_dict = product_data.model_dump(exclude={"initial_stock", "min_stock", "sale_price"})
 
-        # REGRA DE NEGÓCIO: Produto sem estoque inicial vai para catálogo
-        # Somente produtos com entrada de estoque são considerados "ativos"
-        if initial_stock is None or initial_stock <= 0:
-            product_dict["is_catalog"] = True
-            logger.info(f"📦 Produto será criado no CATÁLOGO (sem estoque inicial)")
+        # REGRA DE NEGÓCIO: is_catalog é determinado pelo campo enviado pelo cliente.
+        # Se o cliente enviou is_catalog explicitamente, respeitar esse valor.
+        # Fallback: se is_catalog não foi enviado (None no dict), inferir pelo initial_stock
+        # para manter compatibilidade com chamadas legadas que não enviam o campo.
+        #
+        # ️ IMPORTANTE: O wizard mobile SEMPRE envia is_catalog=False para produtos
+        # criados pelo usuário da loja, mesmo com initial_stock=0.
+        # Apenas o product_seed_service envia is_catalog=True para templates globais.
+        client_is_catalog = product_dict.get("is_catalog")
+        if client_is_catalog is None:
+            # Fallback legado: inferir pelo estoque
+            if initial_stock is None or initial_stock <= 0:
+                product_dict["is_catalog"] = True
+                logger.info(f"Produto sera criado no CATALOGO (sem estoque inicial, fallback legado)")
+            else:
+                product_dict["is_catalog"] = False
+                logger.info(f"Produto sera criado ATIVO com entrada de estoque inicial: {initial_stock}")
         else:
-            product_dict["is_catalog"] = False
-            logger.info(f"📦 Produto será criado ATIVO com entrada de estoque inicial: {initial_stock}")
+            # Cliente enviou is_catalog explicitamente — respeitar
+            logger.info(
+                f"Produto sera criado com is_catalog={client_is_catalog} "
+                f"(definido pelo cliente, initial_stock={initial_stock})"
+            )
 
         # Criar produto no repositório
         product = await self.product_repo.create(product_dict, tenant_id=tenant_id)
-        logger.info(f"✅ Produto criado - ID: {product.id}, SKU: {product.sku}, is_catalog: {product.is_catalog}")
+        logger.info(f"Produto criado - ID: {product.id}, SKU: {product.sku}, is_catalog: {product.is_catalog}")
 
         # Se há estoque inicial, criar entrada automática do tipo INITIAL_INVENTORY
         if initial_stock and initial_stock > 0:
@@ -117,7 +132,7 @@ class ProductService:
 
                 # Criar entrada com assinatura correta (db, data, tenant_id)
                 entry = await entry_repo.create(self.db, entry_data.model_dump(), tenant_id=tenant_id)
-                logger.info(f"✅ Entrada inicial criada - ID: {entry.id}, Code: {entry.entry_code}")
+                logger.info(f" Entrada inicial criada - ID: {entry.id}, Code: {entry.entry_code}")
 
                 # Criar item da entrada
                 item_data = EntryItemCreate(
@@ -130,38 +145,59 @@ class ProductService:
                 item_dict = item_data.model_dump(exclude={"selling_price"})
                 item_dict["entry_id"] = entry.id
                 item = await item_repo.create(self.db, item_dict)
-                logger.info(f"✅ Item de entrada criado - ID: {item.id}, Qty: {initial_stock}")
+                logger.info(f" Item de entrada criado - ID: {item.id}, Qty: {initial_stock}")
 
                 # Atualizar total_cost da entrada
                 entry.total_cost = item.total_cost
                 await self.db.commit()
 
-                logger.info(f"✅ Produto {product.sku} vinculado à entrada {entry.entry_code}")
+                logger.info(f" Produto {product.sku} vinculado à entrada {entry.entry_code}")
+
+                # Rebuild inventário via FIFO (fonte da verdade = entry_items)
+                # Garante que Inventory.quantity == soma de quantity_remaining dos EntryItems ativos
+                # Isso substitui a criação manual do Inventory com quantity=initial_stock
+                from app.services.inventory_service import InventoryService
+                inv_sync = InventoryService(self.db)
+                try:
+                    delta = await inv_sync.rebuild_product_from_fifo(product.id, tenant_id=tenant_id)
+                    # Após o rebuild, garantir que min_stock está correto
+                    inventory = await self.inventory_repo.get_by_product(product.id, tenant_id=tenant_id)
+                    if inventory and inventory.min_stock != min_stock_value:
+                        inventory.min_stock = min_stock_value
+                        await self.db.commit()
+                    logger.info(
+                        f" Inventory sincronizado via FIFO - "
+                        f"fifo_sum={delta['fifo_sum']} qty={delta['inventory_quantity']} "
+                        f"created={delta['created']} updated={delta['updated']}"
+                    )
+                except Exception as sync_err:
+                    logger.error(f"Erro ao sincronizar inventory via FIFO para produto {product.id}: {sync_err}")
 
             except Exception as entry_err:
                 logger.error(f"Erro ao criar entrada inicial para o produto {product.id}: {entry_err}")
                 # Não falhar a criação do produto por causa da entrada
                 raise ValueError(f"Produto criado mas falhou ao vincular entrada inicial: {entry_err}")
 
-        # Criar/atualizar registro de inventário com min_stock
-        try:
-            inventory = await self.inventory_repo.get_by_product(product.id, tenant_id=tenant_id)
-            if not inventory:
-                # Criar inventory se não existir
-                inventory_data = {
-                    "product_id": product.id,
-                    "quantity": initial_stock or 0,
-                    "min_stock": min_stock_value,
-                }
-                inventory = await self.inventory_repo.create(self.db, inventory_data, tenant_id=tenant_id)
-                logger.info(f"✅ Inventory criado - Quantity: {initial_stock or 0}, Min stock: {min_stock_value}")
-            else:
-                # Atualizar min_stock se já existir
-                inventory.min_stock = min_stock_value
-                await self.db.commit()
-                logger.info(f"✅ Min stock atualizado: {min_stock_value}")
-        except Exception as inv_err:
-            logger.error(f"Erro ao criar/atualizar inventory para o produto {product.id}: {inv_err}")
+        else:
+            # Sem estoque inicial: garantir que existe registro de inventory com quantity=0
+            # (necessário para consultas de low-stock e dashboard)
+            try:
+                inventory = await self.inventory_repo.get_by_product(product.id, tenant_id=tenant_id)
+                if not inventory:
+                    inventory_data = {
+                        "product_id": product.id,
+                        "quantity": 0,
+                        "min_stock": min_stock_value,
+                    }
+                    await self.inventory_repo.create(self.db, inventory_data, tenant_id=tenant_id)
+                    logger.info(f" Inventory criado (sem estoque) - Min stock: {min_stock_value}")
+                else:
+                    if inventory.min_stock != min_stock_value:
+                        inventory.min_stock = min_stock_value
+                        await self.db.commit()
+                    logger.info(f" Min stock atualizado: {min_stock_value}")
+            except Exception as inv_err:
+                logger.error(f"Erro ao criar inventory vazio para o produto {product.id}: {inv_err}")
 
         return product
     
@@ -201,41 +237,28 @@ class ProductService:
             if existing_barcode:
                 raise ValueError(f"Código de barras {product_data.barcode} já existe")
         
-        # Se cost_price foi atualizado, propagar para EntryItems com estoque
-        cost_price_changed = False
-        if product_data.cost_price is not None and product_data.cost_price != product.cost_price:
-            cost_price_changed = True
-            new_cost = product_data.cost_price
-            old_cost = product.cost_price
-        
         update_dict = product_data.model_dump(exclude_unset=True)
         updated_product = await self.product_repo.update(self.db, id=product_id, obj_in=update_dict, tenant_id=tenant_id)
 
-        # Sincronizar unit_cost dos EntryItems com estoque se cost_price mudou
-        if cost_price_changed:
-            from sqlalchemy import update as sql_update
-            from app.models.entry_item import EntryItem
-
-            logger.info(f"Sincronizando unit_cost dos EntryItems do produto {product_id}: {old_cost} → {new_cost}")
-
-            stmt = (
-                sql_update(EntryItem)
-                .where(
-                    EntryItem.product_id == product_id,
-                    EntryItem.quantity_remaining > 0,
-                    EntryItem.is_active == True,
-                    EntryItem.tenant_id == tenant_id
-                )
-                .values(unit_cost=new_cost)
+        # IMPORTANTE — FIFO INVARIANT:
+        # NÃO propagamos cost_price para EntryItems existentes.
+        #
+        # Motivo: unit_cost em EntryItem representa o custo REAL pago naquela compra.
+        # Alterar retroativamente distorceria:
+        #   - CMV (Custo da Mercadoria Vendida) de vendas já realizadas
+        #   - ROI por entrada/viagem
+        #   - Relatórios de margem histórica
+        #
+        # O novo cost_price do produto serve apenas como valor SUGERIDO para
+        # NOVAS entradas de estoque criadas a partir deste momento.
+        if product_data.cost_price is not None and product_data.cost_price != product.cost_price:
+            logger.info(
+                f"[update_product] cost_price atualizado para produto {product_id}: "
+                f"{product.cost_price} → {product_data.cost_price}. "
+                f"EntryItems existentes NÃO foram alterados (FIFO invariant)."
             )
 
-            result = await self.db.execute(stmt)
-            updated_count = result.rowcount
-
-            if updated_count > 0:
-                logger.info(f"✅ {updated_count} EntryItem(s) atualizados com novo custo: {new_cost}")
-
-        # Sempre fazer commit das alterações
+        # Commit das alterações
         await self.db.commit()
         await self.db.refresh(updated_product)
 
@@ -678,7 +701,7 @@ class ProductService:
         # Buscar produtos do catálogo (is_catalog=true)
         stmt = select(Product).where(
             and_(
-                Product.is_catalog == True,      # 🌍 GLOBAL: catálogo é para todos os tenants
+                Product.is_catalog == True,      # GLOBAL: catálogo é para todos os tenants
                 Product.is_active == True
             )
         )
@@ -736,7 +759,7 @@ class ProductService:
                 Product.is_active == True
             )
         ).options(
-            selectinload(Product.category),  # 🔧 CARREGAMENTO DA RELAÇÃO
+            selectinload(Product.category),  # carregamento DA RELAÇÃO
             selectinload(Product.inventory)
         ).order_by(Product.name).offset(skip).limit(limit)
 
@@ -820,7 +843,7 @@ class ProductService:
             material=catalog_product.material,
             is_digital=catalog_product.is_digital,
             is_activewear=catalog_product.is_activewear,
-            is_catalog=False,  # ✅ Agora é produto ATIVO
+            is_catalog=False,  # produto ativo da loja (nao e template de catalogo) é produto ATIVO
             initial_stock=0,  # Sem estoque inicial
             min_stock=5
         )
@@ -838,11 +861,11 @@ class ProductService:
         if entry_id is not None and quantity is not None and quantity > 0:
             from app.models.entry_item import EntryItem
             from app.models.stock_entry import StockEntry
-            from app.repositories.entry_item_repository import EntryItemRepository
+            from app.services.inventory_service import InventoryService
             from decimal import Decimal
-
-            # Buscar entrada
             from sqlalchemy import select
+
+            # Buscar entrada (pertencente ao tenant)
             result = await self.db.execute(
                 select(StockEntry).where(
                     StockEntry.id == entry_id,
@@ -856,45 +879,41 @@ class ProductService:
                 raise ValueError(f"Entrada de estoque {entry_id} não encontrada")
 
             # Criar EntryItem vinculando produto à entrada
+            unit_cost_val = Decimal(str(new_product.cost_price)) if new_product.cost_price else Decimal("0")
             entry_item = EntryItem(
-                entry_id=entry_id,  # ← Campo correto
+                entry_id=entry_id,
                 product_id=new_product.id,
                 quantity_received=quantity,
                 quantity_remaining=quantity,
-                unit_cost=Decimal(str(new_product.cost_price)) if new_product.cost_price else Decimal("0"),
+                unit_cost=unit_cost_val,
                 tenant_id=tenant_id,
                 is_active=True
             )
             self.db.add(entry_item)
 
-            # Atualizar total_cost da entrada com o custo deste item
-            # Evita inconsistência onde a entrada mostra valor menor que a soma dos itens
-            item_total_cost = (Decimal(str(quantity)) * (entry_item.unit_cost or Decimal("0")))
+            # Atualizar total_cost da entrada
+            item_total_cost = Decimal(str(quantity)) * unit_cost_val
             stock_entry.total_cost = (stock_entry.total_cost or Decimal("0.00")) + item_total_cost
 
-            # Atualizar inventário
-            from app.models.inventory import Inventory
-            from sqlalchemy import select
+            # Flush para que o EntryItem tenha ID antes do rebuild
+            await self.db.flush()
 
-            inv_result = await self.db.execute(
-                select(Inventory).where(
-                    Inventory.product_id == new_product.id,
-                    Inventory.tenant_id == tenant_id
+            # Rebuild inventário via FIFO (fonte da verdade = entry_items)
+            # Substitui qualquer manipulação direta de Inventory.quantity
+            inv_sync = InventoryService(self.db)
+            try:
+                delta = await inv_sync.rebuild_product_from_fifo(new_product.id, tenant_id=tenant_id)
+                # Garantir min_stock correto após rebuild
+                inventory = await self.inventory_repo.get_by_product(new_product.id, tenant_id=tenant_id)
+                if inventory and inventory.min_stock != 5:
+                    inventory.min_stock = 5
+                logger.info(
+                    f" [activate_catalog] Inventory sincronizado via FIFO - "
+                    f"produto={new_product.id} fifo_sum={delta['fifo_sum']} "
+                    f"created={delta['created']} updated={delta['updated']}"
                 )
-            )
-            inventory = inv_result.scalar_one_or_none()
-
-            if inventory:
-                inventory.quantity += quantity
-            else:
-                inventory = Inventory(
-                    product_id=new_product.id,
-                    quantity=quantity,
-                    min_stock=5,
-                    tenant_id=tenant_id,
-                    is_active=True
-                )
-                self.db.add(inventory)
+            except Exception as sync_err:
+                logger.error(f"Erro ao sincronizar inventory via FIFO para produto {new_product.id}: {sync_err}")
 
             await self.db.commit()
             await self.db.refresh(new_product)

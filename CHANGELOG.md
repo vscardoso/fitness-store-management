@@ -5,6 +5,44 @@ Todas as mudanças notáveis neste projeto serão documentadas neste arquivo.
 O formato é baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/),
 e este projeto adere ao [Semantic Versioning](https://semver.org/lang/pt-BR/).
 
+## [2.0.0] - 2026-02-17
+
+### ✨ Adicionado
+- **Campo de Quantidade para Entrada Existente**
+  - Modal interativo ao vincular produto a entrada existente
+  - Botões rápidos (1, 5, 10, 20, 50) para seleção de quantidade
+  - Validação em tempo real
+  - UX aprimorada com ícones e hints
+
+- **Novo Sistema de Loading Ultra Criativo**
+  - CreativeSpinner com órbitas duplas (horário e anti-horário)
+  - 8 partículas flutuantes com movimento aleatório
+  - Ondas expansivas do centro (0→2x scale)
+  - Centro pulsante com gradiente animado
+  - 5 pontos coloridos orbitando em velocidades diferentes
+  - Performance: 15+ animações paralelas a 60fps
+  - Design minimalista: sem card, texto branco flutuante
+  - Blur intenso (40) no background
+  - Spring animation na entrada/saída
+  - Tela de demonstração em `/dev/loading-demo`
+  - Documentação completa em `mobile/docs/NEW_LOADING_SYSTEM.md`
+
+### 🎨 Interface
+- Loading visual completamente redesenhado (versão 3.0)
+- Modal de quantidade com design moderno e acessível
+- Mensagens de loading mais legíveis (branco com text-shadow)
+- Animações mais dramáticas e impactantes
+- Sistema de órbitas e partículas para feedback visual rico
+
+### 🔧 Técnico
+- Novo componente `CreativeSpinner.tsx` (órbitas + partículas)
+- Atualizado `useProductWizard` para aceitar quantidade em `goToExistingEntry()`
+- Modal de quantidade em `WizardStep3` com validação
+- LoadingOverlay otimizado para design minimalista
+- Múltiplas animações com `Animated.parallel()` e `Animated.loop()`
+- Uso extensivo de `useNativeDriver: true` (60fps garantidos)
+- Timings otimizados (200ms delay, 300ms mínimo)
+
 ## [1.0.0] - 2025-10-29
 
 ### ✨ Adicionado

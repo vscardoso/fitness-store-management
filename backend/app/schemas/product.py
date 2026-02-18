@@ -112,7 +112,7 @@ class ProductResponse(ProductBase):
     min_stock_threshold: Optional[int] = Field(None, description="Estoque mínimo")
     entry_items: Optional[List[ProductEntryItem]] = Field(None, description="Histórico FIFO de entradas do produto")
     
-    # 🔧 Relação com categoria
+    #  Relação com categoria
     category: Optional[CategoryResponse] = Field(None, description="Categoria do produto")
 
     # Expor sale_price no response (espelha "price") para compatibilidade

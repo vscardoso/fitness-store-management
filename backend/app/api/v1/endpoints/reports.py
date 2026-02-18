@@ -377,7 +377,7 @@ async def get_history(
 
     except Exception as e:
         import traceback
-        print(f"❌ Erro ao buscar histórico: {str(e)}")
+        print(f" Erro ao buscar histórico: {str(e)}")
         print(traceback.format_exc())
         from fastapi import HTTPException, status
         raise HTTPException(

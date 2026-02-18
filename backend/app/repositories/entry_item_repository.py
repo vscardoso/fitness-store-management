@@ -141,41 +141,51 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
         return result.scalars().all()
     
     async def get_available_for_product(
-        self, 
-        db: AsyncSession, 
-        product_id: int
+        self,
+        db: AsyncSession,
+        product_id: int,
+        *,
+        tenant_id: int | None = None,
     ) -> Sequence[EntryItem]:
         """
         Busca itens disponíveis de um produto (com estoque) ordenado por FIFO.
-        
+
         Implementação do FIFO: retorna itens ordenados pela data de entrada
         (mais antigos primeiro) que ainda têm quantity_remaining > 0.
-        
+
+        MULTI-TENANCY: quando tenant_id é fornecido, filtra apenas EntryItems
+        do tenant correspondente, garantindo isolamento total entre lojas.
+
         Args:
             db: Database session
             product_id: ID do produto
-            
+            tenant_id: ID do tenant (obrigatório em contexto multi-tenant)
+
         Returns:
             Lista de itens disponíveis ordenada por FIFO (mais antigos primeiro)
         """
+        conditions = [
+            EntryItem.product_id == product_id,
+            EntryItem.quantity_remaining > 0,
+            EntryItem.is_active == True,
+            StockEntry.is_active == True,
+        ]
+
+        # ISOLAMENTO MULTI-TENANT: filtrar por tenant_id quando fornecido
+        if tenant_id is not None:
+            conditions.append(EntryItem.tenant_id == tenant_id)
+
         query = (
             select(EntryItem)
             .join(StockEntry, EntryItem.entry_id == StockEntry.id)
-            .where(
-                and_(
-                    EntryItem.product_id == product_id,
-                    EntryItem.quantity_remaining > 0,
-                    EntryItem.is_active == True,
-                    StockEntry.is_active == True
-                )
-            )
+            .where(and_(*conditions))
             .options(
                 selectinload(EntryItem.stock_entry),
                 selectinload(EntryItem.product)
             )
             .order_by(StockEntry.entry_date.asc(), EntryItem.created_at.asc())  # FIFO
         )
-        
+
         result = await db.execute(query)
         return result.scalars().all()
     

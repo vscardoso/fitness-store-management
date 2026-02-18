@@ -538,29 +538,26 @@ class StockEntryService:
             orphan_products = []
             total_stock_removed = 0
 
-            # Remover quantidades do inventário e identificar produtos órfãos
+            # Coletar product_ids afetados e identificar produtos órfãos
+            # (antes do soft delete, enquanto os itens ainda existem)
+            affected_product_ids: set[int] = set()
+
             for item in entry.entry_items:
                 if item.is_active:
                     total_stock_removed += item.quantity_remaining
-
-                    await self._update_product_inventory(
-                        item.product_id,
-                        item.quantity_remaining,
-                        operation='remove',
-                        tenant_id=tenant_id,
-                    )
+                    affected_product_ids.add(item.product_id)
 
                     # Verificar se este produto tem outras entradas ativas
                     other_entries_query = select(func.count(EntryItem.id)).where(
                         EntryItem.product_id == item.product_id,
-                        EntryItem.entry_id != entry_id,  # ← Campo correto
+                        EntryItem.entry_id != entry_id,
                         EntryItem.is_active == True,
                         EntryItem.tenant_id == tenant_id
                     )
                     result = await self.db.execute(other_entries_query)
                     other_entries_count = result.scalar()
 
-                    # Se não tem outras entradas, é órfão
+                    # Se não tem outras entradas, é órfão → volta para catálogo
                     if other_entries_count == 0:
                         product_query = select(Product).where(
                             Product.id == item.product_id,
@@ -570,7 +567,6 @@ class StockEntryService:
                         product = product_result.scalar_one_or_none()
 
                         if product:
-                            # Produto órfão volta para o catálogo (ativo)
                             product.is_active = True
                             product.is_catalog = True  # Volta para o catálogo
                             orphan_products.append({
@@ -579,8 +575,26 @@ class StockEntryService:
                                 'sku': product.sku
                             })
 
-            # Soft delete da entrada (cascata para itens)
+            # Soft delete da entrada (cascata para itens via is_active=False)
             success = await self.entry_repo.delete(self.db, entry_id, tenant_id=tenant_id)
+
+            # Flush para que o soft delete seja visível antes do rebuild
+            await self.db.flush()
+
+            # Rebuild FIFO para cada produto afetado
+            # Após o soft delete dos EntryItems, a soma de quantity_remaining
+            # será recalculada corretamente (itens inativos são ignorados)
+            inv_sync = InventoryService(self.db)
+            for pid in affected_product_ids:
+                try:
+                    delta = await inv_sync.rebuild_product_from_fifo(pid, tenant_id=tenant_id)
+                    print(
+                        f"  [Inventory Sync DELETE_ENTRY] Produto {pid}: "
+                        f"fifo={delta['fifo_sum']} inv={delta['inventory_quantity']} "
+                        f"updated={delta['updated']}"
+                    )
+                except Exception as sync_err:
+                    print(f"  [Inventory Sync DELETE_ENTRY] Falha sync produto {pid}: {sync_err}")
 
             await self.db.commit()
 
@@ -980,13 +994,18 @@ class StockEntryService:
         item_total_cost = Decimal(str(quantity_received)) * Decimal(str(unit_cost))
         entry.total_cost = (entry.total_cost or Decimal('0')) + item_total_cost
 
-        # Atualizar inventário do produto
-        await self._update_product_inventory(
-            product_id,
-            quantity_received,
-            operation='add',
-            tenant_id=tenant_id,
-        )
+        # Rebuild inventário via FIFO (fonte da verdade = entry_items)
+        # Garante que Inventory.quantity == soma de quantity_remaining dos EntryItems ativos
+        inv_sync = InventoryService(self.db)
+        try:
+            delta = await inv_sync.rebuild_product_from_fifo(product_id, tenant_id=tenant_id)
+            print(
+                f"  [Inventory Sync ADD_ITEM] Produto {product_id}: "
+                f"fifo={delta['fifo_sum']} inv={delta['inventory_quantity']} "
+                f"created={delta['created']} updated={delta['updated']}"
+            )
+        except Exception as sync_err:
+            print(f"  [Inventory Sync ADD_ITEM] Falha sync produto {product_id}: {sync_err}")
 
         # Commit
         await self.db.commit()

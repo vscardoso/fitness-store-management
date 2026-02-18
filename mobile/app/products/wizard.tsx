@@ -14,6 +14,8 @@ import {
   StatusBar,
   TouchableOpacity,
   BackHandler,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,11 +29,21 @@ import WizardStepper from '@/components/products/WizardStepper';
 import WizardStep1 from '@/components/products/WizardStep1';
 import WizardStep2 from '@/components/products/WizardStep2';
 import WizardStep3 from '@/components/products/WizardStep3';
+import WizardComplete from '@/components/products/WizardComplete';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 export default function ProductWizardScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ method?: string }>();
+  const params = useLocalSearchParams<{
+    method?: string;
+    // Params de retorno do entries/add ou entries/index (entrada existente)
+    returnFromEntry?: string;
+    createdEntryId?: string;
+    createdEntryCode?: string;
+    createdEntryQuantity?: string;
+    createdEntrySupplier?: string;
+    createdProductData?: string; // Dados do produto para restaurar
+  }>();
   const { categories } = useCategories();
   const wizard = useProductWizard();
   const { state } = wizard;
@@ -44,6 +56,31 @@ export default function ProductWizardScreen() {
       wizard.selectMethod('scanner');
     }
   }, [params.method]);
+
+  // Processar retorno do entries/add ou entries/index (entrada existente)
+  useEffect(() => {
+    if (params.returnFromEntry === 'true' && params.createdEntryId) {
+      // Restaurar dados do produto se vier de entrada existente
+      let productData = null;
+      if (params.createdProductData) {
+        try {
+          productData = JSON.parse(params.createdProductData);
+        } catch (e) {
+          console.error('Erro ao parsear createdProductData:', e);
+        }
+      }
+
+      wizard.handleEntryCreated(
+        {
+          id: parseInt(params.createdEntryId, 10),
+          code: params.createdEntryCode || '',
+          quantity: parseInt(params.createdEntryQuantity || '1', 10),
+          supplier: params.createdEntrySupplier,
+        },
+        productData // Passar dados do produto para restaurar
+      );
+    }
+  }, [params.returnFromEntry, params.createdEntryId]);
 
   // Handle hardware back button
   useEffect(() => {
@@ -74,6 +111,12 @@ export default function ProductWizardScreen() {
       return;
     }
 
+    // Se está no Step 4 (complete), ir para lista de produtos
+    if (state.currentStep === 'complete') {
+      router.replace('/(tabs)/products');
+      return;
+    }
+
     // Se tem dados não salvos, confirmar saída
     if (state.isDirty) {
       setShowExitDialog(true);
@@ -96,6 +139,8 @@ export default function ProductWizardScreen() {
         return 'Confirmar Dados';
       case 'entry':
         return 'Vincular Estoque';
+      case 'complete':
+        return 'Concluido';
       default:
         return 'Cadastrar Produto';
     }
@@ -109,6 +154,8 @@ export default function ProductWizardScreen() {
         return 'Revise as informações';
       case 'entry':
         return 'Adicione ao estoque';
+      case 'complete':
+        return 'Cadastro finalizado com sucesso';
       default:
         return '';
     }
@@ -132,7 +179,11 @@ export default function ProductWizardScreen() {
               style={styles.backButton}
             >
               <Ionicons
-                name={state.currentStep === 'entry' ? 'checkmark' : 'arrow-back'}
+                name={
+                  state.currentStep === 'entry' || state.currentStep === 'complete'
+                    ? 'checkmark'
+                    : 'arrow-back'
+                }
                 size={24}
                 color="#fff"
               />
@@ -151,7 +202,11 @@ export default function ProductWizardScreen() {
       <WizardStepper currentStep={state.currentStep} />
 
       {/* Content */}
-      <View style={styles.content}>
+      <KeyboardAvoidingView
+        style={styles.content}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={0}
+      >
         {state.currentStep === 'identify' && (
           <WizardStep1
             wizard={wizard}
@@ -171,7 +226,11 @@ export default function ProductWizardScreen() {
         {state.currentStep === 'entry' && (
           <WizardStep3 wizard={wizard} />
         )}
-      </View>
+
+        {state.currentStep === 'complete' && (
+          <WizardComplete wizard={wizard} />
+        )}
+      </KeyboardAvoidingView>
 
       {/* Exit Dialog */}
       <ConfirmDialog
@@ -185,6 +244,23 @@ export default function ProductWizardScreen() {
         onCancel={() => setShowExitDialog(false)}
         icon="alert-circle"
       />
+
+      {/* Wizard Dialog — substitui Alert.alert do hook (erros, permissões, etc.) */}
+      {state.wizardDialog && (
+        <ConfirmDialog
+          visible={state.wizardDialog.visible}
+          title={state.wizardDialog.title}
+          message={state.wizardDialog.message}
+          type={state.wizardDialog.type ?? 'warning'}
+          confirmText={state.wizardDialog.confirmText ?? 'OK'}
+          cancelText={state.wizardDialog.cancelText ?? ''}
+          onConfirm={() => {
+            state.wizardDialog?.onConfirm?.();
+            wizard.clearWizardDialog();
+          }}
+          onCancel={wizard.clearWizardDialog}
+        />
+      )}
     </View>
   );
 }

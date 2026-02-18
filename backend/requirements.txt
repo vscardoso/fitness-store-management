@@ -42,3 +42,7 @@ black==23.7.0
 flake8==6.0.0
 mypy==1.5.1
 cloudinary==1.44.1
+
+# Image processing (HEIC/HEIF conversion for AI scanner)
+Pillow>=10.0.0
+pillow-heif>=0.13.0

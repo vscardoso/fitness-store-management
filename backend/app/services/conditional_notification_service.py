@@ -102,7 +102,7 @@ class ConditionalNotificationService:
             db=db,
             tenant_id=shipment.tenant_id,
             user_ids=[user.id],
-            title=f"⏰ Hora de Enviar - Envio #{shipment.id}",
+            title=f" Hora de Enviar - Envio #{shipment.id}",
             body=f"Envio para {customer_name} deve sair em 5 minutos!",
             data={
                 'type': 'sla_departure',
@@ -138,7 +138,7 @@ class ConditionalNotificationService:
             db=db,
             tenant_id=shipment.tenant_id,
             user_ids=[user.id],
-            title=f"🔔 Prazo de Retorno - Envio #{shipment.id}",
+            title=f" Prazo de Retorno - Envio #{shipment.id}",
             body=f"Retorno de {customer_name} vence em 15 minutos! Confirme devolução.",
             data={
                 'type': 'sla_return',
@@ -250,7 +250,7 @@ class ConditionalNotificationService:
                     db=db,
                     tenant_id=tenant_id,
                     user_ids=user_ids,
-                    title=f"📦 {total} Envio(s) Pendente(s)",
+                    title=f" {total} Envio(s) Pendente(s)",
                     body=body_text,
                     data={
                         'type': 'pending_shipments_reminder',
@@ -354,7 +354,7 @@ class ConditionalNotificationService:
                         days_overdue = (now - shipment.deadline).days
                         customer_list.append(f"{customer.full_name} ({days_overdue}d atrasado)")
 
-                body_text = f"⚠️ URGENTE: {total} envio(s) com prazo vencido!"
+                body_text = f"️ URGENTE: {total} envio(s) com prazo vencido!"
                 if customer_list:
                     body_text += f"\n\nClientes:\n• " + "\n• ".join(customer_list)
                     if total > 5:
@@ -365,7 +365,7 @@ class ConditionalNotificationService:
                     db=db,
                     tenant_id=tenant_id,
                     user_ids=user_ids,
-                    title=f"🚨 {total} Envio(s) Atrasado(s)!",
+                    title=f" {total} Envio(s) Atrasado(s)!",
                     body=body_text,
                     data={
                         'type': 'overdue_shipments_alert',

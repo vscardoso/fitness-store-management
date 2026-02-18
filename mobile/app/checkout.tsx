@@ -32,7 +32,7 @@ import type { Customer } from '@/types';
  * Métodos de pagamento disponíveis
  */
 const paymentMethods: { value: PaymentMethod | 'MIXED'; label: string; icon: string }[] = [
-  { value: PaymentMethod.PIX, label: 'PIX', icon: 'qr-code-outline' },
+  { value: PaymentMethod.PIX, label: 'PIX', icon: 'qrcode-outline' },
   { value: PaymentMethod.DEBIT_CARD, label: 'Cartão', icon: 'card-outline' },
   { value: PaymentMethod.CASH, label: 'Dinheiro', icon: 'cash-outline' },
   { value: 'MIXED', label: '2 Métodos', icon: 'swap-horizontal-outline' },

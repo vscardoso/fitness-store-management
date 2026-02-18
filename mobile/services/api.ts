@@ -8,6 +8,7 @@ import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { API_CONFIG } from '@/constants/Config';
 import { getAccessToken, saveAccessToken, clearAuthData } from './storage';
 import { loadingManager } from './loadingManager';
+import { logError } from './debugLog';
 import type { ApiError } from '@/types';
 
 /**
@@ -143,12 +144,13 @@ api.interceptors.response.use(
       const detail = typeof rawDetail === 'string' ? rawDetail : (() => {
         try { return JSON.stringify(rawDetail); } catch { return String(rawDetail); }
       })();
-      
-      // Um único log consolidado
-      console.log(
-        `❌ ${method} ${url} - Status: ${status || 'Network Error'}\n` +
-        `${detail || error.message}`
-      );
+
+      // Log em arquivo via backend
+      logError('API', `${method} ${url} - ${status || 'Network Error'}`, {
+        status,
+        detail: detail || error.message,
+        code: error.code,
+      });
     }
     
     // Erro de rede (sem resposta do servidor)

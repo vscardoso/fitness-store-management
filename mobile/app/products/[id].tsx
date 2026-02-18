@@ -359,6 +359,35 @@ export default function ProductDetailsScreen() {
         </Card.Content>
       </Card>
 
+      {/* Card de Etiqueta */}
+      <Card style={styles.card}>
+        <Card.Content>
+          <View style={styles.sectionHeader}>
+            <Ionicons name="qrcode-outline" size={20} color={Colors.light.primary} />
+            <Text style={styles.cardTitle}>Etiqueta do Produto</Text>
+          </View>
+
+          <View style={styles.labelInfoBox}>
+            <Ionicons name="print-outline" size={24} color={Colors.light.primary} />
+            <View style={styles.labelInfoContent}>
+              <Text style={styles.labelInfoTitle}>Gerar Etiqueta com QR Code</Text>
+              <Text style={styles.labelInfoText}>
+                Crie etiquetas com QR Code para facilitar a identificação e venda do produto.
+              </Text>
+            </View>
+          </View>
+
+          <Button
+            mode="contained"
+            onPress={() => router.push(`/products/label/${productId}` as any)}
+            icon="qrcode"
+            style={styles.generateLabelButton}
+          >
+            Gerar Etiqueta
+          </Button>
+        </Card.Content>
+      </Card>
+
       </ScrollView>
 
       {/* Confirm Dialog */}
@@ -696,5 +725,32 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 10,
     fontWeight: '700',
+  },
+  // Label section
+  labelInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 16,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  labelInfoContent: {
+    flex: 1,
+  },
+  labelInfoTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.light.text,
+    marginBottom: 4,
+  },
+  labelInfoText: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    lineHeight: 18,
+  },
+  generateLabelButton: {
+    borderRadius: 12,
   },
 });

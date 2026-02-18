@@ -35,6 +35,7 @@ from app.api.v1.endpoints import (
     payment_discounts,
     team,
     ai,
+    debug,
 )
 
 
@@ -138,4 +139,11 @@ api_router.include_router(
 api_router.include_router(
     ai.router,
     tags=["IA"]
+)
+
+# Debug - Logs em tempo real (apenas desenvolvimento)
+api_router.include_router(
+    debug.router,
+    prefix="/debug",
+    tags=["Debug"]
 )

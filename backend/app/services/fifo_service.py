@@ -65,12 +65,13 @@ class FIFOService:
         if quantity <= 0:
             raise ValueError("Quantity must be greater than 0")
         
-        # Buscar itens disponíveis ordenados por FIFO
+        # Buscar itens disponíveis ordenados por FIFO (filtrado por tenant para isolamento)
         available_items = await self.item_repo.get_available_for_product(
-            self.db, 
-            product_id
+            self.db,
+            product_id,
+            tenant_id=tenant_id,
         )
-        
+
         if not available_items:
             raise ValueError(
                 f"Product {product_id} has no available stock"
@@ -136,17 +137,20 @@ class FIFOService:
         return sources
     
     async def check_availability(
-        self, 
-        product_id: int, 
-        quantity: int
+        self,
+        product_id: int,
+        quantity: int,
+        *,
+        tenant_id: int | None = None,
     ) -> Dict[str, Any]:
         """
         Verifica disponibilidade de estoque para um produto.
-        
+
         Args:
             product_id: ID do produto
             quantity: Quantidade desejada
-            
+            tenant_id: ID do tenant (obrigatório em contexto multi-tenant)
+
         Returns:
             Dict com informações de disponibilidade:
                 {
@@ -159,10 +163,11 @@ class FIFOService:
                     "newest_entry_date": date
                 }
         """
-        # Buscar itens disponíveis
+        # Buscar itens disponíveis (filtrado por tenant para isolamento)
         available_items = await self.item_repo.get_available_for_product(
             self.db,
-            product_id
+            product_id,
+            tenant_id=tenant_id,
         )
         
         if not available_items:
@@ -198,19 +203,22 @@ class FIFOService:
         }
     
     async def simulate_sale(
-        self, 
-        product_id: int, 
-        quantity: int
+        self,
+        product_id: int,
+        quantity: int,
+        *,
+        tenant_id: int | None = None,
     ) -> Dict[str, Any]:
         """
         Simula uma venda sem modificar o banco de dados.
-        
+
         Útil para preview de custos antes de confirmar a venda.
-        
+
         Args:
             product_id: ID do produto
             quantity: Quantidade a vender
-            
+            tenant_id: ID do tenant (obrigatório em contexto multi-tenant)
+
         Returns:
             Dict com simulação da venda:
                 {
@@ -219,14 +227,15 @@ class FIFOService:
                     "total_cost": Decimal,
                     "average_unit_cost": Decimal
                 }
-                
+
         Raises:
             ValueError: Se quantidade insuficiente
         """
-        # Buscar itens disponíveis
+        # Buscar itens disponíveis (filtrado por tenant para isolamento)
         available_items = await self.item_repo.get_available_for_product(
             self.db,
-            product_id
+            product_id,
+            tenant_id=tenant_id,
         )
         
         if not available_items:
@@ -285,15 +294,18 @@ class FIFOService:
         }
     
     async def get_product_cost_info(
-        self, 
-        product_id: int
+        self,
+        product_id: int,
+        *,
+        tenant_id: int | None = None,
     ) -> Dict[str, Any]:
         """
         Obtém informações de custo de um produto baseado no estoque FIFO.
-        
+
         Args:
             product_id: ID do produto
-            
+            tenant_id: ID do tenant (obrigatório em contexto multi-tenant)
+
         Returns:
             Dict com informações de custo:
                 {
@@ -305,10 +317,11 @@ class FIFOService:
                     "sources_count": int
                 }
         """
-        # Buscar itens disponíveis
+        # Buscar itens disponíveis (filtrado por tenant para isolamento)
         available_items = await self.item_repo.get_available_for_product(
             self.db,
-            product_id
+            product_id,
+            tenant_id=tenant_id,
         )
         
         if not available_items:

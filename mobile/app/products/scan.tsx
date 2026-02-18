@@ -346,7 +346,7 @@ export default function ScanProductScreen() {
                   <View style={styles.priceItem}>
                     <Text style={styles.priceLabel}>Custo</Text>
                     <Text style={styles.priceValue}>
-                      R$ {scanResult.suggested_cost_price.toFixed(2)}
+                      R$ {Number(scanResult.suggested_cost_price).toFixed(2)}
                     </Text>
                   </View>
                 )}
@@ -354,7 +354,7 @@ export default function ScanProductScreen() {
                   <View style={styles.priceItem}>
                     <Text style={styles.priceLabel}>Venda</Text>
                     <Text style={styles.priceValueHighlight}>
-                      R$ {scanResult.suggested_sale_price.toFixed(2)}
+                      R$ {Number(scanResult.suggested_sale_price).toFixed(2)}
                     </Text>
                   </View>
                 )}
@@ -362,7 +362,7 @@ export default function ScanProductScreen() {
                   <View style={styles.priceItem}>
                     <Text style={styles.priceLabel}>Markup</Text>
                     <Text style={styles.priceValueMarkup}>
-                      {scanResult.markup_percentage.toFixed(0)}%
+                      {Number(scanResult.markup_percentage).toFixed(0)}%
                     </Text>
                   </View>
                 )}

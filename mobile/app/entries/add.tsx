@@ -20,7 +20,6 @@ import {
   Alert,
   TouchableOpacity,
   Modal,
-  StatusBar,
 } from 'react-native';
 import {
   TextInput,
@@ -34,10 +33,10 @@ import {
   Divider,
   Surface,
 } from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import PageHeader from '@/components/layout/PageHeader';
 import { useTrips } from '@/hooks/useTrips';
 import { useProducts } from '@/hooks';
 import { createStockEntry, checkEntryCode } from '@/services/stockEntryService';
@@ -47,6 +46,7 @@ import { cnpjMask, phoneMask } from '@/utils/masks';
 import { Colors, theme } from '@/constants/Colors';
 import { EntryType, StockEntryCreate, EntryItem, Product } from '@/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { logInfo, logError } from '@/services/debugLog';
 
 interface EntryItemForm extends EntryItem {
   id: string; // ID temporário para gerenciar a lista
@@ -68,10 +68,16 @@ export default function AddStockEntryScreen() {
     preselectedProductData?: string;
     fromCatalog?: string;
     fromAIScanner?: string; // ✨ Novo: indica que veio do AI Scanner
+    // Wizard params (para retorno ao wizard após criar entrada)
+    fromWizard?: string;
+    wizardProductId?: string;
+    wizardProductName?: string;
     // Trip params
     newTripId?: string;
     newTripCode?: string;
   }>();
+
+  const isFromWizard = params.fromWizard === 'true';
 
   // Estados do formulário
   const [selectedType, setSelectedType] = useState<EntryType>(EntryType.LOCAL);
@@ -96,6 +102,7 @@ export default function AddStockEntryScreen() {
   const [showCreateTripDialog, setShowCreateTripDialog] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [createdEntryCode, setCreatedEntryCode] = useState<string | undefined>();
+  const [createdEntryId, setCreatedEntryId] = useState<number | undefined>();
   const [codeValidationStatus, setCodeValidationStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
   const codeCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const preselectedProductAddedRef = useRef(false); // Previne adição dupla do produto pré-selecionado
@@ -150,14 +157,23 @@ export default function AddStockEntryScreen() {
    * Usa ref para prevenir adição dupla em caso de re-render
    */
   useEffect(() => {
+    // Log params para debug
+    logInfo('Entries/Add', 'Params recebidos', {
+      fromWizard: params.fromWizard,
+      fromCatalog: params.fromCatalog,
+      wizardProductId: params.wizardProductId,
+      hasPreselectedData: !!params.preselectedProductData,
+    });
+
     // Skip if already processed or has items
     if (preselectedProductAddedRef.current) return;
     if (items.length > 0) return;
 
-    // New flow: full product data from catalog
-    if (params.preselectedProductData && params.fromCatalog === 'true') {
+    // New flow: full product data from catalog or wizard
+    if (params.preselectedProductData && (params.fromCatalog === 'true' || params.fromWizard === 'true')) {
       try {
         const productData = JSON.parse(params.preselectedProductData);
+        logInfo('Entries/Add', 'Produto parseado', { id: productData.id, name: productData.name });
         const quantity = params.preselectedQuantity ? parseInt(params.preselectedQuantity) : 1;
         const price = productData.cost_price || 0;
 
@@ -233,7 +249,7 @@ export default function AddStockEntryScreen() {
         setItemPrices({ [newItem.id]: sellPriceFormatted });
       }
     }
-  }, [params.preselectedProductData, params.preselectedProductId, params.fromCatalog, products]);
+  }, [params.preselectedProductData, params.preselectedProductId, params.fromCatalog, params.fromWizard, products]);
 
   /**
    * Auto-selecionar viagem recém-criada (quando volta de /trips/add)
@@ -328,6 +344,7 @@ export default function AddStockEntryScreen() {
       queryClient.invalidateQueries({ queryKey: ['period-purchases'] });
 
       setCreatedEntryCode(createdEntry.entry_code);
+      setCreatedEntryId(createdEntry.id);
       setShowSuccessDialog(true);
     },
     onError: (error: any) => {
@@ -573,36 +590,29 @@ export default function AddStockEntryScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
+      <PageHeader
+        title="Nova Entrada"
+        subtitle="Preencha os dados para cadastrar nova entrada de estoque"
+        onBack={() => router.push('/(tabs)/entries')}
+      />
 
-      {/* Header Premium */}
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerTop}>
-            <TouchableOpacity
-              onPress={() => router.push('/(tabs)/entries')}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="white" />
-            </TouchableOpacity>
-
-            <Text style={styles.headerTitle}>Nova Entrada</Text>
-
-            <View style={styles.headerPlaceholder} />
-          </View>
-
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerSubtitle}>
-              Preencha os dados abaixo para cadastrar uma nova entrada de estoque
+      {/* Banner de contexto quando vem do Wizard */}
+      {isFromWizard && (
+        <View style={styles.wizardBanner}>
+          <Ionicons name="cube" size={20} color={Colors.light.primary} />
+          <View style={styles.wizardBannerText}>
+            <Text style={styles.wizardBannerTitle}>
+              Finalizando cadastro de produto
+            </Text>
+            <Text style={styles.wizardBannerSubtitle}>
+              {params.wizardProductName || 'Produto'}
             </Text>
           </View>
-        </LinearGradient>
-      </View>
+          <View style={styles.wizardBannerStep}>
+            <Text style={styles.wizardBannerStepText}>Passo 3/4</Text>
+          </View>
+        </View>
+      )}
 
       <KeyboardAvoidingView
         style={styles.content}
@@ -1215,32 +1225,78 @@ export default function AddStockEntryScreen() {
       {/* Dialog de Sucesso da Entrada */}
       <ConfirmDialog
         visible={showSuccessDialog}
-        title={isFromAIScanner ? "🎉 Produto Criado com Sucesso FIFO!" : "Entrada Criada! ✓"}
-        message={isFromAIScanner 
-          ? `Produto escaneado foi cadastrado e vinculado à entrada de estoque!`
-          : `A entrada ${createdEntryCode || ''} foi registrada com sucesso.`
+        title={
+          isFromWizard
+            ? "Entrada Vinculada!"
+            : isFromAIScanner
+            ? "Produto Criado com Sucesso FIFO!"
+            : "Entrada Criada!"
         }
-        details={isFromAIScanner ? [
-          '✅ Produto criado no catálogo',
-          '✅ Entrada de estoque vinculada (FIFO)',
-          '✅ Rastreabilidade completa garantida',
-          '📊 Você pode acompanhar:',
-          '  • Custo real por venda (FIFO)',
-          '  • ROI por entrada/viagem',
-          '  • Sell-Through Rate',
-          '',
-          'Cada venda usará o estoque da entrada mais antiga primeiro (FIFO)',
-        ] : [
-          `${items.length} ${items.length === 1 ? 'item' : 'itens'} adicionados`,
-          `Total: ${formatCurrency(total)}`,
-          selectedType === EntryType.TRIP && selectedTrip ? `Viagem vinculada: ${selectedTrip.trip_code}` : 'Tipo: ' + (selectedType === EntryType.TRIP ? 'Viagem' : selectedType === EntryType.ONLINE ? 'Online' : 'Local'),
-          'Você pode acompanhar performance (Sell-Through / ROI) após vendas',
-        ].filter(Boolean)}
+        message={
+          isFromWizard
+            ? `Produto vinculado a entrada ${createdEntryCode || ''} com sucesso!`
+            : isFromAIScanner
+            ? `Produto escaneado foi cadastrado e vinculado à entrada de estoque!`
+            : `A entrada ${createdEntryCode || ''} foi registrada com sucesso.`
+        }
+        details={
+          isFromWizard
+            ? [
+                `Produto: ${params.wizardProductName || 'N/A'}`,
+                `Entrada: ${createdEntryCode}`,
+                `Quantidade: ${items.reduce((sum, i) => sum + i.quantity, 0)} un`,
+                '',
+                '✅ Rastreabilidade FIFO ativa',
+              ]
+            : isFromAIScanner
+            ? [
+                '✅ Produto criado no catálogo',
+                '✅ Entrada de estoque vinculada (FIFO)',
+                '✅ Rastreabilidade completa garantida',
+                '📊 Você pode acompanhar:',
+                '  • Custo real por venda (FIFO)',
+                '  • ROI por entrada/viagem',
+                '  • Sell-Through Rate',
+                '',
+                'Cada venda usará o estoque da entrada mais antiga primeiro (FIFO)',
+              ]
+            : [
+                `${items.length} ${items.length === 1 ? 'item' : 'itens'} adicionados`,
+                `Total: ${formatCurrency(total)}`,
+                selectedType === EntryType.TRIP && selectedTrip
+                  ? `Viagem vinculada: ${selectedTrip.trip_code}`
+                  : 'Tipo: ' +
+                    (selectedType === EntryType.TRIP
+                      ? 'Viagem'
+                      : selectedType === EntryType.ONLINE
+                      ? 'Online'
+                      : 'Local'),
+                'Você pode acompanhar performance (Sell-Through / ROI) após vendas',
+              ].filter(Boolean)
+        }
         type="success"
-        confirmText={isFromAIScanner ? "Ver Produto" : "Ver Entradas"}
-        cancelText={isFromAIScanner ? "Escanear Outro" : "Nova Entrada"}
+        confirmText={isFromWizard ? "Ver Resumo" : isFromAIScanner ? "Ver Produto" : "Ver Entradas"}
+        cancelText={isFromWizard ? "" : isFromAIScanner ? "Escanear Outro" : "Nova Entrada"}
         onConfirm={() => {
           setShowSuccessDialog(false);
+
+          // Se veio do wizard, retornar ao wizard com dados da entrada E do produto
+          if (isFromWizard && createdEntryId) {
+            router.replace({
+              pathname: '/products/wizard',
+              params: {
+                returnFromEntry: 'true',
+                createdEntryId: String(createdEntryId),
+                createdEntryCode: createdEntryCode || '',
+                createdEntryQuantity: String(items.reduce((sum, i) => sum + i.quantity_received, 0)),
+                createdEntrySupplier: supplierName || undefined,
+                // Passar dados do produto para restaurar no wizard
+                createdProductData: params.preselectedProductData || '',
+              },
+            });
+            return;
+          }
+
           if (isFromAIScanner && items.length > 0 && items[0].product?.id) {
             // Ir para detalhes do produto criado
             router.push(`/products/${items[0].product.id}`);
@@ -1318,53 +1374,38 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
   },
-  headerContainer: {
-    marginBottom: 0,
-  },
-  headerGradient: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  headerTop: {
+  wizardBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.md,
+    backgroundColor: Colors.light.primary + '10',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    gap: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.primary + '20',
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
+  wizardBannerText: {
     flex: 1,
-    textAlign: 'center',
-    fontSize: theme.fontSize.xl,
-    fontWeight: 'bold' as const,
+  },
+  wizardBannerTitle: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+  },
+  wizardBannerSubtitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
+  wizardBannerStep: {
+    backgroundColor: Colors.light.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  wizardBannerStepText: {
+    fontSize: 11,
+    fontWeight: '600',
     color: '#fff',
-  },
-  headerPlaceholder: {
-    width: 40,
-  },
-  headerInfo: {
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.sm,
-    maxWidth: '90%',
-    alignSelf: 'center',
-  },
-  headerSubtitle: {
-    fontSize: theme.fontSize.md,
-    color: '#fff',
-    opacity: 0.95,
-    textAlign: 'center',
-    lineHeight: 20,
-    fontWeight: 'normal' as const,
   },
   content: {
     flex: 1,

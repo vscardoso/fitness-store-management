@@ -53,6 +53,7 @@ export default function StockEntriesScreen() {
   const params = useLocalSearchParams<{
     selectMode?: string;
     productToLink?: string;
+    fromWizard?: string;
   }>();
 
   // Parse produto a vincular
@@ -68,6 +69,7 @@ export default function StockEntriesScreen() {
   }, [params.productToLink]);
 
   const isSelectMode = params.selectMode === 'true' && productToLink;
+  const isFromWizard = params.fromWizard === 'true';
 
   // Estados para diálogos
   const [showLinkDialog, setShowLinkDialog] = useState(false);
@@ -81,18 +83,29 @@ export default function StockEntriesScreen() {
     mutationFn: (data: { entryId: number; productData: any }) =>
       addItemToEntry(data.entryId, {
         product_id: data.productData.id,
-        quantity_received: 1,
+        quantity_received: data.productData.quantity || 1, // Usa a quantidade escolhida no wizard
         unit_cost: data.productData.cost_price || 0,
         selling_price: data.productData.price || 0,
-        notes: 'Adicionado via catálogo',
+        notes: data.productData.quantity > 1
+          ? `Adicionado via catálogo (${data.productData.quantity} un)`
+          : 'Adicionado via catálogo',
       }),
-    onSuccess: async () => {
+    onSuccess: async (_, variables) => {
       setShowLinkDialog(false);
+      // Invalidar todas as queries relacionadas
       await Promise.all([
+        // Invalida lista de entradas (todas as variantes de filtro)
         queryClient.invalidateQueries({ queryKey: ['stock-entries'] }),
+        // Invalida detalhes da entrada específica
+        queryClient.invalidateQueries({ queryKey: ['stock-entry', variables.entryId] }),
+        // Invalida produtos
         queryClient.invalidateQueries({ queryKey: ['products'] }),
         queryClient.invalidateQueries({ queryKey: ['active-products'] }),
+        // Invalida stats
+        queryClient.invalidateQueries({ queryKey: ['stock-entries-stats'] }),
       ]);
+      // Força refetch da lista atual
+      await refetch();
       setShowSuccessDialog(true);
     },
     onError: (error: any) => {
@@ -815,9 +828,10 @@ export default function StockEntriesScreen() {
           title="Vincular Produto"
           message={`Deseja adicionar "${productToLink?.name}" à entrada ${selectedEntry?.entry_code}?`}
           details={[
-            `Custo: R$ ${(productToLink?.cost_price || 0).toFixed(2)}`,
-            `Preço: R$ ${(productToLink?.price || 0).toFixed(2)}`,
-            `Quantidade: 1 unidade`,
+            `Quantidade: ${productToLink?.quantity || 1} ${(productToLink?.quantity || 1) === 1 ? 'unidade' : 'unidades'}`,
+            `Custo unitário: R$ ${Number(productToLink?.cost_price || 0).toFixed(2)}`,
+            `Preço de venda: R$ ${Number(productToLink?.price || 0).toFixed(2)}`,
+            `Custo total: R$ ${(Number(productToLink?.cost_price || 0) * (productToLink?.quantity || 1)).toFixed(2)}`,
           ]}
           confirmText="Vincular"
           cancelText="Cancelar"
@@ -832,18 +846,41 @@ export default function StockEntriesScreen() {
         <ConfirmDialog
           visible={showSuccessDialog}
           title="Produto Vinculado!"
-          message={`${productToLink?.name} foi adicionado à entrada ${selectedEntry?.entry_code} com sucesso.`}
-          confirmText="Ver Entrada"
-          cancelText="Voltar"
+          message={`${productToLink?.quantity || 1} ${(productToLink?.quantity || 1) === 1 ? 'unidade' : 'unidades'} de "${productToLink?.name}" ${(productToLink?.quantity || 1) === 1 ? 'foi adicionada' : 'foram adicionadas'} à entrada ${selectedEntry?.entry_code}.`}
+          confirmText={isFromWizard ? "Ver Resumo" : "Ver Entrada"}
+          cancelText={isFromWizard ? "" : "Voltar"}
           onConfirm={() => {
             setShowSuccessDialog(false);
-            if (selectedEntry) {
+            if (isFromWizard && selectedEntry) {
+              // Retornar ao wizard com dados da entrada vinculada E do produto
+              router.replace({
+                pathname: '/products/wizard',
+                params: {
+                  returnFromEntry: 'true',
+                  createdEntryId: String(selectedEntry.id),
+                  createdEntryCode: selectedEntry.entry_code || '',
+                  createdEntryQuantity: String(productToLink?.quantity || 1),
+                  createdEntrySupplier: selectedEntry.supplier_name || '',
+                  // Passar dados do produto para restaurar no wizard
+                  createdProductData: JSON.stringify({
+                    id: productToLink?.id,
+                    name: productToLink?.name,
+                    sku: productToLink?.sku,
+                    cost_price: productToLink?.cost_price,
+                    price: productToLink?.price,
+                    category_id: productToLink?.category_id,
+                  }),
+                },
+              });
+            } else if (selectedEntry) {
               router.replace({ pathname: `/entries/${selectedEntry.id}`, params: { from: '/(tabs)/entries' } });
             }
           }}
           onCancel={() => {
             setShowSuccessDialog(false);
-            router.back();
+            if (!isFromWizard) {
+              router.back();
+            }
           }}
           type="success"
           icon="checkmark-circle"

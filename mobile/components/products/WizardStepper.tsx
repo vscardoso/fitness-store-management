@@ -20,14 +20,21 @@ export default function WizardStepper({
   currentStep,
   completedSteps = [],
 }: WizardStepperProps) {
-  const currentIndex = WIZARD_STEPS.findIndex(s => s.key === currentStep);
+  // Filtra o step 'complete' para mostrar apenas 3 steps visuais
+  // Quando está no 'complete', mostra todos os 3 anteriores como completados
+  const visibleSteps = WIZARD_STEPS.filter(s => s.key !== 'complete');
+  const isComplete = currentStep === 'complete';
+  const currentIndex = isComplete
+    ? visibleSteps.length // Todos completados
+    : visibleSteps.findIndex(s => s.key === currentStep);
 
   return (
     <View style={styles.container}>
-      {WIZARD_STEPS.map((step, index) => {
+      {visibleSteps.map((step, index) => {
         const isActive = index <= currentIndex;
-        const isCurrent = step.key === currentStep;
-        const isCompleted = completedSteps.includes(step.key) || index < currentIndex;
+        const isCurrent = !isComplete && step.key === currentStep;
+        const isCompleted = isComplete || completedSteps.includes(step.key) || index < currentIndex;
+        const isAllComplete = isComplete;
 
         return (
           <React.Fragment key={step.key}>
@@ -38,10 +45,15 @@ export default function WizardStepper({
                   styles.stepCircle,
                   isActive && styles.stepCircleActive,
                   isCurrent && styles.stepCircleCurrent,
+                  isAllComplete && styles.stepCircleComplete,
                 ]}
               >
-                {isCompleted && !isCurrent ? (
-                  <Ionicons name="checkmark" size={18} color="#fff" />
+                {isCompleted ? (
+                  <Ionicons
+                    name="checkmark"
+                    size={18}
+                    color={isAllComplete ? Colors.light.success : '#fff'}
+                  />
                 ) : (
                   <Ionicons
                     name={step.icon as any}
@@ -55,6 +67,7 @@ export default function WizardStepper({
                   styles.stepLabel,
                   isActive && styles.stepLabelActive,
                   isCurrent && styles.stepLabelCurrent,
+                  isAllComplete && styles.stepLabelComplete,
                 ]}
                 numberOfLines={1}
               >
@@ -63,11 +76,12 @@ export default function WizardStepper({
             </View>
 
             {/* Connector Line */}
-            {index < WIZARD_STEPS.length - 1 && (
+            {index < visibleSteps.length - 1 && (
               <View
                 style={[
                   styles.connector,
-                  isActive && index < currentIndex && styles.connectorActive,
+                  (isActive && index < currentIndex) && styles.connectorActive,
+                  isAllComplete && styles.connectorComplete,
                 ]}
               />
             )}
@@ -135,5 +149,16 @@ const styles = StyleSheet.create({
   },
   connectorActive: {
     backgroundColor: Colors.light.primary,
+  },
+  stepCircleComplete: {
+    backgroundColor: Colors.light.success + '20',
+    borderColor: Colors.light.success,
+  },
+  stepLabelComplete: {
+    color: Colors.light.success,
+    fontWeight: '600',
+  },
+  connectorComplete: {
+    backgroundColor: Colors.light.success,
   },
 });

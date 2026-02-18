@@ -442,6 +442,7 @@ export default function EditProductScreen() {
           style={styles.scrollView}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true}
         >
         {/* Informações Básicas */}
         <View style={styles.card}>
@@ -606,11 +607,11 @@ export default function EditProductScreen() {
               <HelperText type="error">{errors.salePrice}</HelperText>
             ) : null}
 
-            {/* Aviso sobre custo */}
-            <View style={styles.warningBox}>
-              <Ionicons name="information-circle" size={20} color={Colors.light.primary} />
-              <Text style={styles.warningText}>
-                Custo e quantidade são gerenciados pela tela de Entradas
+            {/* Info sobre preço de venda */}
+            <View style={styles.infoBoxSmall}>
+              <Ionicons name="pricetag" size={16} color={Colors.light.success} />
+              <Text style={styles.infoBoxSmallText}>
+                Este é o preço de venda global do produto
               </Text>
             </View>
           </View>
@@ -635,11 +636,11 @@ export default function EditProductScreen() {
               </View>
             </View>
 
-            {/* Aviso sobre ajuste de estoque */}
+            {/* Aviso sobre FIFO */}
             <View style={styles.infoBox}>
-              <Ionicons name="information-circle" size={18} color={Colors.light.info} />
+              <Ionicons name="layers-outline" size={18} color={Colors.light.info} />
               <Text style={styles.infoBoxText}>
-                Para ajustar quantidade total, utilize a tela de Entradas. Aqui você pode editar o custo unitário de entradas sem vendas.
+                Cada entrada pode ter custo diferente (FIFO). Edite o custo de entradas sem vendas abaixo. Para ajustar quantidades, use a tela de Entradas.
               </Text>
             </View>
 
@@ -1124,6 +1125,21 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.light.text,
     lineHeight: 18,
+  },
+  infoBoxSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: Colors.light.success + '10',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  infoBoxSmallText: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.light.textSecondary,
   },
   stockSummary: {
     flexDirection: 'row',

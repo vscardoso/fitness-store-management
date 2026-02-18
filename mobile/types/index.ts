@@ -176,6 +176,7 @@ export interface ProductCreate {
   material?: string;
   is_digital?: boolean;
   is_activewear?: boolean;
+  is_catalog?: boolean; // Se é template de catálogo (true) ou produto real da loja (false)
   image_url?: string; // URL da imagem do produto
   initial_stock?: number; // Estoque inicial
   min_stock?: number; // Estoque mínimo

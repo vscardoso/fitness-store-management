@@ -21,7 +21,7 @@ class ProductSeedService:
 
     async def seed_fitness_products(self, tenant_id: int) -> int:
         """Cria 115 roupas e acessórios fitness para uma nova loja."""
-        logger.info(f"🌱 Iniciando seed de roupas fitness para tenant_id={tenant_id}")
+        logger.info(f" Iniciando seed de roupas fitness para tenant_id={tenant_id}")
 
         categories = await self._create_categories(tenant_id)
         products_created = 0
@@ -34,7 +34,7 @@ class ProductSeedService:
         products_created += await self._create_shoes(tenant_id, categories.get("Tênis e Calçados").id)
         products_created += await self._create_accessories(tenant_id, categories.get("Acessórios").id)
 
-        logger.info(f"✅ {products_created} roupas fitness criadas para tenant_id={tenant_id}")
+        logger.info(f" {products_created} roupas fitness criadas para tenant_id={tenant_id}")
         return products_created
 
     def _generate_sku(self) -> str:
@@ -91,7 +91,7 @@ class ProductSeedService:
         for p in products:
             p['sku'] = self._generate_sku()  # Adicionar SKU
             p['is_catalog'] = True  # Marcar como catálogo
-            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  # 🌍 GLOBAL: sem tenant_id
+            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  #  GLOBAL: sem tenant_id
             count += 1
         return count
 
@@ -122,7 +122,7 @@ class ProductSeedService:
         for p in products:
             p['sku'] = self._generate_sku()  # Adicionar SKU
             p['is_catalog'] = True  # Marcar como catálogo
-            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  # 🌍 GLOBAL: sem tenant_id
+            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  #  GLOBAL: sem tenant_id
             count += 1
         return count
 
@@ -153,7 +153,7 @@ class ProductSeedService:
         for p in products:
             p['sku'] = self._generate_sku()  # Adicionar SKU
             p['is_catalog'] = True  # Marcar como catálogo
-            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  # 🌍 GLOBAL: sem tenant_id
+            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  #  GLOBAL: sem tenant_id
             count += 1
         return count
 
@@ -179,7 +179,7 @@ class ProductSeedService:
         for p in products:
             p['sku'] = self._generate_sku()  # Adicionar SKU
             p['is_catalog'] = True  # Marcar como catálogo
-            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  # 🌍 GLOBAL: sem tenant_id
+            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  #  GLOBAL: sem tenant_id
             count += 1
         return count
 
@@ -205,7 +205,7 @@ class ProductSeedService:
         for p in products:
             p['sku'] = self._generate_sku()  # Adicionar SKU
             p['is_catalog'] = True  # Marcar como catálogo
-            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  # 🌍 GLOBAL: sem tenant_id
+            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  #  GLOBAL: sem tenant_id
             count += 1
         return count
 
@@ -226,7 +226,7 @@ class ProductSeedService:
         for p in products:
             p['sku'] = self._generate_sku()  # Adicionar SKU
             p['is_catalog'] = True  # Marcar como catálogo
-            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  # 🌍 GLOBAL: sem tenant_id
+            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  #  GLOBAL: sem tenant_id
             count += 1
         return count
 
@@ -247,6 +247,6 @@ class ProductSeedService:
         for p in products:
             p['sku'] = self._generate_sku()  # Adicionar SKU
             p['is_catalog'] = True  # Marcar como catálogo
-            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  # 🌍 GLOBAL: sem tenant_id
+            await self.product_repo.create(ProductCreate(**p), tenant_id=None)  #  GLOBAL: sem tenant_id
             count += 1
         return count

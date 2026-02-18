@@ -163,7 +163,7 @@ async def get_current_tenant_id(
     Resolve o tenant atual a partir de headers/host/user, ou retorna o tenant padrão.
 
     Prioridade:
-    1) user.tenant_id (do JWT/database) - NOVO ✅
+    1) user.tenant_id (do JWT/database) - NOVO 
     2) request.state.tenant_id (definido via middleware)
     3) Header 'X-Tenant-Id' (int)
     4) Header 'X-Store-Slug' (slug)

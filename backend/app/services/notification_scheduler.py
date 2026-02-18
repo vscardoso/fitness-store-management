@@ -89,7 +89,7 @@ class NotificationScheduler:
             if ship_notify_time and ship_notify_time > datetime.utcnow():
                 notifications["ship_notification"] = {
                     "schedule_at": ship_notify_time,
-                    "title": "🚚 Hora de Enviar",
+                    "title": " Hora de Enviar",
                     "body": f"Envio #{shipment.id} está agendado para {shipment.scheduled_ship_date.strftime('%H:%M')}",
                     "data": {
                         "type": "shipment_time",
@@ -107,7 +107,7 @@ class NotificationScheduler:
             if warning_time and warning_time > datetime.utcnow():
                 notifications["deadline_warning"] = {
                     "schedule_at": warning_time,
-                    "title": "⏰ Prazo Próximo",
+                    "title": " Prazo Próximo",
                     "body": f"Envio #{shipment.id} vence amanhã. Confirme devolução.",
                     "data": {
                         "type": "deadline_warning",
@@ -121,7 +121,7 @@ class NotificationScheduler:
             if shipment.deadline > datetime.utcnow():
                 notifications["deadline_expired"] = {
                     "schedule_at": shipment.deadline,
-                    "title": "🔴 Prazo Vencido",
+                    "title": " Prazo Vencido",
                     "body": f"Envio #{shipment.id} atingiu o prazo de devolução!",
                     "data": {
                         "type": "deadline_expired",

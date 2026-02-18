@@ -516,6 +516,124 @@ async def get_product_by_barcode(
         )
 
 
+@router.post(
+    "/{product_id}/generate-barcode",
+    response_model=dict,
+    summary="Gerar código de barras",
+    description="Gera um código de barras EAN-13 único para o produto"
+)
+async def generate_product_barcode(
+    product_id: int,
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER]))
+):
+    """
+    Gera um código de barras EAN-13 único para o produto.
+
+    O código segue o formato: 789{TT}{SSSSSSS}{C}
+    - 789: Prefixo Brasil (GS1)
+    - TT: Tenant ID (2 dígitos)
+    - SSSSSSS: Sequencial (7 dígitos)
+    - C: Dígito verificador
+
+    Args:
+        product_id: ID do produto
+        tenant_id: ID do tenant
+        db: Sessão do banco de dados
+        current_user: Usuário autenticado
+
+    Returns:
+        dict: {barcode: str, product_id: int}
+
+    Raises:
+        HTTPException 404: Se produto não encontrado
+        HTTPException 400: Se produto já tem código de barras
+    """
+    from app.services.barcode_service import BarcodeService
+
+    product_repo = ProductRepository(db)
+
+    try:
+        # Buscar produto
+        product = await product_repo.get(db, product_id, tenant_id=tenant_id)
+
+        if not product:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Produto com ID {product_id} não encontrado"
+            )
+
+        # Verificar se já tem barcode
+        if product.barcode:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Produto já possui código de barras: {product.barcode}"
+            )
+
+        # Gerar código de barras
+        barcode_service = BarcodeService(db)
+        barcode = await barcode_service.generate_unique_barcode(tenant_id)
+
+        # Atualizar produto
+        await product_repo.update(db, id=product_id, obj_in={"barcode": barcode}, tenant_id=tenant_id)
+        await db.commit()
+
+        return {
+            "barcode": barcode,
+            "product_id": product_id,
+            "message": "Código de barras gerado com sucesso"
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao gerar código de barras: {str(e)}"
+        )
+
+
+@router.post(
+    "/generate-barcode",
+    response_model=dict,
+    summary="Gerar código de barras (sem produto)",
+    description="Gera um código de barras EAN-13 único para uso futuro"
+)
+async def generate_standalone_barcode(
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER]))
+):
+    """
+    Gera um código de barras EAN-13 único sem associar a um produto.
+
+    Útil para pré-gerar códigos para etiquetas ou durante criação de produto.
+
+    Returns:
+        dict: {barcode: str, valid: bool}
+    """
+    from app.services.barcode_service import BarcodeService
+
+    try:
+        barcode_service = BarcodeService(db)
+        barcode = await barcode_service.generate_unique_barcode(tenant_id)
+
+        return {
+            "barcode": barcode,
+            "valid": BarcodeService.validate_ean13(barcode),
+            "format": "EAN-13",
+            "message": "Código de barras gerado com sucesso"
+        }
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao gerar código de barras: {str(e)}"
+        )
+
+
 @router.get(
     "/{product_id}",
     response_model=ProductResponse,
@@ -721,14 +839,14 @@ async def create_product(
     
     try:
         # Log dos dados recebidos
-        logger.info(f"📥 Dados recebidos: {product_data.model_dump()}")
+        logger.info(f" Dados recebidos: {product_data.model_dump()}")
         
         # Extrair dados de estoque do schema
         initial_stock = product_data.initial_stock or 0
         min_stock = product_data.min_stock or 5
         
-        logger.info(f"📊 Estoque extraído - initial_stock: {initial_stock}, min_stock: {min_stock}")
-        logger.info(f"🔧 Chamando service.create_product com initial_quantity={initial_stock}")
+        logger.info(f" Estoque extraído - initial_stock: {initial_stock}, min_stock: {min_stock}")
+        logger.info(f" Chamando service.create_product com initial_quantity={initial_stock}")
         
         # Garantir mapeamento sale_price -> price (compatibilidade)
         if product_data.price is None and getattr(product_data, "sale_price", None) is not None:
@@ -742,14 +860,14 @@ async def create_product(
             user_id=current_user.id,
         )
 
-        logger.info(f"✅ Produto criado com sucesso - ID: {product.id}")
+        logger.info(f" Produto criado com sucesso - ID: {product.id}")
 
         inventory_repo = InventoryRepository(db)
         return await build_product_response(product, db, inventory_repo, tenant_id)
 
     except ValueError as e:
         # Erros de validação (SKU duplicado, categoria inválida, etc)
-        logger.warning(f"⚠️ Erro de validação: {str(e)}")
+        logger.warning(f"️ Erro de validação: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
@@ -757,9 +875,9 @@ async def create_product(
     except Exception as e:
         # Erro genérico com log detalhado
         import traceback
-        logger.error(f"❌ ERRO ao criar produto: {str(e)}")
-        logger.error(f"❌ Tipo do erro: {type(e).__name__}")
-        logger.error(f"❌ Traceback completo:\n{traceback.format_exc()}")
+        logger.error(f" ERRO ao criar produto: {str(e)}")
+        logger.error(f" Tipo do erro: {type(e).__name__}")
+        logger.error(f" Traceback completo:\n{traceback.format_exc()}")
         
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1147,12 +1265,29 @@ async def upload_product_image(
     from app.services.storage_service import get_storage_service
 
     # Validar tipo de arquivo
-    allowed_types = ["image/jpeg", "image/png", "image/webp", "image/jpg"]
-    if file.content_type not in allowed_types:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Tipo de arquivo não suportado: {file.content_type}. Use JPG, PNG ou WebP."
-        )
+    allowed_types = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
+    convertible_types = {"image/heic", "image/heif", "image/tiff", "image/bmp"}
+    all_known = allowed_types | convertible_types
+
+    content_type = file.content_type or "application/octet-stream"
+
+    if content_type not in all_known:
+        # Tentar inferir pelo nome do arquivo (Expo pode enviar application/octet-stream)
+        filename = file.filename or ""
+        ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+        inferred = {
+            "jpg": "image/jpeg", "jpeg": "image/jpeg",
+            "png": "image/png", "webp": "image/webp",
+            "heic": "image/heic", "heif": "image/heif",
+            "tiff": "image/tiff", "tif": "image/tiff", "bmp": "image/bmp",
+        }.get(ext)
+        if inferred:
+            content_type = inferred
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Tipo de arquivo não suportado: {file.content_type}. Use JPG, PNG, WebP ou HEIC."
+            )
 
     # Verificar se produto existe
     product_repo = ProductRepository(db)
@@ -1165,15 +1300,30 @@ async def upload_product_image(
         )
 
     try:
+        # Ler bytes da imagem
+        file_bytes = await file.read()
+
+        # Converter HEIC/HEIF/TIFF/BMP para JPEG antes do upload
+        was_converted = content_type in convertible_types
+        if was_converted:
+            from app.api.v1.endpoints.ai import _convert_to_jpeg
+            file_bytes = _convert_to_jpeg(file_bytes)
+            content_type = "image/jpeg"
+
         # Upload da imagem
         storage = get_storage_service()
 
-        # Gerar nome único baseado no ID do produto
-        ext = file.filename.rsplit(".", 1)[-1] if file.filename else "jpg"
+        # Gerar extensão do arquivo de saída
+        if was_converted or content_type == "image/jpeg":
+            ext = "jpg"
+        elif file.filename and "." in file.filename:
+            ext = file.filename.rsplit(".", 1)[-1].lower()
+        else:
+            ext = "jpg"
         filename = f"{product_id}.{ext}"
 
-        # Fazer upload
-        file_path = await storage.upload(file, folder="products", filename=filename)
+        # Fazer upload a partir dos bytes (já lidos acima)
+        file_path = await storage.upload_from_bytes(file_bytes, folder="products", filename=filename, ext=f".{ext}")
 
         # Atualizar produto com URL da imagem
         product.image_url = storage.get_url(file_path)
@@ -1184,6 +1334,8 @@ async def upload_product_image(
         inventory_repo = InventoryRepository(db)
         return await build_product_response(product, db, inventory_repo, tenant_id)
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

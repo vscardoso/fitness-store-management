@@ -1,0 +1,102 @@
+═══════════════════════════════════════════════════════
+  DEBUG LOG - Aguardando sessão...
+═══════════════════════════════════════════════════════
+
+🔵 [13:16:07] [mobile] [Wizard] goToNewEntry - navegando para entries/add
+   Data: {"productId": 1349, "productName": "Conjunto Fitness Cropped e Calça", "sku": "CONJUN-ROS-002"}
+🔵 [13:16:07] [mobile] [Entries/Add] Params recebidos
+   Data: {"fromWizard": "true", "wizardProductId": "1349", "hasPreselectedData": true}
+🔵 [13:16:07] [mobile] [Entries/Add] Produto parseado
+   Data: {"id": 1349, "name": "Conjunto Fitness Cropped e Calça"}
+🔵 [13:16:07] [mobile] [Entries/Add] Params recebidos
+   Data: {"fromWizard": "true", "wizardProductId": "1349", "hasPreselectedData": true}
+🔵 [13:16:07] [mobile] [Entries/Add] Params recebidos
+   Data: {"fromWizard": "true", "wizardProductId": "1349", "hasPreselectedData": true}
+🔵 [13:16:54] [mobile] [Entries/Add] Params recebidos
+   Data: {"fromWizard": "true", "wizardProductId": "1349", "hasPreselectedData": true}
+🔵 [13:36:08] [mobile] [Wizard] SKU gerado automaticamente
+   Data: {"sku": "TESTE-001"}
+🔵 [13:57:43] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Fitness Top e Legging", "brand": null, "color": "Rosa", "size": null, "category_id": 60, "duplicates_count": 0, "duplicates": []}
+🔵 [14:05:59] [mobile] [Wizard] SKU gerado automaticamente
+   Data: {"sku": "TESTE-001"}
+🔵 [14:11:18] [mobile] [Wizard] SKU gerado automaticamente
+   Data: {"sku": "LEGTES-001"}
+🔵 [14:14:17] [mobile] [Wizard] SKU gerado automaticamente
+   Data: {"sku": "TESTEL-001"}
+🔵 [14:16:43] [mobile] [Wizard] SKU gerado automaticamente
+   Data: {"sku": "LEGTES-001"}
+🔵 [14:22:00] [mobile] [Wizard] SKU gerado automaticamente
+   Data: {"sku": "LEGVIC-001"}
+🔵 [14:27:38] [mobile] [Wizard] SKU gerado automaticamente
+   Data: {"sku": "LEGVIC-001"}
+🔵 [14:28:39] [mobile] [Wizard] SKU gerado automaticamente
+   Data: {"sku": "LEGTES-001"}
+🔵 [14:34:10] [mobile] [Wizard] SKU gerado automaticamente
+   Data: {"sku": "LEGVIC-001"}
+🔴 [16:05:13] [mobile] [API] GET /stock-entries/63 - 404
+   Data: {"status": 404, "detail": "Entrada 63 não encontrada", "code": "ERR_BAD_REQUEST"}
+🔵 [16:05:56] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Fitness Manga Longa", "brand": null, "color": "Rosa", "size": null, "category_id": 60, "duplicates_count": 0, "duplicates": []}
+🔵 [16:06:33] [mobile] [Wizard] goToNewEntry - navegando para entries/add
+   Data: {"productId": 1354, "productName": "Conjunto Fitness Manga", "sku": "CONJUN-ROS-003"}
+🔵 [16:06:33] [mobile] [Entries/Add] Params recebidos
+   Data: {"fromWizard": "true", "wizardProductId": "1354", "hasPreselectedData": true}
+🔵 [16:06:33] [mobile] [Entries/Add] Produto parseado
+   Data: {"id": 1354, "name": "Conjunto Fitness Manga"}
+🔵 [16:06:34] [mobile] [Entries/Add] Params recebidos
+   Data: {"fromWizard": "true", "wizardProductId": "1354", "hasPreselectedData": true}
+🔵 [16:06:34] [mobile] [Entries/Add] Params recebidos
+   Data: {"fromWizard": "true", "wizardProductId": "1354", "hasPreselectedData": true}
+🔵 [16:06:34] [mobile] [Entries/Add] Params recebidos
+   Data: {"fromWizard": "true", "wizardProductId": "1354", "hasPreselectedData": true}
+🔵 [16:07:01] [mobile] [Entries/Add] Params recebidos
+   Data: {"fromWizard": "true", "wizardProductId": "1354", "hasPreselectedData": true}
+🔵 [16:13:11] [mobile] [Wizard] SKU gerado automaticamente
+   Data: {"sku": "TESTEV-001"}
+🔵 [16:23:19] [mobile] [Wizard] SKU gerado automaticamente
+   Data: {"sku": "TESTE2-001"}
+🔵 [16:32:54] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Fitness Top e Legging", "brand": null, "color": "Rosa", "size": null, "category_id": 60, "duplicates_count": 1, "duplicates": [{"id": 1352, "name": "Conjunto Fitness Top e Legging", "score": 0.55, "reason": "Nome similar, Mesma cor"}]}
+🔵 [16:38:03] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Fitness Top e Legging", "brand": null, "color": "Magenta", "size": null, "category_id": 60, "duplicates_count": 0, "duplicates": []}
+🔵 [16:43:17] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Fitness Básico", "brand": null, "color": "Rosa", "size": null, "category_id": 60, "duplicates_count": 0, "duplicates": []}
+🔵 [17:43:19] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Fitness Básico", "brand": null, "color": "Rosa", "size": null, "category_id": 60, "duplicates_count": 0, "duplicates": []}
+🔵 [18:26:04] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Fitness Top e Legging", "brand": null, "color": "Rosa Pink", "size": null, "category_id": 60, "duplicates_count": 0, "duplicates": []}
+ [18:44:13] [mobile] [API] POST /ai/scan-product - 400
+   Data: {"status": 400, "detail": "Formato nao suportado: image/heic. Use JPEG, PNG, WebP ou GIF.", "code": "ERR_BAD_REQUEST"}
+ [18:44:13] [mobile] [AIScanner] Erro ao escanear produto
+   Data: {"name": "Error", "message": "Formato nao suportado: image/heic. Use JPEG, PNG, WebP ou GIF.", "stack": ["Error: Formato nao suportado: image/heic. Use JPEG, PNG, WebP ou GIF.", "    at ?anon_0_ (http://192.168.100.158:8081/node_modules/expo-router/entry.bundle//&platform=ios&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&unstable_transformProfile=hermes-stable:144903:38)", "    at next (native)"]}
+ [18:44:51] [mobile] [API] POST /ai/scan-product - 400
+   Data: {"status": 400, "detail": "Formato nao suportado: image/heic. Use JPEG, PNG, WebP ou GIF.", "code": "ERR_BAD_REQUEST"}
+ [18:44:51] [mobile] [AIScanner] Erro ao escanear produto
+   Data: {"name": "Error", "message": "Formato nao suportado: image/heic. Use JPEG, PNG, WebP ou GIF.", "stack": ["Error: Formato nao suportado: image/heic. Use JPEG, PNG, WebP ou GIF.", "    at ?anon_0_ (http://192.168.100.158:8081/node_modules/expo-router/entry.bundle//&platform=ios&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&unstable_transformProfile=hermes-stable:144903:38)", "    at next (native)"]}
+ [18:46:01] [mobile] [API] POST /ai/scan-product - 400
+   Data: {"status": 400, "detail": "Formato nao suportado: image/heic. Use JPEG, PNG, WebP ou GIF.", "code": "ERR_BAD_REQUEST"}
+ [18:46:01] [mobile] [AIScanner] Erro ao escanear produto
+   Data: {"name": "Error", "message": "Formato nao suportado: image/heic. Use JPEG, PNG, WebP ou GIF.", "stack": ["Error: Formato nao suportado: image/heic. Use JPEG, PNG, WebP ou GIF.", "    at ?anon_0_ (http://192.168.100.158:8081/node_modules/expo-router/entry.bundle//&platform=ios&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&unstable_transformProfile=hermes-stable:144903:38)", "    at next (native)"]}
+ [19:02:25] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Beachwear", "brand": null, "color": "Vermelho", "size": null, "category_id": 63, "duplicates_count": 0, "duplicates": []}
+ [19:03:49] [mobile] [API] POST /products/1357/image - 400
+   Data: {"status": 400, "detail": "Tipo de arquivo não suportado: image/heic. Use JPG, PNG ou WebP.", "code": "ERR_BAD_REQUEST"}
+ [19:07:57] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Biquíni com Saída de Praia", "brand": null, "color": "Vermelho", "size": null, "category_id": 63, "duplicates_count": 0, "duplicates": []}
+ [19:08:37] [mobile] [Wizard] goToNewEntry - navegando para entries/add
+   Data: {"productId": 1358, "productName": "Conjunto Biquíni com Saída de Praia", "sku": "NIKE-CONJUN-ROS-M-001"}
+ [19:08:37] [mobile] [Entries/Add] Params recebidos
+   Data: {"fromWizard": "true", "wizardProductId": "1358", "hasPreselectedData": true}
+ [19:08:37] [mobile] [Entries/Add] Produto parseado
+   Data: {"id": 1358, "name": "Conjunto Biquíni com Saída de Praia"}
+ [19:08:37] [mobile] [Entries/Add] Params recebidos
+   Data: {"fromWizard": "true", "wizardProductId": "1358", "hasPreselectedData": true}
+ [19:08:37] [mobile] [Entries/Add] Params recebidos
+   Data: {"fromWizard": "true", "wizardProductId": "1358", "hasPreselectedData": true}
+ [19:09:19] [mobile] [Entries/Add] Params recebidos
+   Data: {"fromWizard": "true", "wizardProductId": "1358", "hasPreselectedData": true}
+ [19:22:06] [mobile] [Wizard] SKU gerado automaticamente
+   Data: {"sku": "LEGVIC-001"}
+ [19:22:37] [mobile] [Wizard] goToExistingEntry - navegando para entries
+   Data: {"productId": 1359, "productName": "Leg Victor teste", "quantity": 15}

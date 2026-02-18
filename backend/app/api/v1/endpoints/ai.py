@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/ai")
 
 
-# Tipos MIME suportados
+# Tipos MIME suportados nativamente pela OpenAI Vision API
 SUPPORTED_MEDIA_TYPES = {
     "image/jpeg": "jpeg",
     "image/jpg": "jpg",
@@ -28,8 +28,39 @@ SUPPORTED_MEDIA_TYPES = {
     "image/gif": "gif",
 }
 
+# Tipos que precisam de conversão para JPEG antes de enviar à OpenAI
+CONVERTIBLE_MEDIA_TYPES = {
+    "image/heic",
+    "image/heif",
+    "image/tiff",
+    "image/bmp",
+}
+
 # Tamanho máximo: 10MB
 MAX_IMAGE_SIZE = 10 * 1024 * 1024
+
+
+def _convert_to_jpeg(image_bytes: bytes) -> bytes:
+    """Converte imagem para JPEG usando Pillow. Usado para HEIC/HEIF/TIFF/BMP."""
+    try:
+        # Registrar suporte a HEIC/HEIF via pillow-heif (se disponível)
+        try:
+            import pillow_heif
+            pillow_heif.register_heif_opener()
+        except ImportError:
+            pass  # pillow-heif não instalado — HEIC pode falhar
+
+        from PIL import Image
+        import io
+        img = Image.open(io.BytesIO(image_bytes))
+        # Converter para RGB se necessário (HEIC pode ter canal alpha)
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+        output = io.BytesIO()
+        img.save(output, format="JPEG", quality=85)
+        return output.getvalue()
+    except Exception as e:
+        raise ValueError(f"Nao foi possivel converter imagem para JPEG: {e}")
 
 
 @router.post("/scan-product", response_model=ProductScanResponse)
@@ -75,13 +106,40 @@ async def scan_product(
 
     try:
         # Validar content type
+        # React Native/Expo pode enviar application/octet-stream mesmo para imagens JPEG.
+        # Nesse caso, inferir o tipo pela extensão do filename antes de rejeitar.
         content_type = image.content_type or "application/octet-stream"
 
-        if content_type not in SUPPORTED_MEDIA_TYPES:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Formato não suportado: {content_type}. Use JPEG, PNG, WebP ou GIF.",
-            )
+        # Verificar se o tipo é suportado diretamente ou precisa de conversão
+        all_known_types = set(SUPPORTED_MEDIA_TYPES.keys()) | CONVERTIBLE_MEDIA_TYPES
+        if content_type not in all_known_types:
+            # Tentar inferir pelo nome do arquivo
+            filename = image.filename or ""
+            ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+            inferred = {
+                "jpg": "image/jpeg",
+                "jpeg": "image/jpeg",
+                "png": "image/png",
+                "webp": "image/webp",
+                "gif": "image/gif",
+                "heic": "image/heic",
+                "heif": "image/heif",
+                "tiff": "image/tiff",
+                "tif": "image/tiff",
+                "bmp": "image/bmp",
+            }.get(ext)
+
+            if inferred:
+                logger.info(
+                    f"content_type '{content_type}' nao reconhecido, "
+                    f"inferido como '{inferred}' pela extensao '{ext}'"
+                )
+                content_type = inferred
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Formato nao suportado: {content_type}. Use JPEG, PNG, WebP, GIF ou HEIC.",
+                )
 
         # Ler imagem
         image_bytes = await image.read()
@@ -98,6 +156,13 @@ async def scan_product(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Arquivo de imagem inválido ou corrompido.",
             )
+
+        # Converter HEIC/HEIF/TIFF/BMP para JPEG (OpenAI nao suporta esses formatos)
+        if content_type in CONVERTIBLE_MEDIA_TYPES:
+            logger.info(f"Convertendo {content_type} para JPEG...")
+            image_bytes = _convert_to_jpeg(image_bytes)
+            content_type = "image/jpeg"
+            logger.info(f"Conversao concluida: {len(image_bytes)} bytes JPEG")
 
         logger.info(f"Processing image scan: size={len(image_bytes)} bytes, type={content_type}")
 
@@ -120,6 +185,11 @@ async def scan_product(
             error=None,
             processing_time_ms=elapsed_ms,
         )
+
+    except HTTPException:
+        # Re-levantar HTTPException para que o FastAPI trate corretamente
+        # (nao capturar como erro generico — HTTPException e subclasse de Exception)
+        raise
 
     except ValueError as e:
         elapsed_ms = int((time.time() - start_time) * 1000)

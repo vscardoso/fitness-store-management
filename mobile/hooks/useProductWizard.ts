@@ -10,19 +10,22 @@
  */
 
 import { useState, useCallback } from 'react';
-import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { scanProductImage } from '@/services/aiService';
-import { createProduct } from '@/services/productService';
+import { createProduct, getProductById, getCatalogProducts } from '@/services/productService';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
+import { logError, logWarn, logInfo } from '@/services/debugLog';
+import { generateSKU } from '@/utils/skuGenerator';
 import type {
   WizardStep,
   WizardState,
+  WizardDialog,
   IdentifyMethod,
   EntryChoice,
+  LinkedEntryData,
 } from '@/types/wizard';
 import type { Product, ProductCreate, ProductScanResult } from '@/types';
 
@@ -46,18 +49,22 @@ export interface UseProductWizardReturn {
   pickFromGallery: () => Promise<void>;
   retakePhoto: () => void;
   setManualData: (data: Partial<ProductCreate>) => void;
+  selectCatalogProduct: (product: Product) => void;
 
   // Step 2 - Confirmar
   updateProductData: (data: Partial<ProductCreate>) => void;
   setIsEditing: (editing: boolean) => void;
   validateProductData: () => boolean;
   createProduct: () => Promise<void>;
-  addStockToDuplicate: (productId: number) => void;
+  addStockToDuplicate: (productId: number, partialData?: Partial<Product>) => Promise<void>;
 
   // Step 3 - Entrada
   goToNewEntry: () => void;
-  goToExistingEntry: () => void;
+  goToExistingEntry: (quantity?: number) => void;
   skipEntry: () => void;
+
+  // Step 4 - Complete (retorno de entrada)
+  handleEntryCreated: (entryData: LinkedEntryData, productData?: Partial<Product> | null) => void;
 
   // Utils
   resetWizard: () => void;
@@ -78,12 +85,14 @@ const INITIAL_STATE: WizardState = {
   createdProduct: null,
   entryChoice: null,
   selectedEntry: null,
+  linkedEntry: null,
   isDirty: false,
   isCreating: false,
   createError: null,
+  wizardDialog: null,
 };
 
-const STEP_ORDER: WizardStep[] = ['identify', 'confirm', 'entry'];
+const STEP_ORDER: WizardStep[] = ['identify', 'confirm', 'entry', 'complete'];
 
 export function useProductWizard() {
   const router = useRouter();
@@ -93,35 +102,107 @@ export function useProductWizard() {
   const [hasPermission, setHasPermission] = useState(false);
 
   // ============================================
-  // PERMISSÕES
+  // PERMISSÕES (separadas para evitar prompt de múltiplas fotos)
   // ============================================
 
-  const requestPermission = useCallback(async (): Promise<boolean> => {
-    try {
-      const cameraResult = await ImagePicker.requestCameraPermissionsAsync();
-      const libraryResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      const granted = cameraResult.status === 'granted' && libraryResult.status === 'granted';
-      setHasPermission(granted);
+  const showDialog = useCallback((
+    title: string,
+    message: string,
+    type: WizardDialog['type'] = 'warning',
+    opts?: { confirmText?: string; cancelText?: string; onConfirm?: () => void }
+  ) => {
+    setState(prev => ({
+      ...prev,
+      wizardDialog: {
+        visible: true,
+        title,
+        message,
+        type,
+        confirmText: opts?.confirmText ?? 'OK',
+        cancelText: opts?.cancelText ?? '',
+        onConfirm: opts?.onConfirm,
+      },
+    }));
+  }, []);
 
-      if (!granted) {
-        Alert.alert(
-          'Permissão Necessária',
-          'Para usar o scanner, precisamos de acesso à câmera e galeria.'
+  const clearWizardDialog = useCallback(() => {
+    setState(prev => ({ ...prev, wizardDialog: null }));
+  }, []);
+
+  const requestCameraPermission = useCallback(async (): Promise<boolean> => {
+    try {
+      const result = await ImagePicker.requestCameraPermissionsAsync();
+      if (result.status !== 'granted') {
+        showDialog(
+          'Permissao Necessaria',
+          'Para usar a camera, precisamos de acesso a ela.',
+          'warning'
         );
+        return false;
       }
-      return granted;
+      return true;
     } catch (err) {
-      console.error('Error requesting permissions:', err);
+      console.error('Error requesting camera permission:', err);
       return false;
     }
-  }, []);
+  }, [showDialog]);
+
+  const requestGalleryPermission = useCallback(async (): Promise<boolean> => {
+    try {
+      const result = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (result.status !== 'granted') {
+        showDialog(
+          'Permissao Necessaria',
+          'Para acessar a galeria, precisamos de permissao.',
+          'warning'
+        );
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.error('Error requesting gallery permission:', err);
+      return false;
+    }
+  }, [showDialog]);
+
+  // Mantém para compatibilidade
+  const requestPermission = useCallback(async (): Promise<boolean> => {
+    const camera = await requestCameraPermission();
+    const gallery = await requestGalleryPermission();
+    const granted = camera && gallery;
+    setHasPermission(granted);
+    return granted;
+  }, [requestCameraPermission, requestGalleryPermission]);
 
   // ============================================
   // NAVEGAÇÃO DE STEPS
   // ============================================
 
   const goToStep = useCallback((step: WizardStep) => {
-    setState(prev => ({ ...prev, currentStep: step }));
+    setState(prev => {
+      // Se está indo para 'confirm' e não tem SKU, gerar automaticamente
+      if (step === 'confirm' && !prev.productData.sku) {
+        const autoSku = generateSKU(
+          prev.productData.name || '',
+          prev.productData.brand,
+          prev.productData.color,
+          prev.productData.size
+        );
+
+        logInfo('Wizard', 'SKU gerado automaticamente', { sku: autoSku });
+
+        return {
+          ...prev,
+          currentStep: step,
+          productData: {
+            ...prev.productData,
+            sku: autoSku,
+          },
+        };
+      }
+
+      return { ...prev, currentStep: step };
+    });
   }, []);
 
   const nextStep = useCallback(() => {
@@ -173,6 +254,23 @@ export function useProductWizard() {
 
       if (response.success && response.data) {
         const result = response.data;
+
+        // Log detalhado do resultado da IA
+        logInfo('AI Scan', 'Resultado da análise', {
+          name: result.name,
+          brand: result.brand,
+          color: result.color,
+          size: result.size,
+          category_id: result.suggested_category_id,
+          duplicates_count: result.possible_duplicates?.length || 0,
+          duplicates: result.possible_duplicates?.map(d => ({
+            id: d.product_id,
+            name: d.product_name,
+            score: d.similarity_score,
+            reason: d.reason,
+          })),
+        });
+
         setState(prev => ({
           ...prev,
           scanResult: result,
@@ -201,7 +299,7 @@ export function useProductWizard() {
         }));
       }
     } catch (err: any) {
-      console.error('Error analyzing image:', err);
+      logError('Wizard', 'Erro ao analisar imagem', err);
       setState(prev => ({
         ...prev,
         isAnalyzing: false,
@@ -211,17 +309,19 @@ export function useProductWizard() {
   }, []);
 
   const takePhoto = useCallback(async () => {
-    if (!hasPermission) {
-      const granted = await requestPermission();
-      if (!granted) return;
-    }
+    // Só pede permissão de câmera (não galeria)
+    const granted = await requestCameraPermission();
+    if (!granted) return;
 
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
+        mediaTypes: ['images'],
         quality: 0.8,
+        // allowsEditing força o iOS a converter HEIC -> JPEG antes de retornar a URI.
+        // Sem isso, iPhones enviam image/heic que o backend rejeita.
+        allowsEditing: false,
+        // exif: false reduz tamanho do payload
+        exif: false,
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -229,22 +329,23 @@ export function useProductWizard() {
       }
     } catch (err) {
       console.error('Error taking photo:', err);
-      Alert.alert('Erro', 'Não foi possível tirar a foto');
+      showDialog('Erro', 'Nao foi possivel tirar a foto', 'danger');
     }
-  }, [hasPermission, requestPermission, analyzeImage]);
+  }, [requestCameraPermission, analyzeImage, showDialog]);
 
   const pickFromGallery = useCallback(async () => {
-    if (!hasPermission) {
-      const granted = await requestPermission();
-      if (!granted) return;
-    }
+    // Só pede permissão de galeria (não câmera)
+    const granted = await requestGalleryPermission();
+    if (!granted) return;
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [4, 3],
+        mediaTypes: ['images'],
         quality: 0.8,
+        // allowsEditing força o iOS a converter HEIC -> JPEG antes de retornar a URI.
+        // Sem isso, iPhones enviam image/heic que o backend rejeita.
+        allowsEditing: false,
+        exif: false,
       });
 
       if (!result.canceled && result.assets[0]) {
@@ -252,9 +353,9 @@ export function useProductWizard() {
       }
     } catch (err) {
       console.error('Error picking image:', err);
-      Alert.alert('Erro', 'Não foi possível selecionar a imagem');
+      showDialog('Erro', 'Nao foi possivel selecionar a imagem', 'danger');
     }
-  }, [hasPermission, requestPermission, analyzeImage]);
+  }, [requestGalleryPermission, analyzeImage, showDialog]);
 
   const retakePhoto = useCallback(() => {
     setState(prev => ({
@@ -271,6 +372,28 @@ export function useProductWizard() {
     setState(prev => ({
       ...prev,
       productData: { ...prev.productData, ...data },
+      isDirty: true,
+    }));
+  }, []);
+
+  const selectCatalogProduct = useCallback((product: Product) => {
+    // Pré-preenche productData com os dados do produto do catálogo
+    // O produto será criado como is_catalog=false (cópia da loja) no Step 2
+    setState(prev => ({
+      ...prev,
+      selectedCatalogProduct: product,
+      productData: {
+        name: product.name,
+        sku: product.sku,
+        barcode: product.barcode || undefined,
+        description: product.description || undefined,
+        brand: product.brand || undefined,
+        color: product.color || undefined,
+        size: product.size || undefined,
+        category_id: product.category_id || undefined,
+        cost_price: product.cost_price || undefined,
+        price: product.price || 0,
+      },
       isDirty: true,
     }));
   }, []);
@@ -337,6 +460,10 @@ export function useProductWizard() {
         price: state.productData.price!,
         initial_stock: 0, // Sempre 0 - estoque via entrada FIFO
         min_stock: 5,
+        // Produto criado pelo wizard é SEMPRE da loja (is_catalog=false),
+        // independente de ter estoque inicial ou não.
+        // O backend NAO deve inferir is_catalog pelo initial_stock.
+        is_catalog: false,
       };
 
       let created = await createProduct(productData);
@@ -347,7 +474,7 @@ export function useProductWizard() {
           created = await uploadProductImageWithFallback(created.id, state.capturedImage);
         } catch (uploadError) {
           // Log do erro mas não bloqueia criação do produto
-          console.warn('Erro ao fazer upload da imagem:', uploadError);
+          logWarn('Wizard', 'Erro ao fazer upload da imagem', uploadError);
         }
       }
 
@@ -368,32 +495,62 @@ export function useProductWizard() {
         isCreating: false,
         createError: error.message || 'Erro ao criar produto',
       }));
-      Alert.alert('Erro', error.message || 'Erro ao criar produto');
+      showDialog('Erro ao criar produto', error.message || 'Tente novamente.', 'danger');
     }
-  }, [state.productData, validateProductData, queryClient]);
+  }, [state.productData, state.capturedImage, validateProductData, queryClient, showDialog]);
 
-  const addStockToDuplicate = useCallback((productId: number, productData: Partial<Product>) => {
-    // Usar produto existente e ir para Step 3 do wizard
-    setState(prev => ({
-      ...prev,
-      createdProduct: productData as Product,
-      currentStep: 'entry',
-      isDirty: false,
-    }));
-  }, []);
+  const addStockToDuplicate = useCallback(async (productId: number, partialData?: Partial<Product>) => {
+    // Mostrar loading
+    setState(prev => ({ ...prev, isCreating: true }));
+
+    try {
+      // Buscar dados completos do produto
+      const product = await getProductById(productId);
+
+      logInfo('Wizard', 'Usando produto existente', {
+        productId: product.id,
+        productName: product.name,
+      });
+
+      // Usar produto existente e ir para Step 3 do wizard
+      setState(prev => ({
+        ...prev,
+        createdProduct: product,
+        currentStep: 'entry',
+        isDirty: false,
+        isCreating: false,
+      }));
+    } catch (error: any) {
+      logError('Wizard', 'Erro ao buscar produto duplicado', error);
+      setState(prev => ({ ...prev, isCreating: false }));
+      showDialog('Erro', 'Nao foi possivel carregar os dados do produto', 'danger');
+    }
+  }, [showDialog]);
 
   // ============================================
   // STEP 3 - ENTRADA
   // ============================================
 
   const goToNewEntry = useCallback(() => {
-    if (!state.createdProduct) return;
+    if (!state.createdProduct) {
+      logError('Wizard', 'goToNewEntry chamado sem createdProduct', { state: state.currentStep });
+      return;
+    }
+
+    logInfo('Wizard', 'goToNewEntry - navegando para entries/add', {
+      productId: state.createdProduct.id,
+      productName: state.createdProduct.name,
+      sku: state.createdProduct.sku,
+    });
 
     // Ir para criação de entrada com o produto pré-selecionado
-    router.replace({
+    // Usa push para permitir retorno ao wizard
+    router.push({
       pathname: '/entries/add',
       params: {
         fromWizard: 'true',
+        wizardProductId: String(state.createdProduct.id),
+        wizardProductName: state.createdProduct.name,
         preselectedProductData: JSON.stringify({
           id: state.createdProduct.id,
           name: state.createdProduct.name,
@@ -407,14 +564,35 @@ export function useProductWizard() {
     });
   }, [state.createdProduct, router]);
 
-  const goToExistingEntry = useCallback(() => {
+  // Processar retorno da tela de criação de entrada
+  // Aceita dados do produto opcionalmente (para caso de entrada existente, onde o estado foi perdido)
+  const handleEntryCreated = useCallback((entryData: LinkedEntryData, productData?: Partial<Product> | null) => {
+    setState(prev => ({
+      ...prev,
+      linkedEntry: entryData,
+      // Se tiver productData e não tiver createdProduct, restaurar
+      createdProduct: prev.createdProduct || (productData ? productData as Product : null),
+      currentStep: 'complete',
+      isDirty: false,
+    }));
+  }, []);
+
+  const goToExistingEntry = useCallback((quantity: number = 1) => {
     if (!state.createdProduct) return;
 
+    logInfo('Wizard', 'goToExistingEntry - navegando para entries', {
+      productId: state.createdProduct.id,
+      productName: state.createdProduct.name,
+      quantity,
+    });
+
     // Ir para lista de entradas em modo seleção
-    router.replace({
+    // Usa push para permitir retorno ao wizard
+    router.push({
       pathname: '/entries',
       params: {
         selectMode: 'true',
+        fromWizard: 'true', // Indica que veio do wizard
         productToLink: JSON.stringify({
           id: state.createdProduct.id,
           name: state.createdProduct.name,
@@ -422,15 +600,21 @@ export function useProductWizard() {
           cost_price: state.createdProduct.cost_price,
           price: state.createdProduct.price,
           category_id: state.createdProduct.category_id,
+          quantity: quantity, // Passar a quantidade escolhida
         }),
       },
     });
   }, [state.createdProduct, router]);
 
   const skipEntry = useCallback(() => {
-    // Manter no catálogo - voltar para lista de produtos
-    router.replace('/(tabs)/products');
-  }, [router]);
+    // Manter no catálogo - ir para tela de resumo
+    setState(prev => ({
+      ...prev,
+      linkedEntry: null, // Sem entrada vinculada
+      currentStep: 'complete',
+      isDirty: false,
+    }));
+  }, []);
 
   // ============================================
   // UTILS
@@ -448,6 +632,9 @@ export function useProductWizard() {
         }
         if (state.identifyMethod === 'manual') {
           return !!state.productData.name && !!state.productData.category_id;
+        }
+        if (state.identifyMethod === 'catalog') {
+          return !!state.selectedCatalogProduct;
         }
         return false;
 
@@ -484,6 +671,7 @@ export function useProductWizard() {
     pickFromGallery,
     retakePhoto,
     setManualData,
+    selectCatalogProduct,
 
     // Step 2 - Confirmar
     updateProductData,
@@ -497,8 +685,12 @@ export function useProductWizard() {
     goToExistingEntry,
     skipEntry,
 
+    // Step 4 - Complete (retorno de entrada)
+    handleEntryCreated,
+
     // Utils
     resetWizard,
+    clearWizardDialog,
   };
 }
 

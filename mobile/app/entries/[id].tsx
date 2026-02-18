@@ -115,7 +115,7 @@ export default function StockEntryDetailsScreen() {
     queryFn: () => getStockEntryById(entryId),
     enabled: isValidId,
     retry: false,
-    refetchOnMount: false,
+    refetchOnMount: 'always', // Sempre busca dados frescos ao abrir a tela
   });
 
   /**
@@ -410,13 +410,16 @@ export default function StockEntryDetailsScreen() {
               )}
               <TouchableOpacity
                 onPress={() => handleEditItem(item)}
-                style={[styles.editButton, hasSales && styles.editButtonDisabled]}
+                style={[styles.editItemButton, hasSales && styles.editItemButtonDisabled]}
               >
                 <Ionicons
                   name={hasSales ? "lock-closed" : "create-outline"}
-                  size={20}
+                  size={16}
                   color={hasSales ? Colors.light.textSecondary : Colors.light.primary}
                 />
+                <Text style={[styles.editItemButtonText, hasSales && styles.editItemButtonTextDisabled]}>
+                  {hasSales ? 'Protegido' : 'Editar'}
+                </Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1069,6 +1072,29 @@ const styles = StyleSheet.create({
   },
   editButtonDisabled: {
     backgroundColor: Colors.light.border + '50',
+  },
+  editItemButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    backgroundColor: Colors.light.primary + '15',
+    borderWidth: 1,
+    borderColor: Colors.light.primary + '30',
+  },
+  editItemButtonDisabled: {
+    backgroundColor: Colors.light.border + '30',
+    borderColor: Colors.light.border,
+  },
+  editItemButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.primary,
+  },
+  editItemButtonTextDisabled: {
+    color: Colors.light.textSecondary,
   },
   bestSellerChip: {
     backgroundColor: Colors.light.success + '20',

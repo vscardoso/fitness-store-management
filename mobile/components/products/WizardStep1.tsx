@@ -5,7 +5,7 @@
  * Reutiliza lógica do useAIScanner via useProductWizard
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -13,16 +13,19 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
-  TextInput as RNTextInput,
+  FlatList,
 } from 'react-native';
-import { Text, Button, TextInput, Card, ProgressBar } from 'react-native-paper';
+import { Text, Button, TextInput, Card, ProgressBar, Chip } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import * as MediaLibrary from 'expo-media-library';
 import { Colors, theme } from '@/constants/Colors';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import type { IdentifyMethod } from '@/types/wizard';
-import type { Category } from '@/types';
+import type { Category, Product } from '@/types';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { getCatalogProducts } from '@/services/productService';
 
 interface WizardStep1Props {
   wizard: UseProductWizardReturn;
@@ -37,6 +40,81 @@ export default function WizardStep1({
 }: WizardStep1Props) {
   const { state } = wizard;
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  const [isSavingToGallery, setIsSavingToGallery] = useState(false);
+
+  // Estado do catálogo
+  const [catalogSearch, setCatalogSearch] = useState('');
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [galleryDialog, setGalleryDialog] = useState<{
+    visible: boolean; title: string; message: string; type: 'success' | 'danger' | 'warning';
+  }>({ visible: false, title: '', message: '', type: 'success' });
+
+  // Carregar catálogo quando método = catalog
+  useEffect(() => {
+    if (state.identifyMethod === 'catalog') {
+      loadCatalog();
+    }
+  }, [state.identifyMethod]);
+
+  const loadCatalog = useCallback(async (search?: string) => {
+    setCatalogLoading(true);
+    try {
+      const products = await getCatalogProducts({ search, limit: 50 });
+      setCatalogProducts(products);
+    } catch (err) {
+      console.error('Erro ao carregar catálogo:', err);
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, []);
+
+  // Debounce da busca no catálogo
+  useEffect(() => {
+    if (state.identifyMethod !== 'catalog') return;
+    const timer = setTimeout(() => {
+      loadCatalog(catalogSearch || undefined);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [catalogSearch, state.identifyMethod]);
+
+  // Função para salvar foto na galeria (usa ConfirmDialog local)
+  const saveToGallery = async () => {
+    if (!state.capturedImage) return;
+
+    try {
+      setIsSavingToGallery(true);
+
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status !== 'granted') {
+        setGalleryDialog({
+          visible: true,
+          title: 'Permissao Necessaria',
+          message: 'Precisamos de acesso a galeria para salvar a foto.',
+          type: 'warning',
+        });
+        return;
+      }
+
+      await MediaLibrary.saveToLibraryAsync(state.capturedImage);
+      setGalleryDialog({
+        visible: true,
+        title: 'Sucesso',
+        message: 'Foto salva na galeria!',
+        type: 'success',
+      });
+    } catch (error) {
+      console.error('Erro ao salvar na galeria:', error);
+      setGalleryDialog({
+        visible: true,
+        title: 'Erro',
+        message: 'Nao foi possivel salvar a foto.',
+        type: 'danger',
+      });
+    } finally {
+      setIsSavingToGallery(false);
+    }
+  };
 
   // Renderiza seleção de método
   const renderMethodSelection = () => (
@@ -109,8 +187,170 @@ export default function WizardStep1({
           </View>
         </TouchableOpacity>
       </View>
+
+      {/* Catálogo — linha separada abaixo dos dois botões principais */}
+      <TouchableOpacity
+        style={[
+          styles.catalogMethodButton,
+          state.identifyMethod === 'catalog' && styles.catalogMethodButtonActive,
+        ]}
+        onPress={() => wizard.selectMethod('catalog')}
+        activeOpacity={0.8}
+      >
+        <Ionicons
+          name="library-outline"
+          size={22}
+          color={state.identifyMethod === 'catalog' ? Colors.light.primary : Colors.light.textSecondary}
+        />
+        <View style={styles.catalogMethodTextContainer}>
+          <Text style={[
+            styles.catalogMethodText,
+            state.identifyMethod === 'catalog' && styles.catalogMethodTextActive,
+          ]}>
+            Selecionar do Catálogo
+          </Text>
+          <Text style={styles.catalogMethodSubtext}>
+            Produtos pré-cadastrados da loja
+          </Text>
+        </View>
+        <Ionicons
+          name="chevron-forward"
+          size={18}
+          color={state.identifyMethod === 'catalog' ? Colors.light.primary : Colors.light.textTertiary}
+        />
+      </TouchableOpacity>
     </View>
   );
+
+  // Renderiza busca no catálogo
+  const renderCatalogSearch = () => {
+    const selectedProduct = state.selectedCatalogProduct;
+
+    return (
+      <View style={styles.catalogContainer}>
+
+        {/* ── Banner de seleção + CTA fixo no topo ── */}
+        {selectedProduct ? (
+          <View style={styles.selectionBanner}>
+            <View style={styles.selectionBannerLeft}>
+              <View style={styles.selectionCheck}>
+                <Ionicons name="checkmark" size={16} color="#fff" />
+              </View>
+              <View style={styles.selectionInfo}>
+                <Text style={styles.selectionName} numberOfLines={1}>
+                  {selectedProduct.name}
+                </Text>
+                <Text style={styles.selectionMeta} numberOfLines={1}>
+                  {selectedProduct.sku}
+                  {selectedProduct.brand ? ` · ${selectedProduct.brand}` : ''}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.selectionActions}>
+              <TouchableOpacity
+                style={styles.selectionClearBtn}
+                onPress={() => wizard.selectCatalogProduct(null as any)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close" size={16} color={Colors.light.textSecondary} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.selectionUseBtn}
+                onPress={onNext}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.selectionUseBtnText}>Usar</Text>
+                <Ionicons name="arrow-forward" size={14} color="#fff" />
+              </TouchableOpacity>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.catalogHint}>
+            <Ionicons name="hand-left-outline" size={14} color={Colors.light.textTertiary} />
+            <Text style={styles.catalogHintText}>Toque em um produto para selecioná-lo</Text>
+          </View>
+        )}
+
+        {/* Campo de busca */}
+        <TextInput
+          label="Buscar no catálogo..."
+          value={catalogSearch}
+          onChangeText={setCatalogSearch}
+          mode="outlined"
+          style={styles.catalogSearchInput}
+          left={<TextInput.Icon icon="magnify" />}
+          right={catalogSearch ? (
+            <TextInput.Icon icon="close" onPress={() => setCatalogSearch('')} />
+          ) : undefined}
+          outlineStyle={styles.catalogSearchOutline}
+        />
+
+        {/* Lista de produtos */}
+        {catalogLoading ? (
+          <View style={styles.catalogLoadingContainer}>
+            <ActivityIndicator size="small" color={Colors.light.primary} />
+            <Text style={styles.catalogLoadingText}>Carregando...</Text>
+          </View>
+        ) : catalogProducts.length === 0 ? (
+          <View style={styles.catalogEmptyContainer}>
+            <Ionicons name="search-outline" size={36} color={Colors.light.textTertiary} />
+            <Text style={styles.catalogEmptyText}>
+              {catalogSearch ? 'Nenhum produto encontrado' : 'Catálogo vazio'}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.catalogList}>
+            {catalogProducts.map((product) => {
+              const isSelected = state.selectedCatalogProduct?.id === product.id;
+              const category = categories.find(c => c.id === product.category_id);
+              return (
+                <TouchableOpacity
+                  key={product.id}
+                  style={[
+                    styles.catalogItem,
+                    isSelected && styles.catalogItemSelected,
+                  ]}
+                  onPress={() => wizard.selectCatalogProduct(isSelected ? null as any : product)}
+                  activeOpacity={0.7}
+                >
+                  {/* Indicador de seleção */}
+                  <View style={[
+                    styles.catalogItemRadio,
+                    isSelected && styles.catalogItemRadioSelected,
+                  ]}>
+                    {isSelected && <Ionicons name="checkmark" size={12} color="#fff" />}
+                  </View>
+
+                  <View style={styles.catalogItemInfo}>
+                    <Text style={[
+                      styles.catalogItemName,
+                      isSelected && styles.catalogItemNameSelected,
+                    ]} numberOfLines={1}>
+                      {product.name}
+                    </Text>
+                    <Text style={styles.catalogItemMeta} numberOfLines={1}>
+                      {product.sku}
+                      {product.brand ? ` · ${product.brand}` : ''}
+                      {category ? ` · ${category.name}` : ''}
+                    </Text>
+                  </View>
+
+                  {product.price != null && product.price > 0 ? (
+                    <Text style={[
+                      styles.catalogItemPrice,
+                      isSelected && styles.catalogItemPriceSelected,
+                    ]}>
+                      R$ {Number(product.price).toFixed(2).replace('.', ',')}
+                    </Text>
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+      </View>
+    );
+  };
 
   // Renderiza interface do scanner
   const renderScanner = () => {
@@ -201,12 +441,25 @@ export default function WizardStep1({
                 style={styles.resultImage}
                 resizeMode="cover"
               />
-              <TouchableOpacity
-                style={styles.retakeButton}
-                onPress={wizard.retakePhoto}
-              >
-                <Ionicons name="camera-reverse" size={20} color="#fff" />
-              </TouchableOpacity>
+              <View style={styles.imageButtonsContainer}>
+                <TouchableOpacity
+                  style={styles.imageActionButton}
+                  onPress={saveToGallery}
+                  disabled={isSavingToGallery}
+                >
+                  <Ionicons
+                    name={isSavingToGallery ? "hourglass" : "download-outline"}
+                    size={20}
+                    color="#fff"
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.imageActionButton}
+                  onPress={wizard.retakePhoto}
+                >
+                  <Ionicons name="camera-reverse" size={20} color="#fff" />
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -235,14 +488,64 @@ export default function WizardStep1({
             </Card.Content>
           </Card>
 
-          {/* Aviso de duplicados */}
+          {/* Painel de duplicados expandido */}
           {state.duplicates.length > 0 && (
-            <View style={styles.duplicatesWarning}>
-              <Ionicons name="warning" size={18} color={Colors.light.warning} />
-              <Text style={styles.duplicatesText}>
-                {state.duplicates.length} produto(s) similar(es) encontrado(s)
-              </Text>
-            </View>
+            <Card style={styles.duplicatesCard}>
+              <Card.Content>
+                <View style={styles.duplicatesHeader}>
+                  <View style={styles.duplicatesIconContainer}>
+                    <Ionicons name="alert-circle" size={20} color={Colors.light.warning} />
+                  </View>
+                  <View style={styles.duplicatesHeaderText}>
+                    <Text style={styles.duplicatesTitle}>
+                      {state.duplicates.length} produto(s) similar(es)
+                    </Text>
+                    <Text style={styles.duplicatesSubtitle}>
+                      Já existe no sistema. Deseja usar um deles?
+                    </Text>
+                  </View>
+                </View>
+
+                {state.duplicates.slice(0, 3).map((dup) => (
+                  <View key={dup.product_id} style={styles.duplicateItem}>
+                    <View style={styles.duplicateInfo}>
+                      <Text style={styles.duplicateName} numberOfLines={1}>
+                        {dup.product_name}
+                      </Text>
+                      <Text style={styles.duplicateMeta}>
+                        SKU: {dup.sku} • {Math.round(dup.similarity_score * 100)}% similar
+                      </Text>
+                    </View>
+                    <View style={styles.duplicateActions}>
+                      <TouchableOpacity
+                        style={[
+                          styles.duplicateActionBtn,
+                          state.isCreating && styles.duplicateActionBtnDisabled,
+                        ]}
+                        disabled={state.isCreating}
+                        onPress={() => wizard.addStockToDuplicate(dup.product_id)}
+                      >
+                        {state.isCreating ? (
+                          <ActivityIndicator size={16} color={Colors.light.primary} />
+                        ) : (
+                          <Ionicons name="add-circle" size={20} color={Colors.light.primary} />
+                        )}
+                        <Text style={styles.duplicateActionText}>
+                          {state.isCreating ? 'Carregando...' : 'Usar'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+
+                <View style={styles.duplicatesFooter}>
+                  <Ionicons name="information-circle" size={14} color={Colors.light.info} />
+                  <Text style={styles.duplicatesFooterText}>
+                    Ou continue abaixo para criar um produto novo
+                  </Text>
+                </View>
+              </Card.Content>
+            </Card>
           )}
 
           <Button
@@ -252,7 +555,7 @@ export default function WizardStep1({
             icon="arrow-right"
             contentStyle={styles.nextButtonContent}
           >
-            Revisar Dados
+            {state.duplicates.length > 0 ? 'Criar Novo Mesmo Assim' : 'Revisar Dados'}
           </Button>
         </View>
       );
@@ -263,7 +566,7 @@ export default function WizardStep1({
       return (
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color={Colors.light.error} />
-          <Text style={styles.errorText}>{state.analyzeError}</Text>
+          <Text style={styles.errorText}>{String(state.analyzeError || 'Erro desconhecido')}</Text>
           <Button mode="contained" onPress={wizard.retakePhoto}>
             Tentar Novamente
           </Button>
@@ -336,13 +639,32 @@ export default function WizardStep1({
   };
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.content}
+      keyboardShouldPersistTaps="handled"
+      keyboardDismissMode="interactive"
+      showsVerticalScrollIndicator={false}
+    >
       {/* Seleção de método */}
       {renderMethodSelection()}
 
       {/* Interface específica do método */}
       {state.identifyMethod === 'scanner' && renderScanner()}
       {state.identifyMethod === 'manual' && renderManualForm()}
+      {state.identifyMethod === 'catalog' && renderCatalogSearch()}
+
+      {/* ConfirmDialog para galeria (saveToGallery) */}
+      <ConfirmDialog
+        visible={galleryDialog.visible}
+        title={galleryDialog.title}
+        message={galleryDialog.message}
+        type={galleryDialog.type}
+        confirmText="OK"
+        cancelText=""
+        onConfirm={() => setGalleryDialog(d => ({ ...d, visible: false }))}
+        onCancel={() => setGalleryDialog(d => ({ ...d, visible: false }))}
+      />
     </ScrollView>
   );
 }
@@ -354,7 +676,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
+    paddingBottom: 320,
   },
   methodContainer: {
     marginBottom: theme.spacing.lg,
@@ -520,10 +842,14 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  retakeButton: {
+  imageButtonsContainer: {
     position: 'absolute',
     top: 12,
     right: 12,
+    flexDirection: 'row',
+    gap: 8,
+  },
+  imageActionButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -568,17 +894,96 @@ const styles = StyleSheet.create({
     color: Colors.light.primary,
     fontWeight: '500',
   },
-  duplicatesWarning: {
+  // Duplicates Card
+  duplicatesCard: {
+    borderRadius: 16,
+    backgroundColor: Colors.light.warning + '08',
+    borderWidth: 1,
+    borderColor: Colors.light.warning + '30',
+  },
+  duplicatesHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    marginBottom: theme.spacing.md,
+  },
+  duplicatesIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.light.warning + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  duplicatesHeaderText: {
+    flex: 1,
+  },
+  duplicatesTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginBottom: 2,
+  },
+  duplicatesSubtitle: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+  },
+  duplicateItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    backgroundColor: Colors.light.warning + '15',
-    padding: theme.spacing.md,
+    backgroundColor: '#fff',
+    padding: theme.spacing.sm,
     borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
-  duplicatesText: {
-    fontSize: 13,
+  duplicateInfo: {
+    flex: 1,
+  },
+  duplicateName: {
+    fontSize: 14,
+    fontWeight: '600',
     color: Colors.light.text,
+    marginBottom: 2,
+  },
+  duplicateMeta: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+  },
+  duplicateActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  duplicateActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.light.primary + '15',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  duplicateActionBtnDisabled: {
+    opacity: 0.6,
+  },
+  duplicateActionText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.primary,
+  },
+  duplicatesFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+  },
+  duplicatesFooterText: {
+    fontSize: 12,
+    color: Colors.light.info,
     flex: 1,
   },
   nextButton: {
@@ -644,5 +1049,217 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 16,
     color: Colors.light.textTertiary,
+  },
+
+  // Catálogo — botão de método
+  catalogMethodButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: theme.spacing.md,
+    padding: theme.spacing.md,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    backgroundColor: '#F9FAFB',
+  },
+  catalogMethodButtonActive: {
+    borderColor: Colors.light.primary,
+    backgroundColor: Colors.light.primary + '08',
+  },
+  catalogMethodTextContainer: {
+    flex: 1,
+  },
+  catalogMethodText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
+  catalogMethodTextActive: {
+    color: Colors.light.primary,
+  },
+  catalogMethodSubtext: {
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+
+  // Catálogo — interface de busca
+  catalogContainer: {
+    marginTop: theme.spacing.sm,
+    gap: 10,
+  },
+
+  // Banner de seleção (aparece no topo quando produto selecionado)
+  selectionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.light.success + '12',
+    borderWidth: 1.5,
+    borderColor: Colors.light.success + '50',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  selectionBannerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  selectionCheck: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.light.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  selectionInfo: {
+    flex: 1,
+  },
+  selectionName: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginBottom: 1,
+  },
+  selectionMeta: {
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+  },
+  selectionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexShrink: 0,
+  },
+  selectionClearBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  selectionUseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.light.success,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+  },
+  selectionUseBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+  },
+
+  // Dica quando nenhum produto selecionado
+  catalogHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+  },
+  catalogHintText: {
+    fontSize: 12,
+    color: Colors.light.textTertiary,
+    fontStyle: 'italic',
+  },
+
+  catalogSearchInput: {
+    backgroundColor: '#fff',
+  },
+  catalogSearchOutline: {
+    borderRadius: 12,
+  },
+  catalogLoadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: theme.spacing.lg,
+    gap: 10,
+  },
+  catalogLoadingText: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+  },
+  catalogEmptyContainer: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.xl,
+    gap: 10,
+  },
+  catalogEmptyText: {
+    fontSize: 14,
+    color: Colors.light.textSecondary,
+  },
+  catalogList: {
+    gap: 6,
+  },
+  catalogItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    backgroundColor: '#fff',
+    gap: 10,
+  },
+  catalogItemSelected: {
+    borderColor: Colors.light.primary,
+    backgroundColor: Colors.light.primary + '06',
+  },
+
+  // Radio button
+  catalogItemRadio: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: Colors.light.border,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  catalogItemRadioSelected: {
+    borderColor: Colors.light.primary,
+    backgroundColor: Colors.light.primary,
+  },
+
+  catalogItemInfo: {
+    flex: 1,
+  },
+  catalogItemName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.light.text,
+    marginBottom: 2,
+  },
+  catalogItemNameSelected: {
+    color: Colors.light.primary,
+  },
+  catalogItemMeta: {
+    fontSize: 11,
+    color: Colors.light.textTertiary,
+    lineHeight: 15,
+  },
+  catalogItemPrice: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.light.textSecondary,
+    flexShrink: 0,
+  },
+  catalogItemPriceSelected: {
+    color: Colors.light.primary,
   },
 });

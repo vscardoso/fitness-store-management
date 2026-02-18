@@ -94,7 +94,7 @@ class AuthService:
             data={
                 "sub": str(user.id),
                 "role": user.role.value,
-                "tenant_id": user.tenant_id  # ✅ ADD TENANT_ID
+                "tenant_id": user.tenant_id  #  ADD TENANT_ID
             },
             expires_delta=timedelta(days=7)
         )

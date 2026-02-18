@@ -132,6 +132,7 @@ temp/
 *.bak
 *.backup
 *.zip
+nul
 backend/nul
 
 # ========================================

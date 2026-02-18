@@ -34,7 +34,7 @@ const paymentIcon: Record<string, string> = {
   cash: 'cash',
   credit_card: 'card',
   debit_card: 'card',
-  pix: 'qr-code',
+  pix: 'qrcode',
   transfer: 'swap-horizontal',
 };
 

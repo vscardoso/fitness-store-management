@@ -1,13 +1,16 @@
 /**
  * LoadingOverlay Component
- * Global loading indicator that blocks UI during API requests
+ * Global loading indicator com animações ultra criativas
  * Automatically managed by Axios interceptors
  */
 
 import { useEffect, useState } from 'react';
-import { View, StyleSheet, ActivityIndicator, Animated } from 'react-native';
+import { View, StyleSheet, Animated } from 'react-native';
 import { Text, Portal } from 'react-native-paper';
+import { BlurView } from 'expo-blur';
 import { loadingManager } from '@/services/loadingManager';
+import { CreativeSpinner } from './GradientSpinner';
+import { Colors } from '@/constants/Colors';
 
 interface LoadingOverlayProps {
   /**
@@ -31,7 +34,7 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
 
   // Animation values for native animations
   const fadeAnim = useState(new Animated.Value(0))[0];
-  const scaleAnim = useState(new Animated.Value(1))[0];
+  const scaleAnim = useState(new Animated.Value(0.8))[0];
 
   useEffect(() => {
     // Subscribe to loading manager
@@ -48,36 +51,36 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
   const shouldShow = visible !== undefined ? visible : isVisible;
   const displayMessage = message !== undefined ? message : loadingMessage;
 
-  // Fade in/out animation
+  // Entrada/saída com scaling dramático
   useEffect(() => {
     if (shouldShow) {
       Animated.parallel([
-        Animated.timing(fadeAnim, {
+        Animated.spring(fadeAnim, {
           toValue: 1,
+          friction: 6,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 0,
           duration: 200,
           useNativeDriver: true,
         }),
-        Animated.loop(
-          Animated.sequence([
-            Animated.timing(scaleAnim, {
-              toValue: 1.1,
-              duration: 1000,
-              useNativeDriver: true,
-            }),
-            Animated.timing(scaleAnim, {
-              toValue: 1,
-              duration: 1000,
-              useNativeDriver: true,
-            }),
-          ])
-        ),
+        Animated.timing(scaleAnim, {
+          toValue: 0.8,
+          duration: 200,
+          useNativeDriver: true,
+        }),
       ]).start();
-    } else {
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
     }
   }, [shouldShow]);
 
@@ -95,33 +98,46 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
           },
         ]}
       >
+        <BlurView intensity={40} style={StyleSheet.absoluteFillObject} />
+
         <Animated.View
           style={[
-            styles.container,
+            styles.content,
             {
               transform: [{ scale: scaleAnim }],
+              opacity: fadeAnim,
             },
           ]}
         >
-          <View style={styles.content}>
-            <ActivityIndicator
-              size="large"
-              color="#fff"
-              style={styles.spinner}
-            />
+          {/* Spinner Criativo */}
+          <CreativeSpinner size={100} />
 
-            {displayMessage && (
-              <Text style={styles.message} variant="bodyMedium">
-                {displayMessage}
-              </Text>
-            )}
+          {/* Mensagem */}
+          {displayMessage && (
+            <View style={styles.messageContainer}>
+              <Text style={styles.message}>{displayMessage}</Text>
+            </View>
+          )}
 
-            {showTimeout && (
-              <Text style={styles.timeoutWarning} variant="bodySmall">
-                Isso está demorando mais que o esperado...
+          {!displayMessage && (
+            <View style={styles.messageContainer}>
+              <Text style={styles.defaultMessage}>Carregando...</Text>
+              <View style={styles.dots}>
+                <Animated.View style={[styles.dot, styles.dot1]} />
+                <Animated.View style={[styles.dot, styles.dot2]} />
+                <Animated.View style={[styles.dot, styles.dot3]} />
+              </View>
+            </View>
+          )}
+
+          {/* Aviso de Timeout */}
+          {showTimeout && (
+            <View style={styles.timeoutContainer}>
+              <Text style={styles.timeoutWarning}>
+                ⏱️ Isso está demorando mais que o esperado...
               </Text>
-            )}
-          </View>
+            </View>
+          )}
         </Animated.View>
       </Animated.View>
     </Portal>
@@ -131,45 +147,75 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
 const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 9999,
     elevation: 9999,
   },
-  container: {
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    borderRadius: 16,
-    padding: 24,
-    minWidth: 150,
-    maxWidth: 280,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 8,
-  },
   content: {
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 32,
   },
-  spinner: {
-    marginBottom: 12,
+  messageContainer: {
+    marginTop: 32,
+    alignItems: 'center',
+    gap: 12,
   },
   message: {
+    fontSize: 18,
+    fontWeight: '600',
     color: '#fff',
     textAlign: 'center',
-    marginTop: 8,
-    lineHeight: 20,
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+    paddingHorizontal: 24,
+    maxWidth: 280,
+  },
+  defaultMessage: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#fff',
+    textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
+  },
+  dots: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 4,
+  },
+  dot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: '#fff',
+    shadowColor: '#fff',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+  },
+  dot1: {},
+  dot2: {},
+  dot3: {},
+  timeoutContainer: {
+    backgroundColor: Colors.light.warning + 'E0',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    marginTop: 24,
+    borderWidth: 2,
+    borderColor: '#fff',
   },
   timeoutWarning: {
-    color: '#ffeb3b',
+    color: '#fff',
     textAlign: 'center',
-    marginTop: 12,
-    fontStyle: 'italic',
+    fontWeight: '700',
+    fontSize: 13,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
   },
 });

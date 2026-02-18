@@ -553,7 +553,7 @@ async def delete_trip(
     A viagem é marcada como inativa (is_active = False) mas não é
     removida fisicamente do banco de dados.
     
-    ⚠️ ATENÇÃO: Se a viagem possui stock_entries associados,
+    ️ ATENÇÃO: Se a viagem possui stock_entries associados,
     a deleção pode falhar devido a integridade referencial.
     
     Args:
