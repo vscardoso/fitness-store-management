@@ -19,20 +19,55 @@ interface LogEntry {
   data?: any;
 }
 
+// ── Circuit Breaker ──────────────────────────────────────────────────────────
+// Evita travar o app quando o backend está inacessível (ex: tunnel caído)
+let _consecutiveFailures = 0;
+let _circuitOpenUntil = 0;
+const MAX_FAILURES = 3;       // Após 3 falhas consecutivas, abre o circuito
+const CIRCUIT_COOLDOWN = 30000; // 30s antes de tentar novamente
+const LOG_TIMEOUT_MS = 2000;   // Timeout de 2s por requisição de log
+
+/**
+ * Fetch com timeout para não bloquear o app
+ */
+function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  return fetch(url, { ...options, signal: controller.signal })
+    .finally(() => clearTimeout(timer));
+}
+
 /**
  * Envia log para o backend (não bloqueia, fire-and-forget)
  */
 async function sendLog(entry: LogEntry): Promise<void> {
   if (!__DEV__) return;
 
+  // Circuit breaker: se aberto, não tenta
+  if (Date.now() < _circuitOpenUntil) return;
+
   try {
-    await fetch(`${API_CONFIG.BASE_URL}/debug/log`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(entry),
-    });
+    await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/debug/log`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'bypass-tunnel-reminder': 'true',
+        },
+        body: JSON.stringify(entry),
+      },
+      LOG_TIMEOUT_MS
+    );
+    // Sucesso: resetar contador de falhas
+    _consecutiveFailures = 0;
   } catch {
-    // Silencioso - não queremos logs de logs falhando
+    // Falha: incrementar contador e abrir circuito se necessário
+    _consecutiveFailures++;
+    if (_consecutiveFailures >= MAX_FAILURES) {
+      _circuitOpenUntil = Date.now() + CIRCUIT_COOLDOWN;
+      console.warn(`⚡ [debugLog] Backend inacessível — pausando logs por ${CIRCUIT_COOLDOWN / 1000}s`);
+    }
   }
 }
 
@@ -83,8 +118,18 @@ export function logError(category: string, message: string, error?: any) {
 export async function clearLog(): Promise<void> {
   if (!__DEV__) return;
 
+  // Não tenta se circuito aberto
+  if (Date.now() < _circuitOpenUntil) return;
+
   try {
-    await fetch(`${API_CONFIG.BASE_URL}/debug/clear`, { method: 'POST' });
+    await fetchWithTimeout(
+      `${API_CONFIG.BASE_URL}/debug/clear`,
+      {
+        method: 'POST',
+        headers: { 'bypass-tunnel-reminder': 'true' },
+      },
+      LOG_TIMEOUT_MS
+    );
     console.log('🗑️ Log limpo - nova sessão');
   } catch {
     // Silencioso

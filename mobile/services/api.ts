@@ -47,6 +47,8 @@ export const api = axios.create({
   timeout: API_CONFIG.TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
+    // Necessário para localtunnel (loca.lt) — evita página de aviso do tunnel
+    'bypass-tunnel-reminder': 'true',
   },
 });
 

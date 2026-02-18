@@ -60,10 +60,17 @@ export default function WizardStep1({
   const loadCatalog = useCallback(async (search?: string) => {
     setCatalogLoading(true);
     try {
-      const products = await getCatalogProducts({ search, limit: 50 });
+      const result = await getCatalogProducts({ search, limit: 50 });
+      // Normaliza: API pode retornar array ou objeto paginado { items: [...] }
+      const products = Array.isArray(result)
+        ? result
+        : Array.isArray((result as any)?.items)
+          ? (result as any).items
+          : [];
       setCatalogProducts(products);
     } catch (err) {
       console.error('Erro ao carregar catálogo:', err);
+      setCatalogProducts([]); // Garante array vazio em caso de erro
     } finally {
       setCatalogLoading(false);
     }

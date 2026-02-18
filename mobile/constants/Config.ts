@@ -1,60 +1,51 @@
-/**
- * Configurações do ambiente e API
+﻿/**
+ * Configuracoes do ambiente e API
  * Centralize todas as configs do app aqui
  */
 
 // ============================================================================
-// 🔧 CONFIGURAÇÃO DE REDE - ESCOLHA UMA OPÇÃO ABAIXO
+// CONFIGURACAO DE REDE - ESCOLHA UMA OPCAO ABAIXO
 // ============================================================================
 
-// 🟢 OPÇÃO 1: Emulador Android (Recomendado para desenvolvimento)
-// const API_BASE_URL = 'http://10.0.2.2:8000/api/v1';
+// OPCAO 1: Emulador Android
+// const LOCAL_API_URL = 'http://10.0.2.2:8000/api/v1';
 
-// 🟢 OPÇÃO 2: Emulador iOS / Simulator
-// const API_BASE_URL = 'http://localhost:8000/api/v1';
+// OPCAO 2: Emulador iOS / Simulator
+// const LOCAL_API_URL = 'http://localhost:8000/api/v1';
 
-// 🟡 OPÇÃO 3: Dispositivo Físico (mesma rede WiFi) - Dev local
-// ⚠️ DESCUBRA SEU IP: ipconfig (Windows) ou ifconfig (Mac/Linux)
-// ⚠️ Procure por "Adaptador de Rede sem Fio Wi-Fi" → IPv4
-// ⚠️ Backend deve estar rodando: uvicorn app.main:app --reload --host 0.0.0.0
-// const LOCAL_API_URL = 'http://172.29.5.48:8000/api/v1';
+// OPCAO 3: Dispositivo Fisico (mesma rede WiFi)
+// Para descobrir seu IP: rode "ipconfig" no terminal e procure em
+// "Adaptador de Rede sem Fio Wi-Fi" o campo "Endereco IPv4"
+// Backend deve estar rodando: uvicorn app.main:app --reload --host 0.0.0.0
+// const LOCAL_API_URL = 'http://SEU_IP_AQUI:8000/api/v1';
 
-// 🟠 OPÇÃO 4: Tunnel (ngrok) - Para VPN ou redes diferentes
-// ⚠️ Rode: ngrok http 8000
-// ⚠️ Cole a URL gerada abaixo (ex: https://abc123.ngrok-free.app)
-// const LOCAL_API_URL = 'https://COLE_SUA_URL_NGROK_AQUI.ngrok-free.app/api/v1';
+// OPCAO 4: Tunnel localtunnel (redes diferentes / celular fora do WiFi)
+// Para iniciar: .\start_tunnel.ps1 (na raiz do projeto)
+const LOCAL_API_URL = 'https://admin.localhost.run/api/v1'; // Tunnel localhost.run (redes diferentes)
 
-// 🔧 TESTE LOCAL - Backend rodando em localhost
-// const LOCAL_API_URL = 'http://10.0.2.2:8000/api/v1'; // Android Emulator
-// const LOCAL_API_URL = 'http://localhost:8000/api/v1'; // iOS Simulator
-const LOCAL_API_URL = 'http://192.168.100.158:8000/api/v1'; // Dispositivo Físico (mesmo WiFi)
-// const LOCAL_API_URL = 'https://dull-phones-create.loca.lt/api/v1'; // Tunnel (redes diferentes)
-
-// 🟢 OPÇÃO 5: Produção Render.com
+// OPCAO 5: Producao Render.com
 const PRODUCTION_URL = process.env.EXPO_PUBLIC_API_URL || 'https://fitness-backend-x1qn.onrender.com/api/v1';
 
 // ============================================================================
-// 🎯 SELEÇÃO AUTOMÁTICA DE AMBIENTE
-// ============================================================================
+// SELECAO AUTOMATICA DE AMBIENTE
 // - Desenvolvimento (npx expo start): usa LOCAL_API_URL
-// - Produção (eas update): usa PRODUCTION_URL
+// - Producao (eas update): usa PRODUCTION_URL
 // ============================================================================
 
 export const API_CONFIG = {
-  // Usa local em dev, produção em builds
   BASE_URL: __DEV__ ? LOCAL_API_URL : PRODUCTION_URL,
-  // BASE_URL: PRODUCTION_URL,  // Forçando Render para testes
+  // BASE_URL: PRODUCTION_URL,  // Forcando Render para testes
   TIMEOUT: 30000, // 30 segundos
 };
 
-// Configurações do Sentry (Error Tracking)
+// Configuracoes do Sentry (Error Tracking)
 export const SENTRY_CONFIG = {
   DSN: 'https://f0a8f44b129143c8689af5af8b20ee82@o4510386072715264.ingest.us.sentry.io/4510386085298176',
-  ENABLED: !__DEV__, // Desabilitado em desenvolvimento, ativado em produção
-  TRACES_SAMPLE_RATE: 1.0, // 100% das transações (ajustar em produção se necessário)
+  ENABLED: !__DEV__, // Desabilitado em desenvolvimento, ativado em producao
+  TRACES_SAMPLE_RATE: 1.0,
 };
 
-// Configurações do app
+// Configuracoes do app
 export const APP_CONFIG = {
   APP_NAME: 'Fitness Store',
   VERSION: '1.0.0',
@@ -68,7 +59,7 @@ export const STORAGE_KEYS = {
   CART: '@fitness_store:cart',
 };
 
-// Configurações de paginação
+// Configuracoes de paginacao
 export const PAGINATION = {
   DEFAULT_PAGE_SIZE: 20,
   MAX_PAGE_SIZE: 100,

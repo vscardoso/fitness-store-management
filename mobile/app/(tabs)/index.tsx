@@ -68,6 +68,14 @@ export default function DashboardScreen() {
     queryKey: ['recent-sales'],
     queryFn: () => getSales({ limit: 5, skip: 0 }),
     enabled: !!user,
+    // Garante que sempre sera um array, mesmo se o backend retornar objeto paginado
+    select: (data) => {
+      if (Array.isArray(data)) return data;
+      if (data && typeof data === 'object' && Array.isArray((data as any).items)) {
+        return (data as any).items;
+      }
+      return [];
+    },
   });
 
   // Refresh
@@ -94,15 +102,15 @@ export default function DashboardScreen() {
     }, [refetchStats, refetchValuation, refetchPeriod, refetchPurchases, refetchRecentSales])
   );
 
-  // Dados extraídos
-  const totalSalesToday = dashboardStats?.sales.total_today || 0;
-  const salesCountToday = dashboardStats?.sales.count_today || 0;
-  const salesTrendPercent = dashboardStats?.sales.trend_percent || 0;
-  const profitToday = dashboardStats?.sales.profit_today || 0;
-  const marginToday = dashboardStats?.sales.margin_today || 0;
-  const lowStockCount = dashboardStats?.stock.low_stock_count || 0;
-  const totalProducts = dashboardStats?.stock.total_products || 0;
-  const totalCustomers = dashboardStats?.customers.total || 0;
+  // Dados extraídos (optional chaining em todos os níveis para evitar crash quando API muda)
+  const totalSalesToday = dashboardStats?.sales?.total_today || 0;
+  const salesCountToday = dashboardStats?.sales?.count_today || 0;
+  const salesTrendPercent = dashboardStats?.sales?.trend_percent || 0;
+  const profitToday = dashboardStats?.sales?.profit_today || 0;
+  const marginToday = dashboardStats?.sales?.margin_today || 0;
+  const lowStockCount = dashboardStats?.stock?.low_stock_count || 0;
+  const totalProducts = dashboardStats?.stock?.total_products || 0;
+  const totalCustomers = dashboardStats?.customers?.total || 0;
 
   // Período selecionado
   const periodTotal = periodStats?.total || 0;
@@ -124,8 +132,8 @@ export default function DashboardScreen() {
   const purchasesChangePercent = purchasesComparison?.total_change_percent || 0;
 
   // Estoque
-  const stockCost = valuation?.cost_value || dashboardStats?.stock.invested_value || 0;
-  const stockRetail = valuation?.retail_value || dashboardStats?.stock.potential_revenue || 0;
+  const stockCost = valuation?.cost_value || dashboardStats?.stock?.invested_value || 0;
+  const stockRetail = valuation?.retail_value || dashboardStats?.stock?.potential_revenue || 0;
   const stockProfit = valuation?.potential_margin || (stockRetail - stockCost);
   const stockMarginPercent = stockCost > 0 ? ((stockRetail - stockCost) / stockCost) * 100 : 0;
 
