@@ -17,7 +17,7 @@ import { useAuth } from '@/hooks/useAuth';
 import EmptyState from '@/components/ui/EmptyState';
 import ProductCard from '@/components/products/ProductCard';
 import FAB from '@/components/FAB';
-import { getActiveProducts, searchProducts, getCatalogProducts } from '@/services/productService';
+import { getActiveProducts, searchProducts, getCatalogProductsCount } from '@/services/productService';
 import { Colors, theme } from '@/constants/Colors';
 import { useTutorialContext } from '@/components/tutorial';
 import type { Product } from '@/types';
@@ -105,11 +105,12 @@ export default function ProductsScreen() {
   }, [data, searchQuery, showOnlyWithStock]);
 
   /**
-   * Query para contar produtos de catálogo
+   * Query para contar produtos de catálogo — usa endpoint leve (1 query SQL)
    */
-  const { data: catalogProducts } = useQuery({
+  const { data: catalogCount = 0 } = useQuery({
     queryKey: ['catalog-products-count'],
-    queryFn: () => getCatalogProducts({ limit: 1000 }), // Busca todos para contar
+    queryFn: getCatalogProductsCount,
+    staleTime: 10 * 60 * 1000, // 10 min — catálogo raramente muda
   });
 
   /**
@@ -305,7 +306,7 @@ export default function ProductsScreen() {
                     onPress={() => router.push('/catalog')}
                     icon="storefront-outline"
                   >
-                    Explorar Catálogo ({catalogProducts?.length || 0} produtos)
+                    Explorar Catálogo ({catalogCount > 0 ? `${catalogCount} produtos` : '...'})
                   </Button>
                 </View>
               )}

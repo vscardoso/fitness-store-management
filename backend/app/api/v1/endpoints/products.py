@@ -348,10 +348,43 @@ async def list_active_products(
 
 
 @router.get(
+    "/catalog/count",
+    response_model=dict,
+    summary="Contar produtos do catálogo",
+    description="Retorna o total de produtos disponíveis no catálogo (leve, sem N+1 queries)"
+)
+async def count_catalog_products(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Retorna apenas o total de produtos do catálogo.
+    Endpoint leve para exibir contagem sem carregar todos os produtos.
+    """
+    from sqlalchemy import func, and_
+    try:
+        result = await db.execute(
+            select(func.count()).where(
+                and_(
+                    Product.is_catalog == True,
+                    Product.is_active == True
+                )
+            )
+        )
+        count = result.scalar() or 0
+        return {"count": count}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao contar catálogo: {str(e)}"
+        )
+
+
+@router.get(
     "/catalog",
     response_model=List[ProductResponse],
     summary="Listar produtos do catálogo",
-    description="Lista os 115 produtos templates que podem ser ativados na loja"
+    description="Lista os produtos templates que podem ser ativados na loja"
 )
 async def list_catalog_products(
     skip: int = Query(0, ge=0),

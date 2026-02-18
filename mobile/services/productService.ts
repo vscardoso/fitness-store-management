@@ -145,6 +145,18 @@ export const getLowStockProducts = async (): Promise<any[]> => {
 };
 
 /**
+ * Contar produtos de catálogo (leve — 1 query SQL, sem N+1)
+ */
+export const getCatalogProductsCount = async (): Promise<number> => {
+  try {
+    const { data } = await api.get<{ count: number }>('/products/catalog/count');
+    return data?.count ?? 0;
+  } catch {
+    return 0;
+  }
+};
+
+/**
  * Buscar produtos de catálogo
  */
 export const getCatalogProducts = async (params?: {
