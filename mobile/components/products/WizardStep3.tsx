@@ -3,11 +3,11 @@
  *
  * Após criar o produto, oferece opções:
  * - Nova Entrada (cria entrada nova com produto)
- * - Entrada Existente (vincula a entrada já criada)
+ * - Entrada Existente (vincula a entrada já criada) - só aparece se houver entradas
  * - Manter no Catálogo (produto aguarda reposição)
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -16,12 +16,15 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   ScrollView,
+  ActivityIndicator,
 } from 'react-native';
 import { Text, TextInput, Button } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, theme } from '@/constants/Colors';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import { formatCurrency } from '@/utils/format';
+import { getStockEntries } from '@/services/stockEntryService';
+import type { StockEntry } from '@/types';
 
 interface WizardStep3Props {
   wizard: UseProductWizardReturn;
@@ -29,25 +32,78 @@ interface WizardStep3Props {
 
 export default function WizardStep3({ wizard }: WizardStep3Props) {
   const { state } = wizard;
-  const [quantityModalVisible, setQuantityModalVisible] = useState(false);
-  const [quantityInput, setQuantityInput] = useState('1');
-  const [quantityError, setQuantityError] = useState('');
+  
+  // Modal para Nova Entrada
+  const [newEntryModalVisible, setNewEntryModalVisible] = useState(false);
+  const [newEntryQuantity, setNewEntryQuantity] = useState('');
+  const [newEntryQuantityError, setNewEntryQuantityError] = useState('');
+  
+  // Modal para Entrada Existente
+  const [existingEntryModalVisible, setExistingEntryModalVisible] = useState(false);
+  const [existingEntryQuantity, setExistingEntryQuantity] = useState('');
+  const [existingEntryQuantityError, setExistingEntryQuantityError] = useState('');
+  
+  // Estado para verificar se existem entradas
+  const [hasExistingEntries, setHasExistingEntries] = useState<boolean | null>(null);
+  const [isLoadingEntries, setIsLoadingEntries] = useState(true);
 
-  const handleExistingEntryPress = () => {
-    setQuantityModalVisible(true);
-    setQuantityInput('1');
-    setQuantityError('');
+  // Buscar entradas existentes ao montar o componente
+  useEffect(() => {
+    const checkExistingEntries = async () => {
+      try {
+        setIsLoadingEntries(true);
+        const entries = await getStockEntries({ limit: 1 });
+        // Considera que existem entradas se houver pelo menos 1
+        setHasExistingEntries(entries.length > 0);
+      } catch (error) {
+        console.error('Erro ao buscar entradas:', error);
+        setHasExistingEntries(false);
+      } finally {
+        setIsLoadingEntries(false);
+      }
+    };
+
+    checkExistingEntries();
+  }, []);
+
+  // Handler para Nova Entrada - abre modal para digitar quantidade
+  const handleNewEntryPress = () => {
+    setNewEntryModalVisible(true);
+    setNewEntryQuantity('');
+    setNewEntryQuantityError('');
   };
 
-  const handleConfirmQuantity = () => {
-    const qty = parseInt(quantityInput);
+  // Confirma quantidade para Nova Entrada
+  const handleConfirmNewEntry = () => {
+    const qty = parseInt(newEntryQuantity);
     if (isNaN(qty) || qty <= 0) {
-      setQuantityError('Quantidade deve ser maior que zero');
+      setNewEntryQuantityError('Quantidade deve ser maior que zero');
       return;
     }
 
     Keyboard.dismiss();
-    setQuantityModalVisible(false);
+    setNewEntryModalVisible(false);
+    // Navegar para criação de entrada com a quantidade informada
+    wizard.goToNewEntry(qty);
+  };
+
+  // Handler para Entrada Existente - abre modal para digitar quantidade
+  const handleExistingEntryPress = () => {
+    setExistingEntryModalVisible(true);
+    setExistingEntryQuantity('');
+    setExistingEntryQuantityError('');
+  };
+
+  // Confirma quantidade para Entrada Existente
+  const handleConfirmExistingEntry = () => {
+    const qty = parseInt(existingEntryQuantity);
+    if (isNaN(qty) || qty <= 0) {
+      setExistingEntryQuantityError('Quantidade deve ser maior que zero');
+      return;
+    }
+
+    Keyboard.dismiss();
+    setExistingEntryModalVisible(false);
     // Passar a quantidade para o wizard
     wizard.goToExistingEntry(qty);
   };
@@ -93,7 +149,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
         {/* Nova Entrada - Recomendado */}
         <TouchableOpacity
           style={styles.optionCard}
-          onPress={() => wizard.goToNewEntry()}
+          onPress={handleNewEntryPress}
           activeOpacity={0.8}
         >
           <View style={styles.optionIconContainer}>
@@ -117,26 +173,33 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
           <Ionicons name="chevron-forward" size={24} color={Colors.light.primary} />
         </TouchableOpacity>
 
-        {/* Entrada Existente */}
-        <TouchableOpacity
-          style={[styles.optionCard, styles.optionCardSecondary]}
-          onPress={handleExistingEntryPress}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.optionIconContainer, styles.optionIconContainerSecondary]}>
-            <Ionicons name="link" size={28} color={Colors.light.secondary} />
+        {/* Entrada Existente - Só aparece se houver entradas cadastradas */}
+        {isLoadingEntries ? (
+          <View style={[styles.optionCard, styles.optionCardSecondary, styles.loadingCard]}>
+            <ActivityIndicator size="small" color={Colors.light.secondary} />
+            <Text style={styles.loadingText}>Verificando entradas...</Text>
           </View>
-          <View style={styles.optionContent}>
-            <Text style={styles.optionTitle}>Entrada Existente</Text>
-            <Text style={styles.optionDescription}>
-              Vincular a uma entrada já criada
-            </Text>
-            <Text style={styles.optionHint}>
-              Viagem ou compra em andamento
-            </Text>
-          </View>
-          <Ionicons name="chevron-forward" size={24} color={Colors.light.secondary} />
-        </TouchableOpacity>
+        ) : hasExistingEntries ? (
+          <TouchableOpacity
+            style={[styles.optionCard, styles.optionCardSecondary]}
+            onPress={handleExistingEntryPress}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.optionIconContainer, styles.optionIconContainerSecondary]}>
+              <Ionicons name="link" size={28} color={Colors.light.secondary} />
+            </View>
+            <View style={styles.optionContent}>
+              <Text style={styles.optionTitle}>Entrada Existente</Text>
+              <Text style={styles.optionDescription}>
+                Vincular a uma entrada já criada
+              </Text>
+              <Text style={styles.optionHint}>
+                Viagem ou compra em andamento
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color={Colors.light.secondary} />
+          </TouchableOpacity>
+        ) : null}
 
         {/* Manter no Catálogo */}
         <TouchableOpacity
@@ -172,14 +235,14 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
       </View>
     </ScrollView>
 
-      {/* Modal de Quantidade para Entrada Existente */}
+      {/* Modal de Quantidade para Nova Entrada */}
       <Modal
-        visible={quantityModalVisible}
+        visible={newEntryModalVisible}
         transparent
         animationType="fade"
         onRequestClose={() => {
           Keyboard.dismiss();
-          setQuantityModalVisible(false);
+          setNewEntryModalVisible(false);
         }}
       >
         <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
@@ -188,21 +251,21 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
               <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <View style={styles.modalIconContainer}>
-                <Ionicons name="calculator" size={28} color={Colors.light.primary} />
+                <Ionicons name="add-circle" size={28} color={Colors.light.primary} />
               </View>
-              <Text style={styles.modalTitle}>Quantidade de Itens</Text>
+              <Text style={styles.modalTitle}>Nova Entrada</Text>
               <Text style={styles.modalSubtitle}>
-                Quantos itens deste produto você está adicionando?
+                Quantos itens deste produto você está adicionando ao estoque?
               </Text>
             </View>
 
             <View style={styles.modalContent}>
               <TextInput
                 label="Quantidade *"
-                value={quantityInput}
+                value={newEntryQuantity}
                 onChangeText={(text) => {
-                  setQuantityInput(text.replace(/[^0-9]/g, ''));
-                  setQuantityError('');
+                  setNewEntryQuantity(text.replace(/[^0-9]/g, ''));
+                  setNewEntryQuantityError('');
                 }}
                 mode="outlined"
                 keyboardType="number-pad"
@@ -211,10 +274,11 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
                 onSubmitEditing={() => Keyboard.dismiss()}
                 style={styles.quantityInput}
                 left={<TextInput.Icon icon="package-variant" />}
-                error={!!quantityError}
+                error={!!newEntryQuantityError}
+                placeholder="Digite a quantidade"
               />
-              {quantityError ? (
-                <Text style={styles.errorText}>{String(quantityError)}</Text>
+              {newEntryQuantityError ? (
+                <Text style={styles.errorText}>{newEntryQuantityError}</Text>
               ) : null}
 
               <View style={styles.quickButtons}>
@@ -224,8 +288,104 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
                     style={styles.quickButton}
                     onPress={() => {
                       Keyboard.dismiss();
-                      setQuantityInput(String(num));
-                      setQuantityError('');
+                      setNewEntryQuantity(String(num));
+                      setNewEntryQuantityError('');
+                    }}
+                  >
+                    <Text style={styles.quickButtonText}>{num}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.modalHint}>
+                <Ionicons name="information-circle" size={16} color={Colors.light.info} />
+                <Text style={styles.modalHintText}>
+                  Você será levado para criar a entrada de estoque
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.modalFooter}>
+              <Button
+                mode="outlined"
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setNewEntryModalVisible(false);
+                }}
+                style={styles.modalCancelButton}
+              >
+                Cancelar
+              </Button>
+              <Button
+                mode="contained"
+                onPress={handleConfirmNewEntry}
+                style={styles.modalConfirmButton}
+                icon="check"
+              >
+                Continuar
+              </Button>
+            </View>
+              </View>
+            </TouchableWithoutFeedback>
+          </View>
+        </TouchableWithoutFeedback>
+      </Modal>
+
+      {/* Modal de Quantidade para Entrada Existente */}
+      <Modal
+        visible={existingEntryModalVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setExistingEntryModalVisible(false);
+        }}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
+          <View style={styles.modalOverlay}>
+            <TouchableWithoutFeedback onPress={() => {}}>
+              <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalIconContainer, { backgroundColor: Colors.light.secondary + '20' }]}>
+                <Ionicons name="link" size={28} color={Colors.light.secondary} />
+              </View>
+              <Text style={styles.modalTitle}>Entrada Existente</Text>
+              <Text style={styles.modalSubtitle}>
+                Quantos itens deste produto você está adicionando?
+              </Text>
+            </View>
+
+            <View style={styles.modalContent}>
+              <TextInput
+                label="Quantidade *"
+                value={existingEntryQuantity}
+                onChangeText={(text) => {
+                  setExistingEntryQuantity(text.replace(/[^0-9]/g, ''));
+                  setExistingEntryQuantityError('');
+                }}
+                mode="outlined"
+                keyboardType="number-pad"
+                returnKeyType="done"
+                blurOnSubmit
+                onSubmitEditing={() => Keyboard.dismiss()}
+                style={styles.quantityInput}
+                left={<TextInput.Icon icon="package-variant" />}
+                error={!!existingEntryQuantityError}
+                placeholder="Digite a quantidade"
+              />
+              {existingEntryQuantityError ? (
+                <Text style={styles.errorText}>{existingEntryQuantityError}</Text>
+              ) : null}
+
+              <View style={styles.quickButtons}>
+                {[1, 5, 10, 20, 50].map((num) => (
+                  <TouchableOpacity
+                    key={num}
+                    style={styles.quickButton}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setExistingEntryQuantity(String(num));
+                      setExistingEntryQuantityError('');
                     }}
                   >
                     <Text style={styles.quickButtonText}>{num}</Text>
@@ -246,7 +406,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
                 mode="outlined"
                 onPress={() => {
                   Keyboard.dismiss();
-                  setQuantityModalVisible(false);
+                  setExistingEntryModalVisible(false);
                 }}
                 style={styles.modalCancelButton}
               >
@@ -254,7 +414,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
               </Button>
               <Button
                 mode="contained"
-                onPress={handleConfirmQuantity}
+                onPress={handleConfirmExistingEntry}
                 style={styles.modalConfirmButton}
                 icon="check"
               >
@@ -372,6 +532,15 @@ const styles = StyleSheet.create({
   optionCardOutline: {
     backgroundColor: '#fff',
     borderColor: Colors.light.border,
+  },
+  loadingCard: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  loadingText: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
   },
   optionIconContainer: {
     width: 48,

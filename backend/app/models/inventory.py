@@ -1,5 +1,10 @@
 """
 Modelo de estoque com movimentações e controle.
+
+IMPORTANTE: Após a migração para o sistema de variantes:
+- O campo variant_id substitui product_id
+- Cada Inventory agora está vinculado a uma variante específica (tamanho/cor)
+- O campo product_id é mantido para compatibilidade durante a migração
 """
 from sqlalchemy import String, ForeignKey, Enum as SQLEnum, Text, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -10,6 +15,7 @@ from .base import BaseModel
 
 if TYPE_CHECKING:
     from .product import Product
+    from .product_variant import ProductVariant
 
 
 class MovementType(str, Enum):
@@ -27,7 +33,9 @@ class Inventory(BaseModel):
     """
     Inventory control model with movement tracking.
     
-    Tracks stock levels and movements for each product.
+    Tracks stock levels and movements for each product variant.
+    
+    Após migração: cada Inventory está vinculado a uma ProductVariant (tamanho/cor).
     """
     __tablename__ = "inventory"
     
@@ -61,15 +69,31 @@ class Inventory(BaseModel):
         comment="Product expiry date"
     )
     
-    # Chave estrangeira
-    product_id: Mapped[int] = mapped_column(
+    # NOVO: FK para variante (substitui product_id)
+    variant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("product_variants.id", ondelete="CASCADE"),
+        nullable=True,  # NULL durante migração, depois será NOT NULL
+        index=True,
+        comment="ID da variante do produto (tamanho/cor)"
+    )
+    
+    # LEGADO: Mantido para compatibilidade durante migração
+    product_id: Mapped[int | None] = mapped_column(
         ForeignKey("products.id", ondelete="CASCADE"),
-        comment="Product ID"
+        nullable=True,  # Agora opcional após migração
+        comment="Product ID (legado - usar variant_id)"
     )
     
     # Relacionamentos
+    # LEGADO: relacionamento com Product (via product_id)
     product: Mapped["Product"] = relationship(
         "Product",
+        back_populates="inventory"
+    )
+    
+    # NOVO: relacionamento com ProductVariant (via variant_id)
+    variant: Mapped["ProductVariant"] = relationship(
+        "ProductVariant",
         back_populates="inventory"
     )
     

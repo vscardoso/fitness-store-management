@@ -38,9 +38,11 @@ interface WizardStep2Props {
 
 export default function WizardStep2({
   wizard,
-  categories,
+  categories: categoriesProp,
   onBack,
 }: WizardStep2Props) {
+  // Guard defensivo: garante que categories é sempre um array
+  const categories = Array.isArray(categoriesProp) ? categoriesProp : [];
   const { state } = wizard;
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [loadingDuplicate, setLoadingDuplicate] = useState(false);
@@ -1110,19 +1112,14 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 
-  // Footer
+  // Footer - não usar absolute para que suba com o teclado
   footer: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
     flexDirection: 'row',
     gap: theme.spacing.md,
     padding: theme.spacing.md,
     backgroundColor: '#fff',
     borderTopWidth: 1,
     borderTopColor: Colors.light.border,
-    elevation: 4,
   },
   backButton: {
     flex: 1,

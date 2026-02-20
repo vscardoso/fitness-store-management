@@ -7,8 +7,12 @@ import type { Category } from '@/types';
  */
 const getCategories = async (): Promise<Category[]> => {
   try {
-    const { data } = await api.get<Category[]>('/categories');
-    return data;
+    const { data } = await api.get<any>('/categories');
+    // Normaliza: API pode retornar array direto ou objeto paginado { items: [...] }
+    if (Array.isArray(data)) return data;
+    if (data && Array.isArray(data.items)) return data.items;
+    if (data && Array.isArray(data.categories)) return data.categories;
+    return [];
   } catch (error) {
     throw error;
   }

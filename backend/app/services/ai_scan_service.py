@@ -877,7 +877,8 @@ Responda APENAS com o JSON, sem texto adicional."""
         if brand:
             conditions.append(Product.brand.ilike(f"%{brand}%"))
 
-        stmt = select(Product.cost_price, Product.price).where(*conditions).limit(20)
+        # Usar base_price em vez de price (que agora é uma property)
+        stmt = select(Product.cost_price, Product.base_price).where(*conditions).limit(20)
         result = await self.db.execute(stmt)
         similar_products = result.all()
 

@@ -13,7 +13,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
-import { getDashboardStats, getInventoryValuation, getPeriodSalesStats, getPeriodPurchases } from '@/services/dashboardService';
+import { getDashboardStats, getInventoryValuation, getPeriodSalesStats, getPeriodPurchases, getDailySales, getTopProducts, getFifoPerformance, getYoYComparison } from '@/services/dashboardService';
+import type { DailySalesData } from '@/services/dashboardService';
 import { getSales } from '@/services/saleService';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
@@ -78,6 +79,34 @@ export default function DashboardScreen() {
     },
   });
 
+  // Query para vendas diárias (gráfico)
+  const { data: dailySales, refetch: refetchDailySales } = useQuery({
+    queryKey: ['daily-sales'],
+    queryFn: () => getDailySales(7),
+    enabled: !!user,
+  });
+
+  // Query top produtos do período
+  const { data: topProducts, refetch: refetchTopProducts } = useQuery({
+    queryKey: ['top-products', selectedPeriod],
+    queryFn: () => getTopProducts(selectedPeriod, 5),
+    enabled: !!user,
+  });
+
+  // Query performance FIFO
+  const { data: fifoPerf, refetch: refetchFifo } = useQuery({
+    queryKey: ['fifo-performance'],
+    queryFn: getFifoPerformance,
+    enabled: !!user,
+  });
+
+  // Query YoY (ano a ano)
+  const { data: yoyData, refetch: refetchYoY } = useQuery({
+    queryKey: ['yoy-comparison'],
+    queryFn: getYoYComparison,
+    enabled: !!user,
+  });
+
   // Refresh
   const onRefresh = async () => {
     setRefreshing(true);
@@ -87,6 +116,10 @@ export default function DashboardScreen() {
       refetchPeriod(),
       refetchPurchases(),
       refetchRecentSales(),
+      refetchDailySales(),
+      refetchTopProducts(),
+      refetchFifo(),
+      refetchYoY(),
     ]);
     setRefreshing(false);
   };
@@ -99,7 +132,11 @@ export default function DashboardScreen() {
       refetchPeriod();
       refetchPurchases();
       refetchRecentSales();
-    }, [refetchStats, refetchValuation, refetchPeriod, refetchPurchases, refetchRecentSales])
+      refetchDailySales();
+      refetchTopProducts();
+      refetchFifo();
+      refetchYoY();
+    }, [refetchStats, refetchValuation, refetchPeriod, refetchPurchases, refetchRecentSales, refetchDailySales, refetchTopProducts, refetchFifo, refetchYoY])
   );
 
   // Dados extraídos (optional chaining em todos os níveis para evitar crash quando API muda)
@@ -366,6 +403,253 @@ export default function DashboardScreen() {
             </View>
           </TouchableOpacity>
         </View>
+
+        {/* ========== GRÁFICO DE VENDAS 7 DIAS ========== */}
+        {dailySales && dailySales.daily && dailySales.daily.length > 0 && (
+          <View style={styles.chartCard}>
+            <View style={styles.chartHeader}>
+              <View>
+                <Text style={styles.chartTitle}>Últimos 7 Dias</Text>
+                <Text style={styles.chartSubtitle}>
+                  Média: {formatCurrency(dailySales.totals?.average_per_day || 0)}/dia
+                </Text>
+              </View>
+              {dailySales.best_day && dailySales.best_day.total > 0 && (
+                <View style={styles.bestDayBadge}>
+                  <Ionicons name="trophy" size={14} color="#F59E0B" />
+                  <Text style={styles.bestDayText}>{dailySales.best_day.day_short}</Text>
+                </View>
+              )}
+            </View>
+            
+            {/* Gráfico de barras simples */}
+            <View style={styles.chartContainer}>
+              {dailySales.daily.map((day, index) => {
+                const maxValue = Math.max(...dailySales.daily.map(d => d.total), 1);
+                const barHeight = (day.total / maxValue) * 100;
+                const isToday = index === dailySales.daily.length - 1;
+                
+                return (
+                  <View key={day.date} style={styles.barContainer}>
+                    <View style={styles.barWrapper}>
+                      <View 
+                        style={[
+                          styles.bar, 
+                          { 
+                            height: `${barHeight}%`,
+                            backgroundColor: isToday ? '#10B981' : day.total > 0 ? '#6366F1' : '#E5E7EB'
+                          }
+                        ]} 
+                      />
+                    </View>
+                    <Text style={[styles.barLabel, isToday && styles.barLabelToday]}>
+                      {day.day_short.split('/')[0]}
+                    </Text>
+                  </View>
+                );
+              })}
+            </View>
+
+            {/* Resumo do período */}
+            <View style={styles.chartSummary}>
+              <View style={styles.chartSummaryItem}>
+                <Text style={styles.chartSummaryLabel}>Faturamento</Text>
+                <Text style={styles.chartSummaryValue}>{formatCurrency(dailySales.totals?.total || 0)}</Text>
+              </View>
+              <View style={styles.chartSummaryDivider} />
+              <View style={styles.chartSummaryItem}>
+                <Text style={styles.chartSummaryLabel}>Lucro Líquido</Text>
+                <Text style={[styles.chartSummaryValue, { color: '#10B981' }]}>
+                  {formatCurrency(dailySales.totals?.profit || 0)}
+                </Text>
+              </View>
+              <View style={styles.chartSummaryDivider} />
+              <View style={styles.chartSummaryItem}>
+                <Text style={styles.chartSummaryLabel}>Custo dos Produtos</Text>
+                <Text style={[styles.chartSummaryValue, { color: '#EF4444' }]}>
+                  {formatCurrency(dailySales.totals?.cmv || 0)}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+        {/* ========== TOP 5 PRODUTOS ========== */}
+        {topProducts && topProducts.products && topProducts.products.length > 0 && (
+          <View style={styles.topProductsCard}>
+            <View style={styles.topProductsHeader}>
+              <View>
+                <Text style={styles.chartTitle}>🏆 Top Produtos</Text>
+                <Text style={styles.chartSubtitle}>{periodLabel}</Text>
+              </View>
+            </View>
+            {topProducts.products.map((product, index) => {
+              const maxRevenue = topProducts.products[0]?.revenue || 1;
+              const barWidth = (product.revenue / maxRevenue) * 100;
+              const colors = ['#6366F1', '#10B981', '#F59E0B', '#EC4899', '#3B82F6'];
+              const color = colors[index % colors.length];
+              return (
+                <View key={product.product_id} style={styles.topProductItem}>
+                  <View style={styles.topProductRank}>
+                    <Text style={[styles.topProductRankText, { color }]}>#{index + 1}</Text>
+                  </View>
+                  <View style={styles.topProductInfo}>
+                    <View style={styles.topProductNameRow}>
+                      <Text style={styles.topProductName} numberOfLines={1}>
+                        {product.product_name}
+                      </Text>
+                      <Text style={styles.topProductRevenue}>{formatCurrency(product.revenue)}</Text>
+                    </View>
+                    <View style={styles.topProductBarBg}>
+                      <View style={[styles.topProductBar, { width: `${barWidth}%`, backgroundColor: color }]} />
+                    </View>
+                    <View style={styles.topProductStats}>
+                      <Text style={styles.topProductStatText}>{product.qty_sold} un vendidas</Text>
+                      <Text style={[styles.topProductStatText, { color: '#10B981' }]}>
+                        Lucro: {formatCurrency(product.profit)} ({product.margin_percent.toFixed(0)}%)
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* ========== FIFO PERFORMANCE ========== */}
+        {fifoPerf && (
+          <View style={styles.fifoCard}>
+            <Text style={styles.chartTitle}>📦 Saúde do Estoque</Text>
+            <Text style={[styles.chartSubtitle, { marginBottom: 16 }]}>Como está seu giro e lucratividade</Text>
+
+            {/* Sell-through gauge */}
+            <View style={styles.fifoSellThrough}>
+              <View style={styles.fifoSellThroughInfo}>
+                <Text style={styles.fifoMetricLabel}>Quanto do estoque foi vendido?</Text>
+                <Text style={styles.fifoSellThroughValue}>
+                  {fifoPerf.sell_through.rate.toFixed(0)}%
+                </Text>
+                <Text style={styles.fifoMetricSub}>
+                  Você comprou {fifoPerf.sell_through.total_received} itens e vendeu {fifoPerf.sell_through.total_sold}
+                </Text>
+              </View>
+              <View style={styles.fifoGaugeContainer}>
+                <View style={styles.fifoGaugeBg}>
+                  <View style={[
+                    styles.fifoGaugeFill,
+                    {
+                      width: `${Math.min(fifoPerf.sell_through.rate, 100)}%`,
+                      backgroundColor: fifoPerf.sell_through.rate >= 70 ? '#10B981' :
+                        fifoPerf.sell_through.rate >= 40 ? '#F59E0B' : '#EF4444'
+                    }
+                  ]} />
+                </View>
+              </View>
+            </View>
+
+            {/* ROI médio + alertas */}
+            <View style={styles.fifoStatsRow}>
+              <View style={styles.fifoStatItem}>
+                <Text style={styles.fifoMetricLabel}>Lucro médio das compras</Text>
+                <Text style={[
+                  styles.fifoStatValue,
+                  { color: fifoPerf.roi.avg_roi >= 0 ? '#10B981' : '#EF4444' }
+                ]}>
+                  {fifoPerf.roi.avg_roi > 0 ? '+' : ''}{fifoPerf.roi.avg_roi.toFixed(0)}%
+                </Text>
+              </View>
+              <View style={styles.fifoStatDivider} />
+              <View style={styles.fifoStatItem}>
+                <Text style={styles.fifoMetricLabel}>Compras dando prejuízo</Text>
+                <Text style={[
+                  styles.fifoStatValue,
+                  { color: fifoPerf.roi.negative_count > 0 ? '#EF4444' : '#10B981' }
+                ]}>
+                  {fifoPerf.roi.negative_count}
+                </Text>
+              </View>
+              <View style={styles.fifoStatDivider} />
+              <View style={styles.fifoStatItem}>
+                <Text style={styles.fifoMetricLabel}>Itens parados</Text>
+                <Text style={styles.fifoStatValue}>{fifoPerf.sell_through.total_remaining}</Text>
+              </View>
+            </View>
+
+            {/* Alertas de ROI negativo */}
+            {fifoPerf.roi.negative_count > 0 && (
+              <View style={styles.fifoAlert}>
+                <Ionicons name="warning-outline" size={14} color="#EF4444" />
+                <Text style={styles.fifoAlertText}>
+                  ⚠️ Você tem {fifoPerf.roi.negative_count} {fifoPerf.roi.negative_count === 1 ? 'compra que está dando' : 'compras que estão dando'} prejuízo. Verifique os preços de venda!
+                </Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* ========== YoY COMPARAÇÃO ========== */}
+        {yoyData && yoyData.months && yoyData.months.length > 0 && (
+          <View style={styles.yoyCard}>
+            <View style={styles.yoyHeader}>
+              <View>
+                <Text style={styles.chartTitle}>📅 Ano a Ano</Text>
+                <Text style={styles.chartSubtitle}>
+                  {yoyData.totals.current_year} vs {yoyData.totals.prev_year}
+                </Text>
+              </View>
+              <View style={[
+                styles.yoyChangeBadge,
+                {
+                  backgroundColor: yoyData.totals.total_change_percent >= 0 ? '#ECFDF5' : '#FEF2F2'
+                }
+              ]}>
+                <Ionicons
+                  name={yoyData.totals.total_change_percent >= 0 ? 'arrow-up' : 'arrow-down'}
+                  size={14}
+                  color={yoyData.totals.total_change_percent >= 0 ? '#10B981' : '#EF4444'}
+                />
+                <Text style={[
+                  styles.yoyChangePct,
+                  { color: yoyData.totals.total_change_percent >= 0 ? '#10B981' : '#EF4444' }
+                ]}>
+                  {Math.abs(yoyData.totals.total_change_percent).toFixed(1)}%
+                </Text>
+              </View>
+            </View>
+
+            {/* Mini barras mês a mês */}
+            <View style={styles.yoyBarsContainer}>
+              {yoyData.months.map((month) => {
+                const maxVal = Math.max(
+                  ...yoyData.months.map(m => Math.max(m.current_total, m.prev_total)), 1
+                );
+                const currH = (month.current_total / maxVal) * 60;
+                const prevH = (month.prev_total / maxVal) * 60;
+                return (
+                  <View key={month.month} style={styles.yoyMonthGroup}>
+                    <View style={styles.yoyMonthBars}>
+                      <View style={[styles.yoyBar, styles.yoyBarPrev, { height: Math.max(prevH, 3) }]} />
+                      <View style={[styles.yoyBar, styles.yoyBarCurr, { height: Math.max(currH, 3) }]} />
+                    </View>
+                    <Text style={styles.yoyMonthLabel}>{month.month_name}</Text>
+                  </View>
+                );
+              })}
+            </View>
+
+            {/* Legenda */}
+            <View style={styles.yoyLegend}>
+              <View style={styles.yoyLegendItem}>
+                <View style={[styles.yoyLegendDot, { backgroundColor: '#CBD5E1' }]} />
+                <Text style={styles.yoyLegendText}>{yoyData.totals.prev_year}: {formatCurrency(yoyData.totals.prev_total)}</Text>
+              </View>
+              <View style={styles.yoyLegendItem}>
+                <View style={[styles.yoyLegendDot, { backgroundColor: '#6366F1' }]} />
+                <Text style={styles.yoyLegendText}>{yoyData.totals.current_year}: {formatCurrency(yoyData.totals.current_total)}</Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* ========== COMPRAS DO PERIODO ========== */}
         <TouchableOpacity
@@ -1056,5 +1340,350 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     fontSize: 14,
+  },
+
+  // Gráfico de Vendas 7 Dias
+  chartCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  chartHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  chartSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  bestDayBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#FEF3C7',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  bestDayText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#D97706',
+  },
+  chartContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    height: 120,
+    marginBottom: 8,
+  },
+  barContainer: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  barWrapper: {
+    width: 28,
+    height: 80,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  bar: {
+    width: '100%',
+    minHeight: 4,
+    borderRadius: 4,
+  },
+  barLabel: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
+  barLabelToday: {
+    color: '#10B981',
+    fontWeight: '700',
+  },
+  barValue: {
+    fontSize: 9,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  chartSummary: {
+    flexDirection: 'row',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 8,
+  },
+  chartSummaryItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  chartSummaryLabel: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  chartSummaryValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  chartSummaryDivider: {
+    width: 1,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 8,
+  },
+
+  // Top 5 Produtos
+  topProductsCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  topProductsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  topProductItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+  topProductRank: {
+    width: 28,
+    alignItems: 'center',
+    paddingTop: 2,
+  },
+  topProductRankText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  topProductInfo: {
+    flex: 1,
+  },
+  topProductNameRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  topProductName: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1F2937',
+    flex: 1,
+    marginRight: 8,
+  },
+  topProductRevenue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  topProductBarBg: {
+    height: 6,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 3,
+    marginBottom: 4,
+    overflow: 'hidden',
+  },
+  topProductBar: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  topProductStats: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  topProductStatText: {
+    fontSize: 11,
+    color: '#6B7280',
+  },
+
+  // FIFO Performance
+  fifoCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  fifoSellThrough: {
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 14,
+  },
+  fifoSellThroughInfo: {
+    marginBottom: 10,
+  },
+  fifoMetricLabel: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 2,
+  },
+  fifoMetricSub: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 2,
+  },
+  fifoSellThroughValue: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#1F2937',
+  },
+  fifoGaugeContainer: {
+    marginTop: 4,
+  },
+  fifoGaugeBg: {
+    height: 8,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  fifoGaugeFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  fifoStatsRow: {
+    flexDirection: 'row',
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 12,
+  },
+  fifoStatItem: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  fifoStatValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#1F2937',
+    marginTop: 2,
+  },
+  fifoStatDivider: {
+    width: 1,
+    backgroundColor: '#E5E7EB',
+    marginHorizontal: 8,
+  },
+  fifoAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FEF2F2',
+    padding: 10,
+    borderRadius: 8,
+  },
+  fifoAlertText: {
+    fontSize: 12,
+    color: '#EF4444',
+    flex: 1,
+  },
+
+  // YoY Comparação
+  yoyCard: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  yoyHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  yoyChangeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+  },
+  yoyChangePct: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  yoyBarsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    marginBottom: 12,
+  },
+  yoyMonthGroup: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  yoyMonthBars: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 2,
+    height: 64,
+  },
+  yoyBar: {
+    width: 8,
+    borderRadius: 3,
+  },
+  yoyBarPrev: {
+    backgroundColor: '#CBD5E1',
+  },
+  yoyBarCurr: {
+    backgroundColor: '#6366F1',
+  },
+  yoyMonthLabel: {
+    fontSize: 9,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
+  yoyLegend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 20,
+    marginTop: 4,
+  },
+  yoyLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  yoyLegendDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  yoyLegendText: {
+    fontSize: 12,
+    color: '#4B5563',
   },
 });

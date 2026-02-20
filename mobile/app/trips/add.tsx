@@ -5,8 +5,6 @@ import {
   ScrollView,
   KeyboardAvoidingView,
   Platform,
-  TouchableOpacity,
-  StatusBar,
 } from 'react-native';
 import {
   TextInput,
@@ -14,16 +12,14 @@ import {
   HelperText,
   Text,
 } from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import PageHeader from '@/components/layout/PageHeader';
 
 import { createTrip, checkTripCode } from '@/services/tripService';
 import { TripCreate } from '@/types';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors } from '@/constants/Colors';
 import { formatCurrency, parseCurrency } from '@/utils/format';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useEffect, useRef } from 'react';
@@ -395,36 +391,11 @@ export default function AddTripScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
-
-      {/* Header Premium */}
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerTop}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-
-            <Text style={styles.headerTitle}>Nova Viagem</Text>
-
-            <View style={styles.headerPlaceholder} />
-          </View>
-
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerSubtitle}>
-              Preencha os dados abaixo para cadastrar uma nova viagem
-            </Text>
-          </View>
-        </LinearGradient>
-      </View>
+      <PageHeader
+        title="Nova Viagem"
+        subtitle="Complete as informações da viagem"
+        showBackButton
+      />
 
       <KeyboardAvoidingView
         style={styles.content}
@@ -808,79 +779,30 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
   },
-  headerContainer: {
-    marginBottom: 0,
-  },
-  // Header styles
-  headerGradient: {
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.md,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.md,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    flex: 1,
-    textAlign: 'center',
-    fontSize: theme.fontSize.xl,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  headerPlaceholder: {
-    width: 40,
-  },
-  headerInfo: {
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.sm,
-    maxWidth: '90%',
-    alignSelf: 'center',
-  },
-  headerSubtitle: {
-    fontSize: theme.fontSize.md,
-    color: '#fff',
-    opacity: 0.95,
-    textAlign: 'center',
-    lineHeight: 20,
-    fontWeight: theme.fontWeight.regular,
-  },
   content: {
     flex: 1,
     backgroundColor: '#f5f5f5',
   },
   scrollContent: {
-    padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
+    padding: 16,
+    paddingBottom: 32,
   },
   section: {
-    marginBottom: theme.spacing.lg,
+    marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.semibold,
-    marginBottom: theme.spacing.sm,
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 8,
     color: Colors.light.primary,
   },
   input: {
-    marginBottom: theme.spacing.sm,
+    marginBottom: 8,
     backgroundColor: Colors.light.background,
   },
   row: {
     flexDirection: 'row',
-    gap: theme.spacing.sm,
+    gap: 8,
   },
   inputHalf: {
     flex: 1,
@@ -906,8 +828,8 @@ const styles = StyleSheet.create({
   },
   actions: {
     flexDirection: 'row',
-    gap: theme.spacing.sm,
-    marginTop: theme.spacing.lg,
+    gap: 8,
+    marginTop: 24,
   },
   button: {
     flex: 1,

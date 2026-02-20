@@ -983,14 +983,14 @@ async def get_top_products(
         if end_date:
             conditions.append(func.date(Sale.created_at) <= end_date)
 
+        # Usar base_price em vez de Product.price (que agora é uma property)
         query = (
             sa_select(
                 Product.id.label('product_id'),
                 Product.name.label('product_name'),
                 Product.brand,
                 Product.sku,
-                Product.price.label('current_price'),
-                Product.cost_price,
+                Product.base_price.label('current_price'),
                 Category.name.label('category_name'),
                 func.sum(SaleItem.quantity).label('quantity_sold'),
                 func.sum(SaleItem.subtotal).label('total_revenue'),
@@ -1006,8 +1006,7 @@ async def get_top_products(
                 Product.name,
                 Product.brand,
                 Product.sku,
-                Product.price,
-                Product.cost_price,
+                Product.base_price,
                 Category.name
             )
             .order_by(desc('quantity_sold'))

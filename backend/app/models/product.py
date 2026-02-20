@@ -1,5 +1,10 @@
 """
 Modelo de produto com variações e preços.
+
+IMPORTANTE: Após a migração para o sistema de variantes:
+- Os campos sku, barcode, size, color, price, cost_price foram movidos para ProductVariant
+- Este modelo agora representa o "produto pai" que agrupa variações
+- O campo base_price serve como preço de referência
 """
 from sqlalchemy import String, Text, Numeric, ForeignKey, Boolean, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -11,19 +16,26 @@ if TYPE_CHECKING:
     from .category import Category
     from .inventory import Inventory
     from .sale import SaleItem
+    from .sale_return import ReturnItem
+    from .product_variant import ProductVariant
 
 
 class Product(BaseModel):
     """
-    Product model with variations and pricing.
+    Product model - Produto pai que agrupa variações.
     
-    Represents fitness equipment, supplements, accessories, etc.
+    Representa um produto que pode ter múltiplas variações (tamanho/cor).
+    Por exemplo: "Legging Nike" pode ter variantes "Roxo P", "Roxo M", "Preto G", etc.
+    
+    Campos movidos para ProductVariant:
+    - sku, barcode, size, color, price, cost_price
+    
+    Campos mantidos no produto pai:
+    - name, description, brand, category, gender, material
+    - base_price (preço de referência)
+    - image_url (imagem principal)
     """
     __tablename__ = "products"
-    __table_args__ = (
-        UniqueConstraint('tenant_id', 'sku', name='uq_products_tenant_sku'),
-        UniqueConstraint('tenant_id', 'barcode', name='uq_products_tenant_barcode'),
-    )
     
     name: Mapped[str] = mapped_column(
         String(255), 
@@ -36,42 +48,15 @@ class Product(BaseModel):
         comment="Product description"
     )
     
-    sku: Mapped[str] = mapped_column(
-        String(50), 
-        index=True,
-        comment="Stock Keeping Unit (unique per tenant)"
-    )
-    
-    barcode: Mapped[str | None] = mapped_column(
-        String(50),
-        index=True,
-        comment="Product barcode (unique per tenant)"
-    )
-    
-    price: Mapped[Decimal] = mapped_column(
-        Numeric(10, 2), 
-        nullable=False,
-        comment="Product selling price"
-    )
-    
-    cost_price: Mapped[Decimal | None] = mapped_column(
+    # Preço base de referência (variantes podem ter preços diferentes)
+    base_price: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 2),
-        comment="Product cost price"
+        comment="Base price for reference (variants may have different prices)"
     )
     
     brand: Mapped[str | None] = mapped_column(
         String(100),
         comment="Brand name (e.g., 'Nike', 'Adidas', 'Under Armour')"
-    )
-    
-    color: Mapped[str | None] = mapped_column(
-        String(50),
-        comment="Product color (e.g., 'Preto', 'Rosa', 'Azul Marinho')"
-    )
-    
-    size: Mapped[str | None] = mapped_column(
-        String(20),
-        comment="Product size (PP, P, M, G, GG, 36, 38, 40, etc.)"
     )
     
     gender: Mapped[str | None] = mapped_column(
@@ -104,7 +89,7 @@ class Product(BaseModel):
 
     image_url: Mapped[str | None] = mapped_column(
         String(500),
-        comment="URL or path to product image"
+        comment="URL or path to product main image"
     )
 
     # Chaves estrangeiras
@@ -112,15 +97,23 @@ class Product(BaseModel):
         ForeignKey("categories.id", ondelete="RESTRICT"),
         comment="Product category ID"
     )
-
-    # Campos de Batch foram removidos: batch_id, initial_quantity, batch_position
     
     # Relacionamentos
     category: Mapped["Category"] = relationship(
         "Category",
         back_populates="products"
     )
+    
+    # Novo relacionamento com variantes
+    variants: Mapped[List["ProductVariant"]] = relationship(
+        "ProductVariant",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        order_by="ProductVariant.size, ProductVariant.color"
+    )
 
+    # Relacionamentos legados (mantidos para compatibilidade durante migração)
+    # Estes serão atualizados para apontar para variantes
     inventory: Mapped[List["Inventory"]] = relationship(
         "Inventory",
         back_populates="product",
@@ -132,57 +125,55 @@ class Product(BaseModel):
         back_populates="product"
     )
     
+    return_items: Mapped[List["ReturnItem"]] = relationship(
+        "ReturnItem",
+        back_populates="product"
+    )
+    
     def __repr__(self) -> str:
-        return f"<Product(id={self.id}, sku='{self.sku}', name='{self.name}')>"
+        return f"<Product(id={self.id}, name='{self.name}')>"
     
     def get_current_stock(self) -> int:
         """
-        Get current stock quantity from active inventory records.
+        Get total stock quantity from all variants.
         
         Returns:
-            Current stock quantity
+            Total stock quantity across all variants
         """
         if self.is_digital:
             return float('inf')  # Digital products have unlimited stock
         
-        active_inventory = [inv for inv in self.inventory if inv.is_active]
-        return sum(inv.quantity for inv in active_inventory)
+        return sum(variant.get_current_stock() for variant in self.variants if variant.is_active)
     
-    def calculate_profit_margin(self) -> Decimal:
+    def get_variant_count(self) -> int:
         """
-        Calculate profit margin percentage.
+        Get number of active variants.
         
         Returns:
-            Profit margin as percentage
+            Number of active variants
         """
-        if not self.cost_price or self.cost_price == 0:
-            return Decimal(0)
-        
-        profit = Decimal(str(self.price)) - Decimal(str(self.cost_price))
-        margin = (profit / Decimal(str(self.price))) * Decimal(100)
-        return margin.quantize(Decimal('0.01'))
+        return len([v for v in self.variants if v.is_active])
     
-    def is_low_stock(self, threshold: int = 5) -> bool:
+    def get_price_range(self) -> tuple[Decimal | None, Decimal | None]:
         """
-        Check if product is low in stock.
+        Get min and max prices across variants.
         
-        Args:
-            threshold: Minimum stock threshold (default 5 for clothing items)
-            
         Returns:
-            True if stock is below threshold
+            Tuple of (min_price, max_price) or (None, None) if no variants
         """
-        if self.is_digital:
-            return False
+        active_variants = [v for v in self.variants if v.is_active]
+        if not active_variants:
+            return (self.base_price, self.base_price)
         
-        return self.get_current_stock() <= threshold
+        prices = [v.price for v in active_variants]
+        return (min(prices), max(prices))
     
     def get_full_name(self) -> str:
         """
-        Get full product name with brand, color and size.
+        Get full product name with brand.
         
         Returns:
-            Formatted product name (e.g., 'Nike Legging Feminina - Preta - Tamanho M')
+            Formatted product name (e.g., 'Nike Legging Feminina')
         """
         parts = []
         if self.brand:
@@ -190,9 +181,54 @@ class Product(BaseModel):
         parts.append(self.name)
         if self.gender:
             parts.append(self.gender)
-        if self.color:
-            parts.append(f"- {self.color}")
-        if self.size:
-            parts.append(f"- Tamanho {self.size}")
         
         return " ".join(parts)
+    
+    def has_variants(self) -> bool:
+        """
+        Check if product has multiple variants.
+        
+        Returns:
+            True if product has more than one variant
+        """
+        return len([v for v in self.variants if v.is_active]) > 1
+    
+    # ========================================
+    # Propriedades de compatibilidade (legado)
+    # Estes campos foram movidos para ProductVariant
+    # ========================================
+    
+    @property
+    def sku(self) -> str | None:
+        """SKU da primeira variante ativa (compatibilidade)."""
+        active_variants = [v for v in self.variants if v.is_active]
+        return active_variants[0].sku if active_variants else None
+    
+    @property
+    def price(self) -> Decimal | None:
+        """Preço da primeira variante ativa (compatibilidade)."""
+        active_variants = [v for v in self.variants if v.is_active]
+        return active_variants[0].price if active_variants else self.base_price
+    
+    @property
+    def cost_price(self) -> Decimal | None:
+        """Custo da primeira variante ativa (compatibilidade)."""
+        active_variants = [v for v in self.variants if v.is_active]
+        return active_variants[0].cost_price if active_variants else None
+    
+    @property
+    def size(self) -> str | None:
+        """Tamanho da primeira variante ativa (compatibilidade)."""
+        active_variants = [v for v in self.variants if v.is_active]
+        return active_variants[0].size if active_variants else None
+    
+    @property
+    def color(self) -> str | None:
+        """Cor da primeira variante ativa (compatibilidade)."""
+        active_variants = [v for v in self.variants if v.is_active]
+        return active_variants[0].color if active_variants else None
+    
+    @property
+    def barcode(self) -> str | None:
+        """Barcode legado (não mais usado)."""
+        return None

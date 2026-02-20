@@ -48,6 +48,19 @@ import { EntryType, StockEntryCreate, EntryItem, Product } from '@/types';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { logInfo, logError } from '@/services/debugLog';
 
+/**
+ * Capitaliza a primeira letra de cada palavra no nome do fornecedor
+ * Ex: "joão silva" -> "João Silva", "MARIA SANTOS" -> "Maria Santos"
+ */
+const capitalizeSupplierName = (text: string): string => {
+  if (!text) return text;
+  return text
+    .toLowerCase()
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+};
+
 interface EntryItemForm extends EntryItem {
   id: string; // ID temporário para gerenciar a lista
   product?: Product;
@@ -844,10 +857,11 @@ export default function AddStockEntryScreen() {
             <TextInput
               label="Nome do Fornecedor *"
               value={supplierName}
-              onChangeText={setSupplierName}
+              onChangeText={(text) => setSupplierName(capitalizeSupplierName(text))}
               mode="outlined"
               error={!!errors.supplierName}
               left={<TextInput.Icon icon="store" />}
+              autoCapitalize="words"
             />
             {errors.supplierName && (
               <HelperText type="error">{errors.supplierName}</HelperText>
@@ -1244,8 +1258,7 @@ export default function AddStockEntryScreen() {
             ? [
                 `Produto: ${params.wizardProductName || 'N/A'}`,
                 `Entrada: ${createdEntryCode}`,
-                `Quantidade: ${items.reduce((sum, i) => sum + i.quantity, 0)} un`,
-                '',
+                `Quantidade: ${items.reduce((sum, i) => sum + i.quantity_received, 0)} un`,
                 '✅ Rastreabilidade FIFO ativa',
               ]
             : isFromAIScanner

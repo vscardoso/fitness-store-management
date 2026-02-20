@@ -14,7 +14,6 @@ import {
   StatusBar,
   TouchableOpacity,
   BackHandler,
-  KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { Text } from 'react-native-paper';
@@ -201,12 +200,8 @@ export default function ProductWizardScreen() {
       {/* Stepper */}
       <WizardStepper currentStep={state.currentStep} />
 
-      {/* Content */}
-      <KeyboardAvoidingView
-        style={styles.content}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={0}
-      >
+      {/* Content - cada step gerencia seu próprio KeyboardAvoidingView */}
+      <View style={styles.content}>
         {state.currentStep === 'identify' && (
           <WizardStep1
             wizard={wizard}
@@ -230,7 +225,7 @@ export default function ProductWizardScreen() {
         {state.currentStep === 'complete' && (
           <WizardComplete wizard={wizard} />
         )}
-      </KeyboardAvoidingView>
+      </View>
 
       {/* Exit Dialog */}
       <ConfirmDialog

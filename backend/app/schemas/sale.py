@@ -3,15 +3,16 @@
 from typing import List, Optional, Dict, Any
 from datetime import datetime
 from decimal import Decimal
+from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
-from app.models.sale import PaymentMethod
+from app.models.sale import PaymentMethod, SaleStatus
 
 
 class ProductInSale(BaseModel):
     """Simplified product schema for sale item response."""
-    id: int
-    name: str
+    id: Optional[int] = None
+    name: Optional[str] = None
     description: Optional[str] = None
     sku: Optional[str] = None
     
@@ -58,7 +59,8 @@ class SaleSourceInfo(BaseModel):
 class SaleItemResponse(BaseModel):
     """Schema for sale item response."""
     id: int
-    product_id: int
+    product_id: Optional[int] = None  # Agora opcional (pode usar variant_id)
+    variant_id: Optional[int] = None  # Novo campo
     quantity: int
     unit_price: Decimal
     unit_cost: Optional[Decimal] = None
@@ -137,6 +139,14 @@ class SaleResponse(BaseModel):
     profit_margin_percent: Optional[float] = None
 
     model_config = ConfigDict(from_attributes=True)
+
+    @field_validator("status", "payment_method", mode="before")
+    @classmethod
+    def enum_to_str(cls, v: Any) -> str:
+        """Convert Enum to string value."""
+        if isinstance(v, Enum):
+            return v.value
+        return v
 
     def model_post_init(self, __context: Any) -> None:
         """Calculate sale-level profit from items."""

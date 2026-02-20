@@ -100,3 +100,225 @@
    Data: {"sku": "LEGVIC-001"}
  [19:22:37] [mobile] [Wizard] goToExistingEntry - navegando para entries
    Data: {"productId": 1359, "productName": "Leg Victor teste", "quantity": 15}
+ [17:28:08] [mobile] [API] GET /dashboard/stats - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:28:08] [mobile] [API] GET /dashboard/inventory/valuation - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:28:08] [mobile] [API] GET /dashboard/fifo-performance - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:28:09] [mobile] [API] GET /dashboard/stats - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:28:09] [mobile] [API] GET /dashboard/inventory/valuation - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:28:09] [mobile] [API] GET /dashboard/fifo-performance - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:29:06] [mobile] [API] GET /dashboard/stats - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:29:07] [mobile] [API] GET /dashboard/inventory/valuation - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:29:07] [mobile] [API] GET /dashboard/fifo-performance - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:29:07] [mobile] [API] GET /dashboard/stats - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:29:07] [mobile] [API] GET /dashboard/inventory/valuation - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:29:08] [mobile] [API] GET /dashboard/fifo-performance - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [20:50:20] [mobile] [API] GET /dashboard/stats - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 1: type 'property' is not supported\n[SQL: SELECT coalesce(sum(entry_items.quantity_remaining * ?), ?) AS potential_revenue \nFROM entry_items JOIN products ON entry_items.product_id = products.id JOIN stock_entries ON entry_items.entry_id = stock_entries.id \nWHERE entry_items.tenant_id = ? AND entry_items.is_active = 1 AND stock_entries.is_active = 1 AND entry_items.quantity_remaining > ? AND products.is_active = 1]\n[parameters: (<property object at 0x00000262399E70B0>, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:50:20] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [20:50:20] [mobile] [API] GET /dashboard/fifo-performance - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 2: type 'property' is not supported\n[SQL: SELECT stock_entries.id AS entry_id, stock_entries.entry_date, stock_entries.total_cost, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * entry_items.unit_cost), ?) AS cost_of_sold, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * ?), ?) AS revenue_of_sold, coalesce(sum(entry_items.quantity_received), ?) AS total_received, coalesce(sum(entry_items.quantity_remaining), ?) AS total_remaining \nFROM stock_entries JOIN entry_items ON entry_items.entry_id = stock_entries.id JOIN products ON entry_items.product_id = products.id \nWHERE stock_entries.tenant_id = ? AND stock_entries.is_active = 1 AND entry_items.is_active = 1 AND products.is_active = 1 GROUP BY stock_entries.id, stock_entries.entry_date, stock_entries.total_cost \nHAVING sum(entry_items.quantity_received) > ?]\n[parameters: (0, <property object at 0x00000262399E70B0>, 0, 0, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:50:21] [mobile] [API] GET /dashboard/stats - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 1: type 'property' is not supported\n[SQL: SELECT coalesce(sum(entry_items.quantity_remaining * ?), ?) AS potential_revenue \nFROM entry_items JOIN products ON entry_items.product_id = products.id JOIN stock_entries ON entry_items.entry_id = stock_entries.id \nWHERE entry_items.tenant_id = ? AND entry_items.is_active = 1 AND stock_entries.is_active = 1 AND entry_items.quantity_remaining > ? AND products.is_active = 1]\n[parameters: (<property object at 0x00000262399E70B0>, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:50:21] [mobile] [API] GET /dashboard/inventory/valuation - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 1: type 'property' is not supported\n[SQL: SELECT coalesce(sum(entry_items.quantity_remaining * ?), ?) AS retail_value \nFROM entry_items JOIN products ON entry_items.product_id = products.id JOIN stock_entries ON entry_items.entry_id = stock_entries.id \nWHERE entry_items.tenant_id = ? AND entry_items.is_active = 1 AND entry_items.quantity_remaining > ? AND stock_entries.is_active = 1 AND products.is_active = 1 AND products.is_catalog = 0 AND products.tenant_id = ?]\n[parameters: (<property object at 0x00000262399E70B0>, 0, 9, 0, 9)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:50:21] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [20:50:21] [mobile] [API] GET /dashboard/fifo-performance - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 2: type 'property' is not supported\n[SQL: SELECT stock_entries.id AS entry_id, stock_entries.entry_date, stock_entries.total_cost, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * entry_items.unit_cost), ?) AS cost_of_sold, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * ?), ?) AS revenue_of_sold, coalesce(sum(entry_items.quantity_received), ?) AS total_received, coalesce(sum(entry_items.quantity_remaining), ?) AS total_remaining \nFROM stock_entries JOIN entry_items ON entry_items.entry_id = stock_entries.id JOIN products ON entry_items.product_id = products.id \nWHERE stock_entries.tenant_id = ? AND stock_entries.is_active = 1 AND entry_items.is_active = 1 AND products.is_active = 1 GROUP BY stock_entries.id, stock_entries.entry_date, stock_entries.total_cost \nHAVING sum(entry_items.quantity_received) > ?]\n[parameters: (0, <property object at 0x00000262399E70B0>, 0, 0, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:53:29] [mobile] [API] GET /dashboard/inventory/valuation - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 1: type 'property' is not supported\n[SQL: SELECT coalesce(sum(entry_items.quantity_remaining * ?), ?) AS retail_value \nFROM entry_items JOIN products ON entry_items.product_id = products.id JOIN stock_entries ON entry_items.entry_id = stock_entries.id \nWHERE entry_items.tenant_id = ? AND entry_items.is_active = 1 AND entry_items.quantity_remaining > ? AND stock_entries.is_active = 1 AND products.is_active = 1 AND products.is_catalog = 0 AND products.tenant_id = ?]\n[parameters: (<property object at 0x000001D37D877240>, 0, 9, 0, 9)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:53:29] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [20:53:29] [mobile] [API] GET /dashboard/fifo-performance - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 2: type 'property' is not supported\n[SQL: SELECT stock_entries.id AS entry_id, stock_entries.entry_date, stock_entries.total_cost, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * entry_items.unit_cost), ?) AS cost_of_sold, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * ?), ?) AS revenue_of_sold, coalesce(sum(entry_items.quantity_received), ?) AS total_received, coalesce(sum(entry_items.quantity_remaining), ?) AS total_remaining \nFROM stock_entries JOIN entry_items ON entry_items.entry_id = stock_entries.id JOIN products ON entry_items.product_id = products.id \nWHERE stock_entries.tenant_id = ? AND stock_entries.is_active = 1 AND entry_items.is_active = 1 AND products.is_active = 1 GROUP BY stock_entries.id, stock_entries.entry_date, stock_entries.total_cost \nHAVING sum(entry_items.quantity_received) > ?]\n[parameters: (0, <property object at 0x000001D37D877240>, 0, 0, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:53:30] [mobile] [API] GET /dashboard/inventory/valuation - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 1: type 'property' is not supported\n[SQL: SELECT coalesce(sum(entry_items.quantity_remaining * ?), ?) AS retail_value \nFROM entry_items JOIN products ON entry_items.product_id = products.id JOIN stock_entries ON entry_items.entry_id = stock_entries.id \nWHERE entry_items.tenant_id = ? AND entry_items.is_active = 1 AND entry_items.quantity_remaining > ? AND stock_entries.is_active = 1 AND products.is_active = 1 AND products.is_catalog = 0 AND products.tenant_id = ?]\n[parameters: (<property object at 0x000001D37D877240>, 0, 9, 0, 9)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:53:30] [mobile] [API] GET /dashboard/stats - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 1: type 'property' is not supported\n[SQL: SELECT coalesce(sum(entry_items.quantity_remaining * ?), ?) AS potential_revenue \nFROM entry_items JOIN products ON entry_items.product_id = products.id JOIN stock_entries ON entry_items.entry_id = stock_entries.id \nWHERE entry_items.tenant_id = ? AND entry_items.is_active = 1 AND stock_entries.is_active = 1 AND entry_items.quantity_remaining > ? AND products.is_active = 1]\n[parameters: (<property object at 0x000001D37D877240>, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:53:30] [mobile] [API] GET /dashboard/fifo-performance - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 2: type 'property' is not supported\n[SQL: SELECT stock_entries.id AS entry_id, stock_entries.entry_date, stock_entries.total_cost, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * entry_items.unit_cost), ?) AS cost_of_sold, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * ?), ?) AS revenue_of_sold, coalesce(sum(entry_items.quantity_received), ?) AS total_received, coalesce(sum(entry_items.quantity_remaining), ?) AS total_remaining \nFROM stock_entries JOIN entry_items ON entry_items.entry_id = stock_entries.id JOIN products ON entry_items.product_id = products.id \nWHERE stock_entries.tenant_id = ? AND stock_entries.is_active = 1 AND entry_items.is_active = 1 AND products.is_active = 1 GROUP BY stock_entries.id, stock_entries.entry_date, stock_entries.total_cost \nHAVING sum(entry_items.quantity_received) > ?]\n[parameters: (0, <property object at 0x000001D37D877240>, 0, 0, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:53:30] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [20:54:50] [mobile] [API] GET /dashboard/inventory/valuation - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 1: type 'property' is not supported\n[SQL: SELECT coalesce(sum(entry_items.quantity_remaining * ?), ?) AS retail_value \nFROM entry_items JOIN products ON entry_items.product_id = products.id JOIN stock_entries ON entry_items.entry_id = stock_entries.id \nWHERE entry_items.tenant_id = ? AND entry_items.is_active = 1 AND entry_items.quantity_remaining > ? AND stock_entries.is_active = 1 AND products.is_active = 1 AND products.is_catalog = 0 AND products.tenant_id = ?]\n[parameters: (<property object at 0x000001D37D877240>, 0, 9, 0, 9)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:54:50] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [20:54:50] [mobile] [API] GET /dashboard/fifo-performance - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 2: type 'property' is not supported\n[SQL: SELECT stock_entries.id AS entry_id, stock_entries.entry_date, stock_entries.total_cost, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * entry_items.unit_cost), ?) AS cost_of_sold, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * ?), ?) AS revenue_of_sold, coalesce(sum(entry_items.quantity_received), ?) AS total_received, coalesce(sum(entry_items.quantity_remaining), ?) AS total_remaining \nFROM stock_entries JOIN entry_items ON entry_items.entry_id = stock_entries.id JOIN products ON entry_items.product_id = products.id \nWHERE stock_entries.tenant_id = ? AND stock_entries.is_active = 1 AND entry_items.is_active = 1 AND products.is_active = 1 GROUP BY stock_entries.id, stock_entries.entry_date, stock_entries.total_cost \nHAVING sum(entry_items.quantity_received) > ?]\n[parameters: (0, <property object at 0x000001D37D877240>, 0, 0, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:54:51] [mobile] [API] GET /dashboard/inventory/valuation - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 1: type 'property' is not supported\n[SQL: SELECT coalesce(sum(entry_items.quantity_remaining * ?), ?) AS retail_value \nFROM entry_items JOIN products ON entry_items.product_id = products.id JOIN stock_entries ON entry_items.entry_id = stock_entries.id \nWHERE entry_items.tenant_id = ? AND entry_items.is_active = 1 AND entry_items.quantity_remaining > ? AND stock_entries.is_active = 1 AND products.is_active = 1 AND products.is_catalog = 0 AND products.tenant_id = ?]\n[parameters: (<property object at 0x000001D37D877240>, 0, 9, 0, 9)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:54:51] [mobile] [API] GET /dashboard/stats - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 1: type 'property' is not supported\n[SQL: SELECT coalesce(sum(entry_items.quantity_remaining * ?), ?) AS potential_revenue \nFROM entry_items JOIN products ON entry_items.product_id = products.id JOIN stock_entries ON entry_items.entry_id = stock_entries.id \nWHERE entry_items.tenant_id = ? AND entry_items.is_active = 1 AND stock_entries.is_active = 1 AND entry_items.quantity_remaining > ? AND products.is_active = 1]\n[parameters: (<property object at 0x000001D37D877240>, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:54:51] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [20:54:51] [mobile] [API] GET /dashboard/fifo-performance - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 2: type 'property' is not supported\n[SQL: SELECT stock_entries.id AS entry_id, stock_entries.entry_date, stock_entries.total_cost, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * entry_items.unit_cost), ?) AS cost_of_sold, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * ?), ?) AS revenue_of_sold, coalesce(sum(entry_items.quantity_received), ?) AS total_received, coalesce(sum(entry_items.quantity_remaining), ?) AS total_remaining \nFROM stock_entries JOIN entry_items ON entry_items.entry_id = stock_entries.id JOIN products ON entry_items.product_id = products.id \nWHERE stock_entries.tenant_id = ? AND stock_entries.is_active = 1 AND entry_items.is_active = 1 AND products.is_active = 1 GROUP BY stock_entries.id, stock_entries.entry_date, stock_entries.total_cost \nHAVING sum(entry_items.quantity_received) > ?]\n[parameters: (0, <property object at 0x000001D37D877240>, 0, 0, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:55:17] [mobile] [API] GET /dashboard/stats - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 1: type 'property' is not supported\n[SQL: SELECT coalesce(sum(entry_items.quantity_remaining * ?), ?) AS potential_revenue \nFROM entry_items JOIN products ON entry_items.product_id = products.id JOIN stock_entries ON entry_items.entry_id = stock_entries.id \nWHERE entry_items.tenant_id = ? AND entry_items.is_active = 1 AND stock_entries.is_active = 1 AND entry_items.quantity_remaining > ? AND products.is_active = 1]\n[parameters: (<property object at 0x000001D37D877240>, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:55:18] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [20:55:18] [mobile] [API] GET /dashboard/fifo-performance - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 2: type 'property' is not supported\n[SQL: SELECT stock_entries.id AS entry_id, stock_entries.entry_date, stock_entries.total_cost, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * entry_items.unit_cost), ?) AS cost_of_sold, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * ?), ?) AS revenue_of_sold, coalesce(sum(entry_items.quantity_received), ?) AS total_received, coalesce(sum(entry_items.quantity_remaining), ?) AS total_remaining \nFROM stock_entries JOIN entry_items ON entry_items.entry_id = stock_entries.id JOIN products ON entry_items.product_id = products.id \nWHERE stock_entries.tenant_id = ? AND stock_entries.is_active = 1 AND entry_items.is_active = 1 AND products.is_active = 1 GROUP BY stock_entries.id, stock_entries.entry_date, stock_entries.total_cost \nHAVING sum(entry_items.quantity_received) > ?]\n[parameters: (0, <property object at 0x000001D37D877240>, 0, 0, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:55:18] [mobile] [API] GET /dashboard/stats - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 1: type 'property' is not supported\n[SQL: SELECT coalesce(sum(entry_items.quantity_remaining * ?), ?) AS potential_revenue \nFROM entry_items JOIN products ON entry_items.product_id = products.id JOIN stock_entries ON entry_items.entry_id = stock_entries.id \nWHERE entry_items.tenant_id = ? AND entry_items.is_active = 1 AND stock_entries.is_active = 1 AND entry_items.quantity_remaining > ? AND products.is_active = 1]\n[parameters: (<property object at 0x000001D37D877240>, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:55:18] [mobile] [API] GET /dashboard/inventory/valuation - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 1: type 'property' is not supported\n[SQL: SELECT coalesce(sum(entry_items.quantity_remaining * ?), ?) AS retail_value \nFROM entry_items JOIN products ON entry_items.product_id = products.id JOIN stock_entries ON entry_items.entry_id = stock_entries.id \nWHERE entry_items.tenant_id = ? AND entry_items.is_active = 1 AND entry_items.quantity_remaining > ? AND stock_entries.is_active = 1 AND products.is_active = 1 AND products.is_catalog = 0 AND products.tenant_id = ?]\n[parameters: (<property object at 0x000001D37D877240>, 0, 9, 0, 9)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:55:19] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [20:55:19] [mobile] [API] GET /dashboard/fifo-performance - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 2: type 'property' is not supported\n[SQL: SELECT stock_entries.id AS entry_id, stock_entries.entry_date, stock_entries.total_cost, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * entry_items.unit_cost), ?) AS cost_of_sold, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * ?), ?) AS revenue_of_sold, coalesce(sum(entry_items.quantity_received), ?) AS total_received, coalesce(sum(entry_items.quantity_remaining), ?) AS total_remaining \nFROM stock_entries JOIN entry_items ON entry_items.entry_id = stock_entries.id JOIN products ON entry_items.product_id = products.id \nWHERE stock_entries.tenant_id = ? AND stock_entries.is_active = 1 AND entry_items.is_active = 1 AND products.is_active = 1 GROUP BY stock_entries.id, stock_entries.entry_date, stock_entries.total_cost \nHAVING sum(entry_items.quantity_received) > ?]\n[parameters: (0, <property object at 0x000001D37D877240>, 0, 0, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:57:44] [mobile] [API] GET /dashboard/inventory/valuation - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 1: type 'property' is not supported\n[SQL: SELECT coalesce(sum(entry_items.quantity_remaining * ?), ?) AS retail_value \nFROM entry_items JOIN products ON entry_items.product_id = products.id JOIN stock_entries ON entry_items.entry_id = stock_entries.id \nWHERE entry_items.tenant_id = ? AND entry_items.is_active = 1 AND entry_items.quantity_remaining > ? AND stock_entries.is_active = 1 AND products.is_active = 1 AND products.is_catalog = 0 AND products.tenant_id = ?]\n[parameters: (<property object at 0x000001D37D877240>, 0, 9, 0, 9)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:57:44] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [20:57:44] [mobile] [API] GET /dashboard/fifo-performance - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 2: type 'property' is not supported\n[SQL: SELECT stock_entries.id AS entry_id, stock_entries.entry_date, stock_entries.total_cost, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * entry_items.unit_cost), ?) AS cost_of_sold, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * ?), ?) AS revenue_of_sold, coalesce(sum(entry_items.quantity_received), ?) AS total_received, coalesce(sum(entry_items.quantity_remaining), ?) AS total_remaining \nFROM stock_entries JOIN entry_items ON entry_items.entry_id = stock_entries.id JOIN products ON entry_items.product_id = products.id \nWHERE stock_entries.tenant_id = ? AND stock_entries.is_active = 1 AND entry_items.is_active = 1 AND products.is_active = 1 GROUP BY stock_entries.id, stock_entries.entry_date, stock_entries.total_cost \nHAVING sum(entry_items.quantity_received) > ?]\n[parameters: (0, <property object at 0x000001D37D877240>, 0, 0, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:57:45] [mobile] [API] GET /dashboard/inventory/valuation - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 1: type 'property' is not supported\n[SQL: SELECT coalesce(sum(entry_items.quantity_remaining * ?), ?) AS retail_value \nFROM entry_items JOIN products ON entry_items.product_id = products.id JOIN stock_entries ON entry_items.entry_id = stock_entries.id \nWHERE entry_items.tenant_id = ? AND entry_items.is_active = 1 AND entry_items.quantity_remaining > ? AND stock_entries.is_active = 1 AND products.is_active = 1 AND products.is_catalog = 0 AND products.tenant_id = ?]\n[parameters: (<property object at 0x000001D37D877240>, 0, 9, 0, 9)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:57:45] [mobile] [API] GET /dashboard/stats - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 1: type 'property' is not supported\n[SQL: SELECT coalesce(sum(entry_items.quantity_remaining * ?), ?) AS potential_revenue \nFROM entry_items JOIN products ON entry_items.product_id = products.id JOIN stock_entries ON entry_items.entry_id = stock_entries.id \nWHERE entry_items.tenant_id = ? AND entry_items.is_active = 1 AND stock_entries.is_active = 1 AND entry_items.quantity_remaining > ? AND products.is_active = 1]\n[parameters: (<property object at 0x000001D37D877240>, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:57:45] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [20:57:45] [mobile] [API] GET /dashboard/fifo-performance - 500
+   Data: {"status": 500, "detail": "(sqlite3.ProgrammingError) Error binding parameter 2: type 'property' is not supported\n[SQL: SELECT stock_entries.id AS entry_id, stock_entries.entry_date, stock_entries.total_cost, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * entry_items.unit_cost), ?) AS cost_of_sold, coalesce(sum((entry_items.quantity_received - entry_items.quantity_remaining) * ?), ?) AS revenue_of_sold, coalesce(sum(entry_items.quantity_received), ?) AS total_received, coalesce(sum(entry_items.quantity_remaining), ?) AS total_remaining \nFROM stock_entries JOIN entry_items ON entry_items.entry_id = stock_entries.id JOIN products ON entry_items.product_id = products.id \nWHERE stock_entries.tenant_id = ? AND stock_entries.is_active = 1 AND entry_items.is_active = 1 AND products.is_active = 1 GROUP BY stock_entries.id, stock_entries.entry_date, stock_entries.total_cost \nHAVING sum(entry_items.quantity_received) > ?]\n[parameters: (0, <property object at 0x000001D37D877240>, 0, 0, 0, 9, 0)]\n(Background on this error at: https://sqlalche.me/e/20/f405)", "code": "ERR_BAD_RESPONSE"}
+ [20:59:41] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [20:59:42] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:02:41] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:02:42] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:03:59] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:04:00] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:04:56] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:04:57] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:05:26] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:05:27] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:12:42] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:12:43] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:15:08] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:15:09] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:16:47] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:16:49] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:17:30] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:17:31] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:18:14] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:18:15] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:20:53] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:20:54] [mobile] [API] GET /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [21:29:44] [mobile] [API] GET /products/catalog - 500
+   Data: {"status": 500, "detail": "Erro ao listar catálogo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [21:29:44] [mobile] [API] GET /products/catalog - 500
+   Data: {"status": 500, "detail": "Erro ao listar catálogo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [21:29:50] [mobile] [API] GET /products/catalog - 500
+   Data: {"status": 500, "detail": "Erro ao listar catálogo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [21:29:51] [mobile] [API] GET /products/catalog - 500
+   Data: {"status": 500, "detail": "Erro ao listar catálogo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [21:33:09] [mobile] [Wizard] SKU gerado automaticamente
+   Data: {"sku": "LEGGIN-001"}
+ [21:33:33] [mobile] [API] POST /products/ - 500
+   Data: {"status": 500, "detail": "Erro ao criar produto: property 'sku' of 'Product' object has no setter", "code": "ERR_BAD_RESPONSE"}
+ [21:35:52] [mobile] [API] GET /products/catalog - 500
+   Data: {"status": 500, "detail": "Erro ao listar catálogo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [21:35:53] [mobile] [API] GET /products/catalog - 500
+   Data: {"status": 500, "detail": "Erro ao listar catálogo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [21:45:13] [mobile] [API] GET /products/catalog - 500
+   Data: {"status": 500, "detail": "Erro ao listar catálogo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [21:45:14] [mobile] [API] GET /products/catalog - 500
+   Data: {"status": 500, "detail": "Erro ao listar catálogo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [21:51:18] [mobile] [Wizard] SKU gerado automaticamente
+   Data: {"sku": "LEG-001"}
+ [21:56:35] [mobile] [API] GET /products/ - 500
+   Data: {"status": 500, "detail": "Erro ao listar produtos: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [21:56:37] [mobile] [API] GET /products/ - 500
+   Data: {"status": 500, "detail": "Erro ao listar produtos: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [21:56:51] [mobile] [API] GET /products/active - 500
+   Data: {"status": 500, "detail": "Erro ao listar produtos ativos: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [21:56:52] [mobile] [API] GET /products/active - 500
+   Data: {"status": 500, "detail": "Erro ao listar produtos ativos: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [21:56:58] [mobile] [API] GET /products/active - 500
+   Data: {"status": 500, "detail": "Erro ao listar produtos ativos: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [21:56:59] [mobile] [API] GET /products/active - 500
+   Data: {"status": 500, "detail": "Erro ao listar produtos ativos: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [22:20:35] [mobile] [API] GET /products/active - 500
+   Data: {"status": 500, "detail": "Erro ao listar produtos ativos: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [22:20:36] [mobile] [API] GET /products/active - 500
+   Data: {"status": 500, "detail": "Erro ao listar produtos ativos: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [22:24:52] [mobile] [API] GET /products/active - 500
+   Data: {"status": 500, "detail": "Erro ao listar produtos ativos: 'ProductVariant' object has no attribute 'barcode'", "code": "ERR_BAD_RESPONSE"}
+ [22:24:53] [mobile] [API] GET /products/active - 500
+   Data: {"status": 500, "detail": "Erro ao listar produtos ativos: 'ProductVariant' object has no attribute 'barcode'", "code": "ERR_BAD_RESPONSE"}
+ [22:27:49] [mobile] [API] GET /products/active - 500
+   Data: {"status": 500, "detail": "Erro ao listar produtos ativos: 'ProductVariant' object has no attribute 'barcode'", "code": "ERR_BAD_RESPONSE"}
+ [22:27:50] [mobile] [API] GET /products/active - 500
+   Data: {"status": 500, "detail": "Erro ao listar produtos ativos: 'ProductVariant' object has no attribute 'barcode'", "code": "ERR_BAD_RESPONSE"}
+ [22:38:16] [mobile] [API] GET /products/active - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [22:38:17] [mobile] [API] GET /products/active - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [22:38:39] [mobile] [API] GET /products/active - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [22:38:40] [mobile] [API] GET /products/active - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [22:40:35] [mobile] [API] GET /products/active - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [22:40:36] [mobile] [API] GET /products/active - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [08:55:38] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:55:38] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:55:38] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:55:38] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:55:38] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:55:38] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:55:39] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:55:39] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:55:39] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:56:18] [mobile] [API] POST /auth/login - 401
+   Data: {"status": 401, "detail": "Email ou senha incorretos", "code": "ERR_BAD_REQUEST"}
+ [08:56:27] [mobile] [API] POST /auth/login - 401
+   Data: {"status": 401, "detail": "Email ou senha incorretos", "code": "ERR_BAD_REQUEST"}
+ [08:56:30] [mobile] [API] POST /auth/login - 401
+   Data: {"status": 401, "detail": "Email ou senha incorretos", "code": "ERR_BAD_REQUEST"}
+ [08:56:46] [mobile] [API] POST /auth/login - 401
+   Data: {"status": 401, "detail": "Email ou senha incorretos", "code": "ERR_BAD_REQUEST"}

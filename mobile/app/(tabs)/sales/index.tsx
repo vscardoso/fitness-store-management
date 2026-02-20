@@ -1,10 +1,10 @@
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, FlatList, RefreshControl, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Text, Card, Searchbar } from 'react-native-paper';
+import { Text, Searchbar } from 'react-native-paper';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import PageHeader from '@/components/layout/PageHeader';
 import { getSales } from '@/services/saleService';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
@@ -12,6 +12,22 @@ import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';
 import PeriodFilter, { PeriodFilterValue } from '@/components/PeriodFilter';
 import type { Sale } from '@/types';
+
+const statusMap: Record<string, { label: string; color: string; bg: string; icon: string }> = {
+  pending:            { label: 'Pendente',     color: '#F57C00', bg: '#FFF3E0', icon: 'time-outline' },
+  completed:          { label: 'Concluída',    color: '#2E7D32', bg: '#E8F5E9', icon: 'checkmark-circle-outline' },
+  cancelled:          { label: 'Cancelada',    color: '#C62828', bg: '#FFEBEE', icon: 'close-circle-outline' },
+  partially_refunded: { label: 'Dev. Parcial', color: '#F57C00', bg: '#FFF3E0', icon: 'return-down-back-outline' },
+  refunded:           { label: 'Devolvida',    color: '#7B1FA2', bg: '#F3E5F5', icon: 'refresh-outline' },
+};
+
+const paymentIcon: Record<string, string> = {
+  cash: 'cash-outline',
+  credit_card: 'card-outline',
+  debit_card: 'card-outline',
+  pix: 'qr-code-outline',
+  transfer: 'swap-horizontal-outline',
+};
 
 export default function SalesListScreen() {
   const router = useRouter();
@@ -23,51 +39,29 @@ export default function SalesListScreen() {
   const dateRange = useMemo(() => {
     const now = new Date();
     let start: Date;
-
     switch (selectedPeriod) {
-      case 'this_month':
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
-        break;
-      case 'last_30_days':
-        start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-        break;
-      case 'last_2_months':
-        start = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate());
-        break;
-      case 'last_3_months':
-        start = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate());
-        break;
-      case 'last_6_months':
-        start = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate());
-        break;
-      case 'this_year':
-        start = new Date(now.getFullYear(), 0, 1);
-        break;
-      default:
-        start = new Date(now.getFullYear(), now.getMonth(), 1);
+      case 'this_month':     start = new Date(now.getFullYear(), now.getMonth(), 1); break;
+      case 'last_30_days':   start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); break;
+      case 'last_2_months':  start = new Date(now.getFullYear(), now.getMonth() - 2, now.getDate()); break;
+      case 'last_3_months':  start = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()); break;
+      case 'last_6_months':  start = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate()); break;
+      case 'this_year':      start = new Date(now.getFullYear(), 0, 1); break;
+      default:               start = new Date(now.getFullYear(), now.getMonth(), 1);
     }
-
     const fmt = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     return { start_date: fmt(start), end_date: fmt(now) };
   }, [selectedPeriod]);
 
-  const { data: sales, isLoading, refetch, isFetching } = useQuery({
+  const { data: sales, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['sales', skip, search, dateRange],
     queryFn: async () => {
       const params: any = { skip, limit: 50, ...dateRange };
-      if (search.trim().length > 0) {
-        params.sale_number = search.trim();
-      }
+      if (search.trim().length > 0) params.sale_number = search.trim();
       return getSales(params);
     },
   });
 
-  // Auto-refresh quando a tela recebe foco
-  useFocusEffect(
-    useCallback(() => {
-      refetch();
-    }, [refetch])
-  );
+  useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -76,16 +70,10 @@ export default function SalesListScreen() {
   };
 
   const loadMore = () => {
-    if (sales && sales.length === 50) {
-      setSkip(prev => prev + 50);
-    }
+    if (sales && sales.length === 50) setSkip(prev => prev + 50);
   };
 
-  const statusMap: Record<string, { label: string; color: string; bg: string }> = {
-    pending: { label: 'Pendente', color: '#F57C00', bg: '#FFF3E0' },
-    completed: { label: 'Concluída', color: '#2E7D32', bg: '#E8F5E9' },
-    cancelled: { label: 'Cancelada', color: '#C62828', bg: '#FFEBEE' },
-  };
+  const salesCount = sales?.length || 0;
 
   const renderItem = ({ item }: { item: Sale }) => {
     const status = statusMap[item.status] || statusMap.pending;
@@ -97,65 +85,51 @@ export default function SalesListScreen() {
       <TouchableOpacity
         activeOpacity={0.7}
         onPress={() => router.push(`/sales/${item.id}`)}
+        style={styles.cardWrapper}
       >
-        <Card style={styles.saleCard} mode="elevated" elevation={2}>
-          <Card.Content style={styles.cardContent}>
-            <View style={styles.cardHeader}>
-              <View style={styles.saleInfo}>
+        <View style={styles.saleCard}>
+          {/* Faixa lateral colorida por status */}
+          <View style={[styles.statusStripe, { backgroundColor: status.color }]} />
+
+          <View style={styles.cardInner}>
+            {/* Linha superior: número + badge */}
+            <View style={styles.cardTop}>
+              <View style={styles.saleNumberRow}>
+                <Ionicons name="receipt-outline" size={16} color={Colors.light.primary} />
                 <Text style={styles.saleNumber}>{item.sale_number}</Text>
-                <Text style={styles.saleTime}>{formattedDate} às {formattedTime}</Text>
               </View>
               <View style={[styles.statusBadge, { backgroundColor: status.bg }]}>
+                <Ionicons name={status.icon as any} size={12} color={status.color} />
                 <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
               </View>
             </View>
 
-            <View style={styles.cardBody}>
-              <View style={styles.amountRow}>
-                <Ionicons name="cash-outline" size={20} color={Colors.light.primary} />
-                <Text style={styles.amount}>{formatCurrency(item.total_amount)}</Text>
+            {/* Valor em destaque */}
+            <Text style={styles.amount}>{formatCurrency(item.total_amount)}</Text>
+
+            {/* Linha inferior: cliente + data/hora */}
+            <View style={styles.cardBottom}>
+              <View style={styles.customerRow}>
+                <Ionicons name="person-outline" size={13} color="#888" />
+                <Text style={styles.customerName} numberOfLines={1}>
+                  {item.customer_name || 'Sem cliente'}
+                </Text>
               </View>
-              {item.customer_name && (
-                <View style={styles.customerRow}>
-                  <Ionicons name="person-outline" size={16} color="#666" />
-                  <Text style={styles.customerName}>{item.customer_name}</Text>
-                </View>
-              )}
+              <View style={styles.dateRow}>
+                <Ionicons name="calendar-outline" size={13} color="#888" />
+                <Text style={styles.saleTime}>{formattedDate} · {formattedTime}</Text>
+              </View>
             </View>
-          </Card.Content>
-        </Card>
+          </View>
+        </View>
       </TouchableOpacity>
     );
   };
 
-  const salesCount = sales?.length || 0;
-
-  if (isLoading && !sales) {
+  if (isLoading && !isRefetching) {
     return (
       <View style={styles.container}>
-        <View style={styles.headerContainer}>
-          <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.headerGradient}
-          >
-            <View style={styles.headerContent}>
-              <View style={styles.headerInfo}>
-                <Text style={styles.greeting}>Vendas</Text>
-                <Text style={styles.headerSubtitle}>0 vendas</Text>
-              </View>
-              <TouchableOpacity
-                style={styles.profileButton}
-                onPress={() => router.push('/(tabs)/more')}
-              >
-                <View style={styles.profileIcon}>
-                  <Ionicons name="person" size={24} color="#fff" />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </View>
+        <PageHeader title="Vendas" subtitle="0 vendas" />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={Colors.light.primary} />
           <Text style={styles.loadingText}>Carregando vendas...</Text>
@@ -164,57 +138,41 @@ export default function SalesListScreen() {
     );
   }
 
+  if (isError) {
+    return (
+      <View style={styles.container}>
+        <PageHeader title="Vendas" subtitle="0 vendas" />
+        <EmptyState
+          icon="alert-circle-outline"
+          title="Erro ao carregar vendas"
+          description="Verifique sua conexão e tente novamente"
+        />
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container}>
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerContent}>
-            <View style={styles.headerInfo}>
-              <Text style={styles.greeting}>Vendas</Text>
-              <Text style={styles.headerSubtitle}>
-                {salesCount} {salesCount === 1 ? 'venda' : 'vendas'}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.profileButton}
-              onPress={() => router.push('/(tabs)/more')}
-            >
-              <View style={styles.profileIcon}>
-                <Ionicons name="person" size={24} color="#fff" />
-              </View>
-            </TouchableOpacity>
-          </View>
-        </LinearGradient>
-      </View>
+      <PageHeader
+        title="Vendas"
+        subtitle={`${salesCount} ${salesCount === 1 ? 'venda' : 'vendas'}`}
+      />
 
-      <View style={styles.filtersRow}>
-        <View style={styles.periodFilterWrapper}>
-          <PeriodFilter
-            value={selectedPeriod}
-            onChange={(value) => {
-              setSelectedPeriod(value);
-              setSkip(0);
-            }}
-            compact
-          />
-        </View>
-        <View style={styles.searchWrapper}>
-          <Searchbar
-            placeholder="Buscar..."
-            onChangeText={(text) => {
-              setSearch(text);
-              setSkip(0);
-            }}
-            value={search}
-            style={styles.searchbar}
-            inputStyle={styles.searchInput}
-          />
-        </View>
+      {/* Busca */}
+      <Searchbar
+        placeholder="Buscar por número da venda..."
+        onChangeText={(text) => { setSearch(text); setSkip(0); }}
+        value={search}
+        style={styles.searchbar}
+      />
+
+      {/* Filtro de período */}
+      <View style={styles.periodRow}>
+        <PeriodFilter
+          value={selectedPeriod}
+          onChange={(value) => { setSelectedPeriod(value); setSkip(0); }}
+          compact
+        />
       </View>
 
       <FlatList
@@ -256,128 +214,73 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 24,
   },
-  headerContainer: {
-    marginBottom: 0,
-  },
-  headerGradient: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: theme.fontSize.xxl,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: theme.spacing.xs,
-  },
-  headerSubtitle: {
-    fontSize: theme.fontSize.md,
-    color: '#fff',
-    opacity: 0.9,
-  },
-  profileButton: {
-    marginLeft: theme.spacing.md,
-  },
-  profileIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  filterRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 4,
-    gap: 10,
-  },
-  filtersRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
-  },
-  periodFilterWrapper: {
-    flex: 0,
-    minWidth: 140,
-  },
-  searchWrapper: {
-    flex: 1,
-  },
-  filtersContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-  },
-  searchContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 4,
+  loadingText: {
+    marginTop: 16,
+    color: Colors.light.icon,
   },
   searchbar: {
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 4,
     elevation: 2,
-    height: 48,
+    backgroundColor: Colors.light.card,
   },
-  searchInput: {
-    fontSize: 14,
-    minHeight: 48,
-    lineHeight: 20,
-  },
-  searchbarInline: {
-    flex: 1,
-    elevation: 2,
-    height: 40,
+  periodRow: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 8,
   },
   listContent: {
-    paddingTop: 8,
+    paddingTop: 4,
     paddingHorizontal: 16,
     paddingBottom: 80,
   },
+  cardWrapper: {
+    marginBottom: 10,
+  },
   saleCard: {
-    marginBottom: 12,
+    flexDirection: 'row',
+    backgroundColor: '#fff',
     borderRadius: 16,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    overflow: 'hidden',
   },
-  cardContent: {
-    paddingVertical: 14,
+  statusStripe: {
+    width: 4,
+    borderTopLeftRadius: 16,
+    borderBottomLeftRadius: 16,
   },
-  cardHeader: {
+  cardInner: {
+    flex: 1,
+    padding: 14,
+    gap: 6,
+  },
+  cardTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12,
+    alignItems: 'center',
   },
-  saleInfo: {
-    flex: 1,
+  saleNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   saleNumber: {
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '700',
     color: '#222',
-    marginBottom: 2,
-  },
-  saleTime: {
-    fontSize: 12,
-    color: '#666',
   },
   statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginLeft: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
   statusText: {
     fontSize: 11,
@@ -385,30 +288,35 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
-  cardBody: {
-    gap: 8,
-  },
-  amountRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   amount: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
     color: Colors.light.primary,
+  },
+  cardBottom: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 2,
   },
   customerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 4,
+    flex: 1,
   },
   customerName: {
-    fontSize: 13,
+    fontSize: 12,
     color: '#666',
+    flex: 1,
   },
-  loadingText: {
-    marginTop: 16,
-    color: Colors.light.icon,
+  dateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  saleTime: {
+    fontSize: 12,
+    color: '#888',
   },
 });

@@ -64,28 +64,47 @@ async def build_product_response(
     tenant_id: int,
     include_entries: bool = False
 ) -> dict:
-    """Constrói o response completo de um produto."""
-    # Categoria
+    """Constrói o response completo de um produto usando SQL direto."""
+    from sqlalchemy import select
+    
+    # Categoria via SQL direto
     category_data = None
     if product.category_id:
         category_data = await get_category_data(db, product.category_id)
 
-    # Estoque
-    inventory = await inventory_repo.get_by_product(product.id, tenant_id=tenant_id)
+    # Estoque via SQL direto
+    inventory_result = await db.execute(
+        text("SELECT quantity, min_stock FROM inventory WHERE product_id = :pid AND tenant_id = :tid"),
+        {"pid": product.id, "tid": tenant_id}
+    )
+    inv_row = inventory_result.fetchone()
+    current_stock = inv_row[0] if inv_row else 0
+    min_stock_threshold = inv_row[1] if inv_row else None
+    
+    # Buscar primeira variante via SQL direto
+    variant_result = await db.execute(
+        text("""
+            SELECT sku, price, cost_price, color, size 
+            FROM product_variants 
+            WHERE product_id = :pid AND tenant_id = :tid AND is_active = 1
+            LIMIT 1
+        """),
+        {"pid": product.id, "tid": tenant_id}
+    )
+    variant_row = variant_result.fetchone()
 
     return {
         "id": product.id,
         "name": product.name,
         "description": product.description,
-        "sku": product.sku,
-        "barcode": product.barcode,
-        "price": product.price,
-        "cost_price": product.cost_price,
+        "sku": variant_row[0] if variant_row else None,
+        "price": float(variant_row[1]) if variant_row and variant_row[1] else None,
+        "cost_price": float(variant_row[2]) if variant_row and variant_row[2] else None,
         "category_id": product.category_id,
         "category": category_data,
         "brand": product.brand,
-        "color": product.color,
-        "size": product.size,
+        "color": variant_row[3] if variant_row else None,
+        "size": variant_row[4] if variant_row else None,
         "gender": product.gender,
         "material": product.material,
         "is_digital": product.is_digital,
@@ -95,9 +114,10 @@ async def build_product_response(
         "image_url": product.image_url,
         "created_at": product.created_at,
         "updated_at": product.updated_at,
-        "current_stock": inventory.quantity if inventory else 0,
-        "min_stock_threshold": inventory.min_stock if inventory else None,
-        "entry_items": []
+        "current_stock": current_stock,
+        "min_stock_threshold": min_stock_threshold,
+        "entry_items": [],
+        "variants": []
     }
 
 
@@ -680,119 +700,77 @@ async def get_product(
 ):
     """
     Obter detalhes de um produto com histórico FIFO de entradas.
-
-    Args:
-        product_id: ID do produto
-        db: Sessão do banco de dados
-
-    Returns:
-        ProductResponse: Dados completos do produto incluindo entry_items
-
-    Raises:
-        HTTPException 404: Se produto não for encontrado
-        HTTPException 500: Se houver erro ao buscar produto
     """
-    from app.repositories.entry_item_repository import EntryItemRepository
-    from app.schemas.product import ProductEntryItem
-
-    product_repo = ProductRepository(db)
-    inventory_repo = InventoryRepository(db)
-    entry_item_repo = EntryItemRepository()
-
     try:
-        product = await product_repo.get(db, product_id, tenant_id=tenant_id)
-
-        if not product:
+        # Buscar produto via SQL direto
+        result = await db.execute(
+            text("""
+                SELECT id, name, description, category_id, brand, gender, material,
+                       is_digital, is_activewear, is_catalog, is_active, image_url,
+                       created_at, updated_at
+                FROM products 
+                WHERE id = :pid AND tenant_id = :tid
+            """),
+            {"pid": product_id, "tid": tenant_id}
+        )
+        row = result.fetchone()
+        
+        if not row:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Produto com ID {product_id} não encontrado"
             )
 
-# Carregar categoria com todos os campos necessários
-        category_data = None
-        if product.category_id:
-            try:
-                category_result = await db.execute(
-                    text("SELECT id, name, description, parent_id, is_active, created_at, updated_at FROM categories WHERE id = :cat_id"),
-                    {"cat_id": product.category_id}
-                )
-                category_row = category_result.fetchone()
-                if category_row:
-                    category_data = {
-                        "id": category_row[0],
-                        "name": category_row[1],
-                        "description": category_row[2],
-                        "parent_id": category_row[3],
-                        "is_active": category_row[4],
-                        "created_at": category_row[5],
-                        "updated_at": category_row[6]
-                    }
-            except Exception as e:
-                print(f"Erro ao buscar categoria: {e}")
-                category_data = None
+        # Categoria
+        category_data = await get_category_data(db, row[2]) if row[2] else None
 
-        # Buscar inventory de forma assíncrona
-        inventory = await inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
-        current_stock = inventory.quantity if inventory else 0
-        min_stock_threshold = inventory.min_stock if inventory else None
+        # Estoque
+        inv_result = await db.execute(
+            text("SELECT quantity, min_stock FROM inventory WHERE product_id = :pid AND tenant_id = :tid"),
+            {"pid": product_id, "tid": tenant_id}
+        )
+        inv_row = inv_result.fetchone()
+        current_stock = inv_row[0] if inv_row else 0
+        min_stock_threshold = inv_row[1] if inv_row else None
+        
+        # Variante
+        variant_result = await db.execute(
+            text("""
+                SELECT sku, price, cost_price, color, size 
+                FROM product_variants 
+                WHERE product_id = :pid AND tenant_id = :tid AND is_active = 1
+                LIMIT 1
+            """),
+            {"pid": product_id, "tid": tenant_id}
+        )
+        variant_row = variant_result.fetchone()
 
-        # Buscar entry items - não quebrar se falhar
-        product_entry_items = []
-        try:
-            entry_items = await entry_item_repo.get_by_product(db, product_id)
-            from app.repositories.stock_entry_repository import StockEntryRepository
-            entry_repo = StockEntryRepository()
-
-            for item in entry_items:
-                try:
-                    entry = await entry_repo.get_by_id(db, item.entry_id, include_items=False, tenant_id=tenant_id)
-                    if entry:
-                        product_entry_items.append(ProductEntryItem(
-                            entry_item_id=item.id,
-                            entry_id=item.entry_id,
-                            entry_code=entry.entry_code,
-                            entry_date=entry.entry_date,
-                            entry_type=entry.entry_type.value,
-                            quantity_received=item.quantity_received,
-                            quantity_remaining=item.quantity_remaining,
-                            quantity_sold=item.quantity_sold,
-                            unit_cost=item.unit_cost,
-                            supplier_name=entry.supplier_name
-                        ))
-                except:
-                    pass  # Continuar se falhar um item específico
-        except:
-            pass  # Se falhar busca de entry_items, retornar lista vazia
-
-        # Adicionar entry_items ao product response
-        product_dict = {
-            "id": product.id,
-            "name": product.name,
-            "description": product.description,
-            "sku": product.sku,
-            "barcode": product.barcode,
-            "price": product.price,
-            "cost_price": product.cost_price,
-            "category_id": product.category_id,
+        return {
+            "id": row[0],
+            "name": row[1],
+            "description": row[2],
+            "sku": variant_row[0] if variant_row else None,
+            "price": float(variant_row[1]) if variant_row and variant_row[1] else None,
+            "cost_price": float(variant_row[2]) if variant_row and variant_row[2] else None,
+            "category_id": row[3],
             "category": category_data,
-            "brand": product.brand,
-            "color": product.color,
-            "size": product.size,
-            "gender": product.gender,
-            "material": product.material,
-            "is_digital": product.is_digital,
-            "is_activewear": product.is_activewear,
-            "is_catalog": product.is_catalog,
-            "is_active": product.is_active,
-            "image_url": product.image_url,
-            "created_at": product.created_at,
-            "updated_at": product.updated_at,
+            "brand": row[4],
+            "color": variant_row[3] if variant_row else None,
+            "size": variant_row[4] if variant_row else None,
+            "gender": row[5],
+            "material": row[6],
+            "is_digital": row[7],
+            "is_activewear": row[8],
+            "is_catalog": row[9],
+            "is_active": row[10],
+            "image_url": row[11],
+            "created_at": row[12],
+            "updated_at": row[13],
             "current_stock": current_stock,
             "min_stock_threshold": min_stock_threshold,
-            "entry_items": product_entry_items
+            "entry_items": [],
+            "variants": []
         }
-
-        return product_dict
 
     except HTTPException:
         raise

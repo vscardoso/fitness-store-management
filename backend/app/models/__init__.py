@@ -5,6 +5,7 @@ from .base import BaseModel
 from .user import User, UserRole
 from .category import Category
 from .product import Product
+from .product_variant import ProductVariant
 from .inventory import Inventory, InventoryMovement, MovementType
 from .customer import Customer, CustomerType
 from .sale import Sale, SaleItem, SaleStatus, PaymentMethod
@@ -16,6 +17,7 @@ from .store import Store
 from .subscription import Subscription
 from .conditional_shipment import ConditionalShipment, ConditionalShipmentItem
 from .notification import PushToken, NotificationLog
+from .sale_return import SaleReturn, ReturnItem
 
 __all__ = [
     # Base
@@ -31,6 +33,9 @@ __all__ = [
 
     # Product
     "Product",
+    
+    # Product Variant
+    "ProductVariant",
 
     # Inventory
     "Inventory",
@@ -74,4 +79,8 @@ __all__ = [
     # Notifications
     "PushToken",
     "NotificationLog",
+    
+    # Sale Return
+    "SaleReturn",
+    "ReturnItem",
 ]

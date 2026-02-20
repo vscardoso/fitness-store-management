@@ -4,7 +4,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  StatusBar,
   Keyboard,
   TouchableWithoutFeedback,
 } from 'react-native';
@@ -17,7 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { LinearGradient } from 'expo-linear-gradient';
+import PageHeader from '@/components/layout/PageHeader';
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
@@ -36,7 +35,6 @@ import {
 import type { Product, Customer } from '@/types';
 import ProductSelectionModal from '@/components/sale/ProductSelectionModal';
 import QRCodeScanner from '@/components/sale/QRCodeScanner';
-import { HelpButton } from '@/components/tutorial';
 
 export default function SaleScreen() {
   const router = useRouter();
@@ -336,52 +334,33 @@ export default function SaleScreen() {
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
       
-      {/* Header Premium */}
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerContent}>
-            <View style={styles.headerInfo}>
-              <Text style={styles.greeting}>
-                {user?.store_name || 'WA Moda Fitness'}
-              </Text>
-              <Text style={styles.headerSubtitle}>
-                Realize vendas rapidamente
-              </Text>
-            </View>
-            <View style={styles.headerActions}>
-              <HelpButton tutorialId="sale" color="#fff" showBadge />
-              {cart.itemCount > 0 && (
-                <TouchableOpacity
-                  style={styles.newSaleButton}
-                  onPress={handleNewSale}
-                >
-                  <Ionicons name="refresh" size={24} color="#fff" />
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                style={styles.cartBadgeContainer}
-                onPress={() => {}}
-              >
-                <View style={styles.cartIconContainer}>
-                  <Ionicons name="cart" size={28} color="#fff" />
-                  {cart.itemCount > 0 && (
-                    <View style={styles.cartBadge}>
-                      <Text style={styles.cartBadgeText}>{cart.itemCount}</Text>
-                    </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            </View>
+      {/* Header */}
+      <PageHeader
+        title={user?.store_name || 'WA Moda Fitness'}
+        subtitle="Realize vendas rapidamente"
+        rightActions={[
+          {
+            icon: 'help-circle-outline',
+            onPress: () => {},
+          },
+          ...(cart.itemCount > 0 ? [{
+            icon: 'refresh' as keyof typeof Ionicons.glyphMap,
+            onPress: handleNewSale,
+          }] : []),
+          {
+            icon: 'cart' as keyof typeof Ionicons.glyphMap,
+            onPress: () => {},
+          },
+        ]}
+      >
+        {/* Badge do carrinho */}
+        {cart.itemCount > 0 && (
+          <View style={styles.cartBadge}>
+            <Text style={styles.cartBadgeText}>{cart.itemCount}</Text>
           </View>
-        </LinearGradient>
-      </View>
+        )}
+      </PageHeader>
 
         {/* Cliente selecionado */}
         <View style={styles.customerSection}>
@@ -389,7 +368,7 @@ export default function SaleScreen() {
             <Card style={styles.customerCard}>
               <Card.Content style={styles.customerCardContent}>
                 <View style={styles.customerInfo}>
-                  <Ionicons name="person-circle" size={40} color={Colors.light.primary} />
+                  <Ionicons name="person" size={40} color={Colors.light.primary} />
                   <View style={styles.customerDetails}>
                     <Text variant="titleMedium" style={styles.customerName}>
                       {selectedCustomer.full_name}
@@ -453,7 +432,7 @@ export default function SaleScreen() {
               style={styles.scanQRButton}
               onPress={handleOpenScanner}
             >
-              <Ionicons name="qrcode" size={32} color="#fff" />
+              <Ionicons name="qr-code-outline" size={32} color="#fff" />
               <Text style={styles.scanQRButtonText}>Escanear</Text>
             </TouchableOpacity>
           </View>
@@ -667,63 +646,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
   },
-  headerContainer: {
-    overflow: 'hidden',
-  },
-  headerGradient: {
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: theme.fontSize.xxl,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: theme.spacing.xs,
-  },
-  headerSubtitle: {
-    fontSize: theme.fontSize.md,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '500',
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  newSaleButton: {
-    width: 44,
-    height: 44,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cartBadgeContainer: {
-    padding: theme.spacing.xs,
-  },
-  cartIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   cartBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
     backgroundColor: Colors.light.error,
     borderRadius: 10,
     minWidth: 20,

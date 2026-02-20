@@ -32,8 +32,9 @@ import type { Customer } from '@/types';
  * Métodos de pagamento disponíveis
  */
 const paymentMethods: { value: PaymentMethod | 'MIXED'; label: string; icon: string }[] = [
-  { value: PaymentMethod.PIX, label: 'PIX', icon: 'qrcode-outline' },
-  { value: PaymentMethod.DEBIT_CARD, label: 'Cartão', icon: 'card-outline' },
+  { value: PaymentMethod.PIX, label: 'PIX', icon: 'qr-code-outline' },
+  { value: PaymentMethod.DEBIT_CARD, label: 'Débito', icon: 'card-outline' },
+  { value: PaymentMethod.CREDIT_CARD, label: 'Crédito', icon: 'card-outline' },
   { value: PaymentMethod.CASH, label: 'Dinheiro', icon: 'cash-outline' },
   { value: 'MIXED', label: '2 Métodos', icon: 'swap-horizontal-outline' },
 ];
@@ -756,7 +757,7 @@ export default function CheckoutScreen() {
                     showsHorizontalScrollIndicator={false}
                     style={styles.methodsScroll}
                   >
-                    {paymentMethods.slice(0, 3).map((method) => (
+                    {paymentMethods.filter(m => m.value !== 'MIXED').map((method) => (
                       <Chip
                         key={method.value}
                         selected={selectedMethod === method.value}

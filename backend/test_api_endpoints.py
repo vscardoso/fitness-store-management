@@ -1,199 +1,169 @@
+#!/usr/bin/env python3
 """
-Teste integrado da API - Valida todos os endpoints criados
+Teste de endpoints da API - Simula chamadas do mobile.
 """
+import os
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+
 import asyncio
+import httpx
 import json
-from decimal import Decimal
+
+BASE_URL = os.getenv("API_URL", "http://localhost:8000/api/v1")
+TENANT_ID = 1
 
 async def test_api():
-    """Testa todos os endpoints da API"""
-    import aiohttp
-    
-    BASE_URL = "http://127.0.0.1:8000"
-    
-    print("=" * 70)
-    print("🧪 TESTE INTEGRADO DA API")
-    print("=" * 70)
-    
-    async with aiohttp.ClientSession() as session:
+    async with httpx.AsyncClient(timeout=30.0) as client:
         
-        # 1. Health Check
-        print("\n1️⃣  Testando Health Check...")
-        async with session.get(f"{BASE_URL}/health") as resp:
-            data = await resp.json()
-            print(f"   ✅ Status: {resp.status}")
-            print(f"   📊 Response: {json.dumps(data, indent=2)}")
+        # Headers padrão
+        headers = {"X-Tenant-Id": str(TENANT_ID)}
         
-        # 2. Root
-        print("\n2️⃣  Testando Root...")
-        async with session.get(f"{BASE_URL}/") as resp:
-            data = await resp.json()
-            print(f"   ✅ Status: {resp.status}")
-            print(f"   📊 Response: {json.dumps(data, indent=2)}")
+        print("=" * 60)
+        print("TESTE DE ENDPOINTS DA API")
+        print("=" * 60)
         
-        # 3. Registrar usuário
-        print("\n3️⃣  Registrando usuário Admin...")
-        user_data = {
-            "email": "admin@fitness.com",
-            "password": "Admin123",
-            "full_name": "Administrador Sistema",
-            "role": "ADMIN",
-            "phone": "(11) 99999-9999"
-        }
-        async with session.post(f"{BASE_URL}/api/v1/auth/register", json=user_data) as resp:
-            if resp.status == 201:
-                admin_response = await resp.json()
-                print(f"   ✅ Admin criado: {admin_response['user']['email']}")
+        # 1. Health check
+        print("\n1. Health Check...")
+        try:
+            resp = await client.get(f"{BASE_URL.replace('/api/v1', '')}/health")
+            print(f"   Status: {resp.status_code}")
+            if resp.status_code == 200:
+                print("   [OK] Backend online")
             else:
-                print(f"   ⚠️  Status: {resp.status} - {await resp.text()}")
+                print(f"   [WARN] Backend respondeu com {resp.status_code}")
+        except Exception as e:
+            print(f"   [ERROR] Backend offline: {e}")
+            return
         
-        # 4. Login
-        print("\n4️⃣  Fazendo login...")
+        # 2. Login (obter token)
+        print("\n2. Login...")
         login_data = {
-            "email": "admin@fitness.com",
-            "password": "Admin123"
+            "email": "test@test.com",
+            "password": "Test12345"  # Min 8 caracteres com maiuscula
         }
-        async with session.post(f"{BASE_URL}/api/v1/auth/login", json=login_data) as resp:
-            if resp.status == 200:
-                login_response = await resp.json()
-                token = login_response['access_token']
-                print(f"   ✅ Login OK! Token: {token[:30]}...")
-                headers = {"Authorization": f"Bearer {token}"}
+        try:
+            resp = await client.post(f"{BASE_URL}/auth/login", json=login_data, headers=headers)
+            print(f"   Status: {resp.status_code}")
+            if resp.status_code == 200:
+                data = resp.json()
+                token = data.get("access_token")
+                headers["Authorization"] = f"Bearer {token}"
+                print(f"   [OK] Token obtido")
             else:
-                print(f"   ❌ Erro no login: {resp.status}")
-                return
+                print(f"   [ERROR] {resp.text[:200]}")
+                # Tentar criar usuário de teste
+                print("   Tentando criar usuário de teste...")
+                signup_data = {
+                    "email": "test@test.com",
+                    "password": "Test12345",  # Min 8 caracteres com maiuscula
+                    "full_name": "Test User",
+                    "store_name": "Test Store"
+                }
+                resp = await client.post(f"{BASE_URL}/auth/signup", json=signup_data, headers=headers)
+                if resp.status_code in [200, 201]:
+                    data = resp.json()
+                    token = data.get("access_token")
+                    if token:
+                        headers["Authorization"] = f"Bearer {token}"
+                        print(f"   [OK] Usuário criado e token obtido")
+                else:
+                    print(f"   [ERROR] Não foi possível autenticar: {resp.text[:200]}")
+                    return
+        except Exception as e:
+            print(f"   [ERROR] {e}")
+            return
         
-        # 5. Listar categorias (público)
-        print("\n5️⃣  Listando categorias...")
-        async with session.get(f"{BASE_URL}/api/v1/categories/") as resp:
-            categories = await resp.json()
-            print(f"   ✅ Status: {resp.status}")
-            print(f"   📊 Total de categorias: {len(categories)}")
-        
-        # 6. Criar categoria
-        print("\n6️⃣  Criando categoria...")
-        category_data = {
-            "name": "Suplementos",
-            "description": "Suplementos alimentares",
-            "parent_id": None
-        }
-        async with session.post(f"{BASE_URL}/api/v1/categories/", json=category_data, headers=headers) as resp:
-            if resp.status == 201:
-                category = await resp.json()
-                category_id = category['id']
-                print(f"   ✅ Categoria criada: ID {category_id}")
+        # 3. Listar produtos ativos
+        print("\n3. GET /products/active...")
+        try:
+            resp = await client.get(f"{BASE_URL}/products/active", headers=headers)
+            print(f"   Status: {resp.status_code}")
+            if resp.status_code == 200:
+                products = resp.json()
+                print(f"   [OK] {len(products)} produtos ativos")
+                if products:
+                    print(f"   Primeiro: {products[0].get('name')} - SKU: {products[0].get('sku')}")
             else:
-                print(f"   ⚠️  Status: {resp.status} - {await resp.text()}")
-                category_id = 1
+                print(f"   [ERROR] {resp.text[:500]}")
+        except Exception as e:
+            print(f"   [ERROR] {e}")
         
-        # 7. Criar produto
-        print("\n7️⃣  Criando produto...")
+        # 4. Listar catálogo
+        print("\n4. GET /products/catalog...")
+        try:
+            resp = await client.get(f"{BASE_URL}/products/catalog", headers=headers)
+            print(f"   Status: {resp.status_code}")
+            if resp.status_code == 200:
+                products = resp.json()
+                print(f"   [OK] {len(products)} produtos no catálogo")
+            else:
+                print(f"   [ERROR] {resp.text[:500]}")
+        except Exception as e:
+            print(f"   [ERROR] {e}")
+        
+        # 5. Criar produto
+        print("\n5. POST /products (criar produto)...")
         product_data = {
-            "name": "Whey Protein 1kg",
-            "description": "Proteína de soro do leite",
-            "sku": "WHEY-001",
-            "barcode": "7891234567890",
+            "name": f"Produto Teste {asyncio.get_event_loop().time():.0f}",
+            "description": "Produto para teste de API",
+            "sku": f"TEST-{asyncio.get_event_loop().time():.0f}",
             "price": 99.90,
-            "cost_price": 60.00,
-            "category_id": category_id,
-            "brand": "FitMax",
-            "is_digital": False,
-            "is_activewear": False
+            "cost_price": 45.00,
+            "category_id": 1,
+            "brand": "TestBrand",
+            "is_catalog": False,
+            "initial_stock": 0
         }
-        async with session.post(f"{BASE_URL}/api/v1/products/", json=product_data, headers=headers) as resp:
-            if resp.status == 201:
-                product = await resp.json()
-                product_id = product['id']
-                print(f"   ✅ Produto criado: ID {product_id}")
+        try:
+            resp = await client.post(f"{BASE_URL}/products", json=product_data, headers=headers)
+            print(f"   Status: {resp.status_code}")
+            if resp.status_code in [200, 201]:
+                product = resp.json()
+                product_id = product.get("id")
+                print(f"   [OK] Produto criado: {product.get('name')} (ID: {product_id})")
+                print(f"   SKU: {product.get('sku')}")
             else:
-                print(f"   ⚠️  Status: {resp.status} - {await resp.text()}")
-                product_id = 1
+                print(f"   [ERROR] {resp.text[:500]}")
+                product_id = None
+        except Exception as e:
+            print(f"   [ERROR] {e}")
+            product_id = None
         
-        # 8. Listar produtos
-        print("\n8️⃣  Listando produtos...")
-        async with session.get(f"{BASE_URL}/api/v1/products/") as resp:
-            products = await resp.json()
-            print(f"   ✅ Status: {resp.status}")
-            print(f"   📊 Total de produtos: {len(products)}")
+        # 6. Buscar produto por ID
+        if product_id:
+            print(f"\n6. GET /products/{product_id}...")
+            try:
+                resp = await client.get(f"{BASE_URL}/products/{product_id}", headers=headers)
+                print(f"   Status: {resp.status_code}")
+                if resp.status_code == 200:
+                    product = resp.json()
+                    print(f"   [OK] Produto: {product.get('name')}")
+                    print(f"   SKU: {product.get('sku')}, Preço: {product.get('price')}")
+                else:
+                    print(f"   [ERROR] {resp.text[:500]}")
+            except Exception as e:
+                print(f"   [ERROR] {e}")
         
-        # 9. Criar cliente
-        print("\n9️⃣  Criando cliente...")
-        customer_data = {
-            "full_name": "Maria Silva",
-            "email": "maria@email.com",
-            "phone": "(11) 98765-4321",
-            "document_number": "12345678900",
-            "address": "Rua A, 123",
-            "city": "São Paulo",
-            "state": "SP",
-            "zip_code": "01234-567"
-        }
-        async with session.post(f"{BASE_URL}/api/v1/customers/", json=customer_data, headers=headers) as resp:
-            if resp.status == 201:
-                customer = await resp.json()
-                customer_id = customer['id']
-                print(f"   ✅ Cliente criado: ID {customer_id}")
+        # 7. Dashboard
+        print("\n7. GET /dashboard...")
+        try:
+            resp = await client.get(f"{BASE_URL}/dashboard", headers=headers)
+            print(f"   Status: {resp.status_code}")
+            if resp.status_code == 200:
+                dashboard = resp.json()
+                print(f"   [OK] Dashboard carregado")
+                print(f"   Vendas do dia: {dashboard.get('daily_sales', {}).get('total', 0)}")
+                print(f"   Produtos ativos: {dashboard.get('products_count', 0)}")
             else:
-                print(f"   ⚠️  Status: {resp.status} - {await resp.text()}")
-                customer_id = 1
+                print(f"   [ERROR] {resp.text[:500]}")
+        except Exception as e:
+            print(f"   [ERROR] {e}")
         
-        # 10. Adicionar estoque
-        print("\n🔟  Adicionando estoque...")
-        stock_data = {
-            "product_id": product_id,
-            "warehouse_id": 1,
-            "quantity": 100,
-            "notes": "Estoque inicial"
-        }
-        async with session.post(f"{BASE_URL}/api/v1/inventory/add", json=stock_data, headers=headers) as resp:
-            if resp.status == 201:
-                inventory = await resp.json()
-                print(f"   ✅ Estoque adicionado: {inventory['quantity']} unidades")
-            else:
-                print(f"   ⚠️  Status: {resp.status} - {await resp.text()}")
-        
-        # 11. Alertas de estoque
-        print("\n1️⃣1️⃣  Verificando alertas de estoque...")
-        async with session.get(f"{BASE_URL}/api/v1/inventory/alerts", headers=headers) as resp:
-            alerts = await resp.json()
-            print(f"   ✅ Status: {resp.status}")
-            print(f"   📊 Total de alertas: {len(alerts)}")
-        
-        # 12. Listar clientes
-        print("\n1️⃣2️⃣  Listando clientes...")
-        async with session.get(f"{BASE_URL}/api/v1/customers/", headers=headers) as resp:
-            customers = await resp.json()
-            print(f"   ✅ Status: {resp.status}")
-            print(f"   📊 Total de clientes: {len(customers)}")
-        
-        # 13. Hierarquia de categorias
-        print("\n1️⃣3️⃣  Obtendo hierarquia de categorias...")
-        async with session.get(f"{BASE_URL}/api/v1/categories/hierarchy") as resp:
-            hierarchy = await resp.json()
-            print(f"   ✅ Status: {resp.status}")
-            print(f"   📊 Categorias raiz: {len(hierarchy)}")
-        
-        print("\n" + "=" * 70)
-        print("✅ TODOS OS TESTES CONCLUÍDOS COM SUCESSO!")
-        print("=" * 70)
-        print("\n📚 Documentação disponível em: http://127.0.0.1:8000/api/docs")
-        print("\n📊 Total de endpoints testados: 13")
-        print("   - ✅ Health check")
-        print("   - ✅ Root")
-        print("   - ✅ Auth (register, login)")
-        print("   - ✅ Categories (list, create, hierarchy)")
-        print("   - ✅ Products (list, create)")
-        print("   - ✅ Customers (list, create)")
-        print("   - ✅ Inventory (add, alerts)")
-        print("=" * 70)
+        print("\n" + "=" * 60)
+        print("TESTES CONCLUÍDOS")
+        print("=" * 60)
 
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(test_api())
-    except KeyboardInterrupt:
-        print("\n\n⚠️  Teste interrompido pelo usuário")
-    except Exception as e:
-        print(f"\n\n❌ Erro durante o teste: {e}")
-        import traceback
-        traceback.print_exc()
+    asyncio.run(test_api())

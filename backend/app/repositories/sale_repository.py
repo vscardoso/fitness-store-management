@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.sale import Sale, SaleItem
 from app.models.product import Product
+from app.models.product_variant import ProductVariant
 from app.repositories.base import BaseRepository
 
 
@@ -43,7 +44,7 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
 
         if include_relationships:
             query = query.options(
-                selectinload(Sale.items).selectinload(SaleItem.product),
+                selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
                 selectinload(Sale.payments),
                 selectinload(Sale.customer),
                 selectinload(Sale.seller),
@@ -84,7 +85,7 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         
         if include_relationships:
             query = query.options(
-                selectinload(Sale.items).selectinload(SaleItem.product),
+                selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
                 selectinload(Sale.payments),
                 selectinload(Sale.customer),
                 selectinload(Sale.seller),
@@ -120,7 +121,7 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         
         if include_relationships:
             query = query.options(
-                selectinload(Sale.items).selectinload(SaleItem.product),
+                selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
                 selectinload(Sale.payments),
                 selectinload(Sale.customer),
                 selectinload(Sale.seller),
@@ -220,7 +221,7 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         
         if include_relationships:
             query = query.options(
-                selectinload(Sale.items).selectinload(SaleItem.product),
+                selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
                 selectinload(Sale.payments),
                 selectinload(Sale.customer),
                 selectinload(Sale.seller),
@@ -246,7 +247,7 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
             conditions.append(Sale.tenant_id == tenant_id)
         
         query = select(Sale).where(and_(*conditions)).options(
-            selectinload(Sale.items).selectinload(SaleItem.product),
+            selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
             selectinload(Sale.payments),
             selectinload(Sale.customer),
             selectinload(Sale.seller),
@@ -275,7 +276,7 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         query = select(Sale).where(and_(*conditions))
         if include_relationships:
             query = query.options(
-                selectinload(Sale.items).selectinload(SaleItem.product),
+                selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
                 selectinload(Sale.payments),
                 selectinload(Sale.customer),
                 selectinload(Sale.seller),

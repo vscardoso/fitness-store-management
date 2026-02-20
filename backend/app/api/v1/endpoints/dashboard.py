@@ -4,12 +4,13 @@ Dashboard API endpoints.
 Fornece estatísticas e métricas para o dashboard do app mobile.
 """
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select, func, case, Integer
+from sqlalchemy import select, func, case, Integer, and_
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Dict, Any, Optional
 from decimal import Decimal
 from datetime import date, timedelta
 from enum import Enum
+from zoneinfo import ZoneInfo
 
 from app.core.database import get_db
 from app.core.timezone import today_brazil, get_day_range_utc, get_period_range_utc
@@ -20,6 +21,7 @@ from app.models.entry_item import EntryItem
 from app.models.inventory import Inventory
 from app.models.customer import Customer
 from app.models.sale import Sale, SaleItem
+from app.models.sale_return import SaleReturn, ReturnItem
 from app.models.user import User
 from app.models.stock_entry import StockEntry, EntryType
 
@@ -139,15 +141,22 @@ async def get_dashboard_stats(
 
     # 2. Valor potencial (receita se vender todo o estoque)
     # Para cada produto, pegar o preço de venda e multiplicar pela quantidade restante
+    # Usar base_price ou preço da variante (não podemos usar a property Product.price em SQL)
+    from app.models.product_variant import ProductVariant
+    
     potential_revenue_query = (
         select(
             func.coalesce(
-                func.sum(EntryItem.quantity_remaining * Product.price), 0
+                func.sum(EntryItem.quantity_remaining * func.coalesce(ProductVariant.price, Product.base_price, 0)), 0
             ).label("potential_revenue")
         )
         .select_from(EntryItem)
         .join(Product, EntryItem.product_id == Product.id)
         .join(StockEntry, EntryItem.entry_id == StockEntry.id)
+        .outerjoin(ProductVariant, and_(
+            ProductVariant.product_id == Product.id,
+            ProductVariant.is_active == True
+        ))
         .where(
             EntryItem.tenant_id == tenant_id,
             EntryItem.is_active == True,
@@ -248,6 +257,42 @@ async def get_dashboard_stats(
     )
     result = await db.execute(cmv_today_query)
     cmv_today = float(result.scalar() or 0.0)
+    
+    # 7.0.2 Devoluções de vendas feitas HOJE (subtrair das vendas de hoje)
+    # IMPORTANTE: Só subtrair se a venda ORIGINAL foi feita hoje
+    # Devolução de venda de ontem NÃO afeta "vendas de hoje"
+    returns_today_query = select(
+        func.coalesce(func.sum(SaleReturn.total_refund), 0).label("returns_today"),
+    ).join(Sale, SaleReturn.sale_id == Sale.id).where(
+        SaleReturn.tenant_id == tenant_id,
+        SaleReturn.status == "completed",
+        SaleReturn.is_active == True,
+        # Filtrar pela data da VENDA, não pela data da devolução
+        Sale.created_at >= today_start,
+        Sale.created_at <= today_end,
+    )
+    result = await db.execute(returns_today_query)
+    returns_today = float(result.scalar() or 0.0)
+    
+    # Ajustar vendas e CMV com devoluções
+    total_sales_today = max(0, total_sales_today - returns_today)
+    
+    # Custo dos itens devolvidos de vendas feitas hoje (para ajustar CMV)
+    returns_cmv_today_query = select(
+        func.coalesce(func.sum(ReturnItem.quantity_returned * ReturnItem.unit_cost), 0).label("returns_cmv"),
+    ).join(SaleReturn, ReturnItem.return_id == SaleReturn.id).join(Sale, SaleReturn.sale_id == Sale.id).where(
+        SaleReturn.tenant_id == tenant_id,
+        SaleReturn.status == "completed",
+        SaleReturn.is_active == True,
+        ReturnItem.is_active == True,
+        # Filtrar pela data da VENDA, não pela data da devolução
+        Sale.created_at >= today_start,
+        Sale.created_at <= today_end,
+    )
+    result = await db.execute(returns_cmv_today_query)
+    returns_cmv_today = float(result.scalar() or 0.0)
+    cmv_today = max(0, cmv_today - returns_cmv_today)
+    
     profit_today = total_sales_today - cmv_today
     margin_today = (profit_today / total_sales_today * 100) if total_sales_today > 0 else 0.0
 
@@ -266,6 +311,22 @@ async def get_dashboard_stats(
     sales_yesterday_stats = result.first()
     total_sales_yesterday = float(sales_yesterday_stats.total_yesterday) if sales_yesterday_stats.total_yesterday else 0.0
     sales_count_yesterday = int(sales_yesterday_stats.count_yesterday) if sales_yesterday_stats.count_yesterday else 0
+    
+    # Devoluções de vendas feitas ONTEM (subtrair das vendas de ontem)
+    # Filtrar pela data da VENDA, não pela data da devolução
+    returns_yesterday_query = select(
+        func.coalesce(func.sum(SaleReturn.total_refund), 0).label("returns_yesterday"),
+    ).join(Sale, SaleReturn.sale_id == Sale.id).where(
+        SaleReturn.tenant_id == tenant_id,
+        SaleReturn.status == "completed",
+        SaleReturn.is_active == True,
+        # Filtrar pela data da VENDA, não pela data da devolução
+        Sale.created_at >= yesterday_start,
+        Sale.created_at <= yesterday_end,
+    )
+    result = await db.execute(returns_yesterday_query)
+    returns_yesterday = float(result.scalar() or 0.0)
+    total_sales_yesterday = max(0, total_sales_yesterday - returns_yesterday)
 
     # Calcular trend de vendas (% de mudança)
     sales_trend_percent = 0.0
@@ -294,6 +355,18 @@ async def get_dashboard_stats(
     total_sales_all = float(sales_total_stats.total_all) if sales_total_stats.total_all else 0.0
     sales_count_all = int(sales_total_stats.count_all) if sales_total_stats.count_all else 0
 
+    # 9.1 Total de devoluções (todas as devoluções concluídas)
+    returns_total_query = select(
+        func.coalesce(func.sum(SaleReturn.total_refund), 0).label("returns_all"),
+    ).where(
+        SaleReturn.tenant_id == tenant_id,
+        SaleReturn.status == "completed",
+        SaleReturn.is_active == True,
+    )
+    result = await db.execute(returns_total_query)
+    returns_all = float(result.scalar() or 0.0)
+    total_sales_all = max(0, total_sales_all - returns_all)
+
     # 10. Custo das Mercadorias Vendidas (CMV) - soma dos custos dos itens vendidos
     cmv_query = select(
         func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_cost), 0).label("total_cmv"),
@@ -305,6 +378,19 @@ async def get_dashboard_stats(
 
     result = await db.execute(cmv_query)
     total_cmv = float(result.scalar() or 0.0)
+    
+    # 10.1 Custo dos itens devolvidos (para ajustar CMV)
+    returns_cmv_total_query = select(
+        func.coalesce(func.sum(ReturnItem.quantity_returned * ReturnItem.unit_cost), 0).label("returns_cmv_all"),
+    ).join(SaleReturn, ReturnItem.return_id == SaleReturn.id).where(
+        SaleReturn.tenant_id == tenant_id,
+        SaleReturn.status == "completed",
+        SaleReturn.is_active == True,
+        ReturnItem.is_active == True,
+    )
+    result = await db.execute(returns_cmv_total_query)
+    returns_cmv_all = float(result.scalar() or 0.0)
+    total_cmv = max(0, total_cmv - returns_cmv_all)
 
     # Lucro realizado = Vendas totais - CMV
     realized_profit = total_sales_all - total_cmv
@@ -360,11 +446,12 @@ async def get_inventory_valuation(
     Valoração do estoque separada por custo e preço de venda, com breakdown por categoria.
 
     - cost_value: soma (unit_cost * quantity_remaining)
-    - retail_value: soma (product.price * quantity_remaining)
+    - retail_value: soma (variant.price ou base_price * quantity_remaining)
     - potential_margin: retail - cost
     - by_category: lista com custo/venda/margem por categoria
     """
     from app.models.stock_entry import StockEntry
+    from app.models.product_variant import ProductVariant
 
     # Total por custo
     total_cost_q = (
@@ -383,14 +470,18 @@ async def get_inventory_valuation(
     res = await db.execute(total_cost_q)
     cost_value = float(res.scalar() or 0.0)
 
-    # Total por preço de venda
+    # Total por preço de venda (usar variante ou base_price)
     total_retail_q = (
         select(
-            func.coalesce(func.sum(EntryItem.quantity_remaining * Product.price), 0).label("retail_value")
+            func.coalesce(func.sum(EntryItem.quantity_remaining * func.coalesce(ProductVariant.price, Product.base_price, 0)), 0).label("retail_value")
         )
         .select_from(EntryItem)
         .join(Product, EntryItem.product_id == Product.id)
         .join(StockEntry, EntryItem.entry_id == StockEntry.id)
+        .outerjoin(ProductVariant, and_(
+            ProductVariant.product_id == Product.id,
+            ProductVariant.is_active == True
+        ))
         .where(
             EntryItem.tenant_id == tenant_id,
             EntryItem.is_active == True,
@@ -410,12 +501,16 @@ async def get_inventory_valuation(
             Category.id.label("category_id"),
             Category.name.label("category_name"),
             func.coalesce(func.sum(EntryItem.quantity_remaining * EntryItem.unit_cost), 0).label("cost_value"),
-            func.coalesce(func.sum(EntryItem.quantity_remaining * Product.price), 0).label("retail_value"),
+            func.coalesce(func.sum(EntryItem.quantity_remaining * func.coalesce(ProductVariant.price, Product.base_price, 0)), 0).label("retail_value"),
         )
         .select_from(EntryItem)
         .join(Product, EntryItem.product_id == Product.id)
         .join(Category, Product.category_id == Category.id)
         .join(StockEntry, EntryItem.entry_id == StockEntry.id)
+        .outerjoin(ProductVariant, and_(
+            ProductVariant.product_id == Product.id,
+            ProductVariant.is_active == True
+        ))
         .where(
             EntryItem.tenant_id == tenant_id,
             EntryItem.is_active == True,
@@ -496,6 +591,25 @@ async def get_inventory_health(
     )
     res = await db.execute(sales_qty_q)
     total_sold_last_30 = int(res.scalar() or 0)
+    
+    # Subtrair devoluções do período
+    returns_qty_q = (
+        select(func.coalesce(func.sum(ReturnItem.quantity_returned), 0))
+        .select_from(ReturnItem)
+        .join(SaleReturn, ReturnItem.return_id == SaleReturn.id)
+        .where(
+            SaleReturn.tenant_id == tenant_id,
+            SaleReturn.status == "completed",
+            SaleReturn.is_active == True,
+            SaleReturn.created_at >= health_start_utc,
+            SaleReturn.created_at <= health_end_utc,
+            ReturnItem.is_active == True,
+        )
+    )
+    res = await db.execute(returns_qty_q)
+    total_returned_last_30 = int(res.scalar() or 0)
+    total_sold_last_30 = max(0, total_sold_last_30 - total_returned_last_30)
+    
     avg_daily_sold = total_sold_last_30 / 30.0 if total_sold_last_30 > 0 else 0.0
 
     coverage_days = (total_available_qty / avg_daily_sold) if avg_daily_sold > 0 else None
@@ -694,6 +808,37 @@ async def get_monthly_sales_stats(
     result = await db.execute(cmv_query)
     cmv = float(result.scalar() or 0.0)
 
+    # Devoluções do período atual (baseado na data da VENDA)
+    returns_query = select(
+        func.coalesce(func.sum(SaleReturn.total_refund), 0).label("returns"),
+    ).join(Sale, SaleReturn.sale_id == Sale.id).where(
+        SaleReturn.tenant_id == tenant_id,
+        SaleReturn.status == "completed",
+        SaleReturn.is_active == True,
+        Sale.created_at >= period_start_utc,
+        Sale.created_at <= period_end_utc,
+    )
+    result = await db.execute(returns_query)
+    returns = float(result.scalar() or 0.0)
+    
+    # Custo dos itens devolvidos do período
+    returns_cmv_query = select(
+        func.coalesce(func.sum(ReturnItem.quantity_returned * ReturnItem.unit_cost), 0).label("returns_cmv"),
+    ).join(SaleReturn, ReturnItem.return_id == SaleReturn.id).join(Sale, SaleReturn.sale_id == Sale.id).where(
+        SaleReturn.tenant_id == tenant_id,
+        SaleReturn.status == "completed",
+        SaleReturn.is_active == True,
+        ReturnItem.is_active == True,
+        Sale.created_at >= period_start_utc,
+        Sale.created_at <= period_end_utc,
+    )
+    result = await db.execute(returns_cmv_query)
+    returns_cmv = float(result.scalar() or 0.0)
+    
+    # Ajustar valores com devoluções
+    total = max(0, total - returns)
+    cmv = max(0, cmv - returns_cmv)
+
     # Vendas do período anterior (para comparação)
     prev_sales_query = select(
         func.coalesce(func.sum(Sale.total_amount), 0).label("total"),
@@ -723,6 +868,37 @@ async def get_monthly_sales_stats(
 
     result = await db.execute(prev_cmv_query)
     prev_cmv = float(result.scalar() or 0.0)
+
+    # Devoluções do período anterior (baseado na data da VENDA)
+    prev_returns_query = select(
+        func.coalesce(func.sum(SaleReturn.total_refund), 0).label("returns"),
+    ).join(Sale, SaleReturn.sale_id == Sale.id).where(
+        SaleReturn.tenant_id == tenant_id,
+        SaleReturn.status == "completed",
+        SaleReturn.is_active == True,
+        Sale.created_at >= prev_start_utc,
+        Sale.created_at <= prev_end_utc,
+    )
+    result = await db.execute(prev_returns_query)
+    prev_returns = float(result.scalar() or 0.0)
+    
+    # Custo dos itens devolvidos do período anterior
+    prev_returns_cmv_query = select(
+        func.coalesce(func.sum(ReturnItem.quantity_returned * ReturnItem.unit_cost), 0).label("returns_cmv"),
+    ).join(SaleReturn, ReturnItem.return_id == SaleReturn.id).join(Sale, SaleReturn.sale_id == Sale.id).where(
+        SaleReturn.tenant_id == tenant_id,
+        SaleReturn.status == "completed",
+        SaleReturn.is_active == True,
+        ReturnItem.is_active == True,
+        Sale.created_at >= prev_start_utc,
+        Sale.created_at <= prev_end_utc,
+    )
+    result = await db.execute(prev_returns_cmv_query)
+    prev_returns_cmv = float(result.scalar() or 0.0)
+    
+    # Ajustar valores do período anterior com devoluções
+    prev_total = max(0, prev_total - prev_returns)
+    prev_cmv = max(0, prev_cmv - prev_returns_cmv)
 
     # Cálculos
     profit = total - cmv
@@ -783,6 +959,671 @@ async def get_monthly_sales_stats(
         "previous_period": {
             "from": str(prev_start),
             "to": str(prev_end),
+        },
+    }
+
+
+@router.get("/sales/daily", response_model=Dict[str, Any])
+async def get_daily_sales(
+    days: int = Query(default=7, ge=1, le=30, description="Quantidade de dias"),
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Retorna vendas dos últimos N dias para gráfico.
+
+    **Retorno:**
+    - daily: lista com data, total, count, profit, margin
+    - totals: soma do período
+    - best_day: dia com maior venda
+    """
+    today = today_brazil()
+    start_date = today - timedelta(days=days - 1)
+
+    # Buscar vendas do período
+    period_start_utc, period_end_utc = get_period_range_utc(start_date, today)
+
+    sales_query = (
+        select(
+            Sale.total_amount,
+            Sale.created_at,
+        )
+        .where(
+            Sale.tenant_id == tenant_id,
+            Sale.created_at >= period_start_utc,
+            Sale.created_at <= period_end_utc,
+            Sale.is_active == True,
+        )
+        .order_by(Sale.created_at.asc())
+    )
+
+    result = await db.execute(sales_query)
+    sales = result.fetchall()
+
+    # Buscar CMV por dia
+    cmv_query = (
+        select(
+            SaleItem.quantity,
+            SaleItem.unit_cost,
+            Sale.created_at,
+        )
+        .join(Sale, SaleItem.sale_id == Sale.id)
+        .where(
+            Sale.tenant_id == tenant_id,
+            Sale.created_at >= period_start_utc,
+            Sale.created_at <= period_end_utc,
+            Sale.is_active == True,
+            SaleItem.is_active == True,
+        )
+    )
+
+    result = await db.execute(cmv_query)
+    cmv_items = result.fetchall()
+
+    # Buscar devoluções do período (baseado na data da VENDA)
+    returns_query = (
+        select(
+            SaleReturn.total_refund,
+            Sale.created_at,
+        )
+        .join(Sale, SaleReturn.sale_id == Sale.id)
+        .where(
+            SaleReturn.tenant_id == tenant_id,
+            SaleReturn.status == "completed",
+            SaleReturn.is_active == True,
+            Sale.created_at >= period_start_utc,
+            Sale.created_at <= period_end_utc,
+        )
+    )
+    result = await db.execute(returns_query)
+    returns = result.fetchall()
+
+    # Buscar custo dos itens devolvidos
+    returns_cmv_query = (
+        select(
+            ReturnItem.quantity_returned,
+            ReturnItem.unit_cost,
+            Sale.created_at,
+        )
+        .join(SaleReturn, ReturnItem.return_id == SaleReturn.id)
+        .join(Sale, SaleReturn.sale_id == Sale.id)
+        .where(
+            SaleReturn.tenant_id == tenant_id,
+            SaleReturn.status == "completed",
+            SaleReturn.is_active == True,
+            ReturnItem.is_active == True,
+            Sale.created_at >= period_start_utc,
+            Sale.created_at <= period_end_utc,
+        )
+    )
+    result = await db.execute(returns_cmv_query)
+    returns_cmv_items = result.fetchall()
+
+    # Agrupar por dia (usar data brasileira)
+    from collections import defaultdict
+    daily_totals = defaultdict(lambda: {"total": 0.0, "count": 0, "cmv": 0.0, "returns": 0.0, "returns_cmv": 0.0})
+
+    for sale in sales:
+        # Converter para data brasileira
+        sale_date_brazil = sale.created_at.astimezone(ZoneInfo("America/Sao_Paulo")).date()
+        date_str = sale_date_brazil.isoformat()
+        daily_totals[date_str]["total"] += float(sale.total_amount or 0)
+        daily_totals[date_str]["count"] += 1
+
+    for item in cmv_items:
+        item_date_brazil = item.created_at.astimezone(ZoneInfo("America/Sao_Paulo")).date()
+        date_str = item_date_brazil.isoformat()
+        daily_totals[date_str]["cmv"] += float(item.quantity or 0) * float(item.unit_cost or 0)
+
+    for ret in returns:
+        ret_date_brazil = ret.created_at.astimezone(ZoneInfo("America/Sao_Paulo")).date()
+        date_str = ret_date_brazil.isoformat()
+        daily_totals[date_str]["returns"] += float(ret.total_refund or 0)
+
+    for item in returns_cmv_items:
+        item_date_brazil = item.created_at.astimezone(ZoneInfo("America/Sao_Paulo")).date()
+        date_str = item_date_brazil.isoformat()
+        daily_totals[date_str]["returns_cmv"] += float(item.quantity_returned or 0) * float(item.unit_cost or 0)
+
+    # Montar lista completa de dias (preencher dias sem vendas)
+    daily_data = []
+    for i in range(days):
+        date = start_date + timedelta(days=i)
+        date_str = date.isoformat()
+        day_data = daily_totals.get(date_str, {"total": 0.0, "count": 0, "cmv": 0.0, "returns": 0.0, "returns_cmv": 0.0})
+
+        # Ajustar com devoluções
+        total = max(0, day_data["total"] - day_data["returns"])
+        cmv = max(0, day_data["cmv"] - day_data["returns_cmv"])
+        profit = total - cmv
+        margin = (profit / total * 100) if total > 0 else 0.0
+
+        daily_data.append({
+            "date": date_str,
+            "day_name": date.strftime("%a"),  # Mon, Tue, Wed...
+            "day_short": date.strftime("%d/%m"),  # 15/02
+            "total": round(total, 2),
+            "count": day_data["count"],
+            "cmv": round(cmv, 2),
+            "profit": round(profit, 2),
+            "margin_percent": round(margin, 1),
+        })
+
+    # Calcular totais (já ajustados com devoluções)
+    total_sum = sum(d["total"] for d in daily_data)
+    count_sum = sum(d["count"] for d in daily_data)
+    profit_sum = sum(d["profit"] for d in daily_data)
+    cmv_sum = sum(d["cmv"] for d in daily_data)
+
+    # Melhor dia
+    best_day = max(daily_data, key=lambda x: x["total"]) if daily_data else None
+
+    return {
+        "daily": daily_data,
+        "totals": {
+            "total": round(total_sum, 2),
+            "count": count_sum,
+            "profit": round(profit_sum, 2),
+            "cmv": round(cmv_sum, 2),
+            "average_per_day": round(total_sum / days, 2),
+        },
+        "best_day": best_day,
+        "period": {
+            "days": days,
+            "from": start_date.isoformat(),
+            "to": today.isoformat(),
+        },
+    }
+
+
+@router.get("/top-products", response_model=Dict[str, Any])
+async def get_top_products(
+    period: Optional[PeriodFilter] = Query(
+        default=PeriodFilter.THIS_MONTH,
+        description="Filtro de periodo"
+    ),
+    limit: int = Query(default=5, ge=1, le=20),
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Retorna os produtos mais vendidos do período (por faturamento).
+    
+    NOTA: Considera devoluções - subtrai itens devolvidos das vendas.
+
+    **Retorno:**
+    - products: lista com id, nome, quantidade, receita, lucro, margem
+    """
+    start_date, end_date = get_period_dates(period)
+    period_start_utc, period_end_utc = get_period_range_utc(start_date, end_date)
+
+    # Buscar itens vendidos no período agrupados por produto
+    top_q = (
+        select(
+            SaleItem.product_id,
+            Product.name.label("product_name"),
+            func.coalesce(func.sum(SaleItem.quantity), 0).label("qty_sold"),
+            func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_price), 0).label("revenue"),
+            func.coalesce(func.sum(SaleItem.quantity * SaleItem.unit_cost), 0).label("cmv"),
+        )
+        .select_from(SaleItem)
+        .join(Sale, SaleItem.sale_id == Sale.id)
+        .join(Product, SaleItem.product_id == Product.id)
+        .where(
+            Sale.tenant_id == tenant_id,
+            Sale.created_at >= period_start_utc,
+            Sale.created_at <= period_end_utc,
+            Sale.is_active == True,
+            SaleItem.is_active == True,
+            Product.is_active == True,
+        )
+        .group_by(SaleItem.product_id, Product.name)
+        .order_by(func.sum(SaleItem.quantity * SaleItem.unit_price).desc())
+        .limit(limit)
+    )
+
+    res = await db.execute(top_q)
+    rows = res.fetchall()
+
+    # Buscar devoluções do período agrupadas por produto
+    returns_q = (
+        select(
+            ReturnItem.product_id,
+            func.coalesce(func.sum(ReturnItem.quantity_returned), 0).label("qty_returned"),
+            func.coalesce(func.sum(ReturnItem.quantity_returned * ReturnItem.unit_price), 0).label("revenue_returned"),
+            func.coalesce(func.sum(ReturnItem.quantity_returned * ReturnItem.unit_cost), 0).label("cmv_returned"),
+        )
+        .select_from(ReturnItem)
+        .join(SaleReturn, ReturnItem.return_id == SaleReturn.id)
+        .where(
+            SaleReturn.tenant_id == tenant_id,
+            SaleReturn.created_at >= period_start_utc,
+            SaleReturn.created_at <= period_end_utc,
+            SaleReturn.status == "completed",
+            SaleReturn.is_active == True,
+            ReturnItem.is_active == True,
+        )
+        .group_by(ReturnItem.product_id)
+    )
+    
+    res = await db.execute(returns_q)
+    returns_rows = res.fetchall()
+    
+    # Criar dict de devoluções por produto
+    returns_by_product = {}
+    for row in returns_rows:
+        returns_by_product[row.product_id] = {
+            "qty_returned": int(row.qty_returned or 0),
+            "revenue_returned": float(row.revenue_returned or 0),
+            "cmv_returned": float(row.cmv_returned or 0),
+        }
+
+    products = []
+    for row in rows:
+        # Valores de venda
+        qty_sold = int(row.qty_sold or 0)
+        revenue = float(row.revenue or 0)
+        cmv = float(row.cmv or 0)
+        
+        # Subtrair devoluções se houver
+        if row.product_id in returns_by_product:
+            ret = returns_by_product[row.product_id]
+            qty_sold = max(0, qty_sold - ret["qty_returned"])
+            revenue = max(0, revenue - ret["revenue_returned"])
+            cmv = max(0, cmv - ret["cmv_returned"])
+        
+        profit = revenue - cmv
+        margin = (profit / revenue * 100) if revenue > 0 else 0.0
+        products.append({
+            "product_id": row.product_id,
+            "product_name": row.product_name,
+            "qty_sold": qty_sold,
+            "revenue": round(revenue, 2),
+            "cmv": round(cmv, 2),
+            "profit": round(profit, 2),
+            "margin_percent": round(margin, 1),
+        })
+
+    # Total do período para calcular participação %
+    total_revenue = sum(p["revenue"] for p in products)
+
+    for p in products:
+        p["share_percent"] = round(
+            (p["revenue"] / total_revenue * 100) if total_revenue > 0 else 0.0, 1
+        )
+
+    return {
+        "products": products,
+        "period": {
+            "filter": period.value,
+            "from": str(start_date),
+            "to": str(end_date),
+        },
+    }
+
+
+@router.get("/fifo-performance", response_model=Dict[str, Any])
+async def get_fifo_performance(
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Retorna métricas de performance FIFO.
+
+    - sell_through_rate: % de estoque vendido (global e por entrada)
+    - negative_roi_count: quantidade de entradas com ROI negativo
+    - negative_roi_entries: lista das entradas com ROI negativo
+    - avg_roi: ROI médio de todas as entradas
+    """
+    from app.models.stock_entry import StockEntry
+
+    # 1. Sell-through global
+    totals_q = (
+        select(
+            func.coalesce(func.sum(EntryItem.quantity_received), 0).label("total_received"),
+            func.coalesce(func.sum(EntryItem.quantity_remaining), 0).label("total_remaining"),
+        )
+        .select_from(EntryItem)
+        .join(StockEntry, EntryItem.entry_id == StockEntry.id)
+        .where(
+            EntryItem.tenant_id == tenant_id,
+            EntryItem.is_active == True,
+            StockEntry.is_active == True,
+        )
+    )
+    res = await db.execute(totals_q)
+    row = res.first()
+    total_received = int(row.total_received or 0)
+    total_remaining = int(row.total_remaining or 0)
+    total_sold = total_received - total_remaining
+    sell_through_rate = round((total_sold / total_received * 100) if total_received > 0 else 0.0, 1)
+
+    # 2. ROI por entrada
+    # CORREÇÃO: Calcular ROI baseado no custo dos itens VENDIDOS, não no custo total da entrada
+    # Custo dos vendidos = (quantity_sold * unit_cost)
+    # Receita dos vendidos = (quantity_sold * variant.price) - usar preço da variante ou base_price
+    from app.models.product_variant import ProductVariant
+    
+    # Subquery para obter preço da primeira variante ativa de cada produto
+    # Como não podemos usar a property Product.price em SQL, usamos base_price como fallback
+    # ou o preço da variante se disponível via LEFT JOIN
+    entries_q = (
+        select(
+            StockEntry.id.label("entry_id"),
+            StockEntry.entry_date,
+            StockEntry.total_cost,
+            func.coalesce(
+                func.sum((EntryItem.quantity_received - EntryItem.quantity_remaining) * EntryItem.unit_cost), 0
+            ).label("cost_of_sold"),  # Custo dos itens vendidos
+            func.coalesce(
+                func.sum(
+                    (EntryItem.quantity_received - EntryItem.quantity_remaining) * 
+                    func.coalesce(ProductVariant.price, Product.base_price, 0)
+                ), 0
+            ).label("revenue_of_sold"),  # Receita dos itens vendidos
+            func.coalesce(func.sum(EntryItem.quantity_received), 0).label("total_received"),
+            func.coalesce(func.sum(EntryItem.quantity_remaining), 0).label("total_remaining"),
+        )
+        .select_from(StockEntry)
+        .join(EntryItem, EntryItem.entry_id == StockEntry.id)
+        .join(Product, EntryItem.product_id == Product.id)
+        .outerjoin(ProductVariant, and_(
+            ProductVariant.product_id == Product.id,
+            ProductVariant.is_active == True
+        ))
+        .where(
+            StockEntry.tenant_id == tenant_id,
+            StockEntry.is_active == True,
+            EntryItem.is_active == True,
+            Product.is_active == True,
+        )
+        .group_by(StockEntry.id, StockEntry.entry_date, StockEntry.total_cost)
+        .having(func.sum(EntryItem.quantity_received) > 0)
+    )
+    res = await db.execute(entries_q)
+    entry_rows = res.fetchall()
+
+    negative_roi_entries = []
+    total_cost_of_sold_sum = 0.0
+    total_profit_sum = 0.0
+    entries_with_sales = 0
+
+    for entry in entry_rows:
+        cost_of_sold = float(entry.cost_of_sold or 0)  # Custo dos itens vendidos
+        revenue = float(entry.revenue_of_sold or 0)  # Receita dos itens vendidos
+        total_entry_cost = float(entry.total_cost or 0)  # Custo total da entrada (para referência)
+        qty_received = int(entry.total_received or 0)
+        qty_remaining = int(entry.total_remaining or 0)
+        qty_sold = qty_received - qty_remaining
+        sell_through = round((qty_sold / qty_received * 100) if qty_received > 0 else 0.0, 1)
+
+        # Só calcular ROI para entradas que tiveram vendas
+        if qty_sold > 0 and cost_of_sold > 0:
+            profit = revenue - cost_of_sold
+            roi = round((profit / cost_of_sold * 100), 1)
+            
+            # Acumular para ROI ponderado (pelo custo dos vendidos)
+            total_cost_of_sold_sum += cost_of_sold
+            total_profit_sum += profit
+            entries_with_sales += 1
+
+            if roi < 0:
+                negative_roi_entries.append({
+                    "entry_id": entry.entry_id,
+                    "entry_date": str(entry.entry_date),
+                    "total_cost": round(total_entry_cost, 2),
+                    "cost_of_sold": round(cost_of_sold, 2),
+                    "estimated_revenue": round(revenue, 2),
+                    "roi": roi,
+                    "sell_through": sell_through,
+                })
+
+    # ROI médio PONDERADO pelo custo dos itens vendidos
+    # Isso garante que entradas com mais vendas tenham peso proporcional
+    avg_roi = round((total_profit_sum / total_cost_of_sold_sum * 100) if total_cost_of_sold_sum > 0 else 0.0, 1)
+
+    # Ordenar por ROI (mais negativo primeiro)
+    negative_roi_entries.sort(key=lambda x: x["roi"])
+
+    return {
+        "sell_through": {
+            "rate": sell_through_rate,
+            "total_received": total_received,
+            "total_sold": total_sold,
+            "total_remaining": total_remaining,
+        },
+        "roi": {
+            "avg_roi": avg_roi,
+            "negative_count": len(negative_roi_entries),
+            "negative_entries": negative_roi_entries[:5],  # top 5 piores
+        },
+    }
+
+
+@router.get("/sales/yoy", response_model=Dict[str, Any])
+async def get_yoy_comparison(
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    """
+    Comparação Ano a Ano (YoY): mês a mês do ano atual vs ano anterior.
+
+    **Retorno:**
+    - months: lista com jan-dez, total atual e anterior
+    - totals: soma anual atual vs anterior
+    - change_percent: variação % total
+    """
+    today = today_brazil()
+    current_year = today.year
+    prev_year = current_year - 1
+
+    # Buscar vendas mensais do ano atual (até o mês atual)
+    current_year_start = date(current_year, 1, 1)
+    current_year_end = today
+    current_start_utc, current_end_utc = get_period_range_utc(current_year_start, current_year_end)
+
+    current_sales_q = (
+        select(Sale.total_amount, Sale.created_at)
+        .where(
+            Sale.tenant_id == tenant_id,
+            Sale.created_at >= current_start_utc,
+            Sale.created_at <= current_end_utc,
+            Sale.is_active == True,
+        )
+    )
+    current_cmv_q = (
+        select(SaleItem.quantity, SaleItem.unit_cost, Sale.created_at)
+        .join(Sale, SaleItem.sale_id == Sale.id)
+        .where(
+            Sale.tenant_id == tenant_id,
+            Sale.created_at >= current_start_utc,
+            Sale.created_at <= current_end_utc,
+            Sale.is_active == True,
+            SaleItem.is_active == True,
+        )
+    )
+
+    # Vendas do ano anterior (mesmo período: jan até o mesmo dia/mês)
+    prev_year_start = date(prev_year, 1, 1)
+    prev_year_end = date(prev_year, today.month, min(today.day, 28) if today.month == 2 else today.day)
+    prev_start_utc, prev_end_utc = get_period_range_utc(prev_year_start, prev_year_end)
+
+    prev_sales_q = (
+        select(Sale.total_amount, Sale.created_at)
+        .where(
+            Sale.tenant_id == tenant_id,
+            Sale.created_at >= prev_start_utc,
+            Sale.created_at <= prev_end_utc,
+            Sale.is_active == True,
+        )
+    )
+    prev_cmv_q = (
+        select(SaleItem.quantity, SaleItem.unit_cost, Sale.created_at)
+        .join(Sale, SaleItem.sale_id == Sale.id)
+        .where(
+            Sale.tenant_id == tenant_id,
+            Sale.created_at >= prev_start_utc,
+            Sale.created_at <= prev_end_utc,
+            Sale.is_active == True,
+            SaleItem.is_active == True,
+        )
+    )
+
+    res = await db.execute(current_sales_q)
+    current_sales = res.fetchall()
+    res = await db.execute(current_cmv_q)
+    current_cmv_items = res.fetchall()
+    res = await db.execute(prev_sales_q)
+    prev_sales = res.fetchall()
+    res = await db.execute(prev_cmv_q)
+    prev_cmv_items = res.fetchall()
+
+    # Buscar devoluções do ano atual (baseado na data da VENDA)
+    current_returns_q = (
+        select(SaleReturn.total_refund, Sale.created_at)
+        .join(Sale, SaleReturn.sale_id == Sale.id)
+        .where(
+            SaleReturn.tenant_id == tenant_id,
+            SaleReturn.status == "completed",
+            SaleReturn.is_active == True,
+            Sale.created_at >= current_start_utc,
+            Sale.created_at <= current_end_utc,
+        )
+    )
+    res = await db.execute(current_returns_q)
+    current_returns = res.fetchall()
+
+    # Buscar custo dos itens devolvidos do ano atual
+    current_returns_cmv_q = (
+        select(ReturnItem.quantity_returned, ReturnItem.unit_cost, Sale.created_at)
+        .join(SaleReturn, ReturnItem.return_id == SaleReturn.id)
+        .join(Sale, SaleReturn.sale_id == Sale.id)
+        .where(
+            SaleReturn.tenant_id == tenant_id,
+            SaleReturn.status == "completed",
+            SaleReturn.is_active == True,
+            ReturnItem.is_active == True,
+            Sale.created_at >= current_start_utc,
+            Sale.created_at <= current_end_utc,
+        )
+    )
+    res = await db.execute(current_returns_cmv_q)
+    current_returns_cmv_items = res.fetchall()
+
+    # Buscar devoluções do ano anterior
+    prev_returns_q = (
+        select(SaleReturn.total_refund, Sale.created_at)
+        .join(Sale, SaleReturn.sale_id == Sale.id)
+        .where(
+            SaleReturn.tenant_id == tenant_id,
+            SaleReturn.status == "completed",
+            SaleReturn.is_active == True,
+            Sale.created_at >= prev_start_utc,
+            Sale.created_at <= prev_end_utc,
+        )
+    )
+    res = await db.execute(prev_returns_q)
+    prev_returns = res.fetchall()
+
+    # Buscar custo dos itens devolvidos do ano anterior
+    prev_returns_cmv_q = (
+        select(ReturnItem.quantity_returned, ReturnItem.unit_cost, Sale.created_at)
+        .join(SaleReturn, ReturnItem.return_id == SaleReturn.id)
+        .join(Sale, SaleReturn.sale_id == Sale.id)
+        .where(
+            SaleReturn.tenant_id == tenant_id,
+            SaleReturn.status == "completed",
+            SaleReturn.is_active == True,
+            ReturnItem.is_active == True,
+            Sale.created_at >= prev_start_utc,
+            Sale.created_at <= prev_end_utc,
+        )
+    )
+    res = await db.execute(prev_returns_cmv_q)
+    prev_returns_cmv_items = res.fetchall()
+
+    # Agrupar por mês (timezone brasileiro)
+    from collections import defaultdict
+    brazil_tz = ZoneInfo("America/Sao_Paulo")
+
+    def group_by_month(sales_rows, cmv_rows, returns_rows, returns_cmv_rows):
+        monthly = defaultdict(lambda: {"total": 0.0, "count": 0, "cmv": 0.0, "returns": 0.0, "returns_cmv": 0.0})
+        for sale in sales_rows:
+            m = sale.created_at.astimezone(brazil_tz).month
+            monthly[m]["total"] += float(sale.total_amount or 0)
+            monthly[m]["count"] += 1
+        for item in cmv_rows:
+            m = item.created_at.astimezone(brazil_tz).month
+            monthly[m]["cmv"] += float(item.quantity or 0) * float(item.unit_cost or 0)
+        for ret in returns_rows:
+            m = ret.created_at.astimezone(brazil_tz).month
+            monthly[m]["returns"] += float(ret.total_refund or 0)
+        for item in returns_cmv_rows:
+            m = item.created_at.astimezone(brazil_tz).month
+            monthly[m]["returns_cmv"] += float(item.quantity_returned or 0) * float(item.unit_cost or 0)
+        return monthly
+
+    current_monthly = group_by_month(current_sales, current_cmv_items, current_returns, current_returns_cmv_items)
+    prev_monthly = group_by_month(prev_sales, prev_cmv_items, prev_returns, prev_returns_cmv_items)
+
+    month_names = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun",
+                   "Jul", "Ago", "Set", "Out", "Nov", "Dez"]
+
+    months = []
+    for m in range(1, today.month + 1):
+        curr = current_monthly.get(m, {"total": 0.0, "count": 0, "cmv": 0.0, "returns": 0.0, "returns_cmv": 0.0})
+        prev = prev_monthly.get(m, {"total": 0.0, "count": 0, "cmv": 0.0, "returns": 0.0, "returns_cmv": 0.0})
+
+        # Ajustar com devoluções
+        curr_total = max(0, curr["total"] - curr["returns"])
+        curr_cmv = max(0, curr["cmv"] - curr["returns_cmv"])
+        curr_profit = curr_total - curr_cmv
+        
+        prev_total = max(0, prev["total"] - prev["returns"])
+        prev_cmv = max(0, prev["cmv"] - prev["returns_cmv"])
+        prev_profit = prev_total - prev_cmv
+
+        change = round(
+            ((curr_total - prev_total) / prev_total * 100) if prev_total > 0 else
+            (100.0 if curr_total > 0 else 0.0),
+            1
+        )
+
+        months.append({
+            "month": m,
+            "month_name": month_names[m - 1],
+            "current_total": round(curr_total, 2),
+            "current_profit": round(curr_profit, 2),
+            "prev_total": round(prev_total, 2),
+            "prev_profit": round(prev_profit, 2),
+            "change_percent": change,
+        })
+
+    curr_year_total = sum(d["current_total"] for d in months)
+    prev_year_total = sum(d["prev_total"] for d in months)
+    curr_year_profit = sum(d["current_profit"] for d in months)
+    prev_year_profit = sum(d["prev_profit"] for d in months)
+
+    total_change = round(
+        ((curr_year_total - prev_year_total) / prev_year_total * 100) if prev_year_total > 0 else
+        (100.0 if curr_year_total > 0 else 0.0),
+        1
+    )
+
+    return {
+        "months": months,
+        "totals": {
+            "current_year": current_year,
+            "prev_year": prev_year,
+            "current_total": round(curr_year_total, 2),
+            "current_profit": round(curr_year_profit, 2),
+            "prev_total": round(prev_year_total, 2),
+            "prev_profit": round(prev_year_profit, 2),
+            "total_change_percent": total_change,
         },
     }
 

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Configuracoes do ambiente e API
  * Centralize todas as configs do app aqui
  */
@@ -17,11 +17,18 @@
 // Para descobrir seu IP: rode "ipconfig" no terminal e procure em
 // "Adaptador de Rede sem Fio Wi-Fi" o campo "Endereco IPv4"
 // Backend deve estar rodando: uvicorn app.main:app --reload --host 0.0.0.0
-// const LOCAL_API_URL = 'http://SEU_IP_AQUI:8000/api/v1';
-
-// OPCAO 4: Tunnel localtunnel (redes diferentes / celular fora do WiFi)
+const LOCAL_API_URL = 'http://192.168.100.158:8000/api/v1'; // IP WiFi local (PC e celular na mesma rede)
+// OPCAO 4: Tunnel localhost.run (redes diferentes / celular fora do WiFi)
 // Para iniciar: .\start_tunnel.ps1 (na raiz do projeto)
-const LOCAL_API_URL = 'https://admin.localhost.run/api/v1'; // Tunnel localhost.run (redes diferentes)
+// O script exibe a URL do tunel no terminal - copie e cole aqui no formato:
+//   https://XXXXXXXXXXXXXXXX.lhr.life/api/v1
+//
+// ATENCAO: Algumas redes corporativas (FortiGuard, etc.) bloqueiam dominios
+//    *.lhr.life como "Phishing". Se isso ocorrer, use a OPCAO 3 (IP local WiFi)
+//    ou conecte o celular a uma rede diferente (dados moveis, hotspot).
+//
+// Atualize a URL abaixo com a URL atual do tunel (muda a cada reinicio):
+// const LOCAL_API_URL = 'https://fd97bc20c4f68c.lhr.life/api/v1'; // Tunnel localhost.run (redes diferentes)
 
 // OPCAO 5: Producao Render.com
 const PRODUCTION_URL = process.env.EXPO_PUBLIC_API_URL || 'https://fitness-backend-x1qn.onrender.com/api/v1';

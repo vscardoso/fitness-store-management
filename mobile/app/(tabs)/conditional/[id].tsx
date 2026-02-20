@@ -28,6 +28,8 @@ import InfoRow from '@/components/ui/InfoRow';
 import CustomModal from '@/components/ui/CustomModal';
 import ModalActions from '@/components/ui/ModalActions';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import MarkAsSentModal from '@/components/conditional/MarkAsSentModal';
+import ItemStatusModal from '@/components/conditional/ItemStatusModal';
 import { getShipment, processReturn, cancelShipment, markAsSent } from '@/services/conditionalService';
 import { formatCurrency, formatDate, formatDateTime } from '@/utils/format';
 import { Colors } from '@/constants/Colors';
@@ -1198,29 +1200,19 @@ export default function ConditionalShipmentDetailsScreen() {
         )}
       </ScrollView>
 
-      {/* Modal Danificado/Perdido */}
-      <CustomModal
+      {/* Modal Danificado/Perdido - UX Melhorada */}
+      <ItemStatusModal
         visible={activeModal.visible && (activeModal.type === 'damaged' || activeModal.type === 'lost')}
         onDismiss={() => setActiveModal({ visible: false, type: null })}
-        title={activeModal.type === 'damaged' ? 'Marcar como Danificado' : 'Marcar como Perdido'}
-      >
-        <TextInput
-          label="Quantidade"
-          value={activeModal.quantity}
-          onChangeText={(text) => setActiveModal({ ...activeModal, quantity: text })}
-          keyboardType="numeric"
-          mode="outlined"
-          style={styles.modalInput}
-          autoFocus
-        />
-
-        <ModalActions
-          onCancel={() => setActiveModal({ visible: false, type: null })}
-          onConfirm={handleSaveModal}
-          confirmText="Confirmar"
-          cancelText="Cancelar"
-        />
-      </CustomModal>
+        onConfirm={(quantity) => {
+          setActiveModal({ ...activeModal, quantity: quantity.toString() });
+          setTimeout(() => handleSaveModal(), 0);
+        }}
+        type={activeModal.type === 'damaged' ? 'damaged' : 'lost'}
+        itemName={shipment?.items.find(i => i.id === activeModal.itemId)?.product_name || ''}
+        maxQuantity={shipment?.items.find(i => i.id === activeModal.itemId)?.quantity_sent || 0}
+        unitPrice={shipment?.items.find(i => i.id === activeModal.itemId)?.unit_price || 0}
+      />
 
       {/* Modal Cancelar Envio */}
       <CustomModal
@@ -1250,43 +1242,16 @@ export default function ConditionalShipmentDetailsScreen() {
         />
       </CustomModal>
 
-      {/* Modal Marcar como Enviado */}
-      <CustomModal
+      {/* Modal Marcar como Enviado - UX Melhorada */}
+      <MarkAsSentModal
         visible={activeModal.visible && activeModal.type === 'mark_sent'}
         onDismiss={() => setActiveModal({ visible: false, type: null })}
-        title="Marcar como Enviado"
-        subtitle="O prazo de devolução começará agora"
-      >
-        <Text variant="bodyMedium" style={{ marginBottom: 16, color: Colors.light.textSecondary }}>
-          Informe os dados do envio (opcional):
-        </Text>
-
-        <TextInput
-          label="Transportadora"
-          value={activeModal.carrier}
-          onChangeText={(text) => setActiveModal({ ...activeModal, carrier: text })}
-          mode="outlined"
-          style={styles.modalInput}
-          placeholder="Ex: Correios, Jadlog, etc"
-        />
-
-        <TextInput
-          label="Código de Rastreio"
-          value={activeModal.tracking_code}
-          onChangeText={(text) => setActiveModal({ ...activeModal, tracking_code: text })}
-          mode="outlined"
-          style={styles.modalInput}
-          placeholder="Ex: BR123456789BR"
-        />
-
-        <ModalActions
-          onCancel={() => setActiveModal({ visible: false, type: null })}
-          onConfirm={handleMarkAsSent}
-          confirmText="Confirmar Envio"
-          cancelText="Cancelar"
-          loading={markAsSentMutation.isPending}
-        />
-      </CustomModal>
+        onConfirm={(data) => {
+          setActiveModal({ ...activeModal, carrier: data.carrier, tracking_code: data.tracking_code });
+          setTimeout(() => handleMarkAsSent(), 0);
+        }}
+        loading={markAsSentMutation.isPending}
+      />
 
 
       {/* Confirm Dialog */}

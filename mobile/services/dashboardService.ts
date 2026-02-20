@@ -192,3 +192,132 @@ export const getPeriodPurchases = async (
   return data;
 };
 
+// Vendas diárias para gráfico
+export interface DailySalesData {
+  date: string;
+  day_name: string;
+  day_short: string;
+  total: number;
+  count: number;
+  cmv: number;
+  profit: number;
+  margin_percent: number;
+}
+
+export interface DailySalesStats {
+  daily: DailySalesData[];
+  totals: {
+    total: number;
+    count: number;
+    profit: number;
+    cmv: number;
+    average_per_day: number;
+  };
+  best_day: DailySalesData | null;
+  period: {
+    days: number;
+    from: string;
+    to: string;
+  };
+}
+
+/**
+ * Busca vendas dos últimos N dias para gráfico
+ * @param days - Quantidade de dias (padrão: 7)
+ */
+export const getDailySales = async (
+  days: number = 7
+): Promise<DailySalesStats> => {
+  const { data } = await api.get<DailySalesStats>('/dashboard/sales/daily', {
+    params: { days },
+  });
+  return data;
+};
+
+// Top produtos do período
+export interface TopProduct {
+  product_id: number;
+  product_name: string;
+  qty_sold: number;
+  revenue: number;
+  cmv: number;
+  profit: number;
+  margin_percent: number;
+  share_percent: number;
+}
+
+export interface TopProductsData {
+  products: TopProduct[];
+  period: {
+    filter: string;
+    from: string;
+    to: string;
+  };
+}
+
+export const getTopProducts = async (
+  period: PeriodFilterValue = 'this_month',
+  limit: number = 5
+): Promise<TopProductsData> => {
+  const { data } = await api.get<TopProductsData>('/dashboard/top-products', {
+    params: { period, limit },
+  });
+  return data;
+};
+
+// Performance FIFO
+export interface FifoPerformanceData {
+  sell_through: {
+    rate: number;
+    total_received: number;
+    total_sold: number;
+    total_remaining: number;
+  };
+  roi: {
+    avg_roi: number;
+    negative_count: number;
+    negative_entries: Array<{
+      entry_id: number;
+      entry_date: string;
+      total_cost: number;
+      estimated_revenue: number;
+      roi: number;
+      sell_through: number;
+    }>;
+  };
+}
+
+export const getFifoPerformance = async (): Promise<FifoPerformanceData> => {
+  const { data } = await api.get<FifoPerformanceData>('/dashboard/fifo-performance');
+  return data;
+};
+
+// Comparação YoY (Ano a Ano)
+export interface YoYMonth {
+  month: number;
+  month_name: string;
+  current_total: number;
+  current_profit: number;
+  prev_total: number;
+  prev_profit: number;
+  change_percent: number;
+}
+
+export interface YoYData {
+  months: YoYMonth[];
+  totals: {
+    current_year: number;
+    prev_year: number;
+    current_total: number;
+    current_profit: number;
+    prev_total: number;
+    prev_profit: number;
+    total_change_percent: number;
+  };
+}
+
+export const getYoYComparison = async (): Promise<YoYData> => {
+  const { data } = await api.get<YoYData>('/dashboard/sales/yoy');
+  return data;
+};
+

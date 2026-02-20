@@ -14,6 +14,9 @@ import {
   RefreshControl,
   Modal,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
 } from 'react-native';
 import { Text, Card, TextInput, Button, Switch } from 'react-native-paper';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -600,19 +603,29 @@ export default function PaymentDiscountsScreen() {
         transparent
         animationType="slide"
         onRequestClose={() => {
+          Keyboard.dismiss();
           setShowFormModal(false);
           resetForm();
         }}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        >
           <View style={styles.modalContainer}>
-            <ScrollView style={styles.modalContent}>
+            <ScrollView 
+              style={styles.modalContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
               <View style={styles.modalHeader}>
                 <Text variant="titleLarge" style={styles.modalTitle}>
                   {editingId ? 'Editar Desconto' : 'Novo Desconto'}
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
+                    Keyboard.dismiss();
                     setShowFormModal(false);
                     resetForm();
                   }}
@@ -677,6 +690,7 @@ export default function PaymentDiscountsScreen() {
                 <Button
                   mode="outlined"
                   onPress={() => {
+                    Keyboard.dismiss();
                     setShowFormModal(false);
                     resetForm();
                   }}
@@ -695,7 +709,7 @@ export default function PaymentDiscountsScreen() {
               </View>
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Diálogos */}

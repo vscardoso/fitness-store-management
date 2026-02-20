@@ -1,25 +1,29 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { View, StyleSheet, ScrollView, StatusBar, TouchableOpacity, Alert } from 'react-native';
-import { Text, ActivityIndicator } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { Text, ActivityIndicator, Button } from 'react-native-paper';
 import { useQuery } from '@tanstack/react-query';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useRef } from 'react';
+import { useRef, useState, useCallback } from 'react';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
+import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
 import { getSaleById } from '@/services/saleService';
+import { getReturnHistory } from '@/services/returnService';
 import { formatCurrency, formatDateTime } from '@/utils/format';
+import type { SaleReturn } from '@/services/returnService';
 import { Colors, theme } from '@/constants/Colors';
 import { useAuthStore } from '@/store/authStore';
 import SaleReceipt from '@/components/receipt/SaleReceipt';
+import ReturnModal from '@/components/sale/ReturnModal';
 import type { SaleWithDetails, SaleStatus } from '@/types';
 
-const statusMap: Record<SaleStatus, { label: string; color: string; bg: string }> = {
+const statusMap: Record<string, { label: string; color: string; bg: string }> = {
   pending: { label: 'Pendente', color: '#F57C00', bg: '#FFF3E0' },
   completed: { label: 'Concluída', color: '#2E7D32', bg: '#E8F5E9' },
   cancelled: { label: 'Cancelada', color: '#C62828', bg: '#FFEBEE' },
+  partially_refunded: { label: 'Dev. Parcial', color: '#F57C00', bg: '#FFF3E0' },
+  refunded: { label: 'Devolvida', color: '#7B1FA2', bg: '#F3E5F5' },
 };
 
 const paymentLabel: Record<string, string> = {
@@ -34,7 +38,7 @@ const paymentIcon: Record<string, string> = {
   cash: 'cash',
   credit_card: 'card',
   debit_card: 'card',
-  pix: 'qrcode',
+  pix: 'qr-code-outline',
   transfer: 'swap-horizontal',
 };
 
@@ -45,11 +49,25 @@ export default function SaleDetailsScreen() {
   const { goBack } = useBackToList('/(tabs)/sales');
   const receiptRef = useRef<View>(null);
   const { user } = useAuthStore();
+  const [returnModalVisible, setReturnModalVisible] = useState(false);
 
   const { data: sale, isLoading, isError, refetch } = useQuery<SaleWithDetails>({
     queryKey: ['sale', saleId],
     queryFn: () => getSaleById(saleId),
   });
+
+  // Buscar histórico de devoluções
+  const { data: returns = [], refetch: refetchReturns } = useQuery<SaleReturn[]>({
+    queryKey: ['returns', saleId],
+    queryFn: () => getReturnHistory(saleId),
+    enabled: !!saleId,
+  });
+
+  // Callback para recarregar dados após devolução
+  const handleReturnSuccess = useCallback(() => {
+    refetch();
+    refetchReturns();
+  }, [refetch, refetchReturns]);
 
   const handleShareReceipt = async () => {
     if (!sale || !receiptRef.current) return;
@@ -79,29 +97,11 @@ export default function SaleDetailsScreen() {
   if (isLoading) {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="light-content" />
-        <View style={styles.headerContainer}>
-          <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.headerGradient}
-          >
-            <SafeAreaView edges={['top']} style={styles.safeArea}>
-              <View style={styles.headerTop}>
-                <TouchableOpacity
-                  style={styles.backButton}
-                  onPress={goBack}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="arrow-back" size={24} color="#fff" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Venda</Text>
-                <View style={styles.actionPlaceholder} />
-              </View>
-            </SafeAreaView>
-          </LinearGradient>
-        </View>
+        <PageHeader
+          title="Venda"
+          showBackButton
+          onBack={goBack}
+        />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={Colors.light.primary} />
           <Text style={styles.loadingText}>Carregando venda...</Text>
@@ -113,29 +113,11 @@ export default function SaleDetailsScreen() {
   if (isError || !sale) {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="light-content" />
-        <View style={styles.headerContainer}>
-          <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.headerGradient}
-          >
-            <SafeAreaView edges={['top']} style={styles.safeArea}>
-              <View style={styles.headerTop}>
-                <TouchableOpacity
-                  style={styles.backButton}
-                  onPress={goBack}
-                  activeOpacity={0.8}
-                >
-                  <Ionicons name="arrow-back" size={24} color="#fff" />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Venda</Text>
-                <View style={styles.actionPlaceholder} />
-              </View>
-            </SafeAreaView>
-          </LinearGradient>
-        </View>
+        <PageHeader
+          title="Venda"
+          showBackButton
+          onBack={goBack}
+        />
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle-outline" size={64} color="#999" />
           <Text style={styles.errorTitle}>Erro ao carregar venda</Text>
@@ -151,49 +133,28 @@ export default function SaleDetailsScreen() {
 
   const statusStyle = statusMap[sale.status];
   const formattedDateTime = formatDateTime(sale.created_at);
-  const [formattedDate, formattedTime] = formattedDateTime.split(' - ');
+  const [datePart, timePart] = formattedDateTime.split(' ');
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" />
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <SafeAreaView edges={['top']} style={styles.safeArea}>
-            <View style={styles.headerTop}>
-              <TouchableOpacity
-                style={styles.backButton}
-                onPress={goBack}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="arrow-back" size={24} color="#fff" />
-              </TouchableOpacity>
-              <Text style={styles.headerTitle}>Venda</Text>
-              <TouchableOpacity
-                style={styles.shareButton}
-                onPress={handleShareReceipt}
-                activeOpacity={0.8}
-              >
-                <Ionicons name="share-outline" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.headerInfo}>
-              <Text style={styles.headerEntityName}>{sale.sale_number}</Text>
-              <View style={styles.badgeRow}>
-                <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-                  <Ionicons name="checkmark-circle" size={14} color={statusStyle.color} />
-                  <Text style={[styles.statusText, { color: statusStyle.color }]}>{statusStyle.label}</Text>
-                </View>
-              </View>
-            </View>
-          </SafeAreaView>
-        </LinearGradient>
-      </View>
+      <PageHeader
+        title={sale.sale_number}
+        subtitle={`${datePart} - ${timePart}`}
+        showBackButton
+        onBack={goBack}
+        rightActions={[
+          {
+            icon: 'share-outline',
+            onPress: handleShareReceipt,
+          },
+        ]}
+      >
+        {/* Status Badge */}
+        <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+          <Ionicons name="checkmark-circle" size={14} color={statusStyle.color} />
+          <Text style={[styles.statusText, { color: statusStyle.color }]}>{statusStyle.label}</Text>
+        </View>
+      </PageHeader>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
         
@@ -205,8 +166,8 @@ export default function SaleDetailsScreen() {
             </View>
             <View style={styles.metricContent}>
               <Text style={styles.metricLabel}>DATA</Text>
-              <Text style={styles.metricValue}>{formattedDate}</Text>
-              <Text style={styles.metricSubValue}>{formattedTime}</Text>
+              <Text style={styles.metricValue}>{datePart}</Text>
+              <Text style={styles.metricSubValue}>{timePart}</Text>
             </View>
           </View>
 
@@ -423,12 +384,66 @@ export default function SaleDetailsScreen() {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.customerName}>{sale.customer_name || `Cliente #${sale.customer_id}`}</Text>
+              {/* Header do Cliente */}
+              <View style={styles.customerHeader}>
+                <View style={styles.customerAvatar}>
+                  <Ionicons name="person" size={24} color={Colors.light.primary} />
+                </View>
+                <View style={styles.customerInfo}>
+                  <Text style={styles.customerName}>
+                    {sale.customer_name || `Cliente Não Identificado`}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Detalhes do Cliente */}
+              <View style={styles.divider} />
+              
+              <View style={styles.customerDetails}>
+                <View style={styles.customerDetailRow}>
+                  <View style={styles.customerDetailItem}>
+                    <Ionicons name="calendar-outline" size={16} color="#666" />
+                    <Text style={styles.customerDetailLabel}>Data da Venda</Text>
+                  </View>
+                  <Text style={styles.customerDetailValue}>{datePart}</Text>
+                </View>
+
+                <View style={styles.customerDetailRow}>
+                  <View style={styles.customerDetailItem}>
+                    <Ionicons name="time-outline" size={16} color="#666" />
+                    <Text style={styles.customerDetailLabel}>Horário</Text>
+                  </View>
+                  <Text style={styles.customerDetailValue}>{timePart}</Text>
+                </View>
+
+                <View style={styles.customerDetailRow}>
+                  <View style={styles.customerDetailItem}>
+                    <Ionicons name="person-outline" size={16} color="#666" />
+                    <Text style={styles.customerDetailLabel}>Vendedor</Text>
+                  </View>
+                  <Text style={styles.customerDetailValue}>
+                    {sale.seller_name || `ID #${sale.seller_id}`}
+                  </Text>
+                </View>
+
+                <View style={styles.customerDetailRow}>
+                  <View style={styles.customerDetailItem}>
+                    <Ionicons name="receipt-outline" size={16} color="#666" />
+                    <Text style={styles.customerDetailLabel}>Nº da Venda</Text>
+                  </View>
+                  <Text style={styles.customerDetailValue}>{sale.sale_number}</Text>
+                </View>
+              </View>
+
+              {/* Observações */}
               {sale.notes && (
                 <>
                   <View style={styles.divider} />
                   <View style={styles.notesContainer}>
-                    <Text style={styles.notesLabel}>Observações:</Text>
+                    <View style={styles.notesHeader}>
+                      <Ionicons name="document-text-outline" size={16} color="#666" />
+                      <Text style={styles.notesLabel}>Observações</Text>
+                    </View>
                     <Text style={styles.notesText}>{sale.notes}</Text>
                   </View>
                 </>
@@ -446,11 +461,109 @@ export default function SaleDetailsScreen() {
             </View>
 
             <View style={styles.card}>
-              <Text style={styles.notesText}>{sale.notes}</Text>
+              <View style={styles.notesHeader}>
+                <Ionicons name="document-text-outline" size={16} color="#666" />
+                <Text style={styles.notesLabel}>Observações da Venda</Text>
+              </View>
+              <Text style={[styles.notesText, { paddingLeft: 0 }]}>{sale.notes}</Text>
             </View>
           </View>
         )}
+
+        {/* Histórico de Devoluções */}
+        {returns.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="refresh-outline" size={20} color={Colors.light.error} />
+              <Text style={styles.sectionTitle}>Devoluções ({returns.length})</Text>
+            </View>
+
+            {returns.map((ret) => (
+              <View key={ret.id} style={[styles.card, styles.returnCard]}>
+                <View style={styles.returnHeader}>
+                  <View style={styles.returnIcon}>
+                    <Ionicons name="refresh" size={20} color={Colors.light.error} />
+                  </View>
+                  <View style={styles.returnInfo}>
+                    <Text style={styles.returnNumber}>{ret.return_number}</Text>
+                    <Text style={styles.returnDate}>{formatDateTime(ret.created_at)}</Text>
+                  </View>
+                  <View style={[styles.returnStatusBadge, { backgroundColor: '#FFEBEE' }]}>
+                    <Text style={styles.returnStatusText}>
+                      {ret.status === 'completed' ? 'Concluída' : ret.status}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.divider} />
+
+                {/* Itens devolvidos */}
+                {ret.items.map((item, idx) => (
+                  <View key={idx} style={styles.returnItemRow}>
+                    <View style={styles.returnItemInfo}>
+                      <Text style={styles.returnItemName}>{item.product_name}</Text>
+                      <Text style={styles.returnItemQty}>Qtd: {item.quantity_returned}</Text>
+                    </View>
+                    <Text style={styles.returnItemRefund}>{formatCurrency(item.refund_amount)}</Text>
+                  </View>
+                ))}
+
+                <View style={styles.returnSummary}>
+                  <View style={styles.returnSummaryRow}>
+                    <Text style={styles.returnSummaryLabel}>Total Reembolsado</Text>
+                    <Text style={styles.returnSummaryValue}>{formatCurrency(ret.total_refund)}</Text>
+                  </View>
+                  {ret.reason && (
+                    <Text style={styles.returnReason} numberOfLines={2}>
+                      Motivo: {ret.reason}
+                    </Text>
+                  )}
+                  {ret.processed_by_name && (
+                    <Text style={styles.returnProcessedBy}>
+                      Processado por: {ret.processed_by_name}
+                    </Text>
+                  )}
+                </View>
+              </View>
+            ))}
+
+            {/* Total de devoluções */}
+            <View style={styles.returnsTotal}>
+              <Text style={styles.returnsTotalLabel}>Total Devolvido</Text>
+              <Text style={styles.returnsTotalValue}>
+                {formatCurrency(returns.reduce((sum, r) => sum + r.total_refund, 0))}
+              </Text>
+            </View>
+          </View>
+        )}
+
+        {/* Botão de Devolução - Para vendas concluídas ou parcialmente devolvidas */}
+        {(sale.status === 'completed' || sale.status === 'partially_refunded') && (
+          <View style={styles.returnSection}>
+            <Button
+              mode="outlined"
+              onPress={() => setReturnModalVisible(true)}
+              style={styles.returnButton}
+              textColor={Colors.light.error}
+              icon="refresh"
+            >
+              {sale.status === 'partially_refunded' ? 'Nova Devolução' : 'Realizar Devolução'}
+            </Button>
+            <Text style={styles.returnInfoText}>
+              Prazo de até 7 dias após a venda
+            </Text>
+          </View>
+        )}
       </ScrollView>
+
+      {/* Modal de Devolução */}
+      <ReturnModal
+        visible={returnModalVisible}
+        saleId={saleId}
+        saleNumber={sale.sale_number}
+        onDismiss={() => setReturnModalVisible(false)}
+        onSuccess={handleReturnSuccess}
+      />
     </View>
   );
 }
@@ -493,63 +606,6 @@ const styles = StyleSheet.create({
   retryText: {
     color: '#fff',
     fontWeight: '600',
-  },
-  headerContainer: {
-    marginBottom: 0,
-  },
-  headerGradient: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: 0, // SafeAreaView já cuida do espaço superior
-    paddingBottom: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  safeArea: {
-    flex: 0,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#fff',
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 8,
-  },
-  shareButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerInfo: {
-    gap: 12,
-  },
-  headerEntityName: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  badgeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
   },
   statusBadge: {
     flexDirection: 'row',
@@ -809,26 +865,77 @@ const styles = StyleSheet.create({
     marginTop: 6,
     fontStyle: 'italic',
   },
+  customerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 12,
+  },
+  customerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: `${Colors.light.primary}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  customerInfo: {
+    flex: 1,
+  },
   customerName: {
-    fontSize: 16,
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#222',
+    marginBottom: 2,
+  },
+  customerSubtitle: {
+    fontSize: 13,
+    color: '#666',
+  },
+  customerDetails: {
+    gap: 12,
+  },
+  customerDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  customerDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  customerDetailLabel: {
+    fontSize: 13,
+    color: '#666',
+  },
+  customerDetailValue: {
+    fontSize: 14,
     fontWeight: '600',
     color: '#222',
+    textAlign: 'right',
+    flex: 1,
   },
   notesContainer: {
-    marginTop: 12,
+    marginTop: 4,
+  },
+  notesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 8,
   },
   notesLabel: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
     color: '#666',
-    marginBottom: 6,
   },
   notesText: {
     fontSize: 14,
     lineHeight: 20,
     color: '#444',
+    paddingLeft: 22,
   },
   profitCard: {
     backgroundColor: '#fff',
@@ -935,5 +1042,139 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 6,
     fontStyle: 'italic',
+  },
+  returnSection: {
+    marginTop: 24,
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  returnButton: {
+    borderColor: Colors.light.error,
+    borderWidth: 2,
+  },
+  returnInfoText: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  // Return History Styles
+  returnCard: {
+    marginBottom: 12,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.light.error,
+  },
+  returnHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  returnIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: `${Colors.light.error}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  returnInfo: {
+    flex: 1,
+  },
+  returnNumber: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#222',
+    marginBottom: 2,
+  },
+  returnDate: {
+    fontSize: 12,
+    color: '#666',
+  },
+  returnStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  returnStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.error,
+  },
+  returnItemRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  returnItemInfo: {
+    flex: 1,
+  },
+  returnItemName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 2,
+  },
+  returnItemQty: {
+    fontSize: 12,
+    color: '#666',
+  },
+  returnItemRefund: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.light.error,
+  },
+  returnSummary: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#e0e0e0',
+  },
+  returnSummaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  returnSummaryLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  returnSummaryValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.light.error,
+  },
+  returnReason: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 8,
+    fontStyle: 'italic',
+  },
+  returnProcessedBy: {
+    fontSize: 11,
+    color: '#999',
+    marginTop: 4,
+  },
+  returnsTotal: {
+    marginTop: 12,
+    padding: 16,
+    backgroundColor: `${Colors.light.error}10`,
+    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  returnsTotalLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#333',
+  },
+  returnsTotalValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.light.error,
   },
 });

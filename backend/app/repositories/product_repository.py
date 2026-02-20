@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.models.product import Product
+from app.models.product_variant import ProductVariant
 from app.models.category import Category
 from app.repositories.base import BaseRepository
 
@@ -22,17 +23,42 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         """Wrapper para criar produto."""
         return await super().create(self.db, obj_in, tenant_id=tenant_id)
     
-    async def get_by_sku(self, sku: str, *, tenant_id: int | None = None) -> Optional[Product]:
+    async def get(self, db: AsyncSession, id: int, *, tenant_id: int | None = None) -> Optional[Product]:
         """
-        Busca um produto pelo SKU.
+        Busca um produto por ID com variantes carregadas.
         
         Args:
-            sku: SKU do produto
+            id: ID do produto
+            tenant_id: ID do tenant (opcional)
             
         Returns:
             Produto encontrado ou None
         """
-        query = select(Product).where(Product.sku == sku)
+        query = select(Product).where(Product.id == id).options(
+            selectinload(Product.variants),
+            selectinload(Product.category),
+            selectinload(Product.inventory)
+        )
+        if tenant_id is not None:
+            query = query.where(Product.tenant_id == tenant_id)
+        
+        result = await self.db.execute(query)
+        return result.scalar_one_or_none()
+    
+    async def get_by_sku(self, sku: str, *, tenant_id: int | None = None) -> Optional[Product]:
+        """
+        Busca um produto pelo SKU (busca em variantes).
+        
+        Args:
+            sku: SKU da variante
+            
+        Returns:
+            Produto encontrado ou None
+        """
+        # SKU agora está em ProductVariant, não em Product
+        query = select(Product).join(ProductVariant).where(
+            ProductVariant.sku == sku
+        ).options(selectinload(Product.variants))
         if tenant_id is not None:
             query = query.where(Product.tenant_id == tenant_id)
         result = await self.db.execute(query)
@@ -40,15 +66,18 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
     
     async def get_by_barcode(self, barcode: str, *, tenant_id: int | None = None) -> Optional[Product]:
         """
-        Busca um produto pelo código de barras.
+        Busca um produto pelo código de barras (busca em variantes).
         
         Args:
-            barcode: Código de barras do produto
+            barcode: Código de barras da variante
             
         Returns:
             Produto encontrado ou None
         """
-        query = select(Product).where(Product.barcode == barcode)
+        # Barcode agora está em ProductVariant
+        query = select(Product).join(ProductVariant).where(
+            ProductVariant.barcode == barcode
+        ).options(selectinload(Product.variants))
         if tenant_id is not None:
             query = query.where(Product.tenant_id == tenant_id)
         result = await self.db.execute(query)
@@ -109,18 +138,21 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         """
         search_term = f"%{query.lower()}%"
 
-        sql_query = select(Product).where(
+        # SKU agora está em ProductVariant - usar join para buscar
+        from sqlalchemy import any_
+        
+        sql_query = select(Product).join(ProductVariant, isouter=True).where(
             and_(
                 or_(
                     Product.name.ilike(search_term),
                     Product.description.ilike(search_term),
                     Product.brand.ilike(search_term),
-                    Product.sku.ilike(search_term)
+                    ProductVariant.sku.ilike(search_term)
                 ),
                 Product.is_active == True,
                 Product.is_catalog == False
             )
-        ).order_by(Product.name)
+        ).options(selectinload(Product.variants)).order_by(Product.name).distinct()
         if tenant_id is not None:
             sql_query = sql_query.where(Product.tenant_id == tenant_id)
         
@@ -312,7 +344,7 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
     
     async def exists_by_sku(self, sku: str, exclude_id: Optional[int] = None, *, tenant_id: int | None = None) -> bool:
         """
-        Verifica se existe um produto com o SKU especificado.
+        Verifica se existe um produto com o SKU especificado (busca em variantes).
         
         Args:
             sku: SKU a verificar
@@ -321,14 +353,15 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         Returns:
             True se o SKU já existe
         """
-        conditions = [Product.sku == sku]
+        # SKU agora está em ProductVariant
+        conditions = [ProductVariant.sku == sku]
         if tenant_id is not None:
-            conditions.append(Product.tenant_id == tenant_id)
+            conditions.append(ProductVariant.tenant_id == tenant_id)
         
         if exclude_id is not None:
-            conditions.append(Product.id != exclude_id)
+            conditions.append(ProductVariant.product_id != exclude_id)
         
-        query = select(Product.id).where(and_(*conditions))
+        query = select(ProductVariant.id).where(and_(*conditions))
         result = await self.db.execute(query)
         return result.scalar_one_or_none() is not None
     

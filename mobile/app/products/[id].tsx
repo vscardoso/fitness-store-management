@@ -363,7 +363,7 @@ export default function ProductDetailsScreen() {
       <Card style={styles.card}>
         <Card.Content>
           <View style={styles.sectionHeader}>
-            <Ionicons name="qrcode-outline" size={20} color={Colors.light.primary} />
+            <Ionicons name="qr-code-outline" size={20} color={Colors.light.primary} />
             <Text style={styles.cardTitle}>Etiqueta do Produto</Text>
           </View>
 

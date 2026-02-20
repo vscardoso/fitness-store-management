@@ -36,7 +36,9 @@ from app.api.v1.endpoints import (
     team,
     ai,
     debug,
+    returns,
 )
+from app.api.v1 import product_variants
 
 
 # Router principal da API v1
@@ -57,6 +59,12 @@ api_router.include_router(
 api_router.include_router(
     products.router,
     tags=["Produtos"]
+)
+
+# Variantes de produtos (tamanhos/cores)
+api_router.include_router(
+    product_variants.router,
+    tags=["Variantes de Produto"]
 )
 
 # Processamento de vendas e relatórios
@@ -146,4 +154,10 @@ api_router.include_router(
     debug.router,
     prefix="/debug",
     tags=["Debug"]
+)
+
+# Devoluções de Vendas
+api_router.include_router(
+    returns.router,
+    tags=["Devoluções"]
 )

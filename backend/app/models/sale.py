@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from .customer import Customer
     from .user import User
     from .product import Product
+    from .sale_return import SaleReturn, ReturnItem
 
 
 class SaleStatus(str, Enum):
@@ -19,6 +20,7 @@ class SaleStatus(str, Enum):
     PENDING = "pending"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
+    PARTIALLY_REFUNDED = "partially_refunded"
     REFUNDED = "refunded"
 
 
@@ -210,9 +212,11 @@ class Sale(BaseModel):
 
 class SaleItem(BaseModel):
     """
-    Sale item model representing individual products in a sale.
+    Sale item model representing individual product variants in a sale.
     
-    Links products to sales with quantities and pricing.
+    Links product variants to sales with quantities and pricing.
+    
+    Após migração: cada SaleItem está vinculado a uma ProductVariant (tamanho/cor).
     """
     __tablename__ = "sale_items"
     
@@ -259,9 +263,19 @@ class SaleItem(BaseModel):
         comment="Sale ID"
     )
     
-    product_id: Mapped[int] = mapped_column(
+    # NOVO: FK para variante (substitui product_id)
+    variant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("product_variants.id", ondelete="RESTRICT"),
+        nullable=True,  # NULL durante migração, depois será NOT NULL
+        index=True,
+        comment="ID da variante do produto (tamanho/cor)"
+    )
+    
+    # LEGADO: Mantido para compatibilidade durante migração
+    product_id: Mapped[int | None] = mapped_column(
         ForeignKey("products.id", ondelete="RESTRICT"),
-        comment="Product ID"
+        nullable=True,  # Agora opcional após migração
+        comment="Product ID (legado - usar variant_id)"
     )
     
     # Relacionamentos
@@ -270,8 +284,15 @@ class SaleItem(BaseModel):
         back_populates="items"
     )
     
+    # LEGADO: relacionamento com Product (via product_id)
     product: Mapped["Product"] = relationship(
         "Product",
+        back_populates="sale_items"
+    )
+    
+    # NOVO: relacionamento com ProductVariant (via variant_id)
+    variant: Mapped["ProductVariant"] = relationship(
+        "ProductVariant",
         back_populates="sale_items"
     )
     
@@ -343,4 +364,17 @@ Sale.payments = relationship(
     "Payment",
     back_populates="sale",
     cascade="all, delete-orphan"
+)
+
+# Relacionamento com devoluções
+Sale.returns = relationship(
+    "SaleReturn",
+    back_populates="sale",
+    cascade="all, delete-orphan"
+)
+
+# Relacionamento com itens de devolução
+SaleItem.return_items = relationship(
+    "ReturnItem",
+    back_populates="sale_item"
 )

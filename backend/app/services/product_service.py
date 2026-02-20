@@ -81,8 +81,21 @@ class ProductService:
         initial_stock = product_data.initial_stock if product_data.initial_stock is not None else initial_quantity
         min_stock_value = product_data.min_stock if product_data.min_stock is not None else min_stock
 
-        # Remover campos específicos de estoque e alias sale_price do payload do produto
-        product_dict = product_data.model_dump(exclude={"initial_stock", "min_stock", "sale_price"})
+        # Remover campos específicos de estoque, alias e campos que agora pertencem à ProductVariant
+        product_dict = product_data.model_dump(exclude={
+            "initial_stock", "min_stock", "sale_price",
+            "sku", "barcode", "price", "cost_price", "size", "color"
+        })
+        
+        # Guardar dados da variante para criar depois
+        variant_data = {
+            "sku": product_data.sku,
+            "barcode": product_data.barcode,
+            "price": product_data.price,
+            "cost_price": product_data.cost_price,
+            "size": product_data.size,
+            "color": product_data.color,
+        }
 
         # REGRA DE NEGÓCIO: is_catalog é determinado pelo campo enviado pelo cliente.
         # Se o cliente enviou is_catalog explicitamente, respeitar esse valor.
@@ -110,7 +123,28 @@ class ProductService:
 
         # Criar produto no repositório
         product = await self.product_repo.create(product_dict, tenant_id=tenant_id)
-        logger.info(f"Produto criado - ID: {product.id}, SKU: {product.sku}, is_catalog: {product.is_catalog}")
+        logger.info(f"Produto criado - ID: {product.id}, is_catalog: {product.is_catalog}")
+        
+        # Criar primeira variante com os dados do produto
+        from app.services.product_variant_service import ProductVariantService
+        from app.schemas.product_variant import ProductVariantCreate
+        
+        variant_service = ProductVariantService(self.db)
+        variant_create = ProductVariantCreate(
+            sku=variant_data["sku"],
+            barcode=variant_data["barcode"],
+            price=variant_data["price"] or product_data.price,
+            cost_price=variant_data["cost_price"],
+            size=variant_data["size"],
+            color=variant_data["color"],
+        )
+        
+        variant = await variant_service.create_variant(
+            product_id=product.id,
+            variant_data=variant_create,
+            tenant_id=tenant_id
+        )
+        logger.info(f"Variante criada - ID: {variant.id}, SKU: {variant.sku}")
 
         # Se há estoque inicial, criar entrada automática do tipo INITIAL_INVENTORY
         if initial_stock and initial_stock > 0:
@@ -123,7 +157,7 @@ class ProductService:
                 from app.schemas.entry_item import EntryItemCreate
 
                 entry_data = StockEntryCreate(
-                    entry_code=f"INIT-{product.sku}-{date.today().strftime('%Y%m%d')}",
+                    entry_code=f"INIT-{variant.sku}-{date.today().strftime('%Y%m%d')}",
                     entry_date=date.today(),
                     entry_type=EntryType.INITIAL_INVENTORY,
                     supplier_name="Estoque Inicial do Sistema",
@@ -151,7 +185,7 @@ class ProductService:
                 entry.total_cost = item.total_cost
                 await self.db.commit()
 
-                logger.info(f" Produto {product.sku} vinculado à entrada {entry.entry_code}")
+                logger.info(f" Produto {variant.sku} vinculado à entrada {entry.entry_code}")
 
                 # Rebuild inventário via FIFO (fonte da verdade = entry_items)
                 # Garante que Inventory.quantity == soma de quantity_remaining dos EntryItems ativos
@@ -341,7 +375,7 @@ class ProductService:
 
                 code_ts = now_brazil().strftime("%Y%m%d%H%M%S")
                 entry_payload = {
-                    "entry_code": f"ADJ-{product.sku}-{code_ts}",
+                    "entry_code": f"ADJ-{product.sku or product.id}-{code_ts}",
                     "entry_date": date.today(),
                     "entry_type": EntryType.ADJUSTMENT,
                     "supplier_name": "Ajuste de Inventário",
@@ -759,8 +793,9 @@ class ProductService:
                 Product.is_active == True
             )
         ).options(
-            selectinload(Product.category),  # carregamento DA RELAÇÃO
-            selectinload(Product.inventory)
+            selectinload(Product.category),
+            selectinload(Product.inventory),
+            selectinload(Product.variants)  # Carregar variantes para propriedades de compatibilidade
         ).order_by(Product.name).offset(skip).limit(limit)
 
         result = await self.db.execute(stmt)
@@ -801,11 +836,17 @@ class ProductService:
             ValueError: Se produto não existe ou não é catálogo
         """
         # Buscar produto do catálogo
-        catalog_product = await self.product_repo.get(
-            self.db,
-            catalog_product_id,
-            tenant_id=tenant_id
+        # IMPORTANTE: produtos de catálogo são GLOBAIS (tenant_id do seed, não do usuário).
+        # NÃO filtrar por tenant_id aqui — o catálogo pertence a todos os tenants.
+        from sqlalchemy import select, and_
+        catalog_result = await self.db.execute(
+            select(Product).where(
+                Product.id == catalog_product_id,
+                Product.is_catalog == True,
+                Product.is_active == True,
+            )
         )
+        catalog_product = catalog_result.scalar_one_or_none()
 
         if not catalog_product:
             raise ValueError("Produto não encontrado no catálogo")
@@ -827,12 +868,20 @@ class ProductService:
             counter += 1
             new_sku = f"{base_sku}-{counter:03d}"
 
+        # Verificar se o barcode do catálogo já existe no tenant do usuário.
+        # Se sim, não copiar o barcode (evita duplicata ao ativar o mesmo produto 2x).
+        catalog_barcode = catalog_product.barcode
+        if catalog_barcode:
+            existing_barcode = await self.product_repo.get_by_barcode(catalog_barcode, tenant_id=tenant_id)
+            if existing_barcode:
+                catalog_barcode = None  # Não copiar barcode duplicado
+
         # Criar cópia do produto como ativo
         product_data = ProductCreate(
             name=catalog_product.name,
             description=catalog_product.description,
             sku=new_sku,
-            barcode=catalog_product.barcode,
+            barcode=catalog_barcode,
             price=custom_price if custom_price is not None else catalog_product.price,
             cost_price=catalog_product.cost_price,
             category_id=catalog_product.category_id,

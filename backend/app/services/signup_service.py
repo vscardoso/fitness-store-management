@@ -362,17 +362,15 @@ class SignupService:
         template_products = result.scalars().all()
         
         # 4. Copy products with new tenant_id and mapped category_id
+        from app.models.product_variant import ProductVariant
+        from decimal import Decimal
+        
         for template_prod in template_products:
+            # Criar produto pai (sem os campos de variante)
             new_product = Product(
                 name=template_prod.name,
                 description=template_prod.description,
-                sku=template_prod.sku,
-                barcode=template_prod.barcode,
-                price=template_prod.price,
-                cost_price=template_prod.cost_price,
                 brand=template_prod.brand,
-                color=template_prod.color,
-                size=template_prod.size,
                 gender=template_prod.gender,
                 material=template_prod.material,
                 is_digital=template_prod.is_digital,
@@ -382,6 +380,20 @@ class SignupService:
                 is_active=True
             )
             self.db.add(new_product)
+            await self.db.flush()  # Obter product.id
+            
+            # Criar variante com os dados do template
+            variant = ProductVariant(
+                product_id=new_product.id,
+                sku=template_prod.sku,
+                price=template_prod.price or Decimal("0"),
+                cost_price=template_prod.cost_price,
+                color=template_prod.color,
+                size=template_prod.size,
+                tenant_id=tenant_id,
+                is_active=True
+            )
+            self.db.add(variant)
         
         # Flush to persist all products
         await self.db.flush()

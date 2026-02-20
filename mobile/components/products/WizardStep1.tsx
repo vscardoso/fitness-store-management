@@ -14,6 +14,8 @@ import {
   Image,
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { Text, Button, TextInput, Card, ProgressBar, Chip } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -35,9 +37,11 @@ interface WizardStep1Props {
 
 export default function WizardStep1({
   wizard,
-  categories,
+  categories: categoriesProp,
   onNext,
 }: WizardStep1Props) {
+  // Guard defensivo: garante que categories é sempre um array
+  const categories = Array.isArray(categoriesProp) ? categoriesProp : [];
   const { state } = wizard;
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [isSavingToGallery, setIsSavingToGallery] = useState(false);
@@ -645,34 +649,85 @@ export default function WizardStep1({
     );
   };
 
+  // Banner fixo quando há produto selecionado no catálogo
+  const renderFixedSelectionBanner = () => {
+    if (state.identifyMethod !== 'catalog' || !state.selectedCatalogProduct) return null;
+    
+    const selectedProduct = state.selectedCatalogProduct;
+    
+    return (
+      <View style={styles.fixedSelectionBanner}>
+        <View style={styles.fixedSelectionLeft}>
+          <View style={styles.fixedSelectionCheck}>
+            <Ionicons name="checkmark" size={16} color="#fff" />
+          </View>
+          <View style={styles.fixedSelectionInfo}>
+            <Text style={styles.fixedSelectionName} numberOfLines={1}>
+              {selectedProduct.name}
+            </Text>
+            <Text style={styles.fixedSelectionMeta} numberOfLines={1}>
+              {selectedProduct.sku}
+              {selectedProduct.brand ? ` · ${selectedProduct.brand}` : ''}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.fixedSelectionActions}>
+          <TouchableOpacity
+            style={styles.fixedSelectionClearBtn}
+            onPress={() => wizard.selectCatalogProduct(null as any)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="close" size={18} color={Colors.light.textSecondary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.fixedSelectionUseBtn}
+            onPress={onNext}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.fixedSelectionUseBtnText}>Usar</Text>
+            <Ionicons name="arrow-forward" size={16} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  };
+
   return (
-    <ScrollView
+    <KeyboardAvoidingView
       style={styles.container}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
-      keyboardDismissMode="interactive"
-      showsVerticalScrollIndicator={false}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      {/* Seleção de método */}
-      {renderMethodSelection()}
+      {/* Banner fixo no topo quando produto selecionado no catálogo */}
+      {renderFixedSelectionBanner()}
+      
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Seleção de método */}
+        {renderMethodSelection()}
 
-      {/* Interface específica do método */}
-      {state.identifyMethod === 'scanner' && renderScanner()}
-      {state.identifyMethod === 'manual' && renderManualForm()}
-      {state.identifyMethod === 'catalog' && renderCatalogSearch()}
+        {/* Interface específica do método */}
+        {state.identifyMethod === 'scanner' && renderScanner()}
+        {state.identifyMethod === 'manual' && renderManualForm()}
+        {state.identifyMethod === 'catalog' && renderCatalogSearch()}
 
-      {/* ConfirmDialog para galeria (saveToGallery) */}
-      <ConfirmDialog
-        visible={galleryDialog.visible}
-        title={galleryDialog.title}
-        message={galleryDialog.message}
-        type={galleryDialog.type}
-        confirmText="OK"
-        cancelText=""
-        onConfirm={() => setGalleryDialog(d => ({ ...d, visible: false }))}
-        onCancel={() => setGalleryDialog(d => ({ ...d, visible: false }))}
-      />
-    </ScrollView>
+        {/* ConfirmDialog para galeria (saveToGallery) */}
+        <ConfirmDialog
+          visible={galleryDialog.visible}
+          title={galleryDialog.title}
+          message={galleryDialog.message}
+          type={galleryDialog.type}
+          confirmText="OK"
+          cancelText=""
+          onConfirm={() => setGalleryDialog(d => ({ ...d, visible: false }))}
+          onCancel={() => setGalleryDialog(d => ({ ...d, visible: false }))}
+        />
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -680,6 +735,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
+  },
+  scrollView: {
+    flex: 1,
   },
   content: {
     padding: theme.spacing.md,
@@ -1268,5 +1326,74 @@ const styles = StyleSheet.create({
   },
   catalogItemPriceSelected: {
     color: Colors.light.primary,
+  },
+
+  // Banner fixo no topo (quando produto selecionado no catálogo)
+  fixedSelectionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.light.success + '15',
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.success + '30',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  fixedSelectionLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  fixedSelectionCheck: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.light.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  fixedSelectionInfo: {
+    flex: 1,
+  },
+  fixedSelectionName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginBottom: 1,
+  },
+  fixedSelectionMeta: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+  },
+  fixedSelectionActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  fixedSelectionClearBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fixedSelectionUseBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: Colors.light.success,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 24,
+  },
+  fixedSelectionUseBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
   },
 });

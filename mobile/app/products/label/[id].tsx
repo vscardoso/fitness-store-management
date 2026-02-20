@@ -239,7 +239,7 @@ export default function ProductLabelScreen() {
         <Card style={styles.infoCard}>
           <Card.Content>
             <View style={styles.infoRow}>
-              <Ionicons name="qrcode" size={24} color={Colors.light.info} />
+              <Ionicons name="qr-code-outline" size={24} color={Colors.light.info} />
               <View style={styles.infoText}>
                 <Text style={styles.infoTitle}>QR Code contém:</Text>
                 <Text style={styles.infoDetail}>ID: {product.id}</Text>

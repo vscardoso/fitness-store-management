@@ -59,7 +59,7 @@ export interface UseProductWizardReturn {
   addStockToDuplicate: (productId: number, partialData?: Partial<Product>) => Promise<void>;
 
   // Step 3 - Entrada
-  goToNewEntry: () => void;
+  goToNewEntry: (quantity?: number) => void;
   goToExistingEntry: (quantity?: number) => void;
   skipEntry: () => void;
 
@@ -531,16 +531,20 @@ export function useProductWizard() {
   // STEP 3 - ENTRADA
   // ============================================
 
-  const goToNewEntry = useCallback(() => {
+  const goToNewEntry = useCallback((quantity: number = 1) => {
     if (!state.createdProduct) {
       logError('Wizard', 'goToNewEntry chamado sem createdProduct', { state: state.currentStep });
       return;
     }
 
+    // Validar quantidade
+    const validQuantity = quantity > 0 ? quantity : 1;
+
     logInfo('Wizard', 'goToNewEntry - navegando para entries/add', {
       productId: state.createdProduct.id,
       productName: state.createdProduct.name,
       sku: state.createdProduct.sku,
+      quantity: validQuantity,
     });
 
     // Ir para criação de entrada com o produto pré-selecionado
@@ -559,7 +563,7 @@ export function useProductWizard() {
           price: state.createdProduct.price,
           category_id: state.createdProduct.category_id,
         }),
-        preselectedQuantity: '1',
+        preselectedQuantity: String(validQuantity),
       },
     });
   }, [state.createdProduct, router]);

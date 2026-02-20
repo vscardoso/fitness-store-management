@@ -1,5 +1,10 @@
 """
 Modelo de item de entrada de estoque.
+
+IMPORTANTE: Após a migração para o sistema de variantes:
+- O campo variant_id substitui product_id
+- Cada EntryItem agora está vinculado a uma variante específica (tamanho/cor)
+- O campo product_id é mantido para compatibilidade durante a migração
 """
 from decimal import Decimal
 from sqlalchemy import String, Text, Numeric, ForeignKey, Integer, CheckConstraint
@@ -11,14 +16,17 @@ from .base import BaseModel
 if TYPE_CHECKING:
     from .stock_entry import StockEntry
     from .product import Product
+    from .product_variant import ProductVariant
 
 
 class EntryItem(BaseModel):
     """
     Entry Item model - Item individual de uma entrada de estoque.
     
-    Representa um produto específico dentro de uma entrada de estoque,
+    Representa uma variante específica dentro de uma entrada de estoque,
     controlando quantidade recebida, quantidade restante (FIFO) e custo unitário.
+    
+    Após migração: cada EntryItem está vinculado a uma ProductVariant (tamanho/cor).
     """
     __tablename__ = "entry_items"
     
@@ -30,11 +38,20 @@ class EntryItem(BaseModel):
         comment="ID da entrada de estoque"
     )
     
-    product_id: Mapped[int] = mapped_column(
-        ForeignKey("products.id", ondelete="RESTRICT"),
-        nullable=False,
+    # NOVO: FK para variante (substitui product_id)
+    variant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("product_variants.id", ondelete="RESTRICT"),
+        nullable=True,  # NULL durante migração, depois será NOT NULL
         index=True,
-        comment="ID do produto"
+        comment="ID da variante do produto (tamanho/cor)"
+    )
+    
+    # LEGADO: Mantido para compatibilidade durante migração
+    product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("products.id", ondelete="RESTRICT"),
+        nullable=True,  # Agora opcional após migração
+        index=True,
+        comment="ID do produto (legado - usar variant_id)"
     )
     
     # Quantidades
@@ -70,8 +87,16 @@ class EntryItem(BaseModel):
         lazy="selectin"
     )
     
+    # LEGADO: relacionamento com Product (via product_id)
     product: Mapped["Product"] = relationship(
         "Product",
+        lazy="selectin"
+    )
+    
+    # NOVO: relacionamento com ProductVariant (via variant_id)
+    variant: Mapped["ProductVariant"] = relationship(
+        "ProductVariant",
+        back_populates="entry_items",
         lazy="selectin"
     )
     
@@ -180,36 +205,64 @@ class EntryItem(BaseModel):
     
     @property
     def product_name(self) -> str | None:
-        """Nome do produto associado."""
+        """Nome do produto associado (via variante ou produto legado)."""
+        if self.variant:
+            return self.variant.product.name if self.variant.product else None
         return self.product.name if self.product else None
 
     @property
     def product_sku(self) -> str | None:
-        """SKU do produto associado."""
-        return self.product.sku if self.product else None
+        """SKU da variante ou produto associado."""
+        if self.variant:
+            return self.variant.sku
+        return getattr(self.product, 'sku', None) if self.product else None
 
     @property
     def product_barcode(self) -> str | None:
-        """Código de barras do produto associado."""
-        return getattr(self.product, 'barcode', None) if self.product else None
+        """Código de barras (legado - não mais usado)."""
+        return None
 
     @property
     def product_price(self) -> Decimal | None:
-        """Preço de venda do produto associado."""
-        return self.product.price if self.product else None
+        """Preço de venda da variante ou produto associado."""
+        if self.variant:
+            return self.variant.price
+        return getattr(self.product, 'price', None) if self.product else None
+    
+    @property
+    def variant_name(self) -> str | None:
+        """Nome completo da variante (produto + cor + tamanho)."""
+        if self.variant:
+            return self.variant.get_full_name()
+        return None
+    
+    @property
+    def variant_label(self) -> str | None:
+        """Label curto da variante (cor + tamanho)."""
+        if self.variant:
+            return self.variant.get_variant_label()
+        return None
 
     def get_product_info(self) -> dict:
         """
-        Retorna informações básicas do produto associado.
+        Retorna informações básicas do produto/variante associado.
         
         Returns:
-            dict: Dados do produto
+            dict: Dados do produto/variante
         """
+        if self.variant:
+            return {
+                "variant_id": self.variant.id,
+                "product_id": self.variant.product_id,
+                "name": self.variant.product.name if self.variant.product else None,
+                "sku": self.variant.sku,
+                "size": self.variant.size,
+                "color": self.variant.color,
+                "price": self.variant.price,
+            }
         if self.product:
             return {
                 "product_id": self.product.id,
                 "name": self.product.name,
-                "sku": self.product.sku,
-                "barcode": self.product.barcode,
             }
         return {}
