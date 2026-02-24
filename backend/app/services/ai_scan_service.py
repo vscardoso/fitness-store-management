@@ -12,6 +12,7 @@ from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_, func
+from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.models.product import Product
@@ -523,32 +524,38 @@ Responda APENAS com o JSON, sem texto adicional."""
         base_sku = "-".join(parts) if parts else "PROD"
 
         # Verificar unicidade e adicionar contador
+        # NOTA: sku é uma property do Product, precisa buscar via variantes
         counter = 1
         candidate = f"{base_sku}-{counter:03d}"
 
-        stmt = select(func.count(Product.id)).where(
-            Product.sku == candidate,
-            Product.tenant_id == tenant_id,
+        from app.models.product_variant import ProductVariant
+        
+        stmt = select(func.count(ProductVariant.id)).where(
+            ProductVariant.sku == candidate,
+            ProductVariant.is_active == True,
         )
+        
+        result = await self.db.execute(stmt)
+        count = result.scalar() or 0
 
-        while True:
+        while count > 0 and counter <= 999:
+            counter += 1
+            candidate = f"{base_sku}-{counter:03d}"
+            
+            stmt = select(func.count(ProductVariant.id)).where(
+                ProductVariant.sku == candidate,
+                ProductVariant.is_active == True,
+            )
+            
             result = await self.db.execute(stmt)
             count = result.scalar() or 0
 
-            if count == 0:
-                return candidate
+        if counter > 999:
+            # Fallback com timestamp
+            import time
+            return f"{base_sku}-{int(time.time()) % 10000}"
 
-            counter += 1
-            candidate = f"{base_sku}-{counter:03d}"
-            stmt = select(func.count(Product.id)).where(
-                Product.sku == candidate,
-                Product.tenant_id == tenant_id,
-            )
-
-            if counter > 999:
-                # Fallback com timestamp
-                import time
-                return f"{base_sku}-{int(time.time()) % 10000}"
+        return candidate
 
     async def _find_duplicates(
         self,
@@ -564,18 +571,17 @@ Responda APENAS com o JSON, sem texto adicional."""
         Busca produtos similares no banco usando múltiplas estratégias.
 
         Estratégias de busca (em ordem de prioridade):
-        1. Código de barras exato (100% match)
-        2. Combinação exata: marca + cor + tamanho (95% match)
-        3. Combinação parcial: marca + cor OU marca + tamanho (85% match)
-        4. Mesma categoria + cor + tamanho (80% match)
-        5. Nome similar (fallback)
+        1. Combinação exata: marca + cor + tamanho (95% match)
+        2. Combinação parcial: marca + cor OU marca + tamanho (85% match)
+        3. Mesma categoria + cor + tamanho (80% match)
+        4. Nome similar (fallback)
 
         Args:
             name: Nome do produto
             brand: Marca
             color: Cor
             size: Tamanho
-            barcode: Código de barras
+            barcode: Código de barras (não utilizado atualmente)
             tenant_id: ID do tenant
             category_id: ID da categoria (opcional)
 
@@ -589,12 +595,23 @@ Responda APENAS com o JSON, sem texto adicional."""
             """Helper para adicionar duplicado evitando repetições."""
             if product.id not in seen_ids:
                 seen_ids.add(product.id)
+                total_stock = sum(inv.quantity for inv in (product.inventory or []))
+                
+                # Buscar custo da primeira variante ativa
+                variant_cost = None
+                for variant in product.variants:
+                    if variant.is_active and variant.cost_price:
+                        variant_cost = float(variant.cost_price)
+                        break
+                
                 duplicates.append(DuplicateMatch(
                     product_id=product.id,
                     product_name=product.name,
                     sku=product.sku,
                     similarity_score=score,
                     reason=reason,
+                    current_stock=total_stock,
+                    cost_price=variant_cost,
                 ))
 
         base_conditions = [
@@ -602,68 +619,89 @@ Responda APENAS com o JSON, sem texto adicional."""
             Product.is_active == True,
         ]
 
-        # ESTRATÉGIA 1: Código de barras exato (100%)
-        if barcode:
-            stmt = select(Product).where(
-                *base_conditions,
-                Product.barcode == barcode,
-            )
-            result = await self.db.execute(stmt)
-            exact = result.scalar_one_or_none()
-
-            if exact:
-                add_duplicate(exact, 1.0, "️ Código de barras IDÊNTICO")
-                return duplicates  # Match exato por barcode, não precisa buscar mais
-
-        # ESTRATÉGIA 2: Combinação exata marca + cor + tamanho (95%)
-        if brand and color and size:
-            stmt = select(Product).where(
+        # ESTRATÉGIA 1: Combinação exata marca + cor + tamanho (95%)
+        # NOTA: Busca por código de barras removida pois Product.barcode é uma property que sempre retorna None
+        # NOTA: color e size são properties do Product, precisamos buscar via variantes
+        if brand and color and size and len(duplicates) < 5:
+            stmt = select(Product).options(
+                selectinload(Product.variants),
+                selectinload(Product.inventory),
+            ).where(
                 *base_conditions,
                 func.lower(Product.brand) == brand.lower(),
-                func.lower(Product.color) == color.lower(),
-                func.lower(Product.size) == size.lower(),
-            ).limit(5)
+            ).limit(10)
             result = await self.db.execute(stmt)
 
             for product in result.scalars().all():
-                add_duplicate(product, 0.95, "️ Mesma marca, cor e tamanho")
+                # Buscar nas variantes por cor e tamanho
+                for variant in product.variants:
+                    if not variant.is_active:
+                        continue
+                    if (variant.color and variant.color.lower() == color.lower() and
+                        variant.size and variant.size.lower() == size.lower()):
+                        add_duplicate(product, 0.95, "Mesma marca, cor e tamanho")
+                        break
 
         # ESTRATÉGIA 3a: Marca + cor (sem tamanho) - 85%
         if brand and color and len(duplicates) < 5:
-            stmt = select(Product).where(
+            stmt = select(Product).options(
+                selectinload(Product.variants),
+                selectinload(Product.inventory),
+            ).where(
                 *base_conditions,
                 func.lower(Product.brand) == brand.lower(),
-                func.lower(Product.color) == color.lower(),
-            ).limit(5)
+            ).limit(10)
             result = await self.db.execute(stmt)
 
             for product in result.scalars().all():
-                add_duplicate(product, 0.85, "Mesma marca e cor")
+                # Buscar nas variantes por cor
+                for variant in product.variants:
+                    if not variant.is_active:
+                        continue
+                    if variant.color and variant.color.lower() == color.lower():
+                        add_duplicate(product, 0.85, "Mesma marca e cor")
+                        break
 
         # ESTRATÉGIA 3b: Marca + tamanho (sem cor) - 85%
         if brand and size and len(duplicates) < 5:
-            stmt = select(Product).where(
+            stmt = select(Product).options(
+                selectinload(Product.variants),
+                selectinload(Product.inventory),
+            ).where(
                 *base_conditions,
                 func.lower(Product.brand) == brand.lower(),
-                func.lower(Product.size) == size.lower(),
-            ).limit(5)
+            ).limit(10)
             result = await self.db.execute(stmt)
 
             for product in result.scalars().all():
-                add_duplicate(product, 0.85, "Mesma marca e tamanho")
+                # Buscar nas variantes por tamanho
+                for variant in product.variants:
+                    if not variant.is_active:
+                        continue
+                    if variant.size and variant.size.lower() == size.lower():
+                        add_duplicate(product, 0.85, "Mesma marca e tamanho")
+                        break
 
         # ESTRATÉGIA 4: Categoria + cor + tamanho (80%)
         if category_id and color and size and len(duplicates) < 5:
-            stmt = select(Product).where(
+            stmt = select(Product).options(
+                selectinload(Product.variants),
+                selectinload(Product.inventory),
+            ).where(
                 *base_conditions,
                 Product.category_id == category_id,
-                func.lower(Product.color) == color.lower(),
-                func.lower(Product.size) == size.lower(),
-            ).limit(5)
+            ).limit(10)
             result = await self.db.execute(stmt)
 
             for product in result.scalars().all():
-                add_duplicate(product, 0.80, "Mesma categoria, cor e tamanho")
+                # Buscar nas variantes por cor e tamanho
+                for variant in product.variants:
+                    if not variant.is_active:
+                        continue
+                    if (variant.color and variant.color.lower() == color.lower() and
+                        variant.size and variant.size.lower() == size.lower()):
+                        add_duplicate(product, 0.80, "Mesma categoria, cor e tamanho")
+                        break
 
         # ESTRATÉGIA 5: Nome similar (fallback)
         if name and len(duplicates) < 5:
@@ -677,7 +715,10 @@ Responda APENAS com o JSON, sem texto adicional."""
                         break
 
                     search_pattern = f"%{keyword}%"
-                    stmt = select(Product).where(
+                    stmt = select(Product).options(
+                        selectinload(Product.variants),
+                        selectinload(Product.inventory),
+                    ).where(
                         *base_conditions,
                         Product.name.ilike(search_pattern),
                     ).limit(5)
@@ -866,27 +907,43 @@ Responda APENAS com o JSON, sem texto adicional."""
         Returns:
             Tuple (avg_cost, avg_sale) ou None se não encontrar
         """
+        # Buscar produtos similares (sem usar properties em queries)
         conditions = [
             Product.tenant_id == tenant_id,
             Product.is_active == True,
             Product.is_catalog == False,
-            Product.price.isnot(None),
-            Product.cost_price.isnot(None),
         ]
 
         if brand:
             conditions.append(Product.brand.ilike(f"%{brand}%"))
 
-        # Usar base_price em vez de price (que agora é uma property)
-        stmt = select(Product.cost_price, Product.base_price).where(*conditions).limit(20)
+        # Buscar produtos com variantes carregadas
+        stmt = select(Product).options(
+            selectinload(Product.variants),
+        ).where(*conditions).limit(20)
+        
         result = await self.db.execute(stmt)
-        similar_products = result.all()
+        products = result.scalars().all()
 
-        if not similar_products:
+        if not products:
             return None
 
-        costs = [float(p[0]) for p in similar_products if p[0]]
-        prices = [float(p[1]) for p in similar_products if p[1]]
+        # Coletar preços das variantes ativas
+        from app.models.product_variant import ProductVariant
+        
+        costs = []
+        prices = []
+        
+        for product in products:
+            # Usar base_price do produto pai para preço de venda
+            if product.base_price:
+                prices.append(float(product.base_price))
+            
+            # Buscar custo da primeira variante ativa
+            for variant in product.variants:
+                if variant.is_active and variant.cost_price:
+                    costs.append(float(variant.cost_price))
+                    break  # Apenas uma variante por produto
 
         if not costs or not prices:
             return None

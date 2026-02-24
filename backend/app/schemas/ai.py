@@ -11,6 +11,8 @@ class DuplicateMatch(BaseModel):
     sku: str
     similarity_score: float = Field(..., ge=0.0, le=1.0)
     reason: str  # "Nome similar", "Mesma marca/cor/tamanho"
+    current_stock: Optional[int] = Field(None, description="Estoque atual do produto")
+    cost_price: Optional[float] = Field(None, description="Preço de custo atual")
 
 
 class ProductScanResult(BaseModel):

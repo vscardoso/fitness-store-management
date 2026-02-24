@@ -7,14 +7,13 @@
  * - Manter no Catálogo (produto aguarda reposição)
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
   TouchableOpacity,
   Modal,
   Keyboard,
-  TouchableWithoutFeedback,
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
@@ -32,12 +31,25 @@ interface WizardStep3Props {
 
 export default function WizardStep3({ wizard }: WizardStep3Props) {
   const { state } = wizard;
-  
-  // Modal para Nova Entrada
+
+  // Variantes do produto criado (se houver)
+  const productVariants: any[] = useMemo(
+    () => (state.createdProduct as any)?.variants ?? [],
+    [state.createdProduct],
+  );
+  const hasVariants = productVariants.length > 0;
+
+  // Modal para Nova Entrada — modo simples (sem variantes)
   const [newEntryModalVisible, setNewEntryModalVisible] = useState(false);
   const [newEntryQuantity, setNewEntryQuantity] = useState('');
   const [newEntryQuantityError, setNewEntryQuantityError] = useState('');
-  
+
+  // Modal para Nova Entrada — modo variantes
+  const [variantQtyModalVisible, setVariantQtyModalVisible] = useState(false);
+  // 'new' = nova entrada, 'existing' = entrada existente
+  const [variantQtyMode, setVariantQtyMode] = useState<'new' | 'existing'>('new');
+  const [variantQtys, setVariantQtys] = useState<Record<number, string>>({});
+
   // Modal para Entrada Existente
   const [existingEntryModalVisible, setExistingEntryModalVisible] = useState(false);
   const [existingEntryQuantity, setExistingEntryQuantity] = useState('');
@@ -66,14 +78,27 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
     checkExistingEntries();
   }, []);
 
-  // Handler para Nova Entrada - abre modal para digitar quantidade
-  const handleNewEntryPress = () => {
-    setNewEntryModalVisible(true);
-    setNewEntryQuantity('');
-    setNewEntryQuantityError('');
+  // Abre o modal de variantes no modo correto
+  const openVariantQtyModal = (mode: 'new' | 'existing') => {
+    const initial: Record<number, string> = {};
+    productVariants.forEach((v: any) => { initial[v.id] = ''; });
+    setVariantQtys(initial);
+    setVariantQtyMode(mode);
+    setVariantQtyModalVisible(true);
   };
 
-  // Confirma quantidade para Nova Entrada
+  // Handler para Nova Entrada — abre modal adequado
+  const handleNewEntryPress = () => {
+    if (hasVariants) {
+      openVariantQtyModal('new');
+    } else {
+      setNewEntryModalVisible(true);
+      setNewEntryQuantity('');
+      setNewEntryQuantityError('');
+    }
+  };
+
+  // Confirma quantidade para Nova Entrada (produto simples, sem variantes)
   const handleConfirmNewEntry = () => {
     const qty = parseInt(newEntryQuantity);
     if (isNaN(qty) || qty <= 0) {
@@ -87,11 +112,32 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
     wizard.goToNewEntry(qty);
   };
 
-  // Handler para Entrada Existente - abre modal para digitar quantidade
+  // Confirma quantidades por variante (Nova Entrada ou Entrada Existente)
+  const handleConfirmVariantEntry = () => {
+    Keyboard.dismiss();
+    setVariantQtyModalVisible(false);
+
+    const qtys: Record<number, number> = {};
+    productVariants.forEach((v: any) => {
+      qtys[v.id] = parseInt(variantQtys[v.id] ?? '0') || 0;
+    });
+
+    if (variantQtyMode === 'existing') {
+      wizard.goToExistingEntryWithVariants(qtys);
+    } else {
+      wizard.goToNewEntryWithVariants(qtys);
+    }
+  };
+
+  // Handler para Entrada Existente - abre modal adequado (variantes ou simples)
   const handleExistingEntryPress = () => {
-    setExistingEntryModalVisible(true);
-    setExistingEntryQuantity('');
-    setExistingEntryQuantityError('');
+    if (hasVariants) {
+      openVariantQtyModal('existing');
+    } else {
+      setExistingEntryModalVisible(true);
+      setExistingEntryQuantity('');
+      setExistingEntryQuantityError('');
+    }
   };
 
   // Confirma quantidade para Entrada Existente
@@ -108,21 +154,49 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
     wizard.goToExistingEntry(qty);
   };
 
+  const getVariantLabel = (v: any): string => {
+    const parts = [v.size, v.color].filter(Boolean);
+    return parts.length > 0 ? parts.join(' - ') : v.sku ?? `Variante ${v.id}`;
+  };
+
   const product = state.createdProduct;
+  // No fluxo atômico de variantes, o produto ainda não existe no banco —
+  // ele só é criado quando o usuário confirma a entrada em entries/add.
+  const isAtomicVariants = (product as any)?._atomicVariants === true;
+
+  // Faixa de preço: mostra "min – max" quando há variantes com preços distintos
+  const priceDisplay = useMemo(() => {
+    if (productVariants.length > 0) {
+      const prices = productVariants.map((v: any) => Number(v.price)).filter((p: number) => p > 0);
+      if (prices.length > 0) {
+        const min = Math.min(...prices);
+        const max = Math.max(...prices);
+        return min === max ? formatCurrency(min) : `${formatCurrency(min)} – ${formatCurrency(max)}`;
+      }
+    }
+    return formatCurrency(product?.price ?? 0);
+  }, [productVariants, product]);
 
   return (
     <>
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
-      {/* Success Header com resumo do produto */}
+      {/* Header — contexto diferente para fluxo atômico vs produto já criado */}
       <View style={styles.successContainer}>
         <View style={styles.successIcon}>
           <Ionicons
-            name="checkmark-circle"
+            name={isAtomicVariants ? 'cube-outline' : 'checkmark-circle'}
             size={56}
-            color={Colors.light.success}
+            color={isAtomicVariants ? Colors.light.primary : Colors.light.success}
           />
         </View>
-        <Text style={styles.successTitle}>Produto Criado!</Text>
+        <Text style={[styles.successTitle, isAtomicVariants && styles.pendingTitle]}>
+          {isAtomicVariants ? 'Dados Configurados' : 'Produto Criado!'}
+        </Text>
+        {isAtomicVariants && (
+          <Text style={styles.pendingSubtitle}>
+            O produto e suas variantes serão criados junto com a entrada de estoque
+          </Text>
+        )}
 
         {/* Resumo inline do produto */}
         {product && (
@@ -130,17 +204,28 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
             <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
             <View style={styles.productMeta}>
               <Text style={styles.productSku}>{product.sku}</Text>
-              <Text style={styles.productPrice}>{formatCurrency(product.price)}</Text>
+              <Text style={styles.productPrice}>{priceDisplay}</Text>
             </View>
+            {isAtomicVariants && productVariants.length > 0 && (
+              <Text style={styles.variantCountLabel}>
+                {productVariants.length} {productVariants.length === 1 ? 'variante' : 'variantes'} configuradas
+              </Text>
+            )}
           </View>
         )}
       </View>
 
-      {/* Aviso de Estoque */}
-      <View style={styles.stockWarning}>
-        <Ionicons name="alert-circle" size={18} color={Colors.light.warning} />
-        <Text style={styles.stockWarningText}>
-          Estoque atual: 0 unidades - Vincule a uma entrada para rastreabilidade FIFO
+      {/* Aviso contextual */}
+      <View style={[styles.stockWarning, isAtomicVariants && styles.stockWarningInfo]}>
+        <Ionicons
+          name={isAtomicVariants ? 'information-circle' : 'alert-circle'}
+          size={18}
+          color={isAtomicVariants ? Colors.light.info : Colors.light.warning}
+        />
+        <Text style={[styles.stockWarningText, isAtomicVariants && styles.stockWarningTextInfo]}>
+          {isAtomicVariants
+            ? 'Produto ainda não foi criado — escolha uma entrada abaixo para concluir o cadastro'
+            : 'Estoque atual: 0 unidades — vincule a uma entrada para rastreabilidade FIFO'}
         </Text>
       </View>
 
@@ -199,31 +284,23 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
             </View>
             <Ionicons name="chevron-forward" size={24} color={Colors.light.secondary} />
           </TouchableOpacity>
-        ) : null}
-
-        {/* Manter no Catálogo */}
-        <TouchableOpacity
-          style={[styles.optionCard, styles.optionCardOutline]}
-          onPress={() => wizard.skipEntry()}
-          activeOpacity={0.8}
-        >
-          <View style={[styles.optionIconContainer, styles.optionIconContainerOutline]}>
-            <Ionicons name="albums-outline" size={28} color={Colors.light.textSecondary} />
-          </View>
-          <View style={styles.optionContent}>
-            <Text style={styles.optionTitleOutline}>Manter no Catálogo</Text>
-            <Text style={styles.optionDescription}>
-              Produto fica aguardando reposição
-            </Text>
-            <View style={styles.infoRow}>
-              <Ionicons name="information-circle" size={14} color={Colors.light.info} />
-              <Text style={styles.infoRowText}>
-                Estoque = 0 até vincular entrada
+        ) : (
+          <View style={[styles.optionCard, styles.optionCardDisabled]}>
+            <View style={[styles.optionIconContainer, styles.optionIconContainerDisabled]}>
+              <Ionicons name="link" size={28} color={Colors.light.textTertiary} />
+            </View>
+            <View style={styles.optionContent}>
+              <Text style={styles.optionTitleDisabled}>Entrada Existente</Text>
+              <Text style={styles.optionDescriptionDisabled}>
+                Nenhuma entrada disponível
+              </Text>
+              <Text style={styles.optionHintDisabled}>
+                Crie uma nova entrada acima
               </Text>
             </View>
+            <Ionicons name="chevron-forward" size={24} color={Colors.light.textTertiary} />
           </View>
-          <Ionicons name="chevron-forward" size={24} color={Colors.light.textTertiary} />
-        </TouchableOpacity>
+        )}
       </View>
 
       {/* Info Card */}
@@ -235,20 +312,128 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
       </View>
     </ScrollView>
 
-      {/* Modal de Quantidade para Nova Entrada */}
+      {/* Modal de Quantidade por Variante para Nova Entrada */}
+      <Modal
+        visible={variantQtyModalVisible}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => {
+          Keyboard.dismiss();
+          setVariantQtyModalVisible(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          {/* Backdrop — toque fora fecha sem bloquear o scroll do container */}
+          <TouchableOpacity
+            style={StyleSheet.absoluteFillObject}
+            onPress={() => { Keyboard.dismiss(); setVariantQtyModalVisible(false); }}
+            activeOpacity={1}
+          />
+          {/* View simples: não interfere no sistema de responder do ScrollView */}
+          <View style={[styles.modalContainer, styles.variantModalContainer]}>
+            {/* Header */}
+            <View style={styles.modalHeader}>
+              <View style={styles.modalIconContainer}>
+                <Ionicons name="layers" size={28} color={Colors.light.primary} />
+              </View>
+              <Text style={styles.modalTitle}>Quantidades por Variante</Text>
+              <Text style={styles.modalSubtitle}>
+                {variantQtyMode === 'existing'
+                  ? 'Informe quantos itens de cada variante estão nessa entrada'
+                  : 'Informe quantos itens de cada variante você está adicionando'}
+              </Text>
+            </View>
+
+            {/* Lista de variantes */}
+            <ScrollView
+              style={styles.variantList}
+              keyboardShouldPersistTaps="always"
+              showsVerticalScrollIndicator={false}
+              nestedScrollEnabled
+              bounces={false}
+            >
+              {productVariants.map((v: any) => (
+                <View key={v.id} style={styles.variantRow}>
+                  <View style={styles.variantInfo}>
+                    <Text style={styles.variantLabel}>{getVariantLabel(v)}</Text>
+                    <Text style={styles.variantPrice}>{formatCurrency(v.price)}</Text>
+                  </View>
+                  {/* Quick buttons */}
+                  <View style={styles.variantQuickButtons}>
+                    {[1, 5, 10].map((num) => (
+                      <TouchableOpacity
+                        key={num}
+                        style={styles.variantQuickButton}
+                        onPress={() => {
+                          setVariantQtys((prev) => ({ ...prev, [v.id]: String(num) }));
+                          Keyboard.dismiss();
+                        }}
+                      >
+                        <Text style={styles.variantQuickButtonText}>{num}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {/* Input */}
+                  <TextInput
+                    value={variantQtys[v.id] ?? ''}
+                    onChangeText={(text) =>
+                      setVariantQtys((prev) => ({
+                        ...prev,
+                        [v.id]: text.replace(/[^0-9]/g, ''),
+                      }))
+                    }
+                    mode="outlined"
+                    keyboardType="number-pad"
+                    returnKeyType="done"
+                    blurOnSubmit
+                    style={styles.variantQtyInput}
+                    placeholder="0"
+                    dense
+                  />
+                </View>
+              ))}
+            </ScrollView>
+
+            {/* Footer */}
+            <View style={styles.modalFooter}>
+              <Button
+                mode="outlined"
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setVariantQtyModalVisible(false);
+                }}
+                style={styles.modalCancelButton}
+              >
+                Cancelar
+              </Button>
+              <Button
+                mode="contained"
+                onPress={handleConfirmVariantEntry}
+                style={styles.modalConfirmButton}
+                icon="check"
+              >
+                Continuar
+              </Button>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal de Quantidade para Nova Entrada (produto sem variantes) */}
       <Modal
         visible={newEntryModalVisible}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => {
           Keyboard.dismiss();
           setNewEntryModalVisible(false);
         }}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback onPress={() => {}}>
-              <View style={styles.modalContainer}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => { Keyboard.dismiss(); setNewEntryModalVisible(false); }} activeOpacity={1} />
+          <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <View style={styles.modalIconContainer}>
                 <Ionicons name="add-circle" size={28} color={Colors.light.primary} />
@@ -325,10 +510,8 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
                 Continuar
               </Button>
             </View>
-              </View>
-            </TouchableWithoutFeedback>
           </View>
-        </TouchableWithoutFeedback>
+        </View>
       </Modal>
 
       {/* Modal de Quantidade para Entrada Existente */}
@@ -336,15 +519,15 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
         visible={existingEntryModalVisible}
         transparent
         animationType="fade"
+        statusBarTranslucent
         onRequestClose={() => {
           Keyboard.dismiss();
           setExistingEntryModalVisible(false);
         }}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
-          <View style={styles.modalOverlay}>
-            <TouchableWithoutFeedback onPress={() => {}}>
-              <View style={styles.modalContainer}>
+        <View style={styles.modalOverlay}>
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => { Keyboard.dismiss(); setExistingEntryModalVisible(false); }} activeOpacity={1} />
+          <View style={styles.modalContainer}>
             <View style={styles.modalHeader}>
               <View style={[styles.modalIconContainer, { backgroundColor: Colors.light.secondary + '20' }]}>
                 <Ionicons name="link" size={28} color={Colors.light.secondary} />
@@ -421,10 +604,8 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
                 Continuar
               </Button>
             </View>
-              </View>
-            </TouchableWithoutFeedback>
           </View>
-        </TouchableWithoutFeedback>
+        </View>
       </Modal>
     </>
   );
@@ -454,6 +635,23 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.light.success,
     marginBottom: theme.spacing.sm,
+  },
+  pendingTitle: {
+    color: Colors.light.primary,
+  },
+  pendingSubtitle: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
+    marginBottom: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
+    lineHeight: 18,
+  },
+  variantCountLabel: {
+    fontSize: 12,
+    color: Colors.light.primary,
+    fontWeight: '600',
+    marginTop: 6,
   },
   productSummary: {
     backgroundColor: Colors.light.primary + '08',
@@ -509,6 +707,13 @@ const styles = StyleSheet.create({
     color: Colors.light.warning,
     fontWeight: '500',
     lineHeight: 18,
+  },
+  stockWarningInfo: {
+    backgroundColor: Colors.light.info + '10',
+    borderColor: Colors.light.info + '30',
+  },
+  stockWarningTextInfo: {
+    color: Colors.light.info,
   },
 
   // Options
@@ -728,5 +933,83 @@ const styles = StyleSheet.create({
   modalConfirmButton: {
     flex: 2,
     backgroundColor: Colors.light.primary,
+  },
+
+  // Variant qty modal
+  variantModalContainer: {
+    maxHeight: '90%',
+  },
+  variantList: {
+    maxHeight: 320,
+    paddingHorizontal: theme.spacing.lg,
+  },
+  variantRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  variantInfo: {
+    flex: 1,
+  },
+  variantLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
+  variantPrice: {
+    fontSize: 12,
+    color: Colors.light.primary,
+    fontWeight: '500',
+    marginTop: 2,
+  },
+  variantQuickButtons: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  variantQuickButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    backgroundColor: Colors.light.primary + '15',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.light.primary + '30',
+  },
+  variantQuickButtonText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.primary,
+  },
+  variantQtyInput: {
+    backgroundColor: '#fff',
+    width: 72,
+  },
+  
+  // Option Card Disabled
+  optionCardDisabled: {
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderColor: Colors.light.border,
+    borderWidth: 1,
+    opacity: 0.6,
+  },
+  optionIconContainerDisabled: {
+    backgroundColor: Colors.light.backgroundSecondary + '80',
+  },
+  optionTitleDisabled: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: Colors.light.textTertiary,
+    marginBottom: 4,
+  },
+  optionDescriptionDisabled: {
+    fontSize: 13,
+    color: Colors.light.textTertiary,
+    marginBottom: 4,
+  },
+  optionHintDisabled: {
+    fontSize: 12,
+    color: Colors.light.textTertiary,
   },
 });

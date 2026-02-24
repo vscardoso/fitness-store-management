@@ -13,14 +13,14 @@ import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
-import { getProducts } from '@/services/productService';
+import { getGroupedProducts } from '@/services/productService';
 import EmptyState from '@/components/ui/EmptyState';
-import type { Product } from '@/types';
+import type { ProductGrouped, ProductVariant } from '@/types';
 
 interface ProductSelectionModalProps {
   visible: boolean;
   onDismiss: () => void;
-  onSelectProduct: (product: Product) => void;
+  onSelectProduct: (product: ProductGrouped, variant: ProductVariant) => void;
 }
 
 export default function ProductSelectionModal({
@@ -29,33 +29,29 @@ export default function ProductSelectionModal({
   onSelectProduct,
 }: ProductSelectionModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<ProductGrouped | null>(null);
 
-  // Query: Lista de produtos
+  // Query: Lista de produtos agrupados
   const {
     data: products,
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ['products'],
-    queryFn: () => getProducts({ limit: 1000 }), // Buscar até 1000 produtos
-    enabled: visible, // Only fetch when modal is visible
+    queryKey: ['grouped-products-modal'],
+    queryFn: () => getGroupedProducts({ limit: 1000 }),
+    enabled: visible,
   });
 
   // Reset search when modal opens
   useEffect(() => {
     if (visible) {
       setSearchQuery('');
+      setSelectedProduct(null);
     }
   }, [visible]);
 
   // Filter products by search query (client-side filtering)
-  const filteredProducts = products?.filter((product: Product) => {
-    // Apenas produtos ativos e não catálogo
-    if (!product.is_active || product.is_catalog) {
-      return false;
-    }
-
-    // Se não há busca, mostra todos
+  const filteredProducts = products?.filter((product: ProductGrouped) => {
     if (!searchQuery.trim()) {
       return true;
     }
@@ -63,72 +59,105 @@ export default function ProductSelectionModal({
     const search = searchQuery.toLowerCase();
     return (
       product.name.toLowerCase().includes(search) ||
-      product.sku.toLowerCase().includes(search) ||
-      product.barcode?.toLowerCase().includes(search) ||
-      product.brand?.toLowerCase().includes(search) ||
-      product.description?.toLowerCase().includes(search)
+      product.brand?.toLowerCase().includes(search)
     );
   });
 
-  const handleSelectProduct = (product: Product) => {
-    onSelectProduct(product);
+  const handleProductPress = (product: ProductGrouped) => {
+    setSelectedProduct(product);
+  };
+
+  const handleVariantPress = (product: ProductGrouped, variant: ProductVariant) => {
+    onSelectProduct(product, variant);
     onDismiss();
   };
 
-  const renderProduct = ({ item }: { item: Product }) => {
-    const stock = item.current_stock || 0;
-    const minStock = item.min_stock_threshold || 5;
-    const hasNoStock = stock === 0;
-    const hasLowStock = stock > 0 && stock <= minStock;
+  const renderProduct = ({ item }: { item: ProductGrouped }) => {
+    const isSelected = selectedProduct?.id === item.id;
+    const hasNoStock = item.total_stock === 0;
 
     return (
-      <TouchableOpacity
-        onPress={() => handleSelectProduct(item)}
-        activeOpacity={0.7}
-      >
-        <Card style={styles.productCard}>
-          <Card.Content style={styles.productCardContent}>
-            {/* Icon */}
+      <View>
+        <TouchableOpacity
+          onPress={() => handleProductPress(item)}
+          activeOpacity={0.7}
+          style={[
+            styles.productGroupHeader,
+            isSelected && styles.productGroupHeaderSelected,
+          ]}
+        >
+          <View style={styles.productGroupInfo}>
             <View style={styles.iconContainer}>
-              <Ionicons name="cube" size={24} color={Colors.light.primary} />
+              <Ionicons name="cube" size={20} color={isSelected ? Colors.light.primary : Colors.light.textSecondary} />
             </View>
-
-            {/* Product Info */}
-            <View style={styles.productInfo}>
+            <View style={styles.productGroupDetails}>
               <Text variant="titleMedium" style={styles.productName} numberOfLines={1}>
-                {[item.name, item.color, item.size].filter(Boolean).join(' - ')}
+                {item.name}
               </Text>
-              <Text variant="bodySmall" style={styles.productSku} numberOfLines={1}>
-                {item.sku}
-              </Text>
-              <View style={styles.priceStockRow}>
-                <Text variant="titleSmall" style={styles.productPrice}>
-                  {formatCurrency(item.price)}
+              {item.brand && (
+                <Text variant="bodySmall" style={styles.brand} numberOfLines={1}>
+                  {item.brand}
                 </Text>
-                <View style={[
-                  styles.stockBadge,
-                  hasNoStock && styles.stockBadgeEmpty,
-                  hasLowStock && styles.stockBadgeLow,
-                ]}>
-                  <Ionicons
-                    name={hasNoStock ? "close-circle" : hasLowStock ? "alert-circle" : "checkmark-circle"}
-                    size={12}
-                    color="#fff"
-                  />
-                  <Text style={styles.stockText}>{stock}</Text>
-                </View>
-              </View>
+              )}
             </View>
-
-            {/* Selection icon */}
+          </View>
+          <View style={styles.productGroupRight}>
+            <Text variant="titleSmall" style={styles.priceRange}>
+              {item.min_price === item.max_price
+                ? formatCurrency(item.min_price)
+                : `${formatCurrency(item.min_price)} - ${formatCurrency(item.max_price)}`
+              }
+            </Text>
             <Ionicons
-              name="chevron-forward"
-              size={24}
+              name={isSelected ? "chevron-up" : "chevron-down"}
+              size={20}
               color={Colors.light.textTertiary}
             />
-          </Card.Content>
-        </Card>
-      </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+
+        {/* Variantes - apenas se selecionado */}
+        {isSelected && (
+          <View style={styles.variantsContainer}>
+            {item.variants.map((variant) => {
+              const hasVariantStock = variant.current_stock > 0;
+              return (
+                <TouchableOpacity
+                  key={variant.id}
+                  onPress={() => handleVariantPress(item, variant)}
+                  activeOpacity={0.7}
+                  disabled={!hasVariantStock}
+                  style={styles.variantItem}
+                >
+                  <View style={styles.variantInfo}>
+                    <View style={styles.variantDetails}>
+                      <Text variant="bodyMedium" style={styles.variantLabel}>
+                        {variant.size || 'Único'}
+                      </Text>
+                      {variant.color && (
+                        <Text variant="bodySmall" style={styles.variantColor}>
+                          {variant.color}
+                        </Text>
+                      )}
+                    </View>
+                    <Text variant="titleSmall" style={styles.variantPrice}>
+                      {formatCurrency(variant.price)}
+                    </Text>
+                  </View>
+                  <View style={[
+                    styles.variantStockBadge,
+                    !hasVariantStock && styles.variantStockBadgeEmpty,
+                  ]}>
+                    <Text style={styles.variantStockText}>
+                      {variant.current_stock}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+      </View>
     );
   };
 
@@ -258,67 +287,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.md,
   },
-  productCard: {
-    marginBottom: 12,
-    borderRadius: theme.borderRadius.lg,
-    elevation: 1,
-  },
-  productCardContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: `${Colors.light.primary}15`,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  productInfo: {
-    flex: 1,
-    marginRight: 12,
-  },
-  productName: {
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  productSku: {
-    color: Colors.light.textSecondary,
-    fontSize: 12,
-    marginBottom: 6,
-  },
-  priceStockRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  productPrice: {
-    color: Colors.light.primary,
-    fontWeight: '700',
-  },
-  stockBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.light.success,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 12,
-    gap: 4,
-  },
-  stockBadgeLow: {
-    backgroundColor: Colors.light.warning,
-  },
-  stockBadgeEmpty: {
-    backgroundColor: Colors.light.error,
-  },
-  stockText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
-  },
   footer: {
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
@@ -333,5 +301,107 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     fontSize: theme.fontSize.md,
     fontWeight: '500',
+  },
+  // Product Group Styles
+  productGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light.card,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    marginBottom: 1,
+  },
+  productGroupHeaderSelected: {
+    backgroundColor: `${Colors.light.primary}10`,
+    borderBottomWidth: 2,
+    borderBottomColor: Colors.light.primary,
+  },
+  productGroupInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  productGroupDetails: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  productName: {
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  brand: {
+    color: Colors.light.textSecondary,
+    fontSize: 11,
+  },
+  iconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: `${Colors.light.primary}15`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  productGroupRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  priceRange: {
+    color: Colors.light.primary,
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  // Variants Styles
+  variantsContainer: {
+    backgroundColor: Colors.light.backgroundSecondary,
+    paddingHorizontal: 12,
+    paddingBottom: 8,
+  },
+  variantItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.light.card,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 6,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  variantInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  variantDetails: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  variantLabel: {
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  variantColor: {
+    color: Colors.light.textSecondary,
+    fontSize: 11,
+    marginBottom: 4,
+  },
+  variantPrice: {
+    color: Colors.light.primary,
+    fontWeight: '700',
+  },
+  variantStockBadge: {
+    backgroundColor: Colors.light.success,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  variantStockBadgeEmpty: {
+    backgroundColor: Colors.light.error,
+  },
+  variantStockText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

@@ -1,10 +1,9 @@
 /**
  * WizardComplete - Tela de Resumo Final do Wizard
  *
- * Mostra:
- * - Produto criado (nome, SKU, preço, categoria, atributos)
- * - Entrada vinculada (código, quantidade)
- * - Opções: Ver Produto | Criar Outro | Ir para Estoque
+ * Suporta dois modos:
+ * - Produto simples: mostra SKU, preços, atributos
+ * - Produto com variantes: mostra grade de variações com SKU e preço de cada uma
  */
 
 import { View, StyleSheet, ScrollView } from 'react-native';
@@ -14,19 +13,60 @@ import { useRouter } from 'expo-router';
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
+import type { ProductVariant } from '@/types/productVariant';
 
 interface WizardCompleteProps {
   wizard: UseProductWizardReturn;
 }
+
+const MAX_VARIANTS_VISIBLE = 6;
 
 export function WizardComplete({ wizard }: WizardCompleteProps) {
   const router = useRouter();
   const { state, resetWizard } = wizard;
   const { createdProduct, linkedEntry } = state;
 
+  // Detectar variantes
+  const variants = (createdProduct as any)?.variants as ProductVariant[] | undefined;
+  const activeVariants = variants?.filter(v => v.is_active) ?? [];
+  const isVariantProduct = activeVariants.length > 1;
+
+  // Preços
+  const priceRange: [number, number] | null = isVariantProduct
+    ? (() => {
+        const prices = activeVariants.map(v => Number(v.price)).filter(p => p > 0);
+        if (prices.length === 0) return null;
+        return [Math.min(...prices), Math.max(...prices)];
+      })()
+    : null;
+
+  const singlePrice = !isVariantProduct
+    ? Number((createdProduct as any)?.price ?? 0)
+    : null;
+  const singleCost = !isVariantProduct
+    ? Number((createdProduct as any)?.cost_price ?? 0)
+    : null;
+  const markup = singlePrice && singleCost && singleCost > 0
+    ? ((singlePrice - singleCost) / singleCost * 100)
+    : null;
+
+  // Cores e tamanhos únicos para exibição resumida nas variantes
+  const uniqueColors = isVariantProduct
+    ? [...new Set(activeVariants.map(v => v.color).filter(Boolean))] as string[]
+    : [];
+  const uniqueSizes = isVariantProduct
+    ? [...new Set(activeVariants.map(v => v.size).filter(Boolean))] as string[]
+    : [];
+
+  const visibleVariants = activeVariants.slice(0, MAX_VARIANTS_VISIBLE);
+  const hiddenCount = activeVariants.length - visibleVariants.length;
+
+  // Produto virtual (sentinel id=-1) ainda não tem página própria no banco
+  const canViewProduct = !!createdProduct && createdProduct.id > 0;
+
   const handleViewProduct = () => {
-    if (createdProduct) {
-      router.replace(`/products/${createdProduct.id}`);
+    if (canViewProduct) {
+      router.replace(`/products/${createdProduct!.id}`);
     }
   };
 
@@ -41,11 +81,6 @@ export function WizardComplete({ wizard }: WizardCompleteProps) {
   const handleGoToProducts = () => {
     router.replace('/(tabs)/products');
   };
-
-  // Calcular markup se tiver custo e preço
-  const markup = createdProduct?.cost_price && createdProduct?.price
-    ? ((createdProduct.price - createdProduct.cost_price) / createdProduct.cost_price * 100)
-    : null;
 
   return (
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
@@ -65,7 +100,7 @@ export function WizardComplete({ wizard }: WizardCompleteProps) {
         }
       </Text>
 
-      {/* Card do Produto - Resumo Completo */}
+      {/* ───── Card do Produto ───── */}
       <Card style={styles.card}>
         <Card.Content>
           <View style={styles.cardHeader}>
@@ -73,78 +108,191 @@ export function WizardComplete({ wizard }: WizardCompleteProps) {
               <Ionicons name="cube" size={22} color={Colors.light.primary} />
             </View>
             <Text style={styles.cardTitle}>Resumo do Produto</Text>
-          </View>
-
-          {/* Nome do produto */}
-          <Text style={styles.productName}>{createdProduct?.name || '-'}</Text>
-
-          {/* SKU e Categoria */}
-          <View style={styles.infoGrid}>
-            <View style={styles.infoGridItem}>
-              <Text style={styles.infoLabel}>SKU</Text>
-              <Text style={styles.infoValueMono}>{createdProduct?.sku || '-'}</Text>
-            </View>
-            {createdProduct?.category && (
-              <View style={styles.infoGridItem}>
-                <Text style={styles.infoLabel}>Categoria</Text>
-                <Text style={styles.infoValue}>{createdProduct.category.name}</Text>
+            {isVariantProduct && (
+              <View style={styles.variantBadge}>
+                <Ionicons name="layers" size={12} color={Colors.light.primary} />
+                <Text style={styles.variantBadgeText}>{activeVariants.length} variações</Text>
               </View>
             )}
           </View>
 
-          {/* Preços */}
-          <View style={styles.priceContainer}>
-            <View style={styles.priceItem}>
-              <Text style={styles.priceLabel}>Custo</Text>
-              <Text style={styles.priceValue}>
-                {formatCurrency(createdProduct?.cost_price || 0)}
-              </Text>
-            </View>
-            <View style={styles.priceDivider} />
-            <View style={styles.priceItem}>
-              <Text style={styles.priceLabel}>Venda</Text>
-              <Text style={styles.priceValueHighlight}>
-                {formatCurrency(createdProduct?.price || 0)}
-              </Text>
-            </View>
-            {markup !== null && markup > 0 && (
-              <>
-                <View style={styles.priceDivider} />
-                <View style={styles.priceItem}>
-                  <Text style={styles.priceLabel}>Markup</Text>
-                  <Text style={styles.markupValue}>+{markup.toFixed(0)}%</Text>
-                </View>
-              </>
+          {/* Nome */}
+          <Text style={styles.productName}>{createdProduct?.name || '-'}</Text>
+
+          {/* Categoria + Brand (linha) */}
+          <View style={styles.metaRow}>
+            {(createdProduct as any)?.category && (
+              <View style={styles.metaChip}>
+                <Ionicons name="grid" size={12} color={Colors.light.textSecondary} />
+                <Text style={styles.metaChipText}>{(createdProduct as any).category.name}</Text>
+              </View>
+            )}
+            {(createdProduct as any)?.brand && (
+              <View style={styles.metaChip}>
+                <Ionicons name="pricetag" size={12} color={Colors.light.textSecondary} />
+                <Text style={styles.metaChipText}>{(createdProduct as any).brand}</Text>
+              </View>
             )}
           </View>
 
-          {/* Atributos (se houver) */}
-          {(createdProduct?.brand || createdProduct?.color || createdProduct?.size) && (
-            <View style={styles.attributesContainer}>
-              {createdProduct?.brand && (
-                <View style={styles.attributeChip}>
-                  <Ionicons name="pricetag" size={12} color={Colors.light.textSecondary} />
-                  <Text style={styles.attributeText}>{createdProduct.brand}</Text>
+          {/* ── Produto SIMPLES ── */}
+          {!isVariantProduct && (
+            <>
+              {/* SKU */}
+              <View style={styles.skuRow}>
+                <Text style={styles.infoLabel}>SKU</Text>
+                <Text style={styles.infoValueMono}>
+                  {(createdProduct as any)?.sku || '-'}
+                </Text>
+              </View>
+
+              {/* Preços */}
+              <View style={styles.priceContainer}>
+                <View style={styles.priceItem}>
+                  <Text style={styles.priceLabel}>Custo</Text>
+                  <Text style={styles.priceValue}>
+                    {formatCurrency(singleCost ?? 0)}
+                  </Text>
+                </View>
+                <View style={styles.priceDivider} />
+                <View style={styles.priceItem}>
+                  <Text style={styles.priceLabel}>Venda</Text>
+                  <Text style={styles.priceValueHighlight}>
+                    {formatCurrency(singlePrice ?? 0)}
+                  </Text>
+                </View>
+                {markup !== null && markup > 0 && (
+                  <>
+                    <View style={styles.priceDivider} />
+                    <View style={styles.priceItem}>
+                      <Text style={styles.priceLabel}>Markup</Text>
+                      <Text style={styles.markupValue}>+{markup.toFixed(0)}%</Text>
+                    </View>
+                  </>
+                )}
+              </View>
+
+              {/* Cor / Tamanho do produto simples */}
+              {((createdProduct as any)?.color || (createdProduct as any)?.size) && (
+                <View style={styles.attributesContainer}>
+                  {(createdProduct as any)?.color && (
+                    <View style={styles.attributeChip}>
+                      <Ionicons name="color-palette" size={12} color={Colors.light.textSecondary} />
+                      <Text style={styles.attributeText}>{(createdProduct as any).color}</Text>
+                    </View>
+                  )}
+                  {(createdProduct as any)?.size && (
+                    <View style={styles.attributeChip}>
+                      <Ionicons name="resize" size={12} color={Colors.light.textSecondary} />
+                      <Text style={styles.attributeText}>{(createdProduct as any).size}</Text>
+                    </View>
+                  )}
                 </View>
               )}
-              {createdProduct?.color && (
-                <View style={styles.attributeChip}>
-                  <Ionicons name="color-palette" size={12} color={Colors.light.textSecondary} />
-                  <Text style={styles.attributeText}>{createdProduct.color}</Text>
+            </>
+          )}
+
+          {/* ── Produto com VARIANTES ── */}
+          {isVariantProduct && (
+            <>
+              {/* Range de preços */}
+              <View style={styles.priceContainer}>
+                <View style={[styles.priceItem, { flex: 2 }]}>
+                  <Text style={styles.priceLabel}>Faixa de Preço</Text>
+                  <Text style={styles.priceValueHighlight}>
+                    {priceRange
+                      ? priceRange[0] === priceRange[1]
+                        ? formatCurrency(priceRange[0])
+                        : `${formatCurrency(priceRange[0])} – ${formatCurrency(priceRange[1])}`
+                      : '-'}
+                  </Text>
+                </View>
+                <View style={styles.priceDivider} />
+                <View style={styles.priceItem}>
+                  <Text style={styles.priceLabel}>Variações</Text>
+                  <Text style={styles.priceValueHighlight}>{activeVariants.length}</Text>
+                </View>
+              </View>
+
+              {/* Chips de cores disponíveis */}
+              {uniqueColors.length > 0 && (
+                <View style={styles.variantTagsSection}>
+                  <Text style={styles.variantTagsLabel}>CORES</Text>
+                  <View style={styles.variantTagsRow}>
+                    {uniqueColors.map(c => (
+                      <View key={c} style={styles.colorChip}>
+                        <Text style={styles.colorChipText}>{c}</Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
               )}
-              {createdProduct?.size && (
-                <View style={styles.attributeChip}>
-                  <Ionicons name="resize" size={12} color={Colors.light.textSecondary} />
-                  <Text style={styles.attributeText}>{createdProduct.size}</Text>
+
+              {/* Chips de tamanhos disponíveis */}
+              {uniqueSizes.length > 0 && (
+                <View style={styles.variantTagsSection}>
+                  <Text style={styles.variantTagsLabel}>TAMANHOS</Text>
+                  <View style={styles.variantTagsRow}>
+                    {uniqueSizes.map(s => (
+                      <View key={s} style={styles.sizeChip}>
+                        <Text style={styles.sizeChipText}>{s}</Text>
+                      </View>
+                    ))}
+                  </View>
                 </View>
               )}
-            </View>
+
+              {/* Lista de variantes */}
+              <View style={styles.variantListContainer}>
+                <Text style={styles.variantListTitle}>Variações criadas</Text>
+                {visibleVariants.map((v, idx) => {
+                  const label = [v.color, v.size].filter(Boolean).join(' / ') || v.sku;
+                  const varCost = v.cost_price != null ? Number(v.cost_price) : null;
+                  const varMarkup = varCost && varCost > 0
+                    ? ((Number(v.price) - varCost) / varCost * 100)
+                    : null;
+
+                  return (
+                    <View
+                      key={v.id ?? idx}
+                      style={[
+                        styles.variantRow,
+                        idx < visibleVariants.length - 1 && styles.variantRowBorder,
+                      ]}
+                    >
+                      {/* Label da variante */}
+                      <View style={styles.variantRowLeft}>
+                        <Text style={styles.variantLabel}>{label}</Text>
+                        <Text style={styles.variantSku}>{v.sku}</Text>
+                      </View>
+                      {/* Preço + markup */}
+                      <View style={styles.variantRowRight}>
+                        <Text style={styles.variantPrice}>
+                          {formatCurrency(Number(v.price))}
+                        </Text>
+                        {varMarkup !== null && varMarkup > 0 && (
+                          <Text style={styles.variantMarkup}>+{varMarkup.toFixed(0)}%</Text>
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+
+                {hiddenCount > 0 && (
+                  <View style={styles.hiddenVariantsRow}>
+                    <Ionicons name="ellipsis-horizontal" size={14} color={Colors.light.textSecondary} />
+                    <Text style={styles.hiddenVariantsText}>
+                      e mais {hiddenCount} variação{hiddenCount > 1 ? 'ões' : ''}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </>
           )}
         </Card.Content>
       </Card>
 
-      {/* Card da Entrada (se vinculada) */}
+      {/* ───── Card da Entrada vinculada ───── */}
       {linkedEntry && (
         <Card style={[styles.card, styles.cardEntry]}>
           <Card.Content>
@@ -153,19 +301,20 @@ export function WizardComplete({ wizard }: WizardCompleteProps) {
               <Text style={styles.cardTitle}>Entrada Vinculada</Text>
             </View>
 
-            <View style={styles.infoRow}>
-              <Text style={styles.infoLabel}>Codigo:</Text>
-              <Text style={styles.infoValueMono}>{linkedEntry.code}</Text>
-            </View>
-
-            <View style={styles.infoRowInline}>
-              <View style={styles.infoCol}>
-                <Text style={styles.infoLabel}>Quantidade:</Text>
+            <View style={styles.entryInfoGrid}>
+              <View style={styles.entryInfoItem}>
+                <Text style={styles.infoLabel}>Código</Text>
+                <Text style={styles.infoValueMono}>{linkedEntry.code}</Text>
+              </View>
+              <View style={styles.entryInfoItem}>
+                <Text style={styles.infoLabel}>
+                  {isVariantProduct ? 'Total' : 'Quantidade'}
+                </Text>
                 <Text style={styles.infoValue}>{linkedEntry.quantity} un</Text>
               </View>
               {linkedEntry.supplier && (
-                <View style={styles.infoCol}>
-                  <Text style={styles.infoLabel}>Fornecedor:</Text>
+                <View style={[styles.entryInfoItem, { flex: 2 }]}>
+                  <Text style={styles.infoLabel}>Fornecedor</Text>
                   <Text style={styles.infoValue}>{linkedEntry.supplier}</Text>
                 </View>
               )}
@@ -179,19 +328,23 @@ export function WizardComplete({ wizard }: WizardCompleteProps) {
         </Card>
       )}
 
-      {/* Caso não tenha entrada vinculada (pulou) */}
+      {/* ───── Sem entrada vinculada ───── */}
       {!linkedEntry && (
         <Card style={[styles.card, styles.cardWarning]}>
           <Card.Content>
             <View style={styles.cardHeader}>
               <Ionicons name="alert-circle" size={24} color={Colors.light.warning} />
-              <Text style={styles.cardTitle}>Produto sem Estoque</Text>
+              <Text style={styles.cardTitle}>
+                {isVariantProduct ? 'Variações sem Estoque' : 'Produto sem Estoque'}
+              </Text>
             </View>
             <Text style={styles.warningText}>
-              O produto foi cadastrado na sua loja com estoque zero.
-              Ele já aparece na lista de produtos, mas{' '}
-              <Text style={styles.warningTextBold}>não pode ser vendido</Text>{' '}
-              até você vincular uma entrada de estoque.
+              {isVariantProduct
+                ? `As ${activeVariants.length} variações foram cadastradas com estoque zero.`
+                : 'O produto foi cadastrado com estoque zero.'
+              }
+              {' '}
+              <Text style={styles.warningTextBold}>Não é possível vender</Text> até vincular uma entrada.
             </Text>
             <View style={styles.warningSteps}>
               <View style={styles.warningStep}>
@@ -203,7 +356,9 @@ export function WizardComplete({ wizard }: WizardCompleteProps) {
               <View style={styles.warningStep}>
                 <Ionicons name="arrow-forward-circle" size={16} color={Colors.light.warning} />
                 <Text style={styles.warningStepText}>
-                  Adicione este produto à entrada com quantidade e custo
+                  {isVariantProduct
+                    ? 'Adicione cada variação com quantidade e custo'
+                    : 'Adicione este produto à entrada com quantidade e custo'}
                 </Text>
               </View>
             </View>
@@ -211,7 +366,7 @@ export function WizardComplete({ wizard }: WizardCompleteProps) {
         </Card>
       )}
 
-      {/* Botões de Ação */}
+      {/* ───── Botões de ação ───── */}
       <View style={styles.actions}>
         <Button
           mode="contained"
@@ -223,7 +378,7 @@ export function WizardComplete({ wizard }: WizardCompleteProps) {
         </Button>
 
         <View style={styles.secondaryActions}>
-          {createdProduct && (
+          {canViewProduct && (
             <Button
               mode="outlined"
               onPress={handleViewProduct}
@@ -238,7 +393,7 @@ export function WizardComplete({ wizard }: WizardCompleteProps) {
             mode="outlined"
             onPress={linkedEntry ? handleGoToStock : handleGoToProducts}
             style={styles.secondaryButton}
-            icon={linkedEntry ? "archive" : "grid"}
+            icon={linkedEntry ? 'archive' : 'grid'}
           >
             {linkedEntry ? 'Ir para Estoque' : 'Ver Produtos'}
           </Button>
@@ -317,25 +472,55 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: Colors.light.text,
+    flex: 1,
+  },
+  variantBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.light.primary + '15',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  variantBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.light.primary,
   },
   productName: {
     fontSize: 18,
     fontWeight: '700',
     color: Colors.light.text,
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
   },
-  infoGrid: {
+  metaRow: {
     flexDirection: 'row',
-    gap: theme.spacing.md,
+    flexWrap: 'wrap',
+    gap: 6,
     marginBottom: theme.spacing.md,
   },
-  infoGridItem: {
-    flex: 1,
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.light.backgroundSecondary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+  },
+  metaChipText: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    fontWeight: '500',
+  },
+  skuRow: {
+    marginBottom: theme.spacing.md,
   },
   infoLabel: {
     fontSize: 11,
     color: Colors.light.textSecondary,
-    marginBottom: 2,
+    marginBottom: 3,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -345,7 +530,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   infoValueMono: {
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.light.text,
     fontWeight: '600',
     fontFamily: 'monospace',
@@ -389,7 +574,7 @@ const styles = StyleSheet.create({
     color: Colors.light.primary,
   },
   markupValue: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '700',
     color: Colors.light.success,
   },
@@ -412,21 +597,133 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
     fontWeight: '500',
   },
-  infoRow: {
+  // ── Variantes ──
+  variantTagsSection: {
     marginBottom: theme.spacing.sm,
   },
-  infoRowInline: {
-    flexDirection: 'row',
-    gap: theme.spacing.lg,
+  variantTagsLabel: {
+    fontSize: 10,
+    color: Colors.light.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: 6,
+    fontWeight: '600',
   },
-  infoCol: {
+  variantTagsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  colorChip: {
+    backgroundColor: Colors.light.primary + '15',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  colorChipText: {
+    fontSize: 12,
+    color: Colors.light.primary,
+    fontWeight: '600',
+  },
+  sizeChip: {
+    backgroundColor: Colors.light.backgroundSecondary,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    minWidth: 36,
+    alignItems: 'center',
+  },
+  sizeChipText: {
+    fontSize: 12,
+    color: Colors.light.text,
+    fontWeight: '600',
+  },
+  variantListContainer: {
+    marginTop: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: 10,
+    overflow: 'hidden',
+  },
+  variantListTitle: {
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    fontWeight: '600',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: Colors.light.backgroundSecondary,
+  },
+  variantRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  variantRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  variantRowLeft: {
     flex: 1,
+  },
+  variantLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.text,
+    marginBottom: 2,
+  },
+  variantSku: {
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+    fontFamily: 'monospace',
+  },
+  variantRowRight: {
+    alignItems: 'flex-end',
+  },
+  variantPrice: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.light.primary,
+  },
+  variantMarkup: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.light.success,
+  },
+  hiddenVariantsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+  },
+  hiddenVariantsText: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    fontStyle: 'italic',
+  },
+  // ── Entrada ──
+  entryInfoGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+  },
+  entryInfoItem: {
+    flex: 1,
+    minWidth: 80,
   },
   fifoTag: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    marginTop: theme.spacing.md,
     paddingTop: theme.spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Colors.light.border,
@@ -436,6 +733,7 @@ const styles = StyleSheet.create({
     color: Colors.light.success,
     fontWeight: '500',
   },
+  // ── Aviso sem entrada ──
   warningText: {
     fontSize: 14,
     color: Colors.light.textSecondary,
@@ -460,6 +758,7 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     lineHeight: 18,
   },
+  // ── Ações ──
   actions: {
     paddingTop: theme.spacing.lg,
   },

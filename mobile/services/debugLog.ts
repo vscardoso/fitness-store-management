@@ -100,6 +100,7 @@ export function logWarn(category: string, message: string, data?: any) {
 
 /**
  * Log de erro
+ * NOTA: Usa console.log ao invés de console.error para evitar tarja vermelha/preta no RN
  */
 export function logError(category: string, message: string, error?: any) {
   if (!__DEV__) return;
@@ -108,7 +109,9 @@ export function logError(category: string, message: string, error?: any) {
     ? { name: error.name, message: error.message, stack: error.stack?.split('\n').slice(0, 3) }
     : error;
 
-  console.error(`🔴 [${category}] ${message}`, data || '');
+  // Usar console.log para evitar a tarja vermelha/preta do React Native
+  // A tarja aparece com console.error, o que é indesejado para erros de API esperados
+  console.log(`🔴 [${category}] ${message}`, data || '');
   sendLog({ level: 'error', source: 'mobile', category, message, data });
 }
 

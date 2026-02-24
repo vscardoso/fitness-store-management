@@ -7,7 +7,6 @@ import {
   Platform,
   TouchableOpacity,
   StatusBar,
-  Alert,
 } from 'react-native';
 import {
   TextInput,
@@ -20,17 +19,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import CustomModal from '@/components/ui/CustomModal';
-import ModalActions from '@/components/ui/ModalActions';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
 import useBackToList from '@/hooks/useBackToList';
 import { useQuery } from '@tanstack/react-query';
 import { useCategories, useUpdateProduct } from '@/hooks';
 import { getProductById, adjustProductQuantity } from '@/services/productService';
 import { getProductStock } from '@/services/inventoryService';
+import { getProductVariants, updateVariant, formatVariantLabel } from '@/services/productVariantService';
 import { Colors, theme } from '@/constants/Colors';
 import type { ProductUpdate } from '@/types';
 import api from '@/services/api';
+import { formatPriceInput, formatPriceDisplay, formatMoneyDisplay } from '@/utils/priceFormatter';
+import { getEntryTypeLabel, getEntryTypeColor } from '@/constants/entryTypes';
+import EntryItemCostEditor from '@/components/products/EntryItemCostEditor';
 
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -66,10 +67,10 @@ export default function EditProductScreen() {
   // Estoque e Entradas
   const [currentStock, setCurrentStock] = useState<number>(0);
   const [entryItems, setEntryItems] = useState<any[]>([]);
-  const [editingEntryId, setEditingEntryId] = useState<number | null>(null);
-  const [editingEntryUnitCost, setEditingEntryUnitCost] = useState<string>('');
   const [showEntryUpdateDialog, setShowEntryUpdateDialog] = useState(false);
   const [entryToUpdate, setEntryToUpdate] = useState<any>(null);
+  const [entryUpdateLoading, setEntryUpdateLoading] = useState(false);
+  const [showEntryCostSuccessDialog, setShowEntryCostSuccessDialog] = useState(false);
 
   /**
    * Query: Buscar produto
@@ -79,6 +80,37 @@ export default function EditProductScreen() {
     queryFn: () => getProductById(productId),
     enabled: isValidId,
   });
+
+  /**
+   * Query: Buscar variantes do produto
+   */
+  const { data: variants } = useQuery({
+    queryKey: ['product-variants', productId],
+    queryFn: () => getProductVariants(productId),
+    enabled: isValidId,
+  });
+
+  // Estado para edição inline das variantes
+  const [variantEdits, setVariantEdits] = useState<Record<number, {
+    sku: string;
+    price: string;
+    cost_price: string;
+  }>>({});
+
+  // Inicializar edits quando variantes carregam
+  useEffect(() => {
+    if (variants && variants.length > 0) {
+      const initial: Record<number, { sku: string; price: string; cost_price: string }> = {};
+      variants.forEach(v => {
+        initial[v.id] = {
+          sku: v.sku,
+          price: (Number(v.price) || 0).toFixed(2),
+          cost_price: (Number((v as any).cost_price) || 0).toFixed(2),
+        };
+      });
+      setVariantEdits(initial);
+    }
+  }, [variants]);
 
   /**
    * Preencher formulário com dados do produto
@@ -141,15 +173,8 @@ export default function EditProductScreen() {
     }
   }, [product]);
 
-  /**
-   * Formatador seguro para valores monetários (retorna string "xx,xx" ou "—")
-   */
-  const formatMoney = (value: any): string => {
-    if (value == null) return '—';
-    const num = typeof value === 'number' ? value : parseFloat(String(value).replace(',', '.'));
-    if (isNaN(num)) return '—';
-    return num.toFixed(2).replace('.', ',');
-  };
+  // Produto tem variantes configuradas?
+  const hasVariants = (variants ?? []).length > 0;
 
   /**
    * Validar campos obrigatórios
@@ -161,7 +186,8 @@ export default function EditProductScreen() {
       newErrors.name = 'Nome é obrigatório';
     }
 
-    if (!sku.trim()) {
+    // SKU só é obrigatório no nível do produto quando NÃO há variantes
+    if (!hasVariants && !sku.trim()) {
       newErrors.sku = 'SKU é obrigatório';
     }
 
@@ -169,16 +195,19 @@ export default function EditProductScreen() {
       newErrors.categoryId = 'Categoria é obrigatória';
     }
 
-    if (!costPrice || parseFloat(costPrice) <= 0) {
-      newErrors.costPrice = 'Preço de custo inválido';
-    }
+    // Validação de preço só se o produto NÃO tiver variantes
+    if (!hasVariants) {
+      if (!costPrice || parseFloat(costPrice) <= 0) {
+        newErrors.costPrice = 'Preço de custo inválido';
+      }
 
-    if (!salePrice || parseFloat(salePrice) <= 0) {
-      newErrors.salePrice = 'Preço de venda inválido';
-    }
+      if (!salePrice || parseFloat(salePrice) <= 0) {
+        newErrors.salePrice = 'Preço de venda inválido';
+      }
 
-    if (parseFloat(salePrice) < parseFloat(costPrice)) {
-      newErrors.salePrice = 'Preço de venda deve ser maior que o custo';
+      if (parseFloat(salePrice) < parseFloat(costPrice)) {
+        newErrors.salePrice = 'Preço de venda deve ser maior que o custo';
+      }
     }
 
     setErrors(newErrors);
@@ -188,45 +217,83 @@ export default function EditProductScreen() {
   // Removido fluxo separado de ajuste de estoque (agora integrado ao salvar)
 
   /**
+   * Salvar variantes alteradas
+   */
+  const saveVariantChanges = async () => {
+    if (!variants || variants.length === 0) return;
+    const promises = variants.map(async v => {
+      const edit = variantEdits[v.id];
+      if (!edit) return;
+      const newPrice = parseFloat(edit.price.replace(',', '.'));
+      const newCost = parseFloat(edit.cost_price.replace(',', '.'));
+      const originalCost = (v as any).cost_price ?? 0;
+      const hasChange =
+        edit.sku !== v.sku ||
+        Math.abs(newPrice - v.price) > 0.001 ||
+        Math.abs(newCost - originalCost) > 0.001;
+      if (hasChange) {
+        await updateVariant(v.id, {
+          sku: edit.sku.trim().toUpperCase(),
+          price: isNaN(newPrice) ? v.price : newPrice,
+          cost_price: isNaN(newCost) ? undefined : newCost,
+        });
+      }
+    });
+    await Promise.all(promises);
+  };
+
+  /**
    * Salvar alterações
    */
   const handleSave = () => {
-    // Validar ID novamente antes de salvar
-    if (!isValidId) {
-      return;
-    }
+    if (!isValidId) return;
+    if (!validate()) return;
 
-    if (!validate()) {
-      return;
-    }
-
+    // Para produtos com variantes, os preços são por variante
     const productData: ProductUpdate = {
       name: name.trim(),
-      sku: sku.trim().toUpperCase(),
+      sku: hasVariants ? undefined : sku.trim().toUpperCase(),
       barcode: barcode.trim() || undefined,
       description: description.trim() || undefined,
       brand: brand.trim() || undefined,
-      color: color.trim() || undefined,
-      size: size.trim() || undefined,
+      color: hasVariants ? undefined : (color.trim() || undefined),
+      size: hasVariants ? undefined : (size.trim() || undefined),
       category_id: categoryId!,
-      cost_price: parseFloat(costPrice),
-      price: parseFloat(salePrice),
+      cost_price: hasVariants ? undefined : parseFloat(costPrice),
+      price: hasVariants ? undefined : parseFloat(salePrice),
     };
 
-    // Verificar se cost_price mudou
-    const newCost = parseFloat(costPrice);
-    
-    if (originalCostPrice !== null && !isNaN(newCost) && Math.abs(newCost - originalCostPrice) > 0.01) {
-      // Cost_price mudou - mostrar dialog de confirmacao
-      setPendingProductData(productData);
-      setShowCostChangeDialog(true);
+    if (!hasVariants) {
+      // Fluxo legado: produto sem variantes, verificar mudança de custo
+      const newCost = parseFloat(costPrice);
+      if (originalCostPrice !== null && !isNaN(newCost) && Math.abs(newCost - originalCostPrice) > 0.01) {
+        setPendingProductData(productData);
+        setShowCostChangeDialog(true);
+      } else {
+        updateMutation.mutate(
+          { id: productId, data: productData },
+          {
+            onSuccess: () => setShowSuccessDialog(true),
+            onError: (error: any) => {
+              setErrorMessage(error?.response?.data?.detail || 'Falha ao atualizar produto. Verifique os dados.');
+              setShowErrorDialog(true);
+            },
+          }
+        );
+      }
     } else {
-      // Sem mudanca no custo - salvar direto
+      // Produto com variantes: salvar produto + variantes
       updateMutation.mutate(
         { id: productId, data: productData },
         {
-          onSuccess: () => {
-            setShowSuccessDialog(true);
+          onSuccess: async () => {
+            try {
+              await saveVariantChanges();
+              setShowSuccessDialog(true);
+            } catch (err: any) {
+              setErrorMessage(err?.response?.data?.detail || 'Produto salvo, mas houve erro ao atualizar variantes.');
+              setShowErrorDialog(true);
+            }
           },
           onError: (error: any) => {
             setErrorMessage(error?.response?.data?.detail || 'Falha ao atualizar produto. Verifique os dados.');
@@ -286,110 +353,39 @@ export default function EditProductScreen() {
     }
 
     setEntryToUpdate(entry);
-    const unitCostNum = typeof entry.unit_cost === 'number' ? entry.unit_cost : parseFloat(String(entry.unit_cost).replace(',', '.'));
-    setEditingEntryUnitCost(formatPriceDisplay(isNaN(unitCostNum) ? '0.00' : unitCostNum.toFixed(2)));
     setShowEntryUpdateDialog(true);
   };
 
   /**
-   * Confirmar atualização de custo da entrada
+   * Confirmar atualização de custo da entrada (via EntryItemCostEditor)
    */
-  const handleConfirmEntryUpdate = async () => {
+  const handleConfirmEntryUpdate = async (data: { unit_cost: number }) => {
     if (!entryToUpdate) return;
-
-    const newUnitCost = parseFloat(editingEntryUnitCost.replace(',', '.'));
-    if (isNaN(newUnitCost) || newUnitCost <= 0) {
-      setErrorMessage('Custo unitário inválido');
-      setShowErrorDialog(true);
-      return;
-    }
-
+    setEntryUpdateLoading(true);
     try {
-      // Chamar API para atualizar entry_item
       await api.put(`/stock-entries/entry-items/${entryToUpdate.entry_item_id}`, {
-        unit_cost: newUnitCost,
+        unit_cost: data.unit_cost,
       });
-
-      // Atualizar lista local
       setEntryItems(prev =>
         prev.map(item =>
           item.entry_item_id === entryToUpdate.entry_item_id
-            ? { ...item, unit_cost: newUnitCost }
+            ? { ...item, unit_cost: data.unit_cost }
             : item
         )
       );
-
-      // Recarregar produto para atualizar cost_price
       refetch();
-
       setShowEntryUpdateDialog(false);
       setEntryToUpdate(null);
-      setEditingEntryUnitCost('');
-
-      Alert.alert('Sucesso', 'Custo unitário atualizado com sucesso!');
+      setShowEntryCostSuccessDialog(true);
     } catch (error: any) {
-      setErrorMessage(
-        error.response?.data?.detail || 'Erro ao atualizar custo da entrada'
-      );
+      setErrorMessage(error.response?.data?.detail || 'Erro ao atualizar custo da entrada');
       setShowErrorDialog(true);
+    } finally {
+      setEntryUpdateLoading(false);
     }
   };
 
-  /**
-   * Formatar entrada de preço com centavos
-   */
-  const formatPriceInput = (text: string): string => {
-    // Remove tudo exceto números
-    const numbers = text.replace(/[^0-9]/g, '');
-    
-    if (numbers.length === 0) return '';
-    
-    // Converte para número com centavos
-    const value = parseInt(numbers) / 100;
-    
-    // Formata com 2 casas decimais
-    return value.toFixed(2);
-  };
 
-  /**
-   * Formatar display de preço
-   */
-  const formatPriceDisplay = (value: string): string => {
-    if (!value) return '';
-    return value.replace('.', ',');
-  };
-
-  /**
-   * Obter cor do tipo de entrada
-   */
-  const getEntryTypeColor = (type: string): string => {
-    const colors: Record<string, string> = {
-      trip: Colors.light.info,
-      online: Colors.light.warning,
-      local: Colors.light.success,
-      initial: Colors.light.textSecondary,
-      adjustment: Colors.light.primary,
-      return: Colors.light.info,
-      donation: Colors.light.success,
-    };
-    return colors[type.toLowerCase()] || Colors.light.textSecondary;
-  };
-
-  /**
-   * Obter label do tipo de entrada
-   */
-  const getEntryTypeLabel = (type: string): string => {
-    const labels: Record<string, string> = {
-      trip: 'Viagem',
-      online: 'Online',
-      local: 'Local',
-      initial: 'Inicial',
-      adjustment: 'Ajuste',
-      return: 'Devolução',
-      donation: 'Doação',
-    };
-    return labels[type.toLowerCase()] || type;
-  };
 
   // Verificar ID inválido
   if (!isValidId) {
@@ -429,7 +425,17 @@ export default function EditProductScreen() {
     <View style={styles.container}>
       <PageHeader
         title={product?.name || 'Editar Produto'}
-        subtitle={[product?.brand, product?.color, product?.size].filter(Boolean).join(' • ') || 'Produto'}
+        subtitle={
+          (() => {
+            const varCount = variants?.length ?? 0;
+            if (varCount > 1) {
+              return [product?.brand, `${varCount} variações`].filter(Boolean).join(' • ') || undefined;
+            }
+            // Produto sem variantes múltiplas: mostrar marca, cor, tamanho
+            const parts = [product?.brand, product?.color, product?.size].filter(Boolean);
+            return parts.length > 0 ? parts.join(' • ') : undefined;
+          })()
+        }
         showBackButton
         onBack={() => router.back()}
       />
@@ -467,22 +473,27 @@ export default function EditProductScreen() {
               <HelperText type="error">{errors.name}</HelperText>
             ) : null}
 
-            <TextInput
-              label="SKU (Código) *"
-              value={sku}
-              onChangeText={(text) => {
-                setSku(text);
-                setErrors({ ...errors, sku: '' });
-              }}
-              mode="outlined"
-              error={!!errors.sku}
-              style={styles.input}
-              placeholder="Ex: LEG-FIT-001"
-              autoCapitalize="characters"
-            />
-            {errors.sku ? (
-              <HelperText type="error">{errors.sku}</HelperText>
-            ) : null}
+            {/* SKU só fica no nível do produto quando NÃO há variantes */}
+            {!hasVariants && (
+              <>
+                <TextInput
+                  label="SKU (Código) *"
+                  value={sku}
+                  onChangeText={(text) => {
+                    setSku(text);
+                    setErrors({ ...errors, sku: '' });
+                  }}
+                  mode="outlined"
+                  error={!!errors.sku}
+                  style={styles.input}
+                  placeholder="Ex: LEG-FIT-001"
+                  autoCapitalize="characters"
+                />
+                {errors.sku ? (
+                  <HelperText type="error">{errors.sku}</HelperText>
+                ) : null}
+              </>
+            )}
 
             <TextInput
               label="Código de Barras"
@@ -503,25 +514,28 @@ export default function EditProductScreen() {
               placeholder="Ex: Nike, Adidas, Under Armour"
             />
 
-            <View style={styles.rowInputs}>
-              <TextInput
-                label="Cor"
-                value={color}
-                onChangeText={setColor}
-                mode="outlined"
-                style={[styles.input, styles.inputHalf]}
-                placeholder="Ex: Preto, Rosa, Azul"
-              />
+            {/* Cor e Tamanho só no produto quando NÃO há variantes (cada variante tem os seus) */}
+            {!hasVariants && (
+              <View style={styles.rowInputs}>
+                <TextInput
+                  label="Cor"
+                  value={color}
+                  onChangeText={setColor}
+                  mode="outlined"
+                  style={[styles.input, styles.inputHalf]}
+                  placeholder="Ex: Preto, Rosa, Azul"
+                />
 
-              <TextInput
-                label="Tamanho"
-                value={size}
-                onChangeText={setSize}
-                mode="outlined"
-                style={[styles.input, styles.inputHalf]}
-                placeholder="PP, P, M, G, GG"
-              />
-            </View>
+                <TextInput
+                  label="Tamanho"
+                  value={size}
+                  onChangeText={setSize}
+                  mode="outlined"
+                  style={[styles.input, styles.inputHalf]}
+                  placeholder="PP, P, M, G, GG"
+                />
+              </View>
+            )}
 
             <TextInput
               label="Descrição"
@@ -582,7 +596,114 @@ export default function EditProductScreen() {
           </View>
         </View>
 
-        {/* Preços */}
+        {/* ── Variantes (para produtos com variantes) ── */}
+        {hasVariants && (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="layers-outline" size={20} color={Colors.light.primary} />
+              <Text style={styles.cardTitle}>Variações ({variants?.length})</Text>
+            </View>
+            <View style={styles.cardContent}>
+              <View style={styles.variantEditInfoBox}>
+                <Ionicons name="information-circle" size={16} color={Colors.light.info} />
+                <Text style={styles.variantEditInfoText}>
+                  Edite SKU, preço de venda e custo de cada variação individualmente.
+                </Text>
+              </View>
+
+              {(variants ?? []).map(variant => {
+                const edit = variantEdits[variant.id] ?? {
+                  sku: variant.sku,
+                  price: (Number(variant.price) || 0).toFixed(2),
+                  cost_price: (Number((variant as any).cost_price) || 0).toFixed(2),
+                };
+                const label = formatVariantLabel(variant);
+                const vStock = variant.current_stock ?? 0;
+                const priceVal = parseFloat(edit.price.replace(',', '.'));
+                const costVal = parseFloat(edit.cost_price.replace(',', '.'));
+                const margin = !isNaN(priceVal) && !isNaN(costVal) && costVal > 0
+                  ? (((priceVal - costVal) / costVal) * 100).toFixed(1)
+                  : null;
+
+                return (
+                  <View key={variant.id} style={[styles.variantEditCard, !variant.is_active && styles.variantEditCardInactive]}>
+                    {/* Header da variante */}
+                    <View style={styles.variantEditHeader}>
+                      <View style={styles.variantEditLabelRow}>
+                        <Ionicons name="layers" size={15} color={Colors.light.primary} />
+                        <Text style={styles.variantEditLabelText}>{label}</Text>
+                      </View>
+                      <View style={styles.variantEditHeaderRight}>
+                        {margin !== null && (
+                          <Text style={styles.variantEditMargin}>{margin}% margem</Text>
+                        )}
+                        <View style={[
+                          styles.variantEditStockBadge,
+                          vStock === 0 ? { backgroundColor: Colors.light.error }
+                            : vStock <= 3 ? { backgroundColor: Colors.light.warning }
+                            : { backgroundColor: Colors.light.success }
+                        ]}>
+                          <Text style={styles.variantEditStockText}>{vStock} un.</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* SKU */}
+                    <TextInput
+                      label="SKU"
+                      value={edit.sku}
+                      onChangeText={text => setVariantEdits(prev => ({
+                        ...prev,
+                        [variant.id]: { ...prev[variant.id], sku: text },
+                      }))}
+                      mode="outlined"
+                      style={styles.variantEditInput}
+                      autoCapitalize="characters"
+                      dense
+                    />
+
+                    {/* Preço + Custo */}
+                    <View style={styles.rowInputs}>
+                      <View style={{ flex: 1 }}>
+                        <TextInput
+                          label="Preço de Venda"
+                          value={formatPriceDisplay(edit.price)}
+                          onChangeText={text => setVariantEdits(prev => ({
+                            ...prev,
+                            [variant.id]: { ...prev[variant.id], price: formatPriceInput(text) },
+                          }))}
+                          mode="outlined"
+                          style={[styles.input, { marginBottom: 0 }]}
+                          keyboardType="numeric"
+                          left={<TextInput.Affix text="R$" />}
+                          dense
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <TextInput
+                          label="Custo"
+                          value={formatPriceDisplay(edit.cost_price)}
+                          onChangeText={text => setVariantEdits(prev => ({
+                            ...prev,
+                            [variant.id]: { ...prev[variant.id], cost_price: formatPriceInput(text) },
+                          }))}
+                          mode="outlined"
+                          style={[styles.input, { marginBottom: 0 }]}
+                          keyboardType="numeric"
+                          left={<TextInput.Affix text="R$" />}
+                          dense
+                        />
+                      </View>
+                    </View>
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+        )}
+
+        {/* ── Preços (só para produtos SEM variantes) ── */}
+        {!hasVariants && (
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Ionicons name="cash-outline" size={20} color={Colors.light.primary} />
@@ -616,6 +737,7 @@ export default function EditProductScreen() {
             </View>
           </View>
         </View>
+        )}
 
         {/* Entradas de Estoque (FIFO) */}
         <View style={styles.card}>
@@ -826,7 +948,7 @@ export default function EditProductScreen() {
       <ConfirmDialog
         visible={showCostChangeDialog}
         title="Atualizar Custo do Produto?"
-        message={`Alterar o custo de R$ ${formatMoney(originalCostPrice)} para R$ ${formatMoney(costPrice)} irá atualizar automaticamente o custo unitário de todos os lotes em estoque deste produto.\n\nIsso garante que o valor do estoque reflita o custo correto. Deseja continuar?`}
+        message={`Alterar o custo de R$ ${formatMoneyDisplay(originalCostPrice)} para R$ ${formatMoneyDisplay(costPrice)} irá atualizar automaticamente o custo unitário de todos os lotes em estoque deste produto.\n\nIsso garante que o valor do estoque reflita o custo correto. Deseja continuar?`}
         confirmText="Sim, Atualizar"
         cancelText="Cancelar"
         onConfirm={handleConfirmCostChange}
@@ -848,61 +970,34 @@ export default function EditProductScreen() {
         onDismiss={() => setMenuVisible(false)}
       />
 
-      {/* Dialog de Edição de Custo da Entrada */}
-      <CustomModal
+      {/* Dialog de Sucesso - Custo Unitário de Entrada */}
+      <ConfirmDialog
+        visible={showEntryCostSuccessDialog}
+        title="Custo Atualizado!"
+        message="Custo unitário atualizado com sucesso."
+        confirmText="OK"
+        cancelText=""
+        onConfirm={() => setShowEntryCostSuccessDialog(false)}
+        onCancel={() => setShowEntryCostSuccessDialog(false)}
+        type="success"
+        icon="checkmark-circle"
+      />
+
+      {/* Modal de Edição de Custo da Entrada */}
+      <EntryItemCostEditor
         visible={showEntryUpdateDialog}
+        item={entryToUpdate}
+        showQuantity={false}
+        showSellPrice={false}
+        showNotes={false}
+        warningText="Ao editar o custo unitário, o custo do produto será atualizado automaticamente."
+        loading={entryUpdateLoading}
         onDismiss={() => {
           setShowEntryUpdateDialog(false);
           setEntryToUpdate(null);
-          setEditingEntryUnitCost('');
         }}
-        title="Editar Custo Unitário"
-        subtitle={
-          entryToUpdate
-            ? `Entrada ${entryToUpdate.entry_code} • ${entryToUpdate.quantity_received} un`
-            : undefined
-        }
-      >
-        <View style={styles.warningBox}>
-          <Ionicons name="information-circle" size={20} color={Colors.light.warning} />
-          <Text style={styles.warningText}>
-            Ao editar o custo unitário, o cost_price do produto será atualizado automaticamente.
-          </Text>
-        </View>
-
-        {entryToUpdate && (
-          <View style={styles.infoRow}>
-            <Text style={styles.infoLabel}>Custo atual:</Text>
-            <Text style={styles.infoValue}>
-              R$ {(typeof entryToUpdate.unit_cost === 'number' ? entryToUpdate.unit_cost : 0).toFixed(2).replace('.', ',')}
-            </Text>
-          </View>
-        )}
-
-        <TextInput
-          label="Novo Custo Unitário (R$) *"
-          value={formatPriceDisplay(editingEntryUnitCost)}
-          onChangeText={(text) => setEditingEntryUnitCost(formatPriceInput(text))}
-          mode="outlined"
-          keyboardType="numeric"
-          style={styles.input}
-          placeholder="0,00"
-          left={<TextInput.Affix text="R$" />}
-          autoFocus
-        />
-
-        <ModalActions
-          onCancel={() => {
-            setShowEntryUpdateDialog(false);
-            setEntryToUpdate(null);
-            setEditingEntryUnitCost('');
-          }}
-          onConfirm={handleConfirmEntryUpdate}
-          cancelText="Cancelar"
-          confirmText="Atualizar Custo"
-          confirmColor={Colors.light.warning}
-        />
-      </CustomModal>
+        onConfirm={handleConfirmEntryUpdate}
+      />
 
     </View>
   );
@@ -1306,6 +1401,75 @@ const styles = StyleSheet.create({
   },
   dialogInput: {
     marginTop: 12,
+    backgroundColor: '#fff',
+  },
+
+  // ── Estilos para edição de variantes ──
+  variantEditInfoBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: Colors.light.info + '12',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 16,
+  },
+  variantEditInfoText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.light.info,
+    lineHeight: 18,
+  },
+  variantEditCard: {
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    gap: 10,
+  },
+  variantEditCardInactive: {
+    opacity: 0.55,
+  },
+  variantEditHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 4,
+  },
+  variantEditLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+  },
+  variantEditLabelText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  variantEditHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  variantEditMargin: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.success,
+  },
+  variantEditStockBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  variantEditStockText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  variantEditInput: {
     backgroundColor: '#fff',
   },
 });

@@ -519,20 +519,47 @@ export default function DashboardScreen() {
         {/* ========== FIFO PERFORMANCE ========== */}
         {fifoPerf && (
           <View style={styles.fifoCard}>
-            <Text style={styles.chartTitle}>📦 Saúde do Estoque</Text>
-            <Text style={[styles.chartSubtitle, { marginBottom: 16 }]}>Como está seu giro e lucratividade</Text>
-
-            {/* Sell-through gauge */}
-            <View style={styles.fifoSellThrough}>
-              <View style={styles.fifoSellThroughInfo}>
-                <Text style={styles.fifoMetricLabel}>Quanto do estoque foi vendido?</Text>
-                <Text style={styles.fifoSellThroughValue}>
-                  {fifoPerf.sell_through.rate.toFixed(0)}%
-                </Text>
-                <Text style={styles.fifoMetricSub}>
-                  Você comprou {fifoPerf.sell_through.total_received} itens e vendeu {fifoPerf.sell_through.total_sold}
-                </Text>
+            <View style={styles.fifoHeaderSection}>
+              <View>
+                <Text style={styles.fifoTitle}>📦 Saúde do Estoque</Text>
+                <Text style={styles.fifoSubtitle}>Análise detalhada do seu inventário</Text>
               </View>
+              <TouchableOpacity style={styles.fifoInfoButton} activeOpacity={0.6}>
+                <Ionicons name="information-circle-outline" size={20} color="#6366F1" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Sell-through gauge com visual melhorado */}
+            <View style={styles.fifoSellThrough}>
+              <View style={styles.fifoSellThroughHeader}>
+                <View style={styles.fifoSellThroughLabelContainer}>
+                  <Ionicons name="sync-outline" size={16} color="#6366F1" />
+                  <Text style={styles.fifoSellThroughLabel}>Giro de Estoque</Text>
+                </View>
+                <View style={[
+                  styles.fifoSellThroughBadge,
+                  { backgroundColor: fifoPerf.sell_through.rate >= 70 ? '#ECFDF5' :
+                    fifoPerf.sell_through.rate >= 40 ? '#FEF3C7' : '#FEF2F2' }
+                ]}>
+                  <Text style={[
+                    styles.fifoSellThroughBadgeText,
+                    { color: fifoPerf.sell_through.rate >= 70 ? '#10B981' :
+                      fifoPerf.sell_through.rate >= 40 ? '#F59E0B' : '#EF4444' }
+                  ]}>
+                    {fifoPerf.sell_through.rate >= 70 ? 'Excelente' :
+                      fifoPerf.sell_through.rate >= 40 ? 'Moderado' : 'Crítico'}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={styles.fifoSellThroughValue}>
+                {fifoPerf.sell_through.rate.toFixed(0)}%
+              </Text>
+
+              <Text style={styles.fifoMetricSub}>
+                {fifoPerf.sell_through.total_sold} de {fifoPerf.sell_through.total_received} itens vendidos
+              </Text>
+
               <View style={styles.fifoGaugeContainer}>
                 <View style={styles.fifoGaugeBg}>
                   <View style={[
@@ -547,109 +574,253 @@ export default function DashboardScreen() {
               </View>
             </View>
 
-            {/* ROI médio + alertas */}
-            <View style={styles.fifoStatsRow}>
-              <View style={styles.fifoStatItem}>
-                <Text style={styles.fifoMetricLabel}>Lucro médio das compras</Text>
+            {/* Cards de métricas melhorados */}
+            <View style={styles.fifoMetricsGrid}>
+              {/* Card 1: Lucro Médio */}
+              <TouchableOpacity
+                style={[
+                  styles.fifoMetricCard,
+                  fifoPerf.roi.avg_roi >= 0 ? styles.fifoMetricCardPositive : styles.fifoMetricCardNegative,
+                ]}
+                activeOpacity={0.7}
+              >
+                <View style={[
+                  styles.fifoMetricIconContainer,
+                  { backgroundColor: fifoPerf.roi.avg_roi >= 0 ? '#ECFDF5' : '#FEF2F2' }
+                ]}>
+                  <Ionicons
+                    name={fifoPerf.roi.avg_roi >= 0 ? 'trending-up' : 'trending-down'}
+                    size={24}
+                    color={fifoPerf.roi.avg_roi >= 0 ? '#10B981' : '#EF4444'}
+                  />
+                </View>
+                <Text style={styles.fifoMetricLabel}>Lucro Médio</Text>
                 <Text style={[
-                  styles.fifoStatValue,
+                  styles.fifoMetricValue,
                   { color: fifoPerf.roi.avg_roi >= 0 ? '#10B981' : '#EF4444' }
                 ]}>
                   {fifoPerf.roi.avg_roi > 0 ? '+' : ''}{fifoPerf.roi.avg_roi.toFixed(0)}%
                 </Text>
-              </View>
-              <View style={styles.fifoStatDivider} />
-              <View style={styles.fifoStatItem}>
-                <Text style={styles.fifoMetricLabel}>Compras dando prejuízo</Text>
+                <View style={[
+                  styles.fifoMetricBadge,
+                  { backgroundColor: fifoPerf.roi.avg_roi >= 0 ? '#10B981' : '#EF4444' }
+                ]}>
+                  <Text style={styles.fifoMetricBadgeText}>
+                    {fifoPerf.roi.avg_roi >= 0 ? 'Lucrativo' : 'Prejuízo'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Card 2: Compras com Prejuízo */}
+              <TouchableOpacity
+                style={[
+                  styles.fifoMetricCard,
+                  fifoPerf.roi.negative_count === 0 ? styles.fifoMetricCardPositive : styles.fifoMetricCardNegative,
+                ]}
+                activeOpacity={0.7}
+              >
+                <View style={[
+                  styles.fifoMetricIconContainer,
+                  { backgroundColor: fifoPerf.roi.negative_count === 0 ? '#ECFDF5' : '#FEF2F2' }
+                ]}>
+                  <Ionicons
+                    name={fifoPerf.roi.negative_count === 0 ? 'checkmark-circle' : 'alert-circle'}
+                    size={24}
+                    color={fifoPerf.roi.negative_count === 0 ? '#10B981' : '#EF4444'}
+                  />
+                </View>
+                <Text style={styles.fifoMetricLabel}>Prejuízo</Text>
                 <Text style={[
-                  styles.fifoStatValue,
-                  { color: fifoPerf.roi.negative_count > 0 ? '#EF4444' : '#10B981' }
+                  styles.fifoMetricValue,
+                  { color: fifoPerf.roi.negative_count === 0 ? '#10B981' : '#EF4444' }
                 ]}>
                   {fifoPerf.roi.negative_count}
                 </Text>
-              </View>
-              <View style={styles.fifoStatDivider} />
-              <View style={styles.fifoStatItem}>
-                <Text style={styles.fifoMetricLabel}>Itens parados</Text>
-                <Text style={styles.fifoStatValue}>{fifoPerf.sell_through.total_remaining}</Text>
-              </View>
+                <View style={[
+                  styles.fifoMetricBadge,
+                  { backgroundColor: fifoPerf.roi.negative_count === 0 ? '#10B981' : '#EF4444' }
+                ]}>
+                  <Text style={styles.fifoMetricBadgeText}>
+                    {fifoPerf.roi.negative_count === 0 ? 'Nenhuma' : 'Atenção'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Card 3: Itens Parados */}
+              <TouchableOpacity
+                style={[
+                  styles.fifoMetricCard,
+                  fifoPerf.sell_through.total_remaining === 0 ? styles.fifoMetricCardPositive : styles.fifoMetricCardNeutral,
+                ]}
+                activeOpacity={0.7}
+              >
+                <View style={[
+                  styles.fifoMetricIconContainer,
+                  { backgroundColor: fifoPerf.sell_through.total_remaining === 0 ? '#ECFDF5' : '#FEF3C7' }
+                ]}>
+                  <Ionicons
+                    name={fifoPerf.sell_through.total_remaining === 0 ? 'cube' : 'archive'}
+                    size={24}
+                    color={fifoPerf.sell_through.total_remaining === 0 ? '#10B981' : '#F59E0B'}
+                  />
+                </View>
+                <Text style={styles.fifoMetricLabel}>Itens Parados</Text>
+                <Text style={[
+                  styles.fifoMetricValue,
+                  { color: fifoPerf.sell_through.total_remaining === 0 ? '#10B981' : '#F59E0B' }
+                ]}>
+                  {fifoPerf.sell_through.total_remaining}
+                </Text>
+                <View style={[
+                  styles.fifoMetricBadge,
+                  { backgroundColor: fifoPerf.sell_through.total_remaining === 0 ? '#10B981' : '#F59E0B' }
+                ]}>
+                  <Text style={styles.fifoMetricBadgeText}>
+                    {fifoPerf.sell_through.total_remaining === 0 ? 'Livre' : 'Estocado'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
             </View>
 
-            {/* Alertas de ROI negativo */}
+            {/* Alerta de ROI negativo melhorado */}
             {fifoPerf.roi.negative_count > 0 && (
-              <View style={styles.fifoAlert}>
-                <Ionicons name="warning-outline" size={14} color="#EF4444" />
-                <Text style={styles.fifoAlertText}>
-                  ⚠️ Você tem {fifoPerf.roi.negative_count} {fifoPerf.roi.negative_count === 1 ? 'compra que está dando' : 'compras que estão dando'} prejuízo. Verifique os preços de venda!
-                </Text>
-              </View>
+              <TouchableOpacity style={styles.fifoAlert} activeOpacity={0.8}>
+                <View style={styles.fifoAlertIcon}>
+                  <Ionicons name="warning" size={20} color="#EF4444" />
+                </View>
+                <View style={styles.fifoAlertContent}>
+                  <Text style={styles.fifoAlertTitle}>Ação Necessária</Text>
+                  <Text style={styles.fifoAlertText}>
+                    {fifoPerf.roi.negative_count} {fifoPerf.roi.negative_count === 1 ? 'compra está' : 'compras estão'} gerando prejuízo
+                  </Text>
+                  <Text style={styles.fifoAlertHint}>Verifique os preços de venda →</Text>
+                </View>
+              </TouchableOpacity>
             )}
+
+            {/* Insight contextual */}
+            <View style={styles.fifoInsight}>
+              <Ionicons name="bulb" size={14} color="#F59E0B" />
+              <Text style={styles.fifoInsightText}>
+                {fifoPerf.sell_through.rate >= 70
+                  ? 'Excelente! Seu estoque está girando bem. Continue monitorando.'
+                  : fifoPerf.sell_through.rate >= 40
+                  ? 'Giro moderado. Considere promoções para produtos parados.'
+                  : 'Giro crítico. Revise preços e considere promoções agressivas.'}
+              </Text>
+            </View>
           </View>
         )}
 
         {/* ========== YoY COMPARAÇÃO ========== */}
-        {yoyData && yoyData.months && yoyData.months.length > 0 && (
-          <View style={styles.yoyCard}>
-            <View style={styles.yoyHeader}>
-              <View>
-                <Text style={styles.chartTitle}>📅 Ano a Ano</Text>
-                <Text style={styles.chartSubtitle}>
-                  {yoyData.totals.current_year} vs {yoyData.totals.prev_year}
-                </Text>
+        {yoyData && yoyData.months && yoyData.months.length > 0 && (() => {
+          const maxVal = Math.max(...yoyData.months.map(m => Math.max(m.current_total, m.prev_total)), 1);
+          const isPositive = yoyData.totals.total_change_percent >= 0;
+          return (
+            <View style={styles.yoyCard}>
+              {/* Header */}
+              <View style={styles.yoyHeader}>
+                <View>
+                  <Text style={styles.yoyTitle}>📅 Mês a Mês</Text>
+                  <Text style={styles.yoySubtitle}>{yoyData.totals.prev_year} vs {yoyData.totals.current_year}</Text>
+                </View>
+                <View style={[styles.yoyChangeBadge, { backgroundColor: isPositive ? '#ECFDF5' : '#FEF2F2' }]}>
+                  <Ionicons
+                    name={isPositive ? 'trending-up' : 'trending-down'}
+                    size={16}
+                    color={isPositive ? '#10B981' : '#EF4444'}
+                  />
+                  <Text style={[styles.yoyChangePct, { color: isPositive ? '#10B981' : '#EF4444' }]}>
+                    {isPositive ? '+' : ''}{yoyData.totals.total_change_percent.toFixed(1)}% no ano
+                  </Text>
+                </View>
               </View>
-              <View style={[
-                styles.yoyChangeBadge,
-                {
-                  backgroundColor: yoyData.totals.total_change_percent >= 0 ? '#ECFDF5' : '#FEF2F2'
-                }
-              ]}>
-                <Ionicons
-                  name={yoyData.totals.total_change_percent >= 0 ? 'arrow-up' : 'arrow-down'}
-                  size={14}
-                  color={yoyData.totals.total_change_percent >= 0 ? '#10B981' : '#EF4444'}
-                />
-                <Text style={[
-                  styles.yoyChangePct,
-                  { color: yoyData.totals.total_change_percent >= 0 ? '#10B981' : '#EF4444' }
-                ]}>
-                  {Math.abs(yoyData.totals.total_change_percent).toFixed(1)}%
-                </Text>
-              </View>
-            </View>
 
-            {/* Mini barras mês a mês */}
-            <View style={styles.yoyBarsContainer}>
-              {yoyData.months.map((month) => {
-                const maxVal = Math.max(
-                  ...yoyData.months.map(m => Math.max(m.current_total, m.prev_total)), 1
-                );
-                const currH = (month.current_total / maxVal) * 60;
-                const prevH = (month.prev_total / maxVal) * 60;
-                return (
-                  <View key={month.month} style={styles.yoyMonthGroup}>
-                    <View style={styles.yoyMonthBars}>
-                      <View style={[styles.yoyBar, styles.yoyBarPrev, { height: Math.max(prevH, 3) }]} />
-                      <View style={[styles.yoyBar, styles.yoyBarCurr, { height: Math.max(currH, 3) }]} />
+              {/* Resumo anual */}
+              <View style={styles.yoyTotalsRow}>
+                <View style={styles.yoyTotalCard}>
+                  <Text style={styles.yoyTotalYear}>{yoyData.totals.prev_year}</Text>
+                  <Text style={styles.yoyTotalValue}>{formatCurrency(yoyData.totals.prev_total)}</Text>
+                </View>
+                <View style={styles.yoyTotalArrow}>
+                  <Ionicons name="arrow-forward" size={18} color="#9CA3AF" />
+                </View>
+                <View style={[styles.yoyTotalCard, styles.yoyTotalCardCurrent]}>
+                  <Text style={[styles.yoyTotalYear, { color: '#6366F1' }]}>{yoyData.totals.current_year}</Text>
+                  <Text style={[styles.yoyTotalValue, { color: '#1F2937', fontWeight: '800' as const }]}>
+                    {formatCurrency(yoyData.totals.current_total)}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Legenda */}
+              <View style={styles.yoyLegend}>
+                <View style={styles.yoyLegendItem}>
+                  <View style={[styles.yoyLegendDot, { backgroundColor: '#CBD5E1' }]} />
+                  <Text style={styles.yoyLegendText}>{yoyData.totals.prev_year}</Text>
+                </View>
+                <View style={styles.yoyLegendItem}>
+                  <View style={[styles.yoyLegendDot, { backgroundColor: '#6366F1' }]} />
+                  <Text style={styles.yoyLegendText}>{yoyData.totals.current_year}</Text>
+                </View>
+              </View>
+
+              {/* Lista mês a mês */}
+              <View style={styles.yoyMonthList}>
+                {yoyData.months.map((month, idx) => {
+                  const prevW = (month.prev_total / maxVal) * 100;
+                  const currW = (month.current_total / maxVal) * 100;
+                  const chg = month.change_percent;
+                  const chgColor = chg > 0 ? '#10B981' : chg < 0 ? '#EF4444' : '#9CA3AF';
+                  const chgBg = chg > 0 ? '#ECFDF5' : chg < 0 ? '#FEF2F2' : '#F3F4F6';
+                  return (
+                    <View
+                      key={month.month}
+                      style={[styles.yoyMonthRow, idx < yoyData.months.length - 1 && styles.yoyMonthRowBorder]}
+                    >
+                      {/* Nome do mês */}
+                      <Text style={styles.yoyMonthName}>{month.month_name}</Text>
+
+                      {/* Barras horizontais */}
+                      <View style={styles.yoyMonthBarsH}>
+                        {/* Ano anterior */}
+                        <View style={styles.yoyBarHRow}>
+                          <View style={[styles.yoyBarHTrack]}>
+                            <View style={[styles.yoyBarHFill, styles.yoyBarHPrev, { width: `${prevW}%` as any }]} />
+                          </View>
+                          <Text style={styles.yoyBarHValue}>{formatCurrency(month.prev_total)}</Text>
+                        </View>
+                        {/* Ano atual */}
+                        <View style={styles.yoyBarHRow}>
+                          <View style={[styles.yoyBarHTrack]}>
+                            <View style={[styles.yoyBarHFill, styles.yoyBarHCurr, { width: `${currW}%` as any }]} />
+                          </View>
+                          <Text style={[styles.yoyBarHValue, { color: '#1F2937', fontWeight: '600' as const }]}>
+                            {formatCurrency(month.current_total)}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Badge de variação */}
+                      <View style={[styles.yoyMonthBadge, { backgroundColor: chgBg }]}>
+                        {chg !== 0 && (
+                          <Ionicons
+                            name={chg > 0 ? 'arrow-up' : 'arrow-down'}
+                            size={10}
+                            color={chgColor}
+                          />
+                        )}
+                        <Text style={[styles.yoyMonthBadgeText, { color: chgColor }]}>
+                          {chg > 0 ? '+' : ''}{chg.toFixed(0)}%
+                        </Text>
+                      </View>
                     </View>
-                    <Text style={styles.yoyMonthLabel}>{month.month_name}</Text>
-                  </View>
-                );
-              })}
-            </View>
-
-            {/* Legenda */}
-            <View style={styles.yoyLegend}>
-              <View style={styles.yoyLegendItem}>
-                <View style={[styles.yoyLegendDot, { backgroundColor: '#CBD5E1' }]} />
-                <Text style={styles.yoyLegendText}>{yoyData.totals.prev_year}: {formatCurrency(yoyData.totals.prev_total)}</Text>
-              </View>
-              <View style={styles.yoyLegendItem}>
-                <View style={[styles.yoyLegendDot, { backgroundColor: '#6366F1' }]} />
-                <Text style={styles.yoyLegendText}>{yoyData.totals.current_year}: {formatCurrency(yoyData.totals.current_total)}</Text>
+                  );
+                })}
               </View>
             </View>
-          </View>
-        )}
+          );
+        })()}
 
         {/* ========== COMPRAS DO PERIODO ========== */}
         <TouchableOpacity
@@ -976,6 +1147,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.05,
     shadowRadius: 8,
     elevation: 2,
+    alignItems: 'center',
   },
   monthCardIcon: {
     width: 40,
@@ -989,22 +1161,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#6B7280',
     fontWeight: '500',
+    textAlign: 'center',
   },
   monthCardValue: {
     fontSize: 22,
     fontWeight: '700',
     color: '#1F2937',
     marginVertical: 4,
+    textAlign: 'center',
   },
   monthCardSubtitle: {
     fontSize: 12,
     color: '#9CA3AF',
+    textAlign: 'center',
   },
   monthCardFooter: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     marginTop: 2,
+    gap: 6,
   },
   changeBadge: {
     flexDirection: 'row',
@@ -1101,21 +1277,25 @@ const styles = StyleSheet.create({
   },
   stockItem: {
     flex: 1,
+    alignItems: 'center',
   },
   stockItemHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     marginBottom: 6,
+    justifyContent: 'center',
   },
   stockItemLabel: {
     fontSize: 12,
     color: '#6B7280',
+    textAlign: 'center',
   },
   stockItemValue: {
     fontSize: 18,
     fontWeight: '700',
     color: '#1F2937',
+    textAlign: 'center',
   },
   stockDivider: {
     width: 1,
@@ -1532,19 +1712,61 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
+  fifoHeaderSection: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  fifoTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  fifoSubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  fifoInfoButton: {
+    padding: 4,
+  },
   fifoSellThrough: {
     backgroundColor: '#F9FAFB',
     borderRadius: 12,
     padding: 14,
     marginBottom: 14,
   },
-  fifoSellThroughInfo: {
-    marginBottom: 10,
+  fifoSellThroughHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  fifoSellThroughLabelContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  fifoSellThroughLabel: {
+    fontSize: 13,
+    color: '#6B7280',
+    fontWeight: '600',
+  },
+  fifoSellThroughBadge: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  fifoSellThroughBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
   fifoMetricLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#6B7280',
-    marginBottom: 2,
+    fontWeight: '500',
+    marginBottom: 4,
   },
   fifoMetricSub: {
     fontSize: 11,
@@ -1569,40 +1791,107 @@ const styles = StyleSheet.create({
     height: '100%',
     borderRadius: 4,
   },
-  fifoStatsRow: {
+  fifoMetricsGrid: {
     flexDirection: 'row',
-    backgroundColor: '#F9FAFB',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 12,
+    gap: 10,
+    marginTop: 16,
   },
-  fifoStatItem: {
+  fifoMetricCard: {
     flex: 1,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+    padding: 12,
     alignItems: 'center',
   },
-  fifoStatValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginTop: 2,
+  fifoMetricCardPositive: {
+    backgroundColor: '#ECFDF5',
+    borderWidth: 1,
+    borderColor: '#10B981',
   },
-  fifoStatDivider: {
-    width: 1,
-    backgroundColor: '#E5E7EB',
-    marginHorizontal: 8,
+  fifoMetricCardNegative: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#EF4444',
+  },
+  fifoMetricCardNeutral: {
+    backgroundColor: '#FEF3C7',
+    borderWidth: 1,
+    borderColor: '#F59E0B',
+  },
+  fifoMetricIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  fifoMetricValue: {
+    fontSize: 20,
+    fontWeight: '800',
+    marginBottom: 6,
+  },
+  fifoMetricBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+  },
+  fifoMetricBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#fff',
   },
   fifoAlert: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
     backgroundColor: '#FEF2F2',
-    padding: 10,
-    borderRadius: 8,
+    borderRadius: 12,
+    padding: 12,
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  fifoAlertIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
+    backgroundColor: '#FEF2F2',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  fifoAlertContent: {
+    flex: 1,
+  },
+  fifoAlertTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#EF4444',
+    marginBottom: 2,
   },
   fifoAlertText: {
     fontSize: 12,
-    color: '#EF4444',
+    color: '#7F1D1D',
+    marginBottom: 4,
+  },
+  fifoAlertHint: {
+    fontSize: 11,
+    color: '#991B1B',
+    fontWeight: '600',
+  },
+  fifoInsight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+    padding: 10,
+    marginTop: 12,
+  },
+  fifoInsightText: {
     flex: 1,
+    fontSize: 12,
+    color: '#92400E',
+    lineHeight: 16,
   },
 
   // YoY Comparação
@@ -1621,56 +1910,67 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 16,
+    marginBottom: 14,
+  },
+  yoyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1F2937',
+  },
+  yoySubtitle: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 2,
   },
   yoyChangeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 5,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 10,
+    borderRadius: 20,
   },
   yoyChangePct: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '700',
   },
-  yoyBarsContainer: {
+  yoyTotalsRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-    marginBottom: 12,
-  },
-  yoyMonthGroup: {
-    flex: 1,
     alignItems: 'center',
+    gap: 8,
+    marginBottom: 14,
   },
-  yoyMonthBars: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    gap: 2,
-    height: 64,
+  yoyTotalCard: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  yoyBar: {
-    width: 8,
-    borderRadius: 3,
+  yoyTotalCardCurrent: {
+    backgroundColor: '#F0F0FF',
+    borderColor: '#C7D2FE',
   },
-  yoyBarPrev: {
-    backgroundColor: '#CBD5E1',
+  yoyTotalYear: {
+    fontSize: 11,
+    color: '#6B7280',
+    fontWeight: '600',
+    marginBottom: 3,
   },
-  yoyBarCurr: {
-    backgroundColor: '#6366F1',
+  yoyTotalValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#6B7280',
   },
-  yoyMonthLabel: {
-    fontSize: 9,
-    color: '#9CA3AF',
-    marginTop: 4,
+  yoyTotalArrow: {
+    width: 28,
+    alignItems: 'center',
   },
   yoyLegend: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    gap: 20,
-    marginTop: 4,
+    gap: 14,
+    marginBottom: 12,
   },
   yoyLegendItem: {
     flexDirection: 'row',
@@ -1685,5 +1985,71 @@ const styles = StyleSheet.create({
   yoyLegendText: {
     fontSize: 12,
     color: '#4B5563',
+    fontWeight: '500',
+  },
+  yoyMonthList: {
+    gap: 0,
+  },
+  yoyMonthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    gap: 10,
+  },
+  yoyMonthRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: '#F3F4F6',
+  },
+  yoyMonthName: {
+    width: 36,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#374151',
+  },
+  yoyMonthBarsH: {
+    flex: 1,
+    gap: 4,
+  },
+  yoyBarHRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  yoyBarHTrack: {
+    flex: 1,
+    height: 6,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  yoyBarHFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  yoyBarHPrev: {
+    backgroundColor: '#CBD5E1',
+  },
+  yoyBarHCurr: {
+    backgroundColor: '#6366F1',
+  },
+  yoyBarHValue: {
+    width: 64,
+    fontSize: 10,
+    color: '#6B7280',
+    textAlign: 'right',
+  },
+  yoyMonthBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 8,
+    minWidth: 48,
+    justifyContent: 'center',
+  },
+  yoyMonthBadgeText: {
+    fontSize: 11,
+    fontWeight: '700',
   },
 });

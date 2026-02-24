@@ -136,14 +136,26 @@ export default function CatalogScreen() {
   });
 
   const handleActivateProduct = (product: Product) => {
-    setSelectedProduct(product);
-    setCustomName([product.name, product.color, product.size].filter(Boolean).join(' - ') || '');
-    setCustomPrice(product.price ? formatCurrency(Number(product.price)) : '0,00');
-    setCustomCostPrice(product.cost_price ? formatCurrency(Number(product.cost_price)) : '0,00');
-    setQuantity('1');
-    setSelectedEntryId(null);
-    setCreateNewEntry(false);
-    setEntrySearch('');
+    // Redirecionar para o novo wizard com dados pré-selecionados do catálogo
+    router.push({
+      pathname: '/products/wizard',
+      params: {
+        method: 'catalog', // Novo método para catálogo
+        catalogProductData: JSON.stringify({
+          id: product.id,
+          name: product.name,
+          description: product.description,
+          brand: product.brand,
+          category_id: product.category_id,
+          price: product.price,
+          cost_price: product.cost_price,
+          color: product.color,
+          size: product.size,
+          image_url: product.image_url,
+          // SKU não é copiado - será gerado automaticamente
+        }),
+      },
+    });
   };
 
   // Formatar valor para máscara de moeda

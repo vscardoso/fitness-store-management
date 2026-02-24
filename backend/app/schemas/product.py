@@ -101,6 +101,21 @@ class ProductEntryItem(BaseModel):
         from_attributes = True
 
 
+class ProductVariantMinimalResponse(BaseModel):
+    """Schema minimal de variante para incluir no ProductResponse."""
+    id: int
+    sku: str
+    size: Optional[str] = None
+    color: Optional[str] = None
+    price: Decimal
+    cost_price: Optional[Decimal] = None
+    is_active: bool = True
+    # current_stock omitido intencionalmente (evita lazy load async)
+    
+    class Config:
+        from_attributes = True
+
+
 class ProductResponse(ProductBase):
     """Schema for product response."""
     id: int
@@ -114,6 +129,13 @@ class ProductResponse(ProductBase):
     
     #  Relação com categoria
     category: Optional[CategoryResponse] = Field(None, description="Categoria do produto")
+    
+    # Variantes do produto
+    variants: Optional[List[ProductVariantMinimalResponse]] = Field(None, description="Variantes do produto")
+    
+    # Estatísticas para produtos com variantes
+    variant_count: Optional[int] = Field(None, description="Número de variantes")
+    base_price: Optional[Decimal] = Field(None, description="Preço base do produto")
 
     # Expor sale_price no response (espelha "price") para compatibilidade
     @computed_field(return_type=Decimal)

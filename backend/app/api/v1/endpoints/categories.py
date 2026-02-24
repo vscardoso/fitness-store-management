@@ -47,7 +47,8 @@ router = APIRouter(prefix="/categories", tags=["Categorias"])
 async def list_categories(
     skip: int = Query(0, ge=0, description="Número de registros a pular"),
     limit: int = Query(1000, ge=1, le=1000, description="Número máximo de registros"),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Listar todas as categorias.
@@ -103,7 +104,7 @@ async def list_categories(
     category_repo = CategoryRepository(db)
     
     try:
-        categories = await category_repo.get_multi(db, skip=skip, limit=limit)
+        categories = await category_repo.get_multi(db, skip=skip, limit=limit, tenant_id=current_user.tenant_id)
         return categories
         
     except Exception as e:
@@ -375,7 +376,7 @@ async def create_category(
     try:
         # Validar se parent_id existe (se fornecido)
         if category_data.parent_id is not None:
-            parent = await category_repo.get(category_data.parent_id)
+            parent = await category_repo.get(db, category_data.parent_id)
             if not parent:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -479,7 +480,7 @@ async def update_category(
     
     try:
         # Verificar se categoria existe
-        category = await category_repo.get(category_id)
+        category = await category_repo.get(db, category_id)
         
         if not category:
             raise HTTPException(
@@ -499,7 +500,7 @@ async def update_category(
                 )
             
             # Verificar se categoria pai existe
-            parent = await category_repo.get(update_dict['parent_id'])
+            parent = await category_repo.get(db, update_dict['parent_id'])
             if not parent:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -507,7 +508,7 @@ async def update_category(
                 )
         
         # Atualizar categoria
-        category = await category_repo.update(category_id, update_dict)
+        category = await category_repo.update(db, id=category_id, obj_in=update_dict)
         await db.commit()
         await db.refresh(category)
         
@@ -577,7 +578,7 @@ async def delete_category(
     
     try:
         # Verificar se categoria existe
-        category = await category_repo.get(category_id)
+        category = await category_repo.get(db, category_id)
         
         if not category:
             raise HTTPException(
@@ -601,7 +602,7 @@ async def delete_category(
                 )
         
         # Soft delete
-        await category_repo.update(category_id, {'is_active': False})
+        await category_repo.update(db, id=category_id, obj_in={'is_active': False})
         await db.commit()
         
     except HTTPException:

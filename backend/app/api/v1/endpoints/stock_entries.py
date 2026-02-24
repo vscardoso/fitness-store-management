@@ -5,6 +5,7 @@ Todos os endpoints requerem autenticação.
 Operações de modificação (POST, PUT, DELETE) requerem permissões de admin ou seller.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from datetime import date
@@ -28,6 +29,267 @@ router = APIRouter(prefix="/stock-entries", tags=["Entradas de Estoque"])
 class StockEntryCreateRequest(StockEntryCreate):
     """Request completo para criar entrada com itens."""
     items: List[EntryItemCreate]
+
+
+class StockEntryWithNewProductRequest(StockEntryCreate):
+    """Request para criar entrada com um NOVO produto e item em transação única."""
+    # Dados do novo produto
+    product_name: str
+    product_sku: str
+    product_barcode: Optional[str] = None
+    product_description: Optional[str] = None
+    product_brand: Optional[str] = None
+    product_color: Optional[str] = None
+    product_size: Optional[str] = None
+    product_category_id: int
+    product_cost_price: Optional[float] = None
+    product_price: float
+    # Dados da entrada
+    quantity: int  # Quantidade do produto na entrada
+    entry_code: str
+    entry_date: Optional[date] = None
+    entry_type: Optional[EntryType] = None
+    trip_id: Optional[int] = None
+    supplier_name: Optional[str] = None
+    supplier_cnpj: Optional[str] = None
+    supplier_contact: Optional[str] = None
+    invoice_number: Optional[str] = None
+    payment_method: Optional[str] = None
+    notes: Optional[str] = None
+
+
+class VariantItem(BaseModel):
+    """Item de variante com quantidade."""
+    variant_id: int
+    quantity: int
+
+
+class StockEntryWithNewProductVariantsRequest(BaseModel):
+    """Request para criar entrada com um NOVO produto com variantes em transação única."""
+    # Dados do produto pai
+    product_name: str
+    product_barcode: Optional[str] = None
+    product_description: Optional[str] = None
+    product_brand: Optional[str] = None
+    product_category_id: int
+    base_price: float
+    
+    # Dados das variantes
+    variants: List[dict] = Field(..., description="Lista de variantes com sku, color, size, price, cost_price, quantity")
+    
+    # Dados da entrada
+    entry_code: str
+    entry_date: Optional[date] = None
+    entry_type: Optional[EntryType] = None
+    trip_id: Optional[int] = None
+    supplier_name: Optional[str] = None
+    supplier_cnpj: Optional[str] = None
+    supplier_contact: Optional[str] = None
+    invoice_number: Optional[str] = None
+    payment_method: Optional[str] = None
+    notes: Optional[str] = None
+
+
+@router.post(
+    "/with-new-product",
+    response_model=StockEntryResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Criar entrada de estoque com NOVO produto (transação atômica)",
+    description="Cria um novo produto e uma entrada de estoque em uma única transação atômica. Requer permissões de admin ou seller."
+)
+async def create_stock_entry_with_new_product(
+    request_data: StockEntryWithNewProductRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Cria um NOVO produto e uma entrada de estoque em uma única transação atômica.
+    
+    Garante que o produto só exista se a entrada for criada com sucesso.
+    Se qualquer operação falhar, tudo é revertido (nenhum dado parcial).
+    
+    Args:
+        request_data: Dados do produto + da entrada
+        db: Sessão do banco de dados
+        current_user: Usuário autenticado (admin ou seller)
+        tenant_id: ID do tenant
+        
+    Returns:
+        StockEntryResponse: Entrada criada com o novo produto vinculado
+        
+    Raises:
+        HTTPException 400: Se dados inválidos, SKU duplicado, etc.
+        HTTPException 401: Se não autenticado
+        HTTPException 403: Se não tiver permissões
+        
+    Examples:
+        POST /stock-entries/with-new-product
+        {
+            "product_name": "Produto Exemplo",
+            "product_sku": "PROD-001",
+            "product_category_id": 1,
+            "product_price": 49.90,
+            "product_cost_price": 25.00,
+            "quantity": 10,
+            "entry_code": "ENTRY-2025-001",
+            "entry_date": "2025-01-15",
+            "entry_type": "local",
+            "supplier_name": "Fornecedor XYZ",
+            "notes": "Compra para reposição"
+        }
+    """
+    try:
+        from app.services.stock_entry_service import StockEntryService
+        
+        service = StockEntryService(db)
+        
+        # Criar entrada com novo produto em transação única
+        entry = await service.create_entry_with_new_product(
+            product_data={
+                "name": request_data.product_name,
+                "sku": request_data.product_sku,
+                "barcode": request_data.product_barcode,
+                "description": request_data.product_description,
+                "brand": request_data.product_brand,
+                "color": request_data.product_color,
+                "size": request_data.product_size,
+                "category_id": request_data.product_category_id,
+                "cost_price": request_data.product_cost_price,
+                "price": request_data.product_price,
+            },
+            entry_data={
+                "entry_code": request_data.entry_code,
+                "entry_date": request_data.entry_date,
+                "entry_type": request_data.entry_type,
+                "trip_id": request_data.trip_id,
+                "supplier_name": request_data.supplier_name,
+                "supplier_cnpj": request_data.supplier_cnpj,
+                "supplier_contact": request_data.supplier_contact,
+                "invoice_number": request_data.invoice_number,
+                "payment_method": request_data.payment_method,
+                "notes": request_data.notes,
+            },
+            quantity=request_data.quantity,
+            user_id=current_user.id,
+            tenant_id=tenant_id,
+        )
+        
+        await db.commit()
+        await db.refresh(entry)
+        
+        return entry
+    
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao criar entrada com novo produto: {str(e)}"
+        )
+
+
+@router.post(
+    "/with-new-product-variants",
+    response_model=StockEntryResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Criar entrada de estoque com NOVO produto com variantes (transação atômica)",
+    description="Cria um novo produto com variantes e uma entrada de estoque em uma única transação atômica. Requer permissões de admin ou seller."
+)
+async def create_stock_entry_with_new_product_variants(
+    request_data: StockEntryWithNewProductVariantsRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """
+    Cria um NOVO produto com variantes e uma entrada de estoque em uma única transação atômica.
+    
+    Garante que o produto e suas variantes só existam se a entrada for criada com sucesso.
+    Se qualquer operação falhar, tudo é revertido (nenhum dado parcial).
+    
+    Args:
+        request_data: Dados do produto pai + variantes + entrada
+        db: Sessão do banco de dados
+        current_user: Usuário autenticado (admin ou seller)
+        tenant_id: ID do tenant
+        
+    Returns:
+        StockEntryResponse: Entrada criada com o novo produto e variantes vinculados
+        
+    Raises:
+        HTTPException 400: Se dados inválidos, etc.
+        HTTPException 401: Se não autenticado
+        HTTPException 403: Se não tiver permissões
+        
+    Examples:
+        POST /stock-entries/with-new-product-variants
+        {
+            "product_name": "Legging Fitness",
+            "product_category_id": 1,
+            "base_price": 79.90,
+            "variants": [
+                {"sku": "LEG-PRE-P", "color": "Preto", "size": "P", "price": 79.90, "cost_price": 40.00},
+                {"sku": "LEG-PRE-M", "color": "Preto", "size": "M", "price": 79.90, "cost_price": 40.00}
+            ],
+            "variant_quantities": [{"variant_id": 1, "quantity": 5}, {"variant_id": 2, "quantity": 5}],
+            "entry_code": "ENTRY-2025-001",
+            "entry_type": "local",
+            "notes": "Compra de leggings"
+        }
+    """
+    try:
+        from app.services.stock_entry_service import StockEntryService
+        
+        service = StockEntryService(db)
+        
+        # Criar entrada com novo produto com variantes em transação única
+        entry = await service.create_entry_with_new_product_variants(
+            product_data={
+                "name": request_data.product_name,
+                "barcode": request_data.product_barcode,
+                "description": request_data.product_description,
+                "brand": request_data.product_brand,
+                "category_id": request_data.product_category_id,
+                "base_price": request_data.base_price,
+            },
+            variants_data=request_data.variants,
+            entry_data={
+                "entry_code": request_data.entry_code,
+                "entry_date": request_data.entry_date,
+                "entry_type": request_data.entry_type,
+                "trip_id": request_data.trip_id,
+                "supplier_name": request_data.supplier_name,
+                "supplier_cnpj": request_data.supplier_cnpj,
+                "supplier_contact": request_data.supplier_contact,
+                "invoice_number": request_data.invoice_number,
+                "payment_method": request_data.payment_method,
+                "notes": request_data.notes,
+            },
+            user_id=current_user.id,
+            tenant_id=tenant_id,
+        )
+        
+        await db.commit()
+        await db.refresh(entry)
+        
+        return entry
+    
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao criar entrada com novo produto com variantes: {str(e)}"
+        )
 
 
 @router.post(

@@ -59,6 +59,14 @@ export interface WizardState {
   isEditing: boolean;
   validationErrors: Record<string, string>;
 
+  // Variants (Step 2)
+  hasVariants: boolean;
+  variantSizes: string[];
+  variantColors: string[];
+  variantPrices: Record<string, number>;
+  /** Tamanhos específicos por cor — { 'preto': ['M','G'], 'branco': ['PP','P'] } */
+  colorSizes: Record<string, string[]>;
+
   // Step 3 - Entry
   createdProduct: Product | null;
   entryChoice: EntryChoice | null;
@@ -187,6 +195,11 @@ export const INITIAL_WIZARD_STATE: WizardState = {
   duplicates: [],
   isEditing: false,
   validationErrors: {},
+  hasVariants: false,
+  variantSizes: [],
+  variantColors: [],
+  variantPrices: {},
+  colorSizes: {},
   createdProduct: null,
   entryChoice: null,
   selectedEntry: null,

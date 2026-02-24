@@ -173,7 +173,7 @@ export default function MoreScreen() {
 
           <TouchableOpacity
             style={[styles.quickActionCard, { backgroundColor: '#8B5CF6' }]}
-            onPress={() => router.push('/products/add')}
+            onPress={() => router.push('/products/wizard')}
             activeOpacity={0.8}
           >
             <View style={styles.quickActionIcon}>
@@ -231,7 +231,7 @@ export default function MoreScreen() {
             icon="pricetags-outline"
             title="Categorias"
             subtitle="Organizar produtos por categoria"
-            onPress={() => Alert.alert('Em desenvolvimento', 'Tela de categorias será implementada em breve!')}
+            onPress={() => router.push('/categories')}
             iconColor="#9333EA"
             iconBg="#F3E8FF"
           />

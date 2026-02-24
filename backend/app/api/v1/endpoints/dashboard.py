@@ -153,10 +153,7 @@ async def get_dashboard_stats(
         .select_from(EntryItem)
         .join(Product, EntryItem.product_id == Product.id)
         .join(StockEntry, EntryItem.entry_id == StockEntry.id)
-        .outerjoin(ProductVariant, and_(
-            ProductVariant.product_id == Product.id,
-            ProductVariant.is_active == True
-        ))
+        .outerjoin(ProductVariant, EntryItem.variant_id == ProductVariant.id)
         .where(
             EntryItem.tenant_id == tenant_id,
             EntryItem.is_active == True,
@@ -205,11 +202,22 @@ async def get_dashboard_stats(
     result = await db.execute(products_registered_query)
     total_products_registered = result.scalar() or 0
 
-    # 5. Produtos com estoque baixo
-    low_stock_query = select(func.count(Inventory.id)).where(
-        Inventory.tenant_id == tenant_id,
-        Inventory.quantity <= Inventory.min_stock,
-        Inventory.quantity > 0,
+    # 5. Produtos com estoque baixo (somente produtos com EntryItems — exclui órfãos)
+    low_stock_query = (
+        select(func.count(Inventory.id))
+        .join(Product, Inventory.product_id == Product.id)
+        .where(
+            Inventory.tenant_id == tenant_id,
+            Inventory.quantity <= Inventory.min_stock,
+            Inventory.quantity > 0,
+            Product.is_active == True,
+            Product.id.in_(
+                select(EntryItem.product_id).where(
+                    EntryItem.tenant_id == tenant_id,
+                    EntryItem.is_active == True,
+                ).scalar_subquery()
+            ),
+        )
     )
     result = await db.execute(low_stock_query)
     low_stock_count = result.scalar() or 0
@@ -478,10 +486,7 @@ async def get_inventory_valuation(
         .select_from(EntryItem)
         .join(Product, EntryItem.product_id == Product.id)
         .join(StockEntry, EntryItem.entry_id == StockEntry.id)
-        .outerjoin(ProductVariant, and_(
-            ProductVariant.product_id == Product.id,
-            ProductVariant.is_active == True
-        ))
+        .outerjoin(ProductVariant, EntryItem.variant_id == ProductVariant.id)
         .where(
             EntryItem.tenant_id == tenant_id,
             EntryItem.is_active == True,
@@ -507,10 +512,7 @@ async def get_inventory_valuation(
         .join(Product, EntryItem.product_id == Product.id)
         .join(Category, Product.category_id == Category.id)
         .join(StockEntry, EntryItem.entry_id == StockEntry.id)
-        .outerjoin(ProductVariant, and_(
-            ProductVariant.product_id == Product.id,
-            ProductVariant.is_active == True
-        ))
+        .outerjoin(ProductVariant, EntryItem.variant_id == ProductVariant.id)
         .where(
             EntryItem.tenant_id == tenant_id,
             EntryItem.is_active == True,
@@ -614,11 +616,22 @@ async def get_inventory_health(
 
     coverage_days = (total_available_qty / avg_daily_sold) if avg_daily_sold > 0 else None
 
-    # Baixo estoque
-    low_stock_q = select(func.count(Inventory.id)).where(
-        Inventory.tenant_id == tenant_id,
-        Inventory.quantity <= Inventory.min_stock,
-        Inventory.quantity > 0,
+    # Baixo estoque (somente produtos com EntryItems — exclui órfãos)
+    low_stock_q = (
+        select(func.count(Inventory.id))
+        .join(Product, Inventory.product_id == Product.id)
+        .where(
+            Inventory.tenant_id == tenant_id,
+            Inventory.quantity <= Inventory.min_stock,
+            Inventory.quantity > 0,
+            Product.is_active == True,
+            Product.id.in_(
+                select(EntryItem.product_id).where(
+                    EntryItem.tenant_id == tenant_id,
+                    EntryItem.is_active == True,
+                ).scalar_subquery()
+            ),
+        )
     )
     res = await db.execute(low_stock_q)
     low_stock_count = int(res.scalar() or 0)
@@ -1330,10 +1343,7 @@ async def get_fifo_performance(
         .select_from(StockEntry)
         .join(EntryItem, EntryItem.entry_id == StockEntry.id)
         .join(Product, EntryItem.product_id == Product.id)
-        .outerjoin(ProductVariant, and_(
-            ProductVariant.product_id == Product.id,
-            ProductVariant.is_active == True
-        ))
+        .outerjoin(ProductVariant, EntryItem.variant_id == ProductVariant.id)
         .where(
             StockEntry.tenant_id == tenant_id,
             StockEntry.is_active == True,

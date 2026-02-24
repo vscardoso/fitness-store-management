@@ -6,6 +6,7 @@
 import api from './api';
 import type {
   Product,
+  ProductGrouped,
   ProductCreate,
   ProductUpdate,
   PaginationParams,
@@ -25,6 +26,23 @@ export const getActiveProducts = async (params?: PaginationParams): Promise<Prod
     if (Array.isArray(data)) return data;
     if (data && Array.isArray(data.items)) return data.items;
     return [];
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Listar produtos agrupados por variantes (NOVO)
+ * Agrupa produtos com mesmo nome, retornando array de variantes
+ */
+export const getGroupedProducts = async (params?: PaginationParams & {
+  category_id?: number;
+  search?: string;
+  has_stock?: boolean;
+}): Promise<ProductGrouped[]> => {
+  try {
+    const { data } = await api.get<ProductGrouped[]>('/products/grouped', { params });
+    return data;
   } catch (error) {
     throw error;
   }

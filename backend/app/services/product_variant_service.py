@@ -31,6 +31,7 @@ class ProductVariantService:
         self.db = db
         self.variant_repo = ProductVariantRepository()
         self.product_repo = ProductRepository(db)
+        self.sku_service = None  # Inicializado lazy
     
     async def create_variant(
         self,
@@ -318,6 +319,13 @@ class ProductVariantService:
         logger.info(f"Variante desativada: {variant.sku}")
         return True
     
+    def _get_sku_service(self):
+        """Obtém o serviço de geração de SKU (lazy initialization)."""
+        if self.sku_service is None:
+            from app.services.sku_generator_service import SKUGeneratorService
+            self.sku_service = SKUGeneratorService(self.db)
+        return self.sku_service
+
     async def _generate_unique_sku(
         self,
         product: Product,
@@ -326,30 +334,12 @@ class ProductVariantService:
         tenant_id: int,
         prefix: Optional[str] = None
     ) -> str:
-        """Gera um SKU único para a variante."""
-        # Usar prefixo fornecido ou gerar a partir do produto
-        if prefix:
-            base = prefix.upper()
-        elif product.brand:
-            brand_prefix = ''.join(re.findall(r'[A-Z]', product.brand.upper()[:3])) or 'PRO'
-            name_prefix = ''.join(re.findall(r'[A-Z]', product.name.upper()[:3])) or 'ITEM'
-            base = f"{brand_prefix}-{name_prefix}"
-        else:
-            name_prefix = ''.join(re.findall(r'[A-Z]', product.name.upper()[:6])) or 'ITEM'
-            base = name_prefix
-        
-        # Adicionar sufixos de cor e tamanho
-        color_suffix = color[:3].upper() if color else ''
-        size_suffix = size[:2].upper() if size else ''
-        
-        sku_base = f"{base}-{color_suffix}{size_suffix}"
-        
-        # Verificar unicidade e adicionar contador se necessário
-        counter = 1
-        sku = sku_base
-        
-        while await self.variant_repo.exists_by_sku(self.db, sku, tenant_id):
-            counter += 1
-            sku = f"{sku_base}-{counter:03d}"
-        
-        return sku
+        """Gera um SKU único para a variante usando o serviço de geração."""
+        sku_service = self._get_sku_service()
+        return await sku_service.generate_unique_sku(
+            name=product.name,
+            brand=prefix or product.brand,
+            color=color,
+            size=size,
+            tenant_id=tenant_id
+        )

@@ -27,8 +27,10 @@ import * as Sharing from 'expo-sharing';
 import * as FileSystem from 'expo-file-system';
 
 import { getProductById } from '@/services/productService';
+import { getProductVariants, formatVariantLabel } from '@/services/productVariantService';
 import ProductLabel, { LabelData } from '@/components/labels/ProductLabel';
 import { Colors, theme } from '@/constants/Colors';
+import type { ProductVariant } from '@/types/productVariant';
 
 type LabelSize = 'small' | 'medium' | 'large';
 
@@ -42,11 +44,19 @@ export default function ProductLabelScreen() {
   const [showPrice, setShowPrice] = useState(true);
   const [showSku, setShowSku] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
+  const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
 
   // Buscar dados do produto
   const { data: product, isLoading, error } = useQuery({
     queryKey: ['product', id],
     queryFn: () => getProductById(Number(id)),
+    enabled: !!id,
+  });
+
+  // Buscar variantes do produto
+  const { data: variants } = useQuery({
+    queryKey: ['product-variants', id],
+    queryFn: () => getProductVariants(Number(id)),
     enabled: !!id,
   });
 
@@ -113,7 +123,15 @@ export default function ProductLabelScreen() {
     );
   }
 
-  const labelData: LabelData = {
+  // Preparar dados da etiqueta (usa variante se selecionada, senão usa produto)
+  const labelData: LabelData = selectedVariant ? {
+    productId: selectedVariant.id,
+    sku: selectedVariant.sku,
+    name: `${product.name} - ${formatVariantLabel(selectedVariant)}`,
+    price: Number(selectedVariant.price),
+    size: selectedVariant.size || undefined,
+    color: selectedVariant.color || undefined,
+  } : {
     productId: product.id,
     sku: product.sku,
     name: product.name,
@@ -144,6 +162,54 @@ export default function ProductLabelScreen() {
       </View>
 
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.content}>
+        {/* Seletor de Variante */}
+        {variants && variants.length > 0 && (
+          <Card style={styles.previewCard}>
+            <Card.Content>
+              <Text style={styles.sectionTitle}>Selecione a Variação</Text>
+              
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.variantSelectorContainer}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.variantOption,
+                    !selectedVariant && styles.variantOptionSelected
+                  ]}
+                  onPress={() => setSelectedVariant(null)}
+                >
+                  <Text style={[
+                    styles.variantOptionText,
+                    !selectedVariant && styles.variantOptionTextSelected
+                  ]}>
+                    Todas
+                  </Text>
+                </TouchableOpacity>
+                
+                {variants.map((variant) => (
+                  <TouchableOpacity
+                    key={variant.id}
+                    style={[
+                      styles.variantOption,
+                      selectedVariant?.id === variant.id && styles.variantOptionSelected
+                    ]}
+                    onPress={() => setSelectedVariant(variant)}
+                  >
+                    <Text style={[
+                      styles.variantOptionText,
+                      selectedVariant?.id === variant.id && styles.variantOptionTextSelected
+                    ]} numberOfLines={1}>
+                      {formatVariantLabel(variant)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </Card.Content>
+          </Card>
+        )}
+
         {/* Preview da Etiqueta */}
         <Card style={styles.previewCard}>
           <Card.Content>
@@ -376,6 +442,33 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.light.textSecondary,
     fontStyle: 'italic',
+  },
+
+  // Seletor de Variantes
+  variantSelectorContainer: {
+    marginTop: theme.spacing.sm,
+  },
+  variantOption: {
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    marginRight: theme.spacing.sm,
+  },
+  variantOptionSelected: {
+    backgroundColor: Colors.light.primary,
+    borderColor: Colors.light.primary,
+  },
+  variantOptionText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.light.text,
+  },
+  variantOptionTextSelected: {
+    color: '#fff',
+    fontWeight: '600',
   },
 
   // Config Card

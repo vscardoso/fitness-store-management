@@ -85,6 +85,8 @@ export const useCreateProduct = () => {
     mutationFn: (productData: ProductCreate) => createProduct(productData),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
       // Invalida dashboard (estoque foi atualizado)
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['inventory-valuation'] });
@@ -105,6 +107,8 @@ export const useUpdateProduct = () => {
     onSuccess: (_, variables) => {
       // Invalida lista de produtos
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
       // Invalida produto específico (tela de detalhes usa 'product' no singular)
       queryClient.invalidateQueries({ queryKey: ['product', variables.id] });
       // Invalida estoque do produto
@@ -127,6 +131,8 @@ export const useDeleteProduct = () => {
     mutationFn: (id: number) => deleteProduct(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
       // Invalida dashboard (estoque foi removido)
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       queryClient.invalidateQueries({ queryKey: ['inventory-valuation'] });

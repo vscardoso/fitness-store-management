@@ -39,31 +39,9 @@ import CustomModal from '@/components/ui/CustomModal';
 import ModalActions from '@/components/ui/ModalActions';
 import { getStockEntryById, deleteStockEntry, updateEntryItem } from '@/services/stockEntryService';
 import { formatCurrency, formatDate } from '@/utils/format';
+import { toBRNumber, maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import { Colors, theme } from '@/constants/Colors';
 import { EntryType, EntryItemResponse } from '@/types';
-
-// Funções auxiliares para máscara de moeda
-const toBRNumber = (n: number) => {
-  try {
-    return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-  } catch (e) {
-    return n.toFixed(2).replace('.', ',');
-  }
-};
-
-const maskCurrencyBR = (text: string) => {
-  const digits = (text || '').replace(/\D/g, '');
-  if (!digits) return '';
-  const number = parseInt(digits, 10);
-  const value = (number / 100);
-  return toBRNumber(value);
-};
-
-const unmaskCurrency = (text: string): number => {
-  const digits = (text || '').replace(/\D/g, '');
-  if (!digits) return 0;
-  return parseInt(digits, 10) / 100;
-};
 
 export default function StockEntryDetailsScreen() {
   const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
@@ -194,6 +172,7 @@ export default function StockEntryDetailsScreen() {
       });
     },
     onError: (error: any) => {
+      setEditItemDialog({ visible: false, item: null });
       const errorMessage = error.message || 'Erro ao atualizar item';
       setErrorDialog({
         visible: true,
@@ -393,6 +372,9 @@ export default function StockEntryDetailsScreen() {
               <Text style={styles.productName}>
                 {item.product_name}
               </Text>
+              {item.variant_label && (
+                <Text style={styles.variantLabel}>{item.variant_label}</Text>
+              )}
               {item.product_sku && (
                 <Text style={styles.productSku}>SKU: {item.product_sku}</Text>
               )}
@@ -1060,6 +1042,12 @@ const styles = StyleSheet.create({
   productSku: {
     fontSize: 12,
     color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  variantLabel: {
+    fontSize: 12,
+    color: Colors.light.primary,
+    fontWeight: '500',
     marginTop: 2,
   },
   editButton: {

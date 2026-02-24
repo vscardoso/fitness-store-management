@@ -65,6 +65,87 @@ export async function createStockEntry(entry: StockEntryCreate): Promise<StockEn
 }
 
 /**
+ * Criar nova entrada de estoque com NOVO produto em transação atômica
+ * Garante que o produto só é criado se a entrada for criada com sucesso
+ */
+export async function createStockEntryWithNewProduct(
+  productData: {
+    product_name: string;
+    product_sku: string;
+    product_barcode?: string;
+    product_description?: string;
+    product_brand?: string;
+    product_color?: string;
+    product_size?: string;
+    product_category_id: number;
+    product_cost_price?: number;
+    product_price: number;
+  },
+  entryData: {
+    entry_code: string;
+    entry_date?: string;
+    entry_type?: 'trip' | 'online' | 'local';
+    trip_id?: number;
+    supplier_name?: string;
+    supplier_cnpj?: string;
+    supplier_contact?: string;
+    invoice_number?: string;
+    payment_method?: string;
+    notes?: string;
+  },
+  quantity: number
+): Promise<StockEntry> {
+  const response = await api.post<StockEntry>(`${ENTRIES_ENDPOINT}with-new-product`, {
+    ...productData,
+    ...entryData,
+    quantity,
+  });
+  return response.data;
+}
+
+/**
+ * Criar nova entrada de estoque com NOVO produto com variantes em transação atômica.
+ * Produto, variantes, entrada e FIFO são criados em uma única transação no backend.
+ * Se qualquer passo falhar, tudo é revertido (nenhum dado parcial).
+ */
+export async function createStockEntryWithNewProductVariants(
+  atomicData: {
+    product_name: string;
+    product_barcode?: string;
+    product_description?: string;
+    product_brand?: string;
+    product_category_id: number;
+    base_price: number;
+    variants: Array<{
+      sku: string;
+      color?: string | null;
+      size?: string | null;
+      price: number;
+      cost_price?: number;
+      quantity: number;
+    }>;
+  },
+  entryData: {
+    entry_code: string;
+    entry_date?: string;
+    entry_type?: string;
+    trip_id?: number;
+    supplier_name?: string;
+    supplier_cnpj?: string;
+    supplier_contact?: string;
+    invoice_number?: string;
+    payment_method?: string;
+    notes?: string;
+  }
+): Promise<StockEntry> {
+  const response = await api.post<StockEntry>(`${ENTRIES_ENDPOINT}with-new-product-variants`, {
+    ...atomicData,
+    ...entryData,
+  });
+  return response.data;
+}
+
+/**
  * Verificar se código de entrada já existe
  */
 export async function checkEntryCode(entryCode: string): Promise<{ exists: boolean; message: string }> {

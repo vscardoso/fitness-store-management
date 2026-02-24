@@ -43,7 +43,9 @@ async def create_variant(
     """Cria uma nova variante de produto."""
     service = ProductVariantService(db)
     try:
-        variant = await service.create_variant(product_id, variant_data, tenant_id)
+        created = await service.create_variant(product_id, variant_data, tenant_id)
+        # Reload com selectinload para evitar lazy-load no contexto async
+        variant = await service.get_variant(created.id, tenant_id)
         return ProductVariantResponse(
             **variant.__dict__,
             current_stock=variant.get_current_stock(),
@@ -73,14 +75,21 @@ async def create_product_with_variants(
             data, tenant_id, current_user.id
         )
         
-        # Buscar variantes
+        # Buscar variantes já carregadas (evita lazy load no contexto async)
         variants = await service.get_product_variants(product.id, tenant_id)
+        
+        # Calcular totais a partir das variantes já em memória (não usar product.get_current_stock()
+        # nem product.get_price_range() pois disparam lazy load síncrono no contexto async)
+        active_variants = [v for v in variants if v.is_active]
+        total_stock = sum(v.get_current_stock() for v in active_variants)
+        prices = [v.price for v in active_variants] if active_variants else []
+        price_range = (min(prices), max(prices)) if prices else (product.base_price, product.base_price)
         
         return ProductWithVariantsResponse(
             **product.__dict__,
-            variant_count=len(variants),
-            total_stock=product.get_current_stock(),
-            price_range=product.get_price_range(),
+            variant_count=len(active_variants),
+            total_stock=total_stock,
+            price_range=price_range,
             variants=[
                 ProductVariantResponse(
                     **v.__dict__,
@@ -316,7 +325,9 @@ async def update_variant(
     """Atualiza uma variante."""
     service = ProductVariantService(db)
     try:
-        variant = await service.update_variant(variant_id, variant_data, tenant_id)
+        await service.update_variant(variant_id, variant_data, tenant_id)
+        # Reload com selectinload para evitar lazy-load no contexto async
+        variant = await service.get_variant(variant_id, tenant_id)
         return ProductVariantResponse(
             **variant.__dict__,
             current_stock=variant.get_current_stock(),

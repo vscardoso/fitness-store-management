@@ -37,6 +37,9 @@ export interface UseAIScannerReturn {
   addToDuplicate: (productId: number) => void;
   retake: () => void;
   reset: () => void;
+  // Modal de similares
+  showSimilarModal: boolean;
+  dismissSimilarModal: () => void;
 }
 
 export function useAIScanner(): UseAIScannerReturn {
@@ -51,6 +54,7 @@ export function useAIScanner(): UseAIScannerReturn {
   const [error, setError] = useState<string | null>(null);
   const [processingTime, setProcessingTime] = useState(0);
   const [isCreating, setIsCreating] = useState(false);
+  const [showSimilarModal, setShowSimilarModal] = useState(false);
 
   /**
    * Solicita permissões de câmera e galeria
@@ -99,6 +103,14 @@ export function useAIScanner(): UseAIScannerReturn {
 
       if (response.success && response.data) {
         setScanResult(response.data);
+        // Abrir modal de similares automaticamente se score >= 0.65
+        if (
+          response.data.possible_duplicates &&
+          response.data.possible_duplicates.length > 0 &&
+          response.data.possible_duplicates[0].similarity_score >= 0.65
+        ) {
+          setShowSimilarModal(true);
+        }
       } else {
         setError(response.error || 'Não foi possível analisar a imagem');
       }
@@ -200,6 +212,8 @@ export function useAIScanner(): UseAIScannerReturn {
 
       // Invalidar cache de produtos
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
       
       // SEMPRE redirecionar para entrada de estoque (FIFO obrigatório)
       router.replace({
@@ -227,14 +241,13 @@ export function useAIScanner(): UseAIScannerReturn {
   }, [scanResult, queryClient, router]);
 
   /**
-   * Vai para edição manual com dados pré-preenchidos
+   * Vai para edição manual com dados pré-preenchidos (usa o Wizard unificado)
    */
   const editManually = useCallback(() => {
     if (!scanResult) return;
 
-    // Navegar para tela de adicionar produto com dados pré-preenchidos
     router.push({
-      pathname: '/products/add',
+      pathname: '/products/wizard',
       params: {
         prefillData: JSON.stringify({
           name: scanResult.name,
@@ -273,6 +286,7 @@ export function useAIScanner(): UseAIScannerReturn {
     setScanResult(null);
     setError(null);
     setProcessingTime(0);
+    setShowSimilarModal(false);
   }, []);
 
   /**
@@ -285,6 +299,11 @@ export function useAIScanner(): UseAIScannerReturn {
     setProcessingTime(0);
     setIsAnalyzing(false);
     setIsCreating(false);
+    setShowSimilarModal(false);
+  }, []);
+
+  const dismissSimilarModal = useCallback(() => {
+    setShowSimilarModal(false);
   }, []);
 
   return {
@@ -304,6 +323,8 @@ export function useAIScanner(): UseAIScannerReturn {
     addToDuplicate,
     retake,
     reset,
+    showSimilarModal,
+    dismissSimilarModal,
   };
 }
 

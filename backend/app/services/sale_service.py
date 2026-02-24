@@ -79,12 +79,15 @@ class SaleService:
                 availability = await self.fifo_service.check_availability(
                     product_id=item.product_id,
                     quantity=item.quantity,
+                    variant_id=item.variant_id,
                     tenant_id=tenant_id,
                 )
                 
                 if not availability["available"]:
                     product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
                     product_name = product.name if product else f"ID {item.product_id}"
+                    if item.variant_id:
+                        product_name += f" (variante {item.variant_id})"
                     raise ValueError(
                         f"Estoque insuficiente para {product_name}. "
                         f"Disponível: {availability['total_available']}, Solicitado: {item.quantity}"
@@ -169,18 +172,20 @@ class SaleService:
                 ) - Decimal(str(item_data.discount_amount))
                 
                 #  FIFO: Processar venda e obter fontes (de quais entradas saiu)
-                print(f"    Processando FIFO para produto {item_data.product_id}...")
+                _fifo_label = f"variante {item_data.variant_id}" if item_data.variant_id else f"produto {item_data.product_id}"
+                print(f"    Processando FIFO para {_fifo_label}...")
                 try:
                     fifo_sources = await self.fifo_service.process_sale(
                         product_id=item_data.product_id,
                         quantity=item_data.quantity,
+                        variant_id=item_data.variant_id,
                         tenant_id=tenant_id,
                     )
                     print(f"    FIFO processado: {len(fifo_sources)} fonte(s)")
                 except ValueError as fifo_error:
                     print(f"    Erro FIFO: {str(fifo_error)}")
                     raise ValueError(
-                        f"Erro ao processar FIFO para produto {item_data.product_id}: {str(fifo_error)}"
+                        f"Erro ao processar FIFO para {_fifo_label}: {str(fifo_error)}"
                     )
                 
                 # Calcular custo unitário médio ponderado a partir das fontes FIFO
@@ -195,6 +200,7 @@ class SaleService:
                 sale_item = SaleItem(
                     sale_id=sale.id,
                     product_id=item_data.product_id,
+                    variant_id=item_data.variant_id,
                     quantity=item_data.quantity,
                     unit_price=float(item_data.unit_price),
                     unit_cost=float(unit_cost),  #  Custo unitário médio ponderado

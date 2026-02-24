@@ -209,6 +209,42 @@ export interface ProductListResponse {
   pages: number;
 }
 
+// =============================================
+// PRODUCT GROUPED TYPES (VARIANTES AGRUPADAS)
+// =============================================
+
+export interface ProductVariant {
+  id: number;
+  sku: string;
+  size?: string;
+  color?: string;
+  price: number;
+  cost_price?: number;
+  current_stock: number;
+}
+
+export interface ProductGrouped {
+  id: number;
+  name: string;
+  description?: string;
+  category_id?: number;
+  brand?: string;
+  gender?: string;
+  material?: string;
+  is_digital: boolean;
+  is_activewear: boolean;
+  image_url?: string;
+  base_price?: number;
+  created_at?: string;
+  updated_at?: string;
+  variants: ProductVariant[];
+  variant_count: number;
+  total_stock: number;
+  min_price: number;
+  max_price: number;
+  min_stock_threshold?: number;
+}
+
 // ============================================
 // BATCH TYPES
 // ============================================
@@ -316,6 +352,7 @@ export interface SaleItem {
 
 export interface SaleItemCreate {
   product_id: number;
+  variant_id?: number;
   quantity: number;
   unit_price: number;
   discount_amount: number;
@@ -592,7 +629,8 @@ export enum EntryType {
 }
 
 export interface EntryItem {
-  product_id: number;
+  product_id?: number;
+  variant_id?: number;
   quantity_received: number;
   unit_cost: number;
   selling_price?: number;
@@ -602,6 +640,7 @@ export interface EntryItem {
 export interface EntryItemResponse extends EntryItem {
   id: number;
   entry_id: number;
+  variant_id?: number;
   quantity_remaining: number;
   total_cost: number;
   quantity_sold: number;
@@ -611,6 +650,8 @@ export interface EntryItemResponse extends EntryItem {
   product_sku?: string;
   product_barcode?: string;
   product_price?: number;
+  variant_name?: string;
+  variant_label?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -737,6 +778,8 @@ export interface DuplicateMatch {
   sku: string;
   similarity_score: number;
   reason: string;
+  current_stock?: number;
+  cost_price?: number;
 }
 
 export interface ProductScanResult {
@@ -794,6 +837,11 @@ export interface AIStatusResponse {
   model: string;
   has_api_key: boolean;
 }
+
+// ============================================
+// PRODUCT VARIANT TYPES
+// ============================================
+export * from './productVariant';
 
 // ============================================
 // WIZARD TYPES

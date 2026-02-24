@@ -5,6 +5,7 @@
 
 import { useCartStore } from '@/store/cartStore';
 import type { Product, PaymentMethod } from '@/types';
+import type { ProductGrouped, ProductVariant as GroupedVariant } from '@/types';
 
 /**
  * Hook customizado para carrinho de vendas
@@ -13,24 +14,24 @@ export const useCart = () => {
   const store = useCartStore();
 
   /**
-   * Obter item do carrinho
+   * Obter item do carrinho por cart_key
    */
-  const getItem = (product_id: number) => {
-    return store.items.find((item) => item.product_id === product_id);
+  const getItem = (cart_key: string) => {
+    return store.items.find((item) => item.cart_key === cart_key);
   };
 
   /**
-   * Verificar se produto está no carrinho
+   * Verificar se item está no carrinho por cart_key
    */
-  const hasItem = (product_id: number): boolean => {
-    return store.items.some((item) => item.product_id === product_id);
+  const hasItem = (cart_key: string): boolean => {
+    return store.items.some((item) => item.cart_key === cart_key);
   };
 
   /**
-   * Obter quantidade de um produto no carrinho
+   * Obter quantidade de um item por cart_key
    */
-  const getItemQuantity = (product_id: number): number => {
-    const item = getItem(product_id);
+  const getItemQuantity = (cart_key: string): number => {
+    const item = getItem(cart_key);
     return item ? item.quantity : 0;
   };
 
@@ -71,6 +72,7 @@ export const useCart = () => {
 
     // Actions
     addItem: store.addItem,
+    addVariantItem: store.addVariantItem,
     removeItem: store.removeItem,
     updateQuantity: store.updateQuantity,
     updateItemDiscount: store.updateItemDiscount,

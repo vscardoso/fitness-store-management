@@ -39,7 +39,7 @@ import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import PageHeader from '@/components/layout/PageHeader';
 import { useTrips } from '@/hooks/useTrips';
 import { useProducts } from '@/hooks';
-import { createStockEntry, checkEntryCode } from '@/services/stockEntryService';
+import { createStockEntry, createStockEntryWithNewProduct, createStockEntryWithNewProductVariants, checkEntryCode } from '@/services/stockEntryService';
 import { getCatalogProducts } from '@/services/catalogService';
 import { formatCurrency } from '@/utils/format';
 import { cnpjMask, phoneMask } from '@/utils/masks';
@@ -64,6 +64,8 @@ const capitalizeSupplierName = (text: string): string => {
 interface EntryItemForm extends EntryItem {
   id: string; // ID temporário para gerenciar a lista
   product?: Product;
+  variant_color?: string | null;
+  variant_size?: string | null;
 }
 
 export default function AddStockEntryScreen() {
@@ -83,8 +85,13 @@ export default function AddStockEntryScreen() {
     fromAIScanner?: string; // ✨ Novo: indica que veio do AI Scanner
     // Wizard params (para retorno ao wizard após criar entrada)
     fromWizard?: string;
+    wizardMode?: string; // 'atomic' | 'atomic-variants'
+    wizardProductData?: string; // ✨ Novo: dados do produto não-criado (para modo atômico)
     wizardProductId?: string;
     wizardProductName?: string;
+    wizardAtomicVariantsData?: string; // ✨ Novo: dados produto+variantes para modo atomic-variants
+    // Wizard variant params (produtos com variantes)
+    preselectedVariantsData?: string;
     // Trip params
     newTripId?: string;
     newTripCode?: string;
@@ -117,6 +124,7 @@ export default function AddStockEntryScreen() {
   const [createdEntryCode, setCreatedEntryCode] = useState<string | undefined>();
   const [createdEntryId, setCreatedEntryId] = useState<number | undefined>();
   const [codeValidationStatus, setCodeValidationStatus] = useState<'idle' | 'checking' | 'valid' | 'invalid'>('idle');
+  const [cnpjValidationStatus, setCnpjValidationStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
   const codeCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const preselectedProductAddedRef = useRef(false); // Previne adição dupla do produto pré-selecionado
   const [showTripLinkedDialog, setShowTripLinkedDialog] = useState(false);
@@ -170,25 +178,158 @@ export default function AddStockEntryScreen() {
    * Usa ref para prevenir adição dupla em caso de re-render
    */
   useEffect(() => {
-    // Log params para debug
-    logInfo('Entries/Add', 'Params recebidos', {
-      fromWizard: params.fromWizard,
-      fromCatalog: params.fromCatalog,
-      wizardProductId: params.wizardProductId,
-      hasPreselectedData: !!params.preselectedProductData,
-    });
-
     // Skip if already processed or has items
     if (preselectedProductAddedRef.current) return;
     if (items.length > 0) return;
+
+    // ── MODO ATÔMICO-VARIANTES: produto + variantes + entrada numa transação ──
+    if (params.wizardMode === 'atomic-variants' && params.wizardAtomicVariantsData) {
+      try {
+        const atomicData = JSON.parse(params.wizardAtomicVariantsData) as {
+          product_name: string;
+          product_barcode?: string;
+          product_description?: string;
+          product_brand?: string;
+          product_category_id: number;
+          base_price: number;
+          variants: Array<{
+            sku: string;
+            color?: string | null;
+            size?: string | null;
+            price: number;
+            cost_price?: number;
+            quantity: number;
+          }>;
+        };
+
+        preselectedProductAddedRef.current = true;
+
+        const newItems: EntryItemForm[] = [];
+        const newCosts: Record<string, string> = {};
+        const newPrices: Record<string, string> = {};
+
+        atomicData.variants.forEach((v, idx) => {
+          const itemId = (Date.now() + idx).toString();
+
+          const virtualProduct: Product = {
+            id: 0, // Produto ainda não existe (será criado atomicamente)
+            name: atomicData.product_name,
+            sku: v.sku,
+            cost_price: v.cost_price ?? 0,
+            price: v.price,
+            color: v.color ?? undefined,
+            size: v.size ?? undefined,
+            is_active: true,
+            is_catalog: true,
+            // Metadados para identificar o modo
+            _atomicVariantsMode: true,
+          } as any;
+
+          const newItem: EntryItemForm = {
+            id: itemId,
+            product_id: 0,
+            variant_id: undefined,
+            quantity_received: v.quantity,
+            unit_cost: v.cost_price ?? 0,
+            notes: '',
+            product: virtualProduct,
+            variant_color: v.color ?? undefined,
+            variant_size: v.size ?? undefined,
+          };
+
+          newItems.push(newItem);
+          newCosts[itemId] = formatCostInput(Math.round((v.cost_price ?? 0) * 100).toString());
+          newPrices[itemId] = formatCostInput(Math.round(v.price * 100).toString());
+        });
+
+        setItems(newItems);
+        setItemCosts(newCosts);
+        setItemPrices(newPrices);
+        return;
+      } catch (e) {
+        console.error('Error parsing wizardAtomicVariantsData:', e);
+      }
+    }
+
+    // Wizard com variantes: pré-adicionar múltiplos itens (um por variante)
+    if (params.preselectedVariantsData && params.fromWizard === 'true') {
+      try {
+        const variantsPayload: Array<{
+          variant_id: number;
+          product_id: number;
+          name: string;
+          sku: string;
+          color: string | null;
+          size: string | null;
+          quantity: number;
+          cost_price: number;
+          price: number;
+        }> = JSON.parse(params.preselectedVariantsData);
+
+        preselectedProductAddedRef.current = true;
+
+        const newItems: EntryItemForm[] = [];
+        const newCosts: Record<string, string> = {};
+        const newPrices: Record<string, string> = {};
+
+        variantsPayload.forEach((v, idx) => {
+          const itemId = (Date.now() + idx).toString();
+
+          const virtualProduct: Product = {
+            id: v.product_id,
+            name: v.name,
+            sku: v.sku,
+            cost_price: v.cost_price,
+            price: v.price,
+            color: v.color || undefined,
+            size: v.size || undefined,
+            is_active: true,
+          } as Product;
+
+          const newItem: EntryItemForm = {
+            id: itemId,
+            product_id: v.product_id,
+            variant_id: v.variant_id,
+            quantity_received: v.quantity,
+            unit_cost: v.cost_price,
+            notes: '',
+            product: virtualProduct,
+            variant_color: v.color,
+            variant_size: v.size,
+          };
+
+          newItems.push(newItem);
+          newCosts[itemId] = formatCostInput(Math.round(v.cost_price * 100).toString());
+          newPrices[itemId] = formatCostInput(Math.round(v.price * 100).toString());
+        });
+
+        setItems(newItems);
+        setItemCosts(newCosts);
+        setItemPrices(newPrices);
+        return;
+      } catch (e) {
+        console.error('Error parsing preselectedVariantsData:', e);
+      }
+    }
 
     // New flow: full product data from catalog or wizard
     if (params.preselectedProductData && (params.fromCatalog === 'true' || params.fromWizard === 'true')) {
       try {
         const productData = JSON.parse(params.preselectedProductData);
         logInfo('Entries/Add', 'Produto parseado', { id: productData.id, name: productData.name });
+        
+        // Modo ATÔMICO: produto ainda não foi criado (wizardMode='atomic')
+        const isAtomicMode = params.wizardMode === 'atomic';
         const quantity = params.preselectedQuantity ? parseInt(params.preselectedQuantity) : 1;
-        const price = productData.cost_price || 0;
+        
+        if (isAtomicMode) {
+          logInfo('Entries/Add', 'Modo atômico ativo - produto será criado junto com entrada', {
+            productName: productData.product_name,
+            quantity,
+          });
+        }
+
+        const price = productData.cost_price || productData.product_cost_price || 0;
 
         // Marcar como processado ANTES de adicionar para evitar race condition
         preselectedProductAddedRef.current = true;
@@ -197,20 +338,23 @@ export default function AddStockEntryScreen() {
         const priceInCents = Math.round(price * 100).toString();
         const costFormatted = formatCostInput(priceInCents);
 
-        // Create a virtual product for the catalog item
+        // Create a virtual product for the catalog item or atomic mode
         const catalogProduct: Product = {
-          id: productData.id,
-          name: productData.name,
-          sku: productData.sku || `CAT-${productData.id}`,
-          cost_price: productData.cost_price,
-          price: productData.price,
+          id: productData.id || 0, // Modo atômico usa id temporário
+          name: productData.name || productData.product_name || '',
+          sku: productData.sku || productData.product_sku || `CAT-${productData.id}`,
+          cost_price: price,
+          price: productData.price || productData.product_price || 0,
           is_active: true,
           is_catalog: true,
-        } as Product;
+          // Metadados para modo atômico
+          _atomicMode: isAtomicMode,
+          _atomicData: isAtomicMode ? productData : undefined,
+        } as any;
 
         const newItem: EntryItemForm = {
           id: Date.now().toString(),
-          product_id: productData.id,
+          product_id: productData.id || 0,
           quantity_received: quantity,
           unit_cost: price,
           notes: '',
@@ -218,7 +362,8 @@ export default function AddStockEntryScreen() {
         };
 
         // Formatar preço de venda
-        const priceFormatted = formatCostInput(Math.round((productData.price || 0) * 100).toString());
+        const finalPrice = productData.price || productData.product_price || 0;
+        const priceFormatted = formatCostInput(Math.round(finalPrice * 100).toString());
 
         setItems([newItem]);
         setItemCosts({ [newItem.id]: costFormatted });
@@ -262,7 +407,7 @@ export default function AddStockEntryScreen() {
         setItemPrices({ [newItem.id]: sellPriceFormatted });
       }
     }
-  }, [params.preselectedProductData, params.preselectedProductId, params.fromCatalog, params.fromWizard, products]);
+  }, [params.preselectedVariantsData, params.wizardAtomicVariantsData, params.wizardMode, params.preselectedProductData, params.preselectedProductId, params.fromCatalog, params.fromWizard, products]);
 
   /**
    * Auto-selecionar viagem recém-criada (quando volta de /trips/add)
@@ -289,6 +434,20 @@ export default function AddStockEntryScreen() {
       }
     }
   }, [params.newTripId, params.newTripCode, trips]);
+
+  /**
+   * Validar CNPJ em tempo real
+   */
+  useEffect(() => {
+    if (!supplierCnpj.trim()) {
+      setCnpjValidationStatus('idle');
+      return;
+    }
+
+    const cleanCNPJ = supplierCnpj.replace(/\D/g, '');
+    const isValid = cleanCNPJ.length === 14 || cleanCNPJ.length === 0;
+    setCnpjValidationStatus(isValid ? 'valid' : 'invalid');
+  }, [supplierCnpj]);
 
   /**
    * Validar código de entrada em tempo real (com debounce)
@@ -340,31 +499,144 @@ export default function AddStockEntryScreen() {
   );
 
   /**
-   * Mutation para criar entrada
+   * Mutation para criar entrada (modo tradicional)
    */
   const createMutation = useMutation({
     mutationFn: createStockEntry,
     onSuccess: (createdEntry) => {
-      // Invalidate stock entries queries
-      queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
-      queryClient.invalidateQueries({ queryKey: ['stock-entries-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['trips'] });
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['active-products'] });
-      queryClient.invalidateQueries({ queryKey: ['low-stock'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['inventory-valuation'] });
-      queryClient.invalidateQueries({ queryKey: ['period-purchases'] });
-
-      setCreatedEntryCode(createdEntry.entry_code);
-      setCreatedEntryId(createdEntry.id);
-      setShowSuccessDialog(true);
+      invalidateAndShowSuccess(createdEntry);
     },
     onError: (error: any) => {
       const errorMessage = error.message || 'Erro ao criar entrada';
       Alert.alert('Erro', errorMessage);
     },
   });
+
+  /**
+   * Mutation para criar entrada com NOVO produto (modo atômico)
+   */
+  const createAtomicMutation = useMutation({
+    mutationFn: async () => {
+      // Extrair dados do produto e quantidade do item
+      const item = items[0];
+      if (!item.product || !item.product._atomicData) {
+        throw new Error('Dados do produto não encontrados para modo atômico');
+      }
+
+      const productData = item.product._atomicData;
+      const quantity = item.quantity_received;
+
+      return createStockEntryWithNewProduct(
+        productData,
+        {
+          entry_code: entryCode.trim(),
+          entry_date: computeEntryDateISO(),
+          entry_type: selectedType,
+          trip_id: selectedType === EntryType.TRIP ? tripId : undefined,
+          supplier_name: supplierName.trim(),
+          supplier_cnpj: supplierCnpj.trim() || undefined,
+          supplier_contact: supplierContact.trim() || undefined,
+          invoice_number: invoiceNumber.trim() || undefined,
+          payment_method: paymentMethod.trim() || undefined,
+          notes: notes.trim() || undefined,
+        },
+        quantity
+      );
+    },
+    onSuccess: (createdEntry) => {
+      invalidateAndShowSuccess(createdEntry);
+    },
+    onError: (error: any) => {
+      const errorMessage = error.message || 'Erro ao criar entrada com novo produto';
+      Alert.alert('Erro', errorMessage);
+    },
+  });
+
+  /**
+   * Mutation para criar entrada com NOVO produto com VARIANTES (modo atomic-variants)
+   * Chama POST /stock-entries/with-new-product-variants — transação atômica total.
+   */
+  const createAtomicVariantsMutation = useMutation({
+    mutationFn: async () => {
+      if (items.length === 0) {
+        throw new Error('Nenhuma variante informada');
+      }
+
+      // Reconstruir payload de variantes a partir dos itens (usuario pode ter editado qtds/custos)
+      const atomicData = JSON.parse(params.wizardAtomicVariantsData!) as {
+        product_name: string;
+        product_barcode?: string;
+        product_description?: string;
+        product_brand?: string;
+        product_category_id: number;
+        base_price: number;
+        variants: Array<{ sku: string; color?: string | null; size?: string | null; price: number; cost_price?: number; quantity: number }>;
+      };
+
+      // Substituir quantities e costs pelos valores atuais do formulário
+      const variantsWithCurrentData = atomicData.variants.map((v, idx) => {
+        const item = items[idx];
+        if (!item) return { ...v, quantity: 0 };
+        return {
+          sku: item.product?.sku || v.sku,
+          color: item.variant_color ?? v.color ?? null,
+          size: item.variant_size ?? v.size ?? null,
+          price: item.product?.price ?? v.price,
+          cost_price: item.unit_cost ?? v.cost_price,
+          quantity: item.quantity_received,
+        };
+      }).filter(v => v.quantity > 0);
+
+      if (variantsWithCurrentData.length === 0) {
+        throw new Error('Informe ao menos uma variante com quantidade > 0');
+      }
+
+      return createStockEntryWithNewProductVariants(
+        { ...atomicData, variants: variantsWithCurrentData },
+        {
+          entry_code: entryCode.trim(),
+          entry_date: computeEntryDateISO(),
+          entry_type: selectedType,
+          trip_id: selectedType === EntryType.TRIP ? tripId : undefined,
+          supplier_name: supplierName.trim(),
+          supplier_cnpj: supplierCnpj.trim() || undefined,
+          supplier_contact: supplierContact.trim() || undefined,
+          invoice_number: invoiceNumber.trim() || undefined,
+          payment_method: paymentMethod.trim() || undefined,
+          notes: notes.trim() || undefined,
+        }
+      );
+    },
+    onSuccess: (createdEntry) => {
+      invalidateAndShowSuccess(createdEntry);
+    },
+    onError: (error: any) => {
+      const errorMessage = error.message || 'Erro ao criar produto com variantes e entrada';
+      Alert.alert('Erro', errorMessage);
+    },
+  });
+
+  /**
+   * Invalidar queries e mostrar sucesso
+   */
+  const invalidateAndShowSuccess = (createdEntry: any) => {
+    // Invalidate stock entries queries
+    queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
+    queryClient.invalidateQueries({ queryKey: ['stock-entries-stats'] });
+    queryClient.invalidateQueries({ queryKey: ['trips'] });
+    queryClient.invalidateQueries({ queryKey: ['products'] });
+    queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+    queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
+    queryClient.invalidateQueries({ queryKey: ['active-products'] });
+    queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    queryClient.invalidateQueries({ queryKey: ['inventory-valuation'] });
+    queryClient.invalidateQueries({ queryKey: ['period-purchases'] });
+
+    setCreatedEntryCode(createdEntry.entry_code);
+    setCreatedEntryId(createdEntry.id);
+    setShowSuccessDialog(true);
+  };
 
   /**
    * Formatar custo unitário (formato brasileiro)
@@ -520,6 +792,14 @@ export default function AddStockEntryScreen() {
       newErrors.supplierName = 'Fornecedor é obrigatório';
     }
 
+    // Validar CNPJ se preenchido
+    if (supplierCnpj.trim()) {
+      const cleanCNPJ = supplierCnpj.replace(/\D/g, '');
+      if (cleanCNPJ.length !== 14) {
+        newErrors.supplierCnpj = 'CNPJ deve ter 14 dígitos';
+      }
+    }
+
     if (selectedType === EntryType.TRIP && !tripId) {
       newErrors.tripId = 'Selecione uma viagem';
     }
@@ -575,6 +855,27 @@ export default function AddStockEntryScreen() {
       return;
     }
 
+    // Modo ATÔMICO-VARIANTES: novo produto + variantes + entrada em uma transação
+    const isAtomicVariantsMode = params.wizardMode === 'atomic-variants';
+    if (isAtomicVariantsMode) {
+      createAtomicVariantsMutation.mutate();
+      return;
+    }
+
+    // Modo ATÔMICO: produto será criado junto com entrada
+    const isAtomicMode = items.length > 0 && items[0].product?._atomicMode;
+    
+    if (isAtomicMode) {
+      // Validação específica para modo atômico
+      if (items.length !== 1) {
+        Alert.alert('Atenção', 'Modo atômico: apenas um produto permitido');
+        return;
+      }
+      createAtomicMutation.mutate();
+      return;
+    }
+
+    // Modo TRADICIONAL: usar endpoint normal
     const entryData: StockEntryCreate = {
       entry_code: entryCode.trim(),
       entry_date: computeEntryDateISO(),
@@ -588,6 +889,7 @@ export default function AddStockEntryScreen() {
       notes: notes.trim() || undefined,
       items: items.map(item => ({
         product_id: item.product_id,
+        variant_id: item.variant_id ?? undefined,
         quantity_received: item.quantity_received,
         unit_cost: item.unit_cost,
         selling_price: item.product?.price || undefined,
@@ -601,12 +903,222 @@ export default function AddStockEntryScreen() {
   const total = calculateTotal();
   const selectedTrip = trips.find(t => t.id === tripId);
 
+  /**
+   * Agrupar itens por product_id para exibir variantes dentro do card do produto
+   */
+  const getGroupedItems = () => {
+    const orderMap = new Map<number | string, number[]>();
+    const order: (number | string)[] = [];
+
+    items.forEach((item, index) => {
+      const key = item.product_id !== undefined ? item.product_id : item.id;
+      if (!orderMap.has(key)) {
+        orderMap.set(key, []);
+        order.push(key);
+      }
+      orderMap.get(key)!.push(index);
+    });
+
+    return order.map(key => ({ key, indices: orderMap.get(key)! }));
+  };
+
+  /**
+   * Renderizar linha de variante dentro do card agrupado
+   */
+  const renderVariantRow = (index: number, showDivider: boolean) => {
+    const item = items[index];
+    const variantColor = item.variant_color || item.product?.color;
+    const variantSize = item.variant_size || item.product?.size;
+    return (
+      <View key={item.id}>
+        {showDivider && <View style={styles.variantDivider} />}
+        <View style={styles.variantRowHeader}>
+          <View style={styles.variantChipsRow}>
+            {variantSize && (
+              <View style={styles.variantChipSize}>
+                <Text style={styles.variantChipText}>{variantSize}</Text>
+              </View>
+            )}
+            {variantColor && (
+              <View style={styles.variantChipColor}>
+                <Text style={styles.variantChipText}>{variantColor}</Text>
+              </View>
+            )}
+            {item.product?.sku && (
+              <Text style={styles.variantSkuText}>{item.product.sku}</Text>
+            )}
+          </View>
+          <IconButton
+            icon="close"
+            size={16}
+            onPress={() => handleRemoveItem(index)}
+            style={styles.variantRemoveBtn}
+          />
+        </View>
+        <View style={styles.itemRow}>
+          <View style={styles.itemInput}>
+            <TextInput
+              label="Qtd"
+              value={item.quantity_received.toString()}
+              onChangeText={(text) => handleUpdateItem(index, 'quantity_received', parseInt(text) || 0)}
+              keyboardType="numeric"
+              mode="outlined"
+              dense
+              error={!!errors[`item_${index}_quantity`]}
+            />
+          </View>
+          <View style={styles.itemInput}>
+            <TextInput
+              label="Custo (R$)"
+              value={itemCosts[item.id] || '0,00'}
+              onChangeText={(text) => handleUpdateItemCost(item.id, index, formatCostInput(text))}
+              keyboardType="decimal-pad"
+              mode="outlined"
+              dense
+            />
+          </View>
+        </View>
+        <View style={styles.itemRow}>
+          <View style={styles.itemInputFull}>
+            <TextInput
+              label="Venda (R$)"
+              value={itemPrices[item.id] || '0,00'}
+              onChangeText={(text) => handleUpdateItemPrice(item.id, index, formatCostInput(text))}
+              keyboardType="decimal-pad"
+              mode="outlined"
+              dense
+              right={
+                parseCost(itemPrices[item.id] || '0') < parseCost(itemCosts[item.id] || '0') ? (
+                  <TextInput.Icon icon="alert" color="#ff9800" />
+                ) : undefined
+              }
+            />
+            {parseCost(itemPrices[item.id] || '0') < parseCost(itemCosts[item.id] || '0') && (
+              <Text style={styles.warningText}>⚠️ Preço menor que o custo</Text>
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  /**
+   * Renderizar card de produto (simples ou agrupado com variantes)
+   */
+  const renderProductGroupCard = (key: number | string, indices: number[]) => {
+    const firstItem = items[indices[0]];
+    const baseName = firstItem.product?.name || `Produto #${firstItem.product_id}`;
+    const isMultiVariant = indices.length > 1;
+    const hasVariantInfo = !!(
+      firstItem.variant_id ||
+      firstItem.variant_color ||
+      firstItem.variant_size ||
+      firstItem.product?.color ||
+      firstItem.product?.size
+    );
+
+    if (!isMultiVariant && !hasVariantInfo) {
+      // Card simples (sem variantes)
+      const item = firstItem;
+      const index = indices[0];
+      return (
+        <Card key={String(key)} style={styles.itemCard}>
+          <Card.Content>
+            <View style={styles.itemHeader}>
+              <Text style={styles.itemName}>{baseName}</Text>
+              <IconButton icon="close" size={20} onPress={() => handleRemoveItem(index)} />
+            </View>
+            <View style={styles.itemRow}>
+              <View style={styles.itemInput}>
+                <TextInput
+                  label="Quantidade"
+                  value={item.quantity_received.toString()}
+                  onChangeText={(text) => handleUpdateItem(index, 'quantity_received', parseInt(text) || 0)}
+                  keyboardType="numeric"
+                  mode="outlined"
+                  dense
+                  error={!!errors[`item_${index}_quantity`]}
+                />
+              </View>
+              <View style={styles.itemInput}>
+                <TextInput
+                  label="Custo Unit. (R$)"
+                  value={itemCosts[item.id] || '0,00'}
+                  onChangeText={(text) => handleUpdateItemCost(item.id, index, formatCostInput(text))}
+                  keyboardType="decimal-pad"
+                  mode="outlined"
+                  dense
+                  error={!!errors[`item_${index}_cost`]}
+                />
+              </View>
+            </View>
+            <View style={styles.itemRow}>
+              <View style={styles.itemInputFull}>
+                <TextInput
+                  label="Preço Venda (R$)"
+                  value={itemPrices[item.id] || '0,00'}
+                  onChangeText={(text) => handleUpdateItemPrice(item.id, index, formatCostInput(text))}
+                  keyboardType="decimal-pad"
+                  mode="outlined"
+                  dense
+                  right={
+                    parseCost(itemPrices[item.id] || '0') < parseCost(itemCosts[item.id] || '0') ? (
+                      <TextInput.Icon icon="alert" color="#ff9800" />
+                    ) : undefined
+                  }
+                />
+                {parseCost(itemPrices[item.id] || '0') < parseCost(itemCosts[item.id] || '0') && (
+                  <Text style={styles.warningText}>⚠️ Preço menor que o custo</Text>
+                )}
+              </View>
+            </View>
+            <View style={styles.itemTotal}>
+              <Text style={styles.itemTotalLabel}>Subtotal:</Text>
+              <Text style={styles.itemTotalValue}>
+                {formatCurrency((Number(item.quantity_received) || 0) * (Number(item.unit_cost) || 0))}
+              </Text>
+            </View>
+          </Card.Content>
+        </Card>
+      );
+    }
+
+    // Card com variante(s)
+    const subtotal = indices.reduce((sum, idx) => {
+      const it = items[idx];
+      return sum + (Number(it.quantity_received) || 0) * (Number(it.unit_cost) || 0);
+    }, 0);
+
+    return (
+      <Card key={String(key)} style={styles.itemCard}>
+        <Card.Content>
+          <View style={styles.variantGroupHeader}>
+            <View style={styles.variantGroupIcon}>
+              <Ionicons name="layers-outline" size={16} color={Colors.light.primary} />
+            </View>
+            <Text style={[styles.itemName, { flex: 1 }]} numberOfLines={1}>{baseName}</Text>
+            {indices.length > 1 && (
+              <View style={styles.variantCountBadge}>
+                <Text style={styles.variantCountText}>{indices.length} var.</Text>
+              </View>
+            )}
+          </View>
+          {indices.map((idx, i) => renderVariantRow(idx, i > 0))}
+          <View style={[styles.itemTotal, { marginTop: 12 }]}>
+            <Text style={styles.itemTotalLabel}>Subtotal:</Text>
+            <Text style={styles.itemTotalValue}>{formatCurrency(subtotal)}</Text>
+          </View>
+        </Card.Content>
+      </Card>
+    );
+  };
+
   return (
     <View style={styles.container}>
       <PageHeader
         title="Nova Entrada"
         subtitle="Preencha os dados para cadastrar nova entrada de estoque"
-        onBack={() => router.push('/(tabs)/entries')}
+        onBack={() => isFromWizard ? router.back() : router.push('/(tabs)/entries')}
       />
 
       {/* Banner de contexto quando vem do Wizard */}
@@ -873,7 +1385,8 @@ export default function AddStockEntryScreen() {
               label="CNPJ"
               value={supplierCnpj}
               onChangeText={(text) => {
-                setSupplierCnpj(cnpjMask(text));
+                const masked = cnpjMask(text);
+                setSupplierCnpj(masked);
                 setErrors({ ...errors, supplierCnpj: '' });
               }}
               mode="outlined"
@@ -881,8 +1394,25 @@ export default function AddStockEntryScreen() {
               placeholder="00.000.000/0000-00"
               maxLength={18}
               left={<TextInput.Icon icon="card-account-details" />}
-              error={!!errors.supplierCnpj}
+              error={!!errors.supplierCnpj || cnpjValidationStatus === 'invalid'}
+              right={
+                cnpjValidationStatus === 'valid' ? (
+                  <TextInput.Icon icon="check-circle" color="#4CAF50" />
+                ) : cnpjValidationStatus === 'invalid' ? (
+                  <TextInput.Icon icon="close-circle" color="#f44336" />
+                ) : null
+              }
             />
+            {!errors.supplierCnpj && cnpjValidationStatus === 'invalid' && (
+              <HelperText type="error" visible={true}>
+                CNPJ deve ter 14 dígitos
+              </HelperText>
+            )}
+            {!errors.supplierCnpj && cnpjValidationStatus === 'valid' && (
+              <HelperText type="info" visible={true} style={{ color: '#4CAF50' }}>
+                CNPJ válido ✓
+              </HelperText>
+            )}
             {errors.supplierCnpj && (
               <HelperText type="error">{errors.supplierCnpj}</HelperText>
             )}
@@ -1058,86 +1588,8 @@ export default function AddStockEntryScreen() {
             </View>
           </Modal>
 
-          {/* Lista de Items */}
-          {items.map((item, index) => {
-            console.log(`🔍 RENDERING ITEM ${index}:`, {
-              item_id: item.id,
-              product_name: item.product?.name,
-              product_price: item.product?.price,
-              itemPrices_value: itemPrices[item.id],
-              itemCosts_value: itemCosts[item.id],
-              all_itemPrices: itemPrices,
-            });
-            
-            return (
-            <Card key={item.id} style={styles.itemCard}>
-              <Card.Content>
-                <View style={styles.itemHeader}>
-                  <Text style={styles.itemName}>{item.product?.name || `Produto #${item.product_id}`}</Text>
-                  <IconButton
-                    icon="close"
-                    size={20}
-                    onPress={() => handleRemoveItem(index)}
-                  />
-                </View>
-
-                <View style={styles.itemRow}>
-                  <View style={styles.itemInput}>
-                    <TextInput
-                      label="Quantidade"
-                      value={item.quantity_received.toString()}
-                      onChangeText={(text) => handleUpdateItem(index, 'quantity_received', parseInt(text) || 0)}
-                      keyboardType="numeric"
-                      mode="outlined"
-                      dense
-                      error={!!errors[`item_${index}_quantity`]}
-                    />
-                  </View>
-
-                  <View style={styles.itemInput}>
-                    <TextInput
-                      label="Custo Unit. (R$)"
-                      value={itemCosts[item.id] || '0,00'}
-                      onChangeText={(text) => handleUpdateItemCost(item.id, index, formatCostInput(text))}
-                      keyboardType="decimal-pad"
-                      mode="outlined"
-                      dense
-                      error={!!errors[`item_${index}_cost`]}
-                    />
-                  </View>
-                </View>
-
-                <View style={styles.itemRow}>
-                  <View style={styles.itemInputFull}>
-                    <TextInput
-                      label="Preço Venda (R$)"
-                      value={itemPrices[item.id] || '0,00'}
-                      onChangeText={(text) => handleUpdateItemPrice(item.id, index, formatCostInput(text))}
-                      keyboardType="decimal-pad"
-                      mode="outlined"
-                      dense
-                      right={
-                        parseCost(itemPrices[item.id] || '0') < parseCost(itemCosts[item.id] || '0') ? (
-                          <TextInput.Icon icon="alert" color="#ff9800" />
-                        ) : undefined
-                      }
-                    />
-                    {parseCost(itemPrices[item.id] || '0') < parseCost(itemCosts[item.id] || '0') && (
-                      <Text style={styles.warningText}>⚠️ Preço menor que o custo</Text>
-                    )}
-                  </View>
-                </View>
-
-                <View style={styles.itemTotal}>
-                  <Text style={styles.itemTotalLabel}>Subtotal:</Text>
-                  <Text style={styles.itemTotalValue}>
-                    {formatCurrency((Number(item.quantity_received) || 0) * (Number(item.unit_cost) || 0))}
-                  </Text>
-                </View>
-              </Card.Content>
-            </Card>
-            );
-          })}
+          {/* Lista de Items - agrupada por produto com variantes */}
+          {getGroupedItems().map(({ key, indices }) => renderProductGroupCard(key, indices))}
         </View>
 
         {/* Observações */}
@@ -1178,8 +1630,8 @@ export default function AddStockEntryScreen() {
           <Button
             mode="contained"
             onPress={handleSubmit}
-            loading={createMutation.isPending}
-            disabled={createMutation.isPending || items.length === 0 || codeValidationStatus === 'invalid' || codeValidationStatus === 'checking'}
+            loading={createMutation.isPending || createAtomicMutation.isPending || createAtomicVariantsMutation.isPending}
+            disabled={createMutation.isPending || createAtomicMutation.isPending || createAtomicVariantsMutation.isPending || items.length === 0 || codeValidationStatus === 'invalid' || codeValidationStatus === 'checking'}
             style={styles.submitButton}
             contentStyle={styles.submitButtonContent}
           >
@@ -1188,8 +1640,8 @@ export default function AddStockEntryScreen() {
 
           <Button
             mode="outlined"
-            onPress={() => router.push('/(tabs)/entries')}
-            disabled={createMutation.isPending}
+            onPress={() => isFromWizard ? router.back() : router.push('/(tabs)/entries')}
+            disabled={createMutation.isPending || createAtomicMutation.isPending || createAtomicVariantsMutation.isPending}
           >
             Cancelar
           </Button>
@@ -1241,14 +1693,18 @@ export default function AddStockEntryScreen() {
         visible={showSuccessDialog}
         title={
           isFromWizard
-            ? "Entrada Vinculada!"
+            ? params.wizardMode === 'atomic-variants'
+              ? "Produto Criado com Sucesso!"
+              : "Entrada Vinculada!"
             : isFromAIScanner
             ? "Produto Criado com Sucesso FIFO!"
             : "Entrada Criada!"
         }
         message={
           isFromWizard
-            ? `Produto vinculado a entrada ${createdEntryCode || ''} com sucesso!`
+            ? params.wizardMode === 'atomic-variants'
+              ? `${params.wizardProductName || 'Produto'} e variantes criados com entrada ${createdEntryCode || ''}!`
+              : `Produto vinculado a entrada ${createdEntryCode || ''} com sucesso!`
             : isFromAIScanner
             ? `Produto escaneado foi cadastrado e vinculado à entrada de estoque!`
             : `A entrada ${createdEntryCode || ''} foi registrada com sucesso.`
@@ -1258,7 +1714,8 @@ export default function AddStockEntryScreen() {
             ? [
                 `Produto: ${params.wizardProductName || 'N/A'}`,
                 `Entrada: ${createdEntryCode}`,
-                `Quantidade: ${items.reduce((sum, i) => sum + i.quantity_received, 0)} un`,
+                `Variantes: ${items.length} | Total: ${items.reduce((sum, i) => sum + i.quantity_received, 0)} un`,
+                '✅ Produto + Variantes + Estoque criados atomicamente',
                 '✅ Rastreabilidade FIFO ativa',
               ]
             : isFromAIScanner
@@ -1756,5 +2213,75 @@ const styles = StyleSheet.create({
   },
   submitButtonContent: {
     paddingVertical: 8,
+  },
+  // Variante grouped card styles
+  variantDivider: {
+    height: 1,
+    backgroundColor: Colors.light.border,
+    marginVertical: 10,
+  },
+  variantGroupHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  variantGroupIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: Colors.light.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  variantCountBadge: {
+    backgroundColor: Colors.light.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  variantCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  variantRowHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
+  },
+  variantChipsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flex: 1,
+    flexWrap: 'wrap',
+  },
+  variantChipSize: {
+    backgroundColor: Colors.light.primary + '20',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  variantChipColor: {
+    backgroundColor: '#E3F2FD',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  variantChipText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
+  variantSkuText: {
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+  },
+  variantRemoveBtn: {
+    margin: 0,
+    width: 28,
+    height: 28,
   },
 });

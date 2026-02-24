@@ -16,6 +16,7 @@ import { LoadingOverlay } from '@/components/ui/LoadingOverlay';
 import { NotificationContainer } from '@/components/notifications/NotificationContainer';
 import { TutorialProvider } from '@/contexts/TutorialContext';
 import { TutorialOverlay } from '@/components/tutorial';
+import { ErrorProvider } from '@/contexts/ErrorContext';
 // import { SENTRY_CONFIG } from '@/constants/Config'; // TEMP: Desabilitado
 import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
@@ -112,6 +113,8 @@ export default function RootLayout() {
     setInvalidateQueriesCallback(() => {
       // Invalidar apenas queries de dados de negócio, NUNCA queries de autenticação
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
       queryClient.invalidateQueries({ queryKey: ['active-products'] });
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       queryClient.invalidateQueries({ queryKey: ['sales'] });
@@ -139,36 +142,38 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <PaperProvider theme={theme}>
-            <TutorialProvider>
-              <StatusBar style="auto" />
-              <Slot />
+            <ErrorProvider>
+              <TutorialProvider>
+                <StatusBar style="auto" />
+                <Slot />
 
-              {/* Global Loading Overlay */}
-              <LoadingOverlay />
+                {/* Global Loading Overlay */}
+                <LoadingOverlay />
 
-              {/* Tutorial System Overlay */}
-              <TutorialOverlay />
+                {/* Tutorial System Overlay */}
+                <TutorialOverlay />
 
-              {/* Notification System */}
-              <NotificationContainer />
+                {/* Notification System */}
+                <NotificationContainer />
 
-              {/* Snackbar para mensagens de erro de autenticação */}
-              <Snackbar
-                visible={!!error}
-                onDismiss={clearError}
-                duration={5000}
-                action={{
-                  label: 'OK',
-                  onPress: clearError,
-                }}
-                style={{ marginBottom: 20 }}
-              >
-                {error}
-              </Snackbar>
+                {/* Snackbar para mensagens de erro de autenticação */}
+                <Snackbar
+                  visible={!!error}
+                  onDismiss={clearError}
+                  duration={5000}
+                  action={{
+                    label: 'OK',
+                    onPress: clearError,
+                  }}
+                  style={{ marginBottom: 20 }}
+                >
+                  {error}
+                </Snackbar>
 
-              {/* Toast global para notificações */}
-              <Toast />
-            </TutorialProvider>
+                {/* Toast global para notificações */}
+                <Toast />
+              </TutorialProvider>
+            </ErrorProvider>
           </PaperProvider>
         </QueryClientProvider>
       </SafeAreaProvider>

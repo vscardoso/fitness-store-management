@@ -80,6 +80,45 @@ export function generateSKU(
 }
 
 /**
+ * Gera o SKU de uma variante específica garantindo unicidade.
+ *
+ * Usado quando o produto tem variantes: cada combinação cor×tamanho recebe
+ * seu próprio SKU derivado do SKU base do produto.
+ *
+ * Formato: [SKU_BASE]-[COR_3]-[TAMANHO]-XXX
+ * Exemplos:
+ *   NIKE-LEGGIN-001  +  Preto + M   →  NIKE-LEGGIN-001-PRT-M-001
+ *   CAMI-001         +  Azul  + GG  →  CAMI-001-AZU-GG-001
+ *   CAMI-001         +  (sem cor)   +  G   →  CAMI-001-G-001
+ */
+export function generateVariantSKU(
+  baseSku: string,
+  color?: string | null,
+  size?: string | null,
+  existingSKUs?: string[]
+): string {
+  const parts: string[] = [cleanString(baseSku)];
+
+  if (color) parts.push(cleanString(color).slice(0, 3));
+  if (size)  parts.push(cleanString(size).slice(0, 3));
+
+  const base = parts.join('-');
+
+  let counter = 1;
+  let candidate = `${base}-${counter.toString().padStart(3, '0')}`;
+
+  if (existingSKUs && existingSKUs.length > 0) {
+    const existingSet = new Set(existingSKUs.map(s => s.toUpperCase()));
+    while (existingSet.has(candidate.toUpperCase()) && counter < 999) {
+      counter++;
+      candidate = `${base}-${counter.toString().padStart(3, '0')}`;
+    }
+  }
+
+  return candidate;
+}
+
+/**
  * Gera SKU simplificado baseado apenas no nome
  * Útil para geração rápida no formulário manual
  */
@@ -104,6 +143,7 @@ export function isValidSKU(sku: string): boolean {
 
 export default {
   generateSKU,
+  generateVariantSKU,
   generateSimpleSKU,
   isValidSKU,
 };

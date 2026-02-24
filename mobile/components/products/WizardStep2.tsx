@@ -7,16 +7,12 @@
  * - Cálculo automático de markup
  */
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
-  Platform,
   TextInput as RNTextInput,
-  KeyboardAvoidingView,
-  Dimensions,
 } from 'react-native';
 import { Text, Button, Card, TextInput, HelperText, ActivityIndicator } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,10 +21,10 @@ import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import type { Category, DuplicateMatch } from '@/types';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { getProductById, generateStandaloneBarcode } from '@/services/productService';
-import { generateSKU } from '@/utils/skuGenerator';
-
-const SCREEN_HEIGHT = Dimensions.get('window').height;
+import VariantBuilderInline from '@/components/products/VariantBuilderInline';
+import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
+import { getProductById, getActiveProducts } from '@/services/productService';
+import { generateSKU, generateVariantSKU } from '@/utils/skuGenerator';
 
 interface WizardStep2Props {
   wizard: UseProductWizardReturn;
@@ -46,9 +42,8 @@ export default function WizardStep2({
   const { state } = wizard;
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [loadingDuplicate, setLoadingDuplicate] = useState(false);
-  
+
   // Refs para navegação entre campos
-  const scrollRef = useRef<ScrollView>(null);
   const nameRef = useRef<RNTextInput>(null);
   const skuRef = useRef<RNTextInput>(null);
   const costRef = useRef<RNTextInput>(null);
@@ -57,28 +52,23 @@ export default function WizardStep2({
   const colorRef = useRef<RNTextInput>(null);
   const sizeRef = useRef<RNTextInput>(null);
   const descRef = useRef<RNTextInput>(null);
-  const barcodeRef = useRef<RNTextInput>(null);
-  
+
   // Estados para ConfirmDialog
   const [confirmDuplicateVisible, setConfirmDuplicateVisible] = useState(false);
   const [selectedDuplicate, setSelectedDuplicate] = useState<DuplicateMatch | null>(null);
   const [errorDialogVisible, setErrorDialogVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Estado para geração de código de barras
-  const [isGeneratingBarcode, setIsGeneratingBarcode] = useState(false);
-
   // Controla se o usuário editou o SKU manualmente (desativa auto-regeneração)
   const [skuManuallyEdited, setSkuManuallyEdited] = useState(false);
 
-  // Refs para Views que wrappam os inputs (para medir posição absoluta)
-  const inputWrapperRefs = useRef<{ [key: string]: View | null }>({});
-  const currentScrollY = useRef(0);
+  // Lista de SKUs existentes para garantir unicidade
+  const [existingSKUs, setExistingSKUs] = useState<string[]>([]);
 
   // Local state para edição inline
   const [formData, setFormData] = useState(state.productData);
   const [markup, setMarkup] = useState<number | null>(null);
-  
+
   // Estados locais para preços (strings durante edição)
   const [costPriceStr, setCostPriceStr] = useState(
     state.productData.cost_price ? Number(state.productData.cost_price).toFixed(2) : ''
@@ -86,6 +76,20 @@ export default function WizardStep2({
   const [salePriceStr, setSalePriceStr] = useState(
     state.productData.price ? Number(state.productData.price).toFixed(2) : ''
   );
+
+  // Carregar SKUs existentes ao montar o componente
+  useEffect(() => {
+    const loadExistingSKUs = async () => {
+      try {
+        const products = await getActiveProducts({ limit: 1000 });
+        const skus = products.map(p => p.sku).filter(Boolean);
+        setExistingSKUs(skus);
+      } catch (error) {
+        console.error('Erro ao carregar SKUs existentes:', error);
+      }
+    };
+    loadExistingSKUs();
+  }, []);
 
   // Atualizar dados no wizard quando formData mudar
   useEffect(() => {
@@ -97,19 +101,44 @@ export default function WizardStep2({
     wizard.updateProductData(updatedData);
   }, [formData, costPriceStr, salePriceStr]);
 
-  // Auto-regenerar SKU quando name/brand/color/size mudam (se não editado manualmente)
+  // Auto-regenerar SKU quando name/brand mudam (se não editado manualmente)
+  // Quando variantes estão ativas: SKU base NÃO inclui cor/tamanho (ficam nas variantes)
+  // Quando não há variantes: SKU inclui cor e tamanho do formData
   useEffect(() => {
     if (skuManuallyEdited) return;
     if (!formData.name?.trim()) return;
 
-    const newSku = generateSKU(
-      formData.name || '',
-      formData.brand,
-      formData.color,
-      formData.size
-    );
+    const newSku = state.hasVariants
+      ? generateSKU(formData.name || '', formData.brand, null, null, existingSKUs)
+      : generateSKU(formData.name || '', formData.brand, formData.color, formData.size, existingSKUs);
+
     setFormData(prev => ({ ...prev, sku: newSku }));
-  }, [formData.name, formData.brand, formData.color, formData.size, skuManuallyEdited]);
+  }, [formData.name, formData.brand, formData.color, formData.size, state.hasVariants, skuManuallyEdited, existingSKUs]);
+
+  // Preview dos SKUs que serão gerados para cada variante
+  // Usa a mesma lógica do handleCreateProduct no wizard
+  const variantSkuPreviews = useMemo((): Array<{ label: string; sku: string }> => {
+    if (!state.hasVariants) return [];
+    const baseSku = formData.sku?.trim().toUpperCase() || '';
+    if (!baseSku) return [];
+
+    const colors = state.variantColors.length > 0 ? state.variantColors : [''];
+    const previews: Array<{ label: string; sku: string }> = [];
+    const usedSkus: string[] = [];
+
+    for (const color of colors) {
+      const sizesForColor = state.colorSizes[color] ?? state.variantSizes;
+      const sizes = sizesForColor.length > 0 ? sizesForColor : [''];
+      for (const size of sizes) {
+        const sku = generateVariantSKU(baseSku, color || null, size || null, usedSkus);
+        usedSkus.push(sku);
+        const parts = [color, size].filter(Boolean);
+        previews.push({ label: parts.length > 0 ? parts.join(' / ') : '—', sku });
+      }
+    }
+    return previews;
+  }, [state.hasVariants, formData.sku, state.variantColors, state.variantSizes, state.colorSizes]);
+
 
   // Calcular markup automaticamente
   useEffect(() => {
@@ -126,61 +155,18 @@ export default function WizardStep2({
   const selectedCategory = categories.find(c => c.id === formData.category_id);
 
   /**
-   * Scroll para mostrar o input focado acima do teclado
-   * Usa measureInWindow para obter posição absoluta na tela
-   */
-  const scrollToFocusedInput = useCallback((inputKey: string) => {
-    const wrapperRef = inputWrapperRefs.current[inputKey];
-    if (!wrapperRef || !scrollRef.current) return;
-
-    // Pequeno delay para garantir que o teclado está abrindo
-    setTimeout(() => {
-      (wrapperRef as any).measureInWindow((x: number, y: number, width: number, height: number) => {
-        // y é a posição absoluta do input na tela
-        // Queremos que o input fique no terço superior da tela visível
-        const targetY = SCREEN_HEIGHT * 0.25; // 25% do topo da tela
-
-        // Se o input está abaixo do target, precisamos scrollar
-        if (y > targetY) {
-          const scrollAmount = y - targetY;
-          const newScrollY = currentScrollY.current + scrollAmount;
-
-          scrollRef.current?.scrollTo({
-            y: newScrollY,
-            animated: true,
-          });
-        }
-      });
-    }, Platform.OS === 'ios' ? 50 : 150);
-  }, []);
-
-  /**
-   * Salvar referência do wrapper de um input
-   */
-  const setInputWrapperRef = useCallback((key: string, ref: View | null) => {
-    inputWrapperRefs.current[key] = ref;
-  }, []);
-
-  /**
-   * Handler de scroll para rastrear posição atual
-   */
-  const handleScroll = useCallback((event: any) => {
-    currentScrollY.current = event.nativeEvent.contentOffset.y;
-  }, []);
-
-  /**
    * Formatar entrada de preço com centavos
    * Remove tudo exceto números e converte em decimal
    */
   const formatPriceInput = (text: string): string => {
     // Remove tudo exceto números
     const numbers = text.replace(/[^0-9]/g, '');
-    
+
     if (numbers.length === 0) return '';
-    
+
     // Converte para número com centavos
     const value = parseInt(numbers) / 100;
-    
+
     // Formata com 2 casas decimais
     return value.toFixed(2);
   };
@@ -193,31 +179,10 @@ export default function WizardStep2({
    * Regenerar SKU automaticamente baseado nos dados atuais
    */
   const handleRegenerateSKU = () => {
-    const newSku = generateSKU(
-      formData.name || '',
-      formData.brand,
-      formData.color,
-      formData.size
-    );
+    const newSku = state.hasVariants
+      ? generateSKU(formData.name || '', formData.brand, null, null, existingSKUs)
+      : generateSKU(formData.name || '', formData.brand, formData.color, formData.size, existingSKUs);
     setFormData({ ...formData, sku: newSku });
-  };
-
-  /**
-   * Gerar código de barras EAN-13 automaticamente
-   */
-  const handleGenerateBarcode = async () => {
-    setIsGeneratingBarcode(true);
-    try {
-      const response = await generateStandaloneBarcode();
-      if (response.barcode) {
-        setFormData({ ...formData, barcode: response.barcode });
-      }
-    } catch (error: any) {
-      setErrorMessage('Erro ao gerar código de barras. Tente novamente.');
-      setErrorDialogVisible(true);
-    } finally {
-      setIsGeneratingBarcode(false);
-    }
   };
 
   const handleCreate = async () => {
@@ -231,14 +196,14 @@ export default function WizardStep2({
 
   const handleConfirmDuplicate = async () => {
     if (!selectedDuplicate) return;
-    
+
     setConfirmDuplicateVisible(false);
     setLoadingDuplicate(true);
-    
+
     try {
       // Buscar dados completos do produto
       const product = await getProductById(selectedDuplicate.product_id);
-      
+
       // Passar produto para wizard e ir para step 3
       wizard.addStockToDuplicate(product.id, product);
     } catch (error: any) {
@@ -252,21 +217,9 @@ export default function WizardStep2({
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.keyboardAvoidingView}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 100 : 20}
+    <KeyboardAwareScreen
+      bottomPadding={140}
     >
-      <View style={styles.container}>
-        <ScrollView
-          ref={scrollRef}
-          style={styles.scrollView}
-          contentContainerStyle={styles.content}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          onScroll={handleScroll}
-          scrollEventThrottle={16}
-        >
         <View style={styles.header}>
           <Ionicons name="checkmark-circle" size={28} color={Colors.light.success} />
           <View style={styles.headerText}>
@@ -287,31 +240,25 @@ export default function WizardStep2({
               <Text style={styles.cardTitle}>Informações Básicas</Text>
             </View>
 
-            <View ref={(ref) => setInputWrapperRef('name', ref)}>
-              <TextInput
-                ref={nameRef}
-                label="Nome do Produto *"
-                value={formData.name || ''}
-                onChangeText={(text) => updateField('name', text)}
-                mode="outlined"
-                style={styles.input}
-                error={!!state.validationErrors.name}
-                returnKeyType="next"
-                onSubmitEditing={() => skuRef.current?.focus()}
-                blurOnSubmit={false}
-                onFocus={() => scrollToFocusedInput('name')}
-              />
-            </View>
+            <TextInput
+              ref={nameRef}
+              label="Nome do Produto *"
+              value={formData.name || ''}
+              onChangeText={(text) => updateField('name', text)}
+              mode="outlined"
+              style={styles.input}
+              error={!!state.validationErrors.name}
+              returnKeyType="next"
+              onSubmitEditing={() => skuRef.current?.focus()}
+              blurOnSubmit={false}
+            />
             {state.validationErrors.name && (
               <HelperText type="error" visible>
                 {String(state.validationErrors.name)}
               </HelperText>
             )}
 
-            <View
-              ref={(ref) => setInputWrapperRef('sku', ref)}
-              style={styles.skuRow}
-            >
+            <View style={styles.skuRow}>
               <TextInput
                 ref={skuRef}
                 label="SKU (Código) *"
@@ -327,7 +274,6 @@ export default function WizardStep2({
                 returnKeyType="next"
                 onSubmitEditing={() => costRef.current?.focus()}
                 blurOnSubmit={false}
-                onFocus={() => scrollToFocusedInput('sku')}
               />
               <TouchableOpacity
                 style={styles.regenerateButton}
@@ -341,14 +287,41 @@ export default function WizardStep2({
               </TouchableOpacity>
             </View>
             <HelperText type="info" visible style={styles.skuHint}>
-              {skuManuallyEdited
-                ? 'SKU editado manualmente. Toque em ↻ para voltar ao automático.'
-                : 'SKU atualizado automaticamente ao editar nome, marca, cor ou tamanho.'}
+              {state.hasVariants
+                ? 'SKU base da família. Cada variante receberá um código derivado automaticamente.'
+                : skuManuallyEdited
+                  ? 'SKU editado manualmente. Toque em ↻ para voltar ao automático.'
+                  : 'SKU atualizado automaticamente ao editar nome, marca, cor ou tamanho.'}
             </HelperText>
             {state.validationErrors.sku && (
               <HelperText type="error" visible>
                 {String(state.validationErrors.sku)}
               </HelperText>
+            )}
+
+            {/* Preview de SKUs de variantes */}
+            {variantSkuPreviews.length > 0 && (
+              <View style={styles.variantSkuPreview}>
+                <View style={styles.variantSkuPreviewHeader}>
+                  <Ionicons name="barcode-outline" size={13} color={Colors.light.primary} />
+                  <Text style={styles.variantSkuPreviewTitle}>
+                    SKUs que serão gerados ({variantSkuPreviews.length})
+                  </Text>
+                </View>
+                <View style={styles.variantSkuList}>
+                  {variantSkuPreviews.slice(0, 6).map((item, i) => (
+                    <View key={i} style={styles.variantSkuItem}>
+                      <Text style={styles.variantSkuLabel}>{item.label}</Text>
+                      <Text style={styles.variantSkuCode}>{item.sku}</Text>
+                    </View>
+                  ))}
+                  {variantSkuPreviews.length > 6 && (
+                    <Text style={styles.variantSkuMore}>
+                      +{variantSkuPreviews.length - 6} mais...
+                    </Text>
+                  )}
+                </View>
+              </View>
             )}
 
             <TouchableOpacity
@@ -383,10 +356,7 @@ export default function WizardStep2({
               <Text style={styles.cardTitle}>Preços</Text>
             </View>
 
-            <View
-              ref={(ref) => setInputWrapperRef('prices', ref)}
-              style={styles.priceInputRow}
-            >
+            <View style={styles.priceInputRow}>
               <View style={styles.priceInputContainer}>
                 <TextInput
                   ref={costRef}
@@ -398,7 +368,6 @@ export default function WizardStep2({
                   keyboardType="decimal-pad"
                   placeholder="0.00"
                   left={<TextInput.Affix text="R$" />}
-                  onFocus={() => scrollToFocusedInput('prices')}
                 />
               </View>
               <View style={styles.priceInputContainer}>
@@ -413,7 +382,6 @@ export default function WizardStep2({
                   placeholder="0.00"
                   left={<TextInput.Affix text="R$" />}
                   error={!!state.validationErrors.price}
-                  onFocus={() => scrollToFocusedInput('prices')}
                 />
               </View>
             </View>
@@ -455,27 +423,23 @@ export default function WizardStep2({
                   Preencha o máximo de detalhes para facilitar vendas futuras
                 </Text>
               </View>
-              
-              <View ref={(ref) => setInputWrapperRef('brand', ref)}>
-                <TextInput
-                  ref={brandRef}
-                  label="Marca"
-                  value={formData.brand || ''}
-                  onChangeText={(text) => updateField('brand', text)}
-                  mode="outlined"
-                  style={styles.input}
-                  left={<TextInput.Icon icon="tag" />}
-                  returnKeyType="next"
-                  onSubmitEditing={() => colorRef.current?.focus()}
-                  blurOnSubmit={false}
-                  onFocus={() => scrollToFocusedInput('brand')}
-                />
-              </View>
 
-              <View
-                ref={(ref) => setInputWrapperRef('colorSize', ref)}
-                style={styles.row}
-              >
+              <TextInput
+                ref={brandRef}
+                label="Marca"
+                value={formData.brand || ''}
+                onChangeText={(text) => updateField('brand', text)}
+                mode="outlined"
+                style={styles.input}
+                left={<TextInput.Icon icon="tag" />}
+                returnKeyType="next"
+                onSubmitEditing={() => colorRef.current?.focus()}
+                blurOnSubmit={false}
+              />
+
+              {/* Cor e Tamanho — oculto quando variantes estão ativas */}
+              {!state.hasVariants && (
+              <View style={styles.row}>
                 <TextInput
                   ref={colorRef}
                   label="Cor"
@@ -487,7 +451,6 @@ export default function WizardStep2({
                   returnKeyType="next"
                   onSubmitEditing={() => sizeRef.current?.focus()}
                   blurOnSubmit={false}
-                  onFocus={() => scrollToFocusedInput('colorSize')}
                 />
                 <TextInput
                   ref={sizeRef}
@@ -500,81 +463,46 @@ export default function WizardStep2({
                   returnKeyType="next"
                   onSubmitEditing={() => descRef.current?.focus()}
                   blurOnSubmit={false}
-                  onFocus={() => scrollToFocusedInput('colorSize')}
                 />
               </View>
+              )}
 
-              <View ref={(ref) => setInputWrapperRef('description', ref)}>
-                <TextInput
-                  ref={descRef}
-                  label="Descrição"
-                  value={formData.description || ''}
-                  onChangeText={(text) => updateField('description', text)}
-                  mode="outlined"
-                  style={styles.input}
-                  multiline
-                  numberOfLines={4}
-                  left={<TextInput.Icon icon="text" />}
-                  returnKeyType="next"
-                  onSubmitEditing={() => barcodeRef.current?.focus()}
-                  blurOnSubmit={false}
-                  onFocus={() => scrollToFocusedInput('description')}
-                />
-              </View>
-
-              <View style={styles.barcodeSection}>
-                <View style={styles.barcodeSectionTitleRow}>
-                  <Ionicons name="barcode" size={16} color={Colors.light.primary} />
-                  <Text style={styles.barcodeSectionTitle}>Código de Barras</Text>
-                </View>
-                <Text style={styles.barcodeSectionHint}>
-                  Gere um código EAN-13 único para criar etiquetas escaneáveis
-                </Text>
-                <View
-                  ref={(ref) => setInputWrapperRef('barcode', ref)}
-                  style={styles.barcodeRow}
-                >
-                  <TextInput
-                    ref={barcodeRef}
-                    label="Código de Barras"
-                    value={formData.barcode || ''}
-                    onChangeText={(text) => updateField('barcode', text.replace(/[^0-9]/g, ''))}
-                    mode="outlined"
-                    style={styles.barcodeInput}
-                    keyboardType="numeric"
-                    maxLength={13}
-                    placeholder="Ex: 7890100000015"
-                    onFocus={() => scrollToFocusedInput('barcode')}
-                  />
-                  <TouchableOpacity
-                    style={[
-                      styles.generateBarcodeButton,
-                      isGeneratingBarcode && styles.generateBarcodeButtonDisabled
-                    ]}
-                    onPress={handleGenerateBarcode}
-                    activeOpacity={0.7}
-                    disabled={isGeneratingBarcode}
-                  >
-                    {isGeneratingBarcode ? (
-                      <ActivityIndicator size="small" color={Colors.light.primary} />
-                    ) : (
-                      <>
-                        <Ionicons name="flash" size={18} color="#fff" />
-                        <Text style={styles.generateBarcodeButtonText}>Gerar</Text>
-                      </>
-                    )}
-                  </TouchableOpacity>
-                </View>
-                {formData.barcode && formData.barcode.length === 13 && (
-                  <View style={styles.barcodePreview}>
-                    <Ionicons name="checkmark-circle" size={14} color={Colors.light.success} />
-                    <Text style={styles.barcodePreviewText}>
-                      EAN-13 válido: {String(formData.barcode || '')}
-                    </Text>
-                  </View>
-                )}
-              </View>
+              <TextInput
+                ref={descRef}
+                label="Descrição"
+                value={formData.description || ''}
+                onChangeText={(text) => updateField('description', text)}
+                mode="outlined"
+                style={styles.input}
+                multiline
+                numberOfLines={4}
+                left={<TextInput.Icon icon="text" />}
+                returnKeyType="done"
+                onSubmitEditing={() => Keyboard.dismiss()}
+                blurOnSubmit={false}
+              />
             </Card.Content>
+        </Card>
+
+        {/* Card: Variantes */}
+        <Card style={styles.card}>
+          <Card.Content>
+            <VariantBuilderInline
+              hasVariants={state.hasVariants ?? false}
+              onToggle={wizard.setHasVariants}
+              selectedSizes={state.variantSizes ?? []}
+              onSizesChange={wizard.setVariantSizes}
+              selectedColors={state.variantColors ?? []}
+              onColorsChange={wizard.setVariantColors}
+              colorSizes={state.colorSizes ?? {}}
+              onColorSizesChange={wizard.setColorSizes}
+              basePrice={parseFloat(salePriceStr) || 0}
+              costPrice={parseFloat(costPriceStr) || 0}
+              variantPrices={state.variantPrices ?? {}}
+              onVariantPriceChange={wizard.setVariantPrice}
+              validationError={state.validationErrors.variants as string | undefined}
+            />
+          </Card.Content>
         </Card>
 
         {/* Painel de Duplicados */}
@@ -643,7 +571,6 @@ export default function WizardStep2({
             </Card.Content>
           </Card>
         )}
-      </ScrollView>
 
       {/* Footer com botões */}
       <View style={styles.footer}>
@@ -712,27 +639,11 @@ export default function WizardStep2({
         onConfirm={() => setErrorDialogVisible(false)}
         onCancel={() => setErrorDialogVisible(false)}
       />
-      </View>
-    </KeyboardAvoidingView>
+    </KeyboardAwareScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardAvoidingView: {
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-    backgroundColor: Colors.light.backgroundSecondary,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: theme.spacing.md,
-    paddingBottom: 140, // Espaço para footer + margem
-  },
-
   // Header
   header: {
     flexDirection: 'row',
@@ -812,69 +723,61 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
 
-  // Barcode Section
-  barcodeSection: {
-    backgroundColor: Colors.light.backgroundSecondary,
-    borderRadius: 12,
-    padding: theme.spacing.md,
-    marginTop: theme.spacing.sm,
+  // SKU preview for variants
+  variantSkuPreview: {
+    backgroundColor: Colors.light.primary + '08',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.light.primary + '25',
+    padding: 10,
+    marginBottom: 12,
+    gap: 8,
   },
-  barcodeSectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.light.text,
-    marginBottom: 4,
+  variantSkuPreviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
-  barcodeSectionHint: {
+  variantSkuPreviewTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.light.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  variantSkuList: {
+    gap: 4,
+  },
+  variantSkuItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 3,
+  },
+  variantSkuLabel: {
     fontSize: 12,
+    fontWeight: '600',
     color: Colors.light.textSecondary,
-    marginBottom: theme.spacing.md,
-  },
-  barcodeRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  barcodeInput: {
     flex: 1,
-    backgroundColor: '#fff',
   },
-  generateBarcodeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 8,
-    backgroundColor: Colors.light.primary,
-    marginTop: 6,
-  },
-  generateBarcodeButtonDisabled: {
-    backgroundColor: Colors.light.primary + '60',
-  },
-  generateBarcodeButtonText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  barcodePreview: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: theme.spacing.sm,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: Colors.light.success + '15',
-    borderRadius: 8,
-    alignSelf: 'flex-start',
-  },
-  barcodePreviewText: {
-    fontSize: 12,
-    color: Colors.light.success,
-    fontWeight: '500',
+  variantSkuCode: {
+    fontSize: 11,
     fontFamily: 'monospace',
+    color: Colors.light.primary,
+    fontWeight: '700',
+    backgroundColor: Colors.light.primary + '12',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
   },
+  variantSkuMore: {
+    fontSize: 11,
+    color: Colors.light.textTertiary,
+    fontStyle: 'italic',
+    textAlign: 'right',
+    marginTop: 2,
+  },
+
   row: {
     flexDirection: 'row',
     gap: theme.spacing.md,
@@ -965,12 +868,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.light.info,
     lineHeight: 18,
-  },
-  barcodeSectionTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginBottom: 4,
   },
   duplicateReasonRow: {
     flexDirection: 'row',

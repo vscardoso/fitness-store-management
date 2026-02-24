@@ -46,3 +46,7 @@ cloudinary==1.44.1
 # Image processing (HEIC/HEIF conversion for AI scanner)
 Pillow>=10.0.0
 pillow-heif>=0.13.0
+
+# Admin Interface
+sqladmin>=0.15.0
+itsdangerous>=2.0.0

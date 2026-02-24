@@ -62,7 +62,7 @@ class CategoryRepository(BaseRepository[Category, Any, Any]):
         # Query recursiva usando CTE (Common Table Expression)
         recursive_query = text("""
             WITH RECURSIVE category_tree AS (
-                -- Anchor: categorias raiz
+                -- Anchor: categorias raiz (apenas do tenant de referência para evitar duplicatas)
                 SELECT 
                     id, 
                     name, 
@@ -73,6 +73,7 @@ class CategoryRepository(BaseRepository[Category, Any, Any]):
                     CAST(id AS TEXT) as id_path
                 FROM categories 
                 WHERE parent_id IS NULL
+                AND tenant_id = (SELECT MIN(tenant_id) FROM categories WHERE is_active = 1)
                 
                 UNION ALL
                 

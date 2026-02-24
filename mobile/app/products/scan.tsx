@@ -21,6 +21,7 @@ import { useRouter } from 'expo-router';
 import { Colors, theme } from '@/constants/Colors';
 import { useAIScanner } from '@/hooks/useAIScanner';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import SimilarProductsModal from '@/components/products/SimilarProductsModal';
 import type { DuplicateMatch } from '@/types';
 
 const { width } = Dimensions.get('window');
@@ -43,6 +44,8 @@ export default function ScanProductScreen() {
     addToDuplicate,
     retake,
     reset,
+    showSimilarModal,
+    dismissSimilarModal,
   } = useAIScanner();
 
   const [showDuplicatesModal, setShowDuplicatesModal] = useState(false);
@@ -518,6 +521,18 @@ export default function ScanProductScreen() {
         {isAnalyzing && renderAnalyzingState()}
         {scanResult && !isAnalyzing && renderResultState()}
       </View>
+
+      {/* Modal de produtos similares (intercepta antes de criar novo) */}
+      <SimilarProductsModal
+        visible={showSimilarModal}
+        duplicates={scanResult?.possible_duplicates ?? []}
+        scannedName={scanResult?.name ?? ''}
+        onUseProduct={(productId) => {
+          dismissSimilarModal();
+          addToDuplicate(productId);
+        }}
+        onCreateNew={dismissSimilarModal}
+      />
 
       {/* Dialog de Erro */}
       <ConfirmDialog

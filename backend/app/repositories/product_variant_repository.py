@@ -45,6 +45,7 @@ class ProductVariantRepository(BaseRepository[ProductVariant, ProductVariantCrea
             .options(
                 selectinload(ProductVariant.product),
                 selectinload(ProductVariant.inventory),
+                selectinload(ProductVariant.entry_items),
             )
             .where(
                 and_(
@@ -75,9 +76,13 @@ class ProductVariantRepository(BaseRepository[ProductVariant, ProductVariantCrea
         Returns:
             Lista de variantes
         """
-        query = select(ProductVariant).where(
-            ProductVariant.product_id == product_id,
-            ProductVariant.tenant_id == tenant_id,
+        query = (
+            select(ProductVariant)
+            .where(
+                ProductVariant.product_id == product_id,
+                ProductVariant.tenant_id == tenant_id,
+            )
+            .options(selectinload(ProductVariant.entry_items))
         )
         
         if active_only:
@@ -127,7 +132,9 @@ class ProductVariantRepository(BaseRepository[ProductVariant, ProductVariantCrea
             conditions.append(ProductVariant.color == color)
         
         result = await db.execute(
-            select(ProductVariant).where(and_(*conditions))
+            select(ProductVariant)
+            .options(selectinload(ProductVariant.entry_items))
+            .where(and_(*conditions))
         )
         return result.scalar_one_or_none()
     
@@ -158,7 +165,10 @@ class ProductVariantRepository(BaseRepository[ProductVariant, ProductVariantCrea
         
         result = await db.execute(
             select(ProductVariant)
-            .options(selectinload(ProductVariant.product))
+            .options(
+                selectinload(ProductVariant.product),
+                selectinload(ProductVariant.entry_items),
+            )
             .where(
                 and_(
                     ProductVariant.tenant_id == tenant_id,
@@ -187,28 +197,33 @@ class ProductVariantRepository(BaseRepository[ProductVariant, ProductVariantCrea
         exclude_id: Optional[int] = None
     ) -> bool:
         """
-        Verifica se já existe variante com o SKU.
-        
+        Verifica se já existe variante com o SKU para o tenant.
+
+        Verifica TODAS as variantes (ativas ou não) pois a constraint UNIQUE
+        do banco é em (tenant_id, sku) sem filtro de is_active — variantes
+        de produtos deletados por soft-delete ainda travam o SKU no banco.
+
         Args:
             db: Sessão do banco de dados
             sku: SKU a verificar
             tenant_id: ID do tenant
             exclude_id: ID a excluir da verificação (para updates)
-            
+
         Returns:
-            True se existe, False caso contrário
+            True se existe (bloqueando), False caso contrário
         """
-        conditions = [
-            ProductVariant.sku == sku,
-            ProductVariant.tenant_id == tenant_id,
-        ]
-        
-        if exclude_id:
-            conditions.append(ProductVariant.id != exclude_id)
-        
-        result = await db.execute(
-            select(ProductVariant.id).where(and_(*conditions))
+        stmt = (
+            select(ProductVariant.id)
+            .where(
+                ProductVariant.sku == sku,
+                ProductVariant.tenant_id == tenant_id,
+            )
         )
+
+        if exclude_id:
+            stmt = stmt.where(ProductVariant.id != exclude_id)
+
+        result = await db.execute(stmt)
         return result.scalar_one_or_none() is not None
     
     async def get_with_stock(

@@ -14,10 +14,14 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.core.config import settings
-from app.core.database import init_db, close_db
+from app.core.database import init_db, close_db, engine
 from app.core.scheduler import start_scheduler, shutdown_scheduler
 from app.api.v1.router import api_router
 from app.middleware.tenant import TenantMiddleware
+from app.admin.auth import AdminAuth
+from app.admin.views import ALL_VIEWS
+from sqladmin import Admin
+from starlette.middleware.sessions import SessionMiddleware
 
 # Configure logging
 logging.basicConfig(
@@ -75,8 +79,32 @@ app.add_middleware(
     expose_headers=["X-Total-Count", "X-Page", "X-Page-Size"],
 )
 
+# Session middleware (necessário para o painel Admin)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.SECRET_KEY,
+    session_cookie="admin_session",
+    max_age=3600,
+    https_only=False,
+)
+
 # Tenant Middleware (resolve tenant_id por requisição)
 app.add_middleware(TenantMiddleware)
+
+# ============================================================================
+# PAINEL ADMINISTRATIVO (SQLAdmin) - acesso em /admin
+# ============================================================================
+authentication_backend = AdminAuth(secret_key=settings.SECRET_KEY)
+admin = Admin(
+    app,
+    engine=engine,
+    authentication_backend=authentication_backend,
+    title="Fitness Store Admin",
+    base_url="/admin",
+)
+
+for view in ALL_VIEWS:
+    admin.add_view(view)
 
 
 # ============================================================================

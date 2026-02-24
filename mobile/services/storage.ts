@@ -14,7 +14,7 @@ export const saveAccessToken = async (token: string): Promise<void> => {
   try {
     await AsyncStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, token);
   } catch (error) {
-    console.error('Error saving access token:', error);
+    if (__DEV__) console.log('🔴 Error saving access token:', error);
     throw error;
   }
 };
@@ -26,7 +26,7 @@ export const getAccessToken = async (): Promise<string | null> => {
   try {
     return await AsyncStorage.getItem(STORAGE_KEYS.ACCESS_TOKEN);
   } catch (error) {
-    console.error('Error getting access token:', error);
+    if (__DEV__) console.log('🔴 Error getting access token:', error);
     return null;
   }
 };
@@ -38,7 +38,7 @@ export const removeAccessToken = async (): Promise<void> => {
   try {
     await AsyncStorage.removeItem(STORAGE_KEYS.ACCESS_TOKEN);
   } catch (error) {
-    console.error('Error removing access token:', error);
+    if (__DEV__) console.log('🔴 Error removing access token:', error);
   }
 };
 
@@ -55,7 +55,7 @@ export const saveRefreshToken = async (token?: string | null): Promise<void> => 
     }
     await AsyncStorage.setItem(STORAGE_KEYS.REFRESH_TOKEN, token);
   } catch (error) {
-    console.error('Error saving refresh token:', error);
+    if (__DEV__) console.log('🔴 Error saving refresh token:', error);
     throw error;
   }
 };
@@ -67,7 +67,7 @@ export const getRefreshToken = async (): Promise<string | null> => {
   try {
     return await AsyncStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN);
   } catch (error) {
-    console.error('Error getting refresh token:', error);
+    if (__DEV__) console.log('🔴 Error getting refresh token:', error);
     return null;
   }
 };
@@ -79,7 +79,7 @@ export const saveUser = async (user: User): Promise<void> => {
   try {
     await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
   } catch (error) {
-    console.error('Error saving user:', error);
+    if (__DEV__) console.log('🔴 Error saving user:', error);
     throw error;
   }
 };
@@ -92,7 +92,7 @@ export const getUser = async (): Promise<User | null> => {
     const userJson = await AsyncStorage.getItem(STORAGE_KEYS.USER);
     return userJson ? JSON.parse(userJson) : null;
   } catch (error) {
-    console.error('Error getting user:', error);
+    if (__DEV__) console.log('🔴 Error getting user:', error);
     return null;
   }
 };
@@ -104,7 +104,7 @@ export const removeUser = async (): Promise<void> => {
   try {
     await AsyncStorage.removeItem(STORAGE_KEYS.USER);
   } catch (error) {
-    console.error('Error removing user:', error);
+    if (__DEV__) console.log('🔴 Error removing user:', error);
   }
 };
 
@@ -119,7 +119,7 @@ export const clearAuthData = async (): Promise<void> => {
       STORAGE_KEYS.USER,
     ]);
   } catch (error) {
-    console.error('Error clearing auth data:', error);
+    if (__DEV__) console.log('🔴 Error clearing auth data:', error);
   }
 };
 
@@ -130,7 +130,7 @@ export const saveCart = async (cart: any): Promise<void> => {
   try {
     await AsyncStorage.setItem(STORAGE_KEYS.CART, JSON.stringify(cart));
   } catch (error) {
-    console.error('Error saving cart:', error);
+    if (__DEV__) console.log('🔴 Error saving cart:', error);
   }
 };
 
@@ -142,7 +142,7 @@ export const getCart = async (): Promise<any | null> => {
     const cartJson = await AsyncStorage.getItem(STORAGE_KEYS.CART);
     return cartJson ? JSON.parse(cartJson) : null;
   } catch (error) {
-    console.error('Error getting cart:', error);
+    if (__DEV__) console.log('🔴 Error getting cart:', error);
     return null;
   }
 };
@@ -154,6 +154,6 @@ export const clearCart = async (): Promise<void> => {
   try {
     await AsyncStorage.removeItem(STORAGE_KEYS.CART);
   } catch (error) {
-    console.error('Error clearing cart:', error);
+    if (__DEV__) console.log('🔴 Error clearing cart:', error);
   }
 };

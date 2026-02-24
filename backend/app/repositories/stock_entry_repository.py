@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.models.stock_entry import StockEntry, EntryType
 from app.models.entry_item import EntryItem
 from app.models.product import Product
+from app.models.product_variant import ProductVariant
 from app.models.trip import Trip
 from app.repositories.base import BaseRepository
 
@@ -42,7 +43,8 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
             select(StockEntry)
             .where(and_(*conditions))
             .options(
-                selectinload(StockEntry.entry_items).selectinload(EntryItem.product),
+                selectinload(StockEntry.entry_items).selectinload(EntryItem.product).selectinload(Product.variants),
+                selectinload(StockEntry.entry_items).selectinload(EntryItem.variant).selectinload(ProductVariant.product),
                 selectinload(StockEntry.trip)
             )
             .order_by(StockEntry.entry_date.desc())
@@ -98,7 +100,8 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         
         if include_items:
             query = query.options(
-                selectinload(StockEntry.entry_items).selectinload(EntryItem.product),
+                selectinload(StockEntry.entry_items).selectinload(EntryItem.product).selectinload(Product.variants),
+                selectinload(StockEntry.entry_items).selectinload(EntryItem.variant).selectinload(ProductVariant.product),
                 selectinload(StockEntry.trip)
             )
         else:
@@ -174,7 +177,8 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         query = (
             query
             .options(
-                selectinload(StockEntry.entry_items).selectinload(EntryItem.product),
+                selectinload(StockEntry.entry_items).selectinload(EntryItem.product).selectinload(Product.variants),
+                selectinload(StockEntry.entry_items).selectinload(EntryItem.variant).selectinload(ProductVariant.product),
                 selectinload(StockEntry.trip)
             )
             .order_by(StockEntry.entry_date.desc())
@@ -233,7 +237,8 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         query = (
             query
             .options(
-                selectinload(StockEntry.entry_items).selectinload(EntryItem.product),
+                selectinload(StockEntry.entry_items).selectinload(EntryItem.product).selectinload(Product.variants),
+                selectinload(StockEntry.entry_items).selectinload(EntryItem.variant).selectinload(ProductVariant.product),
                 selectinload(StockEntry.trip)
             )
             .order_by(StockEntry.entry_date.desc())
@@ -269,7 +274,10 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
         query = (
             select(StockEntry)
             .where(and_(*conditions))
-            .options(selectinload(StockEntry.entry_items).selectinload(EntryItem.product))
+            .options(
+                selectinload(StockEntry.entry_items).selectinload(EntryItem.product).selectinload(Product.variants),
+                selectinload(StockEntry.entry_items).selectinload(EntryItem.variant).selectinload(ProductVariant.product),
+            )
             .order_by(StockEntry.entry_date.desc())
         )
         
@@ -399,7 +407,7 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
             .where(and_(*conditions))
             .options(
                 selectinload(StockEntry.trip),
-                selectinload(EntryItem.product)
+                selectinload(EntryItem.product).selectinload(Product.variants)
             )
             .order_by((func.julianday('now') - func.julianday(StockEntry.entry_date)).desc())
         )

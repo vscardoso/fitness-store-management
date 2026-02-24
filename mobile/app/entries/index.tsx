@@ -80,16 +80,38 @@ export default function StockEntriesScreen() {
 
   // Mutation para vincular produto
   const linkMutation = useMutation({
-    mutationFn: (data: { entryId: number; productData: any }) =>
-      addItemToEntry(data.entryId, {
-        product_id: data.productData.id,
-        quantity_received: data.productData.quantity || 1, // Usa a quantidade escolhida no wizard
-        unit_cost: data.productData.cost_price || 0,
-        selling_price: data.productData.price || 0,
-        notes: data.productData.quantity > 1
-          ? `Adicionado via catálogo (${data.productData.quantity} un)`
+    mutationFn: async (data: { entryId: number; productData: any }) => {
+      const { entryId, productData } = data;
+
+      // ── Produto com variantes: adicionar um item por variante ──
+      if (productData.isVariantProduct && Array.isArray(productData.variants)) {
+        await Promise.all(
+          productData.variants
+            .filter((v: any) => (v.quantity ?? 0) > 0)
+            .map((v: any) =>
+              addItemToEntry(entryId, {
+                product_id: v.product_id,
+                quantity_received: v.quantity,
+                unit_cost: v.cost_price || 0,
+                selling_price: v.price || 0,
+                notes: `Variante: ${[v.color, v.size].filter(Boolean).join(' / ') || v.sku} (via catálogo)`,
+              })
+            )
+        );
+        return;
+      }
+
+      // ── Produto simples ──
+      await addItemToEntry(entryId, {
+        product_id: productData.id,
+        quantity_received: productData.quantity || 1,
+        unit_cost: productData.cost_price || 0,
+        selling_price: productData.price || 0,
+        notes: productData.quantity > 1
+          ? `Adicionado via catálogo (${productData.quantity} un)`
           : 'Adicionado via catálogo',
-      }),
+      });
+    },
     onSuccess: async (_, variables) => {
       setShowLinkDialog(false);
       // Invalidar todas as queries relacionadas
@@ -827,12 +849,21 @@ export default function StockEntriesScreen() {
           visible={showLinkDialog}
           title="Vincular Produto"
           message={`Deseja adicionar "${productToLink?.name}" à entrada ${selectedEntry?.entry_code}?`}
-          details={[
-            `Quantidade: ${productToLink?.quantity || 1} ${(productToLink?.quantity || 1) === 1 ? 'unidade' : 'unidades'}`,
-            `Custo unitário: R$ ${Number(productToLink?.cost_price || 0).toFixed(2)}`,
-            `Preço de venda: R$ ${Number(productToLink?.price || 0).toFixed(2)}`,
-            `Custo total: R$ ${(Number(productToLink?.cost_price || 0) * (productToLink?.quantity || 1)).toFixed(2)}`,
-          ]}
+          details={
+            productToLink?.isVariantProduct && Array.isArray(productToLink?.variants)
+              ? [
+                  ...productToLink.variants
+                    .filter((v: any) => (v.quantity ?? 0) > 0)
+                    .map((v: any) => `${[v.color, v.size].filter(Boolean).join(' / ') || v.sku}: ${v.quantity} un`),
+                  `Total: ${productToLink.quantity} unidades`,
+                ]
+              : [
+                  `Quantidade: ${productToLink?.quantity || 1} ${(productToLink?.quantity || 1) === 1 ? 'unidade' : 'unidades'}`,
+                  `Custo unitário: R$ ${Number(productToLink?.cost_price || 0).toFixed(2)}`,
+                  `Preço de venda: R$ ${Number(productToLink?.price || 0).toFixed(2)}`,
+                  `Custo total: R$ ${(Number(productToLink?.cost_price || 0) * (productToLink?.quantity || 1)).toFixed(2)}`,
+                ]
+          }
           confirmText="Vincular"
           cancelText="Cancelar"
           onConfirm={confirmLinkProduct}
@@ -861,15 +892,17 @@ export default function StockEntriesScreen() {
                   createdEntryCode: selectedEntry.entry_code || '',
                   createdEntryQuantity: String(productToLink?.quantity || 1),
                   createdEntrySupplier: selectedEntry.supplier_name || '',
-                  // Passar dados do produto para restaurar no wizard
-                  createdProductData: JSON.stringify({
-                    id: productToLink?.id,
-                    name: productToLink?.name,
-                    sku: productToLink?.sku,
-                    cost_price: productToLink?.cost_price,
-                    price: productToLink?.price,
-                    category_id: productToLink?.category_id,
-                  }),
+                  // Para variantes, passar produto completo; para simples, reconstruir
+                  createdProductData: productToLink?._fullProductData
+                    ? productToLink._fullProductData
+                    : JSON.stringify({
+                        id: productToLink?.id,
+                        name: productToLink?.name,
+                        sku: productToLink?.sku,
+                        cost_price: productToLink?.cost_price,
+                        price: productToLink?.price,
+                        category_id: productToLink?.category_id,
+                      }),
                 },
               });
             } else if (selectedEntry) {

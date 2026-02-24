@@ -189,6 +189,51 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
         result = await db.execute(query)
         return result.scalars().all()
     
+    async def get_available_for_variant(
+        self,
+        db: AsyncSession,
+        variant_id: int,
+        *,
+        tenant_id: int | None = None,
+    ) -> Sequence[EntryItem]:
+        """
+        Busca itens disponíveis de uma variante ordenados por FIFO.
+
+        Usado quando o produto tem variantes (tamanho/cor): o FIFO é controlado
+        por variante, não por produto pai, garantindo isolamento total de estoque.
+
+        Args:
+            db: Database session
+            variant_id: ID da variante do produto
+            tenant_id: ID do tenant (obrigatório em contexto multi-tenant)
+
+        Returns:
+            Lista de itens disponíveis ordenada por FIFO (mais antigos primeiro)
+        """
+        conditions = [
+            EntryItem.variant_id == variant_id,
+            EntryItem.quantity_remaining > 0,
+            EntryItem.is_active == True,
+            StockEntry.is_active == True,
+        ]
+
+        if tenant_id is not None:
+            conditions.append(EntryItem.tenant_id == tenant_id)
+
+        query = (
+            select(EntryItem)
+            .join(StockEntry, EntryItem.entry_id == StockEntry.id)
+            .where(and_(*conditions))
+            .options(
+                selectinload(EntryItem.stock_entry),
+                selectinload(EntryItem.product)
+            )
+            .order_by(StockEntry.entry_date.asc(), EntryItem.created_at.asc())  # FIFO
+        )
+
+        result = await db.execute(query)
+        return result.scalars().all()
+
     async def get_products_with_stock(
         self,
         db: AsyncSession,
@@ -212,6 +257,39 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
             .where(
                 and_(
                     EntryItem.quantity_remaining > 0,
+                    EntryItem.is_active == True,
+                    StockEntry.is_active == True,
+                    StockEntry.tenant_id == tenant_id
+                )
+            )
+            .distinct()
+        )
+        
+        result = await db.execute(query)
+        return set(result.scalars().all())
+    
+    async def get_products_with_entries(
+        self,
+        db: AsyncSession,
+        tenant_id: int
+    ) -> set[int]:
+        """
+        Retorna IDs de produtos que têm EntryItems ativos (independentemente de estoque).
+        
+        Útil para filtrar produtos órfãos (sem EntryItems ativos) na listagem.
+        
+        Args:
+            db: Database session
+            tenant_id: ID do tenant
+            
+        Returns:
+            Set de IDs de produtos com EntryItems ativos
+        """
+        query = (
+            select(EntryItem.product_id)
+            .join(StockEntry, EntryItem.entry_id == StockEntry.id)
+            .where(
+                and_(
                     EntryItem.is_active == True,
                     StockEntry.is_active == True,
                     StockEntry.tenant_id == tenant_id

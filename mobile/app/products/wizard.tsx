@@ -35,6 +35,8 @@ export default function ProductWizardScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{
     method?: string;
+    /** Dados pré-preenchidos do scanner IA (JSON string com campos do produto) */
+    prefillData?: string;
     // Params de retorno do entries/add ou entries/index (entrada existente)
     returnFromEntry?: string;
     createdEntryId?: string;
@@ -42,19 +44,47 @@ export default function ProductWizardScreen() {
     createdEntryQuantity?: string;
     createdEntrySupplier?: string;
     createdProductData?: string; // Dados do produto para restaurar
+    // Params do catálogo
+    catalogProductData?: string; // Dados do produto selecionado do catálogo
   }>();
   const { categories } = useCategories();
   const wizard = useProductWizard();
   const { state } = wizard;
 
   const [showExitDialog, setShowExitDialog] = React.useState(false);
+  const [showSkipEntryDialog, setShowSkipEntryDialog] = React.useState(false);
 
   // Se veio com method=scanner, já inicia no modo scanner
   useEffect(() => {
     if (params.method === 'scanner' && !state.identifyMethod) {
       wizard.selectMethod('scanner');
     }
-  }, [params.method]);
+    
+    // Se veio com method=catalog, processar dados do catálogo
+    if (params.method === 'catalog' && params.catalogProductData && !state.identifyMethod) {
+      try {
+        const catalogProduct = JSON.parse(params.catalogProductData);
+        wizard.selectMethod('catalog');
+        wizard.selectCatalogProduct(catalogProduct as any);
+      } catch (e) {
+        console.error('Erro ao parsear catalogProductData:', e);
+      }
+    }
+
+    // Se veio com prefillData (scanner editManually), pular Step 1 e ir direto ao Step 2
+    if (params.prefillData && !state.identifyMethod) {
+      try {
+        const data = JSON.parse(params.prefillData);
+        wizard.selectMethod('manual');
+        wizard.setManualData(data);
+        wizard.goToStep('confirm');
+      } catch (e) {
+        console.error('Erro ao parsear prefillData:', e);
+        // Fallback: abrir modo manual normal
+        wizard.selectMethod('manual');
+      }
+    }
+  }, [params.method, params.catalogProductData, params.prefillData]);
 
   // Processar retorno do entries/add ou entries/index (entrada existente)
   useEffect(() => {
@@ -104,9 +134,9 @@ export default function ProductWizardScreen() {
       return;
     }
 
-    // Se está no Step 3 (produto já criado), ir para lista
+    // Se está no Step 3 (produto já criado), confirmar antes de pular a entrada
     if (state.currentStep === 'entry') {
-      wizard.skipEntry();
+      setShowSkipEntryDialog(true);
       return;
     }
 
@@ -177,15 +207,7 @@ export default function ProductWizardScreen() {
               onPress={handleBack}
               style={styles.backButton}
             >
-              <Ionicons
-                name={
-                  state.currentStep === 'entry' || state.currentStep === 'complete'
-                    ? 'checkmark'
-                    : 'arrow-back'
-                }
-                size={24}
-                color="#fff"
-              />
+              <Ionicons name="arrow-back" size={24} color="#fff" />
             </TouchableOpacity>
 
             <Text style={styles.headerTitle}>{getHeaderTitle()}</Text>
@@ -238,6 +260,22 @@ export default function ProductWizardScreen() {
         onConfirm={confirmExit}
         onCancel={() => setShowExitDialog(false)}
         icon="alert-circle"
+      />
+
+      {/* Skip Entry Dialog — confirmar cancelamento de vinculação */}
+      <ConfirmDialog
+        visible={showSkipEntryDialog}
+        title="Cancelar vinculação?"
+        message="O produto ficará no catálogo sem estoque vinculado. Você poderá vinculá-lo a uma entrada mais tarde."
+        type="warning"
+        confirmText="Sim, cancelar"
+        cancelText="Não, continuar"
+        onConfirm={() => {
+          setShowSkipEntryDialog(false);
+          wizard.skipEntry();
+        }}
+        onCancel={() => setShowSkipEntryDialog(false)}
+        icon="close-circle"
       />
 
       {/* Wizard Dialog — substitui Alert.alert do hook (erros, permissões, etc.) */}

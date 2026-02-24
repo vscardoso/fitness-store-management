@@ -1,6 +1,7 @@
 """
 Repositório para operações de produtos (Product).
 """
+import logging
 from typing import Any, Optional, Sequence
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,6 +11,8 @@ from app.models.product import Product
 from app.models.product_variant import ProductVariant
 from app.models.category import Category
 from app.repositories.base import BaseRepository
+
+logger = logging.getLogger(__name__)
 
 
 class ProductRepository(BaseRepository[Product, Any, Any]):
@@ -47,26 +50,32 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
     
     async def get_by_sku(self, sku: str, *, tenant_id: int | None = None) -> Optional[Product]:
         """
-        Busca um produto pelo SKU (busca em variantes).
+        Busca um produto ATIVO pelo SKU (busca em variantes ativas).
         
         Args:
             sku: SKU da variante
+            tenant_id: ID do tenant (opcional)
             
         Returns:
             Produto encontrado ou None
         """
         # SKU agora está em ProductVariant, não em Product
+        # Filtrar apenas produtos ativos e variantes ativas para não bloquear
+        # re-criação de produtos deletados (soft delete)
         query = select(Product).join(ProductVariant).where(
-            ProductVariant.sku == sku
+            ProductVariant.sku == sku,
+            ProductVariant.is_active == True,
+            Product.is_active == True,
         ).options(selectinload(Product.variants))
         if tenant_id is not None:
             query = query.where(Product.tenant_id == tenant_id)
+        
         result = await self.db.execute(query)
         return result.scalar_one_or_none()
     
     async def get_by_barcode(self, barcode: str, *, tenant_id: int | None = None) -> Optional[Product]:
         """
-        Busca um produto pelo código de barras (busca em variantes).
+        Busca um produto ATIVO pelo código de barras (busca em variantes ativas).
         
         Args:
             barcode: Código de barras da variante
@@ -75,8 +84,11 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
             Produto encontrado ou None
         """
         # Barcode agora está em ProductVariant
+        # Filtrar apenas produtos ativos e variantes ativas
         query = select(Product).join(ProductVariant).where(
-            ProductVariant.barcode == barcode
+            ProductVariant.barcode == barcode,
+            ProductVariant.is_active == True,
+            Product.is_active == True,
         ).options(selectinload(Product.variants))
         if tenant_id is not None:
             query = query.where(Product.tenant_id == tenant_id)
@@ -430,12 +442,24 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
             Lista de produtos com estoque baixo (apenas produtos ativos, não catálogo)
         """
         from app.models.inventory import Inventory
+        from app.models.entry_item import EntryItem
 
-        # Query base: produtos ATIVOS (não catálogo) com inventário
+        # Subquery: IDs de produtos que possuem ao menos um EntryItem ativo (FIFO strict)
+        products_with_entries_sq = (
+            select(EntryItem.product_id)
+            .where(
+                EntryItem.is_active == True,
+                *([EntryItem.tenant_id == tenant_id] if tenant_id is not None else []),
+            )
+            .scalar_subquery()
+        )
+
+        # Query base: produtos ATIVOS (não catálogo) com inventário e com entrada de estoque
         query = select(Product).join(Inventory).where(
             and_(
                 Product.is_active == True,
-                Product.is_catalog == False
+                Product.is_catalog == False,
+                Product.id.in_(products_with_entries_sq),
             )
         ).options(
             selectinload(Product.inventory)

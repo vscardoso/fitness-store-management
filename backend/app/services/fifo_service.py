@@ -31,6 +31,7 @@ class FIFOService:
         product_id: int,
         quantity: int,
         *,
+        variant_id: int | None = None,
         tenant_id: int | None = None,
     ) -> List[Dict[str, Any]]:
         """
@@ -65,16 +66,21 @@ class FIFOService:
         if quantity <= 0:
             raise ValueError("Quantity must be greater than 0")
         
-        # Buscar itens disponíveis ordenados por FIFO (filtrado por tenant para isolamento)
-        available_items = await self.item_repo.get_available_for_product(
-            self.db,
-            product_id,
-            tenant_id=tenant_id,
-        )
+        # Buscar itens disponíveis ordenados por FIFO
+        # Quando variant_id está presente, o FIFO opera por variante (isolamento total)
+        if variant_id is not None:
+            available_items = await self.item_repo.get_available_for_variant(
+                self.db, variant_id, tenant_id=tenant_id
+            )
+        else:
+            available_items = await self.item_repo.get_available_for_product(
+                self.db, product_id, tenant_id=tenant_id
+            )
 
         if not available_items:
+            identifier = f"variante {variant_id}" if variant_id is not None else f"produto {product_id}"
             raise ValueError(
-                f"Product {product_id} has no available stock"
+                f"Sem estoque disponível para {identifier}"
             )
         
         # Verificar se há quantidade total suficiente
@@ -141,6 +147,7 @@ class FIFOService:
         product_id: int,
         quantity: int,
         *,
+        variant_id: int | None = None,
         tenant_id: int | None = None,
     ) -> Dict[str, Any]:
         """
@@ -163,12 +170,15 @@ class FIFOService:
                     "newest_entry_date": date
                 }
         """
-        # Buscar itens disponíveis (filtrado por tenant para isolamento)
-        available_items = await self.item_repo.get_available_for_product(
-            self.db,
-            product_id,
-            tenant_id=tenant_id,
-        )
+        # Buscar itens disponíveis — por variante ou por produto (legado)
+        if variant_id is not None:
+            available_items = await self.item_repo.get_available_for_variant(
+                self.db, variant_id, tenant_id=tenant_id
+            )
+        else:
+            available_items = await self.item_repo.get_available_for_product(
+                self.db, product_id, tenant_id=tenant_id
+            )
         
         if not available_items:
             return {
@@ -207,6 +217,7 @@ class FIFOService:
         product_id: int,
         quantity: int,
         *,
+        variant_id: int | None = None,
         tenant_id: int | None = None,
     ) -> Dict[str, Any]:
         """
@@ -231,12 +242,15 @@ class FIFOService:
         Raises:
             ValueError: Se quantidade insuficiente
         """
-        # Buscar itens disponíveis (filtrado por tenant para isolamento)
-        available_items = await self.item_repo.get_available_for_product(
-            self.db,
-            product_id,
-            tenant_id=tenant_id,
-        )
+        # Buscar itens disponíveis — por variante ou por produto (legado)
+        if variant_id is not None:
+            available_items = await self.item_repo.get_available_for_variant(
+                self.db, variant_id, tenant_id=tenant_id
+            )
+        else:
+            available_items = await self.item_repo.get_available_for_product(
+                self.db, product_id, tenant_id=tenant_id
+            )
         
         if not available_items:
             return {
@@ -297,6 +311,7 @@ class FIFOService:
         self,
         product_id: int,
         *,
+        variant_id: int | None = None,
         tenant_id: int | None = None,
     ) -> Dict[str, Any]:
         """
@@ -317,12 +332,15 @@ class FIFOService:
                     "sources_count": int
                 }
         """
-        # Buscar itens disponíveis (filtrado por tenant para isolamento)
-        available_items = await self.item_repo.get_available_for_product(
-            self.db,
-            product_id,
-            tenant_id=tenant_id,
-        )
+        # Buscar itens disponíveis — por variante ou por produto (legado)
+        if variant_id is not None:
+            available_items = await self.item_repo.get_available_for_variant(
+                self.db, variant_id, tenant_id=tenant_id
+            )
+        else:
+            available_items = await self.item_repo.get_available_for_product(
+                self.db, product_id, tenant_id=tenant_id
+            )
         
         if not available_items:
             return {

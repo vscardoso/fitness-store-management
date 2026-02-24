@@ -467,6 +467,7 @@ export default function CheckoutScreen() {
       // Mapear items para formato da API
       const items = cart.items.map(item => ({
         product_id: item.product_id,
+        ...(item.variant_id ? { variant_id: item.variant_id } : {}),
         quantity: item.quantity,
         unit_price: item.unit_price,
         discount_amount: item.discount,

@@ -44,7 +44,9 @@
       "Bash(curl:*)",
       "Bash(source venv/Scripts/activate)",
       "Bash(pip install:*)",
-      "Bash(pip freeze:*)"
+      "Bash(pip freeze:*)",
+      "Bash(xargs grep -l \"def router\")",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

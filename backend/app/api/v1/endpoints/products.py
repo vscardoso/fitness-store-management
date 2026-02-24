@@ -66,39 +66,98 @@ async def build_product_response(
 ) -> dict:
     """Constrói o response completo de um produto usando SQL direto."""
     from sqlalchemy import select
+    from datetime import datetime
     
     # Categoria via SQL direto
     category_data = None
     if product.category_id:
         category_data = await get_category_data(db, product.category_id)
 
-    # Estoque via SQL direto
-    inventory_result = await db.execute(
-        text("SELECT quantity, min_stock FROM inventory WHERE product_id = :pid AND tenant_id = :tid"),
-        {"pid": product.id, "tid": tenant_id}
-    )
-    inv_row = inventory_result.fetchone()
-    current_stock = inv_row[0] if inv_row else 0
-    min_stock_threshold = inv_row[1] if inv_row else None
+    # Estoque via SQL direto (apenas para produtos não-catálogo)
+    current_stock = 0
+    min_stock_threshold = None
+    if not product.is_catalog:
+        inventory_result = await db.execute(
+            text("SELECT quantity, min_stock FROM inventory WHERE product_id = :pid AND tenant_id = :tid"),
+            {"pid": product.id, "tid": tenant_id}
+        )
+        inv_row = inventory_result.fetchone()
+        current_stock = inv_row[0] if inv_row else 0
+        min_stock_threshold = inv_row[1] if inv_row else None
     
-    # Buscar primeira variante via SQL direto
-    variant_result = await db.execute(
-        text("""
+    # Garantir que created_at e updated_at não sejam None
+    created_at = product.created_at or datetime.utcnow()
+    updated_at = product.updated_at or datetime.utcnow()
+    
+    # Para produtos de catálogo: buscar variantes SEM filtro de tenant
+    # Para produtos normais: filtrar por tenant
+    if product.is_catalog:
+        variant_query = text("""
+            SELECT sku, price, cost_price, color, size 
+            FROM product_variants 
+            WHERE product_id = :pid AND is_active = 1
+            LIMIT 1
+        """)
+        variant_params = {"pid": product.id}
+        
+        # Buscar TODAS as variantes do catálogo com estoque calculado por variante
+        all_variants_query = text("""
+            SELECT 
+                pv.id, pv.sku, pv.size, pv.color, pv.price, pv.cost_price, pv.is_active,
+                COALESCE(SUM(ei.quantity_remaining), 0) as current_stock
+            FROM product_variants pv
+            LEFT JOIN entry_items ei ON ei.variant_id = pv.id AND ei.is_active = 1
+            WHERE pv.product_id = :pid AND pv.is_active = 1
+            GROUP BY pv.id
+            ORDER BY pv.size, pv.color
+        """)
+        all_variants_result = await db.execute(all_variants_query, {"pid": product.id})
+    else:
+        variant_query = text("""
             SELECT sku, price, cost_price, color, size 
             FROM product_variants 
             WHERE product_id = :pid AND tenant_id = :tid AND is_active = 1
             LIMIT 1
-        """),
-        {"pid": product.id, "tid": tenant_id}
-    )
+        """)
+        variant_params = {"pid": product.id, "tid": tenant_id}
+        
+        # Buscar TODAS as variantes do produto ativo com estoque calculado por variante
+        all_variants_query = text("""
+            SELECT 
+                pv.id, pv.sku, pv.size, pv.color, pv.price, pv.cost_price, pv.is_active,
+                COALESCE(SUM(ei.quantity_remaining), 0) as current_stock
+            FROM product_variants pv
+            LEFT JOIN entry_items ei ON ei.variant_id = pv.id AND ei.is_active = 1
+            WHERE pv.product_id = :pid AND pv.tenant_id = :tid AND pv.is_active = 1
+            GROUP BY pv.id
+            ORDER BY pv.size, pv.color
+        """)
+        all_variants_result = await db.execute(all_variants_query, {"pid": product.id, "tid": tenant_id})
+    
+    variant_result = await db.execute(variant_query, variant_params)
     variant_row = variant_result.fetchone()
+    
+    all_variant_rows = all_variants_result.fetchall()
+    variants_list = [
+        {
+            "id": v[0],
+            "sku": v[1],
+            "size": v[2],
+            "color": v[3],
+            "price": float(v[4]) if v[4] else 0.0,
+            "cost_price": float(v[5]) if v[5] else None,
+            "is_active": v[6],
+            "current_stock": int(v[7]) if v[7] is not None else 0,
+        }
+        for v in all_variant_rows
+    ]
 
     return {
         "id": product.id,
         "name": product.name,
         "description": product.description,
-        "sku": variant_row[0] if variant_row else None,
-        "price": float(variant_row[1]) if variant_row and variant_row[1] else None,
+        "sku": variant_row[0] if variant_row else f"PROD-{product.id}",
+        "price": float(variant_row[1]) if variant_row and variant_row[1] else (float(product.base_price) if product.base_price else 1.0),
         "cost_price": float(variant_row[2]) if variant_row and variant_row[2] else None,
         "category_id": product.category_id,
         "category": category_data,
@@ -112,12 +171,14 @@ async def build_product_response(
         "is_catalog": product.is_catalog,
         "is_active": product.is_active,
         "image_url": product.image_url,
-        "created_at": product.created_at,
-        "updated_at": product.updated_at,
+        "created_at": created_at,
+        "updated_at": updated_at,
         "current_stock": current_stock,
         "min_stock_threshold": min_stock_threshold,
         "entry_items": [],
-        "variants": []
+        "variants": variants_list,
+        "variant_count": len(variants_list),
+        "base_price": float(product.base_price) if product.base_price else None,
     }
 
 
@@ -221,6 +282,9 @@ async def list_products(
             return responses
 
         # LÓGICA ORIGINAL: Listar todos os produtos (sem filtro de estoque)
+        # Importante: Excluir produtos órfãos (sem EntryItems ativos)
+        
+        # Primeiro, buscar produtos conforme filtros
         if search:
             products = await product_repo.search(search, tenant_id=tenant_id)
         elif category_id:
@@ -228,10 +292,16 @@ async def list_products(
         else:
             products = await product_repo.get_multi(db, skip=skip, limit=limit, tenant_id=tenant_id)
 
-        # Filtrar não-catálogo e construir responses
+        # Buscar IDs de produtos com EntryItems ativos (não órfãos)
+        products_with_entries_ids = await entry_item_repo.get_products_with_entries(db, tenant_id)
+
+        # Filtrar não-catálogo, não órfãos e construir responses
         responses = []
         for product in products:
             if product.is_catalog:
+                continue
+            # Excluir produtos órfãos (sem EntryItems ativos)
+            if product.id not in products_with_entries_ids:
                 continue
             resp = await build_product_response(product, db, inventory_repo, tenant_id)
             responses.append(resp)
@@ -281,14 +351,22 @@ async def get_low_stock(
         HTTPException 500: Se houver erro ao buscar produtos
     """
     product_repo = ProductRepository(db)
+    entry_item_repo = EntryItemRepository()
     
     try:
         # Buscar produtos com estoque baixo
         products = await product_repo.get_low_stock(threshold, tenant_id=tenant_id)
+
+        # FIFO STRICT: filtrar produtos órfãos (sem EntryItems) — eles nunca devem aparecer
+        products_with_entries_ids = await entry_item_repo.get_products_with_entries(db, tenant_id)
         
         # Formatar resposta com informações de estoque detalhadas
         result = []
         for product in products:
+            # FIFO STRICT: ignorar produto órfão (sem EntryItems)
+            if product.id not in products_with_entries_ids:
+                continue
+
             # Inventory já está carregado via selectinload
             inventory = product.inventory[0] if product.inventory else None
             
@@ -381,13 +459,19 @@ async def count_catalog_products(
     Retorna apenas o total de produtos do catálogo.
     Endpoint leve para exibir contagem sem carregar todos os produtos.
     """
-    from sqlalchemy import func, and_
+    from sqlalchemy import func, and_, select as sa_select
     try:
+        # Subquery para pegar o menor tenant_id do catálogo (tenant de referência)
+        min_tenant_sub = sa_select(func.min(Product.tenant_id)).where(
+            and_(Product.is_catalog == True, Product.is_active == True)
+        ).scalar_subquery()
+
         result = await db.execute(
             select(func.count()).where(
                 and_(
                     Product.is_catalog == True,
-                    Product.is_active == True
+                    Product.is_active == True,
+                    Product.tenant_id == min_tenant_sub
                 )
             )
         )
@@ -423,22 +507,113 @@ async def list_catalog_products(
 
     Produtos do catálogo têm is_catalog=true e não aparecem na listagem normal.
     """
+    from datetime import datetime
+    
     try:
-        service = ProductService(db)
-        products = await service.get_catalog_products(
-            tenant_id=tenant_id,
-            category_id=category_id,
-            search=search,
-            skip=skip,
-            limit=limit
-        )
-
-        # Construir responses completos
-        inventory_repo = InventoryRepository(db)
+        # Usar SQL direto para evitar problemas com ORM/async
+        # Catálogo é GLOBAL - usa apenas os produtos do tenant de referência (menor tenant_id)
+        # para evitar que cópias de catálogo de outros tenants apareçam duplicadas
+        base_query = """
+            SELECT id, name, description, category_id, brand, gender, material,
+                   is_digital, is_activewear, is_catalog, is_active, image_url,
+                   base_price, created_at, updated_at
+            FROM products 
+            WHERE is_catalog = 1 AND is_active = 1
+              AND tenant_id = (SELECT MIN(tenant_id) FROM products WHERE is_catalog = 1 AND is_active = 1)
+        """
+        params = {}
+        
+        if category_id is not None:
+            base_query += " AND category_id = :category_id"
+            params["category_id"] = category_id
+        
+        if search:
+            base_query += " AND (name LIKE :search OR brand LIKE :search)"
+            params["search"] = f"%{search}%"
+        
+        base_query += " ORDER BY name LIMIT :limit OFFSET :skip"
+        params["limit"] = limit
+        params["skip"] = skip
+        
+        result = await db.execute(text(base_query), params)
+        products = result.fetchall()
+        
         responses = []
-        for product in products:
-            resp = await build_product_response(product, db, inventory_repo, tenant_id)
-            responses.append(resp)
+        for p in products:
+            product_id = p[0]
+            
+            # Buscar variante principal
+            variant_result = await db.execute(text("""
+                SELECT sku, price, cost_price, color, size 
+                FROM product_variants 
+                WHERE product_id = :pid AND is_active = 1
+                LIMIT 1
+            """), {"pid": product_id})
+            variant = variant_result.fetchone()
+            
+            # Buscar todas as variantes
+            all_variants_result = await db.execute(text("""
+                SELECT id, sku, size, color, price, cost_price, is_active
+                FROM product_variants 
+                WHERE product_id = :pid AND is_active = 1
+                ORDER BY size, color
+            """), {"pid": product_id})
+            all_variants = all_variants_result.fetchall()
+            
+            # Categoria
+            category_data = await get_category_data(db, p[2]) if p[2] else None
+            
+            # Garantir timestamps
+            created_at = p[13] or datetime.utcnow()
+            updated_at = p[14] or datetime.utcnow()
+            
+            # Catálogo NÃO tem SKU - SKU só é gerado ao ativar o produto
+            # Mostrar placeholder ou None para indicar que será gerado na ativação
+            sku_display = None  # Catálogo não tem SKU
+            if variant and variant[0]:
+                # Fallback: se somehow tem SKU, mostrar
+                sku_display = f"TEMPLATE-{variant[0]}"
+            
+            responses.append({
+                "id": product_id,
+                "name": p[1],
+                "description": p[2],
+                "sku": sku_display,  # Catálogo não tem SKU
+                "price": float(variant[1]) if variant and variant[1] else (float(p[12]) if p[12] else 99.90),
+                "cost_price": float(variant[2]) if variant and variant[2] else None,
+                "category_id": p[3],
+                "category": category_data,
+                "brand": p[4],
+                "color": variant[3] if variant else None,
+                "size": variant[4] if variant else None,
+                "gender": p[5],
+                "material": p[6],
+                "is_digital": p[7] or False,
+                "is_activewear": p[8] or True,
+                "is_catalog": True,
+                "is_active": True,
+                "image_url": p[11],
+                "created_at": created_at,
+                "updated_at": updated_at,
+                "current_stock": 0,
+                "min_stock_threshold": None,
+                "entry_items": [],
+                "variants": [
+                    {
+                        "id": v[0],
+                        "sku": v[1] if v[1] else None,  # Catálogo não tem SKU
+                        "size": v[2],
+                        "color": v[3],
+                        "price": float(v[4]) if v[4] else 0.0,
+                        "cost_price": float(v[5]) if v[5] else None,
+                        "is_active": v[6],
+                    }
+                    for v in all_variants
+                ],
+                "variant_count": len(all_variants),
+                "base_price": float(p[12]) if p[12] else None,
+            })
+        
         return responses
 
     except Exception as e:
@@ -721,8 +896,8 @@ async def get_product(
                 detail=f"Produto com ID {product_id} não encontrado"
             )
 
-        # Categoria
-        category_data = await get_category_data(db, row[2]) if row[2] else None
+        # Categoria — row[3] é category_id (row[2] é description)
+        category_data = await get_category_data(db, row[3]) if row[3] else None
 
         # Estoque
         inv_result = await db.execute(
@@ -744,6 +919,68 @@ async def get_product(
             {"pid": product_id, "tid": tenant_id}
         )
         variant_row = variant_result.fetchone()
+
+        # Todas as variantes
+        all_variants_result = await db.execute(
+            text("""
+                SELECT id, sku, size, color, price, cost_price, is_active
+                FROM product_variants
+                WHERE product_id = :pid AND tenant_id = :tid
+                ORDER BY id
+            """),
+            {"pid": product_id, "tid": tenant_id}
+        )
+        variants_list = [
+            {
+                "id": v[0],
+                "sku": v[1],
+                "size": v[2],
+                "color": v[3],
+                "price": float(v[4]) if v[4] else 0.0,
+                "cost_price": float(v[5]) if v[5] else None,
+                "is_active": v[6],
+            }
+            for v in all_variants_result.fetchall()
+        ]
+
+        # Entradas de estoque (FIFO) associadas ao produto
+        entry_items_result = await db.execute(
+            text("""
+                SELECT
+                    ei.id           AS entry_item_id,
+                    ei.entry_id     AS entry_id,
+                    se.entry_code,
+                    se.entry_date,
+                    se.entry_type,
+                    ei.quantity_received,
+                    ei.quantity_remaining,
+                    (ei.quantity_received - ei.quantity_remaining) AS quantity_sold,
+                    ei.unit_cost,
+                    se.supplier_name
+                FROM entry_items ei
+                JOIN stock_entries se ON se.id = ei.entry_id
+                WHERE ei.product_id = :pid
+                  AND se.tenant_id  = :tid
+                  AND se.is_active  = 1
+                ORDER BY se.entry_date ASC, ei.id ASC
+            """),
+            {"pid": product_id, "tid": tenant_id}
+        )
+        entry_items_list = [
+            {
+                "entry_item_id": r[0],
+                "entry_id": r[1],
+                "entry_code": r[2],
+                "entry_date": r[3],
+                "entry_type": r[4],
+                "quantity_received": r[5],
+                "quantity_remaining": r[6],
+                "quantity_sold": r[7],
+                "unit_cost": float(r[8]) if r[8] else 0.0,
+                "supplier_name": r[9],
+            }
+            for r in entry_items_result.fetchall()
+        ]
 
         return {
             "id": row[0],
@@ -768,8 +1005,9 @@ async def get_product(
             "updated_at": row[13],
             "current_stock": current_stock,
             "min_stock_threshold": min_stock_threshold,
-            "entry_items": [],
-            "variants": []
+            "entry_items": entry_items_list,
+            "variants": variants_list,
+            "variant_count": len(variants_list),
         }
 
     except HTTPException:

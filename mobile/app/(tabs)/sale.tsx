@@ -33,6 +33,7 @@ import {
   formatValidationErrors,
 } from '@/utils/validation';
 import type { Product, Customer } from '@/types';
+import type { ProductGrouped, ProductVariant as GroupedVariant } from '@/types';
 import ProductSelectionModal from '@/components/sale/ProductSelectionModal';
 import QRCodeScanner from '@/components/sale/QRCodeScanner';
 
@@ -101,8 +102,10 @@ export default function SaleScreen() {
     return { totalCost, profit, margin };
   }, [fifoCosts, cart.items]);
 
-  const handleAddToCart = (product: any) => {
-    // Validar se o produto está ativo
+  /**
+   * Adicionar produto simples ao carrinho (usado pelo scanner QR)
+   */
+  const handleAddToCart = (product: Product) => {
     if (!product.is_active) {
       haptics.warning();
       setDialog({
@@ -117,7 +120,6 @@ export default function SaleScreen() {
       return;
     }
 
-    // Validar se o produto não é de catálogo
     if (product.is_catalog) {
       haptics.warning();
       setDialog({
@@ -132,12 +134,11 @@ export default function SaleScreen() {
       return;
     }
 
-    const existingItem = cart.getItem(product.id);
+    const cart_key = `p_${product.id}`;
+    const existingItem = cart.getItem(cart_key);
     const requestedQuantity = existingItem ? existingItem.quantity + 1 : 1;
 
-    // Validar produto antes de adicionar
     const validation = validateProductForCart(product, requestedQuantity);
-
     if (!validation.isValid) {
       haptics.warning();
       setDialog({
@@ -154,40 +155,38 @@ export default function SaleScreen() {
 
     if (existingItem) {
       haptics.light();
-      cart.updateQuantity(product.id, requestedQuantity);
+      cart.updateQuantity(cart_key, requestedQuantity);
     } else {
       haptics.medium();
       cart.addItem(product, 1);
     }
   };
 
-  const handleUpdateQuantity = (productId: number, newQuantity: number) => {
-    // Obter item do carrinho
-    const item = cart.getItem(productId);
+  const handleUpdateQuantity = (cart_key: string, newQuantity: number) => {
+    const item = cart.getItem(cart_key);
     if (!item) return;
 
-    // Se quantidade for zero ou menor, remover do carrinho
+    const displayName = `${item.product.name}${item.variant_label ? ` (${item.variant_label})` : ''}`;
+
     if (newQuantity <= 0) {
       haptics.warning();
       setDialog({
         visible: true,
         type: 'danger',
         title: 'Remover produto',
-        message: `Deseja remover ${item.product.name} do carrinho?`,
+        message: `Deseja remover ${displayName} do carrinho?`,
         confirmText: 'Remover',
         cancelText: 'Cancelar',
         onConfirm: () => {
           haptics.success();
-          cart.removeItem(productId);
+          cart.removeItem(cart_key);
           setDialog({ ...dialog, visible: false });
         },
       });
       return;
     }
 
-    // Validar nova quantidade
     const validation = validateProductForCart(item.product, newQuantity);
-
     if (!validation.isValid) {
       haptics.warning();
       setDialog({
@@ -203,7 +202,7 @@ export default function SaleScreen() {
     }
 
     haptics.light();
-    cart.updateQuantity(productId, newQuantity);
+    cart.updateQuantity(cart_key, newQuantity);
   };
 
   const handleClearCart = () => {
@@ -291,15 +290,18 @@ export default function SaleScreen() {
    * Handler quando produto é encontrado pelo scanner de QR Code
    */
   const handleProductScanned = (product: Product, quantity: number = 1) => {
-    // Fechar scanner
     setScannerVisible(false);
 
-    // Adicionar produto ao carrinho (com quantidade especificada)
-    for (let i = 0; i < quantity; i++) {
-      handleAddToCart(product);
+    const cart_key = `p_${product.id}`;
+    const existingItem = cart.getItem(cart_key);
+    const newQty = (existingItem?.quantity ?? 0) + quantity;
+
+    if (existingItem) {
+      cart.updateQuantity(cart_key, newQty);
+    } else {
+      cart.addItem(product, quantity);
     }
 
-    // Exibir feedback
     haptics.success();
     setDialog({
       visible: true,
@@ -316,11 +318,50 @@ export default function SaleScreen() {
   };
 
   /**
-   * Handler para selecionar produto do modal
+   * Handler para selecionar variante de produto do modal
    */
-  const handleSelectProduct = (product: Product) => {
+  const handleSelectProduct = (product: ProductGrouped, variant: GroupedVariant) => {
     haptics.light();
-    handleAddToCart(product);
+
+    if (variant.current_stock <= 0) {
+      haptics.warning();
+      setDialog({
+        visible: true,
+        type: 'warning',
+        title: 'Sem estoque',
+        message: `Variante ${[variant.size, variant.color].filter(Boolean).join(' / ') || variant.sku} não tem estoque disponível.`,
+        confirmText: 'Entendi',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
+      return;
+    }
+
+    const cart_key = `v_${variant.id}`;
+    const existingItem = cart.getItem(cart_key);
+    const requestedQuantity = existingItem ? existingItem.quantity + 1 : 1;
+
+    if (requestedQuantity > variant.current_stock) {
+      haptics.warning();
+      setDialog({
+        visible: true,
+        type: 'warning',
+        title: 'Estoque insuficiente',
+        message: `Apenas ${variant.current_stock} unidade(s) disponíveis.`,
+        confirmText: 'Entendi',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
+      return;
+    }
+
+    if (existingItem) {
+      cart.updateQuantity(cart_key, requestedQuantity);
+    } else {
+      cart.addVariantItem(product, variant, 1);
+    }
+
+    haptics.medium();
   };
 
   /**
@@ -465,11 +506,14 @@ export default function SaleScreen() {
           ) : (
             <ScrollView style={styles.cartList} showsVerticalScrollIndicator={false}>
               {cart.items.map((item) => (
-                <Card key={item.product_id} style={styles.cartItem}>
+                <Card key={item.cart_key} style={styles.cartItem}>
                   <Card.Content style={styles.cartItemContent}>
                     <View style={styles.cartItemInfo}>
                       <Text variant="titleMedium" style={styles.cartItemName} numberOfLines={2}>
                         {item.product.name}
+                        {item.variant_label ? (
+                          <Text style={styles.variantLabel}> ({item.variant_label})</Text>
+                        ) : null}
                       </Text>
                       <Text variant="bodySmall" style={styles.cartItemSku}>
                         SKU: {item.product.sku}
@@ -502,7 +546,7 @@ export default function SaleScreen() {
                           mode="contained"
                           containerColor={Colors.light.error}
                           iconColor="#fff"
-                          onPress={() => handleUpdateQuantity(item.product_id, item.quantity - 1)}
+                          onPress={() => handleUpdateQuantity(item.cart_key, item.quantity - 1)}
                         />
                         <Text variant="titleMedium" style={styles.quantity}>
                           {item.quantity}
@@ -513,7 +557,7 @@ export default function SaleScreen() {
                           mode="contained"
                           containerColor={Colors.light.primary}
                           iconColor="#fff"
-                          onPress={() => handleUpdateQuantity(item.product_id, item.quantity + 1)}
+                          onPress={() => handleUpdateQuantity(item.cart_key, item.quantity + 1)}
                         />
                       </View>
                       <Text variant="titleLarge" style={styles.itemTotal}>
@@ -802,6 +846,11 @@ const styles = StyleSheet.create({
   cartItemSku: {
     color: Colors.light.textSecondary,
     marginBottom: 8,
+  },
+  variantLabel: {
+    fontSize: 13,
+    color: Colors.light.primary,
+    fontWeight: '500',
   },
   cartItemPriceRow: {
     flexDirection: 'row',

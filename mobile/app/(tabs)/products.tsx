@@ -15,12 +15,12 @@ import { Ionicons } from '@expo/vector-icons';
 import PageHeader from '@/components/layout/PageHeader';
 import { useAuth } from '@/hooks/useAuth';
 import EmptyState from '@/components/ui/EmptyState';
-import ProductCard from '@/components/products/ProductCard';
+import ProductGroupCard from '@/components/products/ProductGroupCard';
 import FAB from '@/components/FAB';
-import { getActiveProducts, searchProducts, getCatalogProductsCount } from '@/services/productService';
+import { getGroupedProducts, getCatalogProductsCount } from '@/services/productService';
 import { Colors, theme } from '@/constants/Colors';
 import { useTutorialContext } from '@/components/tutorial';
-import type { Product } from '@/types';
+import type { ProductGrouped } from '@/types';
 
 const PAGE_SIZE = 20;
 
@@ -32,7 +32,7 @@ export default function ProductsScreen() {
   const [showOnlyWithStock, setShowOnlyWithStock] = useState(false); // Padrão: mostrar TODOS os produtos
 
   /**
-   * Infinite Query para buscar produtos ATIVOS com paginação
+   * Infinite Query para buscar produtos AGRUPADOS com paginação
    * NOTA: searchQuery NÃO está no queryKey - a busca é feita localmente para ser instantânea
    */
   const {
@@ -45,10 +45,10 @@ export default function ProductsScreen() {
     refetch,
     isRefetching,
   } = useInfiniteQuery({
-    queryKey: ['active-products'], // Removido searchQuery - busca agora é local
+    queryKey: ['grouped-products'], // Removido searchQuery - busca agora é local
     queryFn: async ({ pageParam = 0 }) => {
       // Sempre paginar normalmente - a busca é feita localmente
-      const products = await getActiveProducts({
+      const products = await getGroupedProducts({
         limit: PAGE_SIZE,
         skip: pageParam * PAGE_SIZE,
       });
@@ -85,19 +85,17 @@ export default function ProductsScreen() {
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase().trim();
       filtered = allProducts.filter((product) => {
-        // Buscar por nome, SKU ou marca
+        // Buscar por nome ou marca
         const matchName = product.name?.toLowerCase().includes(query);
-        const matchSku = product.sku?.toLowerCase().includes(query);
         const matchBrand = product.brand?.toLowerCase().includes(query);
-        return matchName || matchSku || matchBrand;
+        return matchName || matchBrand;
       });
     }
 
     // 2. FILTRO DE ESTOQUE
     if (showOnlyWithStock) {
       filtered = filtered.filter((product) => {
-        const qty = product.current_stock ?? 0;
-        return qty > 0;
+        return product.total_stock > 0;
       });
     }
 
@@ -114,17 +112,18 @@ export default function ProductsScreen() {
   });
 
   /**
-   * Navegar para detalhes do produto
+   * Navegar para detalhes do produto agrupado
+   * Abre modal com todas as variantes
    */
-  const handleProductPress = (product: Product) => {
+  const handleProductPress = (product: ProductGrouped) => {
     router.push(`/products/${product.id}`);
   };
 
   /**
-   * Navegar para adicionar produto
+   * Navegar para adicionar produto - usa novo wizard unificado
    */
   const handleAddProduct = () => {
-    router.push('/products/add');
+    router.push('/products/wizard');
   };
 
   /**
@@ -140,12 +139,12 @@ export default function ProductsScreen() {
   /**
    * Renderizar item da lista
    */
-  const renderProduct = ({ item }: { item: Product }) => {
+  const renderProduct = ({ item }: { item: ProductGrouped }) => {
     // Se item for null ou undefined, renderizar espaço vazio
     if (!item || !item.id) {
       return <View style={styles.emptyCard} />;
     }
-    return <ProductCard product={item} onPress={() => handleProductPress(item)} />;
+    return <ProductGroupCard product={item} onPress={() => handleProductPress(item)} />;
   };
 
   /**
@@ -233,6 +232,19 @@ export default function ProductsScreen() {
             </Button>
 
             <Button
+              mode="contained-tonal"
+              onPress={() => router.push('/products/wizard')}
+              style={styles.actionButton}
+              labelStyle={styles.actionButtonLabel}
+              contentStyle={styles.actionButtonContent}
+            >
+              <View style={styles.buttonContent}>
+                <Ionicons name="layers-outline" size={16} color={Colors.light.textSecondary} />
+                <Text style={styles.buttonText}>+ Variantes</Text>
+              </View>
+            </Button>
+
+            <Button
               mode={showOnlyWithStock ? "contained" : "contained-tonal"}
               onPress={() => setShowOnlyWithStock(!showOnlyWithStock)}
               style={[
@@ -264,8 +276,6 @@ export default function ProductsScreen() {
           data={products}
           renderItem={renderProduct}
           keyExtractor={(item, index) => item?.id?.toString() ?? `item-${index}`}
-          numColumns={2}
-          columnWrapperStyle={styles.row}
           contentContainerStyle={styles.listContent}
           refreshControl={
             <RefreshControl
@@ -336,14 +346,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     elevation: 2,
     backgroundColor: Colors.light.card,
-  },
-  row: {
-    justifyContent: 'flex-start',
-    paddingHorizontal: 8,
-  },
-  emptyCard: {
-    flex: 1,
-    marginHorizontal: 6,
   },
   listContent: {
     paddingTop: 8,

@@ -8,11 +8,19 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { Product, SaleItem, Payment, PaymentMethod } from '@/types';
+import type { ProductGrouped, ProductVariant as GroupedVariant } from '@/types';
 
 /**
- * Item do carrinho (extende SaleItem com dados do produto)
+ * Item do carrinho — suporta produto simples e produto com variante.
+ * `cart_key` é o identificador único:
+ *   - Produto simples: "p_{product_id}"
+ *   - Variante:        "v_{variant_id}"
  */
 export interface CartItem extends SaleItem {
+  cart_key: string;
+  /** Rótulo da variante para exibição: "M / Azul" */
+  variant_label?: string;
+  /** Produto (com name/sku ajustados para a variante quando aplicável) */
   product: Product;
 }
 
@@ -36,9 +44,10 @@ interface CartState {
 
   // Actions - Items
   addItem: (product: Product, quantity?: number) => void;
-  removeItem: (product_id: number) => void;
-  updateQuantity: (product_id: number, quantity: number) => void;
-  updateItemDiscount: (product_id: number, discount: number) => void;
+  addVariantItem: (product: ProductGrouped, variant: GroupedVariant, quantity?: number) => void;
+  removeItem: (cart_key: string) => void;
+  updateQuantity: (cart_key: string, quantity: number) => void;
+  updateItemDiscount: (cart_key: string, discount: number) => void;
   clearItems: () => void;
 
   // Actions - Payments
@@ -76,31 +85,30 @@ export const useCartStore = create<CartState>()(
       remaining: 0,
 
       /**
-       * Adicionar item ao carrinho
+       * Adicionar produto simples ao carrinho
        */
       addItem: (product: Product, quantity: number = 1) => {
+        const cart_key = `p_${product.id}`;
         const items = get().items;
-        const existingItem = items.find((item) => item.product_id === product.id);
+        const existingItem = items.find((item) => item.cart_key === cart_key);
 
         if (existingItem) {
-          // Atualizar quantidade do item existente
           set({
             items: items.map((item) =>
-              item.product_id === product.id
+              item.cart_key === cart_key
                 ? { ...item, quantity: item.quantity + quantity }
                 : item
             ),
           });
         } else {
-          // Adicionar novo item
           const newItem: CartItem = {
+            cart_key,
             product_id: product.id,
             product,
             quantity,
-            unit_price: product.price, 
+            unit_price: product.price,
             discount: 0,
           };
-
           set({ items: [...items, newItem] });
         }
 
@@ -108,39 +116,91 @@ export const useCartStore = create<CartState>()(
       },
 
       /**
-       * Remover item do carrinho
+       * Adicionar produto com variante ao carrinho
        */
-      removeItem: (product_id: number) => {
+      addVariantItem: (product: ProductGrouped, variant: GroupedVariant, quantity: number = 1) => {
+        const cart_key = `v_${variant.id}`;
+        const items = get().items;
+        const existingItem = items.find((item) => item.cart_key === cart_key);
+
+        // Montar label da variante: "M / Azul"
+        const parts = [variant.size, variant.color].filter(Boolean);
+        const variant_label = parts.length > 0 ? parts.join(' / ') : undefined;
+
+        // Objeto Product virtual para exibição
+        const virtualProduct: Product = {
+          id: product.id,
+          name: product.name,
+          sku: variant.sku,
+          price: variant.price,
+          cost_price: variant.cost_price ?? undefined,
+          current_stock: variant.current_stock,
+          is_active: true,
+          is_catalog: false,
+          category_id: product.category_id,
+          brand: product.brand,
+          image_url: product.image_url,
+        } as Product;
+
+        if (existingItem) {
+          set({
+            items: items.map((item) =>
+              item.cart_key === cart_key
+                ? { ...item, quantity: item.quantity + quantity }
+                : item
+            ),
+          });
+        } else {
+          const newItem: CartItem = {
+            cart_key,
+            product_id: product.id,
+            variant_id: variant.id,
+            variant_label,
+            product: virtualProduct,
+            quantity,
+            unit_price: variant.price,
+            discount: 0,
+          };
+          set({ items: [...items, newItem] });
+        }
+
+        get().calculateTotals();
+      },
+
+      /**
+       * Remover item do carrinho por cart_key
+       */
+      removeItem: (cart_key: string) => {
         set({
-          items: get().items.filter((item) => item.product_id !== product_id),
+          items: get().items.filter((item) => item.cart_key !== cart_key),
         });
         get().calculateTotals();
       },
 
       /**
-       * Atualizar quantidade de um item
+       * Atualizar quantidade de um item por cart_key
        */
-      updateQuantity: (product_id: number, quantity: number) => {
+      updateQuantity: (cart_key: string, quantity: number) => {
         if (quantity <= 0) {
-          get().removeItem(product_id);
+          get().removeItem(cart_key);
           return;
         }
 
         set({
           items: get().items.map((item) =>
-            item.product_id === product_id ? { ...item, quantity } : item
+            item.cart_key === cart_key ? { ...item, quantity } : item
           ),
         });
         get().calculateTotals();
       },
 
       /**
-       * Atualizar desconto de um item
+       * Atualizar desconto de um item por cart_key
        */
-      updateItemDiscount: (product_id: number, discount: number) => {
+      updateItemDiscount: (cart_key: string, discount: number) => {
         set({
           items: get().items.map((item) =>
-            item.product_id === product_id ? { ...item, discount } : item
+            item.cart_key === cart_key ? { ...item, discount } : item
           ),
         });
         get().calculateTotals();

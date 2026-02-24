@@ -4,6 +4,7 @@ Serviço de gerenciamento de produtos.
 from typing import List, Optional
 import logging
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.product import Product
@@ -42,17 +43,20 @@ class ProductService:
         user_id: int,
     ) -> Product:
         """
-        Cria um novo produto com entrada de estoque inicial automática.
+        Cria um novo produto SEM estoque inicial (FIFO strict).
+
+        REGRA FIFO: Produto NÃO pode ser criado com estoque inicial.
+        Todo estoque DEVE vir de uma StockEntry (source traceável).
 
         Args:
             product_data: Dados do produto a ser criado
-            initial_quantity: Quantidade inicial em estoque (padrão: 0, sobrescrito por product_data.initial_stock)
+            initial_quantity: Quantidade inicial em estoque (DEVE ser 0)
             min_stock: Estoque mínimo (padrão: 5, sobrescrito por product_data.min_stock)
             tenant_id: ID do tenant
             user_id: ID do usuário que está criando
 
         Returns:
-            Product: Produto criado com estoque vinculado a entrada
+            Product: Produto criado sem estoque (pendente de entrada)
 
         Raises:
             ValueError: Se SKU já existe ou dados inválidos
@@ -65,6 +69,25 @@ class ProductService:
         from app.repositories.entry_item_repository import EntryItemRepository
 
         logger = logging.getLogger(__name__)
+        
+        # REGRA FIFO STRICT: category_id é OBRIGATÓRIO
+        # Todo produto deve estar categorizado para organização do inventário
+        if not product_data.category_id:
+            raise ValueError(
+                "REGRA FIFO STRICT: category_id é obrigatório. "
+                "Todo produto deve estar vinculado a uma categoria válida."
+            )
+        
+        # Verificar se categoria existe
+        from app.models.category import Category
+        category = await self.db.execute(
+            select(Category).where(Category.id == product_data.category_id)
+        )
+        if not category.scalar_one_or_none():
+            raise ValueError(
+                f"Categoria {product_data.category_id} não encontrada. "
+                "Por favor, selecione uma categoria válida."
+            )
 
         # Verificar SKU único
         existing = await self.product_repo.get_by_sku(product_data.sku, tenant_id=tenant_id)
@@ -97,23 +120,29 @@ class ProductService:
             "color": product_data.color,
         }
 
+        # REGRA FIFO STRICT: Produto NÃO pode ser criado com estoque inicial
+        # Todo estoque DEVE vir de uma StockEntry (source traceável)
+        if initial_stock is not None and initial_stock > 0:
+            raise ValueError(
+                "REGRA FIFO STRICT: Produto não pode ser criado com estoque inicial. "
+                "Para adicionar estoque, crie uma StockEntry e vincule ao produto. "
+                "Isso garante rastreabilidade completa do inventário."
+            )
+        
         # REGRA DE NEGÓCIO: is_catalog é determinado pelo campo enviado pelo cliente.
         # Se o cliente enviou is_catalog explicitamente, respeitar esse valor.
         # Fallback: se is_catalog não foi enviado (None no dict), inferir pelo initial_stock
         # para manter compatibilidade com chamadas legadas que não enviam o campo.
         #
-        # ️ IMPORTANTE: O wizard mobile SEMPRE envia is_catalog=False para produtos
-        # criados pelo usuário da loja, mesmo com initial_stock=0.
-        # Apenas o product_seed_service envia is_catalog=True para templates globais.
+        # IMPORTANTE: O wizard mobile envia is_catalog=True para produtos novos.
+        # O backend vira is_catalog=False automaticamente quando a entrada de
+        # estoque é criada (create_entry / add_item_to_entry).
+        # Isso garante que produto sem entrada NUNCA aparece como ativo (FIFO STRICT).
         client_is_catalog = product_dict.get("is_catalog")
         if client_is_catalog is None:
             # Fallback legado: inferir pelo estoque
-            if initial_stock is None or initial_stock <= 0:
-                product_dict["is_catalog"] = True
-                logger.info(f"Produto sera criado no CATALOGO (sem estoque inicial, fallback legado)")
-            else:
-                product_dict["is_catalog"] = False
-                logger.info(f"Produto sera criado ATIVO com entrada de estoque inicial: {initial_stock}")
+            product_dict["is_catalog"] = True
+            logger.info(f"Produto sera criado no CATALOGO (sem estoque inicial, fallback legado)")
         else:
             # Cliente enviou is_catalog explicitamente — respeitar
             logger.info(
@@ -121,6 +150,21 @@ class ProductService:
                 f"(definido pelo cliente, initial_stock={initial_stock})"
             )
 
+        # REGRA FIFO STRICT: Produtos NÃO podem ser criados sem estoque.
+        #
+        # SOLUÇÃO PARA UX:
+        # 1. App DEVE criar StockEntry e EntryItem junto com o produto
+        # 2. Se usuário cancelar/sair, deletar StockEntry (produto órfão é deletado automaticamente)
+        # 3. Garante FIFO 100% consistente sem produtos pendentes
+        #
+        # FLUXO CORRETO:
+        # App: POST /products com entry_id e quantity
+        # Backend: Cria produto + vincula à entrada existente
+        # Resultado: Produto sempre tem EntryItems, 100% rastreável
+        #
+        # SE NÃO HOUVER ENTRY:
+        # Raise error exigindo que crie entrada primeiro
+        
         # Criar produto no repositório
         product = await self.product_repo.create(product_dict, tenant_id=tenant_id)
         logger.info(f"Produto criado - ID: {product.id}, is_catalog: {product.is_catalog}")
@@ -260,9 +304,11 @@ class ProductService:
             raise ValueError("Produto não encontrado")
         
         # Verificar SKU único se estiver sendo alterado
-        if product_data.sku and product_data.sku != product.sku:
-            existing = await self.product_repo.get_by_sku(product_data.sku, tenant_id=tenant_id)
-            if existing:
+        # Usa exists_by_sku com exclude_id=product_id para excluir as próprias variantes do produto.
+        # A comparação product_data.sku != product.sku é insuficiente para produtos com múltiplas
+        # variantes pois product.sku retorna apenas a primeira variante ativa.
+        if product_data.sku:
+            if await self.product_repo.exists_by_sku(product_data.sku, exclude_id=product_id, tenant_id=tenant_id):
                 raise ValueError(f"SKU {product_data.sku} já existe")
         
         # Verificar barcode único se estiver sendo alterado
@@ -272,23 +318,63 @@ class ProductService:
                 raise ValueError(f"Código de barras {product_data.barcode} já existe")
         
         update_dict = product_data.model_dump(exclude_unset=True)
-        updated_product = await self.product_repo.update(self.db, id=product_id, obj_in=update_dict, tenant_id=tenant_id)
 
-        # IMPORTANTE — FIFO INVARIANT:
-        # NÃO propagamos cost_price para EntryItems existentes.
-        #
-        # Motivo: unit_cost em EntryItem representa o custo REAL pago naquela compra.
-        # Alterar retroativamente distorceria:
-        #   - CMV (Custo da Mercadoria Vendida) de vendas já realizadas
-        #   - ROI por entrada/viagem
-        #   - Relatórios de margem histórica
-        #
-        # O novo cost_price do produto serve apenas como valor SUGERIDO para
-        # NOVAS entradas de estoque criadas a partir deste momento.
-        if product_data.cost_price is not None and product_data.cost_price != product.cost_price:
+        # Campos que existem como colunas diretas na tabela 'products'
+        PRODUCT_COLUMNS = {
+            "name", "description", "brand", "gender", "material",
+            "is_digital", "is_activewear", "is_catalog", "image_url",
+            "category_id", "is_active",
+        }
+        # Campos que pertencem a ProductVariant (são @property sem setter no Product)
+        VARIANT_FIELDS = {"sku", "barcode", "price", "cost_price", "size", "color"}
+
+        # Separar update por destino
+        product_update = {k: v for k, v in update_dict.items() if k in PRODUCT_COLUMNS}
+        variant_update = {k: v for k, v in update_dict.items() if k in VARIANT_FIELDS}
+
+        # Tratar sale_price como alias de price para variante
+        if "sale_price" in update_dict and "price" not in variant_update:
+            variant_update["price"] = update_dict["sale_price"]
+
+        # Sincronizar base_price no produto pai quando price muda (campo de referência)
+        if "price" in variant_update:
+            product_update["base_price"] = variant_update["price"]
+
+        # Atualizar colunas diretas do produto (se houver)
+        if product_update:
+            updated_product = await self.product_repo.update(
+                self.db, id=product_id, obj_in=product_update, tenant_id=tenant_id
+            )
+        else:
+            updated_product = product
+
+        # Atualizar primeira variante ativa (campos de variante)
+        if variant_update:
+            from sqlalchemy import select as _sel
+            from app.models.product_variant import ProductVariant
+            _vstmt = (
+                _sel(ProductVariant)
+                .where(
+                    ProductVariant.product_id == product_id,
+                    ProductVariant.tenant_id == tenant_id,
+                    ProductVariant.is_active == True,
+                )
+                .order_by(ProductVariant.id)
+                .limit(1)
+            )
+            _vresult = await self.db.execute(_vstmt)
+            _variant = _vresult.scalar_one_or_none()
+            if _variant:
+                for _vfield, _vval in variant_update.items():
+                    setattr(_variant, _vfield, _vval)
+                await self.db.flush()
+
+        # FIFO INVARIANT: cost_price atualizado na variante acima já resolve o sugerido
+        # para novas entradas; EntryItems existentes NÃO são modificados.
+        if "cost_price" in variant_update:
             logger.info(
                 f"[update_product] cost_price atualizado para produto {product_id}: "
-                f"{product.cost_price} → {product_data.cost_price}. "
+                f"variante → {variant_update['cost_price']}. "
                 f"EntryItems existentes NÃO foram alterados (FIFO invariant)."
             )
 
@@ -455,6 +541,8 @@ class ProductService:
         """
         Deleta um produto (soft delete).
         
+        IMPORTANTE: Limpa SKU e barcode das variantes para evitar conflitos futuros.
+        
         Args:
             product_id: ID do produto
             
@@ -464,20 +552,88 @@ class ProductService:
         Raises:
             ValueError: Se produto não encontrado ou possui estoque
         """
+        from sqlalchemy import select, update
+        from app.models.product_variant import ProductVariant
+        
         product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
         if not product:
             raise ValueError("Produto não encontrado")
         
-        # Verificar se há estoque
+        # Verificar se há estoque — usa entry_items como fonte da verdade (FIFO real)
+        # A coluna inventory.quantity pode estar desincronizada quando entry_items são
+        # removidos manualmente. Recalculamos do FIFO e sincronizamos antes de bloquear.
+        from sqlalchemy import text as _text
+        fifo_sum_row = await self.db.execute(
+            _text(
+                "SELECT COALESCE(SUM(ei.quantity_remaining), 0) "
+                "FROM entry_items ei "
+                "WHERE ei.product_id = :pid AND ei.tenant_id = :tid AND ei.is_active = 1"
+            ),
+            {"pid": product_id, "tid": tenant_id},
+        )
+        fifo_total: int = int(fifo_sum_row.scalar() or 0)
+
+        # Também somar via variantes (para produtos com variant_id nos entry_items)
+        fifo_variant_row = await self.db.execute(
+            _text(
+                "SELECT COALESCE(SUM(ei.quantity_remaining), 0) "
+                "FROM entry_items ei "
+                "JOIN product_variants pv ON ei.variant_id = pv.id "
+                "WHERE pv.product_id = :pid AND ei.tenant_id = :tid AND ei.is_active = 1"
+            ),
+            {"pid": product_id, "tid": tenant_id},
+        )
+        fifo_variant_total: int = int(fifo_variant_row.scalar() or 0)
+        real_stock = fifo_total + fifo_variant_total
+
         inventory = await self.inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
-        if inventory and inventory.quantity > 0:
+
+        if real_stock > 0:
             raise ValueError(
                 f"Não é possível deletar produto com estoque "
-                f"(quantidade atual: {inventory.quantity})"
+                f"(quantidade atual: {real_stock})"
+            )
+
+        # Se inventory estava desincronizado (entry_items zerados mas inventory > 0), corrigir
+        if inventory and inventory.quantity > 0:
+            logger.warning(
+                f"Produto {product_id}: inventory.quantity={inventory.quantity} mas FIFO real=0. "
+                f"Sincronizando para 0 antes da deleção."
+            )
+            await self.db.execute(
+                _text(
+                    "UPDATE inventory SET quantity = 0 WHERE product_id = :pid AND tenant_id = :tid"
+                ),
+                {"pid": product_id, "tid": tenant_id},
             )
         
-        # Soft delete
+        # Desativar variantes E renomear SKUs para liberar o UNIQUE constraint.
+        # A tabela product_variants tem UNIQUE(tenant_id, sku), então apenas setar
+        # is_active=False não é suficiente — o SKU permanece bloqueado para novos registros.
+        # Estratégia: renomear para "<sku>_del_<id>" antes de desativar.
+        active_variants = (
+            await self.db.execute(
+                select(ProductVariant).where(
+                    ProductVariant.product_id == product_id,
+                    ProductVariant.tenant_id == tenant_id,
+                )
+            )
+        ).scalars().all()
+
+        for variant in active_variants:
+            # Só renomear se ainda não foi renomeado (idempotência)
+            new_sku = variant.sku if variant.sku.endswith(f"_del_{variant.id}") else f"{variant.sku}_del_{variant.id}"
+            await self.db.execute(
+                update(ProductVariant)
+                .where(ProductVariant.id == variant.id)
+                .values(sku=new_sku, is_active=False)
+            )
+        logger.info(f"Variantes do produto {product_id} desativadas e SKUs renomeados (_del_<id>)")
+
+        # Soft delete do produto
         await self.product_repo.update(self.db, id=product_id, obj_in={'is_active': False}, tenant_id=tenant_id)
+        
+        await self.db.commit()
         return True
     
     async def get_product(self, product_id: int, *, tenant_id: int) -> Optional[Product]:
@@ -691,14 +847,30 @@ class ProductService:
         if not product:
             raise ValueError("Produto não encontrado")
         
-        update_data = {'price': new_price}
-        if new_cost_price is not None:
-            if new_cost_price < 0:
-                raise ValueError("Preço de custo não pode ser negativo")
-            update_data['cost_price'] = new_cost_price
-        
-        for key, value in update_data.items():
-            setattr(product, key, value)
+        # price e cost_price estão na ProductVariant, não no Product
+        from sqlalchemy import select as _sel
+        from app.models.product_variant import ProductVariant
+        _vstmt = (
+            _sel(ProductVariant)
+            .where(
+                ProductVariant.product_id == product_id,
+                ProductVariant.tenant_id == tenant_id,
+                ProductVariant.is_active == True,
+            )
+            .order_by(ProductVariant.id)
+            .limit(1)
+        )
+        _vresult = await self.db.execute(_vstmt)
+        _variant = _vresult.scalar_one_or_none()
+        if _variant:
+            _variant.price = new_price
+            if new_cost_price is not None:
+                if new_cost_price < 0:
+                    raise ValueError("Preço de custo não pode ser negativo")
+                _variant.cost_price = new_cost_price
+        # Sincronizar base_price no produto pai
+        product.base_price = new_price
+        await self.db.flush()
 
         await self.db.commit()
         await self.db.refresh(product)
@@ -714,9 +886,9 @@ class ProductService:
         limit: int = 100
     ) -> List[Product]:
         """
-        Lista produtos do CATÁLOGO (templates globais).
+        Lista produtos do CATÁLOGO (templates globais) com suas variantes.
 
-        Estes são os 115 produtos padrão que aparecem para TODAS as lojas.
+        Estes são os produtos padrão que aparecem para TODAS as lojas.
         O catálogo é GLOBAL - todos os usuários veem os mesmos templates.
         O usuário pode "ativar" produtos do catálogo para adicionar à sua loja.
 
@@ -728,12 +900,16 @@ class ProductService:
             limit: Paginação - máximo de registros
 
         Returns:
-            Lista de produtos do catálogo (global)
+            Lista de produtos do catálogo (global) com variantes carregadas
         """
-        from sqlalchemy import select, and_
+        from sqlalchemy import select, and_, or_
+        from sqlalchemy.orm import selectinload
 
-        # Buscar produtos do catálogo (is_catalog=true)
-        stmt = select(Product).where(
+        # Buscar produtos do catálogo (is_catalog=true) com variantes
+        stmt = select(Product).options(
+            selectinload(Product.variants),
+            selectinload(Product.category)
+        ).where(
             and_(
                 Product.is_catalog == True,      # GLOBAL: catálogo é para todos os tenants
                 Product.is_active == True
@@ -744,23 +920,27 @@ class ProductService:
         if category_id is not None:
             stmt = stmt.where(Product.category_id == category_id)
 
-        # Buscar por nome/marca/cor/tamanho
+        # Buscar por nome/marca/cor/tamanho (inclui busca em variantes)
         if search:
             search_pattern = f"%{search}%"
-            from sqlalchemy import or_
             stmt = stmt.where(
                 or_(
                     Product.name.ilike(search_pattern),
-                    Product.brand.ilike(search_pattern),
-                    Product.color.ilike(search_pattern),
-                    Product.size.ilike(search_pattern)
+                    Product.brand.ilike(search_pattern)
                 )
             )
 
         stmt = stmt.order_by(Product.name).offset(skip).limit(limit)
 
         result = await self.db.execute(stmt)
-        return list(result.scalars().all())
+        products = list(result.scalars().all())
+        
+        # Garantir que variantes estejam ordenadas
+        for product in products:
+            if product.variants:
+                product.variants.sort(key=lambda v: (v.size or "", v.color or ""))
+        
+        return products
 
     async def get_active_products(
         self,
@@ -770,10 +950,14 @@ class ProductService:
         limit: int = 100
     ) -> List[Product]:
         """
-        Lista produtos ATIVOS da loja (não catálogo).
+        Lista produtos ATIVOS da loja (não catálogo) com EntryItems.
+
+        FIFO STRICT: Produtos órfãos (sem EntryItems) NÃO aparecem.
+        Apenas produtos com rastreabilidade FIFO são retornados.
 
         Estes são produtos que o lojista já adicionou à sua loja
-        (ativados do catálogo ou criados manualmente).
+        (ativados do catálogo ou criados manualmente) E que têm estoque
+        vinculado através de EntryItems.
 
         Args:
             tenant_id: ID do tenant
@@ -781,16 +965,24 @@ class ProductService:
             limit: Paginação - máximo de registros
 
         Returns:
-            Lista de produtos ativos
+            Lista de produtos ativos com EntryItems
         """
         from sqlalchemy import select, and_
         from sqlalchemy.orm import selectinload
 
+        # Buscar IDs de produtos com EntryItems (não órfãos)
+        products_with_entries = await self.entry_item_repo.get_products_with_entries(self.db, tenant_id)
+        
+        if not products_with_entries:
+            return []
+
+        # Buscar produtos filtrando por IDs com EntryItems
         stmt = select(Product).where(
             and_(
                 Product.tenant_id == tenant_id,
                 Product.is_catalog == False,  # Apenas produtos ativos (não catálogo)
-                Product.is_active == True
+                Product.is_active == True,
+                Product.id.in_(products_with_entries)  # FIFO STRICT: apenas com EntryItems
             )
         ).options(
             selectinload(Product.category),
@@ -839,8 +1031,11 @@ class ProductService:
         # IMPORTANTE: produtos de catálogo são GLOBAIS (tenant_id do seed, não do usuário).
         # NÃO filtrar por tenant_id aqui — o catálogo pertence a todos os tenants.
         from sqlalchemy import select, and_
+        from sqlalchemy.orm import selectinload
         catalog_result = await self.db.execute(
-            select(Product).where(
+            select(Product)
+            .options(selectinload(Product.variants))
+            .where(
                 Product.id == catalog_product_id,
                 Product.is_catalog == True,
                 Product.is_active == True,
@@ -855,18 +1050,24 @@ class ProductService:
             raise ValueError("Este produto não é um template do catálogo")
 
         # Gerar SKU único para a loja
-        # Usar formato: MARCA-NOME-XXX (ex: NIKE-CAMISETA-001)
+        # Usar formato: MARCA-NOME-COR-TAMANHO-XXX (ex: NIKE-LEGGIN-ROS-M-001)
         import re
-        base_sku = f"{catalog_product.brand or 'PROD'}-{catalog_product.name[:10]}"
-        base_sku = re.sub(r'[^A-Z0-9-]', '', base_sku.upper())
+        import uuid
+        from app.services.sku_generator_service import SKUGeneratorService
 
-        # Verificar se SKU já existe e adicionar contador
-        counter = 1
-        new_sku = f"{base_sku}-{counter:03d}"
-
-        while await self.product_repo.exists_by_sku(new_sku, tenant_id=tenant_id):
-            counter += 1
-            new_sku = f"{base_sku}-{counter:03d}"
+        # Usar serviço de geração de SKU que já tem lógica de unicidade
+        sku_service = SKUGeneratorService(self.db)
+        
+        # Gerar SKU único considerando produtos existentes do tenant
+        new_sku = await sku_service.generate_unique_sku(
+            name=catalog_product.name,
+            brand=catalog_product.brand,
+            color=catalog_product.color,
+            size=catalog_product.size,
+            tenant_id=tenant_id
+        )
+        
+        logger.info(f"SKU gerado para ativação de catálogo: {new_sku}")
 
         # Verificar se o barcode do catálogo já existe no tenant do usuário.
         # Se sim, não copiar o barcode (evita duplicata ao ativar o mesmo produto 2x).

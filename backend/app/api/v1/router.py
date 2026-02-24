@@ -22,6 +22,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     auth,
     products,
+    products_grouped,
     sales,
     inventory,
     customers,
@@ -53,6 +54,12 @@ api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(
     auth.router,
     tags=["Autenticação"]
+)
+
+# Produtos agrupados por variantes (deve vir ANTES de products para evitar conflito com /{product_id})
+api_router.include_router(
+    products_grouped.router,
+    tags=["Produtos Agrupados"]
 )
 
 # Gerenciamento de produtos

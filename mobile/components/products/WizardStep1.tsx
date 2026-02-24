@@ -240,8 +240,22 @@ export default function WizardStep1({
     return (
       <View style={styles.catalogContainer}>
 
-        {/* ── Banner de seleção + CTA fixo no topo ── */}
-        {selectedProduct ? (
+        {/* Campo de busca */}
+        <TextInput
+          label="Buscar no catálogo..."
+          value={catalogSearch}
+          onChangeText={setCatalogSearch}
+          mode="outlined"
+          style={styles.catalogSearchInput}
+          left={<TextInput.Icon icon="magnify" />}
+          right={catalogSearch ? (
+            <TextInput.Icon icon="close" onPress={() => setCatalogSearch('')} />
+          ) : undefined}
+          outlineStyle={styles.catalogSearchOutline}
+        />
+
+        {/* Banner de seleção - aparece entre o input de busca e a lista de produtos */}
+        {selectedProduct && (
           <View style={styles.selectionBanner}>
             <View style={styles.selectionBannerLeft}>
               <View style={styles.selectionCheck}>
@@ -263,7 +277,7 @@ export default function WizardStep1({
                 onPress={() => wizard.selectCatalogProduct(null as any)}
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                <Ionicons name="close" size={16} color={Colors.light.textSecondary} />
+                <Ionicons name="close" size={18} color={Colors.light.textSecondary} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={styles.selectionUseBtn}
@@ -271,30 +285,19 @@ export default function WizardStep1({
                 activeOpacity={0.85}
               >
                 <Text style={styles.selectionUseBtnText}>Usar</Text>
-                <Ionicons name="arrow-forward" size={14} color="#fff" />
+                <Ionicons name="arrow-forward" size={16} color="#fff" />
               </TouchableOpacity>
             </View>
           </View>
-        ) : (
+        )}
+
+        {/* Hint quando nenhum produto selecionado */}
+        {!selectedProduct && (
           <View style={styles.catalogHint}>
             <Ionicons name="hand-left-outline" size={14} color={Colors.light.textTertiary} />
             <Text style={styles.catalogHintText}>Toque em um produto para selecioná-lo</Text>
           </View>
         )}
-
-        {/* Campo de busca */}
-        <TextInput
-          label="Buscar no catálogo..."
-          value={catalogSearch}
-          onChangeText={setCatalogSearch}
-          mode="outlined"
-          style={styles.catalogSearchInput}
-          left={<TextInput.Icon icon="magnify" />}
-          right={catalogSearch ? (
-            <TextInput.Icon icon="close" onPress={() => setCatalogSearch('')} />
-          ) : undefined}
-          outlineStyle={styles.catalogSearchOutline}
-        />
 
         {/* Lista de produtos */}
         {catalogLoading ? (
@@ -695,17 +698,16 @@ export default function WizardStep1({
   return (
     <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior="padding"
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
-      {/* Banner fixo no topo quando produto selecionado no catálogo */}
-      {renderFixedSelectionBanner()}
-      
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}
+        automaticallyAdjustKeyboardInsets={true}
       >
         {/* Seleção de método */}
         {renderMethodSelection()}
@@ -741,7 +743,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: theme.spacing.md,
-    paddingBottom: 320,
+    paddingBottom: 40,
   },
   methodContainer: {
     marginBottom: theme.spacing.lg,

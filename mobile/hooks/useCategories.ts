@@ -1,25 +1,15 @@
-import { useQuery } from '@tanstack/react-query';
-import api from '@/services/api';
-import type { Category } from '@/types';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  getCategories,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  type CategoryUpdate,
+} from '@/services/categoryService';
+import type { CategoryCreate } from '@/types';
 
 /**
- * Buscar todas as categorias
- */
-const getCategories = async (): Promise<Category[]> => {
-  try {
-    const { data } = await api.get<any>('/categories');
-    // Normaliza: API pode retornar array direto ou objeto paginado { items: [...] }
-    if (Array.isArray(data)) return data;
-    if (data && Array.isArray(data.items)) return data.items;
-    if (data && Array.isArray(data.categories)) return data.categories;
-    return [];
-  } catch (error) {
-    throw error;
-  }
-};
-
-/**
- * Hook para gerenciar categorias
+ * Hook para listar categorias
  */
 export const useCategories = () => {
   const { data: categories, isLoading, isError, refetch } = useQuery({
@@ -33,4 +23,44 @@ export const useCategories = () => {
     isError,
     refetch,
   };
+};
+
+/**
+ * Hook para criar categoria
+ */
+export const useCreateCategory = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (category: CategoryCreate) => createCategory(category),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    },
+  });
+};
+
+/**
+ * Hook para atualizar categoria
+ */
+export const useUpdateCategory = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: CategoryUpdate }) =>
+      updateCategory(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    },
+  });
+};
+
+/**
+ * Hook para deletar categoria
+ */
+export const useDeleteCategory = () => {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => deleteCategory(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['categories'] });
+    },
+  });
 };

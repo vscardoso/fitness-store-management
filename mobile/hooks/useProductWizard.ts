@@ -15,10 +15,11 @@ import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { scanProductImage } from '@/services/aiService';
-import { createProduct, getProductById, getCatalogProducts } from '@/services/productService';
+import { createProduct, getProductById, getCatalogProducts, updateProduct } from '@/services/productService';
+import { createProductWithVariants } from '@/services/productVariantService';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { logError, logWarn, logInfo } from '@/services/debugLog';
-import { generateSKU } from '@/utils/skuGenerator';
+import { generateSKU, generateVariantSKU } from '@/utils/skuGenerator';
 import type {
   WizardStep,
   WizardState,
@@ -28,6 +29,7 @@ import type {
   LinkedEntryData,
 } from '@/types/wizard';
 import type { Product, ProductCreate, ProductScanResult } from '@/types';
+import type { ProductVariantCreate } from '@/types/productVariant';
 
 // Tipo de retorno do hook para uso nos componentes
 export interface UseProductWizardReturn {
@@ -60,11 +62,22 @@ export interface UseProductWizardReturn {
 
   // Step 3 - Entrada
   goToNewEntry: (quantity?: number) => void;
+  /** Quando o produto tem variantes, passa qtd por variante */
+  goToNewEntryWithVariants: (variantQtys: Record<number, number>) => void;
   goToExistingEntry: (quantity?: number) => void;
+  /** Quando o produto tem variantes, vincula cada variante à entrada existente.
+   *  Para produtos atômicos (novos), cria o produto na API antes de navegar. */
+  goToExistingEntryWithVariants: (variantQtys: Record<number, number>) => Promise<void> | void;
   skipEntry: () => void;
 
   // Step 4 - Complete (retorno de entrada)
   handleEntryCreated: (entryData: LinkedEntryData, productData?: Partial<Product> | null) => void;
+
+  setHasVariants: (value: boolean) => void;
+  setVariantSizes: (sizes: string[]) => void;
+  setVariantColors: (colors: string[]) => void;
+  setVariantPrice: (key: string, price: number) => void;
+  setColorSizes: (colorSizes: Record<string, string[]>) => void;
 
   // Utils
   resetWizard: () => void;
@@ -90,6 +103,11 @@ const INITIAL_STATE: WizardState = {
   isCreating: false,
   createError: null,
   wizardDialog: null,
+  hasVariants: false,
+  variantSizes: [],
+  variantColors: [],
+  variantPrices: {},
+  colorSizes: {},
 };
 
 const STEP_ORDER: WizardStep[] = ['identify', 'confirm', 'entry', 'complete'];
@@ -180,27 +198,7 @@ export function useProductWizard() {
 
   const goToStep = useCallback((step: WizardStep) => {
     setState(prev => {
-      // Se está indo para 'confirm' e não tem SKU, gerar automaticamente
-      if (step === 'confirm' && !prev.productData.sku) {
-        const autoSku = generateSKU(
-          prev.productData.name || '',
-          prev.productData.brand,
-          prev.productData.color,
-          prev.productData.size
-        );
-
-        logInfo('Wizard', 'SKU gerado automaticamente', { sku: autoSku });
-
-        return {
-          ...prev,
-          currentStep: step,
-          productData: {
-            ...prev.productData,
-            sku: autoSku,
-          },
-        };
-      }
-
+      // NÃO gerar SKU aqui - WizardStep2 faz isso com a lista de SKUs existentes
       return { ...prev, currentStep: step };
     });
   }, []);
@@ -379,12 +377,13 @@ export function useProductWizard() {
   const selectCatalogProduct = useCallback((product: Product) => {
     // Pré-preenche productData com os dados do produto do catálogo
     // O produto será criado como is_catalog=false (cópia da loja) no Step 2
+    // IMPORTANTE: NÃO copiar o SKU do catálogo - será gerado automaticamente no Step 2
     setState(prev => ({
       ...prev,
       selectedCatalogProduct: product,
       productData: {
         name: product.name,
-        sku: product.sku,
+        sku: undefined, // NÃO copiar SKU - será gerado automaticamente no Step 2
         barcode: product.barcode || undefined,
         description: product.description || undefined,
         brand: product.brand || undefined,
@@ -435,9 +434,13 @@ export function useProductWizard() {
       errors.price = 'Preço de venda é obrigatório';
     }
 
+    if (state.hasVariants && state.variantSizes.length === 0 && state.variantColors.length === 0) {
+      errors.variants = 'Selecione pelo menos um tamanho ou cor';
+    }
+
     setState(prev => ({ ...prev, validationErrors: errors }));
     return Object.keys(errors).length === 0;
-  }, [state.productData]);
+  }, [state.productData, state.hasVariants, state.variantSizes, state.variantColors]);
 
   const handleCreateProduct = useCallback(async () => {
     if (!validateProductData()) {
@@ -460,16 +463,87 @@ export function useProductWizard() {
         price: state.productData.price!,
         initial_stock: 0, // Sempre 0 - estoque via entrada FIFO
         min_stock: 5,
-        // Produto criado pelo wizard é SEMPRE da loja (is_catalog=false),
-        // independente de ter estoque inicial ou não.
-        // O backend NAO deve inferir is_catalog pelo initial_stock.
-        is_catalog: false,
+        // Produto criado pelo wizard começa como CATÁLOGO (is_catalog=true).
+        // O backend vira is_catalog=false automaticamente quando uma entrada
+        // de estoque é criada com este produto (create_entry / add_item_to_entry).
+        // Isso impede produtos órfãos: se a entrada falhar, o produto fica
+        // no catálogo e não aparece como ativo sem estoque.
+        is_catalog: true,
       };
 
-      let created = await createProduct(productData);
+      let created;
 
-      // Se tiver imagem capturada, fazer upload
-      if (state.capturedImage) {
+      // ── Produto com variantes ───────────────────────────────────────
+      if (state.hasVariants && (state.variantSizes.length > 0 || state.variantColors.length > 0)) {
+        const colors = state.variantColors.length > 0 ? state.variantColors : [''];
+        // SKU base do produto (sem cor/tamanho — é o "tronco" da família)
+        const baseSku = state.productData.sku!.trim().toUpperCase();
+
+        const variantsList: ProductVariantCreate[] = [];
+        // Acumula SKUs já gerados nesta sessão para garantir unicidade entre variantes irmãs
+        const usedSkus: string[] = [];
+
+        for (const color of colors) {
+          const sizesForColor = (state.colorSizes[color] ?? state.variantSizes);
+          const sizes = sizesForColor.length > 0 ? sizesForColor : [''];
+          for (const size of sizes) {
+            const key = `${color}-${size}`;
+            const price = state.variantPrices[key] ?? (state.productData.price ?? 0);
+            // SKU de variante gerado pelo mesmo algoritmo padronizado
+            const variantSku = generateVariantSKU(baseSku, color || null, size || null, usedSkus);
+            usedSkus.push(variantSku);
+            variantsList.push({
+              sku: variantSku,
+              size: size || undefined,
+              color: color || undefined,
+              price,
+              cost_price: state.productData.cost_price,
+            });
+          }
+        }
+
+        // FLUXO ATÔMICO: não criar produto na API agora.
+        // Produto + variantes + entrada são criados em uma única transação
+        // quando o usuário confirma a entrada em entries/add.
+        // Isso garante que NENHUM produto seja criado sem entrada de estoque.
+        logInfo('Wizard', 'handleCreateProduct - produto com variantes: usando fluxo atômico', {
+          productName: state.productData.name,
+          variantsCount: variantsList.length,
+        });
+
+        created = {
+          id: -1, // Sentinela: produto ainda não existe no banco
+          name: state.productData.name!.trim(),
+          sku: baseSku,
+          barcode: state.productData.barcode?.trim() || undefined,
+          description: state.productData.description?.trim() || undefined,
+          brand: state.productData.brand?.trim() || undefined,
+          category_id: state.productData.category_id!,
+          price: state.productData.price ?? 0,
+          cost_price: state.productData.cost_price,
+          current_stock: 0,
+          min_stock_threshold: 5,
+          is_active: true,
+          is_catalog: true,
+          _atomicVariants: true, // Flag para o fluxo atômico de variantes
+          variants: variantsList.map((v, idx) => ({
+            id: idx, // IDs temporários baseados em índice (sem banco)
+            sku: v.sku,
+            size: v.size || undefined,
+            color: v.color || undefined,
+            price: v.price,
+            cost_price: v.cost_price,
+            is_active: true, // Necessário para WizardComplete filtrar activeVariants corretamente
+          })),
+        } as any;
+
+      // ── Produto simples ─────────────────────────────────────────────
+      } else {
+        created = await createProduct(productData);
+      }
+
+      // Fazer upload de imagem apenas para produtos já existentes no banco (não virtuais)
+      if (state.capturedImage && created.id && created.id > 0) {
         try {
           created = await uploadProductImageWithFallback(created.id, state.capturedImage);
         } catch (uploadError) {
@@ -480,6 +554,8 @@ export function useProductWizard() {
 
       // Invalidar cache
       queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
 
       // Atualizar estado e IR PARA STEP 3 (não navegar para fora!)
       setState(prev => ({
@@ -497,7 +573,7 @@ export function useProductWizard() {
       }));
       showDialog('Erro ao criar produto', error.message || 'Tente novamente.', 'danger');
     }
-  }, [state.productData, state.capturedImage, validateProductData, queryClient, showDialog]);
+  }, [state.productData, state.capturedImage, state.hasVariants, state.variantColors, state.variantSizes, state.colorSizes, state.variantPrices, validateProductData, queryClient, showDialog]);
 
   const addStockToDuplicate = useCallback(async (productId: number, partialData?: Partial<Product>) => {
     // Mostrar loading
@@ -537,36 +613,150 @@ export function useProductWizard() {
       return;
     }
 
-    // Validar quantidade
     const validQuantity = quantity > 0 ? quantity : 1;
+    const product = state.createdProduct as any;
 
-    logInfo('Wizard', 'goToNewEntry - navegando para entries/add', {
-      productId: state.createdProduct.id,
-      productName: state.createdProduct.name,
-      sku: state.createdProduct.sku,
-      quantity: validQuantity,
-    });
+    // Produto SIMPLES sem variantes: usar endpoint ATÔMICO
+    // Isso garante que produto + entrada sejam criados juntos
+    if (!state.hasVariants && !product.variants) {
+      logInfo('Wizard', 'goToNewEntry - usando endpoint atômico', {
+        productName: product.name,
+        sku: product.sku,
+        quantity: validQuantity,
+        atomic: true,
+      });
 
-    // Ir para criação de entrada com o produto pré-selecionado
-    // Usa push para permitir retorno ao wizard
+      router.push({
+        pathname: '/entries/add',
+        params: {
+          fromWizard: 'true',
+          wizardMode: 'atomic', // ← Flag para tela de entrada usar endpoint atômico
+          wizardProductData: JSON.stringify({
+            product_name: product.name,
+            product_sku: product.sku,
+            product_barcode: product.barcode,
+            product_description: product.description,
+            product_brand: product.brand,
+            product_color: product.color,
+            product_size: product.size,
+            product_category_id: product.category_id,
+            product_cost_price: product.cost_price,
+            product_price: product.price,
+          }),
+          preselectedQuantity: String(validQuantity),
+        },
+      });
+    } 
+    // Produto com VARIANTES: usar fluxo tradicional (criar entrada + adicionar item)
+    else {
+      logInfo('Wizard', 'goToNewEntry - usando fluxo tradicional', {
+        productId: product.id,
+        productName: product.name,
+        sku: product.sku,
+        quantity: validQuantity,
+        hasVariants: true,
+      });
+
+      router.push({
+        pathname: '/entries/add',
+        params: {
+          fromWizard: 'true',
+          wizardProductId: String(product.id),
+          wizardProductName: product.name,
+          preselectedProductData: JSON.stringify(product),
+          preselectedQuantity: String(validQuantity),
+        },
+      });
+    }
+  }, [state.createdProduct, state.hasVariants, router]);
+
+  const goToNewEntryWithVariants = useCallback((variantQtys: Record<number, number>) => {
+    if (!state.createdProduct) return;
+
+    const product = state.createdProduct as any;
+    const variants: any[] = product.variants ?? [];
+
+    // ── FLUXO ATÔMICO: produto ainda não existe no banco ──────────────────────
+    if (product._atomicVariants) {
+      const variantsWithQty = variants
+        .filter((v: any) => (variantQtys[v.id] ?? 0) > 0)
+        .map((v: any) => ({
+          sku: v.sku,
+          color: v.color ?? null,
+          size: v.size ?? null,
+          price: v.price ?? product.price ?? 0,
+          cost_price: v.cost_price ?? product.cost_price ?? 0,
+          quantity: variantQtys[v.id],
+        }));
+
+      if (variantsWithQty.length === 0) {
+        goToNewEntry(1);
+        return;
+      }
+
+      logInfo('Wizard', 'goToNewEntryWithVariants - modo atômico', {
+        productName: product.name,
+        variantsCount: variantsWithQty.length,
+        totalQty: variantsWithQty.reduce((s: number, v: any) => s + v.quantity, 0),
+      });
+
+      router.push({
+        pathname: '/entries/add',
+        params: {
+          fromWizard: 'true',
+          wizardProductName: product.name,
+          wizardMode: 'atomic-variants',
+          wizardAtomicVariantsData: JSON.stringify({
+            product_name: product.name,
+            product_barcode: product.barcode ?? undefined,
+            product_description: product.description ?? undefined,
+            product_brand: product.brand ?? undefined,
+            product_category_id: product.category_id,
+            base_price: product.price ?? 0,
+            variants: variantsWithQty,
+          }),
+          // Passar sentinel para que entries/add o devolva no retorno ao wizard
+          preselectedProductData: JSON.stringify(state.createdProduct),
+        },
+      });
+      return;
+    }
+
+    // ── FLUXO TRADICIONAL: produto já existe no banco (ex: duplicado) ─────────
+    const variantsPayload = variants
+      .filter((v: any) => (variantQtys[v.id] ?? 0) > 0)
+      .map((v: any) => ({
+        variant_id: v.id,
+        product_id: product.id,
+        name: product.name,
+        sku: v.sku,
+        color: v.color ?? null,
+        size: v.size ?? null,
+        quantity: variantQtys[v.id] ?? 0,
+        cost_price: v.cost_price ?? product.cost_price ?? 0,
+        price: v.price ?? product.price ?? 0,
+      }));
+
+    if (variantsPayload.length === 0) {
+      // Nenhuma variante com quantidade — ir como produto simples com qty 1
+      goToNewEntry(1);
+      return;
+    }
+
     router.push({
       pathname: '/entries/add',
       params: {
         fromWizard: 'true',
-        wizardProductId: String(state.createdProduct.id),
-        wizardProductName: state.createdProduct.name,
-        preselectedProductData: JSON.stringify({
-          id: state.createdProduct.id,
-          name: state.createdProduct.name,
-          sku: state.createdProduct.sku,
-          cost_price: state.createdProduct.cost_price,
-          price: state.createdProduct.price,
-          category_id: state.createdProduct.category_id,
-        }),
-        preselectedQuantity: String(validQuantity),
+        wizardProductId: String(product.id),
+        wizardProductName: product.name,
+        preselectedVariantsData: JSON.stringify(variantsPayload),
+        // Passa o produto completo (com variants[]) para que entries/add
+        // possa devolvê-lo ao wizard via createdProductData ao retornar.
+        // Sem isso, o WizardComplete não tem dados para exibir o resumo.
+        preselectedProductData: JSON.stringify(state.createdProduct),
       },
     });
-  }, [state.createdProduct, router]);
+  }, [state.createdProduct, router, goToNewEntry]);
 
   // Processar retorno da tela de criação de entrada
   // Aceita dados do produto opcionalmente (para caso de entrada existente, onde o estado foi perdido)
@@ -575,7 +765,8 @@ export function useProductWizard() {
       ...prev,
       linkedEntry: entryData,
       // Se tiver productData e não tiver createdProduct, restaurar
-      createdProduct: prev.createdProduct || (productData ? productData as Product : null),
+      // productData tem prioridade sobre o sentinel local (que pode ter perdido estado após router.replace)
+      createdProduct: productData ? productData as Product : prev.createdProduct,
       currentStep: 'complete',
       isDirty: false,
     }));
@@ -610,15 +801,128 @@ export function useProductWizard() {
     });
   }, [state.createdProduct, router]);
 
+  const goToExistingEntryWithVariants = useCallback(async (variantQtys: Record<number, number>) => {
+    if (!state.createdProduct) return;
+
+    let product = state.createdProduct as any;
+    const variants: any[] = product.variants ?? [];
+
+    // ── FLUXO ATÔMICO: produto virtual → criar na API antes de vincular entrada ─
+    if (product._atomicVariants) {
+      setState(prev => ({ ...prev, isCreating: true }));
+      try {
+        const variantsList: ProductVariantCreate[] = variants.map((v: any) => ({
+          sku: v.sku,
+          size: v.size || undefined,
+          color: v.color || undefined,
+          price: v.price,
+          cost_price: v.cost_price,
+        }));
+
+        const withVariants = await createProductWithVariants({
+          name: product.name,
+          description: product.description,
+          brand: product.brand,
+          category_id: product.category_id,
+          base_price: product.price,
+          is_catalog: true, // Catálogo: ativado quando a entrada for vinculada
+          variants: variantsList,
+        });
+
+        product = {
+          ...withVariants,
+          sku: withVariants.variants[0]?.sku || product.sku,
+          price: withVariants.base_price ?? withVariants.variants[0]?.price ?? 0,
+          cost_price: withVariants.variants[0]?.cost_price ?? undefined,
+          current_stock: 0,
+          min_stock_threshold: 5,
+          is_active: true,
+        } as any;
+
+        setState(prev => ({ ...prev, createdProduct: product as Product, isCreating: false }));
+        queryClient.invalidateQueries({ queryKey: ['products'] });
+        queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+        queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
+
+        logInfo('Wizard', 'goToExistingEntryWithVariants - produto criado para entrada existente', {
+          productId: product.id,
+          productName: product.name,
+        });
+      } catch (err: any) {
+        setState(prev => ({ ...prev, isCreating: false }));
+        showDialog('Erro', 'Não foi possível criar o produto. Tente novamente.', 'danger');
+        return;
+      }
+    }
+
+    // Montar payload com variantes e quantidades
+    // Para o caso atômico: variantQtys usa índices temporários (0, 1, 2...) como chave.
+    // Após criação da API, product.variants tem IDs reais → mapear por índice.
+    const finalVariants: any[] = (product as any).variants ?? variants;
+    const wasAtomicVariants = !(product as any)._atomicVariants; // já foi criado, flag removida
+    const variantsPayload = finalVariants
+      .map((v: any, idx: number) => {
+        // Se veio do fluxo atômico: índice era o mapeamento de qtd
+        // Se veio direto: v.id é o ID real no banco
+        const qty = variantQtys[idx] ?? variantQtys[v.id] ?? 0;
+        return {
+          variant_id: v.id,
+          product_id: product.id,
+          name: product.name,
+          sku: v.sku,
+          color: v.color ?? null,
+          size: v.size ?? null,
+          quantity: qty,
+          cost_price: v.cost_price ?? product.cost_price ?? 0,
+          price: v.price ?? product.price ?? 0,
+        };
+      })
+      .filter((v: any) => v.quantity > 0);
+
+    if (variantsPayload.length === 0) {
+      goToExistingEntry(1);
+      return;
+    }
+
+    router.push({
+      pathname: '/entries',
+      params: {
+        selectMode: 'true',
+        fromWizard: 'true',
+        productToLink: JSON.stringify({
+          id: product.id,
+          name: product.name,
+          sku: product.sku,
+          cost_price: product.cost_price,
+          price: product.price,
+          category_id: product.category_id,
+          isVariantProduct: true,
+          variants: variantsPayload,
+          // Quantidade total para exibir no resumo
+          quantity: variantsPayload.reduce((s: number, v: any) => s + v.quantity, 0),
+          // Produto completo para restaurar no wizard após retorno
+          _fullProductData: JSON.stringify(state.createdProduct),
+        }),
+      },
+    });
+  }, [state.createdProduct, router, goToExistingEntry]);
+
   const skipEntry = useCallback(() => {
-    // Manter no catálogo - ir para tela de resumo
+    const product = state.createdProduct as any;
+    // Apenas chamar updateProduct se o produto realmente existe no banco (não é virtual)
+    if (state.createdProduct?.id && state.createdProduct.id > 0 && !product?._atomicVariants) {
+      updateProduct(state.createdProduct.id, { is_catalog: true } as any).catch(err => {
+        logWarn('Wizard', 'Falha ao restaurar is_catalog=True no skipEntry', err);
+      });
+    }
+
     setState(prev => ({
       ...prev,
       linkedEntry: null, // Sem entrada vinculada
       currentStep: 'complete',
       isDirty: false,
     }));
-  }, []);
+  }, [state.createdProduct]);
 
   // ============================================
   // UTILS
@@ -684,9 +988,94 @@ export function useProductWizard() {
     createProduct: handleCreateProduct,
     addStockToDuplicate,
 
+    // Variant management - COM SINCRONIZAÇÃO AUTOMÁTICA
+    setHasVariants: useCallback((value: boolean) => {
+      setState(prev => {
+        // ATIVANDO variantes: migrar cor/tamanho do productData para variantes
+        if (value && !prev.hasVariants) {
+          const colors: string[] = [];
+          const sizes: string[] = [];
+          const newColorSizes: Record<string, string[]> = {};
+          
+          // Migrar cor do productData se existir
+          if (prev.productData.color?.trim()) {
+            colors.push(prev.productData.color.trim());
+          }
+          
+          // Migrar tamanho do productData se existir
+          if (prev.productData.size?.trim()) {
+            sizes.push(prev.productData.size.trim());
+          }
+          
+          // Se houver cor E tamanho, associar o tamanho à cor
+          if (colors.length > 0 && sizes.length > 0) {
+            newColorSizes[colors[0]] = sizes;
+          }
+          
+          return {
+            ...prev,
+            hasVariants: value,
+            variantColors: colors.length > 0 ? colors : [],
+            variantSizes: sizes.length > 0 ? sizes : [],
+            colorSizes: newColorSizes,
+            // Limpar cor/tamanho do productData para evitar duplicidade
+            productData: {
+              ...prev.productData,
+              color: undefined,
+              size: undefined,
+            },
+          };
+        }
+        
+        // DESATIVANDO variantes: migrar de volta para productData se houver apenas 1 cor/tamanho
+        if (!value && prev.hasVariants) {
+          const hasSingleColor = prev.variantColors.length === 1;
+          const hasSingleSize = prev.variantSizes.length === 1;
+          
+          return {
+            ...prev,
+            hasVariants: value,
+            // Se tem apenas 1 cor e/ou 1 tamanho, migrar para productData
+            productData: hasSingleColor || hasSingleSize
+              ? {
+                  ...prev.productData,
+                  color: hasSingleColor ? prev.variantColors[0] : undefined,
+                  size: hasSingleSize ? prev.variantSizes[0] : undefined,
+                }
+              : prev.productData,
+            // Limpar estados de variantes
+            variantColors: [],
+            variantSizes: [],
+            colorSizes: {},
+            variantPrices: {},
+          };
+        }
+        
+        // Toggle sem migração de dados
+        return { ...prev, hasVariants: value };
+      });
+    }, []),
+    setVariantSizes: useCallback((sizes: string[]) => {
+      setState(prev => ({ ...prev, variantSizes: sizes }));
+    }, []),
+    setVariantColors: useCallback((colors: string[]) => {
+      setState(prev => ({ ...prev, variantColors: colors }));
+    }, []),
+    setVariantPrice: useCallback((key: string, price: number) => {
+      setState(prev => ({
+        ...prev,
+        variantPrices: { ...prev.variantPrices, [key]: price },
+      }));
+    }, []),
+    setColorSizes: useCallback((colorSizes: Record<string, string[]>) => {
+      setState(prev => ({ ...prev, colorSizes }));
+    }, []),
+
     // Step 3 - Entrada
     goToNewEntry,
+    goToNewEntryWithVariants,
     goToExistingEntry,
+    goToExistingEntryWithVariants,
     skipEntry,
 
     // Step 4 - Complete (retorno de entrada)

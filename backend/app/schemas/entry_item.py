@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 class EntryItemBase(BaseModel):
     """Base entry item schema."""
     entry_id: int = Field(..., description="ID da entrada de estoque")
-    product_id: int = Field(..., description="ID do produto")
+    product_id: Optional[int] = Field(None, description="ID do produto (legado - usar variant_id)")
     quantity_received: int = Field(..., gt=0, description="Quantidade comprada/recebida")
     unit_cost: Decimal = Field(..., ge=0, description="Custo unitário")
     notes: Optional[str] = Field(None, max_length=500, description="Observações")
@@ -70,6 +70,7 @@ class EntryItemUpdate(BaseModel):
 class EntryItemResponse(EntryItemBase):
     """Schema for entry item response."""
     id: int
+    variant_id: Optional[int] = Field(None, description="ID da variante do produto")
     quantity_remaining: int = Field(..., description="Quantidade restante")
     is_active: bool
     created_at: datetime
@@ -86,6 +87,10 @@ class EntryItemResponse(EntryItemBase):
     product_sku: Optional[str] = Field(None, description="SKU do produto")
     product_barcode: Optional[str] = Field(None, description="Código de barras")
     product_price: Optional[Decimal] = Field(None, description="Preço de venda do produto")
+
+    # Informações da variante
+    variant_name: Optional[str] = Field(None, description="Nome completo da variante")
+    variant_label: Optional[str] = Field(None, description="Label da variante (cor/tamanho)")
 
     class Config:
         from_attributes = True

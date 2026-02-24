@@ -1,7 +1,7 @@
 """
 Modelo de variante de produto (tamanho/cor).
 """
-from sqlalchemy import String, Text, Numeric, ForeignKey, Boolean, Integer, UniqueConstraint
+from sqlalchemy import String, Text, Numeric, ForeignKey, Boolean, Integer, UniqueConstraint, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from decimal import Decimal
 from typing import List, TYPE_CHECKING
@@ -32,7 +32,9 @@ class ProductVariant(BaseModel):
     __tablename__ = "product_variants"
     __table_args__ = (
         UniqueConstraint('product_id', 'size', 'color', name='uq_variant_product_size_color'),
-        UniqueConstraint('tenant_id', 'sku', name='uq_variants_tenant_sku'),
+        # REMOVIDA: UniqueConstraint('tenant_id', 'sku')
+        # Validação de SKU única feita no nível da aplicação (service/repository)
+        # Isso permite múltiplos SKU null (produtos do catálogo)
     )
     
     # Chave estrangeira para o produto pai
@@ -44,10 +46,13 @@ class ProductVariant(BaseModel):
     )
     
     # Identificação única
-    sku: Mapped[str] = mapped_column(
+    # Catálogo pode ter SKU null (apenas template)
+    # SKU obrigatório para produtos ativos (is_catalog=false)
+    sku: Mapped[str | None] = mapped_column(
         String(50), 
         index=True,
-        comment="Stock Keeping Unit (único por tenant)"
+        nullable=True,  # Permite NULL para produtos do catálogo
+        comment="Stock Keeping Unit (único por tenant, null para catálogo)"
     )
     
     # Variações
@@ -114,7 +119,8 @@ class ProductVariant(BaseModel):
     )
     
     def __repr__(self) -> str:
-        return f"<ProductVariant(id={self.id}, sku='{self.sku}', size='{self.size}', color='{self.color}')>"
+        sku_display = self.sku or "CATALOG"
+        return f"<ProductVariant(id={self.id}, sku='{sku_display}', size='{self.size}', color='{self.color}')>"
     
     def get_current_stock(self) -> int:
         """

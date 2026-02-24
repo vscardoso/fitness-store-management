@@ -167,10 +167,7 @@ class StockEntryService:
                 product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
                 if product:
                     if selling_price is not None and selling_price > 0:
-                        product.price = selling_price
-                    # Sempre atualizar cost_price com o unit_cost mais recente
-                    if item.unit_cost is not None and item.unit_cost > 0:
-                        product.cost_price = item.unit_cost
+                        product.base_price = selling_price
                     # Commit será feito ao final
                 
                 # Atualizar estoque do produto
@@ -535,45 +532,61 @@ class StockEntryService:
             )
 
         try:
+            from app.models.product_variant import ProductVariant
+            from app.models.inventory import Inventory
+
             orphan_products = []
             total_stock_removed = 0
 
-            # Coletar product_ids afetados e identificar produtos órfãos
-            # (antes do soft delete, enquanto os itens ainda existem)
+            # Coletar product_ids afetados — suporta tanto product_id (legado)
+            # quanto variant_id (novo sistema)
             affected_product_ids: set[int] = set()
 
             for item in entry.entry_items:
                 if item.is_active:
                     total_stock_removed += item.quantity_remaining
-                    affected_product_ids.add(item.product_id)
+                    # Resolver product_id via produto direto ou via variante
+                    pid = item.product_id
+                    if not pid and item.variant:
+                        pid = item.variant.product_id
+                    if pid:
+                        affected_product_ids.add(pid)
 
-                    # Verificar se este produto tem outras entradas ativas
-                    other_entries_query = select(func.count(EntryItem.id)).where(
-                        EntryItem.product_id == item.product_id,
+            # Para cada produto afetado, verificar se é órfão
+            # (sem outras entry_items ativas em outras entradas)
+            products_to_delete: set[int] = set()
+
+            for product_id in affected_product_ids:
+                # Verificar via product_id (legado)
+                count_via_product = (await self.db.execute(
+                    select(func.count(EntryItem.id)).where(
+                        EntryItem.product_id == product_id,
                         EntryItem.entry_id != entry_id,
                         EntryItem.is_active == True,
-                        EntryItem.tenant_id == tenant_id
+                        EntryItem.tenant_id == tenant_id,
                     )
-                    result = await self.db.execute(other_entries_query)
-                    other_entries_count = result.scalar()
+                )).scalar() or 0
 
-                    # Se não tem outras entradas, é órfão → volta para catálogo
-                    if other_entries_count == 0:
-                        product_query = select(Product).where(
-                            Product.id == item.product_id,
-                            Product.tenant_id == tenant_id
-                        )
-                        product_result = await self.db.execute(product_query)
-                        product = product_result.scalar_one_or_none()
+                # Verificar via variant_id (novo sistema)
+                count_via_variant = (await self.db.execute(
+                    select(func.count(EntryItem.id))
+                    .join(ProductVariant, EntryItem.variant_id == ProductVariant.id)
+                    .where(
+                        ProductVariant.product_id == product_id,
+                        EntryItem.entry_id != entry_id,
+                        EntryItem.is_active == True,
+                        EntryItem.tenant_id == tenant_id,
+                    )
+                )).scalar() or 0
 
-                        if product:
-                            product.is_active = True
-                            product.is_catalog = True  # Volta para o catálogo
-                            orphan_products.append({
-                                'id': product.id,
-                                'name': product.name,
-                                'sku': product.sku
-                            })
+                if count_via_product == 0 and count_via_variant == 0:
+                    products_to_delete.add(product_id)
+
+            # Liberar entry_code para reutilização e suprimir vínculo com tenant.
+            # O commit interno do entry_repo.delete persiste essas mudanças junto.
+            original_entry_code = entry.entry_code
+            entry.entry_code = f"{entry.entry_code}_del_{entry_id}"
+            entry.tenant_id = None
 
             # Soft delete da entrada (cascata para itens via is_active=False)
             success = await self.entry_repo.delete(self.db, entry_id, tenant_id=tenant_id)
@@ -581,11 +594,93 @@ class StockEntryService:
             # Flush para que o soft delete seja visível antes do rebuild
             await self.db.flush()
 
-            # Rebuild FIFO para cada produto afetado
-            # Após o soft delete dos EntryItems, a soma de quantity_remaining
-            # será recalculada corretamente (itens inativos são ignorados)
+            # Suprimir tenant_id dos entry_items (vínculo com tenant)
+            from sqlalchemy import update as sa_update
+            await self.db.execute(
+                sa_update(EntryItem)
+                .where(EntryItem.entry_id == entry_id)
+                .values(tenant_id=None)
+            )
+
+            # Excluir produtos órfãos varia conforme a origem:
+            # - is_catalog=True  → ainda era template no catálogo: retornar ao pool global
+            # - is_catalog=False → produto estava ativo: desativar + limpar SKU completamente
+            for product_id in products_to_delete:
+                product_result = await self.db.execute(
+                    select(Product).where(
+                        Product.id == product_id,
+                        Product.tenant_id == tenant_id,
+                    )
+                )
+                product = product_result.scalar_one_or_none()
+                if not product:
+                    continue
+
+                # Buscar todas as variantes (ativas e inativas)
+                variants_result = await self.db.execute(
+                    select(ProductVariant).where(
+                        ProductVariant.product_id == product_id,
+                    )
+                )
+                product_variants = variants_result.scalars().all()
+
+                # Zerar inventário e suprimir vínculo com tenant.
+                # Busca por product_id (legado) E por variant_id (novo sistema).
+                inv_via_product = (await self.db.execute(
+                    select(Inventory).where(
+                        Inventory.product_id == product_id,
+                        Inventory.tenant_id == tenant_id,
+                    )
+                )).scalars().all()
+
+                inv_via_variant = (await self.db.execute(
+                    select(Inventory)
+                    .join(ProductVariant, Inventory.variant_id == ProductVariant.id)
+                    .where(
+                        ProductVariant.product_id == product_id,
+                        Inventory.tenant_id == tenant_id,
+                    )
+                )).scalars().all()
+
+                for inv in list(inv_via_product) + list(inv_via_variant):
+                    inv.quantity = 0
+                    inv.tenant_id = None
+
+                if product.is_catalog:
+                    # Produto ainda no estado de catálogo (entrada foi deletada antes de ativá-lo):
+                    # retornar ao pool global — remover vínculo com tenant.
+                    # SKU preservado (NOT NULL) mas renomeado com sufixo para liberar o valor original.
+                    product.tenant_id = None
+                    for variant in product_variants:
+                        # Renomear SKU com sufixo _del_{id} para liberar o valor original sem violar NOT NULL
+                        if variant.sku and not variant.sku.endswith(f'_del_{variant.id}'):
+                            variant.sku = f'{variant.sku}_del_{variant.id}'
+                        variant.tenant_id = None
+                    orphan_products.append({
+                        'id': product.id,
+                        'name': product.name,
+                        'action': 'returned_to_catalog',
+                    })
+                else:
+                    # Produto ativo (is_catalog=False): desativar completamente.
+                    # SKU renomeado com sufixo _del_{id} para liberar o valor original sem violar NOT NULL.
+                    product.is_active = False
+                    product.tenant_id = None
+                    for variant in product_variants:
+                        variant.is_active = False
+                        if variant.sku and not variant.sku.endswith(f'_del_{variant.id}'):
+                            variant.sku = f'{variant.sku}_del_{variant.id}'
+                        variant.tenant_id = None
+                    orphan_products.append({
+                        'id': product.id,
+                        'name': product.name,
+                        'action': 'deactivated',
+                    })
+
+            # Rebuild FIFO para produtos não-órfãos (têm outras entradas ativas)
+            non_orphan_ids = affected_product_ids - products_to_delete
             inv_sync = InventoryService(self.db)
-            for pid in affected_product_ids:
+            for pid in non_orphan_ids:
                 try:
                     delta = await inv_sync.rebuild_product_from_fifo(pid, tenant_id=tenant_id)
                     print(
@@ -603,7 +698,7 @@ class StockEntryService:
                 'orphan_products_deleted': len(orphan_products),
                 'orphan_products': orphan_products,
                 'total_stock_removed': total_stock_removed,
-                'entry_code': entry.entry_code
+                'entry_code': original_entry_code,
             }
 
         except Exception as e:
@@ -835,11 +930,27 @@ class StockEntryService:
                 raise ValueError("unit_cost não pode ser negativo")
             update_data['unit_cost'] = new_unit_cost
 
-            # Atualizar cost_price do produto associado
-            product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
-            if product:
-                product.cost_price = new_unit_cost
-                await self.db.flush()
+            # Atualizar cost_price da variante usando ORM (suporta variant_id e product_id)
+            from sqlalchemy import select as _select
+            from app.models.product_variant import ProductVariant
+            if item.variant_id:
+                _stmt = _select(ProductVariant).where(
+                    ProductVariant.id == item.variant_id,
+                    ProductVariant.is_active == True,
+                )
+            elif item.product_id:
+                _stmt = _select(ProductVariant).where(
+                    ProductVariant.product_id == item.product_id,
+                    ProductVariant.is_active == True,
+                ).order_by(ProductVariant.id).limit(1)
+            else:
+                _stmt = None
+            if _stmt is not None:
+                _result = await self.db.execute(_stmt)
+                _variant = _result.scalar_one_or_none()
+                if _variant:
+                    _variant.cost_price = Decimal(str(new_unit_cost))
+                    await self.db.flush()
 
         # Atualizar notes se fornecido
         if 'notes' in item_data and item_data['notes'] is not None:
@@ -852,19 +963,54 @@ class StockEntryService:
             if new_sell_price < 0:
                 raise ValueError("sell_price não pode ser negativo")
 
-            # Atualizar o preço do produto associado
-            product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
-            if product:
-                product.price = new_sell_price
+            # Atualizar price da variante e base_price do produto usando ORM puro
+            from sqlalchemy import select as _select
+            from app.models.product_variant import ProductVariant
+            _sell_variant = None
+            if item.variant_id:
+                _vstmt = _select(ProductVariant).where(
+                    ProductVariant.id == item.variant_id,
+                    ProductVariant.is_active == True,
+                )
+                _vr = await self.db.execute(_vstmt)
+                _sell_variant = _vr.scalar_one_or_none()
+            elif item.product_id:
+                _vstmt = _select(ProductVariant).where(
+                    ProductVariant.product_id == item.product_id,
+                    ProductVariant.is_active == True,
+                ).order_by(ProductVariant.id).limit(1)
+                _vr = await self.db.execute(_vstmt)
+                _sell_variant = _vr.scalar_one_or_none()
+            if _sell_variant:
+                _sell_variant.price = Decimal(str(new_sell_price))
                 sell_price_updated = True
                 await self.db.flush()
+            # Atualizar base_price do produto pai também (campo de referência)
+            if item.product_id:
+                _product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
+                if _product:
+                    _product.base_price = Decimal(str(new_sell_price))
+                    sell_price_updated = True
+                    await self.db.flush()
 
         # Se não há nada para atualizar, commit se sell_price mudou e retornar
         if not update_data:
             if sell_price_updated:
                 await self.db.commit()
-                await self.db.refresh(item)
-            return item
+            from sqlalchemy import select as _sel
+            from sqlalchemy.orm import selectinload as _sil
+            from app.models.product_variant import ProductVariant as _PV
+            _stmt = (
+                _sel(EntryItem)
+                .where(EntryItem.id == item.id)
+                .options(
+                    _sil(EntryItem.product),
+                    _sil(EntryItem.variant).selectinload(_PV.product),
+                )
+            )
+            _result = await self.db.execute(_stmt)
+            _refreshed = _result.scalar_one_or_none()
+            return _refreshed if _refreshed is not None else item
 
         # Atualizar o item (sem commit ainda)
         for key, value in update_data.items():
@@ -910,9 +1056,23 @@ class StockEntryService:
 
         # Commit final
         await self.db.commit()
-        await self.db.refresh(item)
 
-        return item
+        # Re-buscar item com todas as relações carregadas (variant + product)
+        # necessário para serialização do EntryItemResponse pelo FastAPI
+        from sqlalchemy import select as _sel
+        from sqlalchemy.orm import selectinload as _sil
+        from app.models.product_variant import ProductVariant as _PV
+        _stmt = (
+            _sel(EntryItem)
+            .where(EntryItem.id == item.id)
+            .options(
+                _sil(EntryItem.product),
+                _sil(EntryItem.variant).selectinload(_PV.product),
+            )
+        )
+        _result = await self.db.execute(_stmt)
+        _refreshed = _result.scalar_one_or_none()
+        return _refreshed if _refreshed is not None else item
 
     async def add_item_to_entry(
         self,
@@ -983,12 +1143,10 @@ class StockEntryService:
         self.db.add(new_item)
         await self.db.flush()
 
-        # Atualizar produto com custo e preço se fornecidos
+        # Atualizar produto com preço se fornecido
         selling_price = item_data.get('selling_price')
         if selling_price is not None and selling_price > 0:
-            product.price = selling_price
-        if unit_cost > 0:
-            product.cost_price = unit_cost
+            product.base_price = selling_price
 
         # Atualizar total_cost da entrada
         item_total_cost = Decimal(str(quantity_received)) * Decimal(str(unit_cost))
@@ -1012,3 +1170,280 @@ class StockEntryService:
         await self.db.refresh(new_item)
 
         return new_item
+    
+    async def create_entry_with_new_product(
+        self,
+        product_data: Dict[str, Any],
+        entry_data: Dict[str, Any],
+        quantity: int,
+        user_id: int,
+        *,
+        tenant_id: int,
+    ) -> StockEntry:
+        """
+        Cria um NOVO produto (com 1 variante padrão) e uma entrada de estoque em transação atômica.
+        
+        Garante atomicidade: se qualquer operação falhar, nada é criado.
+        
+        Args:
+            product_data: Dados do novo produto (name, sku, price, etc.)
+            entry_data: Dados da entrada (entry_code, supplier_name, etc.)
+            quantity: Quantidade do produto na entrada
+            user_id: ID do usuário criando
+            tenant_id: ID do tenant
+            
+        Returns:
+            StockEntry: Entrada criada com o novo produto vinculado
+            
+        Raises:
+            ValueError: Se dados inválidos, SKU duplicado, etc.
+        """
+        from decimal import Decimal
+        from app.schemas.stock_entry import StockEntryCreate
+        from app.models.product_variant import ProductVariant
+        
+        try:
+            # 1. Criar o novo produto (pai)
+            from app.repositories.product_repository import ProductRepository
+            
+            product_repo = ProductRepository(self.db)
+            
+            # Validar dados do produto
+            if not product_data.get('name') or not product_data.get('sku'):
+                raise ValueError("Nome e SKU do produto são obrigatórios")
+            
+            # Criar produto pai com is_catalog=False (produto com estoque)
+            # Nota: sku, barcode, price, cost_price foram movidos para ProductVariant
+            product_dict = {
+                'name': product_data['name'].strip(),
+                'description': product_data.get('description'),
+                'brand': product_data.get('brand'),
+                'category_id': product_data.get('category_id'),
+                'base_price': Decimal(str(product_data['price'])),
+                'is_catalog': False,  # Produto já tem entrada, não é catálogo
+                'is_active': True,
+            }
+            
+            # Criar produto pai
+            product = await product_repo.create(product_dict, tenant_id=tenant_id)
+            await self.db.flush()
+            
+            # 2. Criar variante padrão (produto simples = 1 variante)
+            variant = ProductVariant(
+                product_id=product.id,
+                sku=product_data['sku'].strip().upper(),
+                color=product_data.get('color'),
+                size=product_data.get('size'),
+                price=Decimal(str(product_data['price'])),
+                cost_price=Decimal(str(product_data.get('cost_price', product_data['price']))),
+                is_active=True,
+                tenant_id=tenant_id,
+            )
+            self.db.add(variant)
+            await self.db.flush()
+            
+            # 3. Criar entrada de estoque
+            unique_code = await self._generate_unique_entry_code(entry_data['entry_code'], tenant_id=tenant_id)
+            entry_dict = StockEntryCreate(
+                entry_code=unique_code,
+                entry_date=entry_data.get('entry_date'),
+                entry_type=entry_data.get('entry_type'),
+                trip_id=entry_data.get('trip_id'),
+                supplier_name=entry_data.get('supplier_name'),
+                supplier_cnpj=entry_data.get('supplier_cnpj'),
+                supplier_contact=entry_data.get('supplier_contact'),
+                invoice_number=entry_data.get('invoice_number'),
+                payment_method=entry_data.get('payment_method'),
+                notes=entry_data.get('notes'),
+            )
+            
+            entry_dict_dict = entry_dict.model_dump(exclude_unset=True)
+            entry_dict_dict['total_cost'] = Decimal('0.00')
+            
+            entry = await self.entry_repo.create(self.db, entry_dict_dict, tenant_id=tenant_id)
+            await self.db.flush()
+            
+            # 4. Criar item da entrada (vinculado à variante)
+            unit_cost = Decimal(str(product_data.get('cost_price', product_data['price'])))
+            item = EntryItem(
+                entry_id=entry.id,
+                product_id=product.id,
+                variant_id=variant.id,  # Vincular à variante
+                quantity_received=quantity,
+                quantity_remaining=quantity,  # Todo estoque disponível
+                unit_cost=unit_cost,
+                notes=entry_data.get('notes', ''),
+                tenant_id=tenant_id,
+                is_active=True,
+            )
+            
+            self.db.add(item)
+            await self.db.flush()
+            
+            # 5. Calcular e atualizar total_cost da entrada
+            item_total_cost = Decimal(str(quantity)) * unit_cost
+            entry.total_cost = item_total_cost
+            
+            # 6. Atualizar estoque do produto via rebuild FIFO
+            inv_sync = InventoryService(self.db)
+            try:
+                delta = await inv_sync.rebuild_product_from_fifo(product.id, tenant_id=tenant_id)
+                print(f"  [Inventory Sync NEW_PRODUCT] Produto {product.id}: fifo={delta['fifo_sum']} inv={delta['inventory_quantity']} created={delta['created']} updated={delta['updated']}")
+            except Exception as sync_err:
+                print(f"  [Inventory Sync NEW_PRODUCT] Falha sync produto {product.id}: {sync_err}")
+            
+            # 7. Commit de tudo (transação atômica)
+            await self.db.commit()
+            await self.db.refresh(entry)
+            
+            # Recarregar com itens
+            entry = await self.entry_repo.get_by_id(self.db, entry.id, include_items=True, tenant_id=tenant_id)
+            
+            return entry
+            
+        except Exception as e:
+            await self.db.rollback()
+            raise e
+
+    async def create_entry_with_new_product_variants(
+        self,
+        product_data: Dict[str, Any],
+        variants_data: List[Dict[str, Any]],
+        entry_data: Dict[str, Any],
+        user_id: int,
+        *,
+        tenant_id: int,
+    ) -> StockEntry:
+        """
+        Cria um NOVO produto com variantes e uma entrada de estoque em transação atômica.
+        
+        Garante atomicidade: se qualquer operação falhar, nada é criado.
+        
+        Args:
+            product_data: Dados do novo produto (name, description, brand, category_id, base_price)
+            variants_data: Lista de variantes com sku, color, size, price, cost_price, quantity
+            entry_data: Dados da entrada (entry_code, supplier_name, etc.)
+            user_id: ID do usuário criando
+            tenant_id: ID do tenant
+            
+        Returns:
+            StockEntry: Entrada criada com as variantes do novo produto vinculadas
+            
+        Raises:
+            ValueError: Se dados inválidos, etc.
+        """
+        from decimal import Decimal
+        from app.schemas.stock_entry import StockEntryCreate
+        from app.models.product_variant import ProductVariant
+        
+        try:
+            # 1. Criar o novo produto (pai)
+            from app.repositories.product_repository import ProductRepository
+            
+            product_repo = ProductRepository(self.db)
+            
+            # Validar dados do produto
+            if not product_data.get('name') or not product_data.get('category_id'):
+                raise ValueError("Nome e categoria do produto são obrigatórios")
+            
+            # Criar produto pai com is_catalog=False (produto com estoque)
+            product_dict = {
+                'name': product_data['name'].strip(),
+                'description': product_data.get('description'),
+                'brand': product_data.get('brand'),
+                'category_id': product_data.get('category_id'),
+                'base_price': Decimal(str(product_data['base_price'])),
+                'is_catalog': False,  # Produto já tem entrada, não é catálogo
+                'is_active': True,
+            }
+            
+            # Criar produto pai
+            product = await product_repo.create(product_dict, tenant_id=tenant_id)
+            await self.db.flush()
+            
+            # 2. Criar variantes
+            created_variants = []
+            for variant_dict in variants_data:
+                variant = ProductVariant(
+                    product_id=product.id,
+                    sku=variant_dict.get('sku'),
+                    color=variant_dict.get('color'),
+                    size=variant_dict.get('size'),
+                    price=Decimal(str(variant_dict.get('price', product_data['base_price']))),
+                    cost_price=Decimal(str(variant_dict['cost_price'])) if variant_dict.get('cost_price') else None,
+                    is_active=True,
+                    tenant_id=tenant_id,
+                )
+                self.db.add(variant)
+                await self.db.flush()
+                created_variants.append(variant)
+            
+            # 3. Criar entrada de estoque
+            unique_code = await self._generate_unique_entry_code(entry_data['entry_code'], tenant_id=tenant_id)
+            entry_dict = StockEntryCreate(
+                entry_code=unique_code,
+                entry_date=entry_data.get('entry_date'),
+                entry_type=entry_data.get('entry_type'),
+                trip_id=entry_data.get('trip_id'),
+                supplier_name=entry_data.get('supplier_name'),
+                supplier_cnpj=entry_data.get('supplier_cnpj'),
+                supplier_contact=entry_data.get('supplier_contact'),
+                invoice_number=entry_data.get('invoice_number'),
+                payment_method=entry_data.get('payment_method'),
+                notes=entry_data.get('notes'),
+            )
+            
+            entry_dict_dict = entry_dict.model_dump(exclude_unset=True)
+            entry_dict_dict['total_cost'] = Decimal('0.00')
+            
+            entry = await self.entry_repo.create(self.db, entry_dict_dict, tenant_id=tenant_id)
+            await self.db.flush()
+            
+            # 4. Criar itens da entrada para cada variante
+            total_cost = Decimal('0.00')
+            for i, variant in enumerate(created_variants):
+                # Obter quantidade da variante (está em variants_data, não em variant_quantities)
+                variant_dict = variants_data[i]
+                quantity = variant_dict.get('quantity', 0)
+                if quantity <= 0:
+                    continue  # Pular variantes sem quantidade
+                
+                unit_cost = Decimal(str(variant.cost_price)) if variant.cost_price else Decimal(str(variant.price * Decimal('0.5')))
+                
+                item = EntryItem(
+                    entry_id=entry.id,
+                    product_id=product.id,
+                    variant_id=variant.id,
+                    quantity_received=quantity,
+                    quantity_remaining=quantity,
+                    unit_cost=unit_cost,
+                    tenant_id=tenant_id,
+                    is_active=True,
+                )
+                self.db.add(item)
+                await self.db.flush()
+                
+                total_cost += Decimal(str(quantity)) * unit_cost
+            
+            entry.total_cost = total_cost
+            
+            # 5. Atualizar estoque do produto via rebuild FIFO
+            inv_sync = InventoryService(self.db)
+            try:
+                delta = await inv_sync.rebuild_product_from_fifo(product.id, tenant_id=tenant_id)
+                print(f"  [Inventory Sync NEW_PRODUCT_VARIANTS] Produto {product.id}: fifo={delta['fifo_sum']} inv={delta['inventory_quantity']} created={delta['created']} updated={delta['updated']}")
+            except Exception as sync_err:
+                print(f"  [Inventory Sync NEW_PRODUCT_VARIANTS] Falha sync produto {product.id}: {sync_err}")
+            
+            # 6. Commit de tudo (transação atômica)
+            await self.db.commit()
+            await self.db.refresh(entry)
+            
+            # Recarregar com itens
+            entry = await self.entry_repo.get_by_id(self.db, entry.id, include_items=True, tenant_id=tenant_id)
+            
+            return entry
+            
+        except Exception as e:
+            await self.db.rollback()
+            raise e

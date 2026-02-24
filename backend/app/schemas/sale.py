@@ -22,6 +22,7 @@ class ProductInSale(BaseModel):
 class SaleItemCreate(BaseModel):
     """Schema for creating a sale item."""
     product_id: int
+    variant_id: Optional[int] = None
     quantity: int = Field(..., gt=0)
     unit_price: Decimal = Field(..., gt=0)
     discount_amount: Decimal = Field(default=0, ge=0)
