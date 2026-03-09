@@ -1,4 +1,4 @@
-﻿/**
+/**
  * KeyboardAwareScreen
  *
  * Componente reutilizavel para gerenciar o teclado em telas com formularios.

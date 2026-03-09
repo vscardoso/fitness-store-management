@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Redirecionamento de compatibilidade → Wizard unificado de produtos.
  *
  * Esta rota foi consolidada em /products/wizard.

@@ -46,7 +46,11 @@
       "Bash(pip install:*)",
       "Bash(pip freeze:*)",
       "Bash(xargs grep -l \"def router\")",
-      "Bash(done)"
+      "Bash(done)",
+      "Bash(python3 -c \":*)",
+      "Bash(python3:*)",
+      "Bash(xargs grep -l \"useUpdateCustomer\")",
+      "Bash(git checkout HEAD -- mobile/app/products/[id].tsx)"
     ],
     "deny": [],
     "ask": []

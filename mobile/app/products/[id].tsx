@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -23,6 +23,7 @@ import { getProductStock } from '@/services/inventoryService';
 import { getProductVariants, formatVariantLabel } from '@/services/productVariantService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
+import { getEntryTypeLabel, getEntryTypeColor } from '@/constants/entryTypes';
 import { useTutorialContext } from '@/components/tutorial';
 
 export default function ProductDetailsScreen() {
@@ -36,7 +37,7 @@ export default function ProductDetailsScreen() {
   const productId = id ? parseInt(id as string) : NaN;
   const isValidId = !isNaN(productId) && productId > 0;
 
-  // Se ID invÃ¡lido, redirecionar imediatamente
+  // Se ID inválido, redirecionar imediatamente
   useEffect(() => {
     if (id && !isValidId) {
       router.replace('/(tabs)/products');
@@ -61,7 +62,7 @@ export default function ProductDetailsScreen() {
     return toBRNumber(value);
   };
 
-  // Estado para controlar diÃ¡logos de confirmaÃ§Ã£o
+  // Estado para controlar diálogos de confirmação
   const [dialog, setDialog] = useState<{
     visible: boolean;
     type: 'danger' | 'warning' | 'info' | 'success';
@@ -79,7 +80,7 @@ export default function ProductDetailsScreen() {
   });
 
   /**
-   * Query: Buscar produto por ID (funciona para produtos ativos e do catÃ¡logo)
+   * Query: Buscar produto por ID (funciona para produtos ativos e do catálogo)
    */
   const { data: product, isLoading, refetch: refetchProduct } = useQuery({
     queryKey: ['product', productId],
@@ -112,7 +113,7 @@ export default function ProductDetailsScreen() {
   const [refreshing, setRefreshing] = useState(false);
 
   /**
-   * FunÃ§Ã£o de refresh
+   * Função de refresh
    */
   const onRefresh = async () => {
     setRefreshing(true);
@@ -120,7 +121,7 @@ export default function ProductDetailsScreen() {
     setRefreshing(false);
   };
 
-  // Mutation de movimentaÃ§Ã£o de estoque REMOVIDA - agora usa sistema FIFO com Entradas
+  // Mutation de movimentação de estoque REMOVIDA - agora usa sistema FIFO com Entradas
 
   /**
    * Mutation: Deletar produto
@@ -131,7 +132,7 @@ export default function ProductDetailsScreen() {
       // Navegar de volta IMEDIATAMENTE
       goBack();
 
-      // Invalidar queries DEPOIS da navegaÃ§Ã£o (com delay para garantir que a tela carregou)
+      // Invalidar queries DEPOIS da navegação (com delay para garantir que a tela carregou)
       setTimeout(async () => {
         await Promise.all([
           queryClient.removeQueries({ queryKey: ['product', productId] }),
@@ -158,13 +159,13 @@ export default function ProductDetailsScreen() {
   });
 
   /**
-   * Confirmar deleÃ§Ã£o
+   * Confirmar deleção
    */
   const handleDelete = () => {
     setDialog({
       visible: true,
       type: 'danger',
-      title: 'Confirmar exclusÃ£o',
+      title: 'Confirmar exclusão',
       message: `Tem certeza que deseja deletar "${product?.name}"?`,
       confirmText: 'Deletar',
       cancelText: 'Cancelar',
@@ -175,15 +176,15 @@ export default function ProductDetailsScreen() {
     });
   };
 
-  // FunÃ§Ãµes de movimentaÃ§Ã£o de estoque REMOVIDAS - agora usa sistema FIFO com Entradas
+  // Funções de movimentação de estoque REMOVIDAS - agora usa sistema FIFO com Entradas
 
-  // Verificar ID invÃ¡lido
+  // Verificar ID inválido
   if (!isValidId) {
     return (
       <View style={styles.centerContainer}>
         <Ionicons name="alert-circle" size={64} color={Colors.light.error} />
-        <Text style={styles.errorTitle}>ID invÃ¡lido</Text>
-        <Text style={styles.errorMessage}>O ID do produto fornecido nÃ£o Ã© vÃ¡lido.</Text>
+        <Text style={styles.errorTitle}>ID inválido</Text>
+        <Text style={styles.errorMessage}>O ID do produto fornecido não é válido.</Text>
         <Text
           style={styles.errorLink}
           onPress={goBack}
@@ -233,10 +234,10 @@ export default function ProductDetailsScreen() {
           (() => {
             const varCount = variants?.length ?? 0;
             if (varCount > 1) {
-              return [product.brand, `${varCount} variaÃ§Ãµes`].filter(Boolean).join(' â€¢ ') || undefined;
+              return [product.brand, `${varCount} variações`].filter(Boolean).join(' • ') || undefined;
             }
             const parts = [product.brand, product.color, product.size].filter(Boolean);
-            return parts.length > 0 ? parts.join(' â€¢ ') : undefined;
+            return parts.length > 0 ? parts.join(' • ') : undefined;
           })()
         }
         showBackButton
@@ -259,7 +260,7 @@ export default function ProductDetailsScreen() {
           />
         }
       >
-        {/* â”€â”€ ESTOQUE + PREÃ‡O (quick cards) â”€â”€ */}
+        {/* ── ESTOQUE + PREÇO (quick cards) ── */}
         <View style={styles.quickGrid}>
           <View style={[styles.quickCard, { borderLeftColor: stockColor }]}>
             <View style={[styles.quickIconWrap, { backgroundColor: stockColor + '20' }]}>
@@ -277,7 +278,7 @@ export default function ProductDetailsScreen() {
                 {currentStock} un{hasVariants ? ' totais' : ''}
               </Text>
               {minStock > 0 && (
-                <Text style={styles.quickSub}>mÃ­n: {minStock}</Text>
+                <Text style={styles.quickSub}>mín: {minStock}</Text>
               )}
             </View>
           </View>
@@ -287,20 +288,20 @@ export default function ProductDetailsScreen() {
               <Ionicons name="pricetag-outline" size={22} color={Colors.light.primary} />
             </View>
             <View style={styles.quickInfo}>
-              <Text style={styles.quickLabel}>PreÃ§o</Text>
+              <Text style={styles.quickLabel}>Preço</Text>
               <Text
                 style={[styles.quickValue, { color: Colors.light.primary }]}
                 numberOfLines={1}
               >
                 {hasPriceRange
-                  ? `${formatCurrency(minVariantPrice)} â€“ ${formatCurrency(maxVariantPrice)}`
+                  ? `${formatCurrency(minVariantPrice)} – ${formatCurrency(maxVariantPrice)}`
                   : formatCurrency(hasVariants ? minVariantPrice : product.price)}
               </Text>
             </View>
           </View>
         </View>
 
-        {/* â”€â”€ VARIAÃ‡Ã•ES (unificado: label + SKU + preÃ§o + margem + estoque) â”€â”€ */}
+        {/* ── VARIAÇÕES (unificado: label + SKU + preço + margem + estoque) ── */}
         {hasVariants && (
           <Card style={styles.card}>
             <Card.Content>
@@ -308,19 +309,19 @@ export default function ProductDetailsScreen() {
                 <View style={styles.cardHeaderIcon}>
                   <Ionicons name="layers-outline" size={20} color={Colors.light.primary} />
                 </View>
-                <Text style={styles.cardTitle}>VariaÃ§Ãµes</Text>
+                <Text style={styles.cardTitle}>Variações</Text>
                 <View style={styles.countBadge}>
                   <Text style={styles.countBadgeText}>{variants?.length}</Text>
                 </View>
               </View>
 
-              {(variants ?? []).map((variant, idx) => {
+              {[...(variants ?? [])].sort((a, b) => a.id - b.id).map((variant, idx) => {
                 const vStock = variant.current_stock ?? 0;
                 const isEmpty = vStock === 0;
                 const isLowV = vStock > 0 && vStock <= 3;
                 const vPrice = Number(variant.price) || 0;
                 const vCost = Number((variant as any).cost_price) || 0;
-                const margin = vCost > 0 ? Math.round(((vPrice - vCost) / vCost) * 100) : null;
+                const margin = vCost > 0 && vPrice > 0 ? Math.round(((vPrice - vCost) / vPrice) * 100) : null;
                 const dotColor = isEmpty
                   ? Colors.light.error
                   : isLowV
@@ -369,7 +370,7 @@ export default function ProductDetailsScreen() {
           </Card>
         )}
 
-        {/* â”€â”€ INFORMAÃ‡Ã•ES DO PRODUTO â”€â”€ */}
+        {/* ── INFORMAÇÕES DO PRODUTO ── */}
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.cardHeader}>
@@ -383,7 +384,7 @@ export default function ProductDetailsScreen() {
                 <InfoRow icon="barcode-outline" label="SKU" value={product.sku} layout="vertical" />
               )}
               {product.barcode && (
-                <InfoRow icon="scan-outline" label="CÃ³d. de Barras" value={product.barcode} layout="vertical" />
+                <InfoRow icon="scan-outline" label="Cód. de Barras" value={product.barcode} layout="vertical" />
               )}
               {product.brand && (
                 <InfoRow icon="ribbon-outline" label="Marca" value={product.brand} layout="vertical" />
@@ -419,7 +420,7 @@ export default function ProductDetailsScreen() {
           </Card.Content>
         </Card>
 
-        {/* â”€â”€ PREÃ‡OS (somente produto simples) â”€â”€ */}
+        {/* ── PREÇOS (somente produto simples) ── */}
         {!hasVariants && (
           <Card style={styles.card}>
             <Card.Content>
@@ -427,7 +428,7 @@ export default function ProductDetailsScreen() {
                 <View style={styles.cardHeaderIcon}>
                   <Ionicons name="cash-outline" size={20} color={Colors.light.primary} />
                 </View>
-                <Text style={styles.cardTitle}>PreÃ§os</Text>
+                <Text style={styles.cardTitle}>Preços</Text>
               </View>
               <View style={styles.pricingRow}>
                 {product.cost_price != null && product.cost_price > 0 && (
@@ -451,17 +452,68 @@ export default function ProductDetailsScreen() {
                     <Ionicons name="trending-up" size={22} color={Colors.light.success} style={{ marginBottom: 6 }} />
                     <Text style={styles.pricingLabel}>Margem</Text>
                     <Text style={[styles.pricingValue, { color: Colors.light.success }]}>
-                      {(((product.price - product.cost_price) / product.cost_price) * 100).toFixed(0)}%
+                      {(((product.price - product.cost_price) / product.price) * 100).toFixed(0)}%
                     </Text>
                   </View>
                 )}
               </View>
-              <Text style={styles.minStockNote}>Estoque mÃ­nimo: {minStock} unidades</Text>
+              <Text style={styles.minStockNote}>Estoque mínimo: {minStock} unidades</Text>
             </Card.Content>
           </Card>
         )}
 
-        {/* â”€â”€ GERAR ETIQUETA â”€â”€ */}
+        {/* ── ENTRADAS DE ESTOQUE ── */}
+        {(() => {
+          const entryItems: any[] = (product as any).entry_items ?? [];
+          if (entryItems.length === 0) return null;
+          return (
+            <Card style={styles.card}>
+              <Card.Content>
+                <View style={styles.cardHeader}>
+                  <View style={styles.cardHeaderIcon}>
+                    <Ionicons name="layers-outline" size={20} color={Colors.light.primary} />
+                  </View>
+                  <Text style={styles.cardTitle}>Entradas de Estoque</Text>
+                  <View style={styles.countBadge}>
+                    <Text style={styles.countBadgeText}>{entryItems.length}</Text>
+                  </View>
+                </View>
+                {entryItems.map((entry: any, idx: number) => {
+                  const isLast = idx === entryItems.length - 1;
+                  const variantLabel = hasVariants && entry.variant_id
+                    ? formatVariantLabel((variants ?? []).find(v => v.id === entry.variant_id) as any ?? {})
+                    : null;
+                  return (
+                    <TouchableOpacity
+                      key={entry.entry_item_id}
+                      style={[styles.entryRow, !isLast && styles.entryRowBorder]}
+                      onPress={() => router.push(`/entries/${entry.entry_id}` as any)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={[styles.entryTypeDot, { backgroundColor: getEntryTypeColor(entry.entry_type) }]} />
+                      <View style={styles.entryRowMain}>
+                        <Text style={styles.entryCode}>{entry.entry_code}</Text>
+                        <Text style={styles.entryMeta}>
+                          {getEntryTypeLabel(entry.entry_type)}
+                          {entry.supplier_name ? ` · ${entry.supplier_name}` : ''}
+                          {variantLabel ? ` · ${variantLabel}` : ''}
+                        </Text>
+                      </View>
+                      <View style={styles.entryRowRight}>
+                        <Text style={styles.entryStock}>
+                          {entry.quantity_remaining}/{entry.quantity_received} un
+                        </Text>
+                        <Ionicons name="chevron-forward" size={16} color={Colors.light.textTertiary} />
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </Card.Content>
+            </Card>
+          );
+        })()}
+
+        {/* ── GERAR ETIQUETA ── */}
         <TouchableOpacity
           style={styles.labelCard}
           onPress={() => router.push(`/products/label/${productId}` as any)}
@@ -472,7 +524,7 @@ export default function ProductDetailsScreen() {
           </View>
           <View style={styles.labelCardContent}>
             <Text style={styles.labelCardTitle}>Gerar Etiqueta</Text>
-            <Text style={styles.labelCardSub}>QR Code para identificaÃ§Ã£o e venda</Text>
+            <Text style={styles.labelCardSub}>QR Code para identificação e venda</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
         </TouchableOpacity>
@@ -496,14 +548,14 @@ export default function ProductDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
-  // â”€â”€ Layout â”€â”€
+  // ── Layout ──
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
   loadingText: { marginTop: 12, color: Colors.light.textSecondary, fontSize: 14 },
   scrollView: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 32 },
 
-  // â”€â”€ Quick Stats Grid â”€â”€
+  // ── Quick Stats Grid ──
   quickGrid: {
     flexDirection: 'row',
     gap: 12,
@@ -541,7 +593,7 @@ const styles = StyleSheet.create({
   quickValue: { fontSize: 15, fontWeight: '800', color: Colors.light.text },
   quickSub: { fontSize: 10, color: Colors.light.textTertiary, marginTop: 2 },
 
-  // â”€â”€ Cards â”€â”€
+  // ── Cards ──
   card: {
     marginBottom: 16,
     borderRadius: 12,
@@ -571,7 +623,7 @@ const styles = StyleSheet.create({
   },
   countBadgeText: { fontSize: 12, fontWeight: '700', color: Colors.light.primary },
 
-  // â”€â”€ Variants â”€â”€
+  // ── Variants ──
   variantRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -611,7 +663,7 @@ const styles = StyleSheet.create({
   stockBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, borderWidth: 1 },
   stockBadgeText: { fontSize: 10, fontWeight: '700' },
 
-  // â”€â”€ Info List â”€â”€
+  // ── Info List ──
   infoList: { gap: 16 },
   descriptionBox: {
     flexDirection: 'row',
@@ -629,7 +681,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  // â”€â”€ Pricing â”€â”€
+  // ── Pricing ──
   pricingRow: { flexDirection: 'row', gap: 10 },
   pricingTile: {
     flex: 1,
@@ -667,7 +719,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // â”€â”€ Label Card â”€â”€
+  // ── Label Card ──
   labelCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -683,7 +735,25 @@ const styles = StyleSheet.create({
   labelCardTitle: { fontSize: 15, fontWeight: '700', color: Colors.light.text },
   labelCardSub: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 },
 
-  // â”€â”€ Error States â”€â”€
+  // ── Entry Rows ──
+  entryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    gap: 10,
+  },
+  entryRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  entryTypeDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
+  entryRowMain: { flex: 1 },
+  entryCode: { fontSize: 13, fontWeight: '700', color: Colors.light.text },
+  entryMeta: { fontSize: 11, color: Colors.light.textSecondary, marginTop: 1 },
+  entryRowRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  entryStock: { fontSize: 12, fontWeight: '600', color: Colors.light.textSecondary },
+
+  // ── Error States ──
   errorTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.light.error, marginTop: 16 },
   errorMessage: {
     fontSize: 14,

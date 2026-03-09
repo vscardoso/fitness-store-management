@@ -23,15 +23,12 @@ import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
 import useBackToList from '@/hooks/useBackToList';
 import { useQuery } from '@tanstack/react-query';
 import { useCategories, useUpdateProduct } from '@/hooks';
-import { getProductById, adjustProductQuantity } from '@/services/productService';
+import { getProductById } from '@/services/productService';
 import { getProductStock } from '@/services/inventoryService';
 import { getProductVariants, updateVariant, formatVariantLabel } from '@/services/productVariantService';
 import { Colors, theme } from '@/constants/Colors';
 import type { ProductUpdate } from '@/types';
-import api from '@/services/api';
 import { formatPriceInput, formatPriceDisplay, formatMoneyDisplay } from '@/utils/priceFormatter';
-import { getEntryTypeLabel, getEntryTypeColor } from '@/constants/entryTypes';
-import EntryItemCostEditor from '@/components/products/EntryItemCostEditor';
 
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -46,7 +43,7 @@ export default function EditProductScreen() {
   // Estados do formulário
   const [name, setName] = useState('');
   const [sku, setSku] = useState('');
-  const [barcode, setBarcode] = useState('');
+
   const [description, setDescription] = useState('');
   const [brand, setBrand] = useState('');
   const [color, setColor] = useState('');
@@ -64,13 +61,8 @@ export default function EditProductScreen() {
   const [showCostChangeDialog, setShowCostChangeDialog] = useState(false);
   const [pendingProductData, setPendingProductData] = useState<ProductUpdate | null>(null);
   const [originalCostPrice, setOriginalCostPrice] = useState<number | null>(null);
-  // Estoque e Entradas
+  // Estoque
   const [currentStock, setCurrentStock] = useState<number>(0);
-  const [entryItems, setEntryItems] = useState<any[]>([]);
-  const [showEntryUpdateDialog, setShowEntryUpdateDialog] = useState(false);
-  const [entryToUpdate, setEntryToUpdate] = useState<any>(null);
-  const [entryUpdateLoading, setEntryUpdateLoading] = useState(false);
-  const [showEntryCostSuccessDialog, setShowEntryCostSuccessDialog] = useState(false);
 
   /**
    * Query: Buscar produto
@@ -119,7 +111,7 @@ export default function EditProductScreen() {
     if (product) {
       setName(product.name || '');
       setSku(product.sku || '');
-      setBarcode(product.barcode || '');
+
       setDescription(product.description || '');
       setBrand(product.brand || '');
       setColor(product.color || '');
@@ -133,14 +125,15 @@ export default function EditProductScreen() {
         return num.toFixed(2);
       };
 
-      // Helper para converter unit_cost (pode ser string ou number) para number
-      const parseUnitCost = (value: any): number => {
-        if (value == null) return 0;
-        const num = typeof value === 'number' ? value : parseFloat(String(value).replace(',', '.'));
-        return isNaN(num) ? 0 : num;
-      };
-
-      // Formatar custo e preço de venda com segurança (aceita number ou string vinda da API)
+      // Buscar estoque
+      (async () => {
+        try {
+          const inv = await getProductStock(productId);
+          setCurrentStock(inv.quantity || 0);
+        } catch (e) {
+          console.error('Erro ao buscar dados:', e);
+        }
+      })();
       setCostPrice(safeToFixed(product.cost_price));
       setSalePrice(safeToFixed(product.price));
       
@@ -150,22 +143,11 @@ export default function EditProductScreen() {
       
       console.log('📦 Produto carregado - Custo original:', product.cost_price);
       
-      // Buscar estoque e entry_items
+      // Buscar estoque
       (async () => {
         try {
           const inv = await getProductStock(productId);
           setCurrentStock(inv.quantity || 0);
-          
-          // Carregar entry_items se disponível (normalizando unit_cost para number)
-          if (product.entry_items && Array.isArray(product.entry_items)) {
-            const normalizedEntries = product.entry_items.map((entry: any) => ({
-              ...entry,
-              unit_cost: typeof entry.unit_cost === 'number' 
-                ? entry.unit_cost 
-                : parseFloat(String(entry.unit_cost || '0').replace(',', '.')),
-            }));
-            setEntryItems(normalizedEntries);
-          }
         } catch (e) {
           console.error('Erro ao buscar dados:', e);
         }
@@ -225,12 +207,12 @@ export default function EditProductScreen() {
       const edit = variantEdits[v.id];
       if (!edit) return;
       const newPrice = parseFloat(edit.price.replace(',', '.'));
-      const newCost = parseFloat(edit.cost_price.replace(',', '.'));
-      const originalCost = (v as any).cost_price ?? 0;
+      const newCost = parseFloat(edit.cost_price?.replace(',', '.') ?? '0');
+      const origCost = Number((v as any).cost_price) || 0;
       const hasChange =
         edit.sku !== v.sku ||
         Math.abs(newPrice - v.price) > 0.001 ||
-        Math.abs(newCost - originalCost) > 0.001;
+        (!isNaN(newCost) && Math.abs(newCost - origCost) > 0.001);
       if (hasChange) {
         await updateVariant(v.id, {
           sku: edit.sku.trim().toUpperCase(),
@@ -253,7 +235,6 @@ export default function EditProductScreen() {
     const productData: ProductUpdate = {
       name: name.trim(),
       sku: hasVariants ? undefined : sku.trim().toUpperCase(),
-      barcode: barcode.trim() || undefined,
       description: description.trim() || undefined,
       brand: brand.trim() || undefined,
       color: hasVariants ? undefined : (color.trim() || undefined),
@@ -338,53 +319,6 @@ export default function EditProductScreen() {
     setPendingProductData(null);
   };
 
-  /**
-   * Iniciar edição de custo de uma entrada
-   */
-  const handleEditEntryClick = (entry: any) => {
-    if (entry.quantity_sold > 0) {
-      setErrorMessage(
-        `Esta entrada já vendeu ${entry.quantity_sold} unidade(s). ` +
-        `Não é possível editar custos de entradas com vendas para manter a rastreabilidade FIFO. ` +
-        `Para ajustar custos, crie uma nova entrada de ajuste.`
-      );
-      setShowErrorDialog(true);
-      return;
-    }
-
-    setEntryToUpdate(entry);
-    setShowEntryUpdateDialog(true);
-  };
-
-  /**
-   * Confirmar atualização de custo da entrada (via EntryItemCostEditor)
-   */
-  const handleConfirmEntryUpdate = async (data: { unit_cost: number }) => {
-    if (!entryToUpdate) return;
-    setEntryUpdateLoading(true);
-    try {
-      await api.put(`/stock-entries/entry-items/${entryToUpdate.entry_item_id}`, {
-        unit_cost: data.unit_cost,
-      });
-      setEntryItems(prev =>
-        prev.map(item =>
-          item.entry_item_id === entryToUpdate.entry_item_id
-            ? { ...item, unit_cost: data.unit_cost }
-            : item
-        )
-      );
-      refetch();
-      setShowEntryUpdateDialog(false);
-      setEntryToUpdate(null);
-      setShowEntryCostSuccessDialog(true);
-    } catch (error: any) {
-      setErrorMessage(error.response?.data?.detail || 'Erro ao atualizar custo da entrada');
-      setShowErrorDialog(true);
-    } finally {
-      setEntryUpdateLoading(false);
-    }
-  };
-
 
 
   // Verificar ID inválido
@@ -431,7 +365,6 @@ export default function EditProductScreen() {
             if (varCount > 1) {
               return [product?.brand, `${varCount} variações`].filter(Boolean).join(' • ') || undefined;
             }
-            // Produto sem variantes múltiplas: mostrar marca, cor, tamanho
             const parts = [product?.brand, product?.color, product?.size].filter(Boolean);
             return parts.length > 0 ? parts.join(' • ') : undefined;
           })()
@@ -494,16 +427,6 @@ export default function EditProductScreen() {
                 ) : null}
               </>
             )}
-
-            <TextInput
-              label="Código de Barras"
-              value={barcode}
-              onChangeText={setBarcode}
-              mode="outlined"
-              style={styles.input}
-              placeholder="Ex: 7891234567890"
-              keyboardType="numeric"
-            />
 
             <TextInput
               label="Marca"
@@ -596,22 +519,90 @@ export default function EditProductScreen() {
           </View>
         </View>
 
-        {/* ── Variantes (para produtos com variantes) ── */}
+        {/* ── Preços & Estoque (Layout Moderno Unificado) ── */}
+        
+        {/* Produtos SEM variantes: Preços + Entradas */}
+        {!hasVariants && (
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="pricetags-outline" size={20} color={Colors.light.primary} />
+              <Text style={styles.cardTitle}>Preços</Text>
+              <View style={styles.stockBadge}>
+                <Ionicons name="cube" size={14} color={Colors.light.text} />
+                <Text style={styles.stockBadgeText}>{currentStock} un</Text>
+              </View>
+            </View>
+            <View style={styles.cardContent}>
+              {/* Grid de Preços */}
+              <View style={styles.priceGrid}>
+                <View style={[styles.priceCard, errors.costPrice && { borderColor: Colors.light.error, borderWidth: 1.5 }]}>
+                  <View style={styles.priceCardHeader}>
+                    <Ionicons name="cart-outline" size={18} color={Colors.light.warning} />
+                    <Text style={styles.priceCardLabel}>Custo</Text>
+                  </View>
+                  <TextInput
+                    label="Preço de Custo *"
+                    value={formatPriceDisplay(costPrice)}
+                    onChangeText={(text) => {
+                      setCostPrice(formatPriceInput(text));
+                      setErrors({ ...errors, costPrice: '' });
+                    }}
+                    mode="outlined"
+                    error={!!errors.costPrice}
+                    style={styles.priceInput}
+                    keyboardType="numeric"
+                    left={<TextInput.Affix text="R$" />}
+                    dense
+                  />
+                  {errors.costPrice && <HelperText type="error" style={{ marginTop: 4 }}>{errors.costPrice}</HelperText>}
+                </View>
+
+                <View style={[styles.priceCard, errors.salePrice && { borderColor: Colors.light.error, borderWidth: 1.5 }]}>
+                  <View style={styles.priceCardHeader}>
+                    <Ionicons name="pricetag" size={18} color={Colors.light.success} />
+                    <Text style={styles.priceCardLabel}>Venda</Text>
+                  </View>
+                  <TextInput
+                    label="Preço de Venda *"
+                    value={formatPriceDisplay(salePrice)}
+                    onChangeText={(text) => {
+                      setSalePrice(formatPriceInput(text));
+                      setErrors({ ...errors, salePrice: '' });
+                    }}
+                    mode="outlined"
+                    error={!!errors.salePrice}
+                    style={styles.priceInput}
+                    keyboardType="numeric"
+                    left={<TextInput.Affix text="R$" />}
+                    dense
+                  />
+                  {errors.salePrice && <HelperText type="error" style={{ marginTop: 4 }}>{errors.salePrice}</HelperText>}
+                </View>
+              </View>
+          </View>
+        </View>
+        )}
+
+        {/* Produtos COM variantes: Card 1 — Variações */}
         {hasVariants && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Ionicons name="layers-outline" size={20} color={Colors.light.primary} />
-              <Text style={styles.cardTitle}>Variações ({variants?.length})</Text>
+              <Text style={styles.cardTitle}>Variações</Text>
+              <View style={styles.stockBadge}>
+                <Ionicons name="cube" size={14} color={Colors.light.text} />
+                <Text style={styles.stockBadgeText}>{currentStock} un</Text>
+              </View>
             </View>
             <View style={styles.cardContent}>
-              <View style={styles.variantEditInfoBox}>
-                <Ionicons name="information-circle" size={16} color={Colors.light.info} />
-                <Text style={styles.variantEditInfoText}>
-                  Edite SKU, preço de venda e custo de cada variação individualmente.
+              <View style={styles.fifoInfoPanel}>
+                <Ionicons name="layers" size={16} color={Colors.light.info} />
+                <Text style={styles.fifoInfoText}>
+                  Edite o SKU, custo e preço de venda de cada variação.
                 </Text>
               </View>
 
-              {(variants ?? []).map(variant => {
+              {[...(variants ?? [])].sort((a, b) => a.id - b.id).map(variant => {
                 const edit = variantEdits[variant.id] ?? {
                   sku: variant.sku,
                   price: (Number(variant.price) || 0).toFixed(2),
@@ -620,66 +611,64 @@ export default function EditProductScreen() {
                 const label = formatVariantLabel(variant);
                 const vStock = variant.current_stock ?? 0;
                 const priceVal = parseFloat(edit.price.replace(',', '.'));
-                const costVal = parseFloat(edit.cost_price.replace(',', '.'));
-                const margin = !isNaN(priceVal) && !isNaN(costVal) && costVal > 0
-                  ? (((priceVal - costVal) / costVal) * 100).toFixed(1)
+                const avgCost = parseFloat(edit.cost_price?.replace(',', '.') ?? '0') || 0;
+                const margin = !isNaN(priceVal) && priceVal > 0 && avgCost > 0
+                  ? (((priceVal - avgCost) / priceVal) * 100).toFixed(1)
                   : null;
 
                 return (
-                  <View key={variant.id} style={[styles.variantEditCard, !variant.is_active && styles.variantEditCardInactive]}>
-                    {/* Header da variante */}
-                    <View style={styles.variantEditHeader}>
-                      <View style={styles.variantEditLabelRow}>
-                        <Ionicons name="layers" size={15} color={Colors.light.primary} />
-                        <Text style={styles.variantEditLabelText}>{label}</Text>
-                      </View>
-                      <View style={styles.variantEditHeaderRight}>
-                        {margin !== null && (
-                          <Text style={styles.variantEditMargin}>{margin}% margem</Text>
-                        )}
+                  <View key={variant.id} style={[styles.variantCard, !variant.is_active && styles.variantCardInactive]}>
+                    {/* Header melhorado */}
+                    <View style={styles.variantHeader}>
+                      <View style={styles.variantHeaderLeft}>
                         <View style={[
-                          styles.variantEditStockBadge,
+                          styles.variantStockDot,
                           vStock === 0 ? { backgroundColor: Colors.light.error }
                             : vStock <= 3 ? { backgroundColor: Colors.light.warning }
                             : { backgroundColor: Colors.light.success }
-                        ]}>
-                          <Text style={styles.variantEditStockText}>{vStock} un.</Text>
+                        ]} />
+                        <View>
+                          <Text style={styles.variantName}>{label}</Text>
+                          {margin !== null && (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                              <Ionicons name="trending-up" size={12} color={Colors.light.success} />
+                              <Text style={styles.variantMargin}>{margin}% margem</Text>
+                            </View>
+                          )}
                         </View>
+                      </View>
+                      <View style={[
+                        styles.variantStockBadge,
+                        vStock === 0 ? { backgroundColor: Colors.light.error + '20' }
+                          : vStock <= 3 ? { backgroundColor: Colors.light.warning + '20' }
+                          : { backgroundColor: Colors.light.success + '20' }
+                      ]}>
+                        <Text style={[
+                          styles.variantStockText,
+                          vStock === 0 ? { color: Colors.light.error }
+                            : vStock <= 3 ? { color: Colors.light.warning }
+                            : { color: Colors.light.success }
+                        ]}>
+                          {vStock} un
+                        </Text>
                       </View>
                     </View>
 
-                    {/* SKU */}
-                    <TextInput
-                      label="SKU"
-                      value={edit.sku}
-                      onChangeText={text => setVariantEdits(prev => ({
-                        ...prev,
-                        [variant.id]: { ...prev[variant.id], sku: text },
-                      }))}
-                      mode="outlined"
-                      style={styles.variantEditInput}
-                      autoCapitalize="characters"
-                      dense
-                    />
-
-                    {/* Preço + Custo */}
-                    <View style={styles.rowInputs}>
-                      <View style={{ flex: 1 }}>
-                        <TextInput
-                          label="Preço de Venda"
-                          value={formatPriceDisplay(edit.price)}
-                          onChangeText={text => setVariantEdits(prev => ({
-                            ...prev,
-                            [variant.id]: { ...prev[variant.id], price: formatPriceInput(text) },
-                          }))}
-                          mode="outlined"
-                          style={[styles.input, { marginBottom: 0 }]}
-                          keyboardType="numeric"
-                          left={<TextInput.Affix text="R$" />}
-                          dense
-                        />
-                      </View>
-                      <View style={{ flex: 1 }}>
+                    {/* Campos de edição */}
+                    <View style={styles.variantFields}>
+                      <TextInput
+                        label="SKU"
+                        value={edit.sku}
+                        onChangeText={text => setVariantEdits(prev => ({
+                          ...prev,
+                          [variant.id]: { ...prev[variant.id], sku: text },
+                        }))}
+                        mode="outlined"
+                        style={styles.variantInput}
+                        autoCapitalize="characters"
+                        dense
+                      />
+                      <View style={styles.variantPriceRow}>
                         <TextInput
                           label="Custo"
                           value={formatPriceDisplay(edit.cost_price)}
@@ -688,7 +677,20 @@ export default function EditProductScreen() {
                             [variant.id]: { ...prev[variant.id], cost_price: formatPriceInput(text) },
                           }))}
                           mode="outlined"
-                          style={[styles.input, { marginBottom: 0 }]}
+                          style={[styles.variantInput, styles.variantInputHalf]}
+                          keyboardType="numeric"
+                          left={<TextInput.Affix text="R$" />}
+                          dense
+                        />
+                        <TextInput
+                          label="Preço de Venda"
+                          value={formatPriceDisplay(edit.price)}
+                          onChangeText={text => setVariantEdits(prev => ({
+                            ...prev,
+                            [variant.id]: { ...prev[variant.id], price: formatPriceInput(text) },
+                          }))}
+                          mode="outlined"
+                          style={[styles.variantInput, styles.variantInputHalf]}
                           keyboardType="numeric"
                           left={<TextInput.Affix text="R$" />}
                           dense
@@ -698,196 +700,10 @@ export default function EditProductScreen() {
                   </View>
                 );
               })}
+
             </View>
           </View>
         )}
-
-        {/* ── Preços (só para produtos SEM variantes) ── */}
-        {!hasVariants && (
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="cash-outline" size={20} color={Colors.light.primary} />
-            <Text style={styles.cardTitle}>Preços</Text>
-          </View>
-          <View style={styles.cardContent}>
-            <TextInput
-              label="Preço de Venda (R$) *"
-              value={formatPriceDisplay(salePrice)}
-              onChangeText={(text) => {
-                setSalePrice(formatPriceInput(text));
-                setErrors({ ...errors, salePrice: '' });
-              }}
-              mode="outlined"
-              error={!!errors.salePrice}
-              style={styles.input}
-              placeholder="0,00"
-              keyboardType="numeric"
-              left={<TextInput.Affix text="R$" />}
-            />
-            {errors.salePrice ? (
-              <HelperText type="error">{errors.salePrice}</HelperText>
-            ) : null}
-
-            {/* Info sobre preço de venda */}
-            <View style={styles.infoBoxSmall}>
-              <Ionicons name="pricetag" size={16} color={Colors.light.success} />
-              <Text style={styles.infoBoxSmallText}>
-                Este é o preço de venda global do produto
-              </Text>
-            </View>
-          </View>
-        </View>
-        )}
-
-        {/* Entradas de Estoque (FIFO) */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Ionicons name="cube-outline" size={20} color={Colors.light.primary} />
-            <Text style={styles.cardTitle}>Entradas de Estoque (FIFO)</Text>
-          </View>
-          <View style={styles.cardContent}>
-            {/* Resumo */}
-            <View style={styles.stockSummary}>
-              <View style={styles.stockSummaryItem}>
-                <Text style={styles.stockSummaryLabel}>Estoque Total:</Text>
-                <Text style={styles.stockSummaryValue}>{currentStock} un</Text>
-              </View>
-              <View style={styles.stockSummaryItem}>
-                <Text style={styles.stockSummaryLabel}>Entradas:</Text>
-                <Text style={styles.stockSummaryValue}>{entryItems.length}</Text>
-              </View>
-            </View>
-
-            {/* Aviso sobre FIFO */}
-            <View style={styles.infoBox}>
-              <Ionicons name="layers-outline" size={18} color={Colors.light.info} />
-              <Text style={styles.infoBoxText}>
-                Cada entrada pode ter custo diferente (FIFO). Edite o custo de entradas sem vendas abaixo. Para ajustar quantidades, use a tela de Entradas.
-              </Text>
-            </View>
-
-            {/* Lista de Entradas */}
-            {entryItems.length === 0 ? (
-              <View style={styles.emptyEntries}>
-                <Ionicons name="archive-outline" size={48} color={Colors.light.textTertiary} />
-                <Text style={styles.emptyEntriesText}>Nenhuma entrada de estoque cadastrada</Text>
-                <Text style={styles.emptyEntriesSubtext}>
-                  Adicione produtos através da tela de Entradas
-                </Text>
-              </View>
-            ) : (
-              entryItems.map((entry, index) => {
-                const canEdit = entry.quantity_sold === 0;
-                const soldPercentage = (entry.quantity_sold / entry.quantity_received) * 100;
-
-                return (
-                  <View key={`${entry.entry_item_id}-${index}`} style={styles.entryItem}>
-                    {/* Header da entrada */}
-                    <View style={styles.entryItemHeader}>
-                      <View style={styles.entryItemHeaderLeft}>
-                        <Ionicons
-                          name="receipt-outline"
-                          size={16}
-                          color={Colors.light.primary}
-                        />
-                        <Text style={styles.entryCode}>{entry.entry_code}</Text>
-                      </View>
-                      <View style={[
-                        styles.entryTypeBadge,
-                        { backgroundColor: getEntryTypeColor(entry.entry_type) + '20' }
-                      ]}>
-                        <Text style={[
-                          styles.entryTypeText,
-                          { color: getEntryTypeColor(entry.entry_type) }
-                        ]}>
-                          {getEntryTypeLabel(entry.entry_type)}
-                        </Text>
-                      </View>
-                    </View>
-
-                    {/* Informações da entrada */}
-                    <View style={styles.entryItemContent}>
-                      <View style={styles.entryItemRow}>
-                        <Text style={styles.entryItemLabel}>Data:</Text>
-                        <Text style={styles.entryItemValue}>
-                          {new Date(entry.entry_date).toLocaleDateString('pt-BR')}
-                        </Text>
-                      </View>
-
-                      <View style={styles.entryItemRow}>
-                        <Text style={styles.entryItemLabel}>Fornecedor:</Text>
-                        <Text style={styles.entryItemValue} numberOfLines={1}>
-                          {entry.supplier_name}
-                        </Text>
-                      </View>
-
-                      <View style={styles.entryItemRow}>
-                        <Text style={styles.entryItemLabel}>Quantidade:</Text>
-                        <Text style={styles.entryItemValue}>
-                          {entry.quantity_remaining}/{entry.quantity_received} un
-                          {entry.quantity_sold > 0 && (
-                            <Text style={styles.soldText}> ({entry.quantity_sold} vendidas)</Text>
-                          )}
-                        </Text>
-                      </View>
-
-                      {/* Custo Unitário - Editável se não tiver vendas */}
-                      <View style={styles.entryItemRow}>
-                        <Text style={styles.entryItemLabel}>Custo Unit.:</Text>
-                        <View style={styles.entryItemValueContainer}>
-                          <Text style={[
-                            styles.entryItemValueMoney,
-                            !canEdit && styles.entryItemValueDisabled
-                          ]}>
-                            R$ {(typeof entry.unit_cost === 'number' ? entry.unit_cost : 0).toFixed(2).replace('.', ',')}
-                          </Text>
-                          {canEdit ? (
-                            <TouchableOpacity
-                              onPress={() => handleEditEntryClick(entry)}
-                              style={styles.editEntryButton}
-                            >
-                              <Ionicons name="pencil" size={16} color={Colors.light.primary} />
-                            </TouchableOpacity>
-                          ) : (
-                            <Ionicons name="lock-closed" size={16} color={Colors.light.textTertiary} />
-                          )}
-                        </View>
-                      </View>
-
-                      {/* Barra de progresso de vendas */}
-                      {entry.quantity_sold > 0 && (
-                        <View style={styles.progressContainer}>
-                          <View style={styles.progressBar}>
-                            <View style={[
-                              styles.progressFill,
-                              { width: `${soldPercentage}%` }
-                            ]} />
-                          </View>
-                          <Text style={styles.progressText}>
-                            {soldPercentage.toFixed(0)}% vendido
-                          </Text>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-                );
-              })
-            )}
-
-            {/* Botão para ir para tela de entradas */}
-            {entryItems.length > 0 && (
-              <Button
-                mode="outlined"
-                onPress={() => router.push('/entries')}
-                style={styles.manageEntriesButton}
-                icon="storefront-outline"
-              >
-                Gerenciar Entradas
-              </Button>
-            )}
-          </View>
-        </View>
-
         {/* Botões de ação */}
         <View style={styles.actions}>
           <Button
@@ -968,35 +784,6 @@ export default function EditProductScreen() {
           setMenuVisible(false);
         }}
         onDismiss={() => setMenuVisible(false)}
-      />
-
-      {/* Dialog de Sucesso - Custo Unitário de Entrada */}
-      <ConfirmDialog
-        visible={showEntryCostSuccessDialog}
-        title="Custo Atualizado!"
-        message="Custo unitário atualizado com sucesso."
-        confirmText="OK"
-        cancelText=""
-        onConfirm={() => setShowEntryCostSuccessDialog(false)}
-        onCancel={() => setShowEntryCostSuccessDialog(false)}
-        type="success"
-        icon="checkmark-circle"
-      />
-
-      {/* Modal de Edição de Custo da Entrada */}
-      <EntryItemCostEditor
-        visible={showEntryUpdateDialog}
-        item={entryToUpdate}
-        showQuantity={false}
-        showSellPrice={false}
-        showNotes={false}
-        warningText="Ao editar o custo unitário, o custo do produto será atualizado automaticamente."
-        loading={entryUpdateLoading}
-        onDismiss={() => {
-          setShowEntryUpdateDialog(false);
-          setEntryToUpdate(null);
-        }}
-        onConfirm={handleConfirmEntryUpdate}
       />
 
     </View>
@@ -1404,72 +1191,474 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
 
-  // ── Estilos para edição de variantes ──
-  variantEditInfoBox: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 8,
-    backgroundColor: Colors.light.info + '12',
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 16,
-  },
-  variantEditInfoText: {
-    flex: 1,
-    fontSize: 13,
-    color: Colors.light.info,
-    lineHeight: 18,
-  },
-  variantEditCard: {
-    backgroundColor: Colors.light.backgroundSecondary,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    gap: 10,
-  },
-  variantEditCardInactive: {
-    opacity: 0.55,
-  },
-  variantEditHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  variantEditLabelRow: {
+  // ── Novo Layout Moderno ──
+  
+  // Badge de estoque no header
+  stockBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    flex: 1,
+    backgroundColor: Colors.light.background,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
   },
-  variantEditLabelText: {
+  stockBadgeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+
+  // Grid de preços
+  priceGrid: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 20,
+  },
+  priceCard: {
+    flex: 1,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  priceCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 10,
+  },
+  priceCardLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.light.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  priceInput: {
+    backgroundColor: '#fff',
+    marginBottom: 0,
+  },
+
+  // Seção de entradas
+  entriesSection: {
+    marginTop: 8,
+    gap: 12,
+  },
+  entriesSectionVariant: {
+    marginTop: 20,
+    paddingTop: 20,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+    gap: 12,
+  },
+  entriesSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  entriesSectionTitle: {
     fontSize: 15,
     fontWeight: '700',
     color: Colors.light.text,
   },
-  variantEditHeaderRight: {
+  entriesSectionTitleSmall: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+  },
+
+  // Info panel FIFO
+  fifoInfoPanel: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    backgroundColor: Colors.light.info + '12',
+    padding: 12,
+    borderRadius: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: Colors.light.info,
+  },
+  fifoInfoText: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.light.text,
+    lineHeight: 18,
+  },
+
+  // Cards de entrada FIFO
+  fifoEntryCard: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    overflow: 'hidden',
+    elevation: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+  },
+  fifoEntryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  fifoEntryCode: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  fifoEntryCodeText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.light.text,
+    fontFamily: 'monospace',
+  },
+  fifoEntryType: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  fifoEntryTypeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  fifoEntryBody: {
+    padding: 14,
+    gap: 10,
+  },
+  fifoEntryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  fifoEntryLabel: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    fontWeight: '600',
+  },
+  fifoEntryValue: {
+    fontSize: 13,
+    color: Colors.light.text,
+    fontWeight: '500',
+    flex: 1,
+    textAlign: 'right',
+  },
+  fifoStockIndicator: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  fifoStockValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  fifoStockEmpty: {
+    color: Colors.light.error,
+  },
+  soldIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  fifoCostContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
   },
-  variantEditMargin: {
+  fifoCostValue: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.light.primary,
+  },
+  fifoCostLocked: {
+    color: Colors.light.textTertiary,
+  },
+  fifoEditButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.light.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    elevation: 2,
+  },
+  fifoLockedIcon: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fifoProgressBar: {
+    height: 6,
+    backgroundColor: Colors.light.border,
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginTop: 4,
+  },
+  fifoProgressFill: {
+    height: '100%',
+    backgroundColor: Colors.light.error,
+    borderRadius: 3,
+  },
+
+  // Cards compactos para entradas nas variações
+  fifoEntryCardCompact: {
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  fifoEntryHeaderCompact: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  fifoEntryCodeCompact: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.light.text,
+    fontFamily: 'monospace',
+  },
+  fifoEntryTypeCompact: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  fifoEntryTypeTextCompact: {
+    fontSize: 9,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  fifoEntryBodyCompact: {
+    gap: 6,
+  },
+  fifoSupplierText: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginBottom: 2,
+  },
+  fifoEntryStatsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  fifoStatText: {
+    fontSize: 12,
+    color: Colors.light.text,
+    fontWeight: '600',
+  },
+  fifoCostContainerCompact: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  fifoCostValueCompact: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.light.primary,
+  },
+  fifoEditButtonSmall: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: Colors.light.primary + '20',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fifoProgressBarCompact: {
+    height: 4,
+    backgroundColor: Colors.light.border,
+    borderRadius: 2,
+    overflow: 'hidden',
+    marginTop: 4,
+  },
+
+  // Empty state
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    gap: 8,
+  },
+  emptyStateText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+  },
+  emptyStateSubtext: {
+    fontSize: 13,
+    color: Colors.light.textTertiary,
+    textAlign: 'center',
+  },
+
+  // Botões de gerenciar entradas
+  manageEntriesButtonCompact: {
+    marginTop: 8,
+  },
+
+  // Cards de variantes modernos
+  variantCard: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+  },
+  variantCardInactive: {
+    opacity: 0.5,
+    backgroundColor: Colors.light.backgroundSecondary,
+  },
+  variantHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  variantHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  variantStockDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  variantName: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginBottom: 2,
+  },
+  variantMargin: {
     fontSize: 12,
     fontWeight: '600',
     color: Colors.light.success,
   },
-  variantEditStockBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+  variantStockBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
     borderRadius: 10,
   },
-  variantEditStockText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '600',
+  variantStockText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
-  variantEditInput: {
-    backgroundColor: '#fff',
+  variantFields: {
+    gap: 10,
+  },
+  variantInput: {
+    backgroundColor: Colors.light.background,
+    marginBottom: 0,
+  },
+  variantPriceRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  variantInputHalf: {
+    flex: 1,
+  },
+
+  // Entradas dentro do card de variação
+  variantEntriesSection: {
+    marginTop: 14,
+    paddingTop: 14,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+    gap: 6,
+  },
+  variantEntriesSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 4,
+  },
+  variantEntriesSectionTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.light.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    flex: 1,
+  },
+  variantEntriesCount: {
+    backgroundColor: Colors.light.primary + '18',
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  variantEntriesCountText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.light.primary,
+  },
+  variantEntriesEmpty: {
+    fontSize: 12,
+    color: Colors.light.textTertiary,
+    fontStyle: 'italic',
+    paddingVertical: 4,
+  },
+  variantEntryRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  variantEntryRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+  },
+  variantEntryTypeDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  variantEntryCode: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  variantEntryMeta: {
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+    marginTop: 1,
+  },
+  variantEntryRowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  variantEntryStock: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
   },
 });
