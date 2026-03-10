@@ -13,7 +13,6 @@ Resolve o erro: "relation already exists" em deploys
 import asyncio
 import sys
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import create_async_engine
 from alembic.config import Config
 from alembic import command
 from alembic.script import ScriptDirectory
@@ -59,14 +58,12 @@ async def get_alembic_version(engine) -> str | None:
 
 
 async def main():
-    from app.core.config import settings
-
     print("=" * 60)
     print("[SMART MIGRATION]")
     print("=" * 60)
 
-    # Conectar ao banco
-    engine = create_async_engine(settings.DATABASE_URL, echo=False)
+    # Reutiliza engine do database.py (já tem SSL configurado)
+    from app.core.database import engine
 
     # Tabelas criticas que indicam que o schema ja foi criado
     critical_tables = ["trips", "stock_entries", "entry_items", "users", "products"]
@@ -83,8 +80,6 @@ async def main():
         tables_exist[table] = exists
         status = "[OK]" if exists else "[--]"
         print(f"   Tabela '{table}': {status}")
-
-    await engine.dispose()
 
     # Configurar Alembic
     alembic_cfg = Config("alembic.ini")

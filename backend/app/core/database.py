@@ -1,6 +1,7 @@
 """Database configuration and session management using SQLAlchemy 2.0."""
 
 import os
+import ssl as _ssl_module
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -17,15 +18,26 @@ from app.models.base import BaseModel
 database_url = os.getenv("DATABASE_URL", settings.DATABASE_URL)
 
 # Convert database URL based on type
-if database_url.startswith("postgresql"):
-    ASYNC_DATABASE_URL = database_url.replace(
-        "postgresql://", "postgresql+asyncpg://"
-    )
+if database_url.startswith("postgresql://"):
+    ASYNC_DATABASE_URL = database_url.replace("postgresql://", "postgresql+asyncpg://")
+elif database_url.startswith("postgresql+asyncpg://"):
+    ASYNC_DATABASE_URL = database_url
 elif database_url.startswith("sqlite:///"):
     ASYNC_DATABASE_URL = database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
 else:
-    # For other URLs, use as-is
     ASYNC_DATABASE_URL = database_url
+
+# SSL para PostgreSQL externo (Render, Heroku, etc.)
+# CERT_NONE: mantém criptografia SSL sem verificar certificado do servidor.
+# Necessário porque o container slim pode não ter o CA do Render no trust store.
+_is_postgres = ASYNC_DATABASE_URL.startswith("postgresql")
+if _is_postgres and settings.ENVIRONMENT != "test":
+    _ssl_ctx = _ssl_module.create_default_context()
+    _ssl_ctx.check_hostname = False
+    _ssl_ctx.verify_mode = _ssl_module.CERT_NONE
+    _connect_args: dict = {"ssl": _ssl_ctx}
+else:
+    _connect_args = {}
 
 # Create async engine
 engine = create_async_engine(
@@ -34,6 +46,7 @@ engine = create_async_engine(
     pool_size=settings.DATABASE_POOL_SIZE,
     max_overflow=settings.DATABASE_MAX_OVERFLOW,
     pool_pre_ping=True,
+    connect_args=_connect_args,
     poolclass=NullPool if settings.ENVIRONMENT == "test" else None,
 )
 
