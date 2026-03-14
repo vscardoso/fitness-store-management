@@ -13,6 +13,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   TextInput as RNTextInput,
+  Keyboard,
 } from 'react-native';
 import { Text, Button, Card, TextInput, HelperText, ActivityIndicator } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';

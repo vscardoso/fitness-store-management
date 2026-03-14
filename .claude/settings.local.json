@@ -50,7 +50,20 @@
       "Bash(python3 -c \":*)",
       "Bash(python3:*)",
       "Bash(xargs grep -l \"useUpdateCustomer\")",
-      "Bash(git checkout HEAD -- mobile/app/products/[id].tsx)"
+      "Bash(git checkout HEAD -- mobile/app/products/[id].tsx)",
+      "Bash(git merge:*)",
+      "Bash(source:*)",
+      "Bash(/c/Users/Victor/Desktop/fitness-store-management/backend/venv/Scripts/python.exe:*)",
+      "Bash(/c/Users/Victor/Desktop/fitness-store-management/backend/venv/Scripts/pip.exe install sqladmin)",
+      "Bash(/c/Users/Victor/Desktop/fitness-store-management/backend/venv/Scripts/pip.exe install:*)",
+      "Bash(PYTHONIOENCODING=utf-8 /c/Users/Victor/Desktop/fitness-store-management/backend/venv/Scripts/python.exe:*)",
+      "Bash(cmd.exe /c \"netstat -ano | findstr :8000\")",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd //c \"taskkill /PID 39420 /F\")",
+      "Bash(npm show:*)",
+      "Bash(npm audit:*)",
+      "Bash(npm run build:*)"
     ],
     "deny": [],
     "ask": []

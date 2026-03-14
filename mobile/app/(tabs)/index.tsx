@@ -16,6 +16,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { getDashboardStats, getInventoryValuation, getPeriodSalesStats, getPeriodPurchases, getDailySales, getTopProducts, getFifoPerformance, getYoYComparison } from '@/services/dashboardService';
 import type { DailySalesData } from '@/services/dashboardService';
 import { getSales } from '@/services/saleService';
+import type { Sale } from '@/types';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import FAB from '@/components/FAB';
@@ -973,7 +974,7 @@ export default function DashboardScreen() {
 
         {recentSales && recentSales.length > 0 ? (
           <Card style={styles.recentCard}>
-            {recentSales.slice(0, 4).map((sale, index) => (
+            {recentSales.slice(0, 4).map((sale: Sale, index: number) => (
               <View
                 key={sale.id}
                 style={[

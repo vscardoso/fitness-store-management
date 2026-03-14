@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import async_session_maker
 from app.services.conditional_notification_service import ConditionalNotificationService
+from app.tasks.wishlist_notifier import run_wishlist_notifier
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +109,15 @@ def start_scheduler():
         trigger=IntervalTrigger(minutes=30),
         id="send_missed_departure_alert",
         name="Enviar alerta de envios pendentes que perderam SLA",
+        replace_existing=True,
+    )
+
+    # Job 5: Notificar wishlist quando produto volta ao estoque (1h)
+    scheduler.add_job(
+        run_wishlist_notifier,
+        trigger=IntervalTrigger(hours=1),
+        id="wishlist_notifier",
+        name="Notificar clientes: produto voltou ao estoque",
         replace_existing=True,
     )
 

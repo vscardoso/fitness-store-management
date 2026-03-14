@@ -42,12 +42,12 @@ export default function ProductGroupCard({ product, onPress }: ProductGroupCardP
 
           {/* Middle: Info */}
           <View style={styles.infoContainer}>
-            <Text variant="titleMedium" style={styles.name} numberOfLines={1}>
+            <Text style={styles.name} numberOfLines={1}>
               {product.name}
             </Text>
-            
+
             {product.brand && (
-              <Text variant="bodySmall" style={styles.brand} numberOfLines={1}>
+              <Text style={styles.brand} numberOfLines={1}>
                 {product.brand}
               </Text>
             )}
@@ -61,7 +61,7 @@ export default function ProductGroupCard({ product, onPress }: ProductGroupCardP
             )}
 
             {/* Price Range */}
-            <Text variant="titleSmall" style={styles.price}>
+            <Text style={styles.price}>
               {priceText}
             </Text>
           </View>

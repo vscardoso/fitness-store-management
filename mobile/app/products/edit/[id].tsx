@@ -1050,12 +1050,6 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: Colors.light.primary,
   },
-  infoBoxText: {
-    flex: 1,
-    fontSize: 13,
-    color: '#666',
-    lineHeight: 18,
-  },
   entryItem: {
     backgroundColor: '#fff',
     borderRadius: 12,

@@ -641,13 +641,13 @@ export default function CreateConditionalShipmentScreen() {
                           <Ionicons
                             name="cube-outline"
                             size={14}
-                            color={item.current_stock > 0 ? Colors.light.success : Colors.light.error}
+                            color={(item.current_stock ?? 0) > 0 ? Colors.light.success : Colors.light.error}
                           />
                           <Text
                             variant="bodySmall"
                             style={[
                               styles.stockText,
-                              { color: item.current_stock > 0 ? Colors.light.success : Colors.light.error }
+                              { color: (item.current_stock ?? 0) > 0 ? Colors.light.success : Colors.light.error }
                             ]}
                           >
                             Estoque: {item.current_stock || 0} un.

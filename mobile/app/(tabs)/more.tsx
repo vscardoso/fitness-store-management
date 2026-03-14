@@ -4,6 +4,7 @@ import { Text, Card, Avatar, Button } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '@/hooks/useAuth';
+import { UserRole } from '@/types';
 import { useRouter } from 'expo-router';
 import { Colors, theme } from '@/constants/Colors';
 
@@ -278,8 +279,33 @@ export default function MoreScreen() {
         </Card>
       </View>
 
+      {/* Looks & Wishlist */}
+      <View style={styles.section}>
+        <Text variant="titleMedium" style={styles.sectionTitle}>
+          Looks & Wishlist
+        </Text>
+        <Card style={styles.menuCard}>
+          <MenuItem
+            icon="shirt-outline"
+            title="Lookbook"
+            subtitle="Montar e gerenciar looks"
+            onPress={() => router.push('/looks')}
+            iconColor="#EC4899"
+            iconBg="#FCE7F3"
+          />
+          <MenuItem
+            icon="heart-outline"
+            title="Demanda Wishlist"
+            subtitle="Produtos mais desejados por clientes"
+            onPress={() => router.push('/(tabs)/demand')}
+            iconColor="#8B5CF6"
+            iconBg="#EDE9FE"
+          />
+        </Card>
+      </View>
+
       {/* Viagens - Apenas ADMIN/MANAGER */}
-      {(user?.role === 'admin' || user?.role === 'ADMIN' || user?.role === 'manager' || user?.role === 'MANAGER') && (
+      {(user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER) && (
         <View style={styles.section}>
           <Text variant="titleMedium" style={styles.sectionTitle}>
             🚚 Viagens
@@ -303,7 +329,7 @@ export default function MoreScreen() {
         </Text>
         <Card style={styles.menuCard}>
           {/* Equipe - Apenas ADMIN */}
-          {(user?.role === 'admin' || user?.role === 'ADMIN') && (
+          {(user?.role === UserRole.ADMIN) && (
             <MenuItem
               icon="people-outline"
               title="Gerenciar Equipe"
@@ -314,7 +340,7 @@ export default function MoreScreen() {
             />
           )}
           {/* Descontos - Apenas ADMIN */}
-          {(user?.role === 'admin' || user?.role === 'ADMIN') && (
+          {(user?.role === UserRole.ADMIN) && (
             <MenuItem
               icon="cash-outline"
               title="Descontos de Pagamento"

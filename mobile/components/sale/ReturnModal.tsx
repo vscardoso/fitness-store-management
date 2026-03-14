@@ -516,6 +516,7 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     margin: 0,
+    minWidth: 120,
   },
   loadingContainer: {
     padding: 40,
@@ -543,9 +544,6 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     textAlign: 'center',
     marginBottom: 24,
-  },
-  closeButton: {
-    minWidth: 120,
   },
   
   // Info Banner

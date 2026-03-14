@@ -5,7 +5,7 @@
  * e buscar produtos automaticamente
  */
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -43,6 +43,10 @@ export default function BarcodeScanner({
     setIsLoading(false);
     lastScannedRef.current = null;
   };
+
+  useEffect(() => {
+    if (visible) handleModalShow();
+  }, [visible]);
 
   /**
    * Handler para quando um código é escaneado
@@ -210,7 +214,6 @@ export default function BarcodeScanner({
       <Modal
         visible={visible}
         onDismiss={onDismiss}
-        onShow={handleModalShow}
         contentContainerStyle={styles.modal}
       >
         {renderContent()}

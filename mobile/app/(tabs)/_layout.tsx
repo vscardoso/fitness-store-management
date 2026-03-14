@@ -130,6 +130,9 @@ export default function TabsLayout() {
       
       {/* Team: oculto do tab bar mas mantém rotas acessíveis com tab bar visível */}
       <Tabs.Screen name="team" options={{ href: null }} />
+
+      {/* Demand: dashboard de demanda da wishlist, oculto do tab bar */}
+      <Tabs.Screen name="demand" options={{ href: null }} />
     </Tabs>
   );
 }

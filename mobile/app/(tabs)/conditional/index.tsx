@@ -96,7 +96,7 @@ export default function ConditionalShipmentsScreen() {
     const statusColor = SHIPMENT_STATUS_COLORS[item.status] ?? Colors.light.info;
     const statusLabel = SHIPMENT_STATUS_LABELS[item.status];
     const deadlineColor = item.deadline ? getDeadlineColor(item.deadline) : undefined;
-    const isFinished = item.status === 'COMPLETED_FULL_SALE' || item.status === 'COMPLETED_PARTIAL_SALE' || item.status === 'CANCELLED';
+    const isFinished = item.status === 'COMPLETED_FULL_SALE' || item.status === 'COMPLETED_PARTIAL_SALE' || item.status === 'RETURNED_NO_SALE';
 
     return (
       <TouchableOpacity

@@ -332,6 +332,7 @@ export enum SaleStatus {
   PENDING = 'pending',
   COMPLETED = 'completed',
   CANCELLED = 'cancelled',
+  PARTIALLY_REFUNDED = 'partially_refunded',
 }
 
 export enum PaymentMethod {
@@ -497,6 +498,7 @@ export interface CustomerUpdate {
   birth_date?: string;
   address?: string;
   address_number?: string;
+  neighborhood?: string;
   city?: string;
   state?: string;
   zip_code?: string;

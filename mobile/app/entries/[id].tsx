@@ -29,7 +29,7 @@ import {
   HelperText,
 } from 'react-native-paper';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
+import PageHeader from '@/components/layout/PageHeader';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import InfoRow from '@/components/ui/InfoRow';
@@ -505,35 +505,15 @@ export default function StockEntryDetailsScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header padrão com gradiente */}
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerContent}>
-            <TouchableOpacity onPress={handleGoBack} style={styles.backIconButton}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <View style={styles.headerInfo}>
-              <Text style={styles.greeting}>{entry.entry_code}</Text>
-              <View style={styles.headerSubtitleRow}>
-                {renderTypeBadge(entry.entry_type)}
-                {entry.has_sales && (
-                  <View style={styles.salesProtectionBadge}>
-                    <Ionicons name="shield-checkmark" size={14} color="#2E7D32" />
-                    <Text style={styles.salesProtectionText}>PROTEGIDA</Text>
-                  </View>
-                )}
-                <Text style={styles.headerSubtitle}>Fornecedor: {entry.supplier_name}</Text>
-              </View>
-            </View>
-            <View style={styles.headerPlaceholder} />
-          </View>
-        </LinearGradient>
-      </View>
+      <PageHeader
+        title={entry.entry_code}
+        subtitle={`Fornecedor: ${entry.supplier_name}`}
+        showBackButton
+        onBack={handleGoBack}
+        rightActions={[
+          { icon: 'trash', onPress: handleDelete },
+        ]}
+      />
 
         <ScrollView
           style={styles.scrollView}
@@ -866,52 +846,8 @@ const styles = StyleSheet.create({
   errorButton: {
     paddingHorizontal: 24,
   },
-  headerContainer: {
-    marginBottom: 0,
-  },
-  headerGradient: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  backIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: theme.spacing.md,
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: theme.fontSize.xl,
-    fontWeight: '700',
-    color: '#fff',
+  typeBadgeInHeader: {
     marginBottom: theme.spacing.xs,
-  },
-  headerSubtitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  headerSubtitle: {
-    fontSize: theme.fontSize.sm,
-    color: '#fff',
-    opacity: 0.9,
-  },
-  headerPlaceholder: {
-    width: 40,
   },
   scrollView: {
     flex: 1,

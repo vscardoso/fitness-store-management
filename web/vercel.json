@@ -1,0 +1,11 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run build",
+  "outputDirectory": ".next",
+  "installCommand": "npm install",
+  "env": {
+    "NEXT_PUBLIC_API_URL": "@api_url",
+    "NEXT_PUBLIC_WHATSAPP_NUMBER": "@whatsapp_number",
+    "NEXT_PUBLIC_STORE_NAME": "@store_name"
+  }
+}

@@ -18,6 +18,9 @@ from .subscription import Subscription
 from .conditional_shipment import ConditionalShipment, ConditionalShipmentItem
 from .notification import PushToken, NotificationLog
 from .sale_return import SaleReturn, ReturnItem
+from .look import Look, LookItem
+from .wishlist import Wishlist
+from .product_tag import ProductTag
 
 __all__ = [
     # Base
@@ -83,4 +86,10 @@ __all__ = [
     # Sale Return
     "SaleReturn",
     "ReturnItem",
+
+    # Lookbook
+    "Look",
+    "LookItem",
+    "Wishlist",
+    "ProductTag",
 ]

@@ -30,16 +30,10 @@ const STEPS: Step[] = [
     statuses: ['SENT'],
   },
   {
-    key: 'analysis',
-    label: 'Em Análise',
-    icon: 'time-outline',
-    statuses: ['PARTIAL_RETURN'],
-  },
-  {
     key: 'completed',
     label: 'Concluído',
     icon: 'checkmark-circle-outline',
-    statuses: ['COMPLETED'],
+    statuses: ['RETURNED_NO_SALE', 'COMPLETED_PARTIAL_SALE', 'COMPLETED_FULL_SALE'],
   },
 ];
 
@@ -48,25 +42,6 @@ interface StatusStepperProps {
 }
 
 export default function StatusStepper({ status }: StatusStepperProps) {
-  // Special handling for CANCELLED and OVERDUE
-  if (status === 'CANCELLED') {
-    return (
-      <View style={styles.cancelledContainer}>
-        <Ionicons name="close-circle" size={20} color={Colors.light.error} />
-        <Text style={styles.cancelledText}>Envio Cancelado</Text>
-      </View>
-    );
-  }
-
-  if (status === 'OVERDUE') {
-    return (
-      <View style={styles.overdueContainer}>
-        <Ionicons name="alert-circle" size={20} color={Colors.light.error} />
-        <Text style={styles.overdueText}>Envio Atrasado</Text>
-      </View>
-    );
-  }
-
   // Find current step
   const currentStepIndex = STEPS.findIndex((step) =>
     step.statuses.includes(status)

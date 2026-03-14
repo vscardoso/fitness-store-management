@@ -121,7 +121,7 @@ export default function ErrorSnackbar({
     }
   };
 
-  if (!visible && opacity._value === 0) {
+  if (!visible && (opacity as any)._value === 0) {
     return null;
   }
 

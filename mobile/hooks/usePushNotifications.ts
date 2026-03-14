@@ -17,14 +17,16 @@ Notifications.setNotificationHandler({
     shouldShowAlert: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
   }),
 });
 
 export function usePushNotifications() {
   const { setPushToken, addNotification, config } = useNotificationStore();
   const { token: authToken } = useAuthStore();
-  const notificationListener = useRef<Notifications.Subscription>();
-  const responseListener = useRef<Notifications.Subscription>();
+  const notificationListener = useRef<Notifications.Subscription | null>(null);
+  const responseListener = useRef<Notifications.Subscription | null>(null);
 
   useEffect(() => {
     // Registrar para push notifications
@@ -64,8 +66,8 @@ export function usePushNotifications() {
         body || '',
         {
           data: data || {},
-          route: data?.route,
-          routeParams: data?.routeParams,
+          route: data?.route as string | undefined,
+          routeParams: data?.routeParams as Record<string, any> | undefined,
         }
       );
 
@@ -124,7 +126,7 @@ export function usePushNotifications() {
           data,
           sound: config.sound ? 'default' : undefined,
         },
-        trigger: { seconds },
+        trigger: { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds, repeats: false },
       });
     },
 

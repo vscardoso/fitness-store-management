@@ -6,8 +6,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  TouchableOpacity,
-  StatusBar,
 } from 'react-native';
 import {
   TextInput,
@@ -17,8 +15,8 @@ import {
   Text,
   Card,
 } from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useRouter } from 'expo-router';
 import { useCreateCustomer } from '@/hooks';
@@ -161,37 +159,12 @@ export default function AddCustomerScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
-      {/* Header com gradiente */}
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerContent}>
-          <View style={styles.headerTop}>
-            <TouchableOpacity
-              onPress={() => router.push('/(tabs)/customers')}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-
-            <Text style={styles.headerTitle}>
-              Novo Cliente
-            </Text>
-
-            <View style={styles.headerPlaceholder} />
-          </View>
-
-          <View style={styles.headerInfo}>
-            <Text style={styles.headerSubtitle}>
-              Preencha os dados abaixo para cadastrar um novo cliente
-            </Text>
-          </View>
-        </View>
-        </LinearGradient>
-      </View>
+      <PageHeader
+        title="Novo Cliente"
+        subtitle="Preencha os dados abaixo"
+        showBackButton
+        onBack={() => router.push('/(tabs)/customers')}
+      />
 
       <KeyboardAvoidingView
         style={styles.content}
@@ -449,55 +422,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
-  },
-  headerContainer: {
-    marginBottom: 0,
-  },
-  headerGradient: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.sm,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  headerContent: {
-    marginTop: 0,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: theme.spacing.xs,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    color: '#fff',
-    fontWeight: 'bold' as const,
-    textAlign: 'center',
-    flex: 1,
-    fontSize: theme.fontSize.xl,
-  },
-  headerPlaceholder: {
-    width: 40,
-  },
-  headerInfo: {
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.sm,
-    maxWidth: '90%',
-    alignSelf: 'center',
-  },
-  headerSubtitle: {
-    color: '#fff',
-    fontSize: theme.fontSize.sm,
-    opacity: 0.9,
-    textAlign: 'center',
   },
   content: {
     flex: 1,

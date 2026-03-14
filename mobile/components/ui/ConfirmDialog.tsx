@@ -18,7 +18,7 @@ export interface ConfirmDialogProps {
   confirmText?: string;
   cancelText?: string;
   onConfirm: () => void;
-  onCancel: () => void;
+  onCancel?: () => void;
   type?: 'danger' | 'warning' | 'info' | 'success';
   details?: string[];
   icon?: keyof typeof Ionicons.glyphMap;
@@ -32,7 +32,7 @@ export default function ConfirmDialog({
   confirmText = 'Confirmar',
   cancelText = 'Cancelar',
   onConfirm,
-  onCancel,
+  onCancel = () => {},
   type = 'warning',
   details = [],
   icon,

@@ -4,6 +4,7 @@
  */
 
 import api from './api';
+import { skipLoading } from '@/utils/apiHelpers';
 import type { StockEntry, StockEntryCreate, StockEntryWithItems, EntryType } from '@/types';
 
 // Use trailing slash to avoid 307 redirects that may drop Authorization headers
@@ -36,7 +37,7 @@ export async function getEntriesByTrip(trip_id: number): Promise<StockEntry[]> {
  * Buscar entrada por ID
  */
 export async function getStockEntryById(id: number): Promise<StockEntryWithItems> {
-  const response = await api.get<StockEntryWithItems>(`${ENTRIES_ENDPOINT}${id}`);
+  const response = await api.get<StockEntryWithItems>(`${ENTRIES_ENDPOINT}${id}`, skipLoading());
   return response.data;
 }
 

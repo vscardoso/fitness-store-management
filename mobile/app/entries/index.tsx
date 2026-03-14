@@ -23,7 +23,7 @@ import {
 } from 'react-native';
 import { Text, Card, Searchbar, Menu, Button, Chip } from 'react-native-paper';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
+import PageHeader from '@/components/layout/PageHeader';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -490,34 +490,10 @@ export default function StockEntriesScreen() {
   if (isLoading && !isRefetching) {
     return (
       <View style={styles.container}>
-        {/* Header Premium */}
-        <View style={styles.headerContainer}>
-          <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.headerGradient}
-          >
-            <View style={styles.headerContent}>
-              <View style={styles.headerInfo}>
-                <Text style={styles.greeting}>
-                  Entradas
-                </Text>
-                <Text style={styles.headerSubtitle}>
-                  0 entradas
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.profileButton}
-                onPress={() => router.push('/(tabs)/more')}
-              >
-                <View style={styles.profileIcon}>
-                  <Ionicons name="person" size={24} color="#fff" />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </View>
+        <PageHeader
+          title="Entradas"
+          subtitle="0 entradas"
+        />
 
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={Colors.light.primary} />
@@ -533,34 +509,10 @@ export default function StockEntriesScreen() {
   if (isError) {
     return (
       <View style={styles.container}>
-        {/* Header Premium */}
-        <View style={styles.headerContainer}>
-          <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.headerGradient}
-          >
-            <View style={styles.headerContent}>
-              <View style={styles.headerInfo}>
-                <Text style={styles.greeting}>
-                  Entradas
-                </Text>
-                <Text style={styles.headerSubtitle}>
-                  0 entradas
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.profileButton}
-                onPress={() => router.push('/(tabs)/more')}
-              >
-                <View style={styles.profileIcon}>
-                  <Ionicons name="person" size={24} color="#fff" />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </View>
+        <PageHeader
+          title="Entradas"
+          subtitle="0 entradas"
+        />
 
         <EmptyState
           icon="alert-circle-outline"
@@ -575,34 +527,10 @@ export default function StockEntriesScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header Premium */}
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerContent}>
-            <View style={styles.headerInfo}>
-              <Text style={styles.greeting}>
-                Entradas
-              </Text>
-              <Text style={styles.headerSubtitle}>
-                {entryCount} {entryCount === 1 ? 'entrada' : 'entradas'}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.profileButton}
-              onPress={() => router.push('/(tabs)/more')}
-            >
-              <View style={styles.profileIcon}>
-                <Ionicons name="person" size={24} color="#fff" />
-              </View>
-            </TouchableOpacity>
-          </View>
-        </LinearGradient>
-      </View>
+      <PageHeader
+        title="Entradas"
+        subtitle={`${entryCount} ${entryCount === 1 ? 'entrada' : 'entradas'}`}
+      />
 
       {/* Filtros de Status (Ativas/Histórico/Todas) */}
       <View style={styles.filterContainer}>
@@ -954,47 +882,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
-  },
-  // Header Premium
-  headerContainer: {
-    marginBottom: 0,
-  },
-  headerGradient: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: theme.fontSize.xxl,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: theme.spacing.xs,
-  },
-  headerSubtitle: {
-    fontSize: theme.fontSize.md,
-    color: '#fff',
-    opacity: 0.9,
-  },
-  profileButton: {
-    marginLeft: theme.spacing.md,
-  },
-  profileIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   centerContainer: {
     flex: 1,

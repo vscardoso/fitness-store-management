@@ -378,7 +378,7 @@ export default function ConditionalShipmentDetailsScreen() {
 
     return {
       canMarkAsSent: status === 'PENDING',
-      canProcessReturn: status === 'SENT' || status === 'PARTIAL_RETURN',
+      canProcessReturn: status === 'SENT',
       canCancel: status === 'PENDING' || status === 'SENT',
     };
   }, [shipment]);
@@ -474,7 +474,7 @@ export default function ConditionalShipmentDetailsScreen() {
         </Card>
 
         {/* Financial Summary */}
-        {(availableActions.canProcessReturn || shipment.status === 'COMPLETED') && (
+        {(availableActions.canProcessReturn || shipment.status === 'COMPLETED_FULL_SALE' || shipment.status === 'COMPLETED_PARTIAL_SALE') && (
           <Surface style={styles.summaryCard} elevation={2}>
             <View style={{ overflow: 'hidden', flex: 1 }}>
               <View style={styles.summaryHeader}>

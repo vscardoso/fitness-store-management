@@ -37,6 +37,7 @@ import type {
   ConditionalShipment,
   ConditionalShipmentItem,
   ProcessReturnItemDTO,
+  ProcessReturnDTO,
   ShipmentItemStatus,
 } from '@/types/conditional';
 import {
@@ -45,6 +46,7 @@ import {
   SHIPMENT_STATUS_LABELS,
   formatDeadline,
   getDeadlineColor,
+  isFinalStatus,
 } from '@/types/conditional';
 
 /**
@@ -161,7 +163,7 @@ export default function ConditionalShipmentDetailsScreen() {
    * Mutation: Processar devolução
    */
   const processReturnMutation = useMutation({
-    mutationFn: (data: { items: ProcessReturnItemDTO[]; create_sale: boolean }) =>
+    mutationFn: (data: ProcessReturnDTO) =>
       processReturn(shipmentId, data),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['conditional-shipment', shipmentId] });
@@ -567,9 +569,9 @@ export default function ConditionalShipmentDetailsScreen() {
 
   // Badge type baseado no STATUS, não no deadline
   let badgeType: 'error' | 'warning' | 'success' | 'info' = 'info';
-  if (shipment.status === 'COMPLETED') badgeType = 'success';
-  else if (shipment.status === 'CANCELLED') badgeType = 'error';
-  else if (shipment.status === 'SENT' || shipment.status === 'PARTIAL_RETURN') badgeType = 'warning';
+  if (isFinalStatus(shipment.status)) badgeType = 'success';
+  else if (shipment.status === 'RETURNED_NO_SALE') badgeType = 'error';
+  else if (shipment.status === 'SENT') badgeType = 'warning';
 
   const badges = [
     {
@@ -642,7 +644,7 @@ export default function ConditionalShipmentDetailsScreen() {
               )}
 
               {/* Prazo - apenas se relevante */}
-              {shipment.deadline && shipment.status !== 'COMPLETED' && shipment.status !== 'CANCELLED' && (
+              {shipment.deadline && !isFinalStatus(shipment.status) && (
                 <View style={styles.compactRow}>
                   <Ionicons
                     name={shipment.is_overdue ? 'alert-circle' : 'time'}
@@ -870,8 +872,8 @@ export default function ConditionalShipmentDetailsScreen() {
                     </View>
                   )}
 
-                  {/* Estado read-only aprimorado para PARTIAL_RETURN */}
-                  {shipment.status === 'PARTIAL_RETURN' && (
+                  {/* Estado read-only aprimorado para venda parcial já processada */}
+                  {shipment.status === 'COMPLETED_PARTIAL_SALE' && (
                     <View style={styles.partialReturnItemSummary}>
                       <View style={styles.partialReturnHeader}>
                         <Ionicons name="lock-closed-outline" size={16} color={Colors.light.primary} />
@@ -918,8 +920,8 @@ export default function ConditionalShipmentDetailsScreen() {
                     </View>
                   )}
 
-                  {/* Resumo read-only quando COMPLETED ou CANCELLED */}
-                  {(shipment.status === 'COMPLETED' || shipment.status === 'CANCELLED') && (
+                  {/* Resumo read-only quando finalizado */}
+                  {isFinalStatus(shipment.status) && (
                     <View style={styles.readOnlySummary}>
                       <Text style={styles.readOnlyLabel}>Quantidade Comprada: {processing.quantity_kept} un</Text>
                       <Text style={styles.readOnlyLabel}>Quantidade Devolvida: {processing.quantity_returned} un</Text>
@@ -992,7 +994,7 @@ export default function ConditionalShipmentDetailsScreen() {
           </>
         )}
 
-        {shipment?.status === 'PARTIAL_RETURN' && (
+        {shipment?.status === 'COMPLETED_PARTIAL_SALE' && (
           <Card style={styles.card}>
             <Card.Content>
               <View style={styles.sectionHeader}>
@@ -1817,19 +1819,25 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     marginTop: 2,
   },
-  // Estilos para resumo financeiro destacado
-  summaryCardHighlight: {
-    marginHorizontal: 16,
-    marginTop: 16,
-    borderRadius: 12,
-    backgroundColor: '#E8F5E9',
-    borderLeftWidth: 4,
-    borderLeftColor: Colors.light.success,
-    elevation: 3,
+  summaryAlertRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 8,
+    flexWrap: 'wrap',
   },
-  summaryTitleHighlight: {
-    fontWeight: '700',
-    color: Colors.light.success,
+  summaryAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.light.warning + '15',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  summaryAlertText: {
+    fontSize: 12,
+    color: Colors.light.text,
+    fontWeight: '500',
   },
   // Estilos para item de produto compacto
   itemHeaderCompact: {

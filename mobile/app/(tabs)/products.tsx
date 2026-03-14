@@ -347,6 +347,9 @@ const styles = StyleSheet.create({
     elevation: 2,
     backgroundColor: Colors.light.card,
   },
+  emptyCard: {
+    height: 0,
+  },
   listContent: {
     paddingTop: 8,
     paddingBottom: 80,

@@ -25,9 +25,11 @@ interface DetailHeaderProps {
   /** Rota para voltar */
   backRoute: string;
   /** Rota para edição */
-  editRoute: string;
+  editRoute?: string;
   /** Callback para deletar */
-  onDelete: () => void;
+  onDelete?: () => void;
+  /** Ocultar botões de editar/deletar */
+  hideActions?: boolean;
   /** Badges de status */
   badges?: Badge[];
   /** Cards de métricas principais (máx 3) */
@@ -42,6 +44,7 @@ export default function DetailHeader({
   backRoute,
   editRoute,
   onDelete,
+  hideActions = false,
   badges = [],
   metrics = [],
   customElement,
@@ -81,17 +84,23 @@ export default function DetailHeader({
 
             <View style={styles.navSpacer} />
 
-            <View style={styles.navActions}>
-              <TouchableOpacity
-                onPress={() => router.push(editRoute as any)}
-                style={styles.actionButton}
-              >
-                <Ionicons name="pencil" size={20} color="#fff" />
-              </TouchableOpacity>
-              <TouchableOpacity onPress={onDelete} style={styles.actionButton}>
-                <Ionicons name="trash" size={20} color="#fff" />
-              </TouchableOpacity>
-            </View>
+            {!hideActions && (editRoute || onDelete) && (
+              <View style={styles.navActions}>
+                {editRoute && (
+                  <TouchableOpacity
+                    onPress={() => router.push(editRoute as any)}
+                    style={styles.actionButton}
+                  >
+                    <Ionicons name="pencil" size={20} color="#fff" />
+                  </TouchableOpacity>
+                )}
+                {onDelete && (
+                  <TouchableOpacity onPress={onDelete} style={styles.actionButton}>
+                    <Ionicons name="trash" size={20} color="#fff" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            )}
           </View>
 
           {/* Elemento customizado (avatar, etc) */}

@@ -519,11 +519,11 @@ export default function AddStockEntryScreen() {
     mutationFn: async () => {
       // Extrair dados do produto e quantidade do item
       const item = items[0];
-      if (!item.product || !item.product._atomicData) {
+      if (!item.product || !(item.product as any)._atomicData) {
         throw new Error('Dados do produto não encontrados para modo atômico');
       }
 
-      const productData = item.product._atomicData;
+      const productData = (item.product as any)._atomicData;
       const quantity = item.quantity_received;
 
       return createStockEntryWithNewProduct(
@@ -531,7 +531,7 @@ export default function AddStockEntryScreen() {
         {
           entry_code: entryCode.trim(),
           entry_date: computeEntryDateISO(),
-          entry_type: selectedType,
+          entry_type: selectedType as 'trip' | 'online' | 'local',
           trip_id: selectedType === EntryType.TRIP ? tripId : undefined,
           supplier_name: supplierName.trim(),
           supplier_cnpj: supplierCnpj.trim() || undefined,
@@ -863,7 +863,7 @@ export default function AddStockEntryScreen() {
     }
 
     // Modo ATÔMICO: produto será criado junto com entrada
-    const isAtomicMode = items.length > 0 && items[0].product?._atomicMode;
+    const isAtomicMode = items.length > 0 && (items[0].product as any)?._atomicMode;
     
     if (isAtomicMode) {
       // Validação específica para modo atômico
