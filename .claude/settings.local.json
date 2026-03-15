@@ -63,7 +63,9 @@
       "Bash(cmd //c \"taskkill /PID 39420 /F\")",
       "Bash(npm show:*)",
       "Bash(npm audit:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(for dir in \"C:/Users/Victor/Desktop/fitness-store-management/web/public/imagens/hero\" \"C:/Users/Victor/Desktop/fitness-store-management/web/public/imagens/produtos\" \"C:/Users/Victor/Desktop/fitness-store-management/web/public/imagens/looks\" \"C:/Users/Victor/Desktop/fitness-store-management/web/public/imagens/marca\")",
+      "Bash(do touch \"$dir/.gitkeep\")"
     ],
     "deny": [],
     "ask": []

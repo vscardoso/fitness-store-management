@@ -376,7 +376,7 @@ Instagram/Google → Site → Produto → "Pedir via WhatsApp"
 - [x] Página de produto com variantes
 - [x] Botão WhatsApp flutuante em todas as páginas
 - [x] Galeria de looks (usando API `/looks`)
-- [ ] Deploy Vercel (configurar env vars na Vercel)
+- [x] Deploy Vercel — https://fitness-store-management.vercel.app
 
 ---
 
