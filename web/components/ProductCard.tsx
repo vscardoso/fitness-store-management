@@ -2,61 +2,54 @@ import Link from "next/link";
 import Image from "next/image";
 import type { ProductListItem } from "@/types";
 
-interface ProductCardProps {
-  product: ProductListItem;
-}
+interface Props { product: ProductListItem }
 
-function formatPrice(price: number): string {
-  return new Intl.NumberFormat("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-  }).format(price);
-}
+const fmt = (n: number) =>
+  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
 
-export default function ProductCard({ product }: ProductCardProps) {
-  const price = product.sale_price ?? product.price;
-  const hasVariants = (product.variant_count ?? 0) > 0;
-  const inStock = (product.current_stock ?? 0) > 0;
+export default function ProductCard({ product }: Props) {
+  const price    = product.sale_price ?? product.price ?? 0;
+  const inStock  = (product.current_stock ?? 0) > 0;
+  const variants = product.variant_count ?? 0;
 
   return (
-    <Link href={`/produtos/${product.id}`} className="group">
-      <div className="card hover:shadow-xl hover:shadow-brand-500/10 hover:-translate-y-1 transition-all duration-300">
-        {/* Image */}
-        <div className="relative aspect-square bg-dark-700 overflow-hidden">
+    <Link href={`/produtos/${product.id}`} className="group block">
+      <div className="card-dark">
+        {/* Imagem */}
+        <div className="relative aspect-square overflow-hidden bg-surface-800">
           {product.image_url ? (
             <Image
               src={product.image_url}
               alt={product.name}
               fill
-              className="object-cover group-hover:scale-105 transition-transform duration-500"
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="object-cover transition-transform duration-500 group-hover:scale-105"
+              sizes="(max-width: 640px) 50vw, (max-width-1024px) 33vw, 25vw"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <svg
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                className="w-16 h-16 text-dark-500"
-              >
-                <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="1.5" />
-                <circle cx="8.5" cy="8.5" r="1.5" strokeWidth="1.5" />
-                <path d="M21 15l-5-5L5 21" strokeWidth="1.5" />
+            /* Placeholder elegante */
+            <div
+              className="w-full h-full flex flex-col items-center justify-center gap-2"
+              style={{ background: "linear-gradient(135deg, #13131f, #1e1e30)" }}
+            >
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-10 h-10 text-white/10">
+                <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="1"/>
+                <circle cx="8.5" cy="8.5" r="1.5" strokeWidth="1"/>
+                <path d="M21 15l-5-5L5 21" strokeWidth="1"/>
               </svg>
+              <span className="text-white/20 text-xs">Foto em breve</span>
             </div>
           )}
 
+          {/* Overlay hover */}
+          <div className="absolute inset-0 bg-pink-500/0 group-hover:bg-pink-500/5 transition-colors duration-300"/>
+
           {/* Badges */}
-          <div className="absolute top-2 left-2 flex flex-col gap-1">
+          <div className="absolute top-3 left-3 flex flex-col gap-1.5">
             {!inStock && (
-              <span className="badge bg-dark-700/90 text-dark-200 backdrop-blur-sm">
-                Esgotado
-              </span>
+              <span className="tag text-[11px]">Esgotado</span>
             )}
-            {hasVariants && (
-              <span className="badge bg-brand-500/90 text-white backdrop-blur-sm">
-                {product.variant_count} tamanhos
-              </span>
+            {variants > 0 && (
+              <span className="tag-pink text-[11px]">{variants} tam.</span>
             )}
           </div>
         </div>
@@ -64,37 +57,19 @@ export default function ProductCard({ product }: ProductCardProps) {
         {/* Info */}
         <div className="p-4">
           {product.category && (
-            <p className="text-dark-400 text-xs font-medium uppercase tracking-wider mb-1">
-              {product.category.name}
-            </p>
+            <p className="section-label text-[10px] mb-1.5">{product.category.name}</p>
           )}
 
-          <h3 className="text-white font-semibold text-sm leading-snug line-clamp-2 mb-2 group-hover:text-brand-400 transition-colors">
+          <h3 className="text-white font-semibold text-sm leading-snug line-clamp-2 mb-3 group-hover:text-pink-400 transition-colors duration-200">
             {product.name}
           </h3>
 
-          <div className="flex items-center justify-between mt-auto">
-            <span className="price-tag">{formatPrice(price)}</span>
-
+          <div className="flex items-center justify-between">
+            <span className="price text-base">{fmt(price)}</span>
             {product.brand && (
-              <span className="text-dark-400 text-xs">{product.brand}</span>
+              <span className="text-white/30 text-xs">{product.brand}</span>
             )}
           </div>
-
-          {(product.gender || product.color) && (
-            <div className="flex gap-1 mt-2 flex-wrap">
-              {product.gender && (
-                <span className="badge bg-dark-700 text-dark-300">
-                  {product.gender}
-                </span>
-              )}
-              {product.color && (
-                <span className="badge bg-dark-700 text-dark-300">
-                  {product.color}
-                </span>
-              )}
-            </div>
-          )}
         </div>
       </div>
     </Link>
