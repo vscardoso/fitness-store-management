@@ -4,31 +4,28 @@
  */
 
 // ============================================================================
-// CONFIGURACAO DE REDE - DESCOMENTE A OPCAO CORRETA PARA SEU CENARIO
+// CONFIGURACAO DE REDE
 // ============================================================================
-// ⚠️  Apenas UMA linha "const LOCAL_API_URL" deve estar ativa por vez!
-
-// OPCAO 1: Emulador Android
-// const LOCAL_API_URL = 'http://10.0.2.2:8000/api/v1';
-
-// OPCAO 2: Emulador iOS / Simulator
-// const LOCAL_API_URL = 'http://localhost:8000/api/v1';
-
-// OPCAO 3: Dispositivo fisico - MESMA REDE WiFi (mais rapido, sem tunnel)
-// Como usar: rode "ipconfig" no PC, anote o IP em "Adaptador Wi-Fi" e cole abaixo.
-// Backend: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-// const LOCAL_API_URL = 'http://192.168.200.73:8000/api/v1'; // <- altere o IP se mudar
-
-// OPCAO 4: Dispositivo fisico - REDES DIFERENTES (tunnel, celular no 4G/5G ou outra rede)
-// URL PERMANENTE - nunca muda! Inicie o tunnel com: .\start_tunnel.ps1
-const LOCAL_API_URL = 'https://fitness-store-mgmt-api.loca.lt/api/v1';
-
-// OPCAO 5: Forcando producao (Render) mesmo em dev - util para testar deploy
-// const LOCAL_API_URL = 'https://fitness-backend-x1qn.onrender.com/api/v1';
-
+// Modo atual: 'local' (mesma rede WiFi) ou 'tunnel' (redes diferentes)
+// Para trocar:
+//   Mesma rede   → rode: .\use_local.ps1   (ou mude MODE para 'local')
+//   Redes difer. → rode: .\start_tunnel.ps1 (atualiza TUNNEL_URL automaticamente)
 // ============================================================================
-// URL de producao (nao editar)
-// ============================================================================
+
+const MODE: 'local' | 'tunnel' = 'tunnel';
+
+// IP do PC na rede WiFi — atualizado por .\use_local.ps1 ou manualmente via ipconfig
+const LOCAL_IP = '192.168.200.73';
+
+// URL do tunnel — atualizada AUTOMATICAMENTE por .\start_tunnel.ps1 a cada execução
+const TUNNEL_URL = '';
+
+// Monta a URL com base no modo
+const LOCAL_API_URL = MODE === 'tunnel' && TUNNEL_URL
+  ? `${TUNNEL_URL}/api/v1`
+  : `http://${LOCAL_IP}:8000/api/v1`;
+
+// Producao (Render.com)
 const PRODUCTION_URL = process.env.EXPO_PUBLIC_API_URL || 'https://fitness-backend-x1qn.onrender.com/api/v1';
 
 // ============================================================================
