@@ -1,8 +1,11 @@
 """Database configuration and session management using SQLAlchemy 2.0."""
 
 import asyncio
+import logging
 import os
+import ssl as ssl_module
 from typing import AsyncGenerator
+
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     create_async_engine,
@@ -13,11 +16,12 @@ from sqlalchemy.pool import NullPool
 from app.core.config import settings
 from app.models.base import BaseModel
 
+logger = logging.getLogger(__name__)
 
 # Get database URL from environment or settings
 database_url = os.getenv("DATABASE_URL", settings.DATABASE_URL)
 
-# Render/Heroku às vezes fornecem "postgres://" (sem "ql") — normaliza primeiro
+# Render/Heroku às vezes fornecem "postgres://" (sem "ql") — normaliza
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
@@ -31,35 +35,38 @@ elif database_url.startswith("sqlite:///"):
 else:
     ASYNC_DATABASE_URL = database_url
 
-# SSL para PostgreSQL:
-# - Render INTERNO (hostname sem ".render.com"): NÃO precisa de SSL — rede privada
-#   Forçar ssl='require' causa ConnectionDoesNotExistError no startup
-# - Render EXTERNO (.oregon-postgres.render.com): já vem com ?sslmode=require na URL
-#   asyncpg lê o sslmode da URL automaticamente — não precisa de connect_args
-# - Outros provedores externos (Heroku, Supabase, etc.): verifica sslmode na URL
-# Regra: só adicionar ssl='require' se a URL não tiver sslmode E for claramente externa
+# ── SSL para PostgreSQL ──────────────────────────────────────────────
+# asyncpg NÃO aceita ssl='require' de forma confiável; a documentação do
+# Render (e do asyncpg) recomenda passar um ssl.SSLContext explícito.
+#
+# Estratégia:
+#   • Detecta se está rodando no Render (env RENDER=true, injetada automaticamente)
+#   • Ou se a URL tem host externo conhecido
+#   → Em ambos os casos: usa SSLContext com verificação de certificado desativada
+#     (Render usa certificados internos que não passam em verify padrão)
+#   • Localhost / SQLite / testes: sem SSL
+# ─────────────────────────────────────────────────────────────────────
 _is_postgres = ASYNC_DATABASE_URL.startswith("postgresql")
-_has_sslmode_in_url = "sslmode=" in database_url
+_on_render = bool(os.getenv("RENDER"))  # Render injeta RENDER=true em todo serviço
 _is_external_host = any(
     h in database_url
     for h in [".render.com", "amazonaws.com", "supabase", "neon.tech", "planetscale"]
 )
 
+_connect_args: dict = {}
+
 if _is_postgres and settings.ENVIRONMENT != "test":
-    if _has_sslmode_in_url:
-        # sslmode já está na URL → asyncpg lê direto, não precisa de connect_args
-        _connect_args: dict = {}
-    elif _is_external_host:
-        # Host externo sem sslmode → forçar SSL
-        _connect_args = {"ssl": "require"}
+    if _on_render or _is_external_host:
+        # SSLContext permissivo — Render/provedores cloud
+        _ssl_ctx = ssl_module.create_default_context()
+        _ssl_ctx.check_hostname = False
+        _ssl_ctx.verify_mode = ssl_module.CERT_NONE
+        _connect_args = {"ssl": _ssl_ctx}
+        logger.info("PostgreSQL SSL: SSLContext(CERT_NONE) — Render/cloud detectado")
     else:
-        # Host interno (Render interno, localhost) → sem SSL
-        _connect_args = {}
-else:
-    _connect_args = {}
+        logger.info("PostgreSQL SSL: desativado (localhost/dev)")
 
 # Pool reduzido para produção (Render free tier limite: ~97 conexões)
-# pool_size alto + múltiplos workers = conexões esgotadas rapidamente
 _pool_size = settings.DATABASE_POOL_SIZE if not _is_postgres else min(settings.DATABASE_POOL_SIZE, 5)
 _max_overflow = settings.DATABASE_MAX_OVERFLOW if not _is_postgres else min(settings.DATABASE_MAX_OVERFLOW, 5)
 
@@ -70,7 +77,7 @@ engine = create_async_engine(
     pool_size=_pool_size,
     max_overflow=_max_overflow,
     pool_pre_ping=True,
-    pool_recycle=300,   # recicla conexões a cada 5 min (evita conexões obsoletas)
+    pool_recycle=300,
     pool_timeout=30,
     connect_args=_connect_args,
     poolclass=NullPool if settings.ENVIRONMENT == "test" else None,
@@ -106,8 +113,6 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 async def init_db() -> None:
     """Initialize database tables (com retry para DBs lentos no startup)."""
-    import logging
-    logger = logging.getLogger(__name__)
     max_retries = 5
     for attempt in range(1, max_retries + 1):
         try:
