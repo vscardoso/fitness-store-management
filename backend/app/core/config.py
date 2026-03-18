@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     @classmethod
     def validate_database_url(cls, v: str) -> str:
         """Validate database URL (PostgreSQL or SQLite)."""
-        if not (v.startswith("postgresql") or v.startswith("sqlite")):
+        if not (v.startswith("postgresql") or v.startswith("postgres://") or v.startswith("sqlite")):
             raise ValueError("DATABASE_URL must be a PostgreSQL or SQLite URL")
         return v
     

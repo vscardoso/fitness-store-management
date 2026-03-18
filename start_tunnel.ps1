@@ -36,10 +36,10 @@ Write-Host "Iniciando localtunnel na porta $PORT..." -ForegroundColor Yellow
 $stdoutFile = "$env:TEMP\lt_stdout.txt"
 if (Test-Path $stdoutFile) { Remove-Item $stdoutFile }
 
-# Inicia localtunnel em background
-$ltProcess = Start-Process -FilePath "npx" -ArgumentList "localtunnel --port $PORT" `
-    -RedirectStandardOutput $stdoutFile `
-    -PassThru -NoNewWindow
+# Usa cmd.exe porque npx é um .cmd no Windows (Start-Process não aceita .cmd diretamente)
+$ltProcess = Start-Process -FilePath "cmd.exe" `
+    -ArgumentList "/c npx localtunnel --port $PORT > `"$stdoutFile`" 2>&1" `
+    -PassThru -WindowStyle Hidden
 
 # Aguardar URL aparecer (timeout 30s)
 $maxWait = 30

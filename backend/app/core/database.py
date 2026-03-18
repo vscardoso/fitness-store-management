@@ -36,35 +36,40 @@ else:
     ASYNC_DATABASE_URL = database_url
 
 # ── SSL para PostgreSQL ──────────────────────────────────────────────
-# asyncpg NÃO aceita ssl='require' de forma confiável; a documentação do
-# Render (e do asyncpg) recomenda passar um ssl.SSLContext explícito.
+# Por padrão, NÃO passa nenhum parâmetro ssl em connect_args.
+# asyncpg 0.29+ usa sslmode=prefer automaticamente:
+#   → tenta SSL → se falhar (cert inválido, server sem SSL) → reconecta sem SSL
+# Isso funciona tanto no Render interno (sem SSL) quanto externo (?sslmode=require).
 #
-# Estratégia:
-#   • Detecta se está rodando no Render (env RENDER=true, injetada automaticamente)
-#   • Ou se a URL tem host externo conhecido
-#   → Em ambos os casos: usa SSLContext com verificação de certificado desativada
-#     (Render usa certificados internos que não passam em verify padrão)
-#   • Localhost / SQLite / testes: sem SSL
+# Para controle explícito, defina a env var DATABASE_SSL:
+#   DATABASE_SSL=require  → SSLContext permissivo (CERT_NONE)
+#   DATABASE_SSL=disable  → SSL desativado explicitamente
+#   (vazio ou ausente)    → asyncpg negocia automaticamente (prefer)
 # ─────────────────────────────────────────────────────────────────────
 _is_postgres = ASYNC_DATABASE_URL.startswith("postgresql")
-_on_render = bool(os.getenv("RENDER"))  # Render injeta RENDER=true em todo serviço
-_is_external_host = any(
-    h in database_url
-    for h in [".render.com", "amazonaws.com", "supabase", "neon.tech", "planetscale"]
-)
-
 _connect_args: dict = {}
 
 if _is_postgres and settings.ENVIRONMENT != "test":
-    if _on_render or _is_external_host:
-        # SSLContext permissivo — Render/provedores cloud
+    _ssl_env = os.getenv("DATABASE_SSL", "").lower().strip()
+    if _ssl_env == "require":
         _ssl_ctx = ssl_module.create_default_context()
         _ssl_ctx.check_hostname = False
         _ssl_ctx.verify_mode = ssl_module.CERT_NONE
         _connect_args = {"ssl": _ssl_ctx}
-        logger.info("PostgreSQL SSL: SSLContext(CERT_NONE) — Render/cloud detectado")
+        logger.info("PostgreSQL SSL: REQUIRE (SSLContext CERT_NONE via DATABASE_SSL)")
+    elif _ssl_env == "disable":
+        _connect_args = {"ssl": False}
+        logger.info("PostgreSQL SSL: DISABLE (via DATABASE_SSL)")
     else:
-        logger.info("PostgreSQL SSL: desativado (localhost/dev)")
+        # Nenhum ssl em connect_args → asyncpg negocia automaticamente (prefer)
+        logger.info("PostgreSQL SSL: AUTO (asyncpg sslmode=prefer)")
+
+    # Log da URL sanitizada para diagnóstico
+    _safe_url = database_url
+    if "@" in _safe_url:
+        _safe_url = _safe_url.split("@")[0].rsplit(":", 1)[0] + ":***@" + _safe_url.split("@")[1]
+    logger.info("PostgreSQL URL: %s", _safe_url)
+    logger.info("connect_args keys: %s", list(_connect_args.keys()))
 
 # Pool reduzido para produção (Render free tier limite: ~97 conexões)
 _pool_size = settings.DATABASE_POOL_SIZE if not _is_postgres else min(settings.DATABASE_POOL_SIZE, 5)
