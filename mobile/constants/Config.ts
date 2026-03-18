@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Configuracoes do ambiente e API
  * Centralize todas as configs do app aqui
  */
@@ -17,7 +17,10 @@
   // Para descobrir seu IP: rode "ipconfig" no terminal e procure em
   // "Adaptador de Rede sem Fio Wi-Fi" o campo "Endereco IPv4"
   // Backend deve estar rodando: uvicorn app.main:app --reload --host 0.0.0.0
-  const LOCAL_API_URL = 'http://192.168.100.158:8000/api/v1'; // IP WiFi local (PC e celular na mesma rede)
+const LOCAL_API_URL = 'http://192.168.200.73:8000/api/v1'; // IP WiFi local atual
+  // const LOCAL_API_URL = 'http://192.168.100.158:8000/api/v1'; // IP WiFi local (PC e celular na mesma rede)
+  // const LOCAL_API_URL = 'http://172.24.208.1:8000/api/v1'; // IP WiFi local (PC e celular na mesma rede)
+  // const LOCAL_API_URL = 'https://e14a773031490b.lhr.life/api/v1'; // Tunnel localhost.run (redes diferentes)
 // OPCAO 4: Tunnel localhost.run (redes diferentes / celular fora do WiFi)
 // Para iniciar: .\start_tunnel.ps1 (na raiz do projeto)
 // O script exibe a URL do tunel no terminal - copie e cole aqui no formato:

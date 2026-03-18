@@ -1,7 +1,6 @@
 """Database configuration and session management using SQLAlchemy 2.0."""
 
 import os
-import ssl as _ssl_module
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
@@ -28,24 +27,28 @@ else:
     ASYNC_DATABASE_URL = database_url
 
 # SSL para PostgreSQL externo (Render, Heroku, etc.)
-# CERT_NONE: mantém criptografia SSL sem verificar certificado do servidor.
-# Necessário porque o container slim pode não ter o CA do Render no trust store.
+# Usa ssl='require' via connect_args — mais confiável com asyncpg do que
+# um SSLContext customizado (evita ConnectionDoesNotExistError no startup).
 _is_postgres = ASYNC_DATABASE_URL.startswith("postgresql")
 if _is_postgres and settings.ENVIRONMENT != "test":
-    _ssl_ctx = _ssl_module.create_default_context()
-    _ssl_ctx.check_hostname = False
-    _ssl_ctx.verify_mode = _ssl_module.CERT_NONE
-    _connect_args: dict = {"ssl": _ssl_ctx}
+    _connect_args: dict = {"ssl": "require"}
 else:
     _connect_args = {}
+
+# Pool reduzido para produção (Render free tier limite: ~97 conexões)
+# pool_size alto + múltiplos workers = conexões esgotadas rapidamente
+_pool_size = settings.DATABASE_POOL_SIZE if not _is_postgres else min(settings.DATABASE_POOL_SIZE, 5)
+_max_overflow = settings.DATABASE_MAX_OVERFLOW if not _is_postgres else min(settings.DATABASE_MAX_OVERFLOW, 5)
 
 # Create async engine
 engine = create_async_engine(
     ASYNC_DATABASE_URL,
     echo=settings.DEBUG,
-    pool_size=settings.DATABASE_POOL_SIZE,
-    max_overflow=settings.DATABASE_MAX_OVERFLOW,
+    pool_size=_pool_size,
+    max_overflow=_max_overflow,
     pool_pre_ping=True,
+    pool_recycle=300,   # recicla conexões a cada 5 min (evita conexões obsoletas)
+    pool_timeout=30,
     connect_args=_connect_args,
     poolclass=NullPool if settings.ENVIRONMENT == "test" else None,
 )

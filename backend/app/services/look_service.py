@@ -132,6 +132,8 @@ class LookService:
         if not look:
             return None
         await self.repo.add_item(db, tenant_id, look_id, product_id, variant_id, position)
+        # Expirar do identity map para forçar re-query com os novos itens
+        await db.refresh(look)
         look = await self.repo.get(db, look_id, tenant_id)
         return _build_response(look)
 

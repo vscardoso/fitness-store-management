@@ -30,6 +30,7 @@ class WishlistRepository:
             )
             .options(selectinload(Wishlist.product))
             .options(selectinload(Wishlist.variant))
+            .options(selectinload(Wishlist.customer))
             .order_by(Wishlist.created_at.desc())
         )
         result = await db.execute(stmt)

@@ -89,7 +89,7 @@ Write-Host "Atualizando mobile/constants/Config.ts..." -ForegroundColor Yellow
 
 $lines = Get-Content $CONFIG_FILE
 $newLines = $lines | ForEach-Object {
-    if ($_ -match '^const LOCAL_API_URL\s*=') {
+    if ($_ -match '^\s*const LOCAL_API_URL\s*=') {
         "const LOCAL_API_URL = '$apiUrl'; // Tunnel localhost.run (redes diferentes)"
     } else {
         $_

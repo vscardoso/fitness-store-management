@@ -3,7 +3,7 @@
 **Criado em:** 24/01/2026
 **Última revisão:** 11/03/2026
 **Versão:** 4.0
-**Status:** Fases 1, 2 e 3 concluídas — iniciando Fase 4
+**Status:** ✅ Todas as 4 fases concluídas e testadas
 
 ---
 
@@ -20,10 +20,10 @@
 | **Condicional (try before you buy)** | `models/conditional_shipment.py` | ✅ FEITO |
 | Notificações | `models/notification.py` | ✅ FEITO |
 | Descontos de pagamento | `models/payment_discount.py` | ✅ FEITO |
-| Look / LookItem | ❌ não existe | ❌ PENDENTE |
-| Wishlist | ❌ não existe | ❌ PENDENTE |
-| ProductTag | ❌ não existe | ❌ PENDENTE |
-| WhatsApp webhook | ❌ não existe | ❌ PENDENTE |
+| Look / LookItem | `models/look.py`, `models/look_item.py` | ✅ FEITO |
+| Wishlist | `models/wishlist.py` | ✅ FEITO |
+| ProductTag | `models/product_tag.py` | ✅ FEITO |
+| WhatsApp webhook | `app/webhooks/whatsapp.py` | ✅ FEITO |
 
 ### ✅ Mobile — Já implementado
 | Feature | Arquivo |
@@ -37,13 +37,13 @@
 | Relatórios | `app/(tabs)/reports.tsx`, `app/reports/` |
 | Categorias | `app/categories/` |
 | Catálogo | `app/catalog.tsx` |
-| Tela de Looks/Wishlist | ❌ não existe | ❌ PENDENTE |
-| Dashboard de demanda | ❌ não existe | ❌ PENDENTE |
+| Tela de Looks/Wishlist | `app/looks/`, `app/wishlist/` | ✅ FEITO |
+| Dashboard de demanda | `app/(tabs)/demand.tsx` | ✅ FEITO |
 
 ### ❌ Web / WhatsApp — Nada implementado
-- `web/` — pasta não existe
-- `backend/app/webhooks/` — pasta não existe
-- `backend/whatsapp_bot/` — pasta não existe
+- `web/` — ✅ implementado (Next.js + Tailwind, deploy Vercel)
+- `backend/app/webhooks/` — ✅ implementado (webhook + verificação Meta)
+- `whatsapp_bot/` — ✅ implementado (Baileys + servidor /send Express)
 
 ---
 
@@ -219,24 +219,24 @@ python migrate.py "add lookbook wishlist product_tags"
 ```
 
 **Checklist FASE 1:**
-- [ ] `backend/app/models/look.py`
-- [ ] `backend/app/models/look_item.py`
-- [ ] `backend/app/models/wishlist.py`
-- [ ] `backend/app/models/product_tag.py`
-- [ ] `backend/app/models/__init__.py` atualizado
-- [ ] `backend/app/schemas/look.py`
-- [ ] `backend/app/schemas/wishlist.py`
-- [ ] `backend/app/repositories/look_repository.py`
-- [ ] `backend/app/repositories/wishlist_repository.py`
-- [ ] `backend/app/services/look_service.py`
-- [ ] `backend/app/services/wishlist_service.py`
-- [ ] `backend/app/services/suggestion_service.py`
-- [ ] `backend/app/api/v1/endpoints/looks.py`
-- [ ] `backend/app/api/v1/endpoints/wishlist.py`
-- [ ] `backend/app/api/v1/router.py` atualizado
-- [ ] `backend/app/tasks/wishlist_notifier.py`
-- [ ] Migration criada e aplicada
-- [ ] Swagger: `/docs` mostrando novos endpoints
+- [x] `backend/app/models/look.py`
+- [x] `backend/app/models/look_item.py`
+- [x] `backend/app/models/wishlist.py`
+- [x] `backend/app/models/product_tag.py`
+- [x] `backend/app/models/__init__.py` atualizado
+- [x] `backend/app/schemas/look.py`
+- [x] `backend/app/schemas/wishlist.py`
+- [x] `backend/app/repositories/look_repository.py`
+- [x] `backend/app/repositories/wishlist_repository.py`
+- [x] `backend/app/services/look_service.py`
+- [x] `backend/app/services/wishlist_service.py`
+- [x] `backend/app/services/suggestion_service.py`
+- [x] `backend/app/api/v1/endpoints/looks.py`
+- [x] `backend/app/api/v1/endpoints/wishlist.py`
+- [x] `backend/app/api/v1/router.py` atualizado
+- [x] `backend/app/tasks/wishlist_notifier.py`
+- [x] Migration criada e aplicada
+- [x] Swagger: `/docs` mostrando novos endpoints
 
 ---
 
@@ -414,12 +414,16 @@ Seu look completo: R$ 239,80
 ```
 
 **Checklist FASE 4:**
-- [ ] `backend/app/webhooks/whatsapp.py`
-- [ ] `backend/app/main.py` — router do webhook registrado
-- [ ] `backend/whatsapp_bot/index.js`
-- [ ] Menu básico (5 opções)
-- [ ] Busca de produto por palavra-chave
-- [ ] Alerta de wishlist enviado via WhatsApp quando produto chega
+- [x] `backend/app/webhooks/whatsapp.py`
+- [x] `backend/app/main.py` — router do webhook registrado
+- [x] `whatsapp_bot/index.js` (Baileys + servidor Express /send)
+- [x] Menu básico (5 opções)
+- [x] Busca de produto por palavra-chave
+- [x] Alerta de wishlist enviado via WhatsApp quando produto chega
+
+> **Bugs corrigidos durante testes:**
+> - `wishlist_repository.list_by_customer` — faltava `selectinload(Wishlist.customer)` → lazy load error em contexto async
+> - `look_service.add_item` — SQLAlchemy identity map cacheava o Look; corrigido com `await db.refresh(look)` antes do segundo `repo.get()`
 
 ---
 

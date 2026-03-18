@@ -20,6 +20,7 @@ from app.api.v1.router import api_router
 from app.middleware.tenant import TenantMiddleware
 from app.admin.auth import AdminAuth
 from app.admin.views import ALL_VIEWS
+from app.webhooks.whatsapp import router as whatsapp_router
 from sqladmin import Admin
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -113,6 +114,9 @@ for view in ALL_VIEWS:
 
 # Include all API v1 endpoints
 app.include_router(api_router)
+
+# Webhook WhatsApp (fora do prefixo /api/v1)
+app.include_router(whatsapp_router)
 
 
 # ============================================================================

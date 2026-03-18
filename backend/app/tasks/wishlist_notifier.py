@@ -6,6 +6,8 @@ Chamada via lifespan (startup) ou scheduler externo.
 """
 import asyncio
 import logging
+import os
+import httpx
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -21,6 +23,30 @@ from app.services.notification_service import NotificationService
 logger = logging.getLogger(__name__)
 _wishlist_repo = WishlistRepository()
 _notif_svc = NotificationService()
+
+
+async def _send_whatsapp_alert(phone: str, product_name: str) -> None:
+    """Envia alerta via bot Baileys (POST /send na porta 3000)."""
+    bot_url = os.getenv("WHATSAPP_BOT_URL", "http://localhost:3000")
+    bot_token = os.getenv("WHATSAPP_BOT_TOKEN", "")
+    msg = (
+        f"🛍️ *{product_name}* voltou ao estoque!\n\n"
+        "Corra para garantir o seu antes que acabe. 😊\n"
+        "Responda *1* para ver o produto ou *2* para falar com a vendedora."
+    )
+    headers = {"Content-Type": "application/json"}
+    if bot_token:
+        headers["X-Bot-Token"] = bot_token
+    try:
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            resp = await client.post(
+                f"{bot_url}/send",
+                json={"to": phone, "text": msg},
+                headers=headers,
+            )
+            resp.raise_for_status()
+    except Exception as exc:
+        logger.warning(f"[WishlistNotifier] Falha ao enviar WhatsApp para {phone}: {exc}")
 
 
 async def _get_stock(db, product_id: int, variant_id=None) -> int:
@@ -56,14 +82,17 @@ async def _get_user_id_for_customer(db, customer_id: int):
 async def run_wishlist_notifier():
     """
     Verifica todos os wishlists não-notificados.
-    Para cada item com estoque disponível, envia push e marca como notificado.
+    Para cada item com estoque disponível, envia push e/ou WhatsApp e marca como notificado.
     """
     async with AsyncSessionLocal() as db:
         try:
             stmt = (
                 select(Wishlist)
                 .where(Wishlist.notified == False, Wishlist.is_active == True)
-                .options(selectinload(Wishlist.product))
+                .options(
+                    selectinload(Wishlist.product),
+                    selectinload(Wishlist.customer),
+                )
             )
             result = await db.execute(stmt)
             pending = result.scalars().all()
@@ -74,10 +103,11 @@ async def run_wishlist_notifier():
                 if stock <= 0:
                     continue
 
-                # Tenta enviar push para o usuário vinculado
+                product_name = item.product.name if item.product else f"Produto #{item.product_id}"
+
+                # Push notification (in-app)
                 user_id = await _get_user_id_for_customer(db, item.customer_id)
                 if user_id:
-                    product_name = item.product.name if item.product else f"Produto #{item.product_id}"
                     await _notif_svc.send_notification(
                         db=db,
                         tenant_id=item.tenant_id,
@@ -86,6 +116,14 @@ async def run_wishlist_notifier():
                         body=f"{product_name} voltou ao estoque. Não perca!",
                         data={"product_id": item.product_id, "variant_id": item.variant_id},
                     )
+
+                # WhatsApp alert (se o cliente tiver telefone cadastrado)
+                customer = item.customer
+                if customer and customer.phone:
+                    # Normaliza para apenas dígitos e remove leading +
+                    phone = "".join(c for c in customer.phone if c.isdigit())
+                    if phone:
+                        await _send_whatsapp_alert(phone, product_name)
 
                 await _wishlist_repo.mark_notified(db, item)
                 notified += 1
