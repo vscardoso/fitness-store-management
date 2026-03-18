@@ -31,12 +31,30 @@ elif database_url.startswith("sqlite:///"):
 else:
     ASYNC_DATABASE_URL = database_url
 
-# SSL para PostgreSQL externo (Render, Heroku, etc.)
-# Usa ssl='require' via connect_args — mais confiável com asyncpg do que
-# um SSLContext customizado (evita ConnectionDoesNotExistError no startup).
+# SSL para PostgreSQL:
+# - Render INTERNO (hostname sem ".render.com"): NÃO precisa de SSL — rede privada
+#   Forçar ssl='require' causa ConnectionDoesNotExistError no startup
+# - Render EXTERNO (.oregon-postgres.render.com): já vem com ?sslmode=require na URL
+#   asyncpg lê o sslmode da URL automaticamente — não precisa de connect_args
+# - Outros provedores externos (Heroku, Supabase, etc.): verifica sslmode na URL
+# Regra: só adicionar ssl='require' se a URL não tiver sslmode E for claramente externa
 _is_postgres = ASYNC_DATABASE_URL.startswith("postgresql")
+_has_sslmode_in_url = "sslmode=" in database_url
+_is_external_host = any(
+    h in database_url
+    for h in [".render.com", "amazonaws.com", "supabase", "neon.tech", "planetscale"]
+)
+
 if _is_postgres and settings.ENVIRONMENT != "test":
-    _connect_args: dict = {"ssl": "require"}
+    if _has_sslmode_in_url:
+        # sslmode já está na URL → asyncpg lê direto, não precisa de connect_args
+        _connect_args: dict = {}
+    elif _is_external_host:
+        # Host externo sem sslmode → forçar SSL
+        _connect_args = {"ssl": "require"}
+    else:
+        # Host interno (Render interno, localhost) → sem SSL
+        _connect_args = {}
 else:
     _connect_args = {}
 
