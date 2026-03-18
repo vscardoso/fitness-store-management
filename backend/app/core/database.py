@@ -1,5 +1,6 @@
 """Database configuration and session management using SQLAlchemy 2.0."""
 
+import asyncio
 import os
 from typing import AsyncGenerator
 from sqlalchemy.ext.asyncio import (
@@ -16,9 +17,13 @@ from app.models.base import BaseModel
 # Get database URL from environment or settings
 database_url = os.getenv("DATABASE_URL", settings.DATABASE_URL)
 
-# Convert database URL based on type
+# Render/Heroku às vezes fornecem "postgres://" (sem "ql") — normaliza primeiro
+if database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+
+# Convert database URL to async driver
 if database_url.startswith("postgresql://"):
-    ASYNC_DATABASE_URL = database_url.replace("postgresql://", "postgresql+asyncpg://")
+    ASYNC_DATABASE_URL = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
 elif database_url.startswith("postgresql+asyncpg://"):
     ASYNC_DATABASE_URL = database_url
 elif database_url.startswith("sqlite:///"):
@@ -82,9 +87,24 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Initialize database tables."""
-    async with engine.begin() as conn:
-        await conn.run_sync(BaseModel.metadata.create_all)
+    """Initialize database tables (com retry para DBs lentos no startup)."""
+    import logging
+    logger = logging.getLogger(__name__)
+    max_retries = 5
+    for attempt in range(1, max_retries + 1):
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(BaseModel.metadata.create_all)
+            return
+        except Exception as exc:
+            if attempt == max_retries:
+                raise
+            wait = attempt * 3
+            logger.warning(
+                "DB init tentativa %d/%d falhou: %s. Tentando novamente em %ds...",
+                attempt, max_retries, exc, wait,
+            )
+            await asyncio.sleep(wait)
 
 
 async def close_db() -> None:

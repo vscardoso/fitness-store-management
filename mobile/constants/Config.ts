@@ -4,8 +4,9 @@
  */
 
 // ============================================================================
-// CONFIGURACAO DE REDE - ESCOLHA UMA OPCAO ABAIXO
+// CONFIGURACAO DE REDE - DESCOMENTE A OPCAO CORRETA PARA SEU CENARIO
 // ============================================================================
+// ⚠️  Apenas UMA linha "const LOCAL_API_URL" deve estar ativa por vez!
 
 // OPCAO 1: Emulador Android
 // const LOCAL_API_URL = 'http://10.0.2.2:8000/api/v1';
@@ -13,27 +14,21 @@
 // OPCAO 2: Emulador iOS / Simulator
 // const LOCAL_API_URL = 'http://localhost:8000/api/v1';
 
-  // OPCAO 3: Dispositivo Fisico (mesma rede WiFi)
-  // Para descobrir seu IP: rode "ipconfig" no terminal e procure em
-  // "Adaptador de Rede sem Fio Wi-Fi" o campo "Endereco IPv4"
-  // Backend deve estar rodando: uvicorn app.main:app --reload --host 0.0.0.0
-const LOCAL_API_URL = 'http://192.168.200.73:8000/api/v1'; // IP WiFi local atual
-  // const LOCAL_API_URL = 'http://192.168.100.158:8000/api/v1'; // IP WiFi local (PC e celular na mesma rede)
-  // const LOCAL_API_URL = 'http://172.24.208.1:8000/api/v1'; // IP WiFi local (PC e celular na mesma rede)
-  // const LOCAL_API_URL = 'https://e14a773031490b.lhr.life/api/v1'; // Tunnel localhost.run (redes diferentes)
-// OPCAO 4: Tunnel localhost.run (redes diferentes / celular fora do WiFi)
-// Para iniciar: .\start_tunnel.ps1 (na raiz do projeto)
-// O script exibe a URL do tunel no terminal - copie e cole aqui no formato:
-//   https://XXXXXXXXXXXXXXXX.lhr.life/api/v1
-//
-// ATENCAO: Algumas redes corporativas (FortiGuard, etc.) bloqueiam dominios
-//    *.lhr.life como "Phishing". Se isso ocorrer, use a OPCAO 3 (IP local WiFi)
-//    ou conecte o celular a uma rede diferente (dados moveis, hotspot).
-//
-  // Atualize a URL abaixo com a URL atual do tunel (muda a cada reinicio):
-  // const LOCAL_API_URL = 'https://stale-readers-glow.loca.lt/api/v1'; // Tunnel localtunnel (redes diferentes)
+// OPCAO 3: Dispositivo fisico - MESMA REDE WiFi (mais rapido, sem tunnel)
+// Como usar: rode "ipconfig" no PC, anote o IP em "Adaptador Wi-Fi" e cole abaixo.
+// Backend: uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+// const LOCAL_API_URL = 'http://192.168.200.73:8000/api/v1'; // <- altere o IP se mudar
 
-// OPCAO 5: Producao Render.com
+// OPCAO 4: Dispositivo fisico - REDES DIFERENTES (tunnel, celular no 4G/5G ou outra rede)
+// URL PERMANENTE - nunca muda! Inicie o tunnel com: .\start_tunnel.ps1
+const LOCAL_API_URL = 'https://fitness-store-mgmt-api.loca.lt/api/v1';
+
+// OPCAO 5: Forcando producao (Render) mesmo em dev - util para testar deploy
+// const LOCAL_API_URL = 'https://fitness-backend-x1qn.onrender.com/api/v1';
+
+// ============================================================================
+// URL de producao (nao editar)
+// ============================================================================
 const PRODUCTION_URL = process.env.EXPO_PUBLIC_API_URL || 'https://fitness-backend-x1qn.onrender.com/api/v1';
 
 // ============================================================================
