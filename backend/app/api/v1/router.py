@@ -41,6 +41,7 @@ from app.api.v1.endpoints import (
     looks,
     wishlist,
     suggestions,
+    expenses,
 )
 from app.api.v1 import product_variants
 
@@ -176,3 +177,6 @@ api_router.include_router(
 api_router.include_router(looks.router, tags=["Looks"])
 api_router.include_router(wishlist.router, tags=["Wishlist"])
 api_router.include_router(suggestions.router)
+
+# Despesas Operacionais e P&L
+api_router.include_router(expenses.router)

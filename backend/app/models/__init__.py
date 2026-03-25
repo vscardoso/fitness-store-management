@@ -21,6 +21,7 @@ from .sale_return import SaleReturn, ReturnItem
 from .look import Look, LookItem
 from .wishlist import Wishlist
 from .product_tag import ProductTag
+from .expense import Expense, ExpenseCategory
 
 __all__ = [
     # Base
@@ -92,4 +93,8 @@ __all__ = [
     "LookItem",
     "Wishlist",
     "ProductTag",
+
+    # Expense
+    "Expense",
+    "ExpenseCategory",
 ]

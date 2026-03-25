@@ -247,6 +247,31 @@ export default function MoreScreen() {
         </Card>
       </View>
 
+      {/* Financeiro - Despesas e P&L */}
+      <View style={styles.section}>
+        <Text variant="titleMedium" style={styles.sectionTitle}>
+          Financeiro
+        </Text>
+        <Card style={styles.menuCard}>
+          <MenuItem
+            icon="receipt-outline"
+            title="Despesas"
+            subtitle="Registrar e gerenciar despesas operacionais"
+            onPress={() => router.push('/(tabs)/expenses')}
+            iconColor={Colors.light.error}
+            iconBg="#FFEBEE"
+          />
+          <MenuItem
+            icon="stats-chart-outline"
+            title="Resultado do Mês (P&L)"
+            subtitle="Receita − CMV − Despesas = Lucro Líquido"
+            onPress={() => router.push('/(tabs)/expenses/resultado')}
+            iconColor="#7C3AED"
+            iconBg="#EDE9FE"
+          />
+        </Card>
+      </View>
+
       <View style={styles.section}>
         <Text variant="titleMedium" style={styles.sectionTitle}>
           Relatórios

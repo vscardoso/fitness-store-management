@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { getDashboardStats, getInventoryValuation, getPeriodSalesStats, getPeriodPurchases, getDailySales, getTopProducts, getFifoPerformance, getYoYComparison } from '@/services/dashboardService';
+import { getMonthlyResult } from '@/services/expenseService';
 import type { DailySalesData } from '@/services/dashboardService';
 import { getSales } from '@/services/saleService';
 import type { Sale } from '@/types';
@@ -108,6 +109,14 @@ export default function DashboardScreen() {
     enabled: !!user,
   });
 
+  // Query resultado do mês (P&L)
+  const now = new Date();
+  const { data: monthlyResult, refetch: refetchMonthly } = useQuery({
+    queryKey: ['monthly-result', now.getFullYear(), now.getMonth() + 1],
+    queryFn: () => getMonthlyResult(now.getFullYear(), now.getMonth() + 1),
+    enabled: !!user,
+  });
+
   // Refresh
   const onRefresh = async () => {
     setRefreshing(true);
@@ -121,6 +130,7 @@ export default function DashboardScreen() {
       refetchTopProducts(),
       refetchFifo(),
       refetchYoY(),
+      refetchMonthly(),
     ]);
     setRefreshing(false);
   };
@@ -137,7 +147,8 @@ export default function DashboardScreen() {
       refetchTopProducts();
       refetchFifo();
       refetchYoY();
-    }, [refetchStats, refetchValuation, refetchPeriod, refetchPurchases, refetchRecentSales, refetchDailySales, refetchTopProducts, refetchFifo, refetchYoY])
+      refetchMonthly();
+    }, [refetchStats, refetchValuation, refetchPeriod, refetchPurchases, refetchRecentSales, refetchDailySales, refetchTopProducts, refetchFifo, refetchYoY, refetchMonthly])
   );
 
   // Dados extraídos (optional chaining em todos os níveis para evitar crash quando API muda)
@@ -404,6 +415,53 @@ export default function DashboardScreen() {
             </View>
           </TouchableOpacity>
         </View>
+
+        {/* ========== CARD RESULTADO DO MÊS (P&L) ========== */}
+        {monthlyResult && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => router.push('/(tabs)/expenses/resultado')}
+          >
+            <Card style={styles.plSummaryCard}>
+              <View style={styles.plSummaryHeader}>
+                <View style={styles.plSummaryTitleRow}>
+                  <Ionicons name="stats-chart-outline" size={18} color="#7C3AED" />
+                  <Text style={styles.plSummaryTitle}>Resultado do Mês</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
+              </View>
+              <View style={styles.plSummaryGrid}>
+                <View style={styles.plSummaryItem}>
+                  <Text style={styles.plSummaryLabel}>Receita</Text>
+                  <Text style={[styles.plSummaryValue, { color: Colors.light.success }]}>
+                    {formatCurrency(monthlyResult.revenue)}
+                  </Text>
+                </View>
+                <View style={styles.plSummaryItem}>
+                  <Text style={styles.plSummaryLabel}>Despesas</Text>
+                  <Text style={[styles.plSummaryValue, { color: Colors.light.error }]}>
+                    -{formatCurrency(monthlyResult.total_expenses)}
+                  </Text>
+                </View>
+                <View style={[styles.plSummaryItem, styles.plSummaryNet, {
+                  backgroundColor: monthlyResult.net_profit >= 0 ? (Colors.light.successLight ?? '#E8F5E9') : '#FFEBEE',
+                }]}>
+                  <Text style={styles.plSummaryLabel}>Lucro Líquido</Text>
+                  <Text style={[styles.plSummaryValue, styles.plSummaryNetValue, {
+                    color: monthlyResult.net_profit >= 0 ? Colors.light.success : Colors.light.error,
+                  }]}>
+                    {formatCurrency(monthlyResult.net_profit)}
+                  </Text>
+                  <Text style={[styles.plSummaryMargin, {
+                    color: monthlyResult.net_profit >= 0 ? Colors.light.success : Colors.light.error,
+                  }]}>
+                    {Number(monthlyResult.net_margin_pct).toFixed(1)}%
+                  </Text>
+                </View>
+              </View>
+            </Card>
+          </TouchableOpacity>
+        )}
 
         {/* ========== GRÁFICO DE VENDAS 7 DIAS ========== */}
         {dailySales && dailySales.daily && dailySales.daily.length > 0 && (
@@ -1193,6 +1251,72 @@ const styles = StyleSheet.create({
   },
   changeText: {
     fontSize: 10,
+    fontWeight: '600',
+  },
+  // P&L Summary Card
+  plSummaryCard: {
+    marginTop: 12,
+    borderRadius: theme.borderRadius.lg,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.background,
+  },
+  plSummaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
+  },
+  plSummaryTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  plSummaryTitle: {
+    fontWeight: '700',
+    fontSize: 14,
+    color: Colors.light.text,
+  },
+  plSummaryGrid: {
+    flexDirection: 'row',
+    paddingHorizontal: 12,
+    paddingBottom: 14,
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  plSummaryItem: {
+    flex: 1,
+    minWidth: 90,
+    alignItems: 'center',
+    padding: 10,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: Colors.light.backgroundSecondary,
+  },
+  plSummaryLabel: {
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+    marginBottom: 4,
+  },
+  plSummaryValue: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  plSummaryNet: {
+    flexBasis: '100%',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  plSummaryNetValue: {
+    fontSize: 18,
+  },
+  plSummaryMargin: {
+    fontSize: 12,
     fontWeight: '600',
   },
 

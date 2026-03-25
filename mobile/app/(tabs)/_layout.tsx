@@ -133,6 +133,9 @@ export default function TabsLayout() {
 
       {/* Demand: dashboard de demanda da wishlist, oculto do tab bar */}
       <Tabs.Screen name="demand" options={{ href: null }} />
+
+      {/* Despesas: oculto do tab bar mas mantém rotas acessíveis */}
+      <Tabs.Screen name="expenses" options={{ href: null }} />
     </Tabs>
   );
 }
