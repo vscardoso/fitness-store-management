@@ -83,8 +83,8 @@ if ($Local) {
     if (-not $ip) { $ip = "192.168.1.100"; Write-Host "IP nao detectado, usando fallback $ip" -ForegroundColor Yellow }
 
     $configContent = Get-Content $CONFIG_FILE -Raw
-    $configContent = $configContent -replace "const MODE: 'local' \| 'tunnel' = '[^']*'", "const MODE: 'local' | 'tunnel' = 'local'"
-    $configContent = $configContent -replace "const LOCAL_IP = '[^']*'", "const LOCAL_IP = '$ip'"
+    $configContent = $configContent -replace "let MODE = '[^']*' as 'local' \| 'tunnel'", "let MODE = 'local' as 'local' | 'tunnel'"
+    $configContent = $configContent -replace "let LOCAL_IP = '[^']*'", "let LOCAL_IP = '$ip'"
     $configContent | Set-Content $CONFIG_FILE -Encoding UTF8 -NoNewline
 
     Write-Host "Config.ts → LOCAL ($ip):$PORT" -ForegroundColor Green
@@ -127,8 +127,8 @@ if ($Local) {
     }
 
     $configContent = Get-Content $CONFIG_FILE -Raw
-    $configContent = $configContent -replace "const MODE: 'local' \| 'tunnel' = '[^']*'", "const MODE: 'local' | 'tunnel' = 'tunnel'"
-    $configContent = $configContent -replace "const TUNNEL_URL = '[^']*'", "const TUNNEL_URL = '$tunnelUrl'"
+    $configContent = $configContent -replace "let MODE = '[^']*' as 'local' \| 'tunnel'", "let MODE = 'tunnel' as 'local' | 'tunnel'"
+    $configContent = $configContent -replace "let TUNNEL_URL = '[^']*'", "let TUNNEL_URL = '$tunnelUrl'"
     $configContent | Set-Content $CONFIG_FILE -Encoding UTF8 -NoNewline
 
     Write-Host "Tunnel ativo: $tunnelUrl" -ForegroundColor Green

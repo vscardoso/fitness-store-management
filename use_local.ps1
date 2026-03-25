@@ -58,10 +58,10 @@ Write-Host "Atualizando mobile/constants/Config.ts..." -ForegroundColor Yellow
 $configContent = Get-Content $CONFIG_FILE -Raw
 
 # Seta MODE para 'local'
-$configContent = $configContent -replace "const MODE: 'local' \| 'tunnel' = '[^']*'", "const MODE: 'local' | 'tunnel' = 'local'"
+$configContent = $configContent -replace "let MODE = '[^']*' as 'local' \| 'tunnel'", "let MODE = 'local' as 'local' | 'tunnel'"
 
 # Atualiza LOCAL_IP
-$configContent = $configContent -replace "const LOCAL_IP = '[^']*'", "const LOCAL_IP = '$ip'"
+$configContent = $configContent -replace "let LOCAL_IP = '[^']*'", "let LOCAL_IP = '$ip'"
 
 $configContent | Set-Content $CONFIG_FILE -Encoding UTF8 -NoNewline
 

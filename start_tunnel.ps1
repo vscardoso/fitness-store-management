@@ -88,10 +88,10 @@ Write-Host "Atualizando mobile/constants/Config.ts..." -ForegroundColor Yellow
 $configContent = Get-Content $CONFIG_FILE -Raw
 
 # Atualiza MODE para 'tunnel'
-$configContent = $configContent -replace "const MODE: 'local' \| 'tunnel' = '[^']*'", "const MODE: 'local' | 'tunnel' = 'tunnel'"
+$configContent = $configContent -replace "let MODE = '[^']*' as 'local' \| 'tunnel'", "let MODE = 'tunnel' as 'local' | 'tunnel'"
 
 # Atualiza TUNNEL_URL com a URL real
-$configContent = $configContent -replace "const TUNNEL_URL = '[^']*'", "const TUNNEL_URL = '$tunnelUrl'"
+$configContent = $configContent -replace "let TUNNEL_URL = '[^']*'", "let TUNNEL_URL = '$tunnelUrl'"
 
 $configContent | Set-Content $CONFIG_FILE -Encoding UTF8 -NoNewline
 
