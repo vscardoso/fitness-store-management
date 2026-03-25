@@ -8,6 +8,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.product_variant import ProductVariant
 from app.models.product import Product
+from app.models.entry_item import EntryItem
 from app.repositories.base import BaseRepository
 from app.schemas.product_variant import ProductVariantCreate, ProductVariantUpdate
 
@@ -82,7 +83,7 @@ class ProductVariantRepository(BaseRepository[ProductVariant, ProductVariantCrea
                 ProductVariant.product_id == product_id,
                 ProductVariant.tenant_id == tenant_id,
             )
-            .options(selectinload(ProductVariant.entry_items))
+            .options(selectinload(ProductVariant.entry_items).selectinload(EntryItem.stock_entry))
         )
         
         if active_only:
@@ -133,7 +134,7 @@ class ProductVariantRepository(BaseRepository[ProductVariant, ProductVariantCrea
         
         result = await db.execute(
             select(ProductVariant)
-            .options(selectinload(ProductVariant.entry_items))
+            .options(selectinload(ProductVariant.entry_items).selectinload(EntryItem.stock_entry))
             .where(and_(*conditions))
         )
         return result.scalar_one_or_none()

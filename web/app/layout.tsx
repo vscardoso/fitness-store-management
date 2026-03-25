@@ -4,6 +4,7 @@ import Navbar from "@/components/Navbar";
 import WhatsAppButton from "@/components/WhatsAppButton";
 
 const STORE = process.env.NEXT_PUBLIC_STORE_NAME || "Fitness Store";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://wamodafitness.com.br";
 
 export const viewport: Viewport = {
   themeColor: "#ff1a6c",
@@ -11,13 +12,25 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
+  metadataBase: new URL(SITE_URL),
   title:       { default: STORE, template: `%s · ${STORE}` },
   description: "Roupas e acessórios fitness de qualidade. Looks exclusivos, condicional disponível.",
   keywords:    ["fitness", "roupas fitness", "lookbook", "moda fitness", "activewear"],
+  alternates: {
+    canonical: "/",
+  },
   openGraph: {
     type:     "website",
     locale:   "pt_BR",
     siteName: STORE,
+    url:      SITE_URL,
+    title:    STORE,
+    description: "Roupas e acessórios fitness de qualidade. Looks exclusivos, condicional disponível.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: STORE,
+    description: "Roupas e acessórios fitness de qualidade. Looks exclusivos, condicional disponível.",
   },
 };
 

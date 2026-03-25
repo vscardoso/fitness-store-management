@@ -12,13 +12,14 @@
 //   Redes difer. → rode: .\start_tunnel.ps1 (atualiza TUNNEL_URL automaticamente)
 // ============================================================================
 
-const MODE: 'local' | 'tunnel' = 'tunnel';
+// let MODE = 'local' as 'local' | 'tunnel';
+let MODE = 'tunnel' as 'local' | 'tunnel';
 
 // IP do PC na rede WiFi — atualizado por .\use_local.ps1 ou manualmente via ipconfig
-const LOCAL_IP = '192.168.200.73';
+let LOCAL_IP = '192.168.100.158';
 
 // URL do tunnel — atualizada AUTOMATICAMENTE por .\start_tunnel.ps1 a cada execução
-const TUNNEL_URL = '';
+let TUNNEL_URL = 'https://sweet-laws-build.loca.lt';
 
 // Monta a URL com base no modo
 const LOCAL_API_URL = MODE === 'tunnel' && TUNNEL_URL

@@ -4,10 +4,11 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, StatusBar, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import KeyboardSafeView from '@/components/ui/KeyboardSafeView';
 import { Text, Button, Card, Chip, TextInput, IconButton, ActivityIndicator, Divider } from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import PageHeader from '@/components/layout/PageHeader';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
 import useBackToList from '@/hooks/useBackToList';
@@ -57,6 +58,7 @@ export default function CheckoutScreen() {
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | 'MIXED' | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
   const [installments, setInstallments] = useState(1);
+  const [pendingCreditCard, setPendingCreditCard] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingCustomer, setLoadingCustomer] = useState(false);
@@ -152,6 +154,7 @@ export default function CheckoutScreen() {
       setSelectedMethod(null);
       setInstallments(1);
       setIsMixedMode(false);
+      setPendingCreditCard(false);
     }, [])
   );
 
@@ -226,7 +229,14 @@ export default function CheckoutScreen() {
       setLoadingCustomer(true);
       const data = await getCustomerById(cart.customer_id);
       setCustomer(data);
-    } catch (error) {
+    } catch (error: any) {
+      const is404 = error?.response?.status === 404 || error?.status === 404;
+      if (is404) {
+        // Cliente não existe mais (DB recriado ou excluído) — limpa silenciosamente
+        cart.setCustomer(undefined);
+        setCustomer(null);
+        return;
+      }
       console.error('Erro ao carregar cliente:', error);
       setDialog({
         visible: true,
@@ -293,7 +303,7 @@ export default function CheckoutScreen() {
    * Adicionar pagamento direto (PIX, Cartão, Dinheiro)
    * Adiciona o valor total restante automaticamente
    */
-  const handleAddDirectPayment = (method: PaymentMethod) => {
+  const handleAddDirectPayment = (method: PaymentMethod, installmentCount: number = 1) => {
     // Calcular o total com desconto diretamente para evitar race condition
     const totalWithDiscount = calculateTotalWithDiscount(method);
     const totalRemaining = totalWithDiscount - cart.totalPaid;
@@ -312,7 +322,7 @@ export default function CheckoutScreen() {
     }
 
     // Adicionar pagamento com valor total (já com desconto aplicado)
-    cart.addPayment(method, totalRemaining, 1);
+    cart.addPayment(method, totalRemaining, installmentCount);
     haptics.success();
   };
 
@@ -474,11 +484,10 @@ export default function CheckoutScreen() {
       }));
 
       // Mapear payments para formato da API
-      // Backend espera payment_method, não method
-      // Backend não aceita installments
       const payments = cart.payments.map(p => ({
         payment_method: p.method,
         amount: p.amount,
+        installments: p.installments || 1,
       }));
 
       // Determinar método de pagamento principal
@@ -505,6 +514,9 @@ export default function CheckoutScreen() {
       }
 
       // Criar venda usando mutation hook
+      // Calcular troco antes de limpar o carrinho
+      const change = Math.max(0, cart.totalPaid - finalTotal);
+
       createSaleMutation.mutate(saleData, {
         onSuccess: (sale) => {
           haptics.success();
@@ -512,25 +524,40 @@ export default function CheckoutScreen() {
           // Limpar carrinho
           cart.clear();
 
-          // Navegar para tela de sucesso
+          // Navegar para tela de sucesso com troco (se houver)
           router.replace({
             pathname: '/checkout/success',
-            params: { sale_number: sale.sale_number }
+            params: {
+              sale_number: sale.sale_number,
+              ...(change > 0 ? { change: change.toFixed(2) } : {}),
+            }
           });
         },
         onError: (error: any) => {
           haptics.error();
           console.error('Erro ao finalizar venda:', error);
 
-          const message = error.response?.data?.detail || 'Erro ao processar venda. Tente novamente.';
+          const detail: string = error.response?.data?.detail || error.message || '';
+          const isStockError = detail.toLowerCase().includes('estoque insuficiente');
+
+          const title = isStockError ? 'Estoque insuficiente' : 'Erro ao finalizar';
+          const message = detail
+            ? isStockError
+              ? `${detail}\n\nVolte ao carrinho e ajuste a quantidade.`
+              : detail
+            : 'Erro ao processar venda. Tente novamente.';
+
           setDialog({
             visible: true,
             type: 'danger',
-            title: 'Erro',
-            message: message,
-            confirmText: 'OK',
-            cancelText: '',
-            onConfirm: () => setDialog({ ...dialog, visible: false }),
+            title,
+            message,
+            confirmText: isStockError ? 'Voltar ao carrinho' : 'OK',
+            cancelText: isStockError ? 'Fechar' : '',
+            onConfirm: () => {
+              setDialog({ ...dialog, visible: false });
+              if (isStockError) router.back();
+            },
           });
         },
       });
@@ -561,36 +588,15 @@ export default function CheckoutScreen() {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-      
-      {/* Header Premium */}
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerContent}>
-            <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <View style={styles.headerInfo}>
-              <Text style={styles.greeting}>Finalizar Venda</Text>
-              <Text style={styles.headerSubtitle}>
-                {cart.itemCount} {cart.itemCount === 1 ? 'item' : 'itens'}
-              </Text>
-            </View>
-            <View style={styles.headerSpacer} />
-          </View>
-        </LinearGradient>
-      </View>
+    <KeyboardSafeView style={styles.container}>
+      <PageHeader
+        title="Finalizar Venda"
+        subtitle={`${cart.itemCount} ${cart.itemCount === 1 ? 'item' : 'itens'}`}
+        showBackButton
+        onBack={handleGoBack}
+      />
 
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.content}
-      >
+      <View style={styles.content}>
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -669,33 +675,42 @@ export default function CheckoutScreen() {
             {!isMixedMode && (
               <View style={styles.paymentMethodsContainer}>
                 {paymentMethods.filter(m => m.value !== 'MIXED').map((method) => {
-                  const isSelected = cart.payments.length > 0 
+                  const isSelected = cart.payments.length > 0
                     ? cart.payments[0].method === method.value
-                    : false;
-                  
+                    : (pendingCreditCard && method.value === PaymentMethod.CREDIT_CARD);
+
                   return (
                     <TouchableOpacity
                       key={method.value}
                       style={[styles.paymentMethodChip, isSelected && styles.paymentMethodChipActive]}
                       onPress={() => {
-                        // Se já está selecionado, não fazer nada
+                        // Se já está selecionado com pagamento, não fazer nada
                         if (isSelected && cart.payments.length > 0) {
                           return;
                         }
 
                         const paymentMethod = method.value as PaymentMethod;
-                        // Calcular total com desconto do método selecionado
+
+                        // Cartão de crédito: mostrar seletor de parcelas antes de confirmar
+                        if (paymentMethod === PaymentMethod.CREDIT_CARD) {
+                          if (cart.payments.length > 0) cart.clearPayments();
+                          setSelectedMethod(paymentMethod);
+                          setInstallments(1);
+                          setPendingCreditCard(true);
+                          haptics.selection();
+                          return;
+                        }
+
+                        // Outros métodos: fechar picker de crédito se aberto
+                        setPendingCreditCard(false);
                         const totalWithDiscount = calculateTotalWithDiscount(paymentMethod);
 
-                        // Se há pagamento e é de outro método, limpar e adicionar o novo
                         if (cart.payments.length > 0 && !isSelected) {
                           cart.clearPayments();
-                          // Adicionar com valor já com desconto calculado
                           cart.addPayment(paymentMethod, totalWithDiscount, 1);
                           setSelectedMethod(paymentMethod);
                           haptics.success();
                         } else {
-                          // Primeiro pagamento, usar fluxo normal
                           setSelectedMethod(paymentMethod);
                           handleAddDirectPayment(paymentMethod);
                         }
@@ -715,8 +730,66 @@ export default function CheckoutScreen() {
               </View>
             )}
 
+            {/* Seletor de parcelas (crédito, modo simples) */}
+            {pendingCreditCard && !isMixedMode && (
+              <View style={styles.installmentPicker}>
+                <Text style={styles.installmentPickerLabel}>Parcelas:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.installmentScroll}>
+                  <View style={styles.installmentChipsRow}>
+                    {installmentOptions.map((opt) => (
+                      <TouchableOpacity
+                        key={opt.value}
+                        style={[styles.installmentChip, installments === opt.value && styles.installmentChipActive]}
+                        onPress={() => { setInstallments(opt.value); haptics.selection(); }}
+                      >
+                        <Text style={[styles.installmentChipText, installments === opt.value && styles.installmentChipTextActive]}>
+                          {opt.label}
+                        </Text>
+                        {opt.value > 1 && (
+                          <Text style={[styles.installmentChipSub, installments === opt.value && styles.installmentChipSubActive]}>
+                            {formatCurrency(finalTotal / opt.value)}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </ScrollView>
+                <Button
+                  mode="contained"
+                  onPress={() => {
+                    handleAddDirectPayment(PaymentMethod.CREDIT_CARD, installments);
+                    setPendingCreditCard(false);
+                  }}
+                  icon="check"
+                  style={styles.confirmInstallmentBtn}
+                >
+                  {installments === 1 ? 'Confirmar à Vista' : `Confirmar ${installments}x`}
+                </Button>
+              </View>
+            )}
+
+            {/* Resumo do crédito após confirmar */}
+            {!isMixedMode && !pendingCreditCard && cart.payments.length > 0 && cart.payments[0].method === PaymentMethod.CREDIT_CARD && (
+              <View style={styles.creditSummary}>
+                <Ionicons name="checkmark-circle" size={16} color={Colors.light.success} />
+                <Text style={styles.creditSummaryText}>
+                  {cart.payments[0].installments > 1
+                    ? `${cart.payments[0].installments}x de ${formatCurrency(cart.payments[0].amount / cart.payments[0].installments)}`
+                    : 'À vista'}
+                </Text>
+                <TouchableOpacity onPress={() => {
+                  const prev = cart.payments[0]?.installments || 1;
+                  cart.clearPayments();
+                  setInstallments(prev);
+                  setPendingCreditCard(true);
+                }}>
+                  <Text style={styles.creditSummaryChange}>Alterar</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
             {/* Botão para modo misto */}
-            {!isMixedMode && cart.payments.length === 0 && (
+            {!isMixedMode && cart.payments.length === 0 && !pendingCreditCard && (
               <TouchableOpacity
                 style={styles.mixedModeButton}
                 onPress={() => {
@@ -774,6 +847,28 @@ export default function CheckoutScreen() {
                       </Chip>
                     ))}
                   </ScrollView>
+
+                  {/* Parcelas no modo misto (apenas crédito) */}
+                  {selectedMethod === PaymentMethod.CREDIT_CARD && (
+                    <View style={styles.installmentPickerMixed}>
+                      <Text style={styles.installmentPickerLabel}>Parcelas:</Text>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.installmentScroll}>
+                        <View style={styles.installmentChipsRow}>
+                          {installmentOptions.map((opt) => (
+                            <TouchableOpacity
+                              key={opt.value}
+                              style={[styles.installmentChip, installments === opt.value && styles.installmentChipActive]}
+                              onPress={() => { setInstallments(opt.value); haptics.selection(); }}
+                            >
+                              <Text style={[styles.installmentChipText, installments === opt.value && styles.installmentChipTextActive]}>
+                                {opt.label}
+                              </Text>
+                            </TouchableOpacity>
+                          ))}
+                        </View>
+                      </ScrollView>
+                    </View>
+                  )}
 
                   {/* Input de valor */}
                   <View style={styles.paymentInputRow}>
@@ -979,7 +1074,7 @@ export default function CheckoutScreen() {
             {loading ? 'Processando...' : 'Confirmar Venda'}
           </Button>
         </View>
-      </KeyboardAvoidingView>
+      </View>
 
       {/* Confirm Dialog */}
       <ConfirmDialog
@@ -992,7 +1087,7 @@ export default function CheckoutScreen() {
         onConfirm={dialog.onConfirm}
         onCancel={() => setDialog({ ...dialog, visible: false })}
       />
-    </View>
+    </KeyboardSafeView>
   );
 }
 
@@ -1000,41 +1095,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
-  },
-  headerContainer: {
-    overflow: 'hidden',
-  },
-  headerGradient: {
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  backButton: {
-    padding: theme.spacing.xs,
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: theme.fontSize.xxl,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: theme.spacing.xs,
-  },
-  headerSubtitle: {
-    fontSize: theme.fontSize.md,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '500',
-  },
-  headerSpacer: {
-    width: 40,
   },
   content: {
     flex: 1,
@@ -1228,7 +1288,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     color: Colors.light.textSecondary,
   },
-  installmentChip: {
+  installmentChipLegacy: {
     marginRight: 8,
   },
   addPaymentButton: {
@@ -1310,6 +1370,87 @@ const styles = StyleSheet.create({
     color: Colors.light.success,
     fontWeight: '600',
   },
+  // ── Parcelamento ──────────────────────────────────────────
+  installmentPicker: {
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: `${Colors.light.primary}08`,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: `${Colors.light.primary}30`,
+  },
+  installmentPickerMixed: {
+    marginBottom: 12,
+  },
+  installmentPickerLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+    marginBottom: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  installmentScroll: {
+    marginBottom: 12,
+  },
+  installmentChipsRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingVertical: 2,
+  },
+  installmentChip: {
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.background,
+    minWidth: 52,
+  },
+  installmentChipActive: {
+    borderColor: Colors.light.primary,
+    backgroundColor: `${Colors.light.primary}12`,
+  },
+  installmentChipText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.light.textSecondary,
+  },
+  installmentChipTextActive: {
+    color: Colors.light.primary,
+  },
+  installmentChipSub: {
+    fontSize: 10,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  installmentChipSubActive: {
+    color: Colors.light.primary,
+  },
+  confirmInstallmentBtn: {
+    borderRadius: 10,
+  },
+  creditSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 10,
+    paddingHorizontal: 4,
+  },
+  creditSummaryText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.success,
+  },
+  creditSummaryChange: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.primary,
+    textDecorationLine: 'underline',
+  },
+
   bottomSpacer: {
     height: 80,
   },

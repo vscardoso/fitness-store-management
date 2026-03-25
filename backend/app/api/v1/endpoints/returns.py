@@ -123,6 +123,73 @@ async def process_return(
         )
 
 
+@router.post(
+    "/reconcile-status",
+    summary="Reconciliar status de vendas com devoluções",
+    description="Corrige vendas que têm SaleReturn mas status desatualizado (completed em vez de refunded)"
+)
+async def reconcile_sale_statuses(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    from sqlalchemy import select, and_, func
+    from sqlalchemy.orm import selectinload
+    from app.models.sale import Sale, SaleItem, SaleStatus
+    from app.models.sale_return import SaleReturn, ReturnItem
+
+    # Buscar vendas COMPLETED ou PARTIALLY_REFUNDED com devoluções existentes
+    stmt = (
+        select(Sale)
+        .where(
+            and_(
+                Sale.tenant_id == tenant_id,
+                Sale.is_active == True,
+                Sale.status.in_([SaleStatus.COMPLETED.value, SaleStatus.PARTIALLY_REFUNDED.value]),
+            )
+        )
+        .options(
+            selectinload(Sale.items),
+            selectinload(Sale.returns).selectinload(SaleReturn.items),
+        )
+    )
+    result = await db.execute(stmt)
+    sales = result.scalars().unique().all()
+
+    fixed = []
+    for sale in sales:
+        # Somar totais via itens ativos
+        active_items = [i for i in sale.items if i.is_active]
+        total_sold = sum(i.quantity for i in active_items)
+        if total_sold == 0:
+            continue
+
+        returned_per_item: dict[int, int] = {}
+        for sr in sale.returns:
+            if sr.status == "completed":
+                for ri in sr.items:
+                    returned_per_item[ri.sale_item_id] = (
+                        returned_per_item.get(ri.sale_item_id, 0) + ri.quantity_returned
+                    )
+
+        total_returned = sum(returned_per_item.get(i.id, 0) for i in active_items)
+
+        new_status = None
+        if total_returned >= total_sold:
+            new_status = SaleStatus.REFUNDED.value
+        elif total_returned > 0:
+            new_status = SaleStatus.PARTIALLY_REFUNDED.value
+
+        if new_status and sale.status != new_status:
+            sale.status = new_status
+            fixed.append({"sale_id": sale.id, "sale_number": sale.sale_number, "new_status": new_status})
+
+    if fixed:
+        await db.commit()
+
+    return {"fixed": len(fixed), "sales": fixed}
+
+
 @router.get(
     "/history/{sale_id}",
     response_model=List[SaleReturnResponse],

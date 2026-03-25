@@ -24,6 +24,35 @@ from app.models.user import User
 router = APIRouter(prefix="/conditional-shipments", tags=["Envios Condicionais"])
 
 
+def _build_item_dict(item_data: dict) -> dict:
+    """Helper: constrói dicionário de item incluindo dados de variante."""
+    db_item = item_data["item"]
+    product = item_data["product"]
+    variant = item_data.get("variant")
+    return {
+        "id": db_item.id,
+        "shipment_id": db_item.shipment_id,
+        "product_id": db_item.product_id,
+        "variant_id": db_item.variant_id,
+        "quantity_sent": db_item.quantity_sent,
+        "quantity_kept": db_item.quantity_kept,
+        "quantity_returned": db_item.quantity_returned,
+        "quantity_pending": db_item.quantity_pending,
+        "status": db_item.status,
+        "unit_price": db_item.unit_price,
+        "notes": db_item.notes,
+        "total_value": db_item.total_value,
+        "kept_value": db_item.kept_value,
+        "product_name": product.name if product else None,
+        "product_sku": product.sku if product else None,
+        "variant_sku": variant.sku if variant else None,
+        "variant_size": variant.size if variant else None,
+        "variant_color": variant.color if variant else None,
+        "created_at": db_item.created_at,
+        "updated_at": db_item.updated_at,
+    }
+
+
 @router.post(
     "/",
     response_model=ConditionalShipmentResponse,
@@ -68,30 +97,7 @@ async def create_conditional_shipment(
         shipment_full = details["shipment"]
         customer = details["customer"]
 
-        # Construir lista de items manualmente
-        items_list = []
-        for item_data in details["items"]:
-            db_item = item_data["item"]
-            product = item_data["product"]
-
-            items_list.append({
-                "id": db_item.id,
-                "shipment_id": db_item.shipment_id,
-                "product_id": db_item.product_id,
-                "quantity_sent": db_item.quantity_sent,
-                "quantity_kept": db_item.quantity_kept,
-                "quantity_returned": db_item.quantity_returned,
-                "quantity_pending": db_item.quantity_pending,
-                "status": db_item.status,
-                "unit_price": db_item.unit_price,
-                "notes": db_item.notes,
-                "total_value": db_item.total_value,
-                "kept_value": db_item.kept_value,
-                "product_name": product.name if product else None,
-                "product_sku": product.sku if product else None,
-                "created_at": db_item.created_at,
-                "updated_at": db_item.updated_at,
-            })
+        items_list = [_build_item_dict(d) for d in details["items"]]
 
         return ConditionalShipmentResponse(
             id=shipment_full.id,
@@ -252,30 +258,7 @@ async def get_conditional_shipment(
     shipment = details["shipment"]
     customer = details["customer"]
     
-    # Construir lista de items manualmente (sem usar __dict__ que causa problemas de serialização)
-    items_list = []
-    for item_data in details["items"]:
-        db_item = item_data["item"]
-        product = item_data["product"]
-
-        items_list.append({
-            "id": db_item.id,
-            "shipment_id": db_item.shipment_id,
-            "product_id": db_item.product_id,
-            "quantity_sent": db_item.quantity_sent,
-            "quantity_kept": db_item.quantity_kept,
-            "quantity_returned": db_item.quantity_returned,
-            "quantity_pending": db_item.quantity_pending,
-            "status": db_item.status,
-            "unit_price": db_item.unit_price,
-            "notes": db_item.notes,
-            "total_value": db_item.total_value,
-            "kept_value": db_item.kept_value,
-            "product_name": product.name if product else None,
-            "product_sku": product.sku if product else None,
-            "created_at": db_item.created_at,
-            "updated_at": db_item.updated_at,
-        })
+    items_list = [_build_item_dict(d) for d in details["items"]]
 
     return ConditionalShipmentResponse(
         id=shipment.id,
@@ -362,30 +345,7 @@ async def mark_as_sent(
         shipment_full = details["shipment"]
         customer = details["customer"]
 
-        # Construir lista de items manualmente
-        items_list = []
-        for item_data in details["items"]:
-            db_item = item_data["item"]
-            product = item_data["product"]
-
-            items_list.append({
-                "id": db_item.id,
-                "shipment_id": db_item.shipment_id,
-                "product_id": db_item.product_id,
-                "quantity_sent": db_item.quantity_sent,
-                "quantity_kept": db_item.quantity_kept,
-                "quantity_returned": db_item.quantity_returned,
-                "quantity_pending": db_item.quantity_pending,
-                "status": db_item.status,
-                "unit_price": db_item.unit_price,
-                "notes": db_item.notes,
-                "total_value": db_item.total_value,
-                "kept_value": db_item.kept_value,
-                "product_name": product.name if product else None,
-                "product_sku": product.sku if product else None,
-                "created_at": db_item.created_at,
-                "updated_at": db_item.updated_at,
-            })
+        items_list = [_build_item_dict(d) for d in details["items"]]
 
         return ConditionalShipmentResponse(
             id=shipment_full.id,
@@ -478,30 +438,7 @@ async def process_return(
         shipment_full = details["shipment"]
         customer = details["customer"]
 
-        # Construir lista de items manualmente
-        items_list = []
-        for item_data in details["items"]:
-            db_item = item_data["item"]
-            product = item_data["product"]
-
-            items_list.append({
-                "id": db_item.id,
-                "shipment_id": db_item.shipment_id,
-                "product_id": db_item.product_id,
-                "quantity_sent": db_item.quantity_sent,
-                "quantity_kept": db_item.quantity_kept,
-                "quantity_returned": db_item.quantity_returned,
-                "quantity_pending": db_item.quantity_pending,
-                "status": db_item.status,
-                "unit_price": db_item.unit_price,
-                "notes": db_item.notes,
-                "total_value": db_item.total_value,
-                "kept_value": db_item.kept_value,
-                "product_name": product.name if product else None,
-                "product_sku": product.sku if product else None,
-                "created_at": db_item.created_at,
-                "updated_at": db_item.updated_at,
-            })
+        items_list = [_build_item_dict(d) for d in details["items"]]
 
         return ConditionalShipmentResponse(
             id=shipment_full.id,
@@ -607,30 +544,7 @@ async def update_conditional_shipment(
         shipment_full = details["shipment"]
         customer = details["customer"]
 
-        # Construir lista de items
-        items_list = []
-        for item_data in details["items"]:
-            db_item = item_data["item"]
-            product = item_data["product"]
-
-            items_list.append({
-                "id": db_item.id,
-                "shipment_id": db_item.shipment_id,
-                "product_id": db_item.product_id,
-                "quantity_sent": db_item.quantity_sent,
-                "quantity_kept": db_item.quantity_kept,
-                "quantity_returned": db_item.quantity_returned,
-                "quantity_pending": db_item.quantity_pending,
-                "status": db_item.status,
-                "unit_price": db_item.unit_price,
-                "notes": db_item.notes,
-                "total_value": db_item.total_value,
-                "kept_value": db_item.kept_value,
-                "product_name": product.name if product else None,
-                "product_sku": product.sku if product else None,
-                "created_at": db_item.created_at,
-                "updated_at": db_item.updated_at,
-            })
+        items_list = [_build_item_dict(d) for d in details["items"]]
 
         return ConditionalShipmentResponse(
             id=shipment_full.id,
@@ -807,28 +721,7 @@ async def postpone_departure_sla(
         shipment_full = details["shipment"]
         customer = details["customer"]
 
-        items_list = []
-        for item_data in details["items"]:
-            db_item = item_data["item"]
-            product = item_data["product"]
-            items_list.append({
-                "id": db_item.id,
-                "shipment_id": db_item.shipment_id,
-                "product_id": db_item.product_id,
-                "quantity_sent": db_item.quantity_sent,
-                "quantity_kept": db_item.quantity_kept,
-                "quantity_returned": db_item.quantity_returned,
-                "quantity_pending": db_item.quantity_pending,
-                "status": db_item.status,
-                "unit_price": db_item.unit_price,
-                "notes": db_item.notes,
-                "total_value": db_item.total_value,
-                "kept_value": db_item.kept_value,
-                "product_name": product.name if product else None,
-                "product_sku": product.sku if product else None,
-                "created_at": db_item.created_at,
-                "updated_at": db_item.updated_at,
-            })
+        items_list = [_build_item_dict(d) for d in details["items"]]
 
         return ConditionalShipmentResponse(
             id=shipment_full.id,
@@ -886,28 +779,7 @@ async def postpone_return_sla(
         shipment_full = details["shipment"]
         customer = details["customer"]
 
-        items_list = []
-        for item_data in details["items"]:
-            db_item = item_data["item"]
-            product = item_data["product"]
-            items_list.append({
-                "id": db_item.id,
-                "shipment_id": db_item.shipment_id,
-                "product_id": db_item.product_id,
-                "quantity_sent": db_item.quantity_sent,
-                "quantity_kept": db_item.quantity_kept,
-                "quantity_returned": db_item.quantity_returned,
-                "quantity_pending": db_item.quantity_pending,
-                "status": db_item.status,
-                "unit_price": db_item.unit_price,
-                "notes": db_item.notes,
-                "total_value": db_item.total_value,
-                "kept_value": db_item.kept_value,
-                "product_name": product.name if product else None,
-                "product_sku": product.sku if product else None,
-                "created_at": db_item.created_at,
-                "updated_at": db_item.updated_at,
-            })
+        items_list = [_build_item_dict(d) for d in details["items"]]
 
         return ConditionalShipmentResponse(
             id=shipment_full.id,

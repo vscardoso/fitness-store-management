@@ -133,8 +133,11 @@ async def list_grouped_products(
         if has_stock:
             id_query += """
                 AND EXISTS (
-                    SELECT 1 FROM inventory i2
-                    WHERE i2.product_id = p.id AND i2.tenant_id = :tid AND i2.quantity > 0
+                    SELECT 1 FROM entry_items ei2
+                    JOIN stock_entries se2 ON se2.id = ei2.entry_id
+                    JOIN product_variants pv2 ON pv2.id = ei2.variant_id
+                    WHERE pv2.product_id = p.id AND pv2.tenant_id = :tid
+                    AND ei2.is_active = 1 AND se2.is_active = 1 AND ei2.quantity_remaining > 0
                 )
             """
         
@@ -155,11 +158,17 @@ async def list_grouped_products(
                    p.is_digital, p.is_activewear, p.image_url, p.base_price,
                    p.created_at, p.updated_at,
                    v.id as variant_id, v.sku, v.size, v.color, v.price, v.cost_price,
-                   i.quantity as current_stock, i.min_stock
+                   COALESCE((
+                       SELECT SUM(ei.quantity_remaining)
+                       FROM entry_items ei
+                       JOIN stock_entries se ON se.id = ei.entry_id
+                       WHERE ei.variant_id = v.id AND ei.is_active = 1 AND se.is_active = 1
+                   ), 0) as variant_stock,
+                   i.min_stock
             FROM products p
             LEFT JOIN product_variants v
                    ON p.id = v.product_id AND v.is_active = 1 AND v.tenant_id = :tid
-            LEFT JOIN inventory i ON p.id = i.product_id AND i.tenant_id = :tid
+            LEFT JOIN inventory i ON v.id = i.variant_id AND i.tenant_id = :tid
             WHERE p.id IN ({ids_placeholder})
             ORDER BY p.name, v.size, v.color
         """
@@ -192,10 +201,8 @@ async def list_grouped_products(
                     "updated_at": row[12],
                     "variants": [],
                     "variant_count": 0,
-                    # total_stock vem do registro de inventory a nível de produto (product_id),
-                    # registrado na primeira linha. NÃO acumular por variante para evitar
-                    # multiplicação (4 variantes × estoque 4 = 16 errado).
-                    "total_stock": row[19] if row[19] is not None else 0,
+                    # total_stock acumulado a partir das variantes (FIFO real)
+                    "total_stock": 0,
                     "min_price": None,
                     "max_price": None,
                     "min_stock_threshold": row[20] if row[20] is not None else None
@@ -203,6 +210,7 @@ async def list_grouped_products(
             
             # Adicionar variante se existir
             if row[13]:  # variant_id existe
+                variant_stock = int(row[19]) if row[19] is not None else 0
                 variant = {
                     "id": row[13],
                     "sku": row[14],
@@ -210,13 +218,10 @@ async def list_grouped_products(
                     "color": row[16],
                     "price": float(row[17]) if row[17] else 0.0,
                     "cost_price": float(row[18]) if row[18] else None,
-                    "current_stock": row[19] if row[19] is not None else 0,
+                    "current_stock": variant_stock,
                 }
                 grouped[product_id]["variants"].append(variant)
-                
-                # NÃO somar total_stock aqui: o JOIN de inventory é a nível de produto,
-                # então row[19] é o mesmo valor para todas as variantes do mesmo produto.
-                # Acumular causaria multiplicação incorreta (ex: 4 variantes × 4 = 16).
+                grouped[product_id]["total_stock"] += variant_stock
                 grouped[product_id]["min_stock_threshold"] = row[20] if row[20] is not None else grouped[product_id]["min_stock_threshold"]
                 
                 price = float(row[17]) if row[17] else 0.0

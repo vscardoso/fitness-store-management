@@ -221,16 +221,6 @@ export default function WizardStep2({
     <KeyboardAwareScreen
       bottomPadding={140}
     >
-        <View style={styles.header}>
-          <Ionicons name="checkmark-circle" size={28} color={Colors.light.success} />
-          <View style={styles.headerText}>
-            <Text style={styles.title}>Confirme e ajuste</Text>
-            <Text style={styles.subtitle}>
-              Revise e edite os campos antes de criar
-            </Text>
-          </View>
-        </View>
-
         {/* Card: Informações Básicas */}
         <Card style={styles.card}>
           <Card.Content>
@@ -457,9 +447,10 @@ export default function WizardStep2({
                   ref={sizeRef}
                   label="Tamanho"
                   value={formData.size || ''}
-                  onChangeText={(text) => updateField('size', text)}
+                  onChangeText={(text) => updateField('size', text.toUpperCase())}
                   mode="outlined"
                   style={[styles.input, styles.halfInput]}
+                  autoCapitalize="characters"
                   left={<TextInput.Icon icon="ruler" />}
                   returnKeyType="next"
                   onSubmitEditing={() => descRef.current?.focus()}
@@ -645,27 +636,6 @@ export default function WizardStep2({
 }
 
 const styles = StyleSheet.create({
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: theme.spacing.lg,
-  },
-  headerText: {
-    flex: 1,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: Colors.light.text,
-    marginBottom: 2,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-  },
-
   // Cards
   card: {
     borderRadius: 16,

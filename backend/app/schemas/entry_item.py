@@ -25,7 +25,8 @@ class EntryItemBase(BaseModel):
 
 class EntryItemCreate(BaseModel):
     """Schema for creating an entry item (sem entry_id, será definido automaticamente)."""
-    product_id: int = Field(..., description="ID do produto")
+    product_id: Optional[int] = Field(None, description="ID do produto")
+    variant_id: Optional[int] = Field(None, description="ID da variante (definir junto com product_id para FIFO por variante)")
     quantity_received: int = Field(..., gt=0, description="Quantidade comprada/recebida")
     unit_cost: Decimal = Field(..., ge=0, description="Custo unitário")
     selling_price: Optional[Decimal] = Field(None, ge=0, description="Preço de venda do produto (atualiza o produto)")

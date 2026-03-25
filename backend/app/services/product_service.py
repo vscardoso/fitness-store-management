@@ -212,9 +212,10 @@ class ProductService:
                 entry = await entry_repo.create(self.db, entry_data.model_dump(), tenant_id=tenant_id)
                 logger.info(f" Entrada inicial criada - ID: {entry.id}, Code: {entry.entry_code}")
 
-                # Criar item da entrada
+                # Criar item da entrada — vincular à variante para FIFO por variante
                 item_data = EntryItemCreate(
                     product_id=product.id,
+                    variant_id=variant.id,
                     quantity_received=initial_stock,
                     unit_cost=product.cost_price or Decimal("0.00"),
                     notes="Item de estoque inicial",

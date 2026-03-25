@@ -10,13 +10,11 @@ from app.repositories.conditional_shipment import (
     ConditionalShipmentRepository,
     ConditionalShipmentItemRepository,
 )
-from app.repositories.inventory_repository import InventoryRepository
-from app.repositories.entry_item_repository import EntryItemRepository
 from app.repositories.product_repository import ProductRepository
 from app.repositories.customer_repository import CustomerRepository
 from app.models.conditional_shipment import ConditionalShipment
 from app.models.sale import Sale, SaleItem, SaleStatus, PaymentMethod
-from app.models.inventory import MovementType
+from app.services.fifo_service import FIFOService
 from app.schemas.conditional_shipment import (
     ConditionalShipmentCreate,
     ConditionalShipmentUpdate,
@@ -55,51 +53,45 @@ class ConditionalShipmentService:
         Raises:
             ValueError: Se não houver estoque suficiente
         """
-        # Instanciar repositories
-        entry_item_repo = EntryItemRepository()
+        # Instanciar services
+        fifo_service = FIFOService(db)
         product_repo = ProductRepository(db)
-        
-        # 1. Validar estoque disponível para todos os itens (usar FIFO como fonte da verdade)
+
+        # 1. Validar estoque disponível via FIFO (fonte de verdade)
         for item in shipment_data.items:
-            # Buscar itens disponíveis via FIFO
-            available_items = await entry_item_repo.get_available_for_product(
-                db, item.product_id
+            availability = await fifo_service.check_availability(
+                product_id=item.product_id,
+                quantity=item.quantity_sent,
+                variant_id=item.variant_id,
+                tenant_id=tenant_id,
             )
-            
-            # Calcular estoque total disponível
-            total_available = sum(entry_item.quantity_remaining for entry_item in available_items)
-            
-            if total_available == 0:
+            if not availability["available"]:
                 product = await product_repo.get(db, item.product_id, tenant_id=tenant_id)
-                raise ValueError(f"Produto {product.name if product else item.product_id} sem estoque disponível")
-            
-            if total_available < item.quantity_sent:
-                product = await product_repo.get(db, item.product_id, tenant_id=tenant_id)
+                product_name = product.name if product else str(item.product_id)
                 raise ValueError(
-                    f"Estoque insuficiente para {product.name if product else item.product_id}. "
-                    f"Disponível: {total_available}, Solicitado: {item.quantity_sent}"
+                    f"Estoque insuficiente para {product_name}. "
+                    f"Disponível: {availability['total_available']}, Solicitado: {item.quantity_sent}"
                 )
-        
-        # 2. Criar shipment (status PENDING - aguardando envio real)
+
+        # 2. Criar shipment (status PENDING)
         shipment = await self.shipment_repo.create_with_items(
             db, tenant_id, shipment_data
         )
 
-        # 2.1 Calcular deadline baseado no tipo e valor (será usado quando marcar como SENT)
-        # Não calculamos agora porque o prazo começa quando o envio SAI da loja
-        # O cálculo será feito no mark_as_sent()
-
-        # 3. Reservar estoque (decrementa quantidade mesmo em PENDING para garantir disponibilidade)
-        inventory_repo = InventoryRepository(db)
-        for item in shipment.items:
-            await inventory_repo.remove_stock(
-                product_id=item.product_id,
-                quantity=item.quantity_sent,
-                movement_type=MovementType.ADJUSTMENT,
-                notes=f"Reserva envio condicional #{shipment.id}",
-                reference_id=f"CS-{shipment.id}",
-                tenant_id=tenant_id,
-            )
+        # 3. Reservar estoque via FIFO — decrementa entry_items e armazena fontes para reverter
+        for db_item in shipment.items:
+            try:
+                fifo_sources = await fifo_service.process_sale(
+                    product_id=db_item.product_id,
+                    quantity=db_item.quantity_sent,
+                    variant_id=db_item.variant_id,
+                    tenant_id=tenant_id,
+                )
+                # Armazenar fontes FIFO para permitir reversão exata ao devolver
+                db_item.fifo_sources = {"sources": fifo_sources}
+            except ValueError as e:
+                await db.rollback()
+                raise ValueError(f"Erro ao reservar estoque via FIFO: {str(e)}")
 
         await db.commit()
         await db.refresh(shipment)
@@ -155,14 +147,14 @@ class ConditionalShipmentService:
             else:
                 raise ValueError(f"Status atual '{shipment.status}' não permite processamento de devolução.")
         
-        # Instanciar repository
-        inventory_repo = InventoryRepository(db)
-        
+        # Instanciar service FIFO
+        fifo_service = FIFOService(db)
+
         # 2. Atualizar itens e devolver estoque
         total_kept = 0
         total_returned = 0
         items_for_sale = []
-        
+
         for item_update in return_data.items:
             # Encontrar item correspondente
             db_item = next(
@@ -171,7 +163,7 @@ class ConditionalShipmentService:
             )
             if not db_item:
                 continue
-            
+
             # Validar quantidades
             total_processed = item_update.quantity_kept + item_update.quantity_returned
             if total_processed > db_item.quantity_sent:
@@ -190,16 +182,20 @@ class ConditionalShipmentService:
                 notes=item_update.notes,
             )
             
-            # Devolver ao estoque os itens retornados
-            if item_update.quantity_returned > 0:
-                await inventory_repo.add_stock(
-                    product_id=db_item.product_id,
-                    quantity=item_update.quantity_returned,
-                    movement_type=MovementType.RETURN,
-                    notes=f"Devolução condicional #{shipment.id}",
-                    reference_id=f"CS-{shipment.id}",
-                    tenant_id=tenant_id,
-                )
+            # Devolver ao estoque os itens retornados via FIFO (restaura entry_items)
+            if item_update.quantity_returned > 0 and db_item.fifo_sources:
+                # Reverter apenas a proporção devolvida das fontes FIFO originais
+                all_sources = db_item.fifo_sources.get("sources", [])
+                returned_qty_remaining = item_update.quantity_returned
+                sources_to_reverse = []
+                for src in all_sources:
+                    if returned_qty_remaining <= 0:
+                        break
+                    qty_to_restore = min(src["quantity_taken"], returned_qty_remaining)
+                    sources_to_reverse.append({**src, "quantity_taken": qty_to_restore})
+                    returned_qty_remaining -= qty_to_restore
+                if sources_to_reverse:
+                    await fifo_service.reverse_sale(sources_to_reverse)
             
             total_kept += item_update.quantity_kept
             total_returned += item_update.quantity_returned
@@ -208,6 +204,7 @@ class ConditionalShipmentService:
             if item_update.quantity_kept > 0:
                 items_for_sale.append({
                     "product_id": db_item.product_id,
+                    "variant_id": db_item.variant_id,
                     "quantity": item_update.quantity_kept,
                     "unit_price": db_item.unit_price,
                 })
@@ -294,37 +291,49 @@ class ConditionalShipmentService:
             for item in items
         )
         
-        # Criar venda
-        sale_number = f"VENDA-CS-{datetime.utcnow().strftime('%Y%m%d%H%M%S')}"
-        
+        # Criar venda (estoque já foi decrementado no create_shipment via FIFO)
+        import secrets
+        from app.core.timezone import now_brazil
+        _ts = now_brazil().strftime('%Y%m%d%H%M%S%f')[:17]
+        _sfx = secrets.token_hex(2)[:3].upper()
+        sale_number = f"VENDA-CS-{_ts}-{_sfx}"
+
         sale = Sale(
             tenant_id=tenant_id,
             customer_id=shipment.customer_id,
             seller_id=user_id,
             sale_number=sale_number,
-            status=SaleStatus.COMPLETED,
-            payment_method=payment_method,
-            subtotal=Decimal(total_amount),
+            status=SaleStatus.COMPLETED.value,
+            payment_method=payment_method.value if hasattr(payment_method, 'value') else payment_method,
+            subtotal=Decimal(str(total_amount)),
             discount_amount=Decimal(0),
             tax_amount=Decimal(0),
-            total_amount=Decimal(total_amount),
+            total_amount=Decimal(str(total_amount)),
+            loyalty_points_earned=0,
             notes=f"Venda automática - Envio Condicional #{shipment.id}",
+            is_active=True,
         )
-        
+
         db.add(sale)
         await db.flush()
-        
-        # Criar items da venda
+
+        # Criar items da venda — FIFO já foi processado no create_shipment
         for item_data in items:
+            item_subtotal = Decimal(str(item_data["quantity"])) * Decimal(str(float(item_data["unit_price"])))
             sale_item = SaleItem(
                 sale_id=sale.id,
                 product_id=item_data["product_id"],
+                variant_id=item_data.get("variant_id"),
                 quantity=item_data["quantity"],
-                unit_price=item_data["unit_price"],
-                subtotal=Decimal(item_data["quantity"] * float(item_data["unit_price"])),
+                unit_price=float(item_data["unit_price"]),
+                unit_cost=0.0,
+                subtotal=float(item_subtotal),
+                discount_amount=0.0,
+                tenant_id=tenant_id,
+                is_active=True,
             )
             db.add(sale_item)
-        
+
         await db.commit()
         return sale
     
@@ -505,7 +514,7 @@ class ConditionalShipmentService:
                     product_id=item.product_id,
                     quantity=quantity_to_return,
                     movement_type=MovementType.RETURN,
-                    notes=f"Cancelamento envio #{shipment.id}: {reason}",
+                    notes=f"Cancelamento envio #{shipment.id}: {reason}" + (f" - variante #{item.variant_id}" if item.variant_id else ""),
                     reference_id=f"CS-{shipment.id}-CANCEL",
                     tenant_id=tenant_id,
                 )
@@ -574,13 +583,20 @@ class ConditionalShipmentService:
         # Buscar customer
         customer = await customer_repo.get(db, shipment.customer_id, tenant_id=tenant_id)
         
-        # Buscar produtos
+        # Buscar produtos e variantes
         items_with_products = []
         for item in shipment.items:
             product = await product_repo.get(db, item.product_id, tenant_id=tenant_id)
+            # Carregar variante se existir
+            variant = None
+            if item.variant_id:
+                from app.repositories.product_variant_repository import ProductVariantRepository
+                variant_repo = ProductVariantRepository()
+                variant = await variant_repo.get(db, item.variant_id)
             items_with_products.append({
                 "item": item,
                 "product": product,
+                "variant": variant,
             })
         
         return {

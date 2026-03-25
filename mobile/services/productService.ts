@@ -68,9 +68,9 @@ export const getProducts = async (params?: PaginationParams & {
 /**
  * Obter produto por ID
  */
-export const getProductById = async (id: number): Promise<Product> => {
+export const getProductById = async (id: number, config?: object): Promise<Product> => {
   try {
-    const { data } = await api.get<Product>(`/products/${id}`);
+    const { data } = await api.get<Product>(`/products/${id}`, config);
     return data;
   } catch (error) {
     throw error;

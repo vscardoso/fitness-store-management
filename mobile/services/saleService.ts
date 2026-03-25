@@ -46,7 +46,7 @@ export const getSales = async (params?: PaginationParams & {
 export const getSaleById = async (id: number): Promise<SaleWithDetails> => {
   try {
     const { data } = await api.get<SaleWithDetails>(`/sales/${id}`);
-    return data;
+    return normalizeSale(data);
   } catch (error) {
     throw error;
   }
@@ -69,7 +69,15 @@ export const getSaleBySaleNumber = async (saleNumber: string): Promise<SaleWithD
   }
 };
 
-// Normaliza campos caso backend esteja enviando legacy names
+// Normaliza campos: backend envia payment_method nos pagamentos, frontend usa method
+const normalizePayments = (payments: any[]): any[] =>
+  (payments || []).map(p => ({
+    ...p,
+    // backend: payment_method → frontend: method
+    method: p.method ?? p.payment_method,
+    installments: p.installments ?? 1,
+  }));
+
 const normalizeSale = <T extends Partial<SaleWithDetails>>(sale: T): SaleWithDetails => {
   return {
     ...sale,
@@ -77,7 +85,7 @@ const normalizeSale = <T extends Partial<SaleWithDetails>>(sale: T): SaleWithDet
     discount_amount: (sale as any).discount_amount ?? (sale as any).discount ?? 0,
     tax_amount: (sale as any).tax_amount ?? 0,
     items: (sale as any).items || [],
-    payments: (sale as any).payments || [],
+    payments: normalizePayments((sale as any).payments),
   } as SaleWithDetails;
 };
 

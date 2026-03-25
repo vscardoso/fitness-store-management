@@ -54,9 +54,14 @@ export default function StockEntryDetailsScreen() {
 
   /**
    * Função para voltar para a tela anterior
+   * Respeita o parâmetro `from` para navegação rastreada (ex: vindo de produto)
    */
   const handleGoBack = () => {
-    router.back();
+    if (from) {
+      router.push(from as any);
+    } else {
+      router.back();
+    }
   };
 
   // Estados
@@ -114,7 +119,11 @@ export default function StockEntryDetailsScreen() {
       }
 
       // NAVEGAR DE VOLTA IMEDIATAMENTE (antes de invalidar queries)
-      router.back();
+      if (from) {
+        router.push(from as any);
+      } else {
+        router.back();
+      }
 
       // Invalidar queries DEPOIS de sair da tela
       // Usa setTimeout para garantir que a navegação aconteça primeiro

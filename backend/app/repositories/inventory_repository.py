@@ -117,12 +117,12 @@ class InventoryRepository(BaseRepository[Inventory, dict, dict]):
         return inventory
     
     async def get_by_product(self, product_id: int, *, tenant_id: int | None = None) -> Optional[Inventory]:
-        """Busca inventário por produto."""
+        """Busca inventário por produto. Retorna o primeiro registro encontrado (evita erro em dados legacy com múltiplos registros)."""
         query = select(Inventory).where(Inventory.product_id == product_id)
         if tenant_id is not None:
             query = query.where(Inventory.tenant_id == tenant_id)
         result = await self.session.execute(query)
-        return result.scalar_one_or_none()
+        return result.scalars().first()
     
     async def add_stock(
         self,

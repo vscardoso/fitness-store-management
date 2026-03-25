@@ -31,6 +31,8 @@ interface QRCodeScannerProps {
   visible: boolean;
   onClose: () => void;
   onProductScanned: (product: Product, quantity: number) => void;
+  /** Retorna quantas unidades desse produto já estão no carrinho */
+  getCartQuantity?: (productId: number) => number;
 }
 
 interface ScannedData {
@@ -46,6 +48,7 @@ export default function QRCodeScanner({
   visible,
   onClose,
   onProductScanned,
+  getCartQuantity,
 }: QRCodeScannerProps) {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -91,16 +94,24 @@ export default function QRCodeScanner({
       }
 
       // Buscar produto
+      // Prioridade: SKU (estável) > ID (pode mudar ao recriar banco)
       let product: Product | null = null;
 
-      if (data.id) {
+      if (data.sku) {
+        try {
+          product = await getProductBySku(data.sku);
+        } catch {
+          // SKU não encontrado — tenta por ID como último recurso
+          if (data.id) {
+            product = await getProductById(data.id);
+          }
+        }
+      } else if (data.id) {
         product = await getProductById(data.id);
-      } else if (data.sku) {
-        product = await getProductBySku(data.sku);
       }
 
       if (!product) {
-        throw new Error('Produto não encontrado no sistema.');
+        throw new Error('Produto não encontrado. Verifique se o cadastro ainda existe.');
       }
 
       setScannedProduct(product);
@@ -240,44 +251,70 @@ export default function QRCodeScanner({
               </View>
 
               {/* Quantidade */}
-              <View style={styles.quantitySection}>
-                <Text style={styles.quantityLabel}>Quantidade:</Text>
-                <View style={styles.quantityControls}>
-                  <TouchableOpacity
-                    style={styles.quantityButton}
-                    onPress={() => setQuantity(Math.max(1, quantity - 1))}
-                  >
-                    <Ionicons name="remove" size={24} color={Colors.light.primary} />
-                  </TouchableOpacity>
-                  <Text style={styles.quantityValue}>{quantity}</Text>
-                  <TouchableOpacity
-                    style={styles.quantityButton}
-                    onPress={() => setQuantity(quantity + 1)}
-                  >
-                    <Ionicons name="add" size={24} color={Colors.light.primary} />
-                  </TouchableOpacity>
-                </View>
-              </View>
+              {(() => {
+                const totalStock = scannedProduct.current_stock ?? 0;
+                const inCart = getCartQuantity ? getCartQuantity(scannedProduct.id) : 0;
+                const available = Math.max(0, totalStock - inCart);
+                const atLimit = quantity >= available;
+                const outOfStock = available === 0;
+                return (
+                  <View style={styles.quantitySection}>
+                    <View style={styles.quantityLabelRow}>
+                      <Text style={styles.quantityLabel}>Quantidade:</Text>
+                      <Text style={[styles.stockInfo, outOfStock && styles.stockInfoEmpty]}>
+                        {outOfStock
+                          ? 'Sem estoque disponível'
+                          : `${available} disponível${available !== 1 ? 'is' : ''}${inCart > 0 ? ` (${inCart} no carrinho)` : ''}`}
+                      </Text>
+                    </View>
+                    <View style={styles.quantityControls}>
+                      <TouchableOpacity
+                        style={[styles.quantityButton, quantity <= 1 && styles.quantityButtonDisabled]}
+                        onPress={() => setQuantity(Math.max(1, quantity - 1))}
+                        disabled={quantity <= 1}
+                      >
+                        <Ionicons name="remove" size={24} color={quantity <= 1 ? Colors.light.textTertiary : Colors.light.primary} />
+                      </TouchableOpacity>
+                      <Text style={[styles.quantityValue, outOfStock && styles.quantityValueEmpty]}>{quantity}</Text>
+                      <TouchableOpacity
+                        style={[styles.quantityButton, atLimit && styles.quantityButtonDisabled]}
+                        onPress={() => !atLimit && setQuantity(quantity + 1)}
+                        disabled={atLimit}
+                      >
+                        <Ionicons name="add" size={24} color={atLimit ? Colors.light.textTertiary : Colors.light.primary} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                );
+              })()}
 
               {/* Botões */}
-              <View style={styles.actionButtons}>
-                <Button
-                  mode="outlined"
-                  onPress={handleScanAnother}
-                  style={styles.actionButton}
-                  icon="qrcode-scan"
-                >
-                  Escanear Outro
-                </Button>
-                <Button
-                  mode="contained"
-                  onPress={handleAddToCart}
-                  style={styles.actionButton}
-                  icon="cart-plus"
-                >
-                  Adicionar
-                </Button>
-              </View>
+              {(() => {
+                const totalStock = scannedProduct.current_stock ?? 0;
+                const inCart = getCartQuantity ? getCartQuantity(scannedProduct.id) : 0;
+                const available = Math.max(0, totalStock - inCart);
+                return (
+                  <View style={styles.actionButtons}>
+                    <Button
+                      mode="outlined"
+                      onPress={handleScanAnother}
+                      style={styles.actionButton}
+                      icon="qrcode-scan"
+                    >
+                      Escanear Outro
+                    </Button>
+                    <Button
+                      mode="contained"
+                      onPress={handleAddToCart}
+                      style={styles.actionButton}
+                      icon="cart-plus"
+                      disabled={available === 0}
+                    >
+                      Adicionar
+                    </Button>
+                  </View>
+                );
+              })()}
             </Card.Content>
           </Card>
         </View>
@@ -471,10 +508,24 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: 12,
   },
+  quantityLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
   quantityLabel: {
     fontSize: 14,
     fontWeight: '500',
     color: Colors.light.text,
+  },
+  stockInfo: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+  },
+  stockInfoEmpty: {
+    color: Colors.light.error,
+    fontWeight: '600',
   },
   quantityControls: {
     flexDirection: 'row',
@@ -489,12 +540,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  quantityButtonDisabled: {
+    backgroundColor: Colors.light.backgroundSecondary,
+  },
   quantityValue: {
     fontSize: 20,
     fontWeight: '700',
     color: Colors.light.text,
     minWidth: 40,
     textAlign: 'center',
+  },
+  quantityValueEmpty: {
+    color: Colors.light.textTertiary,
   },
 
   // Botões

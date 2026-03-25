@@ -555,9 +555,19 @@ export default function ConditionalShipmentDetailsScreen() {
   // Loading state
   if (isLoading || !shipment) {
     return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
-        <Text style={{ marginTop: 16, color: '#666' }}>Carregando envio...</Text>
+      <View style={styles.container}>
+        <DetailHeader
+          title="Envio Condicional"
+          entityName="Carregando..."
+          backRoute="/(tabs)/conditional"
+          badges={[]}
+          metrics={[]}
+          hideActions={true}
+        />
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <Text style={{ marginTop: 16, color: Colors.light.textSecondary, fontSize: 16 }}>Carregando envio...</Text>
+        </View>
       </View>
     );
   }
@@ -765,9 +775,14 @@ export default function ConditionalShipmentDetailsScreen() {
                       <Text variant="titleSmall" style={styles.itemName}>
                         {item.product_name || `Produto #${item.product_id}`}
                       </Text>
+                      {(item.variant_size || item.variant_color) && (
+                        <Text style={styles.itemVariant}>
+                          {[item.variant_size, item.variant_color].filter(Boolean).join(' · ')}
+                        </Text>
+                      )}
                       <View style={styles.itemMetaRow}>
-                        {item.product_sku && (
-                          <Text style={styles.itemMeta}>SKU: {item.product_sku}</Text>
+                        {(item.variant_sku || item.product_sku) && (
+                          <Text style={styles.itemMeta}>SKU: {item.variant_sku || item.product_sku}</Text>
                         )}
                         <Text style={styles.itemMeta}>
                           {item.quantity_sent} × {formatCurrency(item.unit_price)} = {formatCurrency(item.quantity_sent * item.unit_price)}
@@ -1859,5 +1874,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.light.textSecondary,
     fontWeight: '500',
+  },
+  itemVariant: {
+    fontSize: 12,
+    color: Colors.light.primary,
+    fontWeight: '600',
+    marginTop: 2,
+    marginBottom: 2,
   },
 });

@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
+import KeyboardSafeView from '@/components/ui/KeyboardSafeView';
 import {
   View,
   StyleSheet,
@@ -6,12 +7,14 @@ import {
   TouchableOpacity,
   Keyboard,
   TouchableWithoutFeedback,
+  TextInput as RNTextInput,
 } from 'react-native';
 import {
   Text,
   Card,
   Button,
   IconButton,
+  TextInput,
 } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -45,6 +48,12 @@ export default function SaleScreen() {
   const [customerModalVisible, setCustomerModalVisible] = useState(false);
   const [productModalVisible, setProductModalVisible] = useState(false);
 
+  // Desconto avulso
+  const [discountVisible, setDiscountVisible] = useState(false);
+  const [discountInput, setDiscountInput] = useState('');
+  const [discountType, setDiscountType] = useState<'value' | 'percent'>('value');
+  const discountInputRef = useRef<any>(null);
+
   // Estado para controlar diálogos de confirmação
   const [dialog, setDialog] = useState<{
     visible: boolean;
@@ -63,11 +72,20 @@ export default function SaleScreen() {
   });
 
   // Query: Selected customer details
-  const { data: selectedCustomer } = useQuery({
+  // retry: false para não repetir em 404 (cliente removido/DB recriado)
+  const { data: selectedCustomer, error: customerError } = useQuery({
     queryKey: ['customer', cart.customer_id],
     queryFn: () => getCustomerById(cart.customer_id!),
     enabled: !!cart.customer_id,
+    retry: false,
   });
+
+  // Se o cliente não existe mais (404), limpa do carrinho silenciosamente
+  useEffect(() => {
+    if (customerError && cart.customer_id) {
+      cart.setCustomer(undefined);
+    }
+  }, [customerError]);
 
   // Query: FIFO costs para margem em tempo real
   const cartProductIds = useMemo(
@@ -82,7 +100,7 @@ export default function SaleScreen() {
     staleTime: 30000,
   });
 
-  // Calcula lucro estimado do carrinho
+  // Calcula lucro estimado do carrinho (desconta o discount do lucro)
   const cartProfit = useMemo(() => {
     if (!fifoCosts || cart.items.length === 0) return null;
     let totalCost = 0;
@@ -97,10 +115,60 @@ export default function SaleScreen() {
       totalRevenue += item.unit_price * item.quantity;
     }
     if (!hasData) return null;
-    const profit = totalRevenue - totalCost;
-    const margin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0;
+    const effectiveRevenue = totalRevenue - (cart.discount ?? 0);
+    const profit = effectiveRevenue - totalCost;
+    const margin = effectiveRevenue > 0 ? (profit / effectiveRevenue) * 100 : 0;
     return { totalCost, profit, margin };
-  }, [fifoCosts, cart.items]);
+  }, [fifoCosts, cart.items, cart.discount]);
+
+  /**
+   * Aplicar desconto avulso ao carrinho
+   */
+  const handleApplyDiscount = () => {
+    const raw = parseFloat(discountInput.replace(',', '.'));
+    if (isNaN(raw) || raw < 0) {
+      haptics.warning();
+      return;
+    }
+    const discountValue = discountType === 'percent'
+      ? (cart.subtotal * raw) / 100
+      : raw;
+    if (discountValue > cart.subtotal) {
+      haptics.warning();
+      setDialog({
+        visible: true,
+        type: 'warning',
+        title: 'Desconto inválido',
+        message: 'O desconto não pode ser maior que o subtotal.',
+        confirmText: 'Entendi',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
+      return;
+    }
+    haptics.success();
+    cart.setDiscount(discountValue);
+    setDiscountVisible(false);
+    setDiscountInput('');
+    Keyboard.dismiss();
+  };
+
+  const handleRemoveDiscount = () => {
+    haptics.light();
+    cart.setDiscount(0);
+    setDiscountInput('');
+    setDiscountVisible(false);
+  };
+
+  const handleOpenDiscount = () => {
+    // Preenche o input com o valor atual formatado
+    if (cart.discount > 0) {
+      setDiscountType('value');
+      setDiscountInput(cart.discount.toFixed(2).replace('.', ','));
+    }
+    setDiscountVisible(true);
+    setTimeout(() => discountInputRef.current?.focus(), 100);
+  };
 
   /**
    * Adicionar produto simples ao carrinho (usado pelo scanner QR)
@@ -373,8 +441,9 @@ export default function SaleScreen() {
   };
 
   return (
+    <KeyboardSafeView style={styles.container}>
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-    <View style={styles.container}>
+    <View style={{ flex: 1 }}>
       
       {/* Header */}
       <PageHeader
@@ -394,14 +463,7 @@ export default function SaleScreen() {
             onPress: () => {},
           },
         ]}
-      >
-        {/* Badge do carrinho */}
-        {cart.itemCount > 0 && (
-          <View style={styles.cartBadge}>
-            <Text style={styles.cartBadgeText}>{cart.itemCount}</Text>
-          </View>
-        )}
-      </PageHeader>
+      />
 
         {/* Cliente selecionado */}
         <View style={styles.customerSection}>
@@ -583,14 +645,64 @@ export default function SaleScreen() {
                   {formatCurrency(cart.subtotal)}
                 </Text>
               </View>
-              {cart.discount > 0 && (
-                <View style={styles.totalRow}>
-                  <Text variant="bodyMedium" style={styles.discountLabel}>
-                    Desconto
-                  </Text>
-                  <Text variant="bodyMedium" style={styles.discountValue}>
-                    -{formatCurrency(cart.discount)}
-                  </Text>
+              {/* Linha de desconto avulso */}
+              {!discountVisible && (
+                <TouchableOpacity
+                  onPress={cart.discount > 0 ? handleOpenDiscount : handleOpenDiscount}
+                  style={styles.discountRow}
+                  activeOpacity={0.7}
+                >
+                  <View style={styles.discountRowLeft}>
+                    <Ionicons name="pricetag-outline" size={15} color={cart.discount > 0 ? Colors.light.success : Colors.light.textSecondary} />
+                    <Text variant="bodyMedium" style={cart.discount > 0 ? styles.discountLabel : styles.discountAddLabel}>
+                      {cart.discount > 0 ? `Desconto  -${formatCurrency(cart.discount)}` : 'Adicionar desconto'}
+                    </Text>
+                  </View>
+                  <View style={styles.discountRowRight}>
+                    {cart.discount > 0 ? (
+                      <TouchableOpacity onPress={handleRemoveDiscount} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                        <Ionicons name="close-circle" size={18} color={Colors.light.error} />
+                      </TouchableOpacity>
+                    ) : (
+                      <Ionicons name="add-circle-outline" size={18} color={Colors.light.textSecondary} />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              )}
+
+              {/* Input inline de desconto */}
+              {discountVisible && (
+                <View style={styles.discountInputContainer}>
+                  {/* Toggle R$ / % */}
+                  <View style={styles.discountTypeToggle}>
+                    <TouchableOpacity
+                      onPress={() => setDiscountType('value')}
+                      style={[styles.discountTypeBtn, discountType === 'value' && styles.discountTypeBtnActive]}
+                    >
+                      <Text style={[styles.discountTypeBtnText, discountType === 'value' && styles.discountTypeBtnTextActive]}>R$</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => setDiscountType('percent')}
+                      style={[styles.discountTypeBtn, discountType === 'percent' && styles.discountTypeBtnActive]}
+                    >
+                      <Text style={[styles.discountTypeBtnText, discountType === 'percent' && styles.discountTypeBtnTextActive]}>%</Text>
+                    </TouchableOpacity>
+                  </View>
+                  <TextInput
+                    ref={discountInputRef}
+                    value={discountInput}
+                    onChangeText={setDiscountInput}
+                    keyboardType="decimal-pad"
+                    placeholder={discountType === 'percent' ? '0,00' : '0,00'}
+                    style={styles.discountInputField}
+                    dense
+                    mode="outlined"
+                    left={<TextInput.Affix text={discountType === 'value' ? 'R$' : ''} />}
+                    right={<TextInput.Affix text={discountType === 'percent' ? '%' : ''} />}
+                    onSubmitEditing={handleApplyDiscount}
+                  />
+                  <IconButton icon="check" size={22} iconColor="#fff" containerColor={Colors.light.success} onPress={handleApplyDiscount} style={styles.discountConfirmBtn} />
+                  <IconButton icon="close" size={22} iconColor={Colors.light.textSecondary} onPress={() => { setDiscountVisible(false); setDiscountInput(''); }} style={styles.discountCancelBtn} />
                 </View>
               )}
               <View style={[styles.totalRow, styles.totalRowFinal]}>
@@ -667,6 +779,7 @@ export default function SaleScreen() {
           visible={scannerVisible}
           onClose={() => setScannerVisible(false)}
           onProductScanned={handleProductScanned}
+          getCartQuantity={(productId) => cart.getItem(`p_${productId}`)?.quantity ?? 0}
         />
 
         {/* Confirm Dialog */}
@@ -682,6 +795,7 @@ export default function SaleScreen() {
         />
     </View>
     </TouchableWithoutFeedback>
+    </KeyboardSafeView>
   );
 }
 
@@ -689,20 +803,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
-  },
-  cartBadge: {
-    backgroundColor: Colors.light.error,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 4,
-  },
-  cartBadgeText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: 'bold',
   },
   customerSection: {
     paddingHorizontal: 16,
@@ -967,6 +1067,65 @@ const styles = StyleSheet.create({
   profitRowBadgeText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  discountRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+    paddingVertical: 2,
+  },
+  discountRowLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  discountRowRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  discountAddLabel: {
+    color: Colors.light.textSecondary,
+  },
+  discountInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 6,
+  },
+  discountTypeToggle: {
+    flexDirection: 'row',
+    borderRadius: 8,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: Colors.light.primary,
+  },
+  discountTypeBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: 'transparent',
+  },
+  discountTypeBtnActive: {
+    backgroundColor: Colors.light.primary,
+  },
+  discountTypeBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.primary,
+  },
+  discountTypeBtnTextActive: {
+    color: '#fff',
+  },
+  discountInputField: {
+    flex: 1,
+    fontSize: 14,
+    height: 40,
+  },
+  discountConfirmBtn: {
+    margin: 0,
+  },
+  discountCancelBtn: {
+    margin: 0,
   },
   checkoutButton: {
     paddingVertical: 6,

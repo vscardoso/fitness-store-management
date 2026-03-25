@@ -265,12 +265,14 @@ api.interceptors.response.use(
     //   });
     // }
     
-    // Retornar erro formatado
+    // Retornar erro formatado (preserva status no objeto para detecção nos catch dos serviços)
     const rawDetail = error.response?.data?.detail as any;
     const errorMessage = typeof rawDetail === 'string'
       ? rawDetail
       : (() => { try { return JSON.stringify(rawDetail); } catch { return 'Erro ao comunicar com o servidor'; } })();
-    return Promise.reject(new Error(errorMessage || 'Erro ao comunicar com o servidor'));
+    const formattedError = new Error(errorMessage || 'Erro ao comunicar com o servidor');
+    (formattedError as any).status = error.response?.status;
+    return Promise.reject(formattedError);
   }
 );
 

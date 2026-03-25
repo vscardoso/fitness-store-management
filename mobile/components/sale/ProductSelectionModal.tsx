@@ -21,12 +21,14 @@ interface ProductSelectionModalProps {
   visible: boolean;
   onDismiss: () => void;
   onSelectProduct: (product: ProductGrouped, variant: ProductVariant) => void;
+  hasStock?: boolean;
 }
 
 export default function ProductSelectionModal({
   visible,
   onDismiss,
   onSelectProduct,
+  hasStock,
 }: ProductSelectionModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<ProductGrouped | null>(null);
@@ -37,8 +39,8 @@ export default function ProductSelectionModal({
     isLoading,
     isError,
   } = useQuery({
-    queryKey: ['grouped-products-modal'],
-    queryFn: () => getGroupedProducts({ limit: 1000 }),
+    queryKey: ['grouped-products-modal', hasStock],
+    queryFn: () => getGroupedProducts({ limit: 500, has_stock: hasStock }),
     enabled: visible,
   });
 

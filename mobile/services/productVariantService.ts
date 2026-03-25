@@ -66,8 +66,8 @@ export async function getVariantBySku(sku: string): Promise<ProductVariantWithPr
 /**
  * Lista todas as variantes de um produto
  */
-export async function getProductVariants(productId: number): Promise<ProductVariant[]> {
-  const response = await api.get(`/product-variants/product/${productId}`);
+export async function getProductVariants(productId: number, config?: object): Promise<ProductVariant[]> {
+  const response = await api.get(`/product-variants/product/${productId}`, config);
   return response.data;
 }
 

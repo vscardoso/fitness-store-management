@@ -20,11 +20,18 @@ import {
   ScrollView,
   Modal,
   Animated,
+  LayoutAnimation,
+  UIManager,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
   Pressable,
 } from 'react-native';
+
+// Habilita LayoutAnimation no Android
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 import { Text, TextInput, Switch, Button } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -130,6 +137,7 @@ export default function VariantBuilderInline({
   // ── Tamanhos ──────────────────────────────────────────────
 
   const toggleSize = useCallback((size: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     // Toggle global template
     const newSizes = selectedSizes.includes(size)
       ? selectedSizes.filter(s => s !== size)
@@ -150,6 +158,7 @@ export default function VariantBuilderInline({
   }, [selectedSizes, onSizesChange, colorSizes, onColorSizesChange]);
 
   const selectAllSizes = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     const all = DEFAULT_SIZES.map(s => s.value);
     onSizesChange(all);
     if (Object.keys(colorSizes).length > 0) {
@@ -160,6 +169,7 @@ export default function VariantBuilderInline({
   };
 
   const clearSizes = () => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     onSizesChange([]);
     if (Object.keys(colorSizes).length > 0) {
       const updated: Record<string, string[]> = {};
@@ -171,6 +181,7 @@ export default function VariantBuilderInline({
   // ── Cores ────────────────────────────────────────────────
 
   const toggleColor = useCallback((color: string) => {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     if (selectedColors.includes(color)) {
       onColorsChange(selectedColors.filter(c => c !== color));
       // Remove o colorSizes desse cor

@@ -33,6 +33,7 @@ class PaymentCreate(BaseModel):
     amount: Decimal = Field(..., gt=0)
     payment_method: PaymentMethod
     payment_reference: Optional[str] = None
+    installments: int = Field(default=1, ge=1, le=12)
 
 
 class SaleCreate(BaseModel):
@@ -88,16 +89,10 @@ class SaleItemResponse(BaseModel):
         return None
 
     def model_post_init(self, __context: Any) -> None:
-        """Calculate profit fields from available data."""
+        """Calculate cost_total from unit_cost. Profit is set by SaleResponse after discount distribution."""
         if self.unit_cost is not None and self.quantity:
             cost = float(self.unit_cost) * self.quantity
             self.cost_total = round(cost, 2)
-            revenue = float(self.subtotal) if self.subtotal else 0.0
-            self.profit = round(revenue - cost, 2)
-            if revenue > 0:
-                self.margin_percent = round((self.profit / revenue) * 100, 2)
-            else:
-                self.margin_percent = 0.0
 
 
 class PaymentResponse(BaseModel):
@@ -106,6 +101,7 @@ class PaymentResponse(BaseModel):
     amount: Decimal
     payment_method: PaymentMethod
     payment_reference: Optional[str] = None
+    installments: int = 1
     status: str  # "confirmed", "pending", "failed"
     created_at: Optional[datetime] = None  # Fixed: Payment usa 'created_at', não 'payment_date'
 
@@ -150,17 +146,39 @@ class SaleResponse(BaseModel):
         return v
 
     def model_post_init(self, __context: Any) -> None:
-        """Calculate sale-level profit from items."""
-        if self.items:
-            costs = [item.cost_total for item in self.items if item.cost_total is not None]
-            if costs:
-                self.total_cost = round(sum(costs), 2)
-                revenue = float(self.total_amount) if self.total_amount else 0.0
-                self.total_profit = round(revenue - self.total_cost, 2)
-                if revenue > 0:
-                    self.profit_margin_percent = round((self.total_profit / revenue) * 100, 2)
-                else:
-                    self.profit_margin_percent = 0.0
+        """Calculate sale-level profit and distribute discount proportionally to each item."""
+        if not self.items:
+            return
+
+        # Total gross subtotal (sum of item subtotals before sale-level discount)
+        gross_subtotal = sum(float(item.subtotal) for item in self.items)
+        sale_discount = float(self.discount_amount) if self.discount_amount else 0.0
+
+        for item in self.items:
+            if item.cost_total is None:
+                continue
+            item_subtotal = float(item.subtotal)
+            # Distribute global discount proportionally by item subtotal weight
+            if gross_subtotal > 0 and sale_discount > 0:
+                item_discount_share = sale_discount * (item_subtotal / gross_subtotal)
+            else:
+                item_discount_share = 0.0
+            effective_revenue = item_subtotal - item_discount_share
+            item.profit = round(effective_revenue - item.cost_total, 2)
+            if effective_revenue > 0:
+                item.margin_percent = round((item.profit / effective_revenue) * 100, 2)
+            else:
+                item.margin_percent = 0.0
+
+        costs = [item.cost_total for item in self.items if item.cost_total is not None]
+        if costs:
+            self.total_cost = round(sum(costs), 2)
+            revenue = float(self.total_amount) if self.total_amount else 0.0
+            self.total_profit = round(revenue - self.total_cost, 2)
+            if revenue > 0:
+                self.profit_margin_percent = round((self.total_profit / revenue) * 100, 2)
+            else:
+                self.profit_margin_percent = 0.0
 
 
 class SaleWithDetails(SaleResponse):

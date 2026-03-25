@@ -1,7 +1,7 @@
 """
 Repositório para operações de vendas (Sale).
 """
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, List, Optional, Sequence
 from sqlalchemy import and_, desc, func, select
@@ -54,34 +54,46 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         return result.scalars().all()
     
     async def get_by_date_range(
-        self, 
-        start_date: date, 
+        self,
+        start_date: date,
         end_date: date,
         include_relationships: bool = True,
         *,
         tenant_id: int | None = None,
+        sale_number: str | None = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> Sequence[Sale]:
         """
         Busca vendas em um intervalo de datas.
-        
-        Args:
-            start_date: Data inicial
-            end_date: Data final
-            include_relationships: Se deve incluir relacionamentos
-            tenant_id: ID do tenant
-            
-        Returns:
-            Lista de vendas no período
+        Compensa fuso UTC-3 (Brasil) estendendo end_date +1 dia no comparativo UTC.
         """
+        # Brasil é UTC-3: meia-noite local = 03:00 UTC do mesmo dia
+        # start_date 00:00 local = start_date 03:00 UTC
+        # end_date   23:59 local = (end_date+1) 02:59 UTC → usamos (end_date+1) 03:00 UTC como limite exclusive
+        UTC_OFFSET = timedelta(hours=3)
+        start_dt = datetime.combine(start_date, datetime.min.time()) + UTC_OFFSET
+        end_dt   = datetime.combine(end_date + timedelta(days=1), datetime.min.time()) + UTC_OFFSET
+
         conditions = [
-            func.date(Sale.created_at) >= start_date,
-            func.date(Sale.created_at) <= end_date
+            Sale.is_active == True,
+            Sale.created_at >= start_dt,
+            Sale.created_at < end_dt,
         ]
-        
+
         if tenant_id is not None and hasattr(Sale, "tenant_id"):
             conditions.append(Sale.tenant_id == tenant_id)
-        
-        query = select(Sale).where(and_(*conditions)).order_by(desc(Sale.created_at))
+
+        if sale_number:
+            conditions.append(Sale.sale_number.ilike(f"%{sale_number}%"))
+
+        query = (
+            select(Sale)
+            .where(and_(*conditions))
+            .order_by(desc(Sale.created_at))
+            .offset(skip)
+            .limit(limit)
+        )
         
         if include_relationships:
             query = query.options(
@@ -95,38 +107,33 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         return result.scalars().all()
     
     async def get_by_customer(
-        self, 
+        self,
         customer_id: int,
-        include_relationships: bool = True,
         *,
         tenant_id: int | None = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> Sequence[Sale]:
-        """
-        Busca vendas de um cliente específico.
-        
-        Args:
-            customer_id: ID do cliente
-            include_relationships: Se deve incluir relacionamentos
-            tenant_id: ID do tenant
-            
-        Returns:
-            Lista de vendas do cliente
-        """
-        conditions = [Sale.customer_id == customer_id]
-        
+        """Busca vendas de um cliente específico."""
+        conditions = [Sale.is_active == True, Sale.customer_id == customer_id]
+
         if tenant_id is not None and hasattr(Sale, "tenant_id"):
             conditions.append(Sale.tenant_id == tenant_id)
-        
-        query = select(Sale).where(and_(*conditions)).order_by(desc(Sale.created_at))
-        
-        if include_relationships:
-            query = query.options(
+
+        query = (
+            select(Sale)
+            .where(and_(*conditions))
+            .order_by(desc(Sale.created_at))
+            .offset(skip)
+            .limit(limit)
+            .options(
                 selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
                 selectinload(Sale.payments),
                 selectinload(Sale.customer),
                 selectinload(Sale.seller),
             )
-        
+        )
+
         result = await self.db.execute(query)
         return result.scalars().all()
     
@@ -195,38 +202,33 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         ]
     
     async def get_by_seller(
-        self, 
+        self,
         seller_id: int,
-        include_relationships: bool = True,
         *,
         tenant_id: int | None = None,
+        skip: int = 0,
+        limit: int = 100,
     ) -> Sequence[Sale]:
-        """
-        Busca vendas de um vendedor específico.
-        
-        Args:
-            seller_id: ID do vendedor
-            include_relationships: Se deve incluir relacionamentos
-            tenant_id: ID do tenant
-            
-        Returns:
-            Lista de vendas do vendedor
-        """
-        conditions = [Sale.seller_id == seller_id]
-        
+        """Busca vendas de um vendedor específico."""
+        conditions = [Sale.is_active == True, Sale.seller_id == seller_id]
+
         if tenant_id is not None and hasattr(Sale, "tenant_id"):
             conditions.append(Sale.tenant_id == tenant_id)
-        
-        query = select(Sale).where(and_(*conditions)).order_by(desc(Sale.created_at))
-        
-        if include_relationships:
-            query = query.options(
+
+        query = (
+            select(Sale)
+            .where(and_(*conditions))
+            .order_by(desc(Sale.created_at))
+            .offset(skip)
+            .limit(limit)
+            .options(
                 selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
                 selectinload(Sale.payments),
                 selectinload(Sale.customer),
                 selectinload(Sale.seller),
             )
-        
+        )
+
         result = await self.db.execute(query)
         return result.scalars().all()
     

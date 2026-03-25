@@ -68,6 +68,7 @@ class ConditionalShipmentRepository(
             item = ConditionalShipmentItem(
                 shipment_id=shipment.id,
                 product_id=item_data.product_id,
+                variant_id=getattr(item_data, 'variant_id', None),
                 quantity_sent=item_data.quantity_sent,
                 unit_price=item_data.unit_price,
                 notes=item_data.notes,

@@ -135,11 +135,11 @@ export const checkOverdueShipments = async (): Promise<ConditionalShipmentList[]
 };
 
 /**
- * Helper: Buscar envios pendentes (SENT ou PARTIAL_RETURN)
+ * Helper: Buscar envios pendentes (ainda não enviados)
  */
 export const getPendingShipments = async (): Promise<ConditionalShipmentList[]> => {
   try {
-    return await listShipments({ status: 'SENT', limit: 100 });
+    return await listShipments({ status: 'PENDING', limit: 100 });
   } catch (error) {
     throw error;
   }

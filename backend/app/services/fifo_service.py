@@ -395,23 +395,22 @@ class FIFOService:
             for source in sources:
                 entry_item_id = source["entry_item_id"]
                 quantity_to_return = source["quantity_taken"]
-                
-                # Aumentar quantidade do item
+
+                # Aumentar quantidade do item (SEM commit — transação gerenciada pelo service)
                 success = await self.item_repo.increase_quantity(
                     self.db,
                     entry_item_id,
                     quantity_to_return
                 )
-                
+
                 if not success:
-                    await self.db.rollback()
                     raise ValueError(
                         f"Failed to return quantity to entry item {entry_item_id}"
                     )
-            
-            await self.db.commit()
+
+            # Apenas flush — o commit fica a cargo do service que chamou
+            await self.db.flush()
             return True
-            
+
         except Exception as e:
-            await self.db.rollback()
             raise ValueError(f"Failed to reverse sale: {str(e)}")

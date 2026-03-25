@@ -5,34 +5,29 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-  FlatList,
-  RefreshControl,
 } from 'react-native';
 import {
   Text,
   Button,
   TextInput,
   Card,
-  Chip,
-  List,
   Divider,
   ActivityIndicator,
   IconButton,
-  Searchbar,
 } from 'react-native-paper';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useMutation, useQueryClient, useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Colors, theme } from '@/constants/Colors';
+import PageHeader from '@/components/layout/PageHeader';
 import { createShipment } from '@/services/conditionalService';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import DateTimeInput from '@/components/ui/DateTimeInput';
+import ProductSelectionModal from '@/components/sale/ProductSelectionModal';
 import { CreateShipmentDTO, CreateShipmentItemDTO } from '@/types/conditional';
 import { getCustomers } from '@/services/customerService';
-import { getProducts } from '@/services/productService';
 import { searchCep } from '@/services/cepService';
+import type { ProductGrouped, ProductVariant } from '@/types';
 
 const PAGE_SIZE = 20;
 
@@ -44,6 +39,9 @@ interface SelectedProduct {
   price: number;
   quantity_sent: number;
   max_stock?: number;
+  variant_id?: number;
+  variant_size?: string;
+  variant_color?: string;
 }
 
 /**
@@ -74,7 +72,7 @@ export default function CreateConditionalShipmentScreen() {
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
   const [deadlineDays, setDeadlineDays] = useState('7');
   const [notes, setNotes] = useState('');
-  const [productSearch, setProductSearch] = useState('');
+  const [showProductModal, setShowProductModal] = useState(false);
   
   // Datas de ida e devolução (NOVO)
   const [departureDateTime, setDepartureDateTime] = useState<Date | undefined>();
@@ -92,7 +90,7 @@ export default function CreateConditionalShipmentScreen() {
 
   // Invalidar cache de produtos ao entrar na tela
   React.useEffect(() => {
-    queryClient.invalidateQueries({ queryKey: ['products-conditional'] });
+    queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
   }, []);
 
   // Estados para dialogs
@@ -110,46 +108,6 @@ export default function CreateConditionalShipmentScreen() {
     queryFn: () => getCustomers({}),
     enabled: step === 1,
   });
-
-  // Infinite Query para produtos com paginação (estilo catálogo)
-  const {
-    data: productsData,
-    isLoading: loadingProducts,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    refetch: refetchProducts,
-    isRefetching,
-  } = useInfiniteQuery({
-    queryKey: ['products-conditional', productSearch],
-    queryFn: async ({ pageParam = 0 }) => {
-      const params = {
-        limit: PAGE_SIZE,
-        skip: pageParam * PAGE_SIZE,
-        search: productSearch || undefined,
-        has_stock: true, // CRITICAL: Apenas produtos com estoque (FIFO)
-      };
-      console.log('🔍 Chamando API com params:', params);
-      const products = await getProducts(params);
-      console.log('📥 Resposta da API:', products.length, 'produtos');
-      return products;
-    },
-    getNextPageParam: (lastPage, allPages) => {
-      if (!lastPage || lastPage.length < PAGE_SIZE) {
-        return undefined;
-      }
-      return allPages.length;
-    },
-    initialPageParam: 0,
-    enabled: step === 2,
-  });
-
-  // Flatten all pages into a single array
-  const products = React.useMemo(() => {
-    const flattened = productsData?.pages?.flat() ?? [];
-    console.log('📦 Produtos com estoque (conditional):', flattened.length, flattened.map(p => ({ id: p.id, name: p.name, stock: p.current_stock })));
-    return flattened;
-  }, [productsData]);
 
   // Mutation
   const createMutation = useMutation({
@@ -178,88 +136,58 @@ export default function CreateConditionalShipmentScreen() {
     },
   });
 
-  const handleAddProduct = (productId: number) => {
-    const product = products.find((p) => p.id === productId);
-    if (!product) return;
-
-    const stockAvailable = product.current_stock || 0;
-    if (stockAvailable <= 0) {
-      setDialogConfig({
-        visible: true,
-        title: 'Estoque Insuficiente',
-        message: 'Este produto não possui estoque disponível para envio condicional.',
-        type: 'warning',
-        onConfirm: () => setDialogConfig({ ...dialogConfig, visible: false }),
-      });
-      return;
-    }
-
-    const existing = selectedProducts.find((p) => p.product_id === productId);
+  const handleSelectProductVariant = (product: ProductGrouped, variant: ProductVariant) => {
+    const existing = selectedProducts.find(
+      (p) => p.product_id === product.id && p.variant_id === variant.id
+    );
     if (existing) {
-      if (existing.quantity_sent >= stockAvailable) {
-        setDialogConfig({
-          visible: true,
-          title: 'Limite de Estoque',
-          message: `Você já selecionou toda a quantidade disponível em estoque (${stockAvailable} un.).`,
-          type: 'warning',
-          onConfirm: () => setDialogConfig({ ...dialogConfig, visible: false }),
-        });
-        return;
-      }
-      setSelectedProducts(
-        selectedProducts.map((p) =>
-          p.product_id === productId
-            ? { ...p, quantity_sent: p.quantity_sent + 1 }
-            : p
-        )
-      );
+      if (existing.quantity_sent >= variant.current_stock) return;
+      setSelectedProducts(selectedProducts.map((p) =>
+        p.product_id === product.id && p.variant_id === variant.id
+          ? { ...p, quantity_sent: p.quantity_sent + 1 }
+          : p
+      ));
     } else {
-      setSelectedProducts([
-        ...selectedProducts,
-        {
-          product_id: productId,
-          name: product.name,
-          price: Number(product.price) || 0,
-          quantity_sent: 1,
-          max_stock: stockAvailable,
-        },
-      ]);
+      setSelectedProducts([...selectedProducts, {
+        product_id: product.id,
+        name: product.name,
+        price: Number(variant.price) || 0,
+        quantity_sent: 1,
+        max_stock: variant.current_stock,
+        variant_id: variant.id,
+        variant_size: variant.size || undefined,
+        variant_color: variant.color || undefined,
+      }]);
     }
+    setShowProductModal(false);
   };
 
-  const handleRemoveProduct = (productId: number) => {
-    setSelectedProducts(selectedProducts.filter((p) => p.product_id !== productId));
+  const handleRemoveProduct = (productId: number, variantId?: number) => {
+    setSelectedProducts(selectedProducts.filter(
+      (p) => !(p.product_id === productId && p.variant_id === variantId)
+    ));
   };
 
-  const handleQuantityChange = (productId: number, delta: number) => {
-    const product = products.find((p) => p.id === productId);
-    const maxStock = product?.current_stock || 0;
-
+  const handleQuantityChange = (productId: number, variantId: number | undefined, delta: number) => {
     setSelectedProducts(
       selectedProducts.map((p) => {
-        if (p.product_id === productId) {
-          const newQuantity = p.quantity_sent + delta;
-          
-          // Validar limites
-          if (newQuantity < 1) return p;
-          if (newQuantity > maxStock) {
-            setDialogConfig({
-              visible: true,
-              title: 'Limite de Estoque',
-              message: `Quantidade máxima disponível: ${maxStock} unidades.`,
-              type: 'warning',
-              onConfirm: () => setDialogConfig({ ...dialogConfig, visible: false }),
-            });
-            return p;
-          }
-          
-          return { ...p, quantity_sent: newQuantity };
+        if (p.product_id !== productId || p.variant_id !== variantId) return p;
+        const newQuantity = p.quantity_sent + delta;
+        if (newQuantity < 1) return p;
+        if (newQuantity > (p.max_stock || 999)) {
+          setDialogConfig({
+            visible: true,
+            title: 'Limite de Estoque',
+            message: `Quantidade máxima disponível: ${p.max_stock} unidades.`,
+            type: 'warning',
+            onConfirm: () => setDialogConfig({ ...dialogConfig, visible: false }),
+          });
+          return p;
         }
-        return p;
+        return { ...p, quantity_sent: newQuantity };
       })
     );
   };
-
   const handleNext = () => {
     if (step === 1 && !selectedCustomerId) {
       setDialogConfig({
@@ -402,6 +330,7 @@ export default function CreateConditionalShipmentScreen() {
       customer_id: selectedCustomerId,
       items: selectedProducts.map((p) => ({
         product_id: p.product_id,
+        variant_id: p.variant_id,
         quantity_sent: p.quantity_sent,
         unit_price: p.price,
       })),
@@ -425,31 +354,12 @@ export default function CreateConditionalShipmentScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header Premium com gradiente */}
-      <LinearGradient
-        colors={[Colors.light.primary, Colors.light.secondary]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.headerGradient}
-      >
-        <SafeAreaView edges={['top']}>
-          <View style={styles.headerContent}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <View style={styles.headerTitle}>
-              <Text style={styles.title}>Novo Envio</Text>
-              <Text style={styles.stepIndicator}>
-                Passo {step} de 4
-              </Text>
-            </View>
-            <View style={{ width: 40 }} />
-          </View>
-        </SafeAreaView>
-      </LinearGradient>
+      <PageHeader
+        title="Novo Envio"
+        subtitle={`Passo ${step} de 4`}
+        showBackButton
+        onBack={() => step > 1 ? handleBack() : router.back()}
+      />
 
       {/* Progress Bar */}
       <View style={styles.progressBar}>
@@ -477,7 +387,15 @@ export default function CreateConditionalShipmentScreen() {
               <ActivityIndicator style={{ marginTop: 32 }} />
             ) : (
               <View style={styles.listContainer}>
-                {customers.map((customer) => (
+                {customers.map((customer) => {
+                  const isSelected = selectedCustomerId === customer.id;
+                  const initials = customer.full_name
+                    .split(' ')
+                    .map((w: string) => w[0])
+                    .slice(0, 2)
+                    .join('')
+                    .toUpperCase();
+                  return (
                   <TouchableOpacity
                     key={customer.id}
                     onPress={() => setSelectedCustomerId(customer.id)}
@@ -486,43 +404,53 @@ export default function CreateConditionalShipmentScreen() {
                     <Card
                       style={[
                         styles.customerCard,
-                        selectedCustomerId === customer.id &&
-                          styles.customerCardSelected,
+                        isSelected && styles.customerCardSelected,
                       ]}
                     >
                       <Card.Content style={styles.customerContent}>
-                        <View style={styles.customerInfo}>
-                          <Ionicons
-                            name="person-circle"
-                            size={40}
-                            color={
-                              selectedCustomerId === customer.id
-                                ? Colors.light.primary
-                                : Colors.light.textSecondary
-                            }
-                          />
-                          <View style={styles.customerDetails}>
-                            <Text style={styles.customerName}>
-                              {customer.full_name}
-                            </Text>
-                            {customer.phone && (
-                              <Text style={styles.customerPhone}>
-                                {customer.phone}
-                              </Text>
-                            )}
-                          </View>
+                        {/* Avatar circle */}
+                        <View style={[
+                          styles.customerAvatar,
+                          { backgroundColor: isSelected
+                            ? Colors.light.primary + '20'
+                            : Colors.light.backgroundSecondary
+                          }
+                        ]}>
+                          <Text style={[
+                            styles.customerAvatarInitials,
+                            { color: isSelected ? Colors.light.primary : Colors.light.textSecondary }
+                          ]}>
+                            {initials}
+                          </Text>
                         </View>
-                        {selectedCustomerId === customer.id && (
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={24}
-                            color={Colors.light.primary}
-                          />
+                        <View style={styles.customerDetails}>
+                          <Text style={[
+                            styles.customerName,
+                            isSelected && { color: Colors.light.primary }
+                          ]}>
+                            {customer.full_name}
+                          </Text>
+                          {customer.phone && (
+                            <Text style={styles.customerPhone}>
+                              {customer.phone}
+                            </Text>
+                          )}
+                          {customer.city && (
+                            <Text style={styles.customerCity}>
+                              {customer.city}{customer.state ? `/${customer.state}` : ''}
+                            </Text>
+                          )}
+                        </View>
+                        {isSelected && (
+                          <View style={styles.customerCheckBadge}>
+                            <Ionicons name="checkmark-circle" size={28} color={Colors.light.primary} />
+                          </View>
                         )}
                       </Card.Content>
                     </Card>
                   </TouchableOpacity>
-                ))}
+                  );
+                })}
               </View>
             )}
           </View>
@@ -539,7 +467,7 @@ export default function CreateConditionalShipmentScreen() {
             </Text>
           </View>
 
-          {/* Produtos Selecionados com ScrollView */}
+          {/* Produtos Selecionados */}
           {selectedProducts.length > 0 && (
             <Card style={styles.selectedProductsCard}>
               <Card.Content>
@@ -552,11 +480,16 @@ export default function CreateConditionalShipmentScreen() {
                   nestedScrollEnabled={true}
                 >
                   {selectedProducts.map((product) => (
-                    <View key={product.product_id} style={styles.selectedProduct}>
+                    <View key={`${product.product_id}_${product.variant_id || ''}`} style={styles.selectedProduct}>
                       <View style={styles.selectedProductInfo}>
                         <Text style={styles.selectedProductName} numberOfLines={1}>
                           {product.name}
                         </Text>
+                        {(product.variant_size || product.variant_color) && (
+                          <Text style={styles.selectedProductVariant}>
+                            {[product.variant_size, product.variant_color].filter(Boolean).join(' · ')}
+                          </Text>
+                        )}
                         <Text style={styles.selectedProductPrice}>
                           R$ {(Number(product.price) || 0).toFixed(2)}
                         </Text>
@@ -565,19 +498,19 @@ export default function CreateConditionalShipmentScreen() {
                         <IconButton
                           icon="minus"
                           size={16}
-                          onPress={() => handleQuantityChange(product.product_id, -1)}
+                          onPress={() => handleQuantityChange(product.product_id, product.variant_id, -1)}
                         />
                         <Text style={styles.quantityText}>{product.quantity_sent}</Text>
                         <IconButton
                           icon="plus"
                           size={16}
-                          onPress={() => handleQuantityChange(product.product_id, 1)}
+                          onPress={() => handleQuantityChange(product.product_id, product.variant_id, 1)}
                         />
                         <IconButton
                           icon="delete"
                           size={20}
                           iconColor={Colors.light.error}
-                          onPress={() => handleRemoveProduct(product.product_id)}
+                          onPress={() => handleRemoveProduct(product.product_id, product.variant_id)}
                         />
                       </View>
                     </View>
@@ -587,146 +520,32 @@ export default function CreateConditionalShipmentScreen() {
             </Card>
           )}
 
-          {/* Barra de busca */}
-          <Searchbar
-            placeholder="Buscar produtos..."
-            onChangeText={setProductSearch}
-            value={productSearch}
-            style={styles.productSearchbar}
-          />
+          {/* Botão para adicionar produtos via modal */}
+          <Button
+            mode="contained"
+            icon="plus"
+            onPress={() => setShowProductModal(true)}
+            style={styles.addProductButton}
+          >
+            Adicionar Produto
+          </Button>
 
-          {/* Lista de Produtos Disponíveis - Estilo Catálogo */}
-          {loadingProducts && !products.length ? (
-            <View style={styles.centerContainer}>
-              <ActivityIndicator size="large" color={Colors.light.primary} />
-              <Text style={styles.loadingText}>Carregando produtos...</Text>
+          {selectedProducts.length === 0 && (
+            <View style={styles.emptyState}>
+              <Ionicons name="shirt-outline" size={64} color={Colors.light.textSecondary} />
+              <Text style={styles.emptyStateTitle}>Nenhum produto selecionado</Text>
+              <Text style={styles.emptyStateDescription}>
+                Toque em "Adicionar Produto" para selecionar os itens do envio
+              </Text>
             </View>
-          ) : (
-            <FlatList
-              data={products}
-              renderItem={({ item }) => {
-                  const isSelected = selectedProducts.some(
-                    (p) => p.product_id === item.id
-                  );
-                  return (
-                    <Card style={styles.catalogCard} mode="elevated" elevation={2}>
-                      <Card.Content>
-                        <View style={styles.catalogCardHeader}>
-                          <Text
-                            variant="titleMedium"
-                            style={styles.catalogProductName}
-                            numberOfLines={2}
-                          >
-                            {item.name}
-                          </Text>
-                          {item.brand && (
-                            <Chip
-                              mode="flat"
-                              compact
-                              style={styles.brandChip}
-                              textStyle={styles.brandText}
-                            >
-                              {item.brand}
-                            </Chip>
-                          )}
-                        </View>
+          )}
 
-                        <View style={styles.catalogPriceRow}>
-                          <Text variant="headlineSmall" style={styles.catalogPrice}>
-                            R$ {(Number(item.price) || 0).toFixed(2)}
-                          </Text>
-                        </View>
-
-                        <View style={styles.stockRow}>
-                          <Ionicons
-                            name="cube-outline"
-                            size={14}
-                            color={(item.current_stock ?? 0) > 0 ? Colors.light.success : Colors.light.error}
-                          />
-                          <Text
-                            variant="bodySmall"
-                            style={[
-                              styles.stockText,
-                              { color: (item.current_stock ?? 0) > 0 ? Colors.light.success : Colors.light.error }
-                            ]}
-                          >
-                            Estoque: {item.current_stock || 0} un.
-                          </Text>
-                        </View>
-
-                        {item.sku && (
-                          <Text variant="bodySmall" style={styles.catalogSku}>
-                            SKU: {item.sku}
-                          </Text>
-                        )}
-                      </Card.Content>
-
-                      <Card.Actions style={styles.catalogCardActions}>
-                        <Button
-                          mode={isSelected ? 'outlined' : 'contained'}
-                          onPress={() => handleAddProduct(item.id)}
-                          disabled={isSelected}
-                          icon={isSelected ? 'check' : 'plus'}
-                          contentStyle={styles.catalogButtonContent}
-                        >
-                          {isSelected ? 'Adicionado' : 'Adicionar'}
-                        </Button>
-                      </Card.Actions>
-                    </Card>
-                  );
-                }}
-                keyExtractor={(item, index) => `${item.id}-${index}`}
-                numColumns={2}
-                columnWrapperStyle={styles.catalogRow}
-                contentContainerStyle={styles.catalogListContent}
-                refreshControl={
-                  <RefreshControl
-                    refreshing={isRefetching}
-                    onRefresh={refetchProducts}
-                    colors={[Colors.light.primary]}
-                  />
-                }
-                onEndReached={() => {
-                  if (hasNextPage && !isFetchingNextPage) {
-                    fetchNextPage();
-                  }
-                }}
-                onEndReachedThreshold={0.5}
-                ListFooterComponent={
-                  isFetchingNextPage ? (
-                    <View style={styles.footerLoader}>
-                      <ActivityIndicator size="small" color={Colors.light.primary} />
-                      <Text style={styles.loadingMoreText}>
-                        Carregando mais produtos...
-                      </Text>
-                    </View>
-                  ) : !hasNextPage && products.length > 0 ? (
-                    <Text style={styles.endMessage}>
-                      {products.length} produtos carregados
-                    </Text>
-                  ) : null
-                }
-                ListEmptyComponent={
-                  !loadingProducts ? (
-                    <View style={styles.emptyState}>
-                      <Ionicons
-                        name="shirt-outline"
-                        size={64}
-                        color={Colors.light.textSecondary}
-                      />
-                      <Text style={styles.emptyStateTitle}>
-                        {productSearch ? 'Nenhum produto encontrado' : 'Sem produtos'}
-                      </Text>
-                      <Text style={styles.emptyStateDescription}>
-                        {productSearch
-                          ? 'Tente buscar por outro termo'
-                          : 'Nenhum produto disponível no momento'}
-                      </Text>
-                    </View>
-                  ) : null
-                }
-              />
-            )}
+          <ProductSelectionModal
+            visible={showProductModal}
+            onDismiss={() => setShowProductModal(false)}
+            onSelectProduct={handleSelectProductVariant}
+            hasStock={true}
+          />
         </View>
       )}
 
@@ -905,10 +724,17 @@ export default function CreateConditionalShipmentScreen() {
                   Produtos ({selectedProducts.length})
                 </Text>
                 {selectedProducts.map((product) => (
-                  <View key={product.product_id} style={styles.reviewProduct}>
-                    <Text style={styles.reviewProductName}>
-                      {product.quantity_sent}x {product.name}
-                    </Text>
+                  <View key={`${product.product_id}_${product.variant_id || ''}`} style={styles.reviewProduct}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.reviewProductName}>
+                        {product.quantity_sent}x {product.name}
+                      </Text>
+                      {(product.variant_size || product.variant_color) && (
+                        <Text style={{ fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 }}>
+                          {[product.variant_size, product.variant_color].filter(Boolean).join(' · ')}
+                        </Text>
+                      )}
+                    </View>
                     <Text style={styles.reviewProductValue}>
                       R$ {((Number(product.price) || 0) * product.quantity_sent).toFixed(2)}
                     </Text>
@@ -1021,39 +847,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
   },
-  headerGradient: {
-    paddingHorizontal: theme.spacing.md,
-    paddingBottom: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingTop: 12,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerTitle: {
-    alignItems: 'center',
-    flex: 1,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  stepIndicator: {
-    fontSize: 12,
-    color: '#fff',
-    opacity: 0.9,
-    marginTop: 2,
-  },
   progressBar: {
     flexDirection: 'row',
     paddingHorizontal: 20,
@@ -1095,18 +888,32 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   customerCard: {
-    borderRadius: 12,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: 'transparent',
+    elevation: 1,
   },
   customerCardSelected: {
     borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primary + '08',
+    backgroundColor: Colors.light.primary + '06',
   },
   customerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    paddingVertical: 4,
+    gap: 12,
+  },
+  customerAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  customerAvatarInitials: {
+    fontSize: 16,
+    fontWeight: '700',
   },
   customerInfo: {
     flexDirection: 'row',
@@ -1123,9 +930,17 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
   },
   customerPhone: {
-    fontSize: 14,
+    fontSize: 13,
     color: Colors.light.textSecondary,
     marginTop: 2,
+  },
+  customerCity: {
+    fontSize: 12,
+    color: Colors.light.textTertiary,
+    marginTop: 1,
+  },
+  customerCheckBadge: {
+    flexShrink: 0,
   },
   selectedProductsCard: {
     marginBottom: 16,
@@ -1158,10 +973,20 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: Colors.light.text,
   },
+  selectedProductVariant: {
+    fontSize: 12,
+    color: Colors.light.primary,
+    fontWeight: '500',
+    marginTop: 1,
+  },
   selectedProductPrice: {
     fontSize: 12,
     color: Colors.light.textSecondary,
     marginTop: 2,
+  },
+  addProductButton: {
+    marginTop: 8,
+    marginBottom: 16,
   },
   quantityControls: {
     flexDirection: 'row',

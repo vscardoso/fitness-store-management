@@ -20,7 +20,7 @@ from app.models.category import Category
 from app.models.entry_item import EntryItem
 from app.models.inventory import Inventory
 from app.models.customer import Customer
-from app.models.sale import Sale, SaleItem
+from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.sale_return import SaleReturn, ReturnItem
 from app.models.user import User
 from app.models.stock_entry import StockEntry, EntryType
@@ -246,6 +246,7 @@ async def get_dashboard_stats(
         Sale.created_at >= today_start,
         Sale.created_at <= today_end,
         Sale.is_active == True,
+        Sale.status == SaleStatus.COMPLETED.value,
     )
 
     result = await db.execute(sales_today_query)
@@ -313,6 +314,7 @@ async def get_dashboard_stats(
         Sale.created_at >= yesterday_start,
         Sale.created_at <= yesterday_end,
         Sale.is_active == True,
+        Sale.status == SaleStatus.COMPLETED.value,
     )
 
     result = await db.execute(sales_yesterday_query)
@@ -349,13 +351,14 @@ async def get_dashboard_stats(
     if sales_count_today > 0:
         average_ticket = total_sales_today / sales_count_today
 
-    # 9. Total de vendas (todas as vendas ativas)
+    # 9. Total de vendas concluídas (exclui devolvidas e canceladas)
     sales_total_query = select(
         func.coalesce(func.sum(Sale.total_amount), 0).label("total_all"),
         func.count(Sale.id).label("count_all"),
     ).where(
         Sale.tenant_id == tenant_id,
         Sale.is_active == True,
+        Sale.status == SaleStatus.COMPLETED.value,
     )
 
     result = await db.execute(sales_total_query)

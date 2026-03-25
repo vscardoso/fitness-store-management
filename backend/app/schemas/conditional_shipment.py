@@ -16,6 +16,7 @@ from app.models.sale import PaymentMethod
 class ConditionalShipmentItemBase(BaseModel):
     """Base schema para item de envio condicional"""
     product_id: int = Field(..., gt=0, description="ID do produto")
+    variant_id: Optional[int] = Field(None, gt=0, description="ID da variante (tamanho/cor)")
     quantity_sent: int = Field(..., gt=0, description="Quantidade enviada")
     unit_price: Decimal = Field(..., gt=0, description="Preço unitário se cliente comprar")
     notes: Optional[str] = Field(None, max_length=500, description="Observações sobre o item")
@@ -59,6 +60,11 @@ class ConditionalShipmentItemResponse(ConditionalShipmentItemBase):
     # Dados do produto (nested)
     product_name: Optional[str] = None
     product_sku: Optional[str] = None
+
+    # Dados da variante (nested)
+    variant_sku: Optional[str] = None
+    variant_size: Optional[str] = None
+    variant_color: Optional[str] = None
     
     model_config = {"from_attributes": True}
 

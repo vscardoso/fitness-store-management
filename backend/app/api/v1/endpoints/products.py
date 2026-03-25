@@ -73,17 +73,16 @@ async def build_product_response(
     if product.category_id:
         category_data = await get_category_data(db, product.category_id)
 
-    # Estoque via SQL direto (apenas para produtos não-catálogo)
-    current_stock = 0
+    # min_stock_threshold vem da tabela inventory (configuração do lojista)
+    # current_stock calculado via FIFO após construir variants_list
     min_stock_threshold = None
     if not product.is_catalog:
-        inventory_result = await db.execute(
-            text("SELECT quantity, min_stock FROM inventory WHERE product_id = :pid AND tenant_id = :tid"),
+        inv_result = await db.execute(
+            text("SELECT min_stock FROM inventory WHERE product_id = :pid AND tenant_id = :tid LIMIT 1"),
             {"pid": product.id, "tid": tenant_id}
         )
-        inv_row = inventory_result.fetchone()
-        current_stock = inv_row[0] if inv_row else 0
-        min_stock_threshold = inv_row[1] if inv_row else None
+        inv_row = inv_result.fetchone()
+        min_stock_threshold = inv_row[0] if inv_row else None
     
     # Garantir que created_at e updated_at não sejam None
     created_at = product.created_at or datetime.utcnow()
@@ -104,9 +103,10 @@ async def build_product_response(
         all_variants_query = text("""
             SELECT 
                 pv.id, pv.sku, pv.size, pv.color, pv.price, pv.cost_price, pv.is_active,
-                COALESCE(SUM(ei.quantity_remaining), 0) as current_stock
+                COALESCE(SUM(CASE WHEN se.is_active = 1 THEN ei.quantity_remaining ELSE 0 END), 0) as current_stock
             FROM product_variants pv
             LEFT JOIN entry_items ei ON ei.variant_id = pv.id AND ei.is_active = 1
+            LEFT JOIN stock_entries se ON se.id = ei.entry_id
             WHERE pv.product_id = :pid AND pv.is_active = 1
             GROUP BY pv.id
             ORDER BY pv.size, pv.color
@@ -125,9 +125,10 @@ async def build_product_response(
         all_variants_query = text("""
             SELECT 
                 pv.id, pv.sku, pv.size, pv.color, pv.price, pv.cost_price, pv.is_active,
-                COALESCE(SUM(ei.quantity_remaining), 0) as current_stock
+                COALESCE(SUM(CASE WHEN se.is_active = 1 THEN ei.quantity_remaining ELSE 0 END), 0) as current_stock
             FROM product_variants pv
             LEFT JOIN entry_items ei ON ei.variant_id = pv.id AND ei.is_active = 1
+            LEFT JOIN stock_entries se ON se.id = ei.entry_id
             WHERE pv.product_id = :pid AND pv.tenant_id = :tid AND pv.is_active = 1
             GROUP BY pv.id
             ORDER BY pv.size, pv.color
@@ -151,6 +152,9 @@ async def build_product_response(
         }
         for v in all_variant_rows
     ]
+
+    # current_stock do produto = soma FIFO de todas as variantes (fonte de verdade)
+    current_stock = sum(v["current_stock"] for v in variants_list)
 
     return {
         "id": product.id,
@@ -677,18 +681,19 @@ async def get_product_by_sku(
         HTTPException 404: Se produto não for encontrado
     """
     product_repo = ProductRepository(db)
-    
+    inventory_repo = InventoryRepository(db)
+
     try:
         product = await product_repo.get_by_sku(sku, tenant_id=tenant_id)
-        
+
         if not product:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Produto com SKU '{sku}' não encontrado"
             )
-        
-        return product
-        
+
+        return await build_product_response(product, db, inventory_repo, tenant_id)
+
     except HTTPException:
         raise
     except Exception as e:

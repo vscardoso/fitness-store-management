@@ -1,8 +1,12 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Numeric, Text
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, Numeric, Text, JSON
 from sqlalchemy.orm import relationship
 from datetime import datetime, timedelta
 from app.models.base import BaseModel
 from app.models.enums import ShipmentStatus
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.models.product_variant import ProductVariant
 
 
 class ConditionalShipment(BaseModel):
@@ -115,20 +119,25 @@ class ConditionalShipmentItem(BaseModel):
 
     shipment_id = Column(Integer, ForeignKey("conditional_shipments.id"), nullable=False, index=True)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False, index=True)
-    
+    variant_id = Column(Integer, ForeignKey("product_variants.id"), nullable=True, index=True)
+
     quantity_sent = Column(Integer, nullable=False)  # Quantidade enviada
     quantity_kept = Column(Integer, default=0, nullable=False)  # Cliente ficou com
     quantity_returned = Column(Integer, default=0, nullable=False)  # Cliente devolveu
-    
+
     # Status: SENT, KEPT, RETURNED, DAMAGED, LOST
     status = Column(String(20), default="SENT", nullable=False)
-    
+
     unit_price = Column(Numeric(10, 2), nullable=False)  # Preço se cliente comprar
     notes = Column(Text, nullable=True)  # Ex: "voltou com mancha", "cliente adorou"
+
+    # Fontes FIFO usadas na reserva — permite reverter exatamente os mesmos entry_items
+    fifo_sources = Column(JSON, nullable=True, comment="Fontes FIFO usadas na reserva de estoque")
     
     # Relacionamentos
     shipment = relationship("ConditionalShipment", back_populates="items")
     product = relationship("Product")
+    variant = relationship("ProductVariant", foreign_keys=[variant_id])
     
     @property
     def quantity_pending(self) -> int:

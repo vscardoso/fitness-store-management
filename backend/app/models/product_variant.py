@@ -130,7 +130,12 @@ class ProductVariant(BaseModel):
             Current stock quantity
         """
         from .entry_item import EntryItem
-        active_items = [item for item in self.entry_items if item.is_active]
+        active_items = [
+            item for item in self.entry_items
+            if item.is_active
+            and item.stock_entry is not None
+            and item.stock_entry.is_active
+        ]
         return sum(item.quantity_remaining for item in active_items)
     
     def get_full_name(self) -> str:

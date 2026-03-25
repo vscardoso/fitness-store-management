@@ -137,8 +137,11 @@ class SaleService:
                     f"Faltam: R$ {(total_amount - payments_total):.2f}"
                 )
             
-            # 4. Gerar nmero da venda
-            sale_number = f"VENDA-{now_brazil().strftime('%Y%m%d%H%M%S')}"
+            # 4. Gerar número da venda — milissegundos + 3 chars aleatórios evitam colisão
+            import secrets
+            _ts = now_brazil().strftime('%Y%m%d%H%M%S%f')[:17]  # até milissegundos (17 chars)
+            _sfx = secrets.token_hex(2)[:3].upper()              # ex: "A3F"
+            sale_number = f"VENDA-{_ts}-{_sfx}"
             
             # 5. Criar Sale
             print(f" Criando venda {sale_number}...")
@@ -266,15 +269,28 @@ class SaleService:
             
             await self.db.commit()
 
-            # Recarregar venda com relacionamentos usando selectinload
-            # Isso garante que os relacionamentos sejam carregados eagerly
+            # Rebuild incremental de inventário ANTES do reload final
+            # (rebuild pode fazer commit próprio, o que expiraria os objetos se feito depois)
+            inv_sync = InventoryService(self.db)
+            affected_product_ids = {item.product_id for item in sale_data.items if item.product_id}
+            for pid in affected_product_ids:
+                try:
+                    delta = await inv_sync.rebuild_product_from_fifo(pid, tenant_id=tenant_id)
+                    print(f"  [Inventory Sync] Produto {pid}: fifo={delta['fifo_sum']} inv={delta['inventory_quantity']} created={delta['created']} updated={delta['updated']}")
+                except Exception as sync_err:
+                    # Não bloquear venda por falha de sync – logar e continuar
+                    print(f"  [Inventory Sync] Falha ao sincronizar produto {pid}: {sync_err}")
+
+            # Recarregar venda com todos os relacionamentos após todos os commits
             from sqlalchemy import select
             from sqlalchemy.orm import selectinload
-            
+            from app.models.product import Product
+            from app.models.product_variant import ProductVariant
+
             result = await self.db.execute(
                 select(Sale)
                 .options(
-                    selectinload(Sale.items).selectinload(SaleItem.product),
+                    selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
                     selectinload(Sale.payments),
                     selectinload(Sale.customer),
                     selectinload(Sale.seller)
@@ -282,17 +298,6 @@ class SaleService:
                 .where(Sale.id == sale.id)
             )
             sale = result.scalar_one()
-
-            # Rebuild incremental de inventário para produtos afetados (verdade = FIFO)
-            inv_sync = InventoryService(self.db)
-            affected_products = {item.product_id for item in sale.items}
-            for pid in affected_products:
-                try:
-                    delta = await inv_sync.rebuild_product_from_fifo(pid, tenant_id=tenant_id)
-                    print(f"  [Inventory Sync] Produto {pid}: fifo={delta['fifo_sum']} inv={delta['inventory_quantity']} created={delta['created']} updated={delta['updated']}")
-                except Exception as sync_err:
-                    # Não bloquear venda por falha de sync – logar e continuar
-                    print(f"  [Inventory Sync] Falha ao sincronizar produto {pid}: {sync_err}")
             
             print(f" Venda {sale_number} criada com sucesso!")
             return sale
@@ -393,10 +398,20 @@ class SaleService:
             # 3. Atualizar status da venda
             sale.status = SaleStatus.CANCELLED.value
             sale.notes = f"{sale.notes or ''}\n[CANCELADA] {reason}".strip()
-            
+
             await self.db.commit()
             await self.db.refresh(sale)
-            
+
+            # 4. Recalcular inventory table a partir do FIFO para produtos afetados
+            inv_sync = InventoryService(self.db)
+            affected_product_ids = {item.product_id for item in sale.items if item.product_id}
+            for pid in affected_product_ids:
+                try:
+                    delta = await inv_sync.rebuild_product_from_fifo(pid, tenant_id=tenant_id)
+                    print(f"  [Inventory Sync] Produto {pid}: fifo={delta['fifo_sum']} inv={delta['inventory_quantity']}")
+                except Exception as sync_err:
+                    print(f"  [Inventory Sync] Falha ao sincronizar produto {pid}: {sync_err}")
+
             print(f" Venda {sale.sale_number} cancelada com sucesso!")
             return sale
             

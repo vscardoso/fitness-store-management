@@ -338,11 +338,16 @@ class Payment(BaseModel):
         comment="Payment status"
     )
     
+    installments: Mapped[int] = mapped_column(
+        default=1,
+        comment="Number of installments for credit card (1 = à vista)"
+    )
+
     notes: Mapped[str | None] = mapped_column(
         Text,
         comment="Payment notes"
     )
-    
+
     # Chave estrangeira
     sale_id: Mapped[int] = mapped_column(
         ForeignKey("sales.id", ondelete="CASCADE"),

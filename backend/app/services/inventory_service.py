@@ -36,13 +36,42 @@ class InventoryService:
         - Retorna metadados da operação.
         """
         from sqlalchemy import select, func
+        from app.models.stock_entry import StockEntry
+        from app.models.product_variant import ProductVariant
 
-        # Soma FIFO
-        stmt = select(func.coalesce(func.sum(EntryItem.quantity_remaining), 0)).where(EntryItem.product_id == product_id, EntryItem.is_active == True)
+        # Soma FIFO via product_id direto — filtra stock_entry.is_active
+        stmt_direct = (
+            select(func.coalesce(func.sum(EntryItem.quantity_remaining), 0))
+            .join(StockEntry, EntryItem.entry_id == StockEntry.id)
+            .where(
+                EntryItem.product_id == product_id,
+                EntryItem.is_active == True,
+                StockEntry.is_active == True,
+            )
+        )
         if tenant_id is not None:
-            stmt = stmt.where(EntryItem.tenant_id == tenant_id)
-        result = await self.db.execute(stmt)
-        fifo_sum = int(result.scalar_one() or 0)
+            stmt_direct = stmt_direct.where(EntryItem.tenant_id == tenant_id)
+        result_direct = await self.db.execute(stmt_direct)
+        fifo_direct = int(result_direct.scalar_one() or 0)
+
+        # Soma FIFO via variant_id (para entry_items sem product_id definido — dados legados)
+        stmt_via_variant = (
+            select(func.coalesce(func.sum(EntryItem.quantity_remaining), 0))
+            .join(StockEntry, EntryItem.entry_id == StockEntry.id)
+            .join(ProductVariant, EntryItem.variant_id == ProductVariant.id)
+            .where(
+                EntryItem.product_id.is_(None),  # evitar dupla contagem
+                ProductVariant.product_id == product_id,
+                EntryItem.is_active == True,
+                StockEntry.is_active == True,
+            )
+        )
+        if tenant_id is not None:
+            stmt_via_variant = stmt_via_variant.where(EntryItem.tenant_id == tenant_id)
+        result_via_variant = await self.db.execute(stmt_via_variant)
+        fifo_via_variant = int(result_via_variant.scalar_one() or 0)
+
+        fifo_sum = fifo_direct + fifo_via_variant
 
         # Inventory atual
         current = await self.inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
@@ -86,19 +115,47 @@ class InventoryService:
         Retorna lista de deltas por produto.
         """
         from sqlalchemy import select, func, update
+        from app.models.stock_entry import StockEntry
+        from app.models.product_variant import ProductVariant
 
-        # Coletar somas FIFO por produto
-        stmt = (
+        # Somas FIFO diretas por product_id — filtra stock_entry.is_active
+        stmt_direct = (
             select(
                 EntryItem.product_id,
                 func.coalesce(func.sum(EntryItem.quantity_remaining), 0).label("fifo_sum")
             )
-            .where(EntryItem.is_active == True)
-            .where(EntryItem.tenant_id == tenant_id)
+            .join(StockEntry, EntryItem.entry_id == StockEntry.id)
+            .where(
+                EntryItem.is_active == True,
+                EntryItem.product_id.isnot(None),
+                EntryItem.tenant_id == tenant_id,
+                StockEntry.is_active == True,
+            )
             .group_by(EntryItem.product_id)
         )
-        rows = (await self.db.execute(stmt)).all()
-        fifo_map = {r[0]: int(r[1]) for r in rows}
+        rows_direct = (await self.db.execute(stmt_direct)).all()
+        fifo_map: dict[int, int] = {r[0]: int(r[1]) for r in rows_direct}
+
+        # Somas FIFO via variant_id (entry_items sem product_id — dados legados)
+        stmt_via_variant = (
+            select(
+                ProductVariant.product_id,
+                func.coalesce(func.sum(EntryItem.quantity_remaining), 0).label("fifo_sum")
+            )
+            .join(StockEntry, EntryItem.entry_id == StockEntry.id)
+            .join(ProductVariant, EntryItem.variant_id == ProductVariant.id)
+            .where(
+                EntryItem.is_active == True,
+                EntryItem.product_id.is_(None),
+                EntryItem.tenant_id == tenant_id,
+                StockEntry.is_active == True,
+            )
+            .group_by(ProductVariant.product_id)
+        )
+        rows_variant = (await self.db.execute(stmt_via_variant)).all()
+        for r in rows_variant:
+            pid, extra = r[0], int(r[1])
+            fifo_map[pid] = fifo_map.get(pid, 0) + extra
 
         # Inventários existentes do tenant
         inv_stmt = select(Inventory).where(Inventory.tenant_id == tenant_id)

@@ -108,26 +108,28 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
         return result.scalars().all()
     
     async def get_by_product(
-        self, 
-        db: AsyncSession, 
+        self,
+        db: AsyncSession,
         product_id: int
     ) -> Sequence[EntryItem]:
         """
-        Busca todas as entradas de um produto específico.
-        
+        Busca todas as entradas ativas de um produto específico.
+
         Args:
             db: Database session
             product_id: ID do produto
-            
+
         Returns:
-            Lista de itens do produto (todas as entradas)
+            Lista de itens do produto (todas as entradas ativas, mais recentes primeiro)
         """
         query = (
             select(EntryItem)
+            .join(StockEntry, EntryItem.entry_id == StockEntry.id)
             .where(
                 and_(
                     EntryItem.product_id == product_id,
-                    EntryItem.is_active == True
+                    EntryItem.is_active == True,
+                    StockEntry.is_active == True,
                 )
             )
             .options(
@@ -136,7 +138,7 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
             )
             .order_by(EntryItem.created_at.desc())
         )
-        
+
         result = await db.execute(query)
         return result.scalars().all()
     
@@ -541,17 +543,19 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
             Quantidade total disponível
         """
         from sqlalchemy import func
-        
+
         query = (
             select(func.sum(EntryItem.quantity_remaining))
+            .join(StockEntry, EntryItem.entry_id == StockEntry.id)
             .where(
                 and_(
                     EntryItem.product_id == product_id,
-                    EntryItem.is_active == True
+                    EntryItem.is_active == True,
+                    StockEntry.is_active == True,
                 )
             )
         )
-        
+
         result = await db.execute(query)
         total = result.scalar_one_or_none()
         return total if total is not None else 0
@@ -582,23 +586,26 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
         self,
         db: AsyncSession,
         product_id: int,
-        total_quantity: int
+        total_quantity: int,
+        *,
+        tenant_id: int | None = None,
     ) -> bool:
         """
         Diminui quantidade de múltiplos itens seguindo FIFO.
-        
+
         Útil para vendas: consome estoque dos itens mais antigos primeiro.
-        
+
         Args:
             db: Database session
             product_id: ID do produto
             total_quantity: Quantidade total a diminuir
-            
+            tenant_id: ID do tenant (isolamento multi-tenant)
+
         Returns:
             True se sucesso, False se quantidade insuficiente
         """
         # Buscar itens disponíveis ordenados por FIFO
-        items = await self.get_available_for_product(db, product_id)
+        items = await self.get_available_for_product(db, product_id, tenant_id=tenant_id)
         
         remaining_to_decrease = total_quantity
         

@@ -138,6 +138,7 @@ async def list_sales(
     seller_id: Optional[int] = Query(None, description="Filtrar por ID do vendedor"),
     start_date: Optional[date] = Query(None, description="Data inicial (YYYY-MM-DD)"),
     end_date: Optional[date] = Query(None, description="Data final (YYYY-MM-DD)"),
+    sale_number: Optional[str] = Query(None, description="Buscar por número da venda"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id),
@@ -180,20 +181,21 @@ async def list_sales(
     sale_repo = SaleRepository(db)
     
     try:
-        # Aplicar filtros na ordem de prioridade
         if start_date and end_date:
-            # Filtro por período
-            sales = await sale_repo.get_by_date_range(start_date, end_date, tenant_id=tenant_id)
+            sales = await sale_repo.get_by_date_range(
+                start_date, end_date,
+                tenant_id=tenant_id,
+                sale_number=sale_number,
+                skip=skip,
+                limit=limit,
+            )
         elif customer_id:
-            # Filtro por cliente
-            sales = await sale_repo.get_by_customer(customer_id, skip, limit, tenant_id=tenant_id)
+            sales = await sale_repo.get_by_customer(customer_id, tenant_id=tenant_id)
         elif seller_id:
-            # Filtro por vendedor
-            sales = await sale_repo.get_by_seller(seller_id, skip, limit, tenant_id=tenant_id)
+            sales = await sale_repo.get_by_seller(seller_id, tenant_id=tenant_id)
         else:
-            # Sem filtro - todas as vendas
             sales = await sale_repo.get_multi(skip=skip, limit=limit, tenant_id=tenant_id, include_relationships=True)
-        
+
         return sales
         
     except Exception as e:

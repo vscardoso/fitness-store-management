@@ -242,6 +242,56 @@ export const TUTORIALS: Record<string, Tutorial> = {
       },
     ],
   },
+
+  conditionals: {
+    id: 'conditionals',
+    name: 'Envios Condicionais',
+    description: 'Aprenda a usar o módulo de condicionais',
+    icon: 'cube-outline',
+    screen: '/(tabs)/conditional',
+    steps: [
+      {
+        id: 'conditionals-welcome',
+        title: 'O que são Condicionais?',
+        description: 'Condicionais são envios de roupas para o cliente experimentar em casa. Ele fica com o que gosta e devolve o restante dentro do prazo combinado.',
+        position: 'bottom',
+      },
+      {
+        id: 'conditionals-filters',
+        title: 'Filtros de status',
+        description: 'Use os chips para filtrar envios: "Todos" mostra tudo, "Pendentes" são aguardando envio, "Atrasados" estão fora do prazo de devolução.',
+        targetRef: 'filter-chips',
+        position: 'bottom',
+      },
+      {
+        id: 'conditionals-card',
+        title: 'Cards de envio',
+        description: 'Cada card mostra o cliente, valor total enviado, quantidade de itens e o prazo restante. A borda vermelha indica atraso na devolução.',
+        targetRef: 'shipment-card',
+        position: 'bottom',
+      },
+      {
+        id: 'conditionals-detail',
+        title: 'Detalhes do envio',
+        description: 'Toque em um card para registrar vendas (o cliente comprou alguns itens), devoluções parciais ou encerrar o condicional.',
+        targetRef: 'shipment-card',
+        position: 'bottom',
+      },
+      {
+        id: 'conditionals-fifo',
+        title: 'FIFO automático',
+        description: 'O sistema reserva estoque automaticamente usando o método FIFO (primeiro a entrar, primeiro a sair), garantindo rastreabilidade por lote.',
+        position: 'bottom',
+      },
+      {
+        id: 'conditionals-fab',
+        title: 'Novo envio condicional',
+        description: 'Toque em "Novo Envio" para iniciar um condicional: escolha o cliente, os produtos, o endereço e o prazo de devolução.',
+        targetRef: 'fab-button',
+        position: 'top',
+      },
+    ],
+  },
 };
 
 // Lista de tutoriais para a tela de ajuda

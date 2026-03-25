@@ -10,13 +10,12 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, StatusBar } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Text, Button, ActivityIndicator } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { LinearGradient } from 'expo-linear-gradient';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import { getSaleBySaleNumber } from '@/services/saleService';
@@ -25,15 +24,18 @@ import { formatCurrency } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
 import { useAuthStore } from '@/store/authStore';
 import SaleReceipt from '@/components/receipt/SaleReceipt';
+import PageHeader from '@/components/layout/PageHeader';
 
 /**
  * Componente principal da tela de sucesso
  */
 export default function CheckoutSuccessScreen() {
   const router = useRouter();
-  const { sale_number } = useLocalSearchParams<{ sale_number: string }>();
+  const { sale_number, change: changeParam } = useLocalSearchParams<{ sale_number: string; change?: string }>();
+  const change = changeParam ? parseFloat(changeParam) : 0;
   const { user } = useAuthStore();
   const receiptRef = useRef<View>(null);
+  const [errorDialog, setErrorDialog] = useState(false);
 
   // Buscar detalhes da venda
   const { data: sale, isLoading, error, refetch } = useQuery({
@@ -90,28 +92,40 @@ export default function CheckoutSuccessScreen() {
       });
     } catch (error) {
       console.error('Erro ao compartilhar:', error);
-      Alert.alert('Erro', 'Não foi possível compartilhar o recibo');
+      setErrorDialog(true);
     }
   }, [sale]);
 
   // Estado de carregamento
   if (isLoading) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
+        <PageHeader
+          title="Venda Concluída"
+          gradientColors={[Colors.light.success, '#4caf50']}
+          showBackButton
+          onBack={() => router.replace('/(tabs)')}
+        />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={Colors.light.primary} />
           <Text variant="bodyLarge" style={styles.loadingText}>
             Carregando detalhes da venda...
           </Text>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   // Estado de erro
   if (error || !sale) {
     return (
-      <SafeAreaView style={styles.container}>
+      <View style={styles.container}>
+        <PageHeader
+          title="Venda Concluída"
+          gradientColors={[Colors.light.success, '#4caf50']}
+          showBackButton
+          onBack={() => router.replace('/(tabs)')}
+        />
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle" size={80} color={Colors.light.error} />
           <Text variant="headlineSmall" style={styles.errorTitle}>
@@ -129,65 +143,56 @@ export default function CheckoutSuccessScreen() {
             </Button>
           </View>
         </View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   // Renderização principal
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.success} />
-
-      {/* Header com gradiente de sucesso */}
-      <LinearGradient
-        colors={[Colors.light.success, '#4caf50']}
-        style={styles.headerGradient}
+    <View style={styles.container}>
+      <PageHeader
+        title="Venda Concluída!"
+        subtitle={sale.sale_number}
+        gradientColors={[Colors.light.success, '#4caf50']}
+        showBackButton
+        onBack={() => { haptics.light(); router.replace('/(tabs)'); }}
+        rightActions={[{
+          icon: 'share-outline',
+          onPress: () => { haptics.light(); handleShare(); },
+        }]}
       >
-        <View style={styles.headerContent}>
-          <View style={styles.headerTop}>
-            <TouchableOpacity
-              onPress={() => {
-                haptics.light();
-                router.replace('/(tabs)');
-              }}
-              style={styles.backButton}
-            >
-              <Ionicons name="close" size={24} color="#fff" />
-            </TouchableOpacity>
-
-            <View style={styles.headerPlaceholder} />
-
-            <TouchableOpacity
-              onPress={() => {
-                haptics.light();
-                handleShare();
-              }}
-              style={styles.actionButton}
-            >
-              <Ionicons name="share-outline" size={24} color="#fff" />
-            </TouchableOpacity>
-          </View>
-
-          {/* Ícone e texto de sucesso */}
-          <View style={styles.successInfo}>
-            <Ionicons name="checkmark-circle" size={64} color="#fff" />
-            <Text style={styles.successTitle}>Venda Concluída!</Text>
-            <Text style={styles.successSubtitle}>
-              {sale.sale_number}
-            </Text>
-          </View>
+        {/* Ícone celebrativo + troco */}
+        <View style={styles.successInfo}>
+          <Ionicons name="checkmark-circle" size={56} color="#fff" />
+          {change > 0 && (
+            <View style={styles.changeBadge}>
+              <Ionicons name="cash-outline" size={18} color="#fff" />
+              <Text style={styles.changeLabel}>Troco: </Text>
+              <Text style={styles.changeAmount}>{formatCurrency(change)}</Text>
+            </View>
+          )}
         </View>
-      </LinearGradient>
+      </PageHeader>
+
+      <ConfirmDialog
+        visible={errorDialog}
+        type="danger"
+        title="Erro ao compartilhar"
+        message="Não foi possível compartilhar o comprovante."
+        confirmText="OK"
+        onConfirm={() => setErrorDialog(false)}
+      />
 
       <ScrollView
         style={styles.scrollContent}
         contentContainerStyle={styles.scrollContentContainer}
         showsVerticalScrollIndicator={false}
       >
-        <SaleReceipt 
+        <SaleReceipt
           ref={receiptRef}
           sale={sale}
           storeName={user?.store_name}
+          change={change > 0 ? change : undefined}
         />
 
         {/* Botões de ação */}
@@ -215,7 +220,7 @@ export default function CheckoutSuccessScreen() {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -225,63 +230,30 @@ export default function CheckoutSuccessScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.success,
-  },
-  
-  // Header com gradiente
-  headerGradient: {
-    paddingTop: 0,
-    paddingBottom: 20,
-  },
-  headerContent: {
-    paddingHorizontal: 16,
-    marginTop: 8,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 0,
-  },
-  backButton: {
-    padding: 8,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerPlaceholder: {
-    flex: 1,
-  },
-  actionButton: {
-    padding: 8,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#fff',
   },
   successInfo: {
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingTop: 8,
   },
-  successTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
+  changeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.25)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
     marginTop: 12,
-    textAlign: 'center',
+    gap: 6,
   },
-  successSubtitle: {
+  changeLabel: {
+    color: 'rgba(255,255,255,0.85)',
     fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.95)',
-    marginTop: 4,
-    textAlign: 'center',
-    fontWeight: '600',
-    letterSpacing: 0.5,
+  },
+  changeAmount: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '800',
   },
   
   // Conteúdo

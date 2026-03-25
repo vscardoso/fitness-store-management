@@ -38,6 +38,12 @@ export interface ConditionalShipmentItem {
   // Dados do produto (nested)
   product_name?: string;
   product_sku?: string;
+
+  // Dados da variante (quando produto tem variações)
+  variant_id?: number;
+  variant_sku?: string;
+  variant_size?: string;
+  variant_color?: string;
 }
 
 /**
@@ -118,6 +124,7 @@ export interface ConditionalShipmentList {
  */
 export interface CreateShipmentItemDTO {
   product_id: number;
+  variant_id?: number;
   quantity_sent: number;
   unit_price: number;
   notes?: string;

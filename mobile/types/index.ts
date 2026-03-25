@@ -399,6 +399,7 @@ export interface PaymentCreate {
   payment_method: PaymentMethod;
   amount: number;
   payment_reference?: string;
+  installments?: number;
 }
 
 export interface PaymentResponse extends Payment {

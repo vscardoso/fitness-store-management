@@ -24,8 +24,10 @@ import InfoRow from '@/components/ui/InfoRow';
 import StatCard from '@/components/ui/StatCard';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getCustomerById, deleteCustomer } from '@/services/customerService';
-import { formatPhone, formatDate, formatCurrency } from '@/utils/format';
+import { getSales } from '@/services/saleService';
+import { formatPhone, formatDate, formatCurrency, formatDateTime } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
+import type { Sale } from '@/types';
 
 export default function CustomerDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -53,6 +55,15 @@ export default function CustomerDetailsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+
+  /**
+   * Query: Histórico de vendas do cliente
+   */
+  const { data: customerSales = [] } = useQuery<Sale[]>({
+    queryKey: ['sales', { customer_id: customerId }],
+    queryFn: () => getSales({ customer_id: customerId, limit: 10 } as any),
+    enabled: isValidId,
+  });
 
   /**
    * Função de refresh
@@ -391,6 +402,69 @@ export default function CustomerDetailsScreen() {
             </View>
           </Card.Content>
         </Card>
+        {/* Histórico de Compras */}
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="receipt-outline" size={20} color={Colors.light.primary} />
+              </View>
+              <Text variant="titleMedium" style={styles.cardTitle}>
+                Histórico de Compras
+              </Text>
+            </View>
+
+            {customerSales.length === 0 ? (
+              <View style={styles.emptyHistory}>
+                <Ionicons name="receipt-outline" size={40} color={Colors.light.textTertiary} />
+                <Text style={styles.emptyHistoryText}>Nenhuma compra registrada</Text>
+              </View>
+            ) : (
+              <>
+                {customerSales.map((sale, index) => {
+                  const statusColors: Record<string, { color: string; bg: string }> = {
+                    completed:          { color: '#2E7D32', bg: '#E8F5E9' },
+                    pending:            { color: '#F57C00', bg: '#FFF3E0' },
+                    cancelled:          { color: '#C62828', bg: '#FFEBEE' },
+                    partially_refunded: { color: '#F57C00', bg: '#FFF3E0' },
+                    refunded:           { color: '#7B1FA2', bg: '#F3E5F5' },
+                  };
+                  const st = statusColors[sale.status] || statusColors.pending;
+                  const statusLabels: Record<string, string> = {
+                    completed: 'Concluída',
+                    pending: 'Pendente',
+                    cancelled: 'Cancelada',
+                    partially_refunded: 'Dev. Parcial',
+                    refunded: 'Devolvida',
+                  };
+                  return (
+                    <TouchableOpacity
+                      key={sale.id}
+                      activeOpacity={0.7}
+                      onPress={() => router.push(`/sales/${sale.id}` as any)}
+                      style={[styles.saleHistoryItem, index < customerSales.length - 1 && styles.saleHistoryItemBorder]}
+                    >
+                      <View style={styles.saleHistoryLeft}>
+                        <Text style={styles.saleHistoryNumber}>{sale.sale_number}</Text>
+                        <Text style={styles.saleHistoryDate}>{formatDateTime(sale.created_at)}</Text>
+                      </View>
+                      <View style={styles.saleHistoryRight}>
+                        <Text style={styles.saleHistoryAmount}>{formatCurrency(sale.total_amount)}</Text>
+                        <View style={[styles.saleHistoryBadge, { backgroundColor: st.bg }]}>
+                          <Text style={[styles.saleHistoryStatus, { color: st.color }]}>
+                            {statusLabels[sale.status] || sale.status}
+                          </Text>
+                        </View>
+                      </View>
+                      <Ionicons name="chevron-forward" size={16} color={Colors.light.textTertiary} style={{ marginLeft: 8 }} />
+                    </TouchableOpacity>
+                  );
+                })}
+              </>
+            )}
+          </Card.Content>
+        </Card>
+
       </ScrollView>
 
       {/* Dialog de Confirmação de Exclusão */}
@@ -532,5 +606,54 @@ const styles = StyleSheet.create({
   },
   additionalText: {
     color: Colors.light.textSecondary,
+  },
+  emptyHistory: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    gap: 8,
+  },
+  emptyHistoryText: {
+    color: Colors.light.textTertiary,
+    fontSize: 14,
+  },
+  saleHistoryItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+  },
+  saleHistoryItemBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.light.border,
+  },
+  saleHistoryLeft: {
+    flex: 1,
+  },
+  saleHistoryNumber: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
+  saleHistoryDate: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  saleHistoryRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+  },
+  saleHistoryAmount: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  saleHistoryBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  saleHistoryStatus: {
+    fontSize: 11,
+    fontWeight: '600',
   },
 });

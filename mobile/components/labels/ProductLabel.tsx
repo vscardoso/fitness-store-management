@@ -18,6 +18,7 @@ import { Colors, theme } from '@/constants/Colors';
 
 export interface LabelData {
   productId: number;
+  variantId?: number;
   sku: string;
   name: string;
   price: number;
@@ -47,9 +48,11 @@ export default function ProductLabel({
   const dimensions = SIZES[size];
 
   // Dados codificados no QR Code
+  // SKU é o identificador primário (estável); id é o produto (não variante)
   const qrData = JSON.stringify({
-    id: data.productId,
     sku: data.sku,
+    id: data.productId,
+    ...(data.variantId ? { vid: data.variantId } : {}),
     type: 'product',
   });
 

@@ -23,7 +23,7 @@ import { getProductStock } from '@/services/inventoryService';
 import { getProductVariants, formatVariantLabel } from '@/services/productVariantService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
-import { getEntryTypeLabel, getEntryTypeColor } from '@/constants/entryTypes';
+import { getEntryTypeLabel, getEntryTypeColor, getEntryTypeIcon } from '@/constants/entryTypes';
 import { useTutorialContext } from '@/components/tutorial';
 
 export default function ProductDetailsScreen() {
@@ -208,10 +208,10 @@ export default function ProductDetailsScreen() {
 
   // Variant-aware derived values
   const hasVariants = (variants ?? []).length > 0;
-  const totalVariantStock = hasVariants
-    ? (variants ?? []).reduce((sum, v) => sum + (v.current_stock ?? 0), 0)
-    : (inventory?.quantity || 0);
-  const currentStock = totalVariantStock;
+  const variantStockSum = (variants ?? []).reduce((sum, v) => sum + (v.current_stock ?? 0), 0);
+  // inventory.quantity é a fonte autoritativa (atualizada por vendas e entradas FIFO).
+  // Fallback para soma de variantes apenas se inventory ainda não carregou.
+  const currentStock = inventory?.quantity ?? variantStockSum;
   const variantPrices = hasVariants ? (variants ?? []).map(v => v.price) : [];
   const minVariantPrice = variantPrices.length > 0 ? Math.min(...variantPrices) : product.price;
   const maxVariantPrice = variantPrices.length > 0 ? Math.max(...variantPrices) : product.price;
@@ -301,7 +301,7 @@ export default function ProductDetailsScreen() {
           </View>
         </View>
 
-        {/* ── VARIAÇÕES (unificado: label + SKU + preço + margem + estoque) ── */}
+        {/* ── VARIAÇÕES — grid 2 colunas ── */}
         {hasVariants && (
           <Card style={styles.card}>
             <Card.Content>
@@ -315,57 +315,70 @@ export default function ProductDetailsScreen() {
                 </View>
               </View>
 
-              {[...(variants ?? [])].sort((a, b) => a.id - b.id).map((variant, idx) => {
-                const vStock = variant.current_stock ?? 0;
-                const isEmpty = vStock === 0;
-                const isLowV = vStock > 0 && vStock <= 3;
-                const vPrice = Number(variant.price) || 0;
-                const vCost = Number((variant as any).cost_price) || 0;
-                const margin = vCost > 0 && vPrice > 0 ? Math.round(((vPrice - vCost) / vPrice) * 100) : null;
-                const dotColor = isEmpty
-                  ? Colors.light.error
-                  : isLowV
-                  ? Colors.light.warning
-                  : Colors.light.success;
-                const isLast = idx === (variants?.length ?? 0) - 1;
+              <View style={styles.variantGrid}>
+                {[...(variants ?? [])].sort((a, b) => a.id - b.id).map((variant) => {
+                  const vStock = variant.current_stock ?? 0;
+                  // Se nenhuma variante tem estoque próprio mas o produto tem estoque,
+                  // o estoque foi registrado no nível do produto (entry_items sem variant_id).
+                  // Nesse caso: 1 variante → mostra o total; N variantes → mostra '—'.
+                  const variantCount = (variants ?? []).length;
+                  const effectiveStock = variantStockSum > 0
+                    ? vStock
+                    : variantCount === 1
+                      ? currentStock
+                      : null; // múltiplas variantes sem rastreamento por variante
+                  const displayStock = effectiveStock ?? 0;
+                  const isEmpty = effectiveStock === null ? currentStock === 0 : displayStock === 0;
+                  const isLowV = !isEmpty && displayStock > 0 && displayStock <= 3;
+                  const vPrice = Number(variant.price) || 0;
+                  const vCost = Number((variant as any).cost_price) || 0;
+                  const margin = vCost > 0 && vPrice > 0 ? Math.round(((vPrice - vCost) / vPrice) * 100) : null;
+                  const stockColor = isEmpty
+                    ? Colors.light.error
+                    : isLowV
+                    ? Colors.light.warning
+                    : Colors.light.success;
 
-                return (
-                  <View
-                    key={variant.id}
-                    style={[
-                      styles.variantRow,
-                      !isLast && styles.variantRowBorder,
-                      !variant.is_active && styles.variantRowInactive,
-                    ]}
-                  >
-                    <View style={[styles.variantDot, { backgroundColor: dotColor }]} />
-                    <View style={styles.variantRowMain}>
-                      <Text style={styles.variantRowLabel}>{formatVariantLabel(variant)}</Text>
-                      <Text style={styles.variantRowSku}>{variant.sku}</Text>
-                    </View>
-                    <View style={styles.variantRowRight}>
-                      <Text style={styles.variantRowPrice}>{formatCurrency(vPrice)}</Text>
-                      <View style={styles.variantBadges}>
+                  return (
+                    <View
+                      key={variant.id}
+                      style={[
+                        styles.variantCard,
+                        !variant.is_active && styles.variantCardInactive,
+                      ]}
+                    >
+                      {/* Topo: indicador de status + label */}
+                      <View style={styles.variantCardTop}>
+                        <View style={[styles.variantStatusDot, { backgroundColor: stockColor }]} />
+                        <Text style={styles.variantCardLabel} numberOfLines={2}>
+                          {formatVariantLabel(variant)}
+                        </Text>
+                      </View>
+
+                      {/* SKU */}
+                      <Text style={styles.variantCardSku} numberOfLines={1}>{variant.sku}</Text>
+
+                      {/* Preço */}
+                      <Text style={styles.variantCardPrice}>{formatCurrency(vPrice)}</Text>
+
+                      {/* Rodapé: margem + estoque */}
+                      <View style={styles.variantCardFooter}>
                         {margin !== null && (
-                          <View style={styles.marginBadge}>
-                            <Text style={styles.marginBadgeText}>{margin}%</Text>
+                          <View style={styles.variantMarginPill}>
+                            <Ionicons name="trending-up" size={9} color={Colors.light.success} />
+                            <Text style={styles.variantMarginText}>{margin}%</Text>
                           </View>
                         )}
-                        <View
-                          style={[
-                            styles.stockBadge,
-                            { backgroundColor: dotColor + '22', borderColor: dotColor + '55' },
-                          ]}
-                        >
-                          <Text style={[styles.stockBadgeText, { color: dotColor }]}>
-                            {vStock} un
+                        <View style={[styles.variantStockPill, { backgroundColor: stockColor + '20', borderColor: stockColor + '50' }]}>
+                          <Text style={[styles.variantStockText, { color: effectiveStock === null ? Colors.light.textSecondary : stockColor }]}>
+                            {effectiveStock === null ? '—' : `${displayStock} un`}
                           </Text>
                         </View>
                       </View>
                     </View>
-                  </View>
-                );
-              })}
+                  );
+                })}
+              </View>
             </Card.Content>
           </Card>
         )}
@@ -466,68 +479,167 @@ export default function ProductDetailsScreen() {
         {(() => {
           const entryItems: any[] = (product as any).entry_items ?? [];
           if (entryItems.length === 0) return null;
+
+          const totalReceived = entryItems.reduce((s: number, e: any) => s + e.quantity_received, 0);
+          const totalRemaining = entryItems.reduce((s: number, e: any) => s + e.quantity_remaining, 0);
+          const totalSold = totalReceived - totalRemaining;
+
           return (
             <Card style={styles.card}>
               <Card.Content>
+                {/* Header */}
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderIcon}>
-                    <Ionicons name="layers-outline" size={20} color={Colors.light.primary} />
+                    <Ionicons name="archive-outline" size={20} color={Colors.light.primary} />
                   </View>
-                  <Text style={styles.cardTitle}>Entradas de Estoque</Text>
+                  <Text style={styles.cardTitle}>Histórico de Entradas</Text>
                   <View style={styles.countBadge}>
                     <Text style={styles.countBadgeText}>{entryItems.length}</Text>
                   </View>
                 </View>
-                {entryItems.map((entry: any, idx: number) => {
-                  const isLast = idx === entryItems.length - 1;
-                  const variantLabel = hasVariants && entry.variant_id
-                    ? formatVariantLabel((variants ?? []).find(v => v.id === entry.variant_id) as any ?? {})
-                    : null;
-                  return (
-                    <TouchableOpacity
-                      key={entry.entry_item_id}
-                      style={[styles.entryRow, !isLast && styles.entryRowBorder]}
-                      onPress={() => router.push(`/entries/${entry.entry_id}` as any)}
-                      activeOpacity={0.7}
-                    >
-                      <View style={[styles.entryTypeDot, { backgroundColor: getEntryTypeColor(entry.entry_type) }]} />
-                      <View style={styles.entryRowMain}>
-                        <Text style={styles.entryCode}>{entry.entry_code}</Text>
-                        <Text style={styles.entryMeta}>
-                          {getEntryTypeLabel(entry.entry_type)}
-                          {entry.supplier_name ? ` · ${entry.supplier_name}` : ''}
-                          {variantLabel ? ` · ${variantLabel}` : ''}
-                        </Text>
-                      </View>
-                      <View style={styles.entryRowRight}>
-                        <Text style={styles.entryStock}>
-                          {entry.quantity_remaining}/{entry.quantity_received} un
-                        </Text>
+
+                {/* Resumo compacto */}
+                <View style={styles.entrySummaryRow}>
+                  <View style={styles.entrySummaryItem}>
+                    <Text style={styles.entrySummaryValue}>{totalReceived}</Text>
+                    <Text style={styles.entrySummaryLabel}>recebido</Text>
+                  </View>
+                  <View style={styles.entrySummaryDivider} />
+                  <View style={styles.entrySummaryItem}>
+                    <Text style={[styles.entrySummaryValue, { color: Colors.light.error }]}>{totalSold}</Text>
+                    <Text style={styles.entrySummaryLabel}>vendido</Text>
+                  </View>
+                  <View style={styles.entrySummaryDivider} />
+                  <View style={styles.entrySummaryItem}>
+                    <Text style={[styles.entrySummaryValue, { color: Colors.light.success }]}>{totalRemaining}</Text>
+                    <Text style={styles.entrySummaryLabel}>em estoque</Text>
+                  </View>
+                </View>
+
+                {/* Cards de entrada */}
+                <View style={styles.entryList}>
+                  {entryItems.map((entry: any) => {
+                    const typeColor = getEntryTypeColor(entry.entry_type);
+                    const typeIcon = getEntryTypeIcon(entry.entry_type);
+                    const typeLabel = getEntryTypeLabel(entry.entry_type);
+                    const remaining = entry.quantity_remaining as number;
+                    const received = entry.quantity_received as number;
+                    const consumedPct = received > 0 ? (received - remaining) / received : 0;
+                    const isExausted = remaining === 0;
+                    const progressColor = isExausted
+                      ? Colors.light.textTertiary
+                      : consumedPct >= 0.7
+                        ? Colors.light.warning
+                        : Colors.light.success;
+                    const variantLabel = hasVariants && entry.variant_id
+                      ? formatVariantLabel((variants ?? []).find((v: any) => v.id === entry.variant_id) ?? {})
+                      : null;
+
+                    return (
+                      <TouchableOpacity
+                        key={entry.entry_item_id}
+                        style={[styles.entryCard, isExausted && styles.entryCardExausted]}
+                        onPress={() => router.push({ pathname: `/entries/${entry.entry_id}` as any, params: { from: `/products/${id}` } })}
+                        activeOpacity={0.7}
+                      >
+                        {/* Ícone do tipo */}
+                        <View style={[styles.entryIconWrap, { backgroundColor: typeColor + '18' }]}>
+                          <Ionicons name={typeIcon as any} size={18} color={isExausted ? Colors.light.textTertiary : typeColor} />
+                        </View>
+
+                        {/* Conteúdo principal */}
+                        <View style={styles.entryContent}>
+                          {/* Linha 1: badge tipo + data */}
+                          <View style={styles.entryTopRow}>
+                            <View style={[styles.entryTypeBadge, { backgroundColor: typeColor + '18' }]}>
+                              <Text style={[styles.entryTypeBadgeText, { color: isExausted ? Colors.light.textTertiary : typeColor }]}>
+                                {typeLabel}
+                              </Text>
+                            </View>
+                            {entry.entry_date && (
+                              <Text style={styles.entryDate}>{formatDate(entry.entry_date)}</Text>
+                            )}
+                          </View>
+
+                          {/* Linha 2: código + fornecedor + variante */}
+                          <View style={styles.entryCodeRow}>
+                            <Text style={[styles.entryCode, isExausted && { color: Colors.light.textSecondary }]}>
+                              {entry.entry_code}
+                            </Text>
+                            {entry.supplier_name ? (
+                              <Text style={styles.entrySupplier} numberOfLines={1}> · {entry.supplier_name}</Text>
+                            ) : null}
+                            {variantLabel ? (
+                              <Text style={styles.entryVariantTag} numberOfLines={1}> · {variantLabel}</Text>
+                            ) : null}
+                          </View>
+
+                          {/* Linha 3: barra de consumo */}
+                          <View style={styles.entryProgressRow}>
+                            <View style={styles.entryProgressTrack}>
+                              <View
+                                style={[
+                                  styles.entryProgressFill,
+                                  {
+                                    width: `${Math.round((1 - consumedPct) * 100)}%` as any,
+                                    backgroundColor: progressColor,
+                                  },
+                                ]}
+                              />
+                            </View>
+                            <Text style={[styles.entryProgressLabel, { color: isExausted ? Colors.light.textTertiary : Colors.light.text }]}>
+                              {isExausted ? 'Esgotado' : `${remaining} de ${received} restantes`}
+                            </Text>
+                          </View>
+
+                          {/* Linha 4: custo unitário (se houver) */}
+                          {entry.unit_cost > 0 && (
+                            <Text style={styles.entryCostLabel}>
+                              Custo unit.: {formatCurrency(entry.unit_cost)}
+                            </Text>
+                          )}
+                        </View>
+
                         <Ionicons name="chevron-forward" size={16} color={Colors.light.textTertiary} />
-                      </View>
-                    </TouchableOpacity>
-                  );
-                })}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
               </Card.Content>
             </Card>
           );
         })()}
 
-        {/* ── GERAR ETIQUETA ── */}
-        <TouchableOpacity
-          style={styles.labelCard}
-          onPress={() => router.push(`/products/label/${productId}` as any)}
-          activeOpacity={0.75}
-        >
-          <View style={[styles.quickIconWrap, { backgroundColor: Colors.light.primary + '18' }]}>
-            <Ionicons name="qr-code-outline" size={20} color={Colors.light.primary} />
-          </View>
-          <View style={styles.labelCardContent}>
-            <Text style={styles.labelCardTitle}>Gerar Etiqueta</Text>
-            <Text style={styles.labelCardSub}>QR Code para identificação e venda</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
-        </TouchableOpacity>
+        {/* ── ETIQUETAS ── */}
+        <View style={styles.labelRow}>
+          <TouchableOpacity
+            style={[styles.labelCard, styles.labelCardHalf]}
+            onPress={() => router.push(`/products/label/${productId}` as any)}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.quickIconWrap, { backgroundColor: Colors.light.primary + '18' }]}>
+              <Ionicons name="qr-code-outline" size={18} color={Colors.light.primary} />
+            </View>
+            <View style={styles.labelCardContent}>
+              <Text style={styles.labelCardTitle}>Este produto</Text>
+              <Text style={styles.labelCardSub}>Etiquetas rápidas</Text>
+            </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.labelCard, styles.labelCardHalf]}
+            onPress={() => router.push('/products/label' as any)}
+            activeOpacity={0.75}
+          >
+            <View style={[styles.quickIconWrap, { backgroundColor: Colors.light.success + '18' }]}>
+              <Ionicons name="pricetags-outline" size={18} color={Colors.light.success} />
+            </View>
+            <View style={styles.labelCardContent}>
+              <Text style={styles.labelCardTitle}>Estúdio</Text>
+              <Text style={styles.labelCardSub}>Multi-produto</Text>
+            </View>
+          </TouchableOpacity>
+        </View>
 
         <View style={{ height: 32 }} />
       </ScrollView>
@@ -623,45 +735,81 @@ const styles = StyleSheet.create({
   },
   countBadgeText: { fontSize: 12, fontWeight: '700', color: Colors.light.primary },
 
-  // ── Variants ──
-  variantRow: {
+  // ── Variants grid ──
+  variantGrid: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 14,
-    gap: 12,
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 4,
   },
-  variantRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
+  variantCard: {
+    width: '48%',
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    gap: 6,
   },
-  variantRowInactive: { opacity: 0.45 },
-  variantDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
-  variantRowMain: { flex: 1 },
-  variantRowLabel: {
-    fontSize: 15,
-    fontWeight: '600',
+  variantCardInactive: { opacity: 0.45 },
+  variantCardTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 7,
+  },
+  variantStatusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginTop: 4,
+    flexShrink: 0,
+  },
+  variantCardLabel: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
     color: Colors.light.text,
-    marginBottom: 3,
+    lineHeight: 19,
   },
-  variantRowSku: {
-    fontSize: 11,
+  variantCardSku: {
+    fontSize: 10,
     color: Colors.light.textTertiary,
     fontFamily: 'monospace',
+    letterSpacing: 0.3,
+    marginLeft: 15,
   },
-  variantRowRight: { alignItems: 'flex-end', gap: 6 },
-  variantRowPrice: { fontSize: 16, fontWeight: '700', color: Colors.light.primary },
-  variantBadges: { flexDirection: 'row', gap: 5, alignItems: 'center' },
-  marginBadge: {
+  variantCardPrice: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.light.primary,
+    marginLeft: 15,
+  },
+  variantCardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginLeft: 15,
+    marginTop: 2,
+  },
+  variantMarginPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
     backgroundColor: Colors.light.success + '18',
-    paddingHorizontal: 7,
+    paddingHorizontal: 6,
     paddingVertical: 2,
-    borderRadius: 8,
+    borderRadius: 6,
     borderWidth: 1,
     borderColor: Colors.light.success + '35',
   },
-  marginBadgeText: { fontSize: 10, fontWeight: '700', color: Colors.light.success },
-  stockBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, borderWidth: 1 },
-  stockBadgeText: { fontSize: 10, fontWeight: '700' },
+  variantMarginText: { fontSize: 10, fontWeight: '700', color: Colors.light.success },
+  variantStockPill: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  variantStockText: { fontSize: 10, fontWeight: '700' },
 
   // ── Info List ──
   infoList: { gap: 16 },
@@ -719,7 +867,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // ── Label Card ──
+  // ── Label Cards ──
+  labelRow: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  labelCardHalf: {
+    flex: 1,
+  },
   labelCard: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -735,23 +890,63 @@ const styles = StyleSheet.create({
   labelCardTitle: { fontSize: 15, fontWeight: '700', color: Colors.light.text },
   labelCardSub: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 },
 
-  // ── Entry Rows ──
-  entryRow: {
+  // ── Entradas de Estoque ──
+  entrySummaryRow: {
     flexDirection: 'row',
-    alignItems: 'center',
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: 10,
     paddingVertical: 12,
-    gap: 10,
+    marginBottom: 16,
   },
-  entryRowBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
+  entrySummaryItem: { flex: 1, alignItems: 'center' },
+  entrySummaryValue: { fontSize: 18, fontWeight: '700', color: Colors.light.text },
+  entrySummaryLabel: { fontSize: 11, color: Colors.light.textSecondary, marginTop: 2 },
+  entrySummaryDivider: { width: 1, backgroundColor: Colors.light.border, marginVertical: 4 },
+  entryList: { gap: 10 },
+  entryCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 12,
+    backgroundColor: Colors.light.background,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
-  entryTypeDot: { width: 10, height: 10, borderRadius: 5, flexShrink: 0 },
-  entryRowMain: { flex: 1 },
+  entryCardExausted: { opacity: 0.55 },
+  entryIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  entryContent: { flex: 1, gap: 4 },
+  entryTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  entryTypeBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
+  entryTypeBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  entryDate: { fontSize: 11, color: Colors.light.textSecondary, marginLeft: 'auto' as any },
+  entryCodeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
   entryCode: { fontSize: 13, fontWeight: '700', color: Colors.light.text },
-  entryMeta: { fontSize: 11, color: Colors.light.textSecondary, marginTop: 1 },
-  entryRowRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  entryStock: { fontSize: 12, fontWeight: '600', color: Colors.light.textSecondary },
+  entrySupplier: { fontSize: 12, color: Colors.light.textSecondary },
+  entryVariantTag: { fontSize: 12, color: Colors.light.primary, fontWeight: '500' },
+  entryProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
+  entryProgressTrack: {
+    flex: 1,
+    height: 4,
+    backgroundColor: Colors.light.border,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  entryProgressFill: { height: '100%' as any, borderRadius: 2 },
+  entryProgressLabel: { fontSize: 11, fontWeight: '600', flexShrink: 0 },
+  entryCostLabel: { fontSize: 11, color: Colors.light.textSecondary },
 
   // ── Error States ──
   errorTitle: { fontSize: 18, fontWeight: 'bold', color: Colors.light.error, marginTop: 16 },

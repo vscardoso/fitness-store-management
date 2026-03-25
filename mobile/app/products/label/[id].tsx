@@ -4,38 +4,37 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Share,
-  Alert,
 } from 'react-native';
-import { Text, Button, SegmentedButtons } from 'react-native-paper';
+import { Text, Button } from 'react-native-paper';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import ViewShot from 'react-native-view-shot';
+import ViewShot, { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 
 import { getProductById } from '@/services/productService';
 import { getProductVariants, formatVariantLabel } from '@/services/productVariantService';
 import ProductLabel, { LabelData } from '@/components/labels/ProductLabel';
 import PageHeader from '@/components/layout/PageHeader';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Colors, theme } from '@/constants/Colors';
 import type { ProductVariant } from '@/types/productVariant';
 
-type SheetSize = 'A4' | 'A5';
-type LabelSize = 'small' | 'medium' | 'large';
+interface LabelFormat {
+  id: string;
+  label: string;
+  perSheet: number;
+  description: string;
+  size: 'large' | 'medium' | 'small';
+}
 
-const SHEET_CONFIG: Record<SheetSize, Record<LabelSize, { perSheet: number; label: string }>> = {
-  A4: {
-    small:  { perSheet: 24, label: 'Pequena — 24/folha' },
-    medium: { perSheet: 10, label: 'Média — 10/folha' },
-    large:  { perSheet: 6,  label: 'Grande — 6/folha' },
-  },
-  A5: {
-    small:  { perSheet: 12, label: 'Pequena — 12/folha' },
-    medium: { perSheet: 6,  label: 'Média — 6/folha' },
-    large:  { perSheet: 3,  label: 'Grande — 3/folha' },
-  },
-};
+const LABEL_FORMATS: LabelFormat[] = [
+  { id: 'f10', label: '10/fl', perSheet: 10, description: '2×5 · Grande',   size: 'large'  },
+  { id: 'f14', label: '14/fl', perSheet: 14, description: '2×7 · Médio',    size: 'medium' },
+  { id: 'f21', label: '21/fl', perSheet: 21, description: '3×7 · Médio',    size: 'medium' },
+  { id: 'f33', label: '33/fl', perSheet: 33, description: '3×11 · Pequeno', size: 'small'  },
+  { id: 'f65', label: '65/fl', perSheet: 65, description: '5×13 · Mini',    size: 'small'  },
+];
 
 interface LabelItem {
   key: string;
@@ -50,13 +49,14 @@ export default function ProductLabelScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const viewShotRef = useRef<ViewShot>(null);
 
-  const [sheetSize, setSheetSize] = useState<SheetSize>('A4');
-  const [labelSize, setLabelSize] = useState<LabelSize>('medium');
-  const [showPrice, setShowPrice] = useState(true);
-  const [showSku, setShowSku] = useState(true);
+  const [formatId,    setFormatId]    = useState('f14');
+  const [showPrice,   setShowPrice]   = useState(true);
+  const [showSku,     setShowSku]     = useState(true);
   const [isExporting, setIsExporting] = useState(false);
-  const [items, setItems] = useState<LabelItem[]>([]);
+  const [items,       setItems]       = useState<LabelItem[]>([]);
   const [initialized, setInitialized] = useState(false);
+  const [printDialog, setPrintDialog] = useState(false);
+  const [errorDialog, setErrorDialog] = useState(false);
 
   const { data: product, isLoading } = useQuery({
     queryKey: ['product', id],
@@ -78,7 +78,8 @@ export default function ProductLabelScreen() {
         key: `variant-${v.id}`,
         label: formatVariantLabel(v),
         data: {
-          productId: v.id,
+          productId: product.id,   // ID do produto, não da variante
+          variantId: v.id,
           sku: v.sku,
           name: `${product.name} — ${formatVariantLabel(v)}`,
           price: Number(v.price),
@@ -107,14 +108,14 @@ export default function ProductLabelScreen() {
     setInitialized(true);
   }, [product, variants, variantsLoaded, initialized]);
 
-  const config = SHEET_CONFIG[sheetSize][labelSize];
+  const format = LABEL_FORMATS.find(f => f.id === formatId) ?? LABEL_FORMATS[1];
 
   const allLabels: LabelData[] = items.flatMap(item =>
     item.quantity > 0 ? Array.from({ length: item.quantity }, () => item.data) : []
   );
 
   const totalLabels = allLabels.length;
-  const sheetsNeeded = totalLabels > 0 ? Math.ceil(totalLabels / config.perSheet) : 0;
+  const sheetsNeeded = totalLabels > 0 ? Math.ceil(totalLabels / format.perSheet) : 0;
 
   const changeQty = (key: string, delta: number) => {
     setItems(prev => prev.map(item =>
@@ -137,36 +138,26 @@ export default function ProductLabelScreen() {
 
   const handleShare = async () => {
     if (!viewShotRef.current || totalLabels === 0) return;
+    setPrintDialog(false);
     setIsExporting(true);
     try {
-      const uri = await viewShotRef.current.capture?.();
-      if (uri) {
-        const isAvailable = await Sharing.isAvailableAsync();
-        if (isAvailable) {
-          await Sharing.shareAsync(uri, {
-            mimeType: 'image/png',
-            dialogTitle: `Etiquetas — ${product?.name}`,
-          });
-        } else {
-          await Share.share({ url: uri, message: `Etiquetas do produto ${product?.name}` });
-        }
+      const uri = await captureRef(viewShotRef, { format: 'png', quality: 1 });
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          dialogTitle: `Etiquetas — ${product?.name}`,
+        });
       }
     } catch {
-      Alert.alert('Erro', 'Não foi possível exportar as etiquetas');
+      setErrorDialog(true);
     } finally {
       setIsExporting(false);
     }
   };
 
   const handlePrint = () => {
-    Alert.alert(
-      'Imprimir Etiquetas',
-      `${totalLabels} etiqueta${totalLabels !== 1 ? 's' : ''} em ${sheetsNeeded} folha${sheetsNeeded !== 1 ? 's' : ''} ${sheetSize}.\n\nCompartilhe a imagem e envie para uma impressora compatível ou app de impressão.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        { text: 'Compartilhar', onPress: handleShare },
-      ]
-    );
+    setPrintDialog(true);
   };
 
   if (isLoading || !product) {
@@ -205,28 +196,24 @@ export default function ProductLabelScreen() {
             )}
           </View>
           <View style={styles.cardContent}>
-            <Text style={styles.configLabel}>Formato</Text>
-            <SegmentedButtons
-              value={sheetSize}
-              onValueChange={v => setSheetSize(v as SheetSize)}
-              buttons={[
-                { value: 'A4', label: 'A4  (210×297mm)' },
-                { value: 'A5', label: 'A5  (148×210mm)' },
-              ]}
-              style={styles.segmented}
-            />
-
-            <Text style={styles.configLabel}>Tamanho da Etiqueta</Text>
-            <SegmentedButtons
-              value={labelSize}
-              onValueChange={v => setLabelSize(v as LabelSize)}
-              buttons={[
-                { value: 'small',  label: `P  (${SHEET_CONFIG[sheetSize].small.perSheet}/fl)` },
-                { value: 'medium', label: `M  (${SHEET_CONFIG[sheetSize].medium.perSheet}/fl)` },
-                { value: 'large',  label: `G  (${SHEET_CONFIG[sheetSize].large.perSheet}/fl)` },
-              ]}
-              style={styles.segmented}
-            />
+            <Text style={styles.configLabel}>Formato de Papel Colante</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.formatScroll} contentContainerStyle={styles.formatScrollContent}>
+              {LABEL_FORMATS.map(fmt => (
+                <TouchableOpacity
+                  key={fmt.id}
+                  style={[styles.formatCard, formatId === fmt.id && styles.formatCardActive]}
+                  onPress={() => setFormatId(fmt.id)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.formatCardMain, formatId === fmt.id && styles.formatCardMainActive]}>
+                    {fmt.label}
+                  </Text>
+                  <Text style={[styles.formatCardSub, formatId === fmt.id && styles.formatCardSubActive]}>
+                    {fmt.description}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
 
             <View style={styles.optionsRow}>
               <TouchableOpacity
@@ -305,7 +292,7 @@ export default function ProductLabelScreen() {
                 <View style={styles.totalRight}>
                   <Text style={styles.totalValue}>{totalLabels} etiqueta{totalLabels !== 1 ? 's' : ''}</Text>
                   <Text style={styles.totalSheets}>
-                    {sheetsNeeded} folha{sheetsNeeded !== 1 ? 's' : ''} {sheetSize} ({config.perSheet}/folha)
+                    {sheetsNeeded} folha{sheetsNeeded !== 1 ? 's' : ''} · {format.label} · {format.description}
                   </Text>
                 </View>
               </View>
@@ -337,7 +324,7 @@ export default function ProductLabelScreen() {
                       <ProductLabel
                         key={i}
                         data={labelData}
-                        size={labelSize}
+                        size={format.size}
                         showPrice={showPrice}
                         showSku={showSku}
                       />
@@ -372,7 +359,7 @@ export default function ProductLabelScreen() {
         <Button
           mode="outlined"
           onPress={handlePrint}
-          icon="printer-outline"
+          icon="print-outline"
           style={styles.footerBtn}
           disabled={totalLabels === 0}
         >
@@ -389,6 +376,33 @@ export default function ProductLabelScreen() {
           Compartilhar
         </Button>
       </View>
+
+      {/* Diálogo de impressão */}
+      <ConfirmDialog
+        visible={printDialog}
+        type="info"
+        icon="print-outline"
+        title="Imprimir Etiquetas"
+        message={`${totalLabels} etiqueta${totalLabels !== 1 ? 's' : ''} em ${sheetsNeeded} folha${sheetsNeeded !== 1 ? 's' : ''} (${format.label})\n\nCompartilhe a imagem e envie para a impressora compatível ou app de impressão.`}
+        confirmText="Compartilhar"
+        cancelText="Cancelar"
+        onConfirm={handleShare}
+        onCancel={() => setPrintDialog(false)}
+        loading={isExporting}
+      />
+
+      {/* Diálogo de erro de exportação */}
+      <ConfirmDialog
+        visible={errorDialog}
+        type="danger"
+        icon="alert-circle-outline"
+        title="Erro ao Exportar"
+        message="Não foi possível gerar a imagem das etiquetas. Verifique se o preview está visível e tente novamente."
+        confirmText="OK"
+        cancelText=""
+        onConfirm={() => setErrorDialog(false)}
+        onCancel={() => setErrorDialog(false)}
+      />
     </View>
   );
 }
@@ -435,10 +449,39 @@ const styles = StyleSheet.create({
   // Config
   configLabel: {
     fontSize: 13, fontWeight: '600', color: Colors.light.textSecondary,
-    marginTop: 14, marginBottom: 8,
+    marginTop: 14, marginBottom: 10,
     textTransform: 'uppercase', letterSpacing: 0.5,
   },
-  segmented: { marginBottom: 4 },
+  formatScroll: { marginHorizontal: -4 },
+  formatScrollContent: { gap: 8, paddingHorizontal: 4, paddingBottom: 4 },
+  formatCard: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.backgroundSecondary,
+    minWidth: 76,
+  },
+  formatCardActive: {
+    borderColor: Colors.light.primary,
+    backgroundColor: Colors.light.primary + '12',
+  },
+  formatCardMain: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: Colors.light.textSecondary,
+  },
+  formatCardMainActive: { color: Colors.light.primary },
+  formatCardSub: {
+    fontSize: 10,
+    color: Colors.light.textTertiary,
+    marginTop: 2,
+    textAlign: 'center',
+  },
+  formatCardSubActive: { color: Colors.light.primary + 'aa' },
   optionsRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   chip: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',

@@ -142,9 +142,11 @@ class ReturnService:
         if sale.subtotal > 0 and sale.discount_amount > 0:
             sale_discount_percentage = (sale.discount_amount / sale.subtotal) * 100
         
-        # Construir lista de itens elegíveis
+        # Construir lista de itens elegíveis (apenas itens ativos)
         returnable_items = []
         for item in sale.items:
+            if not item.is_active:
+                continue
             already_returned = returned_quantities.get(item.id, 0)
             available_for_return = item.quantity - already_returned
             
@@ -301,6 +303,7 @@ class ReturnService:
                 return_items_data.append({
                     'sale_item_id': sale_item.id,
                     'product_id': sale_item.product_id,
+                    'variant_id': sale_item.variant_id,
                     'quantity_returned': item_request.quantity,
                     'unit_price': sale_item.unit_price,
                     'unit_cost': sale_item.unit_cost,
@@ -379,6 +382,7 @@ class ReturnService:
                     return_id=sale_return.id,
                     sale_item_id=item_data['sale_item_id'],
                     product_id=item_data['product_id'],
+                    variant_id=item_data.get('variant_id'),
                     quantity_returned=item_data['quantity_returned'],
                     unit_price=float(item_data['unit_price']),
                     unit_cost=float(item_data['unit_cost']),
@@ -389,14 +393,16 @@ class ReturnService:
                 self.db.add(return_item)
             
             # 9. Verificar se é devolução total ou parcial e atualizar status
-            total_items = sum(item.quantity for item in sale.items)
+            # Filtrar apenas itens ativos para evitar que soft-deleted inflacionem total_items
+            active_items = [item for item in sale.items if item.is_active]
+            total_items = sum(item.quantity for item in active_items)
             total_returned = sum(
-                returned_quantities.get(item.id, 0) + 
+                returned_quantities.get(item.id, 0) +
                 next(
                     (r['quantity_returned'] for r in return_items_data if r['sale_item_id'] == item.id),
                     0
                 )
-                for item in sale.items
+                for item in active_items
             )
             
             # Atualizar status baseado na quantidade devolvida
