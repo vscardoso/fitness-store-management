@@ -1,15 +1,22 @@
 """Database configuration and session management usando SQLAlchemy 2.0.
 
-Driver de produção: psycopg3 (psycopg[binary]) — usa libpq nativo com SSL
-robusto que funciona com Render, Heroku, Supabase, etc.
+Driver de produção: psycopg3 (psycopg[binary]) com Python ssl.SSLContext.
 Driver de dev/testes: aiosqlite (SQLite).
+
+Por que Python SSLContext em vez de sslmode=require na URL?
+  O sslmode=require usa libpq para o handshake SSL. Em alguns proxies gerenciados
+  (Render, Railway), o handshake via libpq falha com "SSL connection has been
+  closed unexpectedly". Passando ssl=SSLContext diretamente ao psycopg3, o
+  handshake usa a implementação Python/ssl que é mais compatível.
 """
 
 import asyncio
 import logging
 import os
+import ssl
 from typing import AsyncGenerator
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     create_async_engine,
@@ -29,8 +36,7 @@ database_url = os.getenv("DATABASE_URL", settings.DATABASE_URL)
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-# Remove variantes de driver (postgresql+asyncpg://, postgresql+psycopg://)
-# para ficar com a URL canônica "postgresql://"
+# Remove variantes de driver para ficar com a URL canônica "postgresql://"
 for _driver in ("+asyncpg", "+psycopg2", "+psycopg"):
     if f"postgresql{_driver}://" in database_url:
         database_url = database_url.replace(f"postgresql{_driver}://", "postgresql://", 1)
@@ -39,39 +45,41 @@ for _driver in ("+asyncpg", "+psycopg2", "+psycopg"):
 _is_postgres = database_url.startswith("postgresql")
 _is_sqlite = database_url.startswith("sqlite")
 
-# Log sanitizado
+# Log sanitizado (oculta senha)
 _safe = database_url
 if "@" in _safe:
     _safe = _safe.split("@")[0].rsplit(":", 1)[0] + ":***@" + _safe.split("@")[1]
 logger.info("Database URL normalizada: %s", _safe)
 
-# ── Construção da URL async ───────────────────────────────────────────
-# PostgreSQL produção → psycopg3 (postgresql+psycopg) com sslmode=require
-# SQLite testes      → aiosqlite com StaticPool
-# SQLite dev local   → aiosqlite com pool padrão
-# ─────────────────────────────────────────────────────────────────────
-
+# ── Construção do engine ───────────────────────────────────────────────
 if _is_postgres:
     _ssl_env = os.getenv("DATABASE_SSL", "").lower().strip()
 
+    # URL sem query params (sslmode etc. — gerenciado via connect_args abaixo)
+    _base = database_url.split("?")[0]
+    ASYNC_DATABASE_URL = _base.replace("postgresql://", "postgresql+psycopg://", 1)
+
     if _ssl_env == "disable":
-        # Sem SSL (apenas redes internas explicitamente configuradas)
-        ASYNC_DATABASE_URL = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+        engine = create_async_engine(
+            ASYNC_DATABASE_URL,
+            echo=settings.DEBUG,
+            poolclass=NullPool,
+        )
         logger.info("PostgreSQL driver: psycopg3, SSL: DISABLED")
     else:
-        # sslmode=require: libpq encripta mas não verifica certificado
-        # Funciona com Render externo, Heroku, Supabase, etc.
-        _base = database_url.split("?")[0]  # remove params existentes
-        ASYNC_DATABASE_URL = _base.replace(
-            "postgresql://", "postgresql+psycopg://", 1
-        ) + "?sslmode=require"
-        logger.info("PostgreSQL driver: psycopg3, SSL: sslmode=require")
+        # Python ssl.SSLContext — mais compatível com proxies gerenciados
+        # (Render, Railway, Heroku) do que sslmode=require via libpq.
+        _ssl_ctx = ssl.create_default_context()
+        _ssl_ctx.check_hostname = False
+        _ssl_ctx.verify_mode = ssl.CERT_NONE
 
-    engine = create_async_engine(
-        ASYNC_DATABASE_URL,
-        echo=settings.DEBUG,
-        poolclass=NullPool,
-    )
+        engine = create_async_engine(
+            ASYNC_DATABASE_URL,
+            echo=settings.DEBUG,
+            poolclass=NullPool,
+            connect_args={"ssl": _ssl_ctx},
+        )
+        logger.info("PostgreSQL driver: psycopg3, SSL: Python SSLContext (CERT_NONE)")
 
 elif _is_sqlite and settings.ENVIRONMENT == "test":
     ASYNC_DATABASE_URL = database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
@@ -118,14 +126,27 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 
 
 async def init_db() -> None:
-    """Inicializa tabelas do banco (com retry para DBs lentos no startup)."""
+    """Verifica conectividade com o banco (com retry).
+
+    SQLite dev  → cria tabelas automaticamente via create_all.
+    PostgreSQL  → apenas verifica conexão (schema gerenciado pelo Alembic).
+    """
     max_retries = 5
     for attempt in range(1, max_retries + 1):
         try:
-            async with engine.begin() as conn:
-                await conn.run_sync(BaseModel.metadata.create_all)
+            async with engine.connect() as conn:
+                if _is_sqlite:
+                    # Dev local: cria tabelas automaticamente
+                    await conn.run_sync(BaseModel.metadata.create_all)
+                    await conn.commit()
+                else:
+                    # Produção: apenas verifica conectividade.
+                    # O schema é gerenciado pelo Alembic (entrypoint.sh).
+                    await conn.execute(text("SELECT 1"))
+
             logger.info("Database initialized successfully")
             return
+
         except Exception as exc:
             if attempt == max_retries:
                 raise
