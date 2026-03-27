@@ -36,33 +36,29 @@ else:
     ASYNC_DATABASE_URL = database_url
 
 # ── SSL para PostgreSQL ──────────────────────────────────────────────
-# Por padrão, NÃO passa nenhum parâmetro ssl em connect_args.
-# asyncpg 0.29+ usa sslmode=prefer automaticamente:
-#   → tenta SSL → se falhar (cert inválido, server sem SSL) → reconecta sem SSL
-# Isso funciona tanto no Render interno (sem SSL) quanto externo (?sslmode=require).
+# Padrão: SSL com CERT_NONE para qualquer PostgreSQL em produção.
+# Isso funciona com Render, Heroku, Supabase e qualquer cloud que exija SSL.
 #
 # Para controle explícito, defina a env var DATABASE_SSL:
-#   DATABASE_SSL=require  → SSLContext permissivo (CERT_NONE)
-#   DATABASE_SSL=disable  → SSL desativado explicitamente
-#   (vazio ou ausente)    → asyncpg negocia automaticamente (prefer)
+#   DATABASE_SSL=disable  → SSL desativado (apenas redes internas sem SSL)
+#   (vazio, ausente, qualquer outro valor) → SSL com CERT_NONE (padrão seguro)
 # ─────────────────────────────────────────────────────────────────────
 _is_postgres = ASYNC_DATABASE_URL.startswith("postgresql")
 _connect_args: dict = {}
 
 if _is_postgres and settings.ENVIRONMENT != "test":
     _ssl_env = os.getenv("DATABASE_SSL", "").lower().strip()
-    if _ssl_env == "require":
+    if _ssl_env == "disable":
+        _connect_args = {"ssl": False}
+        logger.info("PostgreSQL SSL: DISABLE (via DATABASE_SSL=disable)")
+    else:
+        # Padrão: SSLContext permissivo (sem validação de certificado)
+        # Necessário para Render, Heroku, Supabase e demais clouds
         _ssl_ctx = ssl_module.create_default_context()
         _ssl_ctx.check_hostname = False
         _ssl_ctx.verify_mode = ssl_module.CERT_NONE
         _connect_args = {"ssl": _ssl_ctx}
-        logger.info("PostgreSQL SSL: REQUIRE (SSLContext CERT_NONE via DATABASE_SSL)")
-    elif _ssl_env == "disable":
-        _connect_args = {"ssl": False}
-        logger.info("PostgreSQL SSL: DISABLE (via DATABASE_SSL)")
-    else:
-        # Nenhum ssl em connect_args → asyncpg negocia automaticamente (prefer)
-        logger.info("PostgreSQL SSL: AUTO (asyncpg sslmode=prefer)")
+        logger.info("PostgreSQL SSL: REQUIRE com CERT_NONE (padrão produção)")
 
     # Log da URL sanitizada para diagnóstico
     _safe_url = database_url
