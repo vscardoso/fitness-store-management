@@ -112,8 +112,26 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
+async def _diagnose_direct_connection() -> None:
+    """Testa conexão direta via asyncpg (sem SQLAlchemy) para diagnóstico."""
+    if not _is_postgres:
+        return
+    import asyncpg as _asyncpg  # type: ignore
+    _ssl_env = os.getenv("DATABASE_SSL", "").lower().strip()
+    _ssl_arg = False if _ssl_env == "disable" else True
+    try:
+        conn = await _asyncpg.connect(database_url, ssl=_ssl_arg, timeout=10)
+        logger.info("DIAG: asyncpg direto OK (sem SQLAlchemy)")
+        await conn.close()
+    except Exception as exc:
+        logger.error("DIAG: asyncpg direto FALHOU — %s: %s", type(exc).__name__, exc)
+
+
 async def init_db() -> None:
     """Initialize database tables (com retry para DBs lentos no startup)."""
+    # Diagnóstico: testa conexão direta antes de passar pelo SQLAlchemy
+    await _diagnose_direct_connection()
+
     max_retries = 5
     for attempt in range(1, max_retries + 1):
         try:
