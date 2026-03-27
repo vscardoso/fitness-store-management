@@ -3,7 +3,6 @@
 import asyncio
 import logging
 import os
-import ssl as ssl_module
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import (
@@ -11,7 +10,7 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
     async_sessionmaker,
 )
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import NullPool, StaticPool
 
 from app.core.config import settings
 from app.models.base import BaseModel
@@ -35,54 +34,60 @@ elif database_url.startswith("sqlite:///"):
 else:
     ASYNC_DATABASE_URL = database_url
 
-# ── SSL para PostgreSQL ──────────────────────────────────────────────
-# Padrão: SSL com CERT_NONE para qualquer PostgreSQL em produção.
-# Isso funciona com Render, Heroku, Supabase e qualquer cloud que exija SSL.
-#
-# Para controle explícito, defina a env var DATABASE_SSL:
-#   DATABASE_SSL=disable  → SSL desativado (apenas redes internas sem SSL)
-#   (vazio, ausente, qualquer outro valor) → SSL com CERT_NONE (padrão seguro)
-# ─────────────────────────────────────────────────────────────────────
 _is_postgres = ASYNC_DATABASE_URL.startswith("postgresql")
-_connect_args: dict = {}
+_is_sqlite = ASYNC_DATABASE_URL.startswith("sqlite")
 
-if _is_postgres and settings.ENVIRONMENT != "test":
+# Log da URL sanitizada para diagnóstico
+_safe_url = database_url
+if "@" in _safe_url:
+    _safe_url = _safe_url.split("@")[0].rsplit(":", 1)[0] + ":***@" + _safe_url.split("@")[1]
+logger.info("Database URL: %s", _safe_url)
+
+# ── Configuração de conexão ──────────────────────────────────────────
+# PostgreSQL: usa NullPool (sem warmup no startup) + ssl=True via asyncpg.
+#   NullPool cria conexões sob demanda — elimina falhas de SSL no startup
+#   do Render. ssl=True deixa o asyncpg gerenciar o SSL internamente,
+#   que é mais compatível do que passar um SSLContext manualmente.
+#
+# SQLite: StaticPool para testes, pool padrão para dev local.
+#
+# Para desativar SSL explicitamente: DATABASE_SSL=disable
+# ─────────────────────────────────────────────────────────────────────
+
+if _is_postgres:
     _ssl_env = os.getenv("DATABASE_SSL", "").lower().strip()
     if _ssl_env == "disable":
-        _connect_args = {"ssl": False}
-        logger.info("PostgreSQL SSL: DISABLE (via DATABASE_SSL=disable)")
+        _connect_args: dict = {"ssl": False}
+        logger.info("PostgreSQL SSL: DISABLED (DATABASE_SSL=disable)")
     else:
-        # Padrão: SSLContext permissivo (sem validação de certificado)
-        # Necessário para Render, Heroku, Supabase e demais clouds
-        _ssl_ctx = ssl_module.create_default_context()
-        _ssl_ctx.check_hostname = False
-        _ssl_ctx.verify_mode = ssl_module.CERT_NONE
-        _connect_args = {"ssl": _ssl_ctx}
-        logger.info("PostgreSQL SSL: REQUIRE com CERT_NONE (padrão produção)")
+        _connect_args = {"ssl": True}
+        logger.info("PostgreSQL SSL: ENABLED (asyncpg internal SSL)")
 
-    # Log da URL sanitizada para diagnóstico
-    _safe_url = database_url
-    if "@" in _safe_url:
-        _safe_url = _safe_url.split("@")[0].rsplit(":", 1)[0] + ":***@" + _safe_url.split("@")[1]
-    logger.info("PostgreSQL URL: %s", _safe_url)
-    logger.info("connect_args keys: %s", list(_connect_args.keys()))
+    engine = create_async_engine(
+        ASYNC_DATABASE_URL,
+        echo=settings.DEBUG,
+        poolclass=NullPool,
+        connect_args=_connect_args,
+    )
 
-# Pool reduzido para produção (Render free tier limite: ~97 conexões)
-_pool_size = settings.DATABASE_POOL_SIZE if not _is_postgres else min(settings.DATABASE_POOL_SIZE, 5)
-_max_overflow = settings.DATABASE_MAX_OVERFLOW if not _is_postgres else min(settings.DATABASE_MAX_OVERFLOW, 5)
+elif _is_sqlite and settings.ENVIRONMENT == "test":
+    engine = create_async_engine(
+        ASYNC_DATABASE_URL,
+        echo=settings.DEBUG,
+        poolclass=StaticPool,
+        connect_args={"check_same_thread": False},
+    )
 
-# Create async engine
-engine = create_async_engine(
-    ASYNC_DATABASE_URL,
-    echo=settings.DEBUG,
-    pool_size=_pool_size,
-    max_overflow=_max_overflow,
-    pool_pre_ping=True,
-    pool_recycle=300,
-    pool_timeout=30,
-    connect_args=_connect_args,
-    poolclass=NullPool if settings.ENVIRONMENT == "test" else None,
-)
+else:
+    # SQLite local dev
+    engine = create_async_engine(
+        ASYNC_DATABASE_URL,
+        echo=settings.DEBUG,
+        pool_size=5,
+        max_overflow=10,
+        pool_pre_ping=True,
+        pool_recycle=300,
+    )
 
 # Create async session factory
 async_session_maker = async_sessionmaker(
@@ -95,12 +100,7 @@ async_session_maker = async_sessionmaker(
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """
-    Dependency for getting async database session.
-    
-    Yields:
-        AsyncSession: Database session
-    """
+    """Dependency for getting async database session."""
     async with async_session_maker() as session:
         try:
             yield session
@@ -119,6 +119,7 @@ async def init_db() -> None:
         try:
             async with engine.begin() as conn:
                 await conn.run_sync(BaseModel.metadata.create_all)
+            logger.info("Database initialized successfully")
             return
         except Exception as exc:
             if attempt == max_retries:
