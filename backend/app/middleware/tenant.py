@@ -37,26 +37,29 @@ class TenantMiddleware(BaseHTTPMiddleware):
             host = request.headers.get("host") or request.headers.get("Host")
             domain = host.split(":")[0] if host else None
 
-            async with async_session_maker() as session:
-                if slug:
-                    result = await session.execute(
-                        select(Store.id).where(Store.slug == slug, Store.is_active == True)
-                    )
-                    tid = result.scalar_one_or_none()
-                    if tid:
-                        tenant_id = tid
-                if tenant_id is None and domain:
-                    result = await session.execute(
-                        select(Store.id).where(Store.domain == domain, Store.is_active == True)
-                    )
-                    tid = result.scalar_one_or_none()
-                    if tid:
-                        tenant_id = tid
-                if tenant_id is None:
-                    result = await session.execute(select(Store.id).where(Store.is_default == True))
-                    tid = result.scalar_one_or_none()
-                    if tid:
-                        tenant_id = tid
+            try:
+                async with async_session_maker() as session:
+                    if slug:
+                        result = await session.execute(
+                            select(Store.id).where(Store.slug == slug, Store.is_active == True)
+                        )
+                        tid = result.scalar_one_or_none()
+                        if tid:
+                            tenant_id = tid
+                    if tenant_id is None and domain:
+                        result = await session.execute(
+                            select(Store.id).where(Store.domain == domain, Store.is_active == True)
+                        )
+                        tid = result.scalar_one_or_none()
+                        if tid:
+                            tenant_id = tid
+                    if tenant_id is None:
+                        result = await session.execute(select(Store.id).where(Store.is_default == True))
+                        tid = result.scalar_one_or_none()
+                        if tid:
+                            tenant_id = tid
+            except Exception:
+                pass  # DB indisponível: continua sem tenant_id (dependência fará o tratamento)
 
         # Atribui ao state (se encontrado)
         if tenant_id is not None:
