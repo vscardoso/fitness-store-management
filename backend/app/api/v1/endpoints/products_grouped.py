@@ -243,7 +243,8 @@ async def list_grouped_products(
         return result_list
         
     except Exception as e:
+        import traceback
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao listar produtos agrupados: {str(e)}"
+            detail=f"Erro ao listar produtos agrupados: {str(e)}\n{traceback.format_exc()}"
         )
