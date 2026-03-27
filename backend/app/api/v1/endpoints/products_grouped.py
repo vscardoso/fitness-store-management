@@ -40,7 +40,7 @@ async def list_grouped_products_debug(
         products_query = """
             SELECT p.id, p.name
             FROM products p
-            WHERE p.tenant_id = :tid AND p.is_catalog = 0 AND p.is_active = true
+            WHERE p.tenant_id = :tid AND p.is_catalog = false AND p.is_active = true
             ORDER BY p.name
             LIMIT :limit OFFSET :skip
         """
@@ -119,7 +119,7 @@ async def list_grouped_products(
         id_query = """
             SELECT DISTINCT p.id
             FROM products p
-            WHERE p.tenant_id = :tid AND p.is_catalog = 0 AND p.is_active = true
+            WHERE p.tenant_id = :tid AND p.is_catalog = false AND p.is_active = true
         """
         
         if category_id:
