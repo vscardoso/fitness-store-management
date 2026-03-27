@@ -117,14 +117,32 @@ async def _diagnose_direct_connection() -> None:
     if not _is_postgres:
         return
     import asyncpg as _asyncpg  # type: ignore
-    _ssl_env = os.getenv("DATABASE_SSL", "").lower().strip()
-    _ssl_arg = False if _ssl_env == "disable" else True
+
+    # asyncpg só aceita "postgresql://" ou "postgres://", não "+asyncpg"
+    _raw = database_url
+    _raw = _raw.replace("postgresql+asyncpg://", "postgresql://", 1)
+    _raw = _raw.replace("postgres+asyncpg://", "postgres://", 1)
+    logger.info("DIAG: testando URL (host/db): %s",
+                _raw.split("@")[-1] if "@" in _raw else _raw[:40])
+
+    # Tenta com SSL
     try:
-        conn = await _asyncpg.connect(database_url, ssl=_ssl_arg, timeout=10)
-        logger.info("DIAG: asyncpg direto OK (sem SQLAlchemy)")
+        conn = await _asyncpg.connect(_raw, ssl=True, timeout=10)
+        ver = await conn.fetchval("SELECT version()")
+        logger.info("DIAG: ssl=True OK — %s", ver)
+        await conn.close()
+        return
+    except Exception as exc:
+        logger.error("DIAG: ssl=True FALHOU — %s: %s", type(exc).__name__, exc)
+
+    # Tenta sem SSL
+    try:
+        conn = await _asyncpg.connect(_raw, ssl=False, timeout=10)
+        ver = await conn.fetchval("SELECT version()")
+        logger.info("DIAG: ssl=False OK — %s", ver)
         await conn.close()
     except Exception as exc:
-        logger.error("DIAG: asyncpg direto FALHOU — %s: %s", type(exc).__name__, exc)
+        logger.error("DIAG: ssl=False FALHOU — %s: %s", type(exc).__name__, exc)
 
 
 async def init_db() -> None:
