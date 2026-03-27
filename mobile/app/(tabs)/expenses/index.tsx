@@ -5,9 +5,9 @@ import {
   FlatList,
   RefreshControl,
   TouchableOpacity,
-  StatusBar,
 } from 'react-native';
-import { Text, Card } from 'react-native-paper';
+import { Text } from 'react-native-paper';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -115,7 +115,6 @@ export default function ExpenseListScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
       <PageHeader
         title="Despesas"
         subtitle={`${expenses?.length ?? 0} registros`}
@@ -125,27 +124,48 @@ export default function ExpenseListScreen() {
         ]}
       />
 
-      {/* Totalizador do período */}
-      <Card style={styles.summaryCard}>
-        <View style={styles.summaryContent}>
-          <View>
-            <Text variant="labelMedium" style={styles.summaryLabel}>Total no período</Text>
-            <Text variant="headlineSmall" style={styles.summaryValue}>
-              {formatCurrency(total)}
-            </Text>
+      {/* Card totalizador + filtro integrado */}
+      <View style={styles.summaryCard}>
+        {/* Header: label + PeriodFilter */}
+        <View style={styles.summaryHeader}>
+          <View style={styles.summaryHeaderLeft}>
+            <View style={styles.summaryIcon}>
+              <Ionicons name="trending-down-outline" size={16} color={Colors.light.error} />
+            </View>
+            <Text style={styles.summaryLabel}>Total no período</Text>
           </View>
-          <TouchableOpacity
-            style={styles.plButton}
-            onPress={() => router.push('/(tabs)/expenses/resultado')}
-          >
-            <Ionicons name="stats-chart-outline" size={18} color={Colors.light.primary} />
-            <Text style={styles.plButtonText}>P&L</Text>
-          </TouchableOpacity>
+          <PeriodFilter value={period} onChange={setPeriod} compact />
         </View>
-      </Card>
 
-      {/* Filtro de período */}
-      <PeriodFilter value={period} onChange={setPeriod} />
+        {/* Valor em destaque */}
+        <View style={styles.summaryBody}>
+          <Text style={styles.summaryValue}>{formatCurrency(total)}</Text>
+          <Text style={styles.summaryMeta}>
+            {expenses?.length ?? 0} {(expenses?.length ?? 0) === 1 ? 'despesa' : 'despesas'}
+          </Text>
+        </View>
+
+        {/* Botão P&L */}
+        <TouchableOpacity
+          style={styles.plButton}
+          onPress={() => router.push('/(tabs)/expenses/resultado')}
+          activeOpacity={0.75}
+        >
+          <LinearGradient
+            colors={[Colors.light.primary, Colors.light.secondary]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.plButtonGradient}
+          >
+            <Ionicons name="stats-chart-outline" size={16} color="#fff" />
+            <Text style={styles.plButtonText}>Ver Resultado P&L</Text>
+            <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.8)" />
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
+
+      {/* Spacer antes da lista */}
+      <View style={{ height: theme.spacing.sm }} />
 
       <FlatList
         data={expenses ?? []}
@@ -171,47 +191,94 @@ export default function ExpenseListScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
+
+  // ── Card totalizador ──────────────────────────────────────────────────────
   summaryCard: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    borderRadius: theme.borderRadius.lg,
-    elevation: 2,
+    marginHorizontal: theme.spacing.md,
+    marginTop: theme.spacing.md,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.06)',
+    overflow: 'hidden',
   },
-  summaryContent: {
+  summaryHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
+  },
+  summaryHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  summaryIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: Colors.light.error + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   summaryLabel: {
+    fontSize: 13,
+    fontWeight: '600',
     color: Colors.light.textSecondary,
-    marginBottom: 4,
+  },
+  summaryBody: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 10,
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.md,
   },
   summaryValue: {
-    fontWeight: 'bold',
+    fontSize: 28,
+    fontWeight: '800',
     color: Colors.light.error,
+    letterSpacing: -0.5,
+  },
+  summaryMeta: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+    fontWeight: '500',
   },
   plButton: {
+    marginHorizontal: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  plButtonGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    backgroundColor: Colors.light.primaryLight,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: theme.borderRadius.lg,
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 11,
+    paddingHorizontal: theme.spacing.md,
   },
   plButtonText: {
-    color: Colors.light.primary,
+    color: '#fff',
     fontWeight: '700',
     fontSize: 14,
+    flex: 1,
+    textAlign: 'center',
   },
   listContent: {
-    paddingHorizontal: 16,
+    paddingHorizontal: theme.spacing.md,
     paddingBottom: 80,
   },
   emptyContainer: {
     flex: 1,
-    paddingHorizontal: 16,
+    paddingHorizontal: theme.spacing.md,
   },
   card: {
     flexDirection: 'row',
@@ -219,11 +286,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.background,
     borderRadius: theme.borderRadius.lg,
     padding: 14,
-    marginTop: 10,
-    elevation: 1,
+    marginTop: theme.spacing.md,
+    elevation: 2,
     borderWidth: 1,
     borderColor: Colors.light.border,
-    gap: 12,
+    gap: theme.spacing.md,
   },
   categoryDot: {
     width: 44,
@@ -237,7 +304,7 @@ const styles = StyleSheet.create({
   cardMeta: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: theme.spacing.sm,
     marginTop: 3,
     flexWrap: 'wrap',
   },

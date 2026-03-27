@@ -46,3 +46,175 @@
    Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
  [13:40:26] [mobile] [API] GET /dashboard/sales/yoy - 401
    Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:43:43] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Esportivo", "brand": null, "color": "Preto", "size": null, "category_id": 2, "duplicates_count": 0, "duplicates": []}
+ [15:47:41] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Legging Fitness com Bolso", "brand": null, "color": "Rosa", "size": null, "category_id": 3, "duplicates_count": 0, "duplicates": []}
+ [15:51:40] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Legging Fitness com Bolso", "brand": "ACIZS", "color": "Rosa", "size": null, "category_id": 3, "duplicates_count": 0, "duplicates": []}
+ [15:52:57] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Legging Fitness com Bolso", "variantsCount": 9}
+ [15:53:15] [mobile] [Wizard] goToNewEntryWithVariants - modo atômico
+   Data: {"productName": "Legging Fitness com Bolso", "variantsCount": 9, "totalQty": 90}
+ [16:53:20] [mobile] [API] GET /products/grouped - 422
+   Data: {"status": 422, "detail": "[{\"type\":\"less_than_equal\",\"loc\":[\"query\",\"limit\"],\"msg\":\"Input should be less than or equal to 500\",\"input\":\"1000\",\"ctx\":{\"le\":500},\"url\":\"https://errors.pydantic.dev/2.12/v/less_than_equal\"}]", "code": "ERR_BAD_REQUEST"}
+ [16:53:21] [mobile] [API] GET /products/grouped - 422
+   Data: {"status": 422, "detail": "[{\"type\":\"less_than_equal\",\"loc\":[\"query\",\"limit\"],\"msg\":\"Input should be less than or equal to 500\",\"input\":\"1000\",\"ctx\":{\"le\":500},\"url\":\"https://errors.pydantic.dev/2.12/v/less_than_equal\"}]", "code": "ERR_BAD_REQUEST"}
+ [16:53:49] [mobile] [API] GET /products/grouped - 422
+   Data: {"status": 422, "detail": "[{\"type\":\"less_than_equal\",\"loc\":[\"query\",\"limit\"],\"msg\":\"Input should be less than or equal to 500\",\"input\":\"1000\",\"ctx\":{\"le\":500},\"url\":\"https://errors.pydantic.dev/2.12/v/less_than_equal\"}]", "code": "ERR_BAD_REQUEST"}
+ [15:08:14] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:08:14] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:08:14] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:08:14] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:08:14] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:08:14] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:08:14] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:08:14] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:08:14] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:16:51] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Fitness Básico", "brand": null, "color": "Preto", "size": null, "category_id": 2, "duplicates_count": 0, "duplicates": []}
+ [15:20:34] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Shorts Fitness Básico", "variantsCount": 9}
+ [15:20:43] [mobile] [Wizard] goToNewEntryWithVariants - modo atômico
+   Data: {"productName": "Shorts Fitness Básico", "variantsCount": 9, "totalQty": 9}
+ [15:22:01] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Fitness com Top de Alças Cruzadas", "brand": null, "color": "Azul Claro", "size": "G", "category_id": null, "duplicates_count": 0, "duplicates": []}
+ [15:23:01] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Conjunto Fitness com Top de Alças Cruzadas", "variantsCount": 5}
+ [15:23:08] [mobile] [Wizard] goToExistingEntryWithVariants - produto criado para entrada existente
+   Data: {"productId": 397, "productName": "Conjunto Fitness com Top de Alças Cruzadas"}
+ [15:36:01] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Canelado Manga Longa", "brand": null, "color": "Verde", "size": null, "category_id": 4, "duplicates_count": 0, "duplicates": []}
+ [15:37:05] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Conjunto Canelado Manga Longa", "variantsCount": 10}
+ [15:37:14] [mobile] [Wizard] goToNewEntryWithVariants - modo atômico
+   Data: {"productName": "Conjunto Canelado Manga Longa", "variantsCount": 10, "totalQty": 10}
+ [16:17:33] [mobile] [API] GET /customers/6 - 404
+   Data: {"status": 404, "detail": "Cliente com ID 6 não encontrado", "code": "ERR_BAD_REQUEST"}
+ [16:18:23] [mobile] [API] GET /customers/6 - 404
+   Data: {"status": 404, "detail": "Cliente com ID 6 não encontrado", "code": "ERR_BAD_REQUEST"}
+ [16:18:24] [mobile] [API] GET /customers/6 - 404
+   Data: {"status": 404, "detail": "Cliente com ID 6 não encontrado", "code": "ERR_BAD_REQUEST"}
+ [16:18:35] [mobile] [API] GET /customers/6 - 404
+   Data: {"status": 404, "detail": "Cliente com ID 6 não encontrado", "code": "ERR_BAD_REQUEST"}
+ [16:18:38] [mobile] [API] GET /customers/6 - 404
+   Data: {"status": 404, "detail": "Cliente com ID 6 não encontrado", "code": "ERR_BAD_REQUEST"}
+ [16:18:39] [mobile] [API] GET /customers/6 - 404
+   Data: {"status": 404, "detail": "Cliente com ID 6 não encontrado", "code": "ERR_BAD_REQUEST"}
+ [16:18:41] [mobile] [API] GET /customers/6 - 404
+   Data: {"status": 404, "detail": "Cliente com ID 6 não encontrado", "code": "ERR_BAD_REQUEST"}
+ [16:18:43] [mobile] [API] GET /customers/6 - 404
+   Data: {"status": 404, "detail": "Cliente com ID 6 não encontrado", "code": "ERR_BAD_REQUEST"}
+ [16:18:47] [mobile] [API] GET /customers/6 - 404
+   Data: {"status": 404, "detail": "Cliente com ID 6 não encontrado", "code": "ERR_BAD_REQUEST"}
+ [16:22:34] [mobile] [API] GET /products/656 - 404
+   Data: {"status": 404, "detail": "Produto com ID 656 não encontrado", "code": "ERR_BAD_REQUEST"}
+ [16:25:32] [mobile] [API] GET /products/645 - 404
+   Data: {"status": 404, "detail": "Produto com ID 645 não encontrado", "code": "ERR_BAD_REQUEST"}
+ [16:26:52] [mobile] [API] GET /products/sku/PUMA-BERMUD-PRE-M-001 - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [16:26:52] [mobile] [API] GET /products/656 - 404
+   Data: {"status": 404, "detail": "Produto com ID 656 não encontrado", "code": "ERR_BAD_REQUEST"}
+ [16:38:19] [mobile] [API] GET /products/sku/PUMA-BERMUD-PRE-M-001 - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [16:51:30] [mobile] [API] GET /products/sku/PUMA-BERMUD-PRE-M-001 - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [16:55:24] [mobile] [API] POST /sales/ - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:09:03] [mobile] [API] POST /sales/ - 400
+   Data: {"status": 400, "detail": "Estoque insuficiente para Shorts Fitness Básico (variante 645). Disponível: 0, Solicitado: 1", "code": "ERR_BAD_REQUEST"}
+ [17:28:46] [mobile] [API] DELETE /stock-entries/63 - 400
+   Data: {"status": 400, "detail": "Não é possível excluir entrada com produtos já vendidos. Esta entrada faz parte do histórico de vendas (2 produto(s) com 2 unidade(s) vendida(s)). A rastreabilidade e auditoria exigem que entradas com vendas sejam mantidas no sistema.", "code": "ERR_BAD_REQUEST"}
+ [17:28:53] [mobile] [API] DELETE /stock-entries/63 - 400
+   Data: {"status": 400, "detail": "Não é possível excluir entrada com produtos já vendidos. Esta entrada faz parte do histórico de vendas (2 produto(s) com 2 unidade(s) vendida(s)). A rastreabilidade e auditoria exigem que entradas com vendas sejam mantidas no sistema.", "code": "ERR_BAD_REQUEST"}
+ [21:25:32] [mobile] [API] POST /sales/ - 400
+   Data: {"status": 400, "detail": "Estoque insuficiente para Conjunto Canelado Manga Longa (variante 659). Disponível: 1, Solicitado: 5", "code": "ERR_BAD_REQUEST"}
+ [21:34:12] [mobile] [API] POST /sales/ - 400
+   Data: {"status": 400, "detail": "Estoque insuficiente para Conjunto Canelado Manga Longa (variante 659). Disponível: 1, Solicitado: 5", "code": "ERR_BAD_REQUEST"}
+ [21:41:58] [mobile] [API] POST /sales/ - 400
+   Data: {"status": 400, "detail": "Estoque insuficiente para Conjunto Canelado Manga Longa (variante 659). Disponível: 1, Solicitado: 5", "code": "ERR_BAD_REQUEST"}
+ [21:43:06] [mobile] [API] POST /sales/ - 400
+   Data: {"status": 400, "detail": "Estoque insuficiente para Conjunto Canelado Manga Longa (variante 659). Disponível: 1, Solicitado: 5", "code": "ERR_BAD_REQUEST"}
+ [21:48:58] [mobile] [API] GET /stock-entries/64 - 404
+   Data: {"status": 404, "detail": "Entrada 64 não encontrada", "code": "ERR_BAD_REQUEST"}
+ [21:49:01] [mobile] [API] DELETE /stock-entries/63 - 400
+   Data: {"status": 400, "detail": "Não é possível excluir entrada com produtos já vendidos. Esta entrada faz parte do histórico de vendas (1 produto(s) com 1 unidade(s) vendida(s)). A rastreabilidade e auditoria exigem que entradas com vendas sejam mantidas no sistema.", "code": "ERR_BAD_REQUEST"}
+ [22:22:39] [mobile] [API] GET /stock-entries/63 - 404
+   Data: {"status": 404, "detail": "Entrada 63 não encontrada", "code": "ERR_BAD_REQUEST"}
+ [22:23:25] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Bermuda Moletom", "variantsCount": 6}
+ [22:23:33] [mobile] [Wizard] goToNewEntryWithVariants - modo atômico
+   Data: {"productName": "Bermuda Moletom", "variantsCount": 6, "totalQty": 6}
+ [09:25:25] [mobile] [API] GET /stock-entries/65 - 404
+   Data: {"status": 404, "detail": "Entrada 65 não encontrada", "code": "ERR_BAD_REQUEST"}
+ [09:26:07] [mobile] [API] GET /products/catalog/count - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [09:26:29] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Fitness Seamless", "brand": null, "color": "Azul Claro", "size": null, "category_id": 4, "duplicates_count": 0, "duplicates": []}
+ [09:27:27] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Conjunto Fitness Seamless", "variantsCount": 2}
+ [09:28:00] [mobile] [Wizard] goToNewEntryWithVariants - modo atômico
+   Data: {"productName": "Conjunto Fitness Seamless", "variantsCount": 2, "totalQty": 2}
+ [09:28:10] [mobile] [API] GET /products/catalog - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [09:29:06] [mobile] [API] GET /stock-entries/stats - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [09:29:20] [mobile] [API] GET /dashboard/inventory/valuation - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [09:29:27] [mobile] [API] GET /dashboard/purchases - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [09:33:04] [mobile] [API] GET /sales/ - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [09:33:10] [mobile] [API] GET /dashboard/inventory/valuation - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [10:29:05] [mobile] [API] GET /dashboard/sales/daily - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [10:29:13] [mobile] [API] GET /dashboard/sales/monthly - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [10:31:38] [mobile] [API] GET /dashboard/purchases - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [10:31:45] [mobile] [API] GET /sales/ - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [10:35:00] [mobile] [API] GET /dashboard/purchases - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [10:35:07] [mobile] [API] GET /dashboard/sales/daily - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [10:35:42] [mobile] [API] GET /dashboard/inventory/valuation - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [10:35:49] [mobile] [API] GET /sales/ - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [10:36:23] [mobile] [API] GET /dashboard/stats - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [10:36:29] [mobile] [API] GET /dashboard/sales/monthly - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [10:39:50] [mobile] [API] GET /dashboard/sales/monthly - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [10:39:57] [mobile] [API] GET /dashboard/purchases - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [11:05:00] [mobile] [API] GET /dashboard/sales/monthly - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [11:05:07] [mobile] [API] GET /dashboard/purchases - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [11:39:38] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Canelado Manga Longa", "brand": null, "color": "Verde", "size": null, "category_id": 1, "duplicates_count": 0, "duplicates": []}
+ [14:12:17] [mobile] [API] GET /dashboard/purchases - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [14:12:18] [mobile] [API] GET /dashboard/sales/monthly - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [14:12:18] [mobile] [API] GET /dashboard/sales/daily - 502
+   Data: {"status": 502, "detail": "Request failed with status code 502", "code": "ERR_BAD_RESPONSE"}
+ [14:14:07] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Canelado Bicolor", "brand": null, "color": "Mostarda", "size": null, "category_id": 4, "duplicates_count": 0, "duplicates": []}
+ [14:14:34] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Conjunto Canelado Bicolor", "variantsCount": 2}
+ [14:14:41] [mobile] [Wizard] goToExistingEntryWithVariants - produto criado para entrada existente
+   Data: {"productId": 403, "productName": "Conjunto Canelado Bicolor"}

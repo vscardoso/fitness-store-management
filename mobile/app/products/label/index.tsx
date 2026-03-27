@@ -456,7 +456,7 @@ export default function LabelStudioScreen() {
         <Button
           mode="outlined"
           onPress={handlePrint}
-          icon="print-outline"
+          icon="printer-outline"
           style={styles.footerBtn}
           disabled={totalLabels === 0}
         >

@@ -75,7 +75,7 @@ export function WizardComplete({ wizard }: WizardCompleteProps) {
   };
 
   const handleGoToStock = () => {
-    router.replace('/(tabs)/entries');
+    router.replace('/(tabs)/inventory');
   };
 
   const handleGoToProducts = () => {

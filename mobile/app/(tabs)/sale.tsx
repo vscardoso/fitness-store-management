@@ -15,6 +15,7 @@ import {
   Button,
   IconButton,
   TextInput,
+  Snackbar,
 } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -52,6 +53,8 @@ export default function SaleScreen() {
   const [discountVisible, setDiscountVisible] = useState(false);
   const [discountInput, setDiscountInput] = useState('');
   const [discountType, setDiscountType] = useState<'value' | 'percent'>('value');
+  const [snackText, setSnackText] = useState('');
+  const [snackVisible, setSnackVisible] = useState(false);
   const discountInputRef = useRef<any>(null);
 
   // Estado para controlar diálogos de confirmação
@@ -371,18 +374,8 @@ export default function SaleScreen() {
     }
 
     haptics.success();
-    setDialog({
-      visible: true,
-      type: 'success',
-      title: 'Produto adicionado',
-      message: `${quantity}x ${product.name} foi adicionado ao carrinho`,
-      confirmText: 'OK',
-      cancelText: '',
-      onConfirm: () => {
-        haptics.light();
-        setDialog({ ...dialog, visible: false });
-      },
-    });
+    setSnackText(`${quantity}x ${product.name} adicionado`);
+    setSnackVisible(true);
   };
 
   /**
@@ -793,6 +786,16 @@ export default function SaleScreen() {
           onConfirm={dialog.onConfirm}
           onCancel={() => setDialog({ ...dialog, visible: false })}
         />
+
+        <Snackbar
+          visible={snackVisible}
+          onDismiss={() => setSnackVisible(false)}
+          duration={1800}
+          style={{ backgroundColor: Colors.light.success, marginBottom: 90 }}
+          rippleColor="transparent"
+        >
+          <Text style={{ color: '#fff', fontWeight: '600' }}>{snackText}</Text>
+        </Snackbar>
     </View>
     </TouchableWithoutFeedback>
     </KeyboardSafeView>

@@ -1128,10 +1128,23 @@ class StockEntryService:
         if product.is_catalog:
             product.is_catalog = False
 
+        # Buscar variante padrão do produto para vincular no EntryItem
+        # (necessário para que a query de total_stock em products_grouped funcione corretamente)
+        from app.models.product_variant import ProductVariant
+        from sqlalchemy import select as _select
+        default_variant_result = await self.db.execute(
+            _select(ProductVariant).where(
+                ProductVariant.product_id == product_id,
+                ProductVariant.is_active == True,
+            ).limit(1)
+        )
+        default_variant = default_variant_result.scalar_one_or_none()
+
         # Criar item da entrada
         new_item = EntryItem(
             entry_id=entry_id,
             product_id=product_id,
+            variant_id=default_variant.id if default_variant else None,
             quantity_received=quantity_received,
             quantity_remaining=quantity_received,  # Novo, então todo estoque está disponível
             unit_cost=Decimal(str(unit_cost)),

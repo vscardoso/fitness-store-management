@@ -4,7 +4,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  StatusBar,
 } from 'react-native';
 import { Text, Card, ActivityIndicator } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
@@ -45,7 +44,6 @@ export default function MonthlyResultScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" />
       <PageHeader title="Resultado do Mês" showBackButton />
 
       {/* Navegação de mês */}
@@ -163,34 +161,34 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 12,
-    gap: 8,
+    paddingVertical: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
-  navBtn: { padding: 8 },
+  navBtn: { padding: theme.spacing.sm },
   monthLabel: { fontWeight: '700', color: Colors.light.text, minWidth: 180, textAlign: 'center' },
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  content: { padding: 16, paddingBottom: 40 },
+  content: { padding: theme.spacing.md, paddingBottom: theme.spacing.xl },
   plCard: { borderRadius: theme.borderRadius.lg, elevation: 2, borderWidth: 1, borderColor: Colors.light.border },
-  plContent: { padding: 16, gap: 12 },
-  plRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  plContent: { padding: theme.spacing.md, gap: theme.spacing.md },
+  plRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
   plRowLabel: { flex: 1, fontSize: 14, color: Colors.light.text },
   plRowValue: { fontSize: 14, fontWeight: '600' },
   plRowBold: { fontWeight: '700', fontSize: 15 },
-  divider: { height: 1, backgroundColor: Colors.light.border, marginVertical: 4 },
+  divider: { height: 1, backgroundColor: Colors.light.border, marginVertical: theme.spacing.xs },
   marginLabel: { fontSize: 11, color: Colors.light.textSecondary, marginTop: -8, marginLeft: 28 },
   netRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: theme.spacing.md,
     padding: 14,
     borderRadius: theme.borderRadius.lg,
-    marginTop: 4,
+    marginTop: theme.spacing.xs,
   },
   netLabel: { fontWeight: '700', fontSize: 15 },
   netMargin: { fontSize: 11, marginTop: 2 },
   netValue: { fontWeight: 'bold', fontSize: 20 },
-  breakdownTitle: { fontWeight: '700', color: Colors.light.text, marginBottom: 4 },
-  catRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
+  breakdownTitle: { fontWeight: '700', color: Colors.light.text, marginBottom: theme.spacing.xs },
+  catRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, paddingVertical: theme.spacing.xs },
   catDot: {
     width: 30,
     height: 30,

@@ -19,7 +19,7 @@ let MODE = 'tunnel' as 'local' | 'tunnel';
 let LOCAL_IP = '192.168.100.158';
 
 // URL do tunnel — atualizada AUTOMATICAMENTE por .\start_tunnel.ps1 a cada execução
-let TUNNEL_URL = 'https://sweet-laws-build.loca.lt';
+let TUNNEL_URL = 'https://good-mammals-tap.loca.lt';
 
 // Monta a URL com base no modo
 const LOCAL_API_URL = MODE === 'tunnel' && TUNNEL_URL
