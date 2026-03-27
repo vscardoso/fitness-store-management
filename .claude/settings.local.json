@@ -87,7 +87,10 @@
       "Bash(where eas:*)",
       "Bash(eas --version)",
       "Bash(ls -la C:UsersVictorDesktopfitness-store-managementmobileapp\\\\\\(tabs\\\\\\))",
-      "Bash(tail:*)"
+      "Bash(tail:*)",
+      "Bash(find C:UsersVictorDesktopfitness-store-managementbackendvenv -path */psycopg/connection.py -type f)",
+      "Bash(find C:UsersVictorDesktopfitness-store-managementbackendvenv -type d -name psycopg*)",
+      "Bash(find C:UsersVictorDesktopfitness-store-managementbackendvenvLibsite-packages -name *psycopg* -type f)"
     ],
     "deny": [],
     "ask": []
