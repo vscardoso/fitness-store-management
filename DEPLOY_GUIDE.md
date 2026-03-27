@@ -92,11 +92,18 @@ Atualize `mobile/constants/Config.ts` com a URL do tunnel.
 
 ```powershell
 # Instalar EAS CLI globalmente
-npm install -g eas-cli
+npm install -g eas-cli@latest
+
+# Verificar se foi instalado corretamente
+eas --version
+# Deve mostrar a versão (ex: 18.4.0)
 
 # Fazer login na conta Expo
 eas login
+# Conta: vscardoso2005
 ```
+
+> ⚠️ **Erro "eas não é reconhecido"?** Veja seção [2.9 Troubleshooting EAS CLI](#29-troubleshooting-eas-cli) abaixo.
 
 ### 2.2 Configurar Projeto
 
@@ -112,65 +119,45 @@ eas build:configure
 
 ### 2.3 Arquivo `eas.json`
 
-Verifique/atualize o arquivo `mobile/eas.json`:
+O arquivo `mobile/eas.json` já está configurado com os perfis necessários:
 
-```json
-{
-  "cli": {
-    "version": ">= 5.0.0"
-  },
-  "build": {
-    "development": {
-      "developmentClient": true,
-      "distribution": "internal"
-    },
-    "preview": {
-      "distribution": "internal",
-      "android": {
-        "buildType": "apk"
-      }
-    },
-    "production": {
-      "android": {
-        "buildType": "app-bundle"
-      }
-    }
-  },
-  "submit": {
-    "production": {}
-  }
-}
-```
+| Profile | Android | iOS | Requer Apple ID? |
+|---------|---------|-----|-----------------|
+| `development` | APK debug | Simulator | ❌ Não |
+| `preview-android` | APK release | — | ❌ Não |
+| `preview` | APK release | Dispositivo | ✅ Sim |
+| `production` | AAB | App Store | ✅ Sim |
 
 ### 2.4 Atualizar app.config.js / app.json
 
-```javascript
-// mobile/app.config.js
-export default {
-  expo: {
-    name: "Fitness Store",
-    slug: "fitness-store",
-    version: "1.0.0",
-    // ... outras configs
-    extra: {
-      eas: {
-        projectId: "seu-project-id-aqui"
-      },
-      // URL de produção do backend
-      apiUrl: process.env.API_URL || "https://seu-backend.onrender.com/api/v1"
-    }
-  }
-};
-```
+O `app.config.js` já está configurado com as informações do projeto EAS (`projectId: "f0cb590f-2113-48d5-ae4b-b3ca15d26639"`).
 
-### 2.5 Build de Preview (APK para testes)
+### 2.5 Build de Preview — APK para testes (SEM Apple ID)
 
 ```powershell
-# Gerar APK para Android (testes internos)
-eas build --platform android --profile preview
+cd C:\Users\Victor\Desktop\fitness-store-management\mobile
+
+# ✅ Recomendado: APK para Android sem precisar de Apple ID
+eas build --platform android --profile preview-android
 
 # Acompanhe o build em: https://expo.dev
-# Quando terminar, baixe o APK e instale no dispositivo
+# Quando terminar, você recebe um link para baixar o APK
+```
+
+**O que enviar para a vendedora (Android):**
+```
+Para instalar o app no seu celular:
+
+1. Acesse este link: [LINK DO APK QUE APARECE APÓS O BUILD]
+2. Clique em "Download" e baixe o arquivo .apk
+3. Nas configurações: Segurança → Fontes desconhecidas → Habilitar
+4. Abra o arquivo APK para instalar
+```
+
+**Para iPhone (sem Apple Developer Account):**
+```
+1. Baixe o app "Expo Go" na App Store (gratuito)
+2. Abra o Expo Go e escaneie o QR Code quando disponível
 ```
 
 ### 2.6 Build de Produção
@@ -179,7 +166,7 @@ eas build --platform android --profile preview
 # Build para Google Play Store
 eas build --platform android --profile production
 
-# Build para Apple App Store (requer macOS)
+# Build para Apple App Store (requer Apple Developer Account $99/ano)
 eas build --platform ios --profile production
 ```
 
@@ -204,6 +191,22 @@ eas submit --platform android
 # Submeter para App Store
 eas submit --platform ios
 ```
+
+### 2.9 Troubleshooting EAS CLI
+
+**Erro 'eas' não reconhecido no PowerShell:**
+```powershell
+# Reinstalar EAS CLI
+npm install -g eas-cli@latest
+
+# Verificar instalação
+eas --version   # deve mostrar ex: 18.4.0
+
+# Se ainda não funcionar, usar npx:
+npx eas-cli build --platform android --profile preview-android
+```
+
+Para mais detalhes, veja [mobile/DEPLOY.md](mobile/DEPLOY.md).
 
 ---
 
@@ -363,7 +366,10 @@ cd mobile && .\expo-dev.ps1
 
 ### Build e Deploy
 ```powershell
-# Build APK preview
+# Build APK Android sem Apple ID (recomendado para distribuição)
+cd mobile && eas build --platform android --profile preview-android
+
+# Build APK preview completo
 cd mobile && eas build --platform android --profile preview
 
 # Build produção
@@ -379,6 +385,60 @@ git add . && git commit -m "deploy: update" && git push origin main
 ---
 
 ## 🔧 Troubleshooting
+
+### ❌ 'eas' não é reconhecido (CommandNotFoundException)
+
+Este é o erro mais comum ao usar EAS pela primeira vez no Windows.
+
+**Solução 1 — Reinstalar EAS CLI:**
+```powershell
+npm install -g eas-cli@latest
+
+# Verificar instalação
+eas --version
+```
+
+**Solução 2 — Usar npx (sem instalação global necessária):**
+```powershell
+# Substitua "eas build ..." por:
+npx eas-cli build --platform android --profile preview-android
+```
+
+**Solução 3 — Verificar e corrigir PATH no Windows:**
+```powershell
+# Descobrir onde npm instala pacotes globais
+npm config get prefix
+# Exemplo: C:\Users\Victor\AppData\Roaming\npm
+
+# Se ainda não funcionar, adicionar ao PATH:
+# Painel de Controle → Sistema → Configurações avançadas do sistema
+# → Variáveis de Ambiente → Path → Novo
+# Adicionar: C:\Users\Victor\AppData\Roaming\npm
+
+# Reiniciar o PowerShell após alterar o PATH
+```
+
+**Solução 4 — Executar via caminho completo:**
+```powershell
+# Verificar se existe
+Test-Path "C:\Users\Victor\AppData\Roaming\npm\eas.cmd"
+
+# Executar diretamente
+C:\Users\Victor\AppData\Roaming\npm\eas.cmd build --platform android --profile preview-android
+```
+
+### ❌ Apple ID solicitado ao fazer build iOS
+
+Use o perfil que não requer Apple Developer Account:
+
+```powershell
+# ✅ Android sem Apple ID
+eas build --platform android --profile preview-android
+
+# ✅ iOS apenas Simulator (sem Apple Developer)
+eas build --platform ios --profile development
+# → Selecione "Simulator" quando perguntado
+```
 
 ### Backend não inicia no Render
 - Verifique logs no painel do Render
