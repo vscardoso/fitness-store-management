@@ -1,4 +1,9 @@
-"""Database configuration and session management using SQLAlchemy 2.0."""
+"""Database configuration and session management usando SQLAlchemy 2.0.
+
+Driver de produção: psycopg3 (psycopg[binary]) — usa libpq nativo com SSL
+robusto que funciona com Render, Heroku, Supabase, etc.
+Driver de dev/testes: aiosqlite (SQLite).
+"""
 
 import asyncio
 import logging
@@ -17,60 +22,59 @@ from app.models.base import BaseModel
 
 logger = logging.getLogger(__name__)
 
-# Get database URL from environment or settings
+# ── Normalização da DATABASE_URL ─────────────────────────────────────
 database_url = os.getenv("DATABASE_URL", settings.DATABASE_URL)
 
-# Render/Heroku às vezes fornecem "postgres://" (sem "ql") — normaliza
+# Render/Heroku fornecem "postgres://" — normaliza para "postgresql://"
 if database_url.startswith("postgres://"):
     database_url = database_url.replace("postgres://", "postgresql://", 1)
 
-# Convert database URL to async driver
-if database_url.startswith("postgresql://"):
-    ASYNC_DATABASE_URL = database_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-elif database_url.startswith("postgresql+asyncpg://"):
-    ASYNC_DATABASE_URL = database_url
-elif database_url.startswith("sqlite:///"):
-    ASYNC_DATABASE_URL = database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
-else:
-    ASYNC_DATABASE_URL = database_url
+# Remove variantes de driver (postgresql+asyncpg://, postgresql+psycopg://)
+# para ficar com a URL canônica "postgresql://"
+for _driver in ("+asyncpg", "+psycopg2", "+psycopg"):
+    if f"postgresql{_driver}://" in database_url:
+        database_url = database_url.replace(f"postgresql{_driver}://", "postgresql://", 1)
+        break
 
-_is_postgres = ASYNC_DATABASE_URL.startswith("postgresql")
-_is_sqlite = ASYNC_DATABASE_URL.startswith("sqlite")
+_is_postgres = database_url.startswith("postgresql")
+_is_sqlite = database_url.startswith("sqlite")
 
-# Log da URL sanitizada para diagnóstico
-_safe_url = database_url
-if "@" in _safe_url:
-    _safe_url = _safe_url.split("@")[0].rsplit(":", 1)[0] + ":***@" + _safe_url.split("@")[1]
-logger.info("Database URL: %s", _safe_url)
+# Log sanitizado
+_safe = database_url
+if "@" in _safe:
+    _safe = _safe.split("@")[0].rsplit(":", 1)[0] + ":***@" + _safe.split("@")[1]
+logger.info("Database URL normalizada: %s", _safe)
 
-# ── Configuração de conexão ──────────────────────────────────────────
-# PostgreSQL: usa NullPool (sem warmup no startup) + ssl=True via asyncpg.
-#   NullPool cria conexões sob demanda — elimina falhas de SSL no startup
-#   do Render. ssl=True deixa o asyncpg gerenciar o SSL internamente,
-#   que é mais compatível do que passar um SSLContext manualmente.
-#
-# SQLite: StaticPool para testes, pool padrão para dev local.
-#
-# Para desativar SSL explicitamente: DATABASE_SSL=disable
+# ── Construção da URL async ───────────────────────────────────────────
+# PostgreSQL produção → psycopg3 (postgresql+psycopg) com sslmode=require
+# SQLite testes      → aiosqlite com StaticPool
+# SQLite dev local   → aiosqlite com pool padrão
 # ─────────────────────────────────────────────────────────────────────
 
 if _is_postgres:
     _ssl_env = os.getenv("DATABASE_SSL", "").lower().strip()
+
     if _ssl_env == "disable":
-        _connect_args: dict = {"ssl": False}
-        logger.info("PostgreSQL SSL: DISABLED (DATABASE_SSL=disable)")
+        # Sem SSL (apenas redes internas explicitamente configuradas)
+        ASYNC_DATABASE_URL = database_url.replace("postgresql://", "postgresql+psycopg://", 1)
+        logger.info("PostgreSQL driver: psycopg3, SSL: DISABLED")
     else:
-        _connect_args = {"ssl": True}
-        logger.info("PostgreSQL SSL: ENABLED (asyncpg internal SSL)")
+        # sslmode=require: libpq encripta mas não verifica certificado
+        # Funciona com Render externo, Heroku, Supabase, etc.
+        _base = database_url.split("?")[0]  # remove params existentes
+        ASYNC_DATABASE_URL = _base.replace(
+            "postgresql://", "postgresql+psycopg://", 1
+        ) + "?sslmode=require"
+        logger.info("PostgreSQL driver: psycopg3, SSL: sslmode=require")
 
     engine = create_async_engine(
         ASYNC_DATABASE_URL,
         echo=settings.DEBUG,
         poolclass=NullPool,
-        connect_args=_connect_args,
     )
 
 elif _is_sqlite and settings.ENVIRONMENT == "test":
+    ASYNC_DATABASE_URL = database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
     engine = create_async_engine(
         ASYNC_DATABASE_URL,
         echo=settings.DEBUG,
@@ -79,7 +83,8 @@ elif _is_sqlite and settings.ENVIRONMENT == "test":
     )
 
 else:
-    # SQLite local dev
+    # SQLite dev local
+    ASYNC_DATABASE_URL = database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
     engine = create_async_engine(
         ASYNC_DATABASE_URL,
         echo=settings.DEBUG,
@@ -89,7 +94,7 @@ else:
         pool_recycle=300,
     )
 
-# Create async session factory
+# ── Session factory ───────────────────────────────────────────────────
 async_session_maker = async_sessionmaker(
     engine,
     class_=AsyncSession,
@@ -100,7 +105,7 @@ async_session_maker = async_sessionmaker(
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """Dependency for getting async database session."""
+    """Dependency para obter sessão async do banco."""
     async with async_session_maker() as session:
         try:
             yield session
@@ -112,44 +117,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
-async def _diagnose_direct_connection() -> None:
-    """Testa conexão direta via asyncpg (sem SQLAlchemy) para diagnóstico."""
-    if not _is_postgres:
-        return
-    import asyncpg as _asyncpg  # type: ignore
-
-    # asyncpg só aceita "postgresql://" ou "postgres://", não "+asyncpg"
-    _raw = database_url
-    _raw = _raw.replace("postgresql+asyncpg://", "postgresql://", 1)
-    _raw = _raw.replace("postgres+asyncpg://", "postgres://", 1)
-    logger.info("DIAG: testando URL (host/db): %s",
-                _raw.split("@")[-1] if "@" in _raw else _raw[:40])
-
-    # Tenta com SSL
-    try:
-        conn = await _asyncpg.connect(_raw, ssl=True, timeout=10)
-        ver = await conn.fetchval("SELECT version()")
-        logger.info("DIAG: ssl=True OK — %s", ver)
-        await conn.close()
-        return
-    except Exception as exc:
-        logger.error("DIAG: ssl=True FALHOU — %s: %s", type(exc).__name__, exc)
-
-    # Tenta sem SSL
-    try:
-        conn = await _asyncpg.connect(_raw, ssl=False, timeout=10)
-        ver = await conn.fetchval("SELECT version()")
-        logger.info("DIAG: ssl=False OK — %s", ver)
-        await conn.close()
-    except Exception as exc:
-        logger.error("DIAG: ssl=False FALHOU — %s: %s", type(exc).__name__, exc)
-
-
 async def init_db() -> None:
-    """Initialize database tables (com retry para DBs lentos no startup)."""
-    # Diagnóstico: testa conexão direta antes de passar pelo SQLAlchemy
-    await _diagnose_direct_connection()
-
+    """Inicializa tabelas do banco (com retry para DBs lentos no startup)."""
     max_retries = 5
     for attempt in range(1, max_retries + 1):
         try:
@@ -169,5 +138,5 @@ async def init_db() -> None:
 
 
 async def close_db() -> None:
-    """Close database connections."""
+    """Fecha conexões do banco."""
     await engine.dispose()
