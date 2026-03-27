@@ -1,13 +1,13 @@
 """Database configuration and session management usando SQLAlchemy 2.0.
 
-Driver de produção: psycopg3 (psycopg[binary]) com Python ssl.SSLContext.
+Driver de produção: asyncpg com Python ssl.SSLContext.
+  - asyncpg aceita connect_args={"ssl": ssl.SSLContext} diretamente
+  - Usa implementação Python/ssl (não libpq), compatível com proxies do Render
+  - psycopg3/psycopg2 usam libpq para SSL — incompatível com o proxy do Render
+
 Driver de dev/testes: aiosqlite (SQLite).
 
-Por que Python SSLContext em vez de sslmode=require na URL?
-  O sslmode=require usa libpq para o handshake SSL. Em alguns proxies gerenciados
-  (Render, Railway), o handshake via libpq falha com "SSL connection has been
-  closed unexpectedly". Passando ssl=SSLContext diretamente ao psycopg3, o
-  handshake usa a implementação Python/ssl que é mais compatível.
+Alembic (migrations): usa psycopg2 síncrono — veja alembic/env.py.
 """
 
 import asyncio
@@ -55,9 +55,9 @@ logger.info("Database URL normalizada: %s", _safe)
 if _is_postgres:
     _ssl_env = os.getenv("DATABASE_SSL", "").lower().strip()
 
-    # URL sem query params (sslmode etc. — gerenciado via connect_args abaixo)
+    # URL sem query params (SSL gerenciado via connect_args)
     _base = database_url.split("?")[0]
-    ASYNC_DATABASE_URL = _base.replace("postgresql://", "postgresql+psycopg://", 1)
+    ASYNC_DATABASE_URL = _base.replace("postgresql://", "postgresql+asyncpg://", 1)
 
     if _ssl_env == "disable":
         engine = create_async_engine(
@@ -65,10 +65,11 @@ if _is_postgres:
             echo=settings.DEBUG,
             poolclass=NullPool,
         )
-        logger.info("PostgreSQL driver: psycopg3, SSL: DISABLED")
+        logger.info("PostgreSQL driver: asyncpg, SSL: DISABLED")
     else:
-        # Python ssl.SSLContext — mais compatível com proxies gerenciados
-        # (Render, Railway, Heroku) do que sslmode=require via libpq.
+        # Python ssl.SSLContext — asyncpg usa ssl nativo Python (não libpq).
+        # Isso é necessário porque sslmode=require via libpq falha com o proxy
+        # do Render ("SSL connection has been closed unexpectedly").
         _ssl_ctx = ssl.create_default_context()
         _ssl_ctx.check_hostname = False
         _ssl_ctx.verify_mode = ssl.CERT_NONE
@@ -79,7 +80,7 @@ if _is_postgres:
             poolclass=NullPool,
             connect_args={"ssl": _ssl_ctx},
         )
-        logger.info("PostgreSQL driver: psycopg3, SSL: Python SSLContext (CERT_NONE)")
+        logger.info("PostgreSQL driver: asyncpg, SSL: Python SSLContext (CERT_NONE)")
 
 elif _is_sqlite and settings.ENVIRONMENT == "test":
     ASYNC_DATABASE_URL = database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
@@ -129,19 +130,17 @@ async def init_db() -> None:
     """Verifica conectividade com o banco (com retry).
 
     SQLite dev  → cria tabelas automaticamente via create_all.
-    PostgreSQL  → apenas verifica conexão (schema gerenciado pelo Alembic).
+    PostgreSQL  → apenas verifica conexão com SELECT 1.
+                  Schema é gerenciado pelo Alembic (entrypoint.sh).
     """
     max_retries = 5
     for attempt in range(1, max_retries + 1):
         try:
             async with engine.connect() as conn:
                 if _is_sqlite:
-                    # Dev local: cria tabelas automaticamente
                     await conn.run_sync(BaseModel.metadata.create_all)
                     await conn.commit()
                 else:
-                    # Produção: apenas verifica conectividade.
-                    # O schema é gerenciado pelo Alembic (entrypoint.sh).
                     await conn.execute(text("SELECT 1"))
 
             logger.info("Database initialized successfully")
