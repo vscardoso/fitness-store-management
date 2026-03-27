@@ -568,7 +568,7 @@ class ProductService:
             _text(
                 "SELECT COALESCE(SUM(ei.quantity_remaining), 0) "
                 "FROM entry_items ei "
-                "WHERE ei.product_id = :pid AND ei.tenant_id = :tid AND ei.is_active = 1"
+                "WHERE ei.product_id = :pid AND ei.tenant_id = :tid AND ei.is_active = true"
             ),
             {"pid": product_id, "tid": tenant_id},
         )
@@ -580,7 +580,7 @@ class ProductService:
                 "SELECT COALESCE(SUM(ei.quantity_remaining), 0) "
                 "FROM entry_items ei "
                 "JOIN product_variants pv ON ei.variant_id = pv.id "
-                "WHERE pv.product_id = :pid AND ei.tenant_id = :tid AND ei.is_active = 1"
+                "WHERE pv.product_id = :pid AND ei.tenant_id = :tid AND ei.is_active = true"
             ),
             {"pid": product_id, "tid": tenant_id},
         )

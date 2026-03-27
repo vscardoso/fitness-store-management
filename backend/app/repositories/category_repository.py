@@ -73,7 +73,7 @@ class CategoryRepository(BaseRepository[Category, Any, Any]):
                     CAST(id AS TEXT) as id_path
                 FROM categories 
                 WHERE parent_id IS NULL
-                AND tenant_id = (SELECT MIN(tenant_id) FROM categories WHERE is_active = 1)
+                AND tenant_id = (SELECT MIN(tenant_id) FROM categories WHERE is_active = true)
                 
                 UNION ALL
                 

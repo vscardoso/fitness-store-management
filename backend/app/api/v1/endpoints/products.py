@@ -94,7 +94,7 @@ async def build_product_response(
         variant_query = text("""
             SELECT sku, price, cost_price, color, size 
             FROM product_variants 
-            WHERE product_id = :pid AND is_active = 1
+            WHERE product_id = :pid AND is_active = true
             LIMIT 1
         """)
         variant_params = {"pid": product.id}
@@ -103,11 +103,11 @@ async def build_product_response(
         all_variants_query = text("""
             SELECT 
                 pv.id, pv.sku, pv.size, pv.color, pv.price, pv.cost_price, pv.is_active,
-                COALESCE(SUM(CASE WHEN se.is_active = 1 THEN ei.quantity_remaining ELSE 0 END), 0) as current_stock
+                COALESCE(SUM(CASE WHEN se.is_active = true THEN ei.quantity_remaining ELSE 0 END), 0) as current_stock
             FROM product_variants pv
-            LEFT JOIN entry_items ei ON ei.variant_id = pv.id AND ei.is_active = 1
+            LEFT JOIN entry_items ei ON ei.variant_id = pv.id AND ei.is_active = true
             LEFT JOIN stock_entries se ON se.id = ei.entry_id
-            WHERE pv.product_id = :pid AND pv.is_active = 1
+            WHERE pv.product_id = :pid AND pv.is_active = true
             GROUP BY pv.id
             ORDER BY pv.size, pv.color
         """)
@@ -116,7 +116,7 @@ async def build_product_response(
         variant_query = text("""
             SELECT sku, price, cost_price, color, size 
             FROM product_variants 
-            WHERE product_id = :pid AND tenant_id = :tid AND is_active = 1
+            WHERE product_id = :pid AND tenant_id = :tid AND is_active = true
             LIMIT 1
         """)
         variant_params = {"pid": product.id, "tid": tenant_id}
@@ -125,11 +125,11 @@ async def build_product_response(
         all_variants_query = text("""
             SELECT 
                 pv.id, pv.sku, pv.size, pv.color, pv.price, pv.cost_price, pv.is_active,
-                COALESCE(SUM(CASE WHEN se.is_active = 1 THEN ei.quantity_remaining ELSE 0 END), 0) as current_stock
+                COALESCE(SUM(CASE WHEN se.is_active = true THEN ei.quantity_remaining ELSE 0 END), 0) as current_stock
             FROM product_variants pv
-            LEFT JOIN entry_items ei ON ei.variant_id = pv.id AND ei.is_active = 1
+            LEFT JOIN entry_items ei ON ei.variant_id = pv.id AND ei.is_active = true
             LEFT JOIN stock_entries se ON se.id = ei.entry_id
-            WHERE pv.product_id = :pid AND pv.tenant_id = :tid AND pv.is_active = 1
+            WHERE pv.product_id = :pid AND pv.tenant_id = :tid AND pv.is_active = true
             GROUP BY pv.id
             ORDER BY pv.size, pv.color
         """)
@@ -522,8 +522,8 @@ async def list_catalog_products(
                    is_digital, is_activewear, is_catalog, is_active, image_url,
                    base_price, created_at, updated_at
             FROM products 
-            WHERE is_catalog = 1 AND is_active = 1
-              AND tenant_id = (SELECT MIN(tenant_id) FROM products WHERE is_catalog = 1 AND is_active = 1)
+            WHERE is_catalog = true AND is_active = true
+              AND tenant_id = (SELECT MIN(tenant_id) FROM products WHERE is_catalog = true AND is_active = true)
         """
         params = {}
         
@@ -550,7 +550,7 @@ async def list_catalog_products(
             variant_result = await db.execute(text("""
                 SELECT sku, price, cost_price, color, size 
                 FROM product_variants 
-                WHERE product_id = :pid AND is_active = 1
+                WHERE product_id = :pid AND is_active = true
                 LIMIT 1
             """), {"pid": product_id})
             variant = variant_result.fetchone()
@@ -559,7 +559,7 @@ async def list_catalog_products(
             all_variants_result = await db.execute(text("""
                 SELECT id, sku, size, color, price, cost_price, is_active
                 FROM product_variants 
-                WHERE product_id = :pid AND is_active = 1
+                WHERE product_id = :pid AND is_active = true
                 ORDER BY size, color
             """), {"pid": product_id})
             all_variants = all_variants_result.fetchall()
@@ -918,7 +918,7 @@ async def get_product(
             text("""
                 SELECT sku, price, cost_price, color, size 
                 FROM product_variants 
-                WHERE product_id = :pid AND tenant_id = :tid AND is_active = 1
+                WHERE product_id = :pid AND tenant_id = :tid AND is_active = true
                 LIMIT 1
             """),
             {"pid": product_id, "tid": tenant_id}

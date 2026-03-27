@@ -40,7 +40,7 @@ async def list_grouped_products_debug(
         products_query = """
             SELECT p.id, p.name
             FROM products p
-            WHERE p.tenant_id = :tid AND p.is_catalog = 0 AND p.is_active = 1
+            WHERE p.tenant_id = :tid AND p.is_catalog = 0 AND p.is_active = true
             ORDER BY p.name
             LIMIT :limit OFFSET :skip
         """
@@ -64,7 +64,7 @@ async def list_grouped_products_debug(
             sql_query = """
                 SELECT COUNT(*)
                 FROM product_variants v
-                WHERE v.product_id = :pid AND v.tenant_id = :tid AND v.is_active = 1
+                WHERE v.product_id = :pid AND v.tenant_id = :tid AND v.is_active = true
             """
             result2 = await db.execute(text(sql_query), {"pid": product_id, "tid": tenant_id})
             count_sql = result2.scalar()
@@ -119,7 +119,7 @@ async def list_grouped_products(
         id_query = """
             SELECT DISTINCT p.id
             FROM products p
-            WHERE p.tenant_id = :tid AND p.is_catalog = 0 AND p.is_active = 1
+            WHERE p.tenant_id = :tid AND p.is_catalog = 0 AND p.is_active = true
         """
         
         if category_id:
@@ -137,7 +137,7 @@ async def list_grouped_products(
                     JOIN stock_entries se2 ON se2.id = ei2.entry_id
                     JOIN product_variants pv2 ON pv2.id = ei2.variant_id
                     WHERE pv2.product_id = p.id AND pv2.tenant_id = :tid
-                    AND ei2.is_active = 1 AND se2.is_active = 1 AND ei2.quantity_remaining > 0
+                    AND ei2.is_active = true AND se2.is_active = true AND ei2.quantity_remaining > 0
                 )
             """
         
@@ -162,12 +162,12 @@ async def list_grouped_products(
                        SELECT SUM(ei.quantity_remaining)
                        FROM entry_items ei
                        JOIN stock_entries se ON se.id = ei.entry_id
-                       WHERE ei.variant_id = v.id AND ei.is_active = 1 AND se.is_active = 1
+                       WHERE ei.variant_id = v.id AND ei.is_active = true AND se.is_active = true
                    ), 0) as variant_stock,
                    i.min_stock
             FROM products p
             LEFT JOIN product_variants v
-                   ON p.id = v.product_id AND v.is_active = 1 AND v.tenant_id = :tid
+                   ON p.id = v.product_id AND v.is_active = true AND v.tenant_id = :tid
             LEFT JOIN inventory i ON v.id = i.variant_id AND i.tenant_id = :tid
             WHERE p.id IN ({ids_placeholder})
             ORDER BY p.name, v.size, v.color
