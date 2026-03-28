@@ -383,7 +383,7 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
         </Button>
 
         <View style={styles.secondaryActions}>
-          {canViewProduct && isVariantProduct && (
+          {canViewProduct && (
             <Button
               mode="outlined"
               onPress={() => router.push(`/products/photos/${createdProduct!.id}` as any)}

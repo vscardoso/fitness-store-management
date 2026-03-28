@@ -193,6 +193,32 @@ async def get_dashboard_stats(
     result = await db.execute(products_with_entries_query)
     total_products = result.scalar() or 0
 
+    # 4.0.1 Total de SKUs em estoque (conta produto+variação separadamente)
+    # Se um produto tem 3 tamanhos (P/M/G), conta como 3 SKUs
+    skus_subq = (
+        select(
+            EntryItem.product_id,
+            func.coalesce(EntryItem.variant_id, 0).label("vid"),
+        )
+        .select_from(EntryItem)
+        .join(StockEntry, EntryItem.entry_id == StockEntry.id)
+        .join(Product, EntryItem.product_id == Product.id)
+        .where(
+            EntryItem.tenant_id == tenant_id,
+            EntryItem.is_active == True,
+            StockEntry.is_active == True,
+            EntryItem.quantity_remaining > 0,
+            Product.is_active == True,
+            Product.is_catalog == False,
+            Product.tenant_id == tenant_id,
+        )
+        .group_by(EntryItem.product_id, func.coalesce(EntryItem.variant_id, 0))
+        .subquery()
+    )
+    skus_count_query = select(func.count()).select_from(skus_subq)
+    result = await db.execute(skus_count_query)
+    total_skus = result.scalar() or 0
+
     # 4.1 Total de produtos cadastrados ativos (independente de ter estoque)
     products_registered_query = select(func.count(Product.id)).where(
         Product.tenant_id == tenant_id,
@@ -416,7 +442,8 @@ async def get_dashboard_stats(
             "potential_profit": potential_revenue - invested_value,
             "average_margin_percent": round(average_margin, 2),
             "total_quantity": total_quantity,
-            "total_products": total_products,  # produtos com estoque ativo
+            "total_products": total_products,  # produtos (base) com estoque ativo
+            "total_skus": total_skus,  # SKUs distintos (produto+variação) com estoque
             "products_registered": total_products_registered,  # todos produtos ativos
             "low_stock_count": low_stock_count,
         },

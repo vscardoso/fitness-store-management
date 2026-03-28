@@ -159,6 +159,7 @@ export default function DashboardScreen() {
   const marginToday = dashboardStats?.sales?.margin_today || 0;
   const lowStockCount = dashboardStats?.stock?.low_stock_count || 0;
   const totalProducts = dashboardStats?.stock?.total_products || 0;
+  const totalSkus = dashboardStats?.stock?.total_skus || totalProducts;
   const totalCustomers = dashboardStats?.customers?.total || 0;
 
   // Período selecionado
@@ -894,6 +895,7 @@ export default function DashboardScreen() {
             <View style={styles.purchasesInfo}>
               <Text style={styles.purchasesLabel}>Compras do Periodo</Text>
               <Text style={styles.purchasesValue}>{formatCurrency(purchasesTotal)}</Text>
+              <Text style={styles.purchasesPeriodNote}>{periodLabel}</Text>
             </View>
             {purchasesChangePercent !== 0 && (
               <View style={[
@@ -922,7 +924,7 @@ export default function DashboardScreen() {
             <View style={styles.purchasesStatDivider} />
             <View style={styles.purchasesStat}>
               <Text style={styles.purchasesStatValue}>{purchasesItems}</Text>
-              <Text style={styles.purchasesStatLabel}>itens</Text>
+              <Text style={styles.purchasesStatLabel}>un. compradas</Text>
             </View>
           </View>
         </TouchableOpacity>
@@ -967,8 +969,10 @@ export default function DashboardScreen() {
             {/* Info: Total de produtos */}
             <View style={styles.stockInfo}>
               <Text style={styles.stockInfoText}>
-                {totalProducts} produtos em estoque
+                {totalProducts} {totalProducts === 1 ? 'produto' : 'produtos'}
+                {totalSkus > totalProducts ? ` · ${totalSkus} variações` : ''} em estoque
               </Text>
+              <Text style={styles.stockInfoSubtext}>Total acumulado — independente do período</Text>
             </View>
           </View>
         </Card>
@@ -1001,8 +1005,13 @@ export default function DashboardScreen() {
             onPress={() => router.push('/(tabs)/products')}
           >
             <Ionicons name="cube" size={20} color="#8B5CF6" />
-            <Text style={styles.quickStatValue}>{totalProducts}</Text>
-            <Text style={styles.quickStatLabel}>Produtos</Text>
+            <Text style={styles.quickStatValue}>{totalSkus}</Text>
+            <Text style={styles.quickStatLabel}>
+              {totalSkus > totalProducts ? 'Variações' : 'Produtos'}
+            </Text>
+            {totalSkus > totalProducts && (
+              <Text style={styles.quickStatSub}>{totalProducts} modelos</Text>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.quickStatCard}
@@ -1361,6 +1370,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1F2937',
   },
+  purchasesPeriodNote: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 1,
+  },
   purchasesStats: {
     flexDirection: 'row',
     backgroundColor: '#F9FAFB',
@@ -1474,6 +1488,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#9CA3AF',
   },
+  stockInfoSubtext: {
+    fontSize: 11,
+    color: '#D1D5DB',
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
 
   // Alerta
   alertCard: {
@@ -1562,6 +1582,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#6B7280',
     marginTop: 2,
+  },
+  quickStatSub: {
+    fontSize: 10,
+    color: '#9CA3AF',
+    marginTop: 1,
   },
 
   // Últimas Vendas

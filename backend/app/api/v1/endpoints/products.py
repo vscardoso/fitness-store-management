@@ -572,10 +572,9 @@ async def list_catalog_products(
             updated_at = p[14] or datetime.utcnow()
             
             # Catálogo NÃO tem SKU - SKU só é gerado ao ativar o produto
-            # Mostrar placeholder ou None para indicar que será gerado na ativação
-            sku_display = None  # Catálogo não tem SKU
+            # Usar placeholder para satisfazer o schema (str obrigatório)
+            sku_display = f"CAT-{product_id}"
             if variant and variant[0]:
-                # Fallback: se somehow tem SKU, mostrar
                 sku_display = f"TEMPLATE-{variant[0]}"
             
             responses.append({
@@ -992,8 +991,8 @@ async def get_product(
             "id": row[0],
             "name": row[1],
             "description": row[2],
-            "sku": variant_row[0] if variant_row else None,
-            "price": float(variant_row[1]) if variant_row and variant_row[1] else None,
+            "sku": variant_row[0] if (variant_row and variant_row[0]) else f"PROD-{row[0]}",
+            "price": float(variant_row[1]) if variant_row and variant_row[1] else 1.0,
             "cost_price": float(variant_row[2]) if variant_row and variant_row[2] else None,
             "category_id": row[3],
             "category": category_data,
