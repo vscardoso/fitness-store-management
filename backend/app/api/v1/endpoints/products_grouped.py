@@ -121,7 +121,7 @@ async def list_grouped_products(
         
         # ── Passo 1: paginar product_ids (DISTINCT, sem multiplicar por variantes) ───
         id_query = """
-            SELECT DISTINCT p.id
+            SELECT DISTINCT p.id, p.name
             FROM products p
             WHERE p.tenant_id = :tid AND p.is_catalog = false AND p.is_active = true
         """
