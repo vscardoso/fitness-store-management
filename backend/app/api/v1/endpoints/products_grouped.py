@@ -1,11 +1,15 @@
 """
 Endpoint para listar produtos agrupados por variantes
 """
+import logging
+import traceback as tb
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from collections import defaultdict
+
+logger = logging.getLogger(__name__)
 
 from app.core.database import get_db
 from app.api.deps import get_current_active_user, get_current_tenant_id
@@ -243,8 +247,8 @@ async def list_grouped_products(
         return result_list
         
     except Exception as e:
-        import traceback
+        logger.error(f"GROUPED ERROR: {tb.format_exc()}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao listar produtos agrupados: {str(e)}\n{traceback.format_exc()}"
+            detail=f"Erro ao listar produtos agrupados: {str(e)}\n{tb.format_exc()}"
         )
