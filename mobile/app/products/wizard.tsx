@@ -245,7 +245,7 @@ export default function ProductWizardScreen() {
         )}
 
         {state.currentStep === 'complete' && (
-          <WizardComplete wizard={wizard} />
+          <WizardComplete wizard={wizard} onGoToProducts={() => router.replace('/(tabs)/products')} />
         )}
       </View>
 

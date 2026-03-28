@@ -17,11 +17,12 @@ import type { ProductVariant } from '@/types/productVariant';
 
 interface WizardCompleteProps {
   wizard: UseProductWizardReturn;
+  onGoToProducts?: () => void;
 }
 
 const MAX_VARIANTS_VISIBLE = 6;
 
-export function WizardComplete({ wizard }: WizardCompleteProps) {
+export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) {
   const router = useRouter();
   const { state, resetWizard } = wizard;
   const { createdProduct, linkedEntry } = state;
@@ -79,7 +80,11 @@ export function WizardComplete({ wizard }: WizardCompleteProps) {
   };
 
   const handleGoToProducts = () => {
-    router.replace('/(tabs)/products');
+    if (onGoToProducts) {
+      onGoToProducts();
+    } else {
+      router.replace('/(tabs)/products');
+    }
   };
 
   return (
