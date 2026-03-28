@@ -131,7 +131,7 @@ async def list_grouped_products(
             params["cat_id"] = category_id
         
         if search:
-            id_query += " AND (p.name LIKE :search OR p.brand LIKE :search)"
+            id_query += " AND (p.name ILIKE :search OR p.brand ILIKE :search)"
             params["search"] = f"%{search}%"
         
         if has_stock:

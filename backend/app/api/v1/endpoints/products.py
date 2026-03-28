@@ -532,7 +532,7 @@ async def list_catalog_products(
             params["category_id"] = category_id
         
         if search:
-            base_query += " AND (name LIKE :search OR brand LIKE :search)"
+            base_query += " AND (name ILIKE :search OR brand ILIKE :search)"
             params["search"] = f"%{search}%"
         
         base_query += " ORDER BY name LIMIT :limit OFFSET :skip"
@@ -967,7 +967,7 @@ async def get_product(
                 JOIN stock_entries se ON se.id = ei.entry_id
                 WHERE ei.product_id = :pid
                   AND se.tenant_id  = :tid
-                  AND se.is_active  = 1
+                  AND se.is_active  = true
                 ORDER BY se.entry_date ASC, ei.id ASC
             """),
             {"pid": product_id, "tid": tenant_id}
