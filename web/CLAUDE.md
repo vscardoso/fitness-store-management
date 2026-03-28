@@ -50,13 +50,15 @@ Skill de inteligência de design. Ativa automaticamente ao pedir qualquer coisa 
 
 **Para gerar o design system do projeto:**
 ```bash
-python3 skills/ui-ux-pro-max/scripts/search.py "fitness store ecommerce landing" --design-system --persist -p "FitnessStore"
+python3 .claude/skills/ui-ux-pro-max/scripts/search.py "fitness store ecommerce landing" --design-system --persist -p "FitnessStore"
 ```
 
-**Para instalar os scripts Python completos:**
+**Busca por domínio:**
 ```bash
-npm install -g uipro-cli
-uipro init --ai claude
+python3 .claude/skills/ui-ux-pro-max/scripts/search.py "fitness activewear" --domain color
+python3 .claude/skills/ui-ux-pro-max/scripts/search.py "hero cta social-proof" --domain landing
+python3 .claude/skills/ui-ux-pro-max/scripts/search.py "bold modern sporty" --domain typography
+python3 .claude/skills/ui-ux-pro-max/scripts/search.py "bundle performance" --stack nextjs
 ```
 
 ### 2. OpenSquad (`_opensquad/`)

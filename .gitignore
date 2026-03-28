@@ -187,3 +187,22 @@ secrets/
 /dist
 /.next/
 /out/
+
+# ========================================
+# CLAUDE CODE / AGENT TOOLS
+# ========================================
+.claude/settings.local.json
+**/.agents/
+**/skills-lock.json
+
+# OpenSquad (runtime / gerado automaticamente)
+mobile/_opensquad/
+mobile/dashboard/
+mobile/skills/
+mobile/squads/
+
+# Skills instaladas (como node_modules — não versionadas)
+web/.claude/skills/ui-ux-pro-max/data/
+web/.claude/skills/ui-ux-pro-max/scripts/
+web/.claude/skills/frontend-design/
+web/skills/

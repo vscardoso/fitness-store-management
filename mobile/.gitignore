@@ -39,3 +39,12 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# OpenSquad (runtime / gerado automaticamente)
+_opensquad/
+dashboard/
+skills/
+squads/
+
+# Claude Code local
+.claude/settings.local.json

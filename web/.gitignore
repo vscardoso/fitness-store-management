@@ -32,3 +32,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Agent tools (instalados, não versionados)
+.agents/
+skills/
+skills-lock.json
+.claude/skills/ui-ux-pro-max/data/
+.claude/skills/ui-ux-pro-max/scripts/
+.claude/skills/frontend-design/
