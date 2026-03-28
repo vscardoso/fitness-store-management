@@ -378,6 +378,18 @@ export function WizardComplete({ wizard }: WizardCompleteProps) {
         </Button>
 
         <View style={styles.secondaryActions}>
+          {canViewProduct && isVariantProduct && (
+            <Button
+              mode="outlined"
+              onPress={() => router.push(`/products/photos/${createdProduct!.id}` as any)}
+              style={[styles.secondaryButton, { borderColor: '#6366F1' }]}
+              textColor="#6366F1"
+              icon="images"
+            >
+              Adicionar Fotos
+            </Button>
+          )}
+
           {canViewProduct && (
             <Button
               mode="outlined"
@@ -391,12 +403,23 @@ export function WizardComplete({ wizard }: WizardCompleteProps) {
 
           <Button
             mode="outlined"
-            onPress={linkedEntry ? handleGoToStock : handleGoToProducts}
+            onPress={handleGoToProducts}
             style={styles.secondaryButton}
-            icon={linkedEntry ? 'archive' : 'grid'}
+            icon="grid"
           >
-            {linkedEntry ? 'Ir para Estoque' : 'Ver Produtos'}
+            Ver Produtos
           </Button>
+
+          {linkedEntry && (
+            <Button
+              mode="outlined"
+              onPress={handleGoToStock}
+              style={styles.secondaryButton}
+              icon="archive"
+            >
+              Ir para Estoque
+            </Button>
+          )}
         </View>
       </View>
     </ScrollView>

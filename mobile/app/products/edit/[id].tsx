@@ -7,6 +7,7 @@ import {
   Platform,
   TouchableOpacity,
   StatusBar,
+  Image,
 } from 'react-native';
 import {
   TextInput,
@@ -16,6 +17,7 @@ import {
   ActivityIndicator,
 } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -621,6 +623,17 @@ export default function EditProductScreen() {
                     {/* Header melhorado */}
                     <View style={styles.variantHeader}>
                       <View style={styles.variantHeaderLeft}>
+                        {/* Thumbnail da foto */}
+                        {(variant as any).image_url ? (
+                          <Image
+                            source={{ uri: (variant as any).image_url }}
+                            style={styles.variantThumb}
+                          />
+                        ) : (
+                          <View style={styles.variantThumbPlaceholder}>
+                            <Ionicons name="camera-outline" size={14} color={Colors.light.textSecondary} />
+                          </View>
+                        )}
                         <View style={[
                           styles.variantStockDot,
                           vStock === 0 ? { backgroundColor: Colors.light.error }
@@ -704,6 +717,32 @@ export default function EditProductScreen() {
             </View>
           </View>
         )}
+        {/* Botão Gerenciar Fotos (visível quando há variações) */}
+        {hasVariants && (
+          <TouchableOpacity
+            style={styles.photosButton}
+            onPress={() => router.push(`/products/photos/${product!.id}`)}
+            activeOpacity={0.85}
+          >
+            <LinearGradient
+              colors={['#6366F1', '#8B5CF6']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.photosButtonGradient}
+            >
+              <Ionicons name="images" size={20} color="#fff" />
+              <View style={styles.photosButtonText}>
+                <Text style={styles.photosButtonTitle}>Gerenciar Fotos das Variações</Text>
+                <Text style={styles.photosButtonSub}>
+                  {(variants ?? []).filter((v: any) => v.image_url).length}/
+                  {(variants ?? []).filter((v: any) => v.is_active).length} com foto
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
+            </LinearGradient>
+          </TouchableOpacity>
+        )}
+
         {/* Botões de ação */}
         <View style={styles.actions}>
           <Button
@@ -1654,5 +1693,54 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: Colors.light.textSecondary,
+  },
+
+  // Thumbnail de foto da variação
+  variantThumb: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    resizeMode: 'cover',
+    marginRight: 2,
+  },
+  variantThumbPlaceholder: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderStyle: 'dashed',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 2,
+  },
+
+  // Botão Gerenciar Fotos
+  photosButton: {
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+    elevation: 3,
+    shadowColor: '#6366F1',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+  },
+  photosButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: theme.spacing.md,
+    gap: theme.spacing.md,
+  },
+  photosButtonText: { flex: 1 },
+  photosButtonTitle: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  photosButtonSub: {
+    fontSize: theme.fontSize.xs,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
   },
 });

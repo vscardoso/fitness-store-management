@@ -104,6 +104,13 @@ export default function CategoriesScreen() {
         </Text>
       ) : null}
       <TouchableOpacity
+        style={styles.editBtn}
+        onPress={() => router.push(`/categories/edit/${sub.id}`)}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <Ionicons name="pencil-outline" size={16} color={Colors.light.primary} />
+      </TouchableOpacity>
+      <TouchableOpacity
         style={styles.deleteBtn}
         onPress={() => handleDelete(sub)}
         hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -136,6 +143,13 @@ export default function CategoriesScreen() {
               {children.length} subcategoria{children.length !== 1 ? 's' : ''}
             </Text>
           </View>
+          <TouchableOpacity
+            style={styles.cardEditBtn}
+            onPress={() => router.push(`/categories/edit/${item.id}`)}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="pencil-outline" size={18} color="rgba(255,255,255,0.9)" />
+          </TouchableOpacity>
           <TouchableOpacity
             style={styles.cardDeleteBtn}
             onPress={() => handleDelete(item)}
@@ -359,6 +373,14 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.7)',
     marginTop: 4,
   },
+  cardEditBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   cardDeleteBtn: {
     width: 36,
     height: 36,
@@ -398,6 +420,9 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
     flex: 1,
+  },
+  editBtn: {
+    padding: 4,
   },
   deleteBtn: {
     padding: 4,

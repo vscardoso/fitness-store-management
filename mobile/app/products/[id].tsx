@@ -244,6 +244,7 @@ export default function ProductDetailsScreen() {
         onBack={goBack}
         rightActions={[
           { icon: 'help-circle-outline', onPress: () => startTutorial('product-details') },
+          ...(hasVariants ? [{ icon: 'images' as any, onPress: () => router.push(`/products/photos/${productId}` as any) }] : []),
           { icon: 'pencil', onPress: () => router.push(`/products/edit/${productId}` as any) },
           { icon: 'trash', onPress: handleDelete },
         ]}

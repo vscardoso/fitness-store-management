@@ -8,6 +8,7 @@
 
 import api from './api';
 import type { Product } from '@/types';
+import type { ProductVariant } from '@/types/productVariant';
 
 /**
  * Faz upload de uma imagem para um produto.
@@ -96,23 +97,74 @@ export async function uriToBase64(uri: string): Promise<string> {
 /**
  * Faz upload de imagem para produto, tentando primeiro FormData
  * e fallback para base64 se falhar.
- *
- * @param productId ID do produto
- * @param imageUri URI local da imagem
- * @returns Produto atualizado com image_url
  */
 export async function uploadProductImageWithFallback(
   productId: number,
   imageUri: string
 ): Promise<Product> {
   try {
-    // Tentar upload direto (mais eficiente)
     return await uploadProductImage(productId, imageUri);
   } catch (error) {
     console.log('Upload direto falhou, tentando base64...');
-
-    // Fallback: converter para base64 e enviar
     const base64 = await uriToBase64(imageUri);
     return await uploadProductImageBase64(productId, base64);
+  }
+}
+
+// ─── Variações ────────────────────────────────────────────────────────────────
+
+/**
+ * Faz upload de uma imagem para uma variação específica (FormData).
+ */
+export async function uploadVariantImage(
+  variantId: number,
+  imageUri: string
+): Promise<ProductVariant> {
+  if (imageUri.startsWith('data:')) {
+    return uploadVariantImageBase64(variantId, imageUri);
+  }
+
+  const formData = new FormData();
+  const uriParts = imageUri.split('/');
+  const fileName = uriParts[uriParts.length - 1];
+  const fileType = fileName.endsWith('.png') ? 'image/png' : 'image/jpeg';
+
+  formData.append('file', { uri: imageUri, name: fileName, type: fileType } as any);
+
+  const response = await api.post<ProductVariant>(
+    `/product-variants/${variantId}/image`,
+    formData,
+    { headers: { 'Content-Type': 'multipart/form-data' } }
+  );
+  return response.data;
+}
+
+/**
+ * Faz upload de uma imagem em base64 para uma variação específica.
+ */
+export async function uploadVariantImageBase64(
+  variantId: number,
+  base64Data: string
+): Promise<ProductVariant> {
+  const response = await api.post<ProductVariant>(
+    `/product-variants/${variantId}/image/base64`,
+    { image_data: base64Data }
+  );
+  return response.data;
+}
+
+/**
+ * Upload de imagem para variação com fallback automático para base64.
+ */
+export async function uploadVariantImageWithFallback(
+  variantId: number,
+  imageUri: string
+): Promise<ProductVariant> {
+  try {
+    return await uploadVariantImage(variantId, imageUri);
+  } catch {
+    console.log('Upload de variação direto falhou, tentando base64...');
+    const base64 = await uriToBase64(imageUri);
+    return await uploadVariantImageBase64(variantId, base64);
   }
 }

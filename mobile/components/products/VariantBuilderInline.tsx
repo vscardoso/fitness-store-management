@@ -326,11 +326,11 @@ export default function VariantBuilderInline({
             </View>
             <View style={styles.toggleTextBlock}>
               <Text style={[styles.toggleTitle, hasVariants && styles.toggleTitleActive]}>
-                Grade de Variantes
+                Grade de Variações
               </Text>
               <Text style={styles.toggleSubtitle}>
                 {hasVariants
-                  ? `${variantCount} variante${variantCount !== 1 ? 's' : ''} configurada${variantCount !== 1 ? 's' : ''}`
+                  ? `${variantCount} ${variantCount !== 1 ? 'variações' : 'variação'} configurada${variantCount !== 1 ? 's' : ''}`
                   : 'Tamanhos, cores e preços individuais'}
               </Text>
             </View>
@@ -511,7 +511,7 @@ export default function VariantBuilderInline({
                 <View style={styles.variantCountPill}>
                   <Ionicons name="grid-outline" size={13} color={Colors.light.primary} />
                   <Text style={styles.variantCountText}>
-                    {variantCount} variante{variantCount !== 1 ? 's' : ''}
+                    {variantCount} {variantCount !== 1 ? 'variações' : 'variação'}
                   </Text>
                 </View>
                 {basePrice > 0 && (
@@ -645,7 +645,7 @@ export default function VariantBuilderInline({
               </View>
               <Text style={styles.emptyTitle}>Selecione tamanhos e/ou cores</Text>
               <Text style={styles.emptySubtitle}>
-                A grade de variantes aparecerá aqui
+                A grade de variações aparecerá aqui
               </Text>
             </View>
           )}

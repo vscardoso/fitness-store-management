@@ -240,7 +240,7 @@ export default function ProductsScreen() {
             >
               <View style={styles.buttonContent}>
                 <Ionicons name="layers-outline" size={16} color={Colors.light.textSecondary} />
-                <Text style={styles.buttonText}>+ Variantes</Text>
+                <Text style={styles.buttonText}>+ Variações</Text>
               </View>
             </Button>
 

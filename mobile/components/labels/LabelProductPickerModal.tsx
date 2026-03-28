@@ -227,7 +227,7 @@ export default function LabelProductPickerModal({
           <View style={styles.selectionBar}>
             <Ionicons name="checkmark-circle" size={15} color={Colors.light.primary} />
             <Text style={styles.selectionBarText}>
-              {totalSelected} variante{totalSelected !== 1 ? 's' : ''} selecionada{totalSelected !== 1 ? 's' : ''}
+              {totalSelected} {totalSelected !== 1 ? 'variações' : 'variação'} selecionada{totalSelected !== 1 ? 's' : ''}
             </Text>
             <TouchableOpacity onPress={() => setSelected(new Map())}>
               <Text style={styles.clearText}>Limpar</Text>

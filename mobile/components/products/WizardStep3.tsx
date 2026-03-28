@@ -194,7 +194,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
         </Text>
         {isAtomicVariants && (
           <Text style={styles.pendingSubtitle}>
-            O produto e suas variantes serão criados junto com a entrada de estoque
+            O produto e suas variações serão criados junto com a entrada de estoque
           </Text>
         )}
 
@@ -208,7 +208,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
             </View>
             {isAtomicVariants && productVariants.length > 0 && (
               <Text style={styles.variantCountLabel}>
-                {productVariants.length} {productVariants.length === 1 ? 'variante' : 'variantes'} configuradas
+                {productVariants.length} {productVariants.length === 1 ? 'variação' : 'variações'} configuradas
               </Text>
             )}
           </View>
@@ -337,11 +337,11 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
               <View style={styles.modalIconContainer}>
                 <Ionicons name="layers" size={28} color={Colors.light.primary} />
               </View>
-              <Text style={styles.modalTitle}>Quantidades por Variante</Text>
+              <Text style={styles.modalTitle}>Quantidades por Variação</Text>
               <Text style={styles.modalSubtitle}>
                 {variantQtyMode === 'existing'
-                  ? 'Informe quantos itens de cada variante estão nessa entrada'
-                  : 'Informe quantos itens de cada variante você está adicionando'}
+                  ? 'Informe quantos itens de cada variação estão nessa entrada'
+                  : 'Informe quantos itens de cada variação você está adicionando'}
               </Text>
             </View>
 

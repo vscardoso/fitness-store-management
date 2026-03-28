@@ -2,7 +2,7 @@
 Endpoints de API para variantes de produto.
 """
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -335,6 +335,131 @@ async def update_variant(
         )
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post(
+    "/{variant_id}/image",
+    response_model=ProductVariantResponse,
+    summary="Upload de foto da variação",
+    description="Faz upload de uma imagem específica para uma variação. Suporta JPG, PNG, WebP.",
+)
+async def upload_variant_image(
+    variant_id: int,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Upload de imagem para uma variação específica."""
+    from app.services.storage_service import get_storage_service
+
+    allowed_types = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
+    convertible_types = {"image/heic", "image/heif", "image/tiff", "image/bmp"}
+    all_known = allowed_types | convertible_types
+
+    content_type = file.content_type or "application/octet-stream"
+
+    if content_type not in all_known:
+        filename_str = file.filename or ""
+        ext_str = filename_str.rsplit(".", 1)[-1].lower() if "." in filename_str else ""
+        inferred = {
+            "jpg": "image/jpeg", "jpeg": "image/jpeg",
+            "png": "image/png", "webp": "image/webp",
+            "heic": "image/heic", "heif": "image/heif",
+            "tiff": "image/tiff", "tif": "image/tiff", "bmp": "image/bmp",
+        }.get(ext_str)
+        if inferred:
+            content_type = inferred
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Tipo de arquivo não suportado: {file.content_type}. Use JPG, PNG ou WebP.",
+            )
+
+    service = ProductVariantService(db)
+    variant = await service.get_variant(variant_id, tenant_id)
+    if not variant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Variação não encontrada")
+
+    try:
+        file_bytes = await file.read()
+
+        was_converted = content_type in convertible_types
+        if was_converted:
+            from app.api.v1.endpoints.ai import _convert_to_jpeg
+            file_bytes = _convert_to_jpeg(file_bytes)
+            content_type = "image/jpeg"
+
+        ext = "jpg" if (was_converted or content_type == "image/jpeg") else (
+            file.filename.rsplit(".", 1)[-1].lower() if file.filename and "." in file.filename else "jpg"
+        )
+
+        storage = get_storage_service()
+        file_path = await storage.upload_from_bytes(
+            file_bytes, folder="variants", filename=f"variant_{variant_id}.{ext}", ext=f".{ext}"
+        )
+        variant.image_url = storage.get_url(file_path)
+        await db.commit()
+        await db.refresh(variant)
+
+        return ProductVariantResponse(
+            **variant.__dict__,
+            current_stock=variant.get_current_stock(),
+            variant_label=variant.get_variant_label(),
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+
+@router.post(
+    "/{variant_id}/image/base64",
+    response_model=ProductVariantResponse,
+    summary="Upload de foto da variação em base64",
+)
+async def upload_variant_image_base64(
+    variant_id: int,
+    image_data: str = Body(..., embed=True),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Upload de imagem base64 para uma variação específica."""
+    import base64 as b64mod
+    from app.services.storage_service import get_storage_service
+
+    service = ProductVariantService(db)
+    variant = await service.get_variant(variant_id, tenant_id)
+    if not variant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Variação não encontrada")
+
+    try:
+        raw = image_data
+        ext = ".jpg"
+        if "," in raw:
+            header, raw = raw.split(",", 1)
+            if "png" in header:
+                ext = ".png"
+            elif "webp" in header:
+                ext = ".webp"
+
+        image_bytes = b64mod.b64decode(raw)
+        storage = get_storage_service()
+        file_path = await storage.upload_from_bytes(
+            image_bytes, folder="variants", filename=f"variant_{variant_id}{ext}", ext=ext
+        )
+        variant.image_url = storage.get_url(file_path)
+        await db.commit()
+        await db.refresh(variant)
+
+        return ProductVariantResponse(
+            **variant.__dict__,
+            current_stock=variant.get_current_stock(),
+            variant_label=variant.get_variant_label(),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
 
 @router.delete(
