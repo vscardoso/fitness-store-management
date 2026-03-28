@@ -565,7 +565,7 @@ async def list_catalog_products(
             all_variants = all_variants_result.fetchall()
             
             # Categoria
-            category_data = await get_category_data(db, p[2]) if p[2] else None
+            category_data = await get_category_data(db, p[3]) if p[3] else None
             
             # Garantir timestamps
             created_at = p[13] or datetime.utcnow()
@@ -621,9 +621,10 @@ async def list_catalog_products(
         return responses
 
     except Exception as e:
+        import traceback
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao listar catálogo: {str(e)}"
+            detail=f"Erro ao listar catálogo: {str(e)}\n{traceback.format_exc()}"
         )
 
 

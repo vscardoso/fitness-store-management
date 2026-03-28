@@ -104,7 +104,7 @@ class ProductEntryItem(BaseModel):
 class ProductVariantMinimalResponse(BaseModel):
     """Schema minimal de variante para incluir no ProductResponse."""
     id: int
-    sku: str
+    sku: Optional[str] = None
     size: Optional[str] = None
     color: Optional[str] = None
     price: Decimal
