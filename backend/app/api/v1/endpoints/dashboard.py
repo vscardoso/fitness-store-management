@@ -212,7 +212,7 @@ async def get_dashboard_stats(
             Product.is_catalog == False,
             Product.tenant_id == tenant_id,
         )
-        .group_by(EntryItem.product_id, func.coalesce(EntryItem.variant_id, 0))
+        .distinct()
         .subquery()
     )
     skus_count_query = select(func.count()).select_from(skus_subq)
