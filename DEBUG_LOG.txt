@@ -218,3 +218,568 @@
    Data: {"productName": "Conjunto Canelado Bicolor", "variantsCount": 2}
  [14:14:41] [mobile] [Wizard] goToExistingEntryWithVariants - produto criado para entrada existente
    Data: {"productId": 403, "productName": "Conjunto Canelado Bicolor"}
+ [09:08:55] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:55] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:55] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:56] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:56] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:56] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:56] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:56] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:10:05] [mobile] [API] GET /stock-entries/66 - 404
+   Data: {"status": 404, "detail": "Entrada 66 não encontrada", "code": "ERR_BAD_REQUEST"}
+ [09:10:27] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Esportivos", "brand": "Nike", "color": "Preto", "size": null, "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 302, "name": "Top Esportivo", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 309, "name": "Colete Puffer", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 310, "name": "Tênis Corrida Revolution", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 311, "name": "Tênis Musculação Metcon", "score": 0.85, "reason": "Mesma marca e cor"}]}
+ [09:10:38] [mobile] [Wizard] Usando produto existente
+   Data: {"productId": 292, "productName": "Short de Treino"}
+ [09:11:07] [mobile] [API] GET /inventory/product/292 - 404
+   Data: {"status": 404, "detail": "Estoque não encontrado para produto 292", "code": "ERR_BAD_REQUEST"}
+ [09:11:08] [mobile] [API] GET /inventory/product/292 - 404
+   Data: {"status": 404, "detail": "Estoque não encontrado para produto 292", "code": "ERR_BAD_REQUEST"}
+ [09:11:47] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Short Fitness Nike Running", "brand": "Nike", "color": "Azul", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 283, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 284, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 297, "name": "Legging Cintura Alta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 302, "name": "Top Esportivo", "score": 0.85, "reason": "Mesma marca e tamanho"}]}
+ [09:13:19] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Short Nike Running", "brand": "Nike", "color": "Azul", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 283, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 284, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 297, "name": "Legging Cintura Alta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 302, "name": "Top Esportivo", "score": 0.85, "reason": "Mesma marca e tamanho"}]}
+ [09:13:26] [mobile] [Wizard] Usando produto existente
+   Data: {"productId": 283, "productName": "Camiseta Dry Fit"}
+ [09:31:39] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:31:39] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:33:32] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:33:32] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:34:42] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:36:39] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:36:39] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:39:17] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:39:17] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:12:38] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Bermuda Esportiva Nike Running", "brand": "Nike", "color": "Azul", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 283, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 284, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 297, "name": "Legging Cintura Alta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 302, "name": "Top Esportivo", "score": 0.85, "reason": "Mesma marca e tamanho"}]}
+ [10:12:53] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Nike Running", "brand": "Nike", "color": "Azul", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 283, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 284, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 297, "name": "Legging Cintura Alta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 302, "name": "Top Esportivo", "score": 0.85, "reason": "Mesma marca e tamanho"}]}
+ [10:18:56] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Short Running", "brand": "Nike", "color": "Azul", "size": "M a 3XL", "category_id": 2, "duplicates_count": 0, "duplicates": []}
+ [10:19:27] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Fitness Running", "brand": "Nike", "color": "Preto", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 309, "name": "Colete Puffer", "score": 0.95, "reason": "Mesma marca, cor e tamanho"}, {"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 302, "name": "Top Esportivo", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 310, "name": "Tênis Corrida Revolution", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 311, "name": "Tênis Musculação Metcon", "score": 0.85, "reason": "Mesma marca e cor"}]}
+ [10:20:18] [mobile] [Wizard] Produto existente selecionado — navegando para detalhes
+   Data: {"productId": 309}
+ [10:20:18] [mobile] [API] GET /inventory/product/309 - 404
+   Data: {"status": 404, "detail": "Estoque não encontrado para produto 309", "code": "ERR_BAD_REQUEST"}
+ [10:20:19] [mobile] [API] GET /inventory/product/309 - 404
+   Data: {"status": 404, "detail": "Estoque não encontrado para produto 309", "code": "ERR_BAD_REQUEST"}
+ [10:21:54] [mobile] [API] GET /inventory/product/309 - 404
+   Data: {"status": 404, "detail": "Estoque não encontrado para produto 309", "code": "ERR_BAD_REQUEST"}
+ [10:21:55] [mobile] [API] GET /inventory/product/309 - 404
+   Data: {"status": 404, "detail": "Estoque não encontrado para produto 309", "code": "ERR_BAD_REQUEST"}
+ [10:21:58] [mobile] [API] GET /inventory/product/309 - 404
+   Data: {"status": 404, "detail": "Estoque não encontrado para produto 309", "code": "ERR_BAD_REQUEST"}
+ [10:21:59] [mobile] [API] GET /inventory/product/309 - 404
+   Data: {"status": 404, "detail": "Estoque não encontrado para produto 309", "code": "ERR_BAD_REQUEST"}
+ [10:26:26] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Nike Running", "brand": "Nike", "color": "Preto", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 309, "name": "Colete Puffer", "score": 0.95, "reason": "Mesma marca, cor e tamanho"}, {"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 302, "name": "Top Esportivo", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 310, "name": "Tênis Corrida Revolution", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 311, "name": "Tênis Musculação Metcon", "score": 0.85, "reason": "Mesma marca e cor"}]}
+ [10:26:32] [mobile] [Wizard] Produto existente selecionado — navegando para entrada de estoque
+   Data: {"productId": 309}
+ [10:28:00] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Running", "brand": "Nike", "color": "Preto", "size": null, "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 302, "name": "Top Esportivo", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 309, "name": "Colete Puffer", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 310, "name": "Tênis Corrida Revolution", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 311, "name": "Tênis Musculação Metcon", "score": 0.85, "reason": "Mesma marca e cor"}]}
+ [10:28:04] [mobile] [Wizard] Produto existente selecionado — navegando para entrada de estoque
+   Data: {"productId": 311}
+ [10:45:12] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Bermuda Nike Running", "brand": "Nike", "color": "Preta", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 306, "name": "Jaqueta Corta-Vento", "score": 0.95, "reason": "Mesma marca, cor e tamanho"}, {"id": 283, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 297, "name": "Legging Cintura Alta", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 284, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e tamanho"}]}
+ [10:45:23] [mobile] [Wizard] Produto existente selecionado — navegando para entrada de estoque
+   Data: {"productId": 292, "quantity": 1}
+ [10:45:54] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Short Fitness", "brand": "Nike", "color": "Preto", "size": "M-3XL", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 302, "name": "Top Esportivo", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 309, "name": "Colete Puffer", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 310, "name": "Tênis Corrida Revolution", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 311, "name": "Tênis Musculação Metcon", "score": 0.85, "reason": "Mesma marca e cor"}]}
+ [10:46:30] [mobile] [Wizard] Produto existente selecionado — navegando para entrada de estoque
+   Data: {"productId": 292, "quantity": 2}
+ [13:07:36] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Fitness Secagem Rápida", "brand": "Nike", "color": "Cinza Escuro", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 283, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 284, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 297, "name": "Legging Cintura Alta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 302, "name": "Top Esportivo", "score": 0.85, "reason": "Mesma marca e tamanho"}]}
+ [13:07:44] [mobile] [Wizard] Produto existente selecionado — navegando para entrada de estoque
+   Data: {"productId": 292, "quantity": 1}
+ [13:08:00] [mobile] [API] POST /stock-entries/ - 422
+   Data: {"status": 422, "detail": "[{\"type\":\"missing\",\"loc\":[\"body\",\"entry_code\"],\"msg\":\"Field required\",\"input\":{\"entry_date\":\"2026-03-28T16:08:00.211Z\",\"entry_type\":\"local\",\"supplier_name\":\"\",\"items\":[{\"product_id\":292,\"quantity_received\":1,\"unit_cost\":40}]},\"url\":\"https://errors.pydantic.dev/2.12/v/missing\"},{\"type\":\"date_from_datetime_inexact\",\"loc\":[\"body\",\"entry_date\"],\"msg\":\"Datetimes provided to dates should have zero time - e.g. be exact dates\",\"input\":\"2026-03-28T16:08:00.211Z\",\"url\":\"https://errors.pydantic.dev/2.12/v/date_from_datetime_inexact\"},{\"type\":\"string_too_short\",\"loc\":[\"body\",\"supplier_name\"],\"msg\":\"String should have at least 3 characters\",\"input\":\"\",\"ctx\":{\"min_length\":3},\"url\":\"https://errors.pydantic.dev/2.12/v/string_too_short\"}]", "code": "ERR_BAD_REQUEST"}
+ [13:21:07] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Short Esportivo Running", "brand": "Nike", "color": "Preto", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 309, "name": "Colete Puffer", "score": 0.95, "reason": "Mesma marca, cor e tamanho"}, {"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 302, "name": "Top Esportivo", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 310, "name": "Tênis Corrida Revolution", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 311, "name": "Tênis Musculação Metcon", "score": 0.85, "reason": "Mesma marca e cor"}]}
+ [13:21:14] [mobile] [Wizard] Produto existente selecionado — navegando para entrada de estoque
+   Data: {"productId": 292, "quantity": 1}
+ [13:21:26] [mobile] [API] POST /stock-entries/ - 422
+   Data: {"status": 422, "detail": "[{\"type\":\"missing\",\"loc\":[\"body\",\"entry_code\"],\"msg\":\"Field required\",\"input\":{\"entry_date\":\"2026-03-28T16:21:26.266Z\",\"entry_type\":\"trip\",\"supplier_name\":\"\",\"items\":[{\"product_id\":292,\"quantity_received\":1,\"unit_cost\":40}]},\"url\":\"https://errors.pydantic.dev/2.12/v/missing\"},{\"type\":\"date_from_datetime_inexact\",\"loc\":[\"body\",\"entry_date\"],\"msg\":\"Datetimes provided to dates should have zero time - e.g. be exact dates\",\"input\":\"2026-03-28T16:21:26.266Z\",\"url\":\"https://errors.pydantic.dev/2.12/v/date_from_datetime_inexact\"},{\"type\":\"string_too_short\",\"loc\":[\"body\",\"supplier_name\"],\"msg\":\"String should have at least 3 characters\",\"input\":\"\",\"ctx\":{\"min_length\":3},\"url\":\"https://errors.pydantic.dev/2.12/v/string_too_short\"}]", "code": "ERR_BAD_REQUEST"}
+ [13:22:40] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Short de Corrida", "brand": "Nike", "color": "Cinza Escuro", "size": "M-3XL", "category_id": 2, "duplicates_count": 0, "duplicates": []}
+ [13:23:23] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Short de Corrida", "variantsCount": 3}
+ [13:23:28] [mobile] [Wizard] goToNewEntryWithVariants - modo atômico
+   Data: {"productName": "Short de Corrida", "variantsCount": 3, "totalQty": 15}
+ [18:59:28] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Fitness Masculino", "brand": "Nike", "color": "Azul", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 283, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 284, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 297, "name": "Legging Cintura Alta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 302, "name": "Top Esportivo", "score": 0.85, "reason": "Mesma marca e tamanho"}]}
+ [18:59:34] [mobile] [Wizard] Produto existente selecionado — navegando para entrada de estoque
+   Data: {"productId": 292, "quantity": 1}
+ [19:08:17] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Bermuda Running com Cordão", "brand": "Nike", "color": "Azul Claro", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 283, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 284, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 297, "name": "Legging Cintura Alta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 302, "name": "Top Esportivo", "score": 0.85, "reason": "Mesma marca e tamanho"}]}
+ [19:12:36] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Esportivos Running", "brand": "Nike", "color": "Azul", "size": "M a XG", "category_id": 2, "duplicates_count": 0, "duplicates": []}
+ [19:13:02] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Shorts Esportivos Running", "variantsCount": 3}
+ [19:13:07] [mobile] [Wizard] goToNewEntryWithVariants - modo atômico
+   Data: {"productName": "Shorts Esportivos Running", "variantsCount": 3, "totalQty": 7}
+ [19:15:47] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Esportivos Running Division", "brand": "Nike", "color": "Preto", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 309, "name": "Colete Puffer", "score": 0.95, "reason": "Mesma marca, cor e tamanho"}, {"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 302, "name": "Top Esportivo", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 310, "name": "Tênis Corrida Revolution", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 311, "name": "Tênis Musculação Metcon", "score": 0.85, "reason": "Mesma marca e cor"}]}
+ [19:15:55] [mobile] [Wizard] Produto existente selecionado — navegando para entrada de estoque
+   Data: {"productId": 292, "quantity": 1}
+ [19:24:44] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Running Division", "brand": "Nike", "color": "Preto", "size": "M-3XL", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 302, "name": "Top Esportivo", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 309, "name": "Colete Puffer", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 310, "name": "Tênis Corrida Revolution", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 311, "name": "Tênis Musculação Metcon", "score": 0.85, "reason": "Mesma marca e cor"}]}
+ [19:25:43] [mobile] [Wizard] Produto existente selecionado — navegando para entrada de estoque
+   Data: {"productId": 292, "quantity": 1}
+ [19:28:57] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Running Division", "brand": null, "color": "Preto", "size": "M", "category_id": 2, "duplicates_count": 0, "duplicates": []}
+ [19:29:08] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Bermuda Nike Running", "brand": "Nike", "color": "Preta", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 306, "name": "Jaqueta Corta-Vento", "score": 0.95, "reason": "Mesma marca, cor e tamanho"}, {"id": 283, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 297, "name": "Legging Cintura Alta", "score": 0.85, "reason": "Mesma marca e cor"}, {"id": 284, "name": "Camiseta Dry Fit", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 292, "name": "Short de Treino", "score": 0.85, "reason": "Mesma marca e tamanho"}]}
+ [19:29:14] [mobile] [Wizard] Produto existente selecionado — navegando para entrada de estoque
+   Data: {"productId": 292, "quantity": 1}
+ [19:31:21] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Bermuda Fitness Running Division", "brand": null, "color": "Preta", "size": "M", "category_id": 2, "duplicates_count": 0, "duplicates": []}
+ [19:31:31] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Performance Running", "brand": "Nike", "color": "Cinza Escuro", "size": null, "category_id": 2, "duplicates_count": 0, "duplicates": []}
+ [19:52:02] [mobile] [API] POST /product-variants/684/image - 500
+   Data: {"status": 500, "detail": "[Errno 28] No space left on device", "code": "ERR_BAD_RESPONSE"}
+ [20:04:30] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [20:04:31] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [20:17:02] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [20:17:03] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [20:22:40] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [20:22:41] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [20:26:38] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [20:26:39] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [20:37:01] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [20:37:02] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [20:39:21] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [20:39:22] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [20:44:15] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [20:44:16] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [22:55:22] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [22:55:23] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [22:59:42] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [22:59:43] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:14:25] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:14:27] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:15:56] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:15:57] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:17:50] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:17:51] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:18:30] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:18:31] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:19:04] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:19:05] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:20:34] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:20:35] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:21:12] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:21:13] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:22:15] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:22:16] [mobile] [API] GET /products/low-stock - 500
+   Data: {"status": 500, "detail": "Erro ao buscar produtos com estoque baixo: greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [23:33:13] [mobile] [API] GET /dashboard/sales/daily - Network Error
+   Data: {"detail": "timeout of 30000ms exceeded", "code": "ECONNABORTED"}
+ [23:33:13] [mobile] [API] GET /sales/ - Network Error
+   Data: {"detail": "timeout of 30000ms exceeded", "code": "ECONNABORTED"}
+ [23:33:13] [mobile] [API] GET /dashboard/purchases - Network Error
+   Data: {"detail": "timeout of 30000ms exceeded", "code": "ECONNABORTED"}
+ [23:33:13] [mobile] [API] GET /dashboard/sales/monthly - Network Error
+   Data: {"detail": "timeout of 30000ms exceeded", "code": "ECONNABORTED"}
+ [23:33:13] [mobile] [API] GET /dashboard/inventory/valuation - Network Error
+   Data: {"detail": "timeout of 30000ms exceeded", "code": "ECONNABORTED"}
+ [23:33:13] [mobile] [API] GET /dashboard/stats - Network Error
+   Data: {"detail": "timeout of 30000ms exceeded", "code": "ECONNABORTED"}
+ [23:59:36] [mobile] [API] GET /dashboard/sales/daily - Network Error
+   Data: {"detail": "timeout of 30000ms exceeded", "code": "ECONNABORTED"}
+ [23:59:36] [mobile] [API] GET /dashboard/sales/monthly - Network Error
+   Data: {"detail": "timeout of 30000ms exceeded", "code": "ECONNABORTED"}
+ [23:59:36] [mobile] [API] GET /sales/ - Network Error
+   Data: {"detail": "timeout of 30000ms exceeded", "code": "ECONNABORTED"}
+ [23:59:36] [mobile] [API] GET /dashboard/purchases - Network Error
+   Data: {"detail": "timeout of 30000ms exceeded", "code": "ECONNABORTED"}
+ [00:20:00] [mobile] [API] POST /sales/ - 400
+   Data: {"status": 400, "detail": "Estoque insuficiente para Shorts Esportivos Running (variante 683). Disponível: 0, Solicitado: 1", "code": "ERR_BAD_REQUEST"}
+ [00:20:41] [mobile] [API] POST /sales/ - 400
+   Data: {"status": 400, "detail": "Estoque insuficiente para Shorts Esportivos Running (variante 683). Disponível: 0, Solicitado: 1", "code": "ERR_BAD_REQUEST"}
+ [14:17:54] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:17:54] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:18:36] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:20:49] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:20:56] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:21:29] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:22:53] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:27:29] [mobile] [API] GET /store/branding - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:27:49] [mobile] [API] GET /store/branding - 400
+   Data: {"status": 400, "detail": "Tenant não resolvido e nenhuma store padrão encontrada.", "code": "ERR_BAD_REQUEST"}
+ [14:28:34] [mobile] [API] GET /store/branding - 400
+   Data: {"status": 400, "detail": "Tenant não resolvido e nenhuma store padrão encontrada.", "code": "ERR_BAD_REQUEST"}
+ [14:30:32] [mobile] [API] GET /store/branding - 400
+   Data: {"status": 400, "detail": "Tenant não resolvido e nenhuma store padrão encontrada.", "code": "ERR_BAD_REQUEST"}
+ [14:31:43] [mobile] [API] GET /store/branding - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [14:32:13] [mobile] [API] GET /store/branding - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [14:49:44] [mobile] [API] POST /auth/signup - 400
+   Data: {"status": 400, "detail": "Erro ao criar conta: (sqlite3.IntegrityError) NOT NULL constraint failed: product_variants.sku\n[SQL: INSERT INTO product_variants (product_id, sku, size, color, price, cost_price, image_url, is_active, created_at, updated_at, tenant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id]\n[parameters: (407, None, 'P', None, 69.9, 35.0, None, 1, '2026-03-30 17:49:44.364115', '2026-03-30 17:49:44.364118', 5)]\n(Background on this error at: https://sqlalche.me/e/20/gkpj)", "code": "ERR_BAD_REQUEST"}
+ [15:04:11] [mobile] [API] GET /store/branding - 500
+   Data: {"status": 500, "detail": "(sqlite3.OperationalError) no such column: stores.zip_code\n[SQL: SELECT stores.name, stores.slug, stores.subdomain, stores.domain, stores.is_default, stores.tagline, stores.primary_color, stores.secondary_color, stores.accent_color, stores.logo_path, stores.\"plan\", stores.trial_ends_at, stores.zip_code, stores.street, stores.number, stores.complement, stores.neighborhood, stores.city, stores.state, stores.id, stores.created_at, stores.updated_at, stores.is_active, stores.tenant_id \nFROM stores \nWHERE stores.id = ? AND stores.is_active = 1]\n[parameters: (1,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [15:04:13] [mobile] [API] GET /store/branding - 500
+   Data: {"status": 500, "detail": "(sqlite3.OperationalError) no such column: stores.zip_code\n[SQL: SELECT stores.name, stores.slug, stores.subdomain, stores.domain, stores.is_default, stores.tagline, stores.primary_color, stores.secondary_color, stores.accent_color, stores.logo_path, stores.\"plan\", stores.trial_ends_at, stores.zip_code, stores.street, stores.number, stores.complement, stores.neighborhood, stores.city, stores.state, stores.id, stores.created_at, stores.updated_at, stores.is_active, stores.tenant_id \nFROM stores \nWHERE stores.id = ? AND stores.is_active = 1]\n[parameters: (1,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [20:15:34] [mobile] [Wizard] goToNewEntry - usando endpoint atômico
+   Data: {"productName": "Top Nadador", "sku": "LUPO-TOPNAD-PRE-M-001", "quantity": 10, "atomic": true}
+ [20:26:28] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Esportivos Masculinos", "brand": "Nike", "color": "Azul Claro", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 407, "name": "Camiseta Dry Fit Preta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 408, "name": "Camiseta Dry Fit Branca", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 416, "name": "Short de Treino Preto", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 421, "name": "Legging Cintura Alta Preta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 426, "name": "Top Esportivo Preto", "score": 0.85, "reason": "Mesma marca e tamanho"}]}
+ [20:26:36] [mobile] [Wizard] Produto existente selecionado — navegando para entrada de estoque
+   Data: {"productId": 416, "quantity": 1}
+ [20:26:56] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Tênis Adidas Lightstrike", "brand": "Adidas", "color": "Branco", "size": null, "category_id": 6, "duplicates_count": 1, "duplicates": [{"id": 439, "name": "Boné Aba Curva Branco", "score": 0.85, "reason": "Mesma marca e cor"}]}
+ [20:27:18] [mobile] [Wizard] goToNewEntry - usando endpoint atômico
+   Data: {"productName": "Tênis Adidas Lightstrike", "sku": "ADID-TENISA-BRA-44-001", "quantity": 1, "atomic": true}
+ [20:27:43] [mobile] [Entries/Add] Produto parseado
+ [20:27:43] [mobile] [Entries/Add] Modo atômico ativo - produto será criado junto com entrada
+   Data: {"productName": "Tênis Adidas Lightstrike", "quantity": 1}
+ [20:29:57] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Tênis Adidas Lightstrike Pro", "brand": "Adidas", "color": "Branco", "size": null, "category_id": 6, "duplicates_count": 1, "duplicates": [{"id": 439, "name": "Boné Aba Curva Branco", "score": 0.85, "reason": "Mesma marca e cor"}]}
+ [20:30:04] [mobile] [Wizard] Produto existente selecionado — navegando para entrada de estoque
+   Data: {"productId": 439, "quantity": 1}
+ [20:30:28] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Tênis Esportivo Moderno", "brand": null, "color": "Branco", "size": null, "category_id": 6, "duplicates_count": 0, "duplicates": []}
+ [20:30:48] [mobile] [Wizard] goToNewEntry - usando endpoint atômico
+   Data: {"productName": "Tênis Esportivo Moderno", "sku": "ONCL-TENISE-BRA-44-001", "quantity": 1, "atomic": true}
+ [20:30:48] [mobile] [Entries/Add] Produto parseado
+ [20:30:48] [mobile] [Entries/Add] Modo atômico ativo - produto será criado junto com entrada
+   Data: {"productName": "Tênis Esportivo Moderno", "quantity": 1}
+ [20:32:31] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Tênis Esportivo", "brand": null, "color": "Branco", "size": null, "category_id": 6, "duplicates_count": 0, "duplicates": []}
+ [20:33:04] [mobile] [Wizard] goToNewEntry - usando endpoint atômico
+   Data: {"productName": "Tênis Esportivo On", "sku": "ONCL-TENISE-BRA-44-001", "quantity": 1, "atomic": true}
+ [20:33:04] [mobile] [Entries/Add] Produto parseado
+ [20:33:04] [mobile] [Entries/Add] Modo atômico ativo - produto será criado junto com entrada
+   Data: {"productName": "Tênis Esportivo On", "quantity": 1}
+ [20:34:29] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Tênis Esportivo", "brand": null, "color": "Branco", "size": null, "category_id": 6, "duplicates_count": 0, "duplicates": []}
+ [20:37:05] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Tênis Adidas Lightstrike Pro", "brand": "Adidas", "color": "Branco", "size": null, "category_id": 6, "duplicates_count": 1, "duplicates": [{"id": 439, "name": "Boné Aba Curva Branco", "score": 0.85, "reason": "Mesma marca e cor"}]}
+ [20:37:35] [mobile] [Wizard] Produto existente selecionado — mantendo fluxo no wizard
+   Data: {"productId": 439, "quantity": 1}
+ [20:41:21] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:41:21] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:41:21] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:41:21] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:41:21] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:41:21] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:41:21] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:41:21] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:41:21] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:41:21] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:43:48] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Tênis Esportivo Moderno", "brand": null, "color": "Branco", "size": null, "category_id": 6, "duplicates_count": 0, "duplicates": []}
+ [20:45:45] [mobile] [Wizard] goToNewEntry - usando endpoint atômico
+   Data: {"productName": "Tênis Esportivo Moderno", "sku": "ONCL-TENISE-BRA-44-001", "quantity": 1, "atomic": true}
+ [20:45:45] [mobile] [Entries/Add] Produto parseado
+ [20:45:45] [mobile] [Entries/Add] Modo atômico ativo - produto será criado junto com entrada
+   Data: {"productName": "Tênis Esportivo Moderno", "quantity": 1}
+ [20:52:45] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Tênis Esportivo Com Detalhes Laranja", "brand": null, "color": "Branco", "size": null, "category_id": 6, "duplicates_count": 0, "duplicates": []}
+ [20:53:11] [mobile] [Wizard] goToNewEntry - usando endpoint atômico
+   Data: {"productName": "Tênis Esportivo Com Detalhes Laranja", "sku": "ONCL-TENISE-BRA-44-001", "quantity": 1, "atomic": true}
+ [20:53:11] [mobile] [Entries/Add] Produto parseado
+ [20:53:11] [mobile] [Entries/Add] Modo atômico ativo - produto será criado junto com entrada
+   Data: {"productName": "Tênis Esportivo Com Detalhes Laranja", "quantity": 1}
+ [20:54:13] [mobile] [Wizard] goToNewEntry - usando endpoint atômico
+   Data: {"productName": "Tênis Esportivo Com Detalhes Laranja", "sku": "ONCL-TENISE-BRA-44-001", "quantity": 1, "atomic": true}
+ [20:54:13] [mobile] [Entries/Add] Produto parseado
+ [20:54:13] [mobile] [Entries/Add] Modo atômico ativo - produto será criado junto com entrada
+   Data: {"productName": "Tênis Esportivo Com Detalhes Laranja", "quantity": 1}
+ [20:55:25] [mobile] [Wizard] goToNewEntry - usando endpoint atômico
+   Data: {"productName": "Tênis Esportivo Com Detalhes Laranja", "sku": "ONCL-TENISE-BRA-44-001", "quantity": 1, "atomic": true}
+ [20:55:25] [mobile] [Entries/Add] Produto parseado
+ [20:55:25] [mobile] [Entries/Add] Modo atômico ativo - produto será criado junto com entrada
+   Data: {"productName": "Tênis Esportivo Com Detalhes Laranja", "quantity": 1}
+ [20:55:58] [mobile] [Wizard] goToNewEntry - usando endpoint atômico
+   Data: {"productName": "Tênis Esportivo Com Detalhes Laranja", "sku": "ONCL-TENISE-BRA-44-001", "quantity": 1, "atomic": true}
+ [20:55:58] [mobile] [Entries/Add] Produto parseado
+ [20:55:58] [mobile] [Entries/Add] Modo atômico ativo - produto será criado junto com entrada
+   Data: {"productName": "Tênis Esportivo Com Detalhes Laranja", "quantity": 1}
+ [20:57:14] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Fitness Running", "brand": "Nike", "color": "Preto", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 407, "name": "Camiseta Dry Fit Preta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 408, "name": "Camiseta Dry Fit Branca", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 416, "name": "Short de Treino Preto", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 421, "name": "Legging Cintura Alta Preta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 426, "name": "Top Esportivo Preto", "score": 0.85, "reason": "Mesma marca e tamanho"}]}
+ [20:57:18] [mobile] [Wizard] Produto existente selecionado — mantendo fluxo no wizard
+   Data: {"productId": 416, "quantity": 1}
+ [21:05:22] [mobile] [API] GET /stock-entries/70 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:19:13] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Short Esportivo Running", "brand": "Nike", "color": "Preto", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 407, "name": "Camiseta Dry Fit Preta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 408, "name": "Camiseta Dry Fit Branca", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 416, "name": "Short de Treino Preto", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 421, "name": "Legging Cintura Alta Preta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 426, "name": "Top Esportivo Preto", "score": 0.85, "reason": "Mesma marca e tamanho"}]}
+ [21:19:17] [mobile] [Wizard] Produto existente selecionado — mantendo fluxo no wizard
+   Data: {"productId": 407, "quantity": 1}
+ [21:23:13] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Tênis Casual Esportivo", "brand": null, "color": "Branco", "size": null, "category_id": 6, "duplicates_count": 0, "duplicates": []}
+ [21:24:12] [mobile] [Wizard] goToNewEntry - usando endpoint atômico
+   Data: {"productName": "Tênis Casual Esportivo", "sku": "ONCL-TENISC-BRA-44-001", "quantity": 1, "atomic": true}
+ [21:24:12] [mobile] [Entries/Add] Produto parseado
+ [21:24:12] [mobile] [Entries/Add] Modo atômico ativo - produto será criado junto com entrada
+   Data: {"productName": "Tênis Casual Esportivo", "quantity": 1}
+ [21:24:41] [mobile] [API] POST /stock-entries/with-new-product - 400
+   Data: {"status": 400, "detail": "1 validation error for StockEntryCreate\nsupplier_name\n  String should have at least 3 characters [type=string_too_short, input_value='Eu', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.12/v/string_too_short", "code": "ERR_BAD_REQUEST"}
+ [21:46:01] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:46:01] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:46:01] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:46:01] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:46:01] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:46:01] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:46:01] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:46:01] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:46:01] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:46:01] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:47:18] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Short Nike Running", "brand": "Nike", "color": "Azul", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 407, "name": "Camiseta Dry Fit Preta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 408, "name": "Camiseta Dry Fit Branca", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 416, "name": "Short de Treino Preto", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 421, "name": "Legging Cintura Alta Preta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 426, "name": "Top Esportivo Preto", "score": 0.85, "reason": "Mesma marca e tamanho"}]}
+ [21:47:21] [mobile] [Wizard] Produto existente selecionado — mantendo fluxo no wizard
+   Data: {"productId": 416, "quantity": 1}
+ [21:47:49] [mobile] [Wizard] Produto existente selecionado — mantendo fluxo no wizard
+   Data: {"productId": 416, "quantity": 1}
+ [08:23:03] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:23:03] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:23:03] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:23:03] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:23:03] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:23:03] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:23:03] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:23:03] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:23:03] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:23:03] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [08:23:03] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Sessão expirada por inatividade (60 min). Faça login novamente.", "code": "ERR_BAD_REQUEST"}
+ [08:45:59] [mobile] [API] GET /store/branding - 404
+   Data: {"status": 404, "detail": "Loja não encontrada", "code": "ERR_BAD_REQUEST"}
+ [08:46:00] [mobile] [API] GET /store/branding - 404
+   Data: {"status": 404, "detail": "Loja não encontrada", "code": "ERR_BAD_REQUEST"}
+ [08:46:00] [mobile] [API] GET /store/branding - 404
+   Data: {"status": 404, "detail": "Loja não encontrada", "code": "ERR_BAD_REQUEST"}
+ [08:46:00] [mobile] [API] GET /store/branding - 404
+   Data: {"status": 404, "detail": "Loja não encontrada", "code": "ERR_BAD_REQUEST"}
+ [08:46:01] [mobile] [API] GET /store/branding - 404
+   Data: {"status": 404, "detail": "Loja não encontrada", "code": "ERR_BAD_REQUEST"}
+ [08:46:01] [mobile] [API] GET /store/branding - 404
+   Data: {"status": 404, "detail": "Loja não encontrada", "code": "ERR_BAD_REQUEST"}
+ [08:46:15] [mobile] [API] GET /store/branding - 404
+   Data: {"status": 404, "detail": "Loja não encontrada", "code": "ERR_BAD_REQUEST"}
+ [08:46:15] [mobile] [API] GET /store/branding - 404
+   Data: {"status": 404, "detail": "Loja não encontrada", "code": "ERR_BAD_REQUEST"}
+ [08:46:16] [mobile] [API] GET /store/branding - 404
+   Data: {"status": 404, "detail": "Loja não encontrada", "code": "ERR_BAD_REQUEST"}
+ [08:46:18] [mobile] [API] PUT /store/branding - 404
+   Data: {"status": 404, "detail": "Loja não encontrada", "code": "ERR_BAD_REQUEST"}
+ [08:46:21] [mobile] [API] PUT /store/branding - 404
+   Data: {"status": 404, "detail": "Loja não encontrada", "code": "ERR_BAD_REQUEST"}
+ [08:46:23] [mobile] [API] PUT /store/branding - 404
+   Data: {"status": 404, "detail": "Loja não encontrada", "code": "ERR_BAD_REQUEST"}
+ [08:55:53] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Esportivos Running Division", "brand": "Nike", "color": "Cinza Escuro", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 407, "name": "Camiseta Dry Fit Preta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 408, "name": "Camiseta Dry Fit Branca", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 416, "name": "Short de Treino Preto", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 421, "name": "Legging Cintura Alta Preta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 426, "name": "Top Esportivo Preto", "score": 0.85, "reason": "Mesma marca e tamanho"}]}
+ [08:55:56] [mobile] [Wizard] Produto duplicado selecionado — iniciando fetch em background
+   Data: {"productId": 416, "quantity": 1}
+ [08:55:56] [mobile] [Wizard] Produto duplicado carregado com sucesso
+   Data: {"productId": 416}
+ [09:10:37] [mobile] [API] GET /categories/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:12:06] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Running Masculino", "brand": "Nike", "color": "Preto", "size": "M", "category_id": 2, "duplicates_count": 5, "duplicates": [{"id": 407, "name": "Camiseta Dry Fit Preta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 408, "name": "Camiseta Dry Fit Branca", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 416, "name": "Short de Treino Preto", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 421, "name": "Legging Cintura Alta Preta", "score": 0.85, "reason": "Mesma marca e tamanho"}, {"id": 426, "name": "Top Esportivo Preto", "score": 0.85, "reason": "Mesma marca e tamanho"}]}
+ [09:12:10] [mobile] [Wizard] Produto duplicado selecionado — iniciando fetch em background
+   Data: {"productId": 416, "quantity": 1}
+ [09:12:10] [mobile] [Wizard] Produto duplicado carregado com sucesso
+   Data: {"productId": 416}
+ [09:12:18] [mobile] [Wizard] goToNewEntry - usando fluxo tradicional
+   Data: {"productId": 416, "productName": "Short de Treino Preto", "sku": "CAT-SHORTD-P-STD-00032", "quantity": 1, "hasVariants": true}
+ [09:12:18] [mobile] [Entries/Add] Produto parseado
+   Data: {"id": 416, "name": "Short de Treino Preto"}
+ [09:12:35] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Short de Treino Preto", "variantsCount": 2}
+ [09:12:42] [mobile] [Wizard] goToNewEntryWithVariants - modo atômico
+   Data: {"productName": "Short de Treino Preto", "variantsCount": 2, "totalQty": 20}
+ [09:40:56] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:40:56] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:40:57] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:40:57] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:40:57] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:40:57] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:40:57] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:40:57] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:40:57] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:40:57] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:41:22] [mobile] [API] GET /stock-entries/70 - 404
+   Data: {"status": 404, "detail": "Entrada 70 não encontrada", "code": "ERR_BAD_REQUEST"}
+ [09:47:53] [mobile] [API] GET /stock-entries/70 - 404
+   Data: {"status": 404, "detail": "Entrada 70 não encontrada", "code": "ERR_BAD_REQUEST"}
+ [09:47:59] [mobile] [API] GET /stock-entries/70 - 404
+   Data: {"status": 404, "detail": "Entrada 70 não encontrada", "code": "ERR_BAD_REQUEST"}
+ [09:48:09] [mobile] [API] GET /stock-entries/70 - 404
+   Data: {"status": 404, "detail": "Entrada 70 não encontrada", "code": "ERR_BAD_REQUEST"}
+ [10:05:18] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:05:18] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:05:18] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:05:18] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:05:18] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:05:18] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:05:18] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:05:18] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:05:18] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:05:18] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:12:07] [mobile] [API] GET /stock-entries/69 - 404
+   Data: {"status": 404, "detail": "Entrada 69 não encontrada", "code": "ERR_BAD_REQUEST"}
+ [13:49:56] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [13:49:56] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [13:49:56] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [13:49:56] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [13:49:56] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [13:49:56] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [13:49:56] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [13:49:56] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [13:49:56] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [13:49:56] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [13:49:56] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Sessão expirada por inatividade (60 min). Faça login novamente.", "code": "ERR_BAD_REQUEST"}
+ [14:46:14] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:46:14] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:46:14] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:46:15] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:46:15] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:46:15] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:46:15] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:46:15] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:46:15] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:46:15] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:48:48] [mobile] [API] POST /trips/ - 400
+   Data: {"status": 400, "detail": "O código 'SÃO PAULO 3103' já está em uso. Por favor, escolha outro código.", "code": "ERR_BAD_REQUEST"}
+ [14:48:53] [mobile] [API] POST /trips/ - 400
+   Data: {"status": 400, "detail": "O código 'SÃO PAULO 3103' já está em uso. Por favor, escolha outro código.", "code": "ERR_BAD_REQUEST"}
+ [14:58:31] [mobile] [API] POST /stock-entries/ - 400
+   Data: {"status": 400, "detail": "Product 32 não encontrado", "code": "ERR_BAD_REQUEST"}
+ [15:01:23] [mobile] [API] GET /products/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:01:23] [mobile] [API] GET /trips/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:01:23] [mobile] [API] GET /products/catalog - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}

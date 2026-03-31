@@ -16,6 +16,7 @@
 | **MODIFY-FLOW** | Alterar fluxo/comportamento existente | `🔄 FULL-STACK MODIFY-FLOW: Permitir edição de envios enviados` |
 | **FIX-INCONSISTENCY** | Corrigir dados/status inconsistentes | `🔄 FULL-STACK FIX-INCONSISTENCY: Status não atualiza após ação` |
 | **REFACTOR** | Melhorar código sem mudar funcionalidade | `🔄 FULL-STACK REFACTOR: Otimizar queries de listagem` |
+| **UI-UPGRADE** | Atualizar tela existente com todos os padrões visuais atuais | `🔄 FULL-STACK UI-UPGRADE: Tela de listagem de clientes` |
 
 ### 3. Cole no Chat e Aguarde
 
@@ -55,6 +56,198 @@ Claude vai:
 # Integração externa
 🔄 FULL-STACK NEW-FEATURE: Integração com WhatsApp Business API
 ```
+
+### Atualizar Tela com Padrões Visuais Atuais (UI-UPGRADE)
+
+```bash
+# Tela simples (listagem, detalhes)
+🔄 FULL-STACK UI-UPGRADE: Tela de listagem de clientes
+
+# Tela com formulário
+🔄 FULL-STACK UI-UPGRADE: Tela de edição de produto
+
+# Tela com dados financeiros
+🔄 FULL-STACK UI-UPGRADE: Tela de vendas por período
+
+# Múltiplas telas de um módulo
+🔄 FULL-STACK UI-UPGRADE: Módulo de envios (listagem + detalhes + formulário)
+```
+
+---
+
+## 📋 Prompts Prontos — UI-UPGRADE (copiar e colar direto no chat)
+
+> Substitua `[NOME DA TELA]` e `[CAMINHO]` antes de enviar.
+
+---
+
+### Prompt 1 — Tela de Listagem
+
+```
+🔄 FULL-STACK UI-UPGRADE: [NOME DA TELA] — [CAMINHO]
+
+Aplicar todos os padrões visuais atuais do projeto:
+
+1. Header → substituir por `<PageHeader title="..." subtitle="..." showBackButton onBack={...} />`
+   - PageHeader já usa `useBrandingColors()` internamente. Não passar gradientColors manual.
+
+2. Cards → substituir `<Card>` do react-native-paper por `<View>` com:
+   { backgroundColor: Colors.light.card, borderRadius: theme.borderRadius.xl,
+     borderWidth: 1, borderColor: Colors.light.border, ...theme.shadows.sm }
+
+3. Cores de marca → substituir hex hardcoded por `useBrandingColors()`:
+   const brandingColors = useBrandingColors(); // primary, secondary, accent, gradient
+
+4. Animação de entrada → usar useFocusEffect (obrigatório em tabs):
+   header: scale 0.94→1 + opacity 0→1 (spring)
+   conteúdo: translateY 24→0 + opacity 0→1 (delay 140ms, spring)
+
+5. Lista → FlatList com:
+   - contentContainerStyle: { paddingBottom: theme.spacing.xxl, gap: theme.spacing.sm }
+   - ListEmptyComponent: ícone contextual + título + subtítulo (não texto puro)
+   - showsVerticalScrollIndicator: false
+
+6. FAB → cor via brandingColors.primary (não hardcoded)
+
+Não alterar: lógica de negócio, queries, navegação, outros arquivos.
+```
+
+---
+
+### Prompt 2 — Tela com Dados Financeiros
+
+```
+🔄 FULL-STACK UI-UPGRADE: [NOME DA TELA] — [CAMINHO]
+
+Aplicar padrões visuais atuais com foco em dados financeiros:
+
+1. Header → `<PageHeader>` (useBrandingColors internamente)
+
+2. Valores financeiros → substituir cores hardcoded por VALUE_COLORS:
+   import { VALUE_COLORS } from '@/constants/Colors';
+   - receita, lucro, positivo  → VALUE_COLORS.positive  (#10B981)
+   - custo, prejuízo, negativo → VALUE_COLORS.negative  (#EF4444)
+   - preço, quantidade neutra  → VALUE_COLORS.neutral   (#11181C)
+   - alerta, atenção           → VALUE_COLORS.warning   (#F59E0B)
+
+   Helper disponível: import { valueColor } from '@/utils/format';
+   valueColor(valor, 'profit' | 'revenue' | 'cost' | 'auto')
+
+3. Valores monetários → aplicar:
+   { fontSize: 18–28, fontWeight: '800', letterSpacing: -0.5 }
+
+4. Cards → <View> direto (sem react-native-paper <Card>)
+
+5. Animação de entrada → useFocusEffect com spring/timing
+
+6. Badges de status → backgroundColor: COR + '18', borderRadius: theme.borderRadius.sm
+   texto: fontSize: 10, fontWeight: '700', UPPERCASE
+
+Não alterar: lógica de cálculo, queries, navegação, outros arquivos.
+```
+
+---
+
+### Prompt 3 — Tela com Formulário
+
+```
+🔄 FULL-STACK UI-UPGRADE: [NOME DA TELA] — [CAMINHO]
+
+Aplicar padrões visuais atuais com foco em formulários:
+
+1. Header → `<PageHeader title="..." showBackButton onBack={router.back} />`
+
+2. Inputs → substituir <TextInput mode="outlined"> do Paper por TextInput nativo:
+   style: { backgroundColor: Colors.light.card, borderRadius: theme.borderRadius.xl,
+            borderWidth: 1, borderColor: Colors.light.border,
+            paddingHorizontal: theme.spacing.md, height: 52,
+            fontSize: theme.fontSize.base, color: Colors.light.text }
+   placeholderTextColor: Colors.light.textTertiary
+
+3. Botão primário → substituir <Button mode="contained"> do Paper por:
+   <TouchableOpacity style={{ borderRadius: theme.borderRadius.xl, overflow: 'hidden' }} activeOpacity={0.8}>
+     <LinearGradient colors={brandingColors.gradient} start={{x:0,y:0}} end={{x:1,y:0}}
+       style={{ paddingVertical: 16, alignItems: 'center', flexDirection: 'row',
+                justifyContent: 'center', gap: 8 }}>
+       <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+       <Text style={{ color: '#fff', fontWeight: '700', fontSize: 16 }}>Salvar</Text>
+     </LinearGradient>
+   </TouchableOpacity>
+
+4. Labels de seção → UPPERCASE, fontSize: 10–12, fontWeight: '600', letterSpacing: 0.5,
+   color: Colors.light.textTertiary
+
+5. Animação de entrada → useFocusEffect (header + conteúdo)
+
+6. KeyboardAvoidingView → behavior: Platform.OS === 'ios' ? 'padding' : undefined
+
+Não alterar: validações, lógica de submit, navegação, outros arquivos.
+```
+
+---
+
+### Prompt 4 — Correção Cirúrgica de Cores (sem refatorar estrutura)
+
+```
+🔄 FULL-STACK UI-UPGRADE: [NOME DA TELA] — somente cores
+
+Corrigir apenas as referências de cor fora do padrão. NÃO alterar estrutura, layout ou lógica.
+
+1. Cores de marca hardcoded → useBrandingColors():
+   const brandingColors = useBrandingColors(); // importar de @/store/brandingStore
+   Substituir: '#6366F1', '#8B5CF6', Colors.light.primary, Colors.light.secondary
+   Por: brandingColors.primary, brandingColors.secondary, brandingColors.gradient
+
+2. Cores financeiras hardcoded → VALUE_COLORS:
+   import { VALUE_COLORS } from '@/constants/Colors';
+   Substituir: '#10B981', '#EF4444', '#F59E0B', Colors.light.success, Colors.light.error
+   Por: VALUE_COLORS.positive, VALUE_COLORS.negative, VALUE_COLORS.warning
+
+3. Cores em StyleSheet.create que dependem de hook → mover para inline style no JSX
+   (StyleSheet não aceita valores de hooks, isso causa bug silencioso)
+
+4. buttonColor, color, tintColor em componentes do Paper → usar brandingColors.primary inline
+
+Não alterar: estrutura JSX, lógica, queries, navegação, outros arquivos.
+```
+
+---
+
+**O que será feito automaticamente:**
+
+| Componente | Antes (legado) | Depois (padrão atual) |
+|------------|---------------|----------------------|
+| Header | `LinearGradient` hardcoded | `<PageHeader>` + `useBrandingColors()` |
+| Cards | `<Card>` do react-native-paper | `<View>` com styles diretos |
+| Textos em cards | `<Text>` do Paper | `<Text>` do react-native |
+| Cores de marca | hex hardcoded (`#6366F1`) | `brandingColors.primary` |
+| Dados financeiros | hex hardcoded (`#10B981`) | `VALUE_COLORS.positive/negative/warning` |
+| Espaçamentos | valores px avulsos (`16`) | tokens `theme.spacing.md` |
+| Tipografia | valores px avulsos (`14`) | tokens `theme.fontSize.md` |
+| BorderRadius | valores px avulsos (`12`) | tokens `theme.borderRadius.lg` |
+| Animação de entrada | nenhuma ou `useEffect([])` | `useFocusEffect` com spring/timing |
+| FAB | cor hardcoded | `brandingColors.primary` |
+| Botão primário | `<Button mode="contained">` do Paper | `TouchableOpacity + LinearGradient` |
+| Estado vazio | texto puro | `ícone contextual + título + subtítulo` |
+| Estado de loading | `ActivityIndicator` solto | loading com ícone na cor branding |
+
+**Checklist específico do UI-UPGRADE:**
+
+- [ ] `PageHeader` importado de `@/components/layout/PageHeader` (não criar header manual)
+- [ ] `useBrandingColors()` importado de `@/store/brandingStore`
+- [ ] `VALUE_COLORS` importado de `@/constants/Colors` (apenas para dados financeiros)
+- [ ] Zero `<Card>` ou `<Text>` do `react-native-paper` em cards/modais críticos
+- [ ] Zero hex hardcoded em componentes (tudo via tokens)
+- [ ] `useFocusEffect` com animação header (scale+opacity) + conteúdo (translateY+opacity)
+- [ ] `FlatList` com `ListEmptyComponent` visual (ícone + texto + subtexto)
+- [ ] `paddingBottom: theme.spacing.xxl` no fim de listas (gesture bar)
+- [ ] `flexShrink: 0` em colunas de valor monetário (direita)
+- [ ] `minWidth: 0` em colunas de texto variável (esquerda)
+- [ ] `numberOfLines` em todos os textos de comprimento dinâmico
+- [ ] `activeOpacity` em todos os `TouchableOpacity` (0.65–0.8)
+- [ ] `hitSlop` em botões com área tátil < 44px
+
+---
 
 ### Modificar Fluxos
 
@@ -105,9 +298,14 @@ Claude vai:
 🔄 FULL-STACK FIX-INCONSISTENCY: [Descrição do problema]
 ```
 
+### "A tela está fora do padrão visual atual (header, cores, cards)"
+```bash
+🔄 FULL-STACK UI-UPGRADE: [nome da tela ou módulo]
+```
+
 ### "Os botões estão feios/fora do padrão"
 ```bash
-🔄 FULL-STACK MODIFY-FLOW: Melhorar UX da tela [nome da tela]
+🔄 FULL-STACK UI-UPGRADE: [nome da tela] — focar em botões e FAB
 ```
 
 ### "Quero mudar como algo funciona"
@@ -438,16 +636,37 @@ borderRadius: theme.borderRadius.full, // círculos
 
 Ao criar/modificar telas, verifique:
 
-- [ ] Header usa `LinearGradient` com `primary → secondary`
-- [ ] Header tem `borderBottomRadius: 24`
-- [ ] Cards usam `borderRadius: 16` e `elevation: 2`
-- [ ] Inputs usam `mode="outlined"`
-- [ ] Botão primário usa `mode="contained"`
-- [ ] FAB está posicionado `bottom: 24, right: 16`
-- [ ] FlatList tem `paddingBottom: 100` (espaço para FAB)
-- [ ] Cores seguem o padrão do sistema
-- [ ] Espaçamentos usam `theme.spacing`
-- [ ] Fontes usam `theme.fontSize`
+**Identidade Visual**
+- [ ] Header usa `<PageHeader>` de `@/components/layout/PageHeader` (não `LinearGradient` manual)
+- [ ] Cores de marca via `useBrandingColors()` — NUNCA hex hardcoded
+- [ ] Dados financeiros via `VALUE_COLORS` — NUNCA hex hardcoded
+- [ ] FAB usa `brandingColors.primary` (não cor fixa)
+- [ ] Ícone temático contextual no header (não genérico)
+
+**Componentes**
+- [ ] Zero `<Card>` do react-native-paper (causa blur no Android) → usar `<View>`
+- [ ] Zero `<Text>` do Paper em cards/modais críticos → usar `<Text>` do react-native
+- [ ] Botão primário: `TouchableOpacity + LinearGradient` com `brandingColors.gradient`
+- [ ] Inputs: `TextInput` nativo com style direto (não `mode="outlined"` do Paper)
+
+**Layout e Espaçamento**
+- [ ] Espaçamentos via `theme.spacing` (não px avulsos)
+- [ ] Tipografia via `theme.fontSize` e `theme.fontWeight`
+- [ ] BorderRadius via `theme.borderRadius`
+- [ ] `paddingBottom: theme.spacing.xxl` no fim de listas (gesture bar)
+- [ ] `flexShrink: 0` em colunas de valor monetário (direita)
+- [ ] `minWidth: 0` em colunas de texto dinâmico (esquerda)
+
+**Animação e Interação**
+- [ ] `useFocusEffect` com spring/timing (não `useEffect([])` em tabs)
+- [ ] `activeOpacity` em todos os `TouchableOpacity` (0.65–0.8)
+- [ ] `hitSlop` em botões com área tátil < 44px
+- [ ] `numberOfLines` em textos de comprimento variável
+
+**Estados**
+- [ ] Loading: indicador visual com cor branding
+- [ ] Vazio: `ícone contextual + título + subtítulo`
+- [ ] Erro: mensagem clara com botão "Tentar novamente"
 
 ---
 

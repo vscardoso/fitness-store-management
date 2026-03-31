@@ -100,7 +100,19 @@
       "Bash(find /c/Users/Victor/Desktop/fitness-store-management/backend -type f -name router* -o -name *router*.py)",
       "Bash(find /c/Users/Victor/Desktop/fitness-store-management/mobile/app -name *.tsx -type f)",
       "Bash(find /c/Users/Victor/Desktop/fitness-store-management/mobile/components -name *.tsx -type f)",
-      "Bash(npx skills:*)"
+      "Bash(npx skills:*)",
+      "Bash(find /c/Users/Victor/Desktop/fitness-store-management -type f \\\\\\(-name *wizard* -o -name *Wizard* \\\\\\))",
+      "Bash(rtk npx:*)",
+      "Skill(gsd:ui-review)",
+      "Bash(dir:*)",
+      "Bash(mkdir -p \"C:/Users/Victor/Desktop/fitness-store-management/mobile/.claude/skills/ui-ux-pro-max\")",
+      "Bash(mkdir -p \"C:/Users/Victor/Desktop/fitness-store-management/mobile/.claude/skills/frontend-design\")",
+      "Bash(alembic stamp:*)",
+      "Bash(wmic logicaldisk:*)",
+      "Bash(wc:*)",
+      "Bash(.venvScriptspython.exe migrate.py \"add address fields to stores\")",
+      "Bash(sort -t_ -k1)",
+      "Bash(cd:*)"
     ],
     "deny": [],
     "ask": []
