@@ -15,6 +15,14 @@ if TYPE_CHECKING:
     from .entry_item import EntryItem
 
 
+class EntryStatus(str, enum.Enum):
+    """Status operacional da entrada de estoque."""
+    OPEN      = "open"      # sem vendas, editável
+    PARTIAL   = "partial"   # tem vendas, qty_remaining > 0
+    SOLD_OUT  = "sold_out"  # qty_remaining = 0
+    ARCHIVED  = "archived"  # encerrado manualmente (is_active=False)
+
+
 class EntryType(str, enum.Enum):
     """Tipos de entrada de estoque."""
     TRIP = "trip"                    # Compra em viagem
@@ -220,6 +228,21 @@ class StockEntry(BaseModel):
         estimated_revenue = float(self.total_cost) * 1.3
         return ((estimated_revenue - float(self.total_cost)) / float(self.total_cost)) * 100.0
     
+    @property
+    def entry_status(self) -> "EntryStatus":
+        """Status operacional calculado da entrada."""
+        if not self.is_active:
+            return EntryStatus.ARCHIVED
+        if not self.entry_items:
+            return EntryStatus.OPEN
+        has_sales = any(item.quantity_sold > 0 for item in self.entry_items if item.is_active)
+        qty_remaining = sum(item.quantity_remaining for item in self.entry_items if item.is_active)
+        if not has_sales:
+            return EntryStatus.OPEN
+        if qty_remaining == 0:
+            return EntryStatus.SOLD_OUT
+        return EntryStatus.PARTIAL
+
     @property
     def is_from_trip(self) -> bool:
         """Verifica se a entrada é de uma viagem."""

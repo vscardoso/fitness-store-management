@@ -319,6 +319,18 @@ export default function StockEntriesScreen() {
     return <Badge label={config.label} variant={config.variant} icon={config.icon} size="sm" />;
   };
 
+  const statusConfig: Record<string, { label: string; variant: any; icon: string }> = {
+    open:     { label: 'Aberta',    variant: 'success', icon: 'checkmark-circle' },
+    partial:  { label: 'Parcial',   variant: 'warning', icon: 'time' },
+    sold_out: { label: 'Esgotada',  variant: 'neutral', icon: 'archive' },
+    archived: { label: 'Arquivada', variant: 'neutral', icon: 'lock-closed' },
+  };
+
+  const renderStatusBadge = (status?: string) => {
+    const cfg = statusConfig[status ?? 'open'] ?? statusConfig.open;
+    return <Badge label={cfg.label} variant={cfg.variant} icon={cfg.icon} size="sm" uppercase />;
+  };
+
   /**
    * Handler para seleção de entrada (modo normal ou seleção)
    */
@@ -392,17 +404,10 @@ export default function StockEntriesScreen() {
               </View>
             )}
 
-            {/* Badges de status */}
-            {(item.has_sales || item.sell_through_rate >= 100) && (
-              <View style={styles.statusBadgesRow}>
-                {item.has_sales && (
-                  <Badge label="Com Vendas" variant="warning" icon="lock-closed" size="sm" uppercase />
-                )}
-                {item.sell_through_rate >= 100 && (
-                  <Badge label="Histórico" variant="neutral" icon="archive" size="sm" uppercase />
-                )}
-              </View>
-            )}
+            {/* Badge de status operacional */}
+            <View style={styles.statusBadgesRow}>
+              {renderStatusBadge(item.entry_status)}
+            </View>
 
             {/* Divider */}
             <View style={styles.divider} />

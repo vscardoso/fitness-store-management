@@ -684,6 +684,7 @@ export interface StockEntry {
   trip_code?: string;
   trip_destination?: string;
   has_sales: boolean;
+  entry_status: 'open' | 'partial' | 'sold_out' | 'archived';
   is_active: boolean;
   created_at: string;
   updated_at: string;

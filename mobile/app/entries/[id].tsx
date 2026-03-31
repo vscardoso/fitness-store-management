@@ -346,6 +346,18 @@ export default function StockEntryDetailsScreen() {
     return <Badge label={config.label} variant={config.variant} icon={config.icon} size="md" />;
   };
 
+  const statusConfig: Record<string, { label: string; variant: any; icon: string }> = {
+    open:     { label: 'Aberta',    variant: 'success', icon: 'checkmark-circle' },
+    partial:  { label: 'Parcial',   variant: 'warning', icon: 'time' },
+    sold_out: { label: 'Esgotada',  variant: 'neutral', icon: 'archive' },
+    archived: { label: 'Arquivada', variant: 'neutral', icon: 'lock-closed' },
+  };
+
+  const renderStatusBadge = (status?: string) => {
+    const cfg = statusConfig[status ?? 'open'] ?? statusConfig.open;
+    return <Badge label={cfg.label} variant={cfg.variant} icon={cfg.icon} size="md" uppercase />;
+  };
+
   /**
    * Calcular best sellers e slow movers
    */
@@ -546,6 +558,10 @@ export default function StockEntryDetailsScreen() {
         <View style={styles.card}>
             <Text style={styles.cardTitle}>Informações</Text>
 
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+              {renderTypeBadge(entry.entry_type)}
+              {renderStatusBadge(entry.entry_status)}
+            </View>
             <InfoRow label="Data de Entrada" value={formatDate(entry.entry_date)} icon="calendar-outline" />
             <InfoRow label="Fornecedor" value={entry.supplier_name} icon="briefcase-outline" />
             {entry.supplier_cnpj && (

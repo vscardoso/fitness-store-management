@@ -5,7 +5,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from pydantic import BaseModel, Field, field_validator, field_serializer
 
-from app.models.stock_entry import EntryType
+from app.models.stock_entry import EntryType, EntryStatus
 
 
 class StockEntryBase(BaseModel):
@@ -87,6 +87,7 @@ class StockEntryResponse(StockEntryBase):
     sell_through_rate: float = Field(default=0.0, description="Taxa de venda (%)")
     roi: Optional[float] = Field(None, description="Retorno sobre investimento (%)")
     has_sales: bool = Field(default=False, description="Indica se entrada teve vendas (FIFO tracking)")
+    entry_status: EntryStatus = Field(default=EntryStatus.OPEN, description="Status operacional: open/partial/sold_out/archived")
 
     # Trip info (se houver)
     trip_code: Optional[str] = Field(None, description="Código da viagem")
