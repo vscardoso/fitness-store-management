@@ -1353,20 +1353,32 @@ async def get_fifo_performance(
     # Subquery para obter preço da primeira variante ativa de cada produto
     # Como não podemos usar a property Product.price em SQL, usamos base_price como fallback
     # ou o preço da variante se disponível via LEFT JOIN
+    from app.models.trip import Trip
+
     entries_q = (
         select(
             StockEntry.id.label("entry_id"),
             StockEntry.entry_date,
             StockEntry.total_cost,
+            StockEntry.trip_id,
+            func.coalesce(Trip.travel_cost_total, 0).label("trip_travel_cost"),
+            # Soma total de todas entradas da mesma viagem (para proporção)
+            func.coalesce(
+                select(func.sum(StockEntry.__table__.c.total_cost))
+                .where(StockEntry.__table__.c.trip_id == StockEntry.trip_id,
+                       StockEntry.__table__.c.is_active == True)
+                .correlate(StockEntry)
+                .scalar_subquery(), StockEntry.total_cost
+            ).label("trip_total_goods_cost"),
             func.coalesce(
                 func.sum((EntryItem.quantity_received - EntryItem.quantity_remaining) * EntryItem.unit_cost), 0
-            ).label("cost_of_sold"),  # Custo dos itens vendidos
+            ).label("cost_of_sold"),
             func.coalesce(
                 func.sum(
-                    (EntryItem.quantity_received - EntryItem.quantity_remaining) * 
+                    (EntryItem.quantity_received - EntryItem.quantity_remaining) *
                     func.coalesce(ProductVariant.price, Product.base_price, 0)
                 ), 0
-            ).label("revenue_of_sold"),  # Receita dos itens vendidos
+            ).label("revenue_of_sold"),
             func.coalesce(func.sum(EntryItem.quantity_received), 0).label("total_received"),
             func.coalesce(func.sum(EntryItem.quantity_remaining), 0).label("total_remaining"),
         )
@@ -1374,13 +1386,15 @@ async def get_fifo_performance(
         .join(EntryItem, EntryItem.entry_id == StockEntry.id)
         .join(Product, EntryItem.product_id == Product.id)
         .outerjoin(ProductVariant, EntryItem.variant_id == ProductVariant.id)
+        .outerjoin(Trip, StockEntry.trip_id == Trip.id)
         .where(
             StockEntry.tenant_id == tenant_id,
             StockEntry.is_active == True,
             EntryItem.is_active == True,
             Product.is_active == True,
         )
-        .group_by(StockEntry.id, StockEntry.entry_date, StockEntry.total_cost)
+        .group_by(StockEntry.id, StockEntry.entry_date, StockEntry.total_cost,
+                  StockEntry.trip_id, Trip.travel_cost_total)
         .having(func.sum(EntryItem.quantity_received) > 0)
     )
     res = await db.execute(entries_q)
@@ -1402,8 +1416,17 @@ async def get_fifo_performance(
 
         # Só calcular ROI para entradas que tiveram vendas
         if qty_sold > 0 and cost_of_sold > 0:
-            profit = revenue - cost_of_sold
-            roi = round((profit / cost_of_sold * 100), 1)
+            # Proporção de despesas de viagem para esta entrada
+            trip_travel_cost = float(entry.trip_travel_cost or 0)
+            trip_total_goods = float(entry.trip_total_goods_cost or 0)
+            entry_cost = float(entry.total_cost or 0)
+            trip_cost_share = 0.0
+            if trip_travel_cost > 0 and trip_total_goods > 0 and entry_cost > 0:
+                trip_cost_share = (entry_cost / trip_total_goods) * trip_travel_cost
+
+            total_investment = cost_of_sold + trip_cost_share
+            profit = revenue - total_investment
+            roi = round((profit / total_investment * 100), 1)
             
             # Acumular para ROI ponderado (pelo custo dos vendidos)
             total_cost_of_sold_sum += cost_of_sold
@@ -1416,6 +1439,7 @@ async def get_fifo_performance(
                     "entry_date": str(entry.entry_date),
                     "total_cost": round(total_entry_cost, 2),
                     "cost_of_sold": round(cost_of_sold, 2),
+                    "trip_cost_share": round(trip_cost_share, 2),
                     "estimated_revenue": round(revenue, 2),
                     "roi": roi,
                     "sell_through": sell_through,

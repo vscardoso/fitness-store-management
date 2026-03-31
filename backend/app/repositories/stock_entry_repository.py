@@ -102,10 +102,12 @@ class StockEntryRepository(BaseRepository[StockEntry, dict, dict]):
             query = query.options(
                 selectinload(StockEntry.entry_items).selectinload(EntryItem.product).selectinload(Product.variants),
                 selectinload(StockEntry.entry_items).selectinload(EntryItem.variant).selectinload(ProductVariant.product),
-                selectinload(StockEntry.trip)
+                selectinload(StockEntry.trip).selectinload(Trip.stock_entries),
             )
         else:
-            query = query.options(selectinload(StockEntry.trip))
+            query = query.options(
+                selectinload(StockEntry.trip).selectinload(Trip.stock_entries),
+            )
         
         result = await db.execute(query)
         return result.scalar_one_or_none()

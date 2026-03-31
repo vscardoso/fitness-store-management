@@ -356,36 +356,65 @@ class StockEntryService:
         if total_received > 0:
             sell_through_rate = (total_sold / total_received) * 100
         
-        # Calcular ROI (simplificado)
-        # Assumindo margem de lucro média
-        estimated_revenue = total_cost * Decimal('1.3')  # 30% de margem
+        # Receita real: quantity_sold × sell_price (ou product price)
+        real_revenue = Decimal('0.00')
+        for item in entry.entry_items:
+            if not item.is_active:
+                continue
+            qty_sold = item.quantity_sold
+            if qty_sold > 0:
+                price = item.sell_price or (item.product.base_price if item.product else Decimal('0'))
+                real_revenue += Decimal(str(qty_sold)) * (price or Decimal('0'))
+
+        # Despesas de viagem proporcionais (se entry for de viagem)
+        trip_cost_share = Decimal('0.00')
+        trip_travel_cost = Decimal('0.00')
+        if entry.trip_id and entry.trip:
+            trip = entry.trip
+            trip_travel_cost = trip.travel_cost_total or Decimal('0')
+            if trip_travel_cost > 0:
+                # Somar custo total de todas entradas da viagem
+                trip_entries_cost = sum(
+                    (e.total_cost or Decimal('0'))
+                    for e in trip.stock_entries
+                    if e.is_active
+                )
+                if trip_entries_cost > 0 and total_cost > 0:
+                    trip_cost_share = (total_cost / trip_entries_cost) * trip_travel_cost
+
+        total_investment = total_cost + trip_cost_share
         roi = 0.0
-        if total_cost > 0:
-            roi = ((estimated_revenue - total_cost) / total_cost) * 100
-        
+        if total_investment > 0 and real_revenue > 0:
+            cost_of_sold = sum(
+                Decimal(str(i.quantity_sold)) * i.unit_cost
+                for i in entry.entry_items
+                if i.is_active and i.quantity_sold > 0
+            )
+            sold_investment = cost_of_sold + trip_cost_share
+            roi = float((real_revenue - sold_investment) / sold_investment * 100) if sold_investment > 0 else 0.0
+
         return {
             "entry_id": entry.id,
             "entry_code": entry.entry_code,
             "entry_type": entry.entry_type,
             "supplier_name": entry.supplier_name,
-            
-            # Métricas de quantidade
+
             "total_items": len(entry.entry_items),
             "items_depleted": items_depleted,
             "total_quantity_received": total_received,
             "total_quantity_remaining": total_remaining,
             "total_quantity_sold": total_sold,
-            
-            # Métricas financeiras
+
             "total_cost": float(total_cost),
-            "estimated_revenue": float(estimated_revenue),
-            
-            # Performance
+            "real_revenue": float(real_revenue),
+            "trip_travel_cost": float(trip_travel_cost),
+            "trip_cost_share": float(trip_cost_share),
+            "total_investment": float(total_investment),
+
             "sell_through_rate": round(sell_through_rate, 2),
-            "roi": round(float(roi), 2),
+            "roi": round(roi, 2),
             "depletion_rate": round(
-                (items_depleted / len(entry.entry_items) * 100) if entry.entry_items else 0,
-                2
+                (items_depleted / len(entry.entry_items) * 100) if entry.entry_items else 0, 2
             ),
         }
     
