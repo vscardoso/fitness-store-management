@@ -915,10 +915,6 @@ export default function AddStockEntryScreen() {
       newErrors.tripId = 'Selecione uma viagem';
     }
 
-    if (items.length === 0) {
-      newErrors.items = 'Adicione pelo menos um produto';
-    }
-
     // Validar cada item
     items.forEach((item, index) => {
       if (item.quantity_received <= 0) {
@@ -1665,7 +1661,7 @@ export default function AddStockEntryScreen() {
         {/* Lista de Produtos */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Produtos ({items.length})</Text>
+            <Text style={styles.sectionTitle}>Produtos ({items.length}) <Text style={{ fontSize: 12, color: '#888', fontWeight: 'normal' }}>opcional</Text></Text>
             <Button
               mode="outlined"
               onPress={() => setProductMenuVisible(true)}
@@ -1820,7 +1816,6 @@ export default function AddStockEntryScreen() {
               createMutation.isPending ||
               createAtomicMutation.isPending ||
               createAtomicVariantsMutation.isPending ||
-              items.length === 0 ||
               codeValidationStatus === 'invalid' ||
               codeValidationStatus === 'checking'
             }
@@ -1830,7 +1825,6 @@ export default function AddStockEntryScreen() {
               (createMutation.isPending ||
                 createAtomicMutation.isPending ||
                 createAtomicVariantsMutation.isPending ||
-                items.length === 0 ||
                 codeValidationStatus === 'invalid' ||
                 codeValidationStatus === 'checking') && styles.submitButtonDisabled,
             ]}
@@ -1915,6 +1909,8 @@ export default function AddStockEntryScreen() {
               : `Produto vinculado a entrada ${createdEntryCode || ''} com sucesso!`
             : isFromAIScanner
             ? `Produto escaneado foi cadastrado e vinculado à entrada de estoque!`
+            : items.length === 0
+            ? `Entrada ${createdEntryCode || ''} criada. Adicione produtos quando quiser.`
             : `A entrada ${createdEntryCode || ''} foi registrada com sucesso.`
         }
         details={
@@ -1938,6 +1934,14 @@ export default function AddStockEntryScreen() {
                 '',
                 'Cada venda usará o estoque da entrada mais antiga primeiro (FIFO)',
               ]
+            : items.length === 0
+            ? [
+                '📦 Entrada registrada sem produtos',
+                'Abra a entrada para vincular produtos a qualquer momento',
+                selectedType === EntryType.TRIP && selectedTrip
+                  ? `Viagem: ${selectedTrip.trip_code}`
+                  : '',
+              ].filter(Boolean)
             : [
                 `${items.length} ${items.length === 1 ? 'item' : 'itens'} adicionados`,
                 `Total: ${formatCurrency(total)}`,
@@ -1953,7 +1957,7 @@ export default function AddStockEntryScreen() {
               ].filter(Boolean)
         }
         type="success"
-        confirmText={isFromWizard ? "Ver Resumo" : isFromAIScanner ? "Ver Produto" : "Ver Entradas"}
+        confirmText={isFromWizard ? "Ver Resumo" : isFromAIScanner ? "Ver Produto" : items.length === 0 ? "Abrir Entrada" : "Ver Entradas"}
         cancelText={isFromWizard ? "" : isFromAIScanner ? "Escanear Outro" : "Nova Entrada"}
         onConfirm={() => {
           setShowSuccessDialog(false);
@@ -1976,8 +1980,10 @@ export default function AddStockEntryScreen() {
           }
 
           if (isFromAIScanner && items.length > 0 && items[0].product?.id) {
-            // Ir para detalhes do produto criado
             router.push(`/products/${items[0].product.id}`);
+          } else if (items.length === 0 && createdEntryId) {
+            // Sem produtos: abrir detalhes para vincular depois
+            router.push(`/entries/${createdEntryId}`);
           } else {
             router.push('/(tabs)/entries');
           }
