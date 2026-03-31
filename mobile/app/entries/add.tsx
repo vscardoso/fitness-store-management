@@ -228,6 +228,7 @@ export default function AddStockEntryScreen() {
   const [cnpjValidationStatus, setCnpjValidationStatus] = useState<'idle' | 'valid' | 'invalid'>('idle');
   const codeCheckTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const preselectedProductAddedRef = useRef(false); // Previne adição dupla do produto pré-selecionado
+  const tripLinkedDialogShownRef = useRef(false); // Previne re-exibição do dialog ao hot-reload
   const [showTripLinkedDialog, setShowTripLinkedDialog] = useState(false);
   const [linkedTripInfo, setLinkedTripInfo] = useState<{ code: string; destination: string } | null>(null);
   const [showDeleteItemDialog, setShowDeleteItemDialog] = useState(false);
@@ -534,14 +535,16 @@ export default function AddStockEntryScreen() {
       // Try to find trip in list for full info
       const trip = trips.find((t) => t.id === newTripIdNum);
 
-      if (trip) {
-        // Show feedback with full trip info
-        setLinkedTripInfo({ code: trip.trip_code, destination: trip.destination });
-        setShowTripLinkedDialog(true);
-      } else if (params.newTripCode && !showTripLinkedDialog) {
-        // Trip not in list yet, use params data for feedback
-        setLinkedTripInfo({ code: params.newTripCode, destination: 'Carregando...' });
-        setShowTripLinkedDialog(true);
+      if (!tripLinkedDialogShownRef.current) {
+        if (trip) {
+          setLinkedTripInfo({ code: trip.trip_code, destination: trip.destination });
+          setShowTripLinkedDialog(true);
+          tripLinkedDialogShownRef.current = true;
+        } else if (params.newTripCode) {
+          setLinkedTripInfo({ code: params.newTripCode, destination: 'Carregando...' });
+          setShowTripLinkedDialog(true);
+          tripLinkedDialogShownRef.current = true;
+        }
       }
     }
   }, [params.newTripId, params.newTripCode, trips]);
