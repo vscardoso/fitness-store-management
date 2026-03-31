@@ -2,30 +2,29 @@ import React, { useState } from 'react';
 import {
   View,
   StyleSheet,
-  ScrollView,
-  KeyboardAvoidingView,
-  Platform,
 } from 'react-native';
 import {
   TextInput,
-  Button,
   HelperText,
   Text,
 } from 'react-native-paper';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import PageHeader from '@/components/layout/PageHeader';
+import AppButton from '@/components/ui/AppButton';
+import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
 
 import { createTrip, checkTripCode } from '@/services/tripService';
 import { TripCreate } from '@/types';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency, parseCurrency } from '@/utils/format';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { useBrandingColors } from '@/store/brandingStore';
 import { useEffect, useRef } from 'react';
 
 export default function AddTripScreen() {
   const router = useRouter();
+  const brandingColors = useBrandingColors();
   const params = useLocalSearchParams<{
     from?: string;
     // New params (full product data from catalog)
@@ -53,8 +52,6 @@ export default function AddTripScreen() {
   const [costOther, setCostOther] = useState('0,00');
   const [notes, setNotes] = useState('');
 
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showReturnDatePicker, setShowReturnDatePicker] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [showErrorDialog, setShowErrorDialog] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -397,19 +394,14 @@ export default function AddTripScreen() {
         showBackButton
       />
 
-      <KeyboardAvoidingView
+      <KeyboardAwareScreen
         style={styles.content}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        contentContainerStyle={styles.scrollContent}
+        bottomPadding={theme.spacing.xxl}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
           {/* Informações Básicas */}
-          <View style={styles.section}>
-            <HelperText type="info" style={styles.sectionTitle}>
-              Informações Básicas
-            </HelperText>
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Informacoes Basicas</Text>
 
             <TextInput
               label="Código da Viagem *"
@@ -455,32 +447,12 @@ export default function AddTripScreen() {
               keyboardType="number-pad"
               maxLength={10}
               left={<TextInput.Icon icon="calendar-outline" />}
-              right={
-                <TextInput.Icon
-                  icon="calendar"
-                  onPress={() => setShowDatePicker(true)}
-                />
-              }
               error={tripDateInput.length > 0 && !isValidDate(tripDateInput)}
             />
             {tripDateInput.length > 0 && !isValidDate(tripDateInput) && (
               <HelperText type="error" visible={true}>
                 Data inválida (use DD/MM/AAAA)
               </HelperText>
-            )}
-            {showDatePicker && (
-              <DateTimePicker
-                value={tripDate}
-                mode="date"
-                display="default"
-                onChange={(event, date) => {
-                  setShowDatePicker(false);
-                  if (date) {
-                    setTripDate(date);
-                    setTripDateInput(''); // Limpar input manual ao usar picker
-                  }
-                }}
-              />
             )}
 
             <TextInput
@@ -503,7 +475,7 @@ export default function AddTripScreen() {
                   placeholder="HH:MM"
                   keyboardType="number-pad"
                   maxLength={5}
-                  left={<TextInput.Icon icon="time-outline" />}
+                  left={<TextInput.Icon icon="clock-outline" />}
                   right={
                     departureTime ? (
                       <TextInput.Icon
@@ -563,12 +535,6 @@ export default function AddTripScreen() {
               keyboardType="number-pad"
               maxLength={10}
               left={<TextInput.Icon icon="calendar-outline" />}
-              right={
-                <TextInput.Icon
-                  icon="calendar"
-                  onPress={() => setShowReturnDatePicker(true)}
-                />
-              }
               error={returnDateInput.length > 0 && !isValidDate(returnDateInput)}
             />
             {returnDateInput.length > 0 && !isValidDate(returnDateInput) && (
@@ -576,28 +542,11 @@ export default function AddTripScreen() {
                 Data inválida (use DD/MM/AAAA)
               </HelperText>
             )}
-            {showReturnDatePicker && (
-              <DateTimePicker
-                value={returnDate}
-                mode="date"
-                display="default"
-                minimumDate={tripDate}
-                onChange={(event, date) => {
-                  setShowReturnDatePicker(false);
-                  if (date) {
-                    setReturnDate(date);
-                    setReturnDateInput(''); // Limpar input manual ao usar picker
-                  }
-                }}
-              />
-            )}
           </View>
 
           {/* Custos da Viagem */}
-          <View style={styles.section}>
-            <HelperText type="info" style={styles.sectionTitle}>
-              Custos da Viagem
-            </HelperText>
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Custos da Viagem</Text>
 
             <TextInput
               label="Combustível (R$)"
@@ -656,15 +605,13 @@ export default function AddTripScreen() {
 
             <View style={styles.totalCard}>
               <Text style={styles.totalLabel}>Custo Total</Text>
-              <Text style={styles.totalValue}>{formatCurrency(totalCost)}</Text>
+              <Text style={[styles.totalValue, { color: brandingColors.primary }]}>{formatCurrency(totalCost)}</Text>
             </View>
           </View>
 
           {/* Observações */}
-          <View style={styles.section}>
-            <HelperText type="info" style={styles.sectionTitle}>
-              Observações
-            </HelperText>
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionTitle}>Observacoes</Text>
 
             <TextInput
               label="Observações"
@@ -680,19 +627,20 @@ export default function AddTripScreen() {
 
           {/* Botões de ação */}
           <View style={styles.actions}>
-            <Button
-              mode="outlined"
+            <AppButton
+              variant="outlined"
+              label="Cancelar"
               onPress={() => router.back()}
-              style={styles.button}
+              style={styles.buttonHalf}
               disabled={createMutation.isPending}
-            >
-              Cancelar
-            </Button>
+            />
 
-            <Button
-              mode="contained"
+            <AppButton
+              variant="primary"
+              label="Salvar Viagem"
+              icon="checkmark-circle-outline"
               onPress={handleSubmit}
-              style={[styles.button, styles.buttonPrimary]}
+              style={styles.buttonHalf}
               loading={createMutation.isPending}
               disabled={
                 createMutation.isPending ||
@@ -701,12 +649,9 @@ export default function AddTripScreen() {
                 // Disable if code needs validation but hasn't started yet
                 (codeValidationStatus === 'idle' && tripCode.trim().length >= 5)
               }
-            >
-              Salvar Viagem
-            </Button>
+            />
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+      </KeyboardAwareScreen>
 
       {/* Dialog de Sucesso (só aparece quando NÃO vem de entries) */}
       <ConfirmDialog
@@ -781,60 +726,67 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
+    padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
   },
-  section: {
-    marginBottom: 24,
+  sectionCard: {
+    marginBottom: theme.spacing.lg,
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: theme.spacing.md,
+    ...theme.shadows.sm,
   },
   sectionTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
-    color: Colors.light.primary,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700',
+    marginBottom: theme.spacing.sm,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    color: Colors.light.textTertiary,
   },
   input: {
-    marginBottom: 8,
-    backgroundColor: Colors.light.background,
+    marginBottom: theme.spacing.xs,
+    backgroundColor: Colors.light.card,
   },
   row: {
     flexDirection: 'row',
-    gap: 8,
+    gap: theme.spacing.sm,
   },
   inputHalf: {
     flex: 1,
   },
   totalCard: {
-    backgroundColor: Colors.light.primaryLight,
-    borderRadius: 8,
-    padding: 16,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: theme.spacing.md,
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: theme.spacing.sm,
   },
   totalLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.light.primary,
+    fontSize: theme.fontSize.base,
+    fontWeight: '700',
+    color: Colors.light.text,
   },
   totalValue: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: Colors.light.primary,
+    fontSize: theme.fontSize.xl,
+    fontWeight: '800',
+    letterSpacing: -0.4,
   },
   actions: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 24,
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
   },
-  button: {
+  buttonHalf: {
     flex: 1,
-  },
-  buttonPrimary: {
-    backgroundColor: Colors.light.primary,
   },
 });

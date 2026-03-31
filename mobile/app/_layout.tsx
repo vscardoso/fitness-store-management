@@ -4,7 +4,13 @@
  */
 
 import { useEffect } from 'react';
+import { LogBox } from 'react-native';
 import { Slot, useRouter, useSegments } from 'expo-router';
+
+LogBox.ignoreLogs([
+  'expo-notifications',
+  'Due to changes in Androids permission requirements',
+]);
 import { StatusBar } from 'expo-status-bar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { PaperProvider, MD3LightTheme, Snackbar } from 'react-native-paper';
@@ -20,6 +26,7 @@ import { ErrorProvider } from '@/contexts/ErrorContext';
 // import { SENTRY_CONFIG } from '@/constants/Config'; // TEMP: Desabilitado
 import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
+import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { setForceLogoutCallback, setInvalidateQueriesCallback } from '@/services/api';
 
@@ -43,61 +50,27 @@ const queryClient = new QueryClient({
   },
 });
 
-// Tema moderno e atrativo com Material Design 3
-const theme = {
-  ...MD3LightTheme,
-  colors: {
-    ...MD3LightTheme.colors,
-    primary: 'rgb(103, 80, 164)',
-    onPrimary: 'rgb(255, 255, 255)',
-    primaryContainer: 'rgb(234, 221, 255)',
-    onPrimaryContainer: 'rgb(33, 0, 93)',
-    secondary: 'rgb(98, 91, 113)',
-    onSecondary: 'rgb(255, 255, 255)',
-    secondaryContainer: 'rgb(232, 222, 248)',
-    onSecondaryContainer: 'rgb(30, 25, 43)',
-    tertiary: 'rgb(125, 82, 96)',
-    onTertiary: 'rgb(255, 255, 255)',
-    tertiaryContainer: 'rgb(255, 217, 227)',
-    onTertiaryContainer: 'rgb(55, 11, 30)',
-    error: 'rgb(186, 26, 26)',
-    onError: 'rgb(255, 255, 255)',
-    errorContainer: 'rgb(255, 218, 214)',
-    onErrorContainer: 'rgb(65, 0, 2)',
-    background: 'rgb(255, 251, 255)',
-    onBackground: 'rgb(29, 27, 30)',
-    surface: 'rgb(255, 251, 255)',
-    onSurface: 'rgb(29, 27, 30)',
-    surfaceVariant: 'rgb(231, 224, 236)',
-    onSurfaceVariant: 'rgb(73, 69, 78)',
-    outline: 'rgb(122, 117, 127)',
-    outlineVariant: 'rgb(202, 196, 208)',
-    shadow: 'rgb(0, 0, 0)',
-    scrim: 'rgb(0, 0, 0)',
-    inverseSurface: 'rgb(50, 47, 51)',
-    inverseOnSurface: 'rgb(245, 239, 244)',
-    inversePrimary: 'rgb(208, 188, 255)',
-    elevation: {
-      level0: 'transparent',
-      level1: 'rgb(247, 242, 252)',
-      level2: 'rgb(243, 236, 250)',
-      level3: 'rgb(238, 231, 248)',
-      level4: 'rgb(237, 229, 247)',
-      level5: 'rgb(234, 226, 246)',
-    },
-    surfaceDisabled: 'rgba(29, 27, 30, 0.12)',
-    onSurfaceDisabled: 'rgba(29, 27, 30, 0.38)',
-    backdrop: 'rgba(51, 47, 55, 0.4)',
-  },
-};
-
 export default function RootLayout() {
   const segments = useSegments();
   const loadUser = useAuthStore((state) => state.loadUser);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const forceLogout = useAuthStore((state) => state.forceLogout);
   const error = useAuthStore((state) => state.error);
   const clearError = useAuthStore((state) => state.clearError);
   const loadNotifications = useNotificationStore((state) => state.loadFromStorage);
+  const brandingColors = useBrandingColors();
+  const brandingSynced = useBrandingStore((state) => state.synced);
+  const fetchBrandingFromServer = useBrandingStore((state) => state.fetchFromServer);
+
+  const theme = {
+    ...MD3LightTheme,
+    colors: {
+      ...MD3LightTheme.colors,
+      primary: brandingColors.primary,
+      secondary: brandingColors.secondary,
+      tertiary: brandingColors.accent,
+    },
+  };
 
   // Inicializar push notifications
   usePushNotifications();
@@ -109,23 +82,10 @@ export default function RootLayout() {
       await forceLogout(reason);
     });
 
-    // Callback para invalidar cache do React Query (SELETIVO - NÃO limpar auth!)
+    // Callback para limpar cache do React Query (sessão expirada = estado limpo)
     setInvalidateQueriesCallback(() => {
-      // Invalidar apenas queries de dados de negócio, NUNCA queries de autenticação
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
-      queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
-      queryClient.invalidateQueries({ queryKey: ['active-products'] });
-      queryClient.invalidateQueries({ queryKey: ['customers'] });
-      queryClient.invalidateQueries({ queryKey: ['sales'] });
-      queryClient.invalidateQueries({ queryKey: ['stock-entries'] });
-      queryClient.invalidateQueries({ queryKey: ['trips'] });
-      queryClient.invalidateQueries({ queryKey: ['conditional-shipments'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['low-stock'] });
-      queryClient.invalidateQueries({ queryKey: ['inventory'] });
-      // NÃO invalidar: auth, user, session queries
-      console.log('🔄 Cache de dados invalidado (sessão preservada)');
+      queryClient.clear();
+      console.log('🗑️ Cache React Query limpo (sessão expirada)');
     });
 
     console.log('✅ Callbacks de autenticação configurados');
@@ -136,6 +96,13 @@ export default function RootLayout() {
     loadUser();
     loadNotifications();
   }, []);
+
+  // Hidrata branding com token valido caso store local nao esteja sincronizado.
+  useEffect(() => {
+    if (isAuthenticated && !brandingSynced) {
+      fetchBrandingFromServer().catch(() => {});
+    }
+  }, [isAuthenticated, brandingSynced, fetchBrandingFromServer]);
 
   return (
     <ErrorBoundary>

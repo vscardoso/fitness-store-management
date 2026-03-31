@@ -3,23 +3,17 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  Alert,
   RefreshControl,
   Linking,
   ActivityIndicator,
   TouchableOpacity,
-  StatusBar,
-} from 'react-native';
-import {
   Text,
-  Card,
-  Divider,
-} from 'react-native-paper';
+} from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import DetailHeader from '@/components/layout/DetailHeader';
+import PageHeader from '@/components/layout/PageHeader';
 import InfoRow from '@/components/ui/InfoRow';
 import StatCard from '@/components/ui/StatCard';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -27,6 +21,7 @@ import { getCustomerById, deleteCustomer } from '@/services/customerService';
 import { getSales } from '@/services/saleService';
 import { formatPhone, formatDate, formatCurrency, formatDateTime } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import type { Sale } from '@/types';
 
 export default function CustomerDetailsScreen() {
@@ -34,6 +29,7 @@ export default function CustomerDetailsScreen() {
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/customers');
   const queryClient = useQueryClient();
+  const brandingColors = useBrandingColors();
 
   // Validar ID do cliente
   const customerId = id ? parseInt(id as string) : NaN;
@@ -55,6 +51,8 @@ export default function CustomerDetailsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [showErrorDialog, setShowErrorDialog] = useState(false);
+  const [errorDialogMessage, setErrorDialogMessage] = useState('');
 
   /**
    * Query: Histórico de vendas do cliente
@@ -86,7 +84,8 @@ export default function CustomerDetailsScreen() {
     },
     onError: (error: any) => {
       setShowDeleteDialog(false);
-      Alert.alert('Erro', error.message || 'Erro ao deletar cliente');
+      setErrorDialogMessage(error.message || 'Erro ao deletar cliente');
+      setShowErrorDialog(true);
     },
   });
 
@@ -129,7 +128,7 @@ export default function CustomerDetailsScreen() {
         </Text>
         <TouchableOpacity
           onPress={goBack}
-          style={{ backgroundColor: Colors.light.primary, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 }}
+          style={{ backgroundColor: brandingColors.primary, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 }}
         >
           <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Voltar</Text>
         </TouchableOpacity>
@@ -140,7 +139,7 @@ export default function CustomerDetailsScreen() {
   if (isLoading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
+        <ActivityIndicator size="large" color={brandingColors.primary} />
         <Text style={{ marginTop: 16, color: '#666' }}>Carregando cliente...</Text>
       </View>
     );
@@ -158,20 +157,13 @@ export default function CustomerDetailsScreen() {
         </Text>
         <TouchableOpacity
           onPress={goBack}
-          style={{ backgroundColor: Colors.light.primary, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 }}
+          style={{ backgroundColor: brandingColors.primary, paddingHorizontal: 32, paddingVertical: 12, borderRadius: 8 }}
         >
           <Text style={{ color: '#fff', fontSize: 16, fontWeight: '600' }}>Voltar</Text>
         </TouchableOpacity>
       </View>
     );
   }
-
-  // Preparar badges de status
-  const badges = [
-    customer.is_active
-      ? { icon: 'checkmark-circle' as const, label: 'ATIVO', type: 'success' as const }
-      : { icon: 'close-circle' as const, label: 'INATIVO', type: 'error' as const },
-  ];
 
   // Preparar ações rápidas (ligar/email)
   const quickActions = [
@@ -181,7 +173,7 @@ export default function CustomerDetailsScreen() {
             icon: 'call' as const,
             label: 'Ligar',
             onPress: handleCall,
-            color: Colors.light.primary,
+            color: brandingColors.primary,
           },
         ]
       : []),
@@ -191,7 +183,7 @@ export default function CustomerDetailsScreen() {
             icon: 'mail' as const,
             label: 'Email',
             onPress: handleEmail,
-            color: Colors.light.primary,
+            color: brandingColors.primary,
           },
         ]
       : []),
@@ -199,15 +191,21 @@ export default function CustomerDetailsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
-      <DetailHeader
-        title="Detalhes do Cliente"
-        entityName={customer.full_name}
-        backRoute="/(tabs)/customers"
-        editRoute={`/customers/edit/${customerId}`}
-        onDelete={handleDelete}
-        badges={badges}
-        metrics={[]}
+      <PageHeader
+        title={customer.full_name}
+        subtitle="Detalhes do cliente"
+        showBackButton
+        onBack={goBack}
+        rightActions={[
+          {
+            icon: 'pencil',
+            onPress: () => router.push(`/customers/edit/${customerId}` as any),
+          },
+          {
+            icon: 'trash',
+            onPress: handleDelete,
+          },
+        ]}
       />
 
       <ScrollView 
@@ -217,7 +215,7 @@ export default function CustomerDetailsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[Colors.light.primary]}
+            colors={[brandingColors.primary]}
           />
         }
       >
@@ -229,8 +227,8 @@ export default function CustomerDetailsScreen() {
             disabled={!customer.phone}
             activeOpacity={0.8}
           >
-            <View style={[styles.quickIconWrap, { backgroundColor: Colors.light.primary + '20' }]}>
-              <Ionicons name="call-outline" size={20} color={Colors.light.primary} />
+            <View style={[styles.quickIconWrap, { backgroundColor: brandingColors.primary + '20' }]}>
+              <Ionicons name="call-outline" size={20} color={brandingColors.primary} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.quickLabel}>Ligar</Text>
@@ -259,13 +257,12 @@ export default function CustomerDetailsScreen() {
         </View>
 
         {/* Informações de Contato */}
-        <Card style={styles.card}>
-          <Card.Content>
+        <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderIcon}>
-                <Ionicons name="call-outline" size={20} color={Colors.light.primary} />
+              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
+                <Ionicons name="call-outline" size={20} color={brandingColors.primary} />
               </View>
-              <Text variant="titleMedium" style={styles.cardTitle}>
+              <Text style={styles.cardTitle}>
                 Informações de Contato
               </Text>
             </View>
@@ -307,18 +304,16 @@ export default function CustomerDetailsScreen() {
                 />
               )}
             </View>
-          </Card.Content>
-        </Card>
+        </View>
 
         {/* Endereço */}
         {(customer.address || customer.city || customer.state) && (
-          <Card style={styles.card}>
-            <Card.Content>
+          <View style={styles.card}>
               <View style={styles.cardHeader}>
-                <View style={styles.cardHeaderIcon}>
-                  <Ionicons name="location-outline" size={20} color={Colors.light.primary} />
+              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
+                <Ionicons name="location-outline" size={20} color={brandingColors.primary} />
                 </View>
-                <Text variant="titleMedium" style={styles.cardTitle}>
+                <Text style={styles.cardTitle}>
                   Endereço
                 </Text>
               </View>
@@ -353,18 +348,16 @@ export default function CustomerDetailsScreen() {
                   />
                 )}
               </View>
-            </Card.Content>
-          </Card>
+          </View>
         )}
 
         {/* Informações Adicionais */}
-        <Card style={styles.card}>
-          <Card.Content>
+        <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderIcon}>
-                <Ionicons name="information-circle-outline" size={20} color={Colors.light.primary} />
+              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
+                <Ionicons name="information-circle-outline" size={20} color={brandingColors.primary} />
               </View>
-              <Text variant="titleMedium" style={styles.cardTitle}>
+              <Text style={styles.cardTitle}>
                 Informações Adicionais
               </Text>
             </View>
@@ -374,7 +367,7 @@ export default function CustomerDetailsScreen() {
                 label="Pontos de Fidelidade"
                 value={Number(customer.loyalty_points || 0).toFixed(0)}
                 icon="star"
-                valueColor={Colors.light.primary}
+                valueColor={brandingColors.primary}
               />
 
               <StatCard
@@ -388,28 +381,26 @@ export default function CustomerDetailsScreen() {
                 label="Total de Compras"
                 value={String(customer.total_purchases || 0)}
                 icon="cart"
-                valueColor={Colors.light.primary}
+                valueColor={brandingColors.primary}
               />
             </View>
 
             <View style={styles.additionalInfo}>
-              <Text variant="bodySmall" style={styles.additionalText}>
+              <Text style={styles.additionalText}>
                 Cadastrado em: {formatDate(customer.created_at)}
               </Text>
-              <Text variant="bodySmall" style={styles.additionalText}>
+              <Text style={styles.additionalText}>
                 Última atualização: {formatDate(customer.updated_at)}
               </Text>
             </View>
-          </Card.Content>
-        </Card>
+        </View>
         {/* Histórico de Compras */}
-        <Card style={styles.card}>
-          <Card.Content>
+        <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderIcon}>
-                <Ionicons name="receipt-outline" size={20} color={Colors.light.primary} />
+              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
+                <Ionicons name="receipt-outline" size={20} color={brandingColors.primary} />
               </View>
-              <Text variant="titleMedium" style={styles.cardTitle}>
+              <Text style={styles.cardTitle}>
                 Histórico de Compras
               </Text>
             </View>
@@ -462,8 +453,7 @@ export default function CustomerDetailsScreen() {
                 })}
               </>
             )}
-          </Card.Content>
-        </Card>
+        </View>
 
       </ScrollView>
 
@@ -497,6 +487,18 @@ export default function CustomerDetailsScreen() {
         }}
         type="success"
         icon="checkmark-circle"
+      />
+
+      {/* Dialog de Erro */}
+      <ConfirmDialog
+        visible={showErrorDialog}
+        title="Erro"
+        message={errorDialogMessage}
+        confirmText="OK"
+        onConfirm={() => setShowErrorDialog(false)}
+        onCancel={() => setShowErrorDialog(false)}
+        type="danger"
+        icon="alert-circle"
       />
     </View>
   );
@@ -565,9 +567,12 @@ const styles = StyleSheet.create({
   },
   card: {
     marginBottom: 16,
-    borderRadius: 12,
-    elevation: 2,
+    borderRadius: theme.borderRadius.xl,
     backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: 16,
+    ...theme.shadows.sm,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -578,7 +583,6 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: Colors.light.primary + '15',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,

@@ -23,6 +23,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '@/utils/format';
 import { Colors } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import { haptics } from '@/utils/haptics';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import {
@@ -48,6 +49,7 @@ export default function ReturnModal({
   onDismiss,
   onSuccess,
 }: ReturnModalProps) {
+  const brandingColors = useBrandingColors();
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [eligibility, setEligibility] = useState<ReturnEligibility | null>(null);
@@ -292,7 +294,7 @@ export default function ReturnModal({
 
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={Colors.light.primary} />
+            <ActivityIndicator size="large" color={brandingColors.primary} />
             <Text style={styles.loadingText}>Verificando elegibilidade...</Text>
           </View>
         ) : !eligibility?.is_eligible ? (
@@ -311,14 +313,14 @@ export default function ReturnModal({
         ) : (
           <>
             {/* Info Banner - Prazo */}
-            <View style={[styles.infoBanner, isExpired && styles.infoBannerError, isUrgent && !isExpired && styles.infoBannerWarning]}>
-              <Ionicons 
-                name={isExpired ? "close-circle" : isUrgent ? "alert-circle" : "information-circle"} 
-                size={20} 
-                color={isExpired ? Colors.light.error : isUrgent ? Colors.light.warning : Colors.light.primary} 
+            <View style={[styles.infoBanner, { backgroundColor: brandingColors.primary + '12' }, isExpired && styles.infoBannerError, isUrgent && !isExpired && styles.infoBannerWarning]}>
+              <Ionicons
+                name={isExpired ? "close-circle" : isUrgent ? "alert-circle" : "information-circle"}
+                size={20}
+                color={isExpired ? Colors.light.error : isUrgent ? Colors.light.warning : brandingColors.primary}
               />
               <View style={styles.infoBannerText}>
-                <Text style={[styles.infoBannerTitle, isExpired && styles.infoBannerTitleError, isUrgent && !isExpired && styles.infoBannerTitleWarning]}>
+                <Text style={[styles.infoBannerTitle, { color: brandingColors.primary }, isExpired && styles.infoBannerTitleError, isUrgent && !isExpired && styles.infoBannerTitleWarning]}>
                   {isExpired 
                     ? 'Prazo expirado' 
                     : daysRemaining === 0 
@@ -366,7 +368,7 @@ export default function ReturnModal({
                 return (
                   <View
                     key={item.sale_item_id}
-                    style={[styles.itemCard, isSelected && styles.itemCardSelected]}
+                    style={[styles.itemCard, isSelected && { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary + '10' }]}
                   >
                     <View style={styles.itemHeader}>
                       <View style={styles.itemInfo}>
@@ -374,7 +376,7 @@ export default function ReturnModal({
                         <Text style={styles.itemPrice}>{formatCurrency(item.unit_price)} cada</Text>
                       </View>
                       <View style={styles.itemQuantityInfo}>
-                        <Text style={styles.itemQuantityLabel}>Disponível: {item.quantity_available_for_return}</Text>
+                        <Text style={[styles.itemQuantityLabel, { color: brandingColors.primary }]}>Disponível: {item.quantity_available_for_return}</Text>
                       </View>
                     </View>
                     
@@ -397,7 +399,7 @@ export default function ReturnModal({
                         icon="plus"
                         size={20}
                         mode="contained"
-                        containerColor={Colors.light.primary}
+                        containerColor={brandingColors.primary}
                         iconColor="#fff"
                         onPress={() => handleQuantityChange(
                           item.sale_item_id,
@@ -432,7 +434,7 @@ export default function ReturnModal({
 
               {/* Resumo */}
               {totalRefund > 0 && (
-                <View style={styles.summaryCard}>
+                <View style={[styles.summaryCard, { borderColor: brandingColors.primary }]}>
                   <Text style={styles.summaryTitle}>Resumo da Devolução</Text>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Itens selecionados</Text>
@@ -440,7 +442,7 @@ export default function ReturnModal({
                   </View>
                   <View style={styles.summaryRow}>
                     <Text style={styles.summaryLabel}>Total do Reembolso</Text>
-                    <Text style={[styles.summaryValue, styles.summaryTotal]}>
+                    <Text style={[styles.summaryValue, styles.summaryTotal, { color: brandingColors.primary }]}>
                       {formatCurrency(totalRefund)}
                     </Text>
                   </View>
@@ -551,7 +553,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
-    backgroundColor: Colors.light.primary + '12',
     padding: 12,
     marginHorizontal: 16,
     marginTop: 12,
@@ -569,7 +570,6 @@ const styles = StyleSheet.create({
   infoBannerTitle: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.primary,
   },
   infoBannerTitleWarning: {
     color: Colors.light.warning,
@@ -616,10 +616,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.light.border,
   },
-  itemCardSelected: {
-    borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primary + '10',
-  },
+  itemCardSelected: {},
   itemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -644,7 +641,6 @@ const styles = StyleSheet.create({
   },
   itemQuantityLabel: {
     fontSize: 12,
-    color: Colors.light.primary,
     fontWeight: '500',
   },
   quantityControl: {
@@ -678,7 +674,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     borderWidth: 2,
-    borderColor: Colors.light.primary,
   },
   summaryTitle: {
     fontSize: 16,
@@ -703,7 +698,6 @@ const styles = StyleSheet.create({
   },
   summaryTotal: {
     fontSize: 18,
-    color: Colors.light.primary,
   },
   
   // Footer

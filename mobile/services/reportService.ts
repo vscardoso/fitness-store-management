@@ -13,6 +13,11 @@ export interface PaymentBreakdown {
 export interface TopProduct {
   product_id: number;
   product_name: string;
+  variant_id?: number | null;
+  variant_sku?: string | null;
+  variant_size?: string | null;
+  variant_color?: string | null;
+  variant_label?: string | null;
   quantity_sold: number;
   revenue: number;
   profit: number;
@@ -92,9 +97,13 @@ export const getCustomersReport = async (period: PeriodFilter = 'this_month', li
 export interface TopProductDetail {
   ranking: number;
   product_id: number;
+  variant_id?: number | null;
   product_name: string;
   brand: string;
   sku: string;
+  variant_size?: string | null;
+  variant_color?: string | null;
+  variant_label?: string | null;
   category: string;
   current_price: number;
   quantity_sold: number;

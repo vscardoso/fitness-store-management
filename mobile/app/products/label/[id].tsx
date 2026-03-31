@@ -4,13 +4,23 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Text,
 } from 'react-native';
-import { Text, Button } from 'react-native-paper';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
+import * as Print from 'expo-print';
+import * as LegacyFileSystem from 'expo-file-system/legacy';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { getProductById } from '@/services/productService';
 import { getProductVariants, formatVariantLabel } from '@/services/productVariantService';
@@ -19,6 +29,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Colors, theme } from '@/constants/Colors';
 import type { ProductVariant } from '@/types/productVariant';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface LabelFormat {
   id: string;
@@ -44,9 +55,22 @@ interface LabelItem {
   quantity: number;
 }
 
+interface FormatMetrics {
+  sheets: number;
+  remainder: number;
+  utilization: number;
+}
+
+type LegacyFileSystemWithEncoding = typeof LegacyFileSystem & {
+  EncodingType?: {
+    Base64?: string;
+  };
+};
+
 export default function ProductLabelScreen() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const brandingColors = useBrandingColors();
+  const { id, variantId } = useLocalSearchParams<{ id: string; variantId?: string }>();
   const viewShotRef = useRef<ViewShot>(null);
 
   const [formatId,    setFormatId]    = useState('f14');
@@ -57,6 +81,39 @@ export default function ProductLabelScreen() {
   const [initialized, setInitialized] = useState(false);
   const [printDialog, setPrintDialog] = useState(false);
   const [errorDialog, setErrorDialog] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('Não foi possível gerar a imagem das etiquetas. Verifique se o preview está visível e tente novamente.');
+
+  const base64Encoding =
+    (LegacyFileSystem as LegacyFileSystemWithEncoding).EncodingType?.Base64 ?? 'base64';
+
+  const headerOpacity = useSharedValue(0);
+  const headerScale = useSharedValue(0.94);
+  const contentOpacity = useSharedValue(0);
+  const contentTransY = useSharedValue(24);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      headerOpacity.value = 0;
+      headerScale.value = 0.94;
+      contentOpacity.value = 0;
+      contentTransY.value = 24;
+
+      headerOpacity.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.quad) });
+      headerScale.value = withSpring(1, { damping: 18, stiffness: 200 });
+      contentOpacity.value = withTiming(1, { duration: 480, easing: Easing.out(Easing.quad) });
+      contentTransY.value = withSpring(0, { damping: 20, stiffness: 180 });
+    }, [])
+  );
+
+  const headerAnimStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTransY.value }],
+  }));
 
   const { data: product, isLoading } = useQuery({
     queryKey: ['product', id],
@@ -70,10 +127,16 @@ export default function ProductLabelScreen() {
     enabled: !!id,
   });
 
+  const preselectedVariantId =
+    variantId && !Number.isNaN(Number(variantId)) ? Number(variantId) : null;
+
   useEffect(() => {
     if (!product || initialized || !variantsLoaded) return;
     const variantList = variants ?? [];
     if (variantList.length > 0) {
+      const hasMatchingPreselected =
+        preselectedVariantId != null && variantList.some((variant) => variant.id === preselectedVariantId);
+
       setItems(variantList.map(v => ({
         key: `variant-${v.id}`,
         label: formatVariantLabel(v),
@@ -87,7 +150,9 @@ export default function ProductLabelScreen() {
           color: v.color || undefined,
         },
         stock: v.current_stock ?? 0,
-        quantity: 1,
+        quantity: hasMatchingPreselected
+          ? (v.id === preselectedVariantId ? 1 : 0)
+          : 1,
       })));
     } else {
       setItems([{
@@ -106,7 +171,7 @@ export default function ProductLabelScreen() {
       }]);
     }
     setInitialized(true);
-  }, [product, variants, variantsLoaded, initialized]);
+  }, [product, variants, variantsLoaded, initialized, preselectedVariantId]);
 
   const format = LABEL_FORMATS.find(f => f.id === formatId) ?? LABEL_FORMATS[1];
 
@@ -117,12 +182,67 @@ export default function ProductLabelScreen() {
   const totalLabels = allLabels.length;
   const sheetsNeeded = totalLabels > 0 ? Math.ceil(totalLabels / format.perSheet) : 0;
 
+  const getFormatMetrics = (perSheet: number): FormatMetrics => {
+    if (totalLabels <= 0) {
+      return { sheets: 0, remainder: 0, utilization: 0 };
+    }
+
+    const sheets = Math.ceil(totalLabels / perSheet);
+    const remainder = (perSheet - (totalLabels % perSheet)) % perSheet;
+    const usedOnLastSheet = remainder === 0 ? perSheet : perSheet - remainder;
+    const utilization = Math.round((usedOnLastSheet / perSheet) * 100);
+
+    return { sheets, remainder, utilization };
+  };
+
+  const bestFormatId = totalLabels > 0
+    ? LABEL_FORMATS
+        .map((fmt) => ({ fmt, metrics: getFormatMetrics(fmt.perSheet) }))
+        .sort((a, b) => {
+          if (a.metrics.sheets !== b.metrics.sheets) {
+            return a.metrics.sheets - b.metrics.sheets;
+          }
+          if (a.metrics.remainder !== b.metrics.remainder) {
+            return a.metrics.remainder - b.metrics.remainder;
+          }
+          return b.metrics.utilization - a.metrics.utilization;
+        })[0]?.fmt.id
+    : undefined;
+
   const changeQty = (key: string, delta: number) => {
     setItems(prev => prev.map(item =>
       item.key === key
         ? { ...item, quantity: Math.max(0, Math.min(99, item.quantity + delta)) }
         : item
     ));
+  };
+
+  const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error && error.message) {
+      return error.message;
+    }
+    return fallback;
+  };
+
+  const isPrintCancelledError = (error: unknown) => {
+    const message = error instanceof Error ? error.message.toLowerCase() : '';
+    return (
+      message.includes('printing did not complete') ||
+      message.includes('did not complete') ||
+      message.includes('cancel')
+    );
+  };
+
+  const capturePreviewUri = async () => {
+    if (!viewShotRef.current) {
+      throw new Error('Preview indisponível no momento. Abra a seção de preview e tente novamente.');
+    }
+
+    if (typeof viewShotRef.current.capture === 'function') {
+      return viewShotRef.current.capture();
+    }
+
+    return captureRef(viewShotRef.current, { format: 'png', quality: 1 });
   };
 
   const fillFromStock = () => {
@@ -141,23 +261,194 @@ export default function ProductLabelScreen() {
     setPrintDialog(false);
     setIsExporting(true);
     try {
-      const uri = await captureRef(viewShotRef, { format: 'png', quality: 1 });
+      const uri = await capturePreviewUri();
       const isAvailable = await Sharing.isAvailableAsync();
-      if (isAvailable) {
-        await Sharing.shareAsync(uri, {
-          mimeType: 'image/png',
-          dialogTitle: `Etiquetas — ${product?.name}`,
-        });
+      if (!isAvailable) {
+        throw new Error('Compartilhamento não disponível neste dispositivo.');
       }
-    } catch {
+
+      await Sharing.shareAsync(uri, {
+        mimeType: 'image/png',
+        dialogTitle: `Etiquetas — ${product?.name}`,
+      });
+    } catch (error) {
+      console.error('[ProductLabel] Falha ao compartilhar etiquetas', error);
+      setErrorMessage(getErrorMessage(error, 'Não foi possível exportar as etiquetas.'));
       setErrorDialog(true);
     } finally {
       setIsExporting(false);
     }
   };
 
-  const handlePrint = () => {
+  const openPrintDialog = () => {
     setPrintDialog(true);
+  };
+
+  const buildPrintHtml = (imageBase64: string) => {
+    const safeProductName = (product?.name ?? 'Etiquetas').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    return `
+      <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <style>
+            @page {
+              size: A4;
+              margin: 8mm;
+            }
+
+            * {
+              box-sizing: border-box;
+            }
+
+            body {
+              margin: 0;
+              min-height: 100vh;
+              padding: 18px 14px;
+              background: radial-gradient(circle at top, #1f2937 0%, #111827 55%, #0b1220 100%);
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+              color: #0f172a;
+            }
+
+            .sheet {
+              width: 100%;
+              max-width: 920px;
+              margin: 0 auto;
+              background: #ffffff;
+              border: 1px solid #dbe2ea;
+              border-radius: 12px;
+              overflow: hidden;
+              box-shadow: 0 22px 50px rgba(0, 0, 0, 0.28);
+            }
+
+            .sheet-header {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+              gap: 10px;
+              padding: 10px 12px;
+              border-bottom: 1px solid #e5e7eb;
+              background: #f8fafc;
+            }
+
+            .title {
+              font-size: 12px;
+              font-weight: 700;
+              margin: 0;
+            }
+
+            .meta {
+              font-size: 10px;
+              color: #475569;
+              margin: 2px 0 0 0;
+            }
+
+            .badge {
+              font-size: 10px;
+              font-weight: 700;
+              color: #4338ca;
+              background: #eef2ff;
+              border: 1px solid #c7d2fe;
+              border-radius: 999px;
+              padding: 3px 8px;
+              white-space: nowrap;
+            }
+
+            .image-wrap {
+              padding: 10px;
+              background: #ffffff;
+            }
+
+            .labels-image {
+              width: 100%;
+              height: auto;
+              display: block;
+              border-radius: 8px;
+            }
+
+            @media print {
+              body {
+                background: #ffffff;
+                padding: 0;
+              }
+
+              .sheet {
+                border: 0;
+                border-radius: 0;
+                box-shadow: none;
+                max-width: 100%;
+              }
+
+              .sheet-header {
+                background: #ffffff;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <main class="sheet">
+            <header class="sheet-header">
+              <div>
+                <p class="title">${safeProductName}</p>
+                <p class="meta">${totalLabels} etiqueta${totalLabels !== 1 ? 's' : ''} · ${format.label} · ${format.description}</p>
+              </div>
+              <span class="badge">${sheetsNeeded} folha${sheetsNeeded !== 1 ? 's' : ''}</span>
+            </header>
+            <section class="image-wrap">
+              <img class="labels-image" src="data:image/png;base64,${imageBase64}" alt="Etiquetas" />
+            </section>
+          </main>
+        </body>
+      </html>
+    `;
+  };
+
+  const handlePrint = async () => {
+    if (!viewShotRef.current || totalLabels === 0) return;
+
+    setPrintDialog(false);
+    setIsExporting(true);
+
+    try {
+      const uri = await capturePreviewUri();
+      const base64 = await LegacyFileSystem.readAsStringAsync(uri, {
+        encoding: base64Encoding as any,
+      });
+
+      await Print.printAsync({
+        html: buildPrintHtml(base64),
+      });
+    } catch (printError) {
+      if (isPrintCancelledError(printError)) {
+        console.log('[ProductLabel] Impressao cancelada pelo usuario.');
+        return;
+      }
+
+      console.error('[ProductLabel] Falha ao imprimir. Tentando fallback de compartilhamento...', printError);
+      try {
+        const uri = await capturePreviewUri();
+        const isAvailable = await Sharing.isAvailableAsync();
+        if (!isAvailable) {
+          throw new Error('Impressão indisponível e compartilhamento não suportado neste dispositivo.');
+        }
+
+        await Sharing.shareAsync(uri, {
+          mimeType: 'image/png',
+          dialogTitle: `Etiquetas — ${product?.name}`,
+        });
+      } catch (fallbackError) {
+        console.error('[ProductLabel] Falha também no fallback de compartilhamento', fallbackError);
+        setErrorMessage(
+          getErrorMessage(
+            fallbackError,
+            'Não foi possível imprimir ou compartilhar as etiquetas. Verifique permissões e tente novamente.'
+          )
+        );
+        setErrorDialog(true);
+      }
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   if (isLoading || !product) {
@@ -170,61 +461,99 @@ export default function ProductLabelScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader
-        title="Gerar Etiquetas"
-        subtitle={
-          totalLabels > 0
-            ? `${product.name} · ${totalLabels} etiqueta${totalLabels !== 1 ? 's' : ''}`
-            : product.name
-        }
-        showBackButton
-        onBack={() => router.back()}
-      />
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title="Gerar Etiquetas"
+          subtitle={
+            totalLabels > 0
+              ? `${product.name} · ${totalLabels} etiqueta${totalLabels !== 1 ? 's' : ''}`
+              : product.name
+          }
+          showBackButton
+          onBack={() => router.back()}
+        />
+      </Animated.View>
 
+      <Animated.View style={[styles.scrollWrap, contentAnimStyle]}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
 
         {/* Configuração */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Ionicons name="settings-outline" size={20} color={Colors.light.primary} />
+            <Ionicons name="settings-outline" size={20} color={brandingColors.primary} />
             <Text style={styles.cardTitle}>Configuração de Folha</Text>
             {sheetsNeeded > 0 && (
-              <View style={styles.sheetChip}>
-                <Ionicons name="document-text-outline" size={13} color={Colors.light.primary} />
-                <Text style={styles.sheetChipText}>{sheetsNeeded} folha{sheetsNeeded !== 1 ? 's' : ''}</Text>
+              <View style={[styles.sheetChip, { backgroundColor: brandingColors.primary + '15' }]}>
+                <Ionicons name="document-text-outline" size={13} color={brandingColors.primary} />
+                <Text style={[styles.sheetChipText, { color: brandingColors.primary }]}>{sheetsNeeded} folha{sheetsNeeded !== 1 ? 's' : ''}</Text>
               </View>
             )}
           </View>
           <View style={styles.cardContent}>
             <Text style={styles.configLabel}>Formato de Papel Colante</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.formatScroll} contentContainerStyle={styles.formatScrollContent}>
-              {LABEL_FORMATS.map(fmt => (
-                <TouchableOpacity
-                  key={fmt.id}
-                  style={[styles.formatCard, formatId === fmt.id && styles.formatCardActive]}
-                  onPress={() => setFormatId(fmt.id)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.formatCardMain, formatId === fmt.id && styles.formatCardMainActive]}>
-                    {fmt.label}
-                  </Text>
-                  <Text style={[styles.formatCardSub, formatId === fmt.id && styles.formatCardSubActive]}>
-                    {fmt.description}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            <View style={styles.formatGrid}>
+              {LABEL_FORMATS.map(fmt => {
+                const selected = formatId === fmt.id;
+                const metrics = getFormatMetrics(fmt.perSheet);
+                const isBest = bestFormatId === fmt.id;
+
+                return (
+                  <TouchableOpacity
+                    key={fmt.id}
+                    style={[
+                      styles.formatCard,
+                      selected && {
+                        borderColor: brandingColors.primary,
+                        backgroundColor: brandingColors.primary + '12',
+                      },
+                    ]}
+                    onPress={() => setFormatId(fmt.id)}
+                    activeOpacity={0.75}
+                  >
+                    <View style={styles.formatCardTop}>
+                      <Text style={[styles.formatCardMain, selected && { color: brandingColors.primary }]}>
+                        {fmt.label}
+                      </Text>
+                      {isBest && totalLabels > 0 && (
+                        <View style={[styles.bestChip, { backgroundColor: Colors.light.success + '18' }]}>
+                          <Text style={styles.bestChipText}>Melhor</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={[styles.formatCardSub, selected && { color: brandingColors.primary + 'AA' }]}> 
+                      {fmt.description}
+                    </Text>
+
+                    <View style={styles.formatMetaRow}>
+                      <Text style={styles.formatMetaText}>
+                        {metrics.sheets > 0 ? `${metrics.sheets} folha${metrics.sheets !== 1 ? 's' : ''}` : '—'}
+                      </Text>
+                      <Text style={styles.formatMetaDot}>•</Text>
+                      <Text style={styles.formatMetaText}>
+                        {metrics.sheets > 0 ? `${metrics.remainder} vaga${metrics.remainder !== 1 ? 's' : ''}` : 'sem calculo'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
             <View style={styles.optionsRow}>
               <TouchableOpacity
-                style={[styles.chip, showPrice && styles.chipActive]}
+                style={[
+                  styles.chip,
+                  showPrice && { backgroundColor: brandingColors.primary, borderColor: brandingColors.primary },
+                ]}
                 onPress={() => setShowPrice(!showPrice)}
               >
                 <Ionicons name="pricetag-outline" size={14} color={showPrice ? '#fff' : Colors.light.textSecondary} />
                 <Text style={[styles.chipText, showPrice && styles.chipTextActive]}>Preço</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.chip, showSku && styles.chipActive]}
+                style={[
+                  styles.chip,
+                  showSku && { backgroundColor: brandingColors.primary, borderColor: brandingColors.primary },
+                ]}
                 onPress={() => setShowSku(!showSku)}
               >
                 <Ionicons name="barcode-outline" size={14} color={showSku ? '#fff' : Colors.light.textSecondary} />
@@ -237,15 +566,15 @@ export default function ProductLabelScreen() {
         {/* Seleção de Variações / Quantidade */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Ionicons name="layers-outline" size={20} color={Colors.light.primary} />
+              <Ionicons name="layers-outline" size={20} color={brandingColors.primary} />
             <Text style={styles.cardTitle}>
               {items.length > 1 ? `Variações (${items.length})` : 'Quantidade'}
             </Text>
             <View style={styles.headerActions}>
               {items.some(i => i.stock > 0) && (
                 <TouchableOpacity onPress={fillFromStock} style={styles.actionBtn}>
-                  <Ionicons name="flash-outline" size={14} color={Colors.light.primary} />
-                  <Text style={styles.actionBtnText}>Do estoque</Text>
+                  <Ionicons name="flash-outline" size={14} color={brandingColors.primary} />
+                  <Text style={[styles.actionBtnText, { color: brandingColors.primary }]}>Do estoque</Text>
                 </TouchableOpacity>
               )}
               {totalLabels > 0 && (
@@ -271,16 +600,16 @@ export default function ProductLabelScreen() {
                     style={[styles.qtyBtn, item.quantity <= 0 && styles.qtyBtnDisabled]}
                     disabled={item.quantity <= 0}
                   >
-                    <Ionicons name="remove" size={18} color={item.quantity <= 0 ? Colors.light.textTertiary : Colors.light.primary} />
+                    <Ionicons name="remove" size={18} color={item.quantity <= 0 ? Colors.light.textTertiary : brandingColors.primary} />
                   </TouchableOpacity>
                   <Text style={[styles.qtyValue, item.quantity === 0 && styles.qtyZero]}>
                     {item.quantity}
                   </Text>
                   <TouchableOpacity
                     onPress={() => changeQty(item.key, 1)}
-                    style={styles.qtyBtn}
+                    style={[styles.qtyBtn, { backgroundColor: brandingColors.primary + '18' }]}
                   >
-                    <Ionicons name="add" size={18} color={Colors.light.primary} />
+                    <Ionicons name="add" size={18} color={brandingColors.primary} />
                   </TouchableOpacity>
                 </View>
               </View>
@@ -290,7 +619,7 @@ export default function ProductLabelScreen() {
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Total</Text>
                 <View style={styles.totalRight}>
-                  <Text style={styles.totalValue}>{totalLabels} etiqueta{totalLabels !== 1 ? 's' : ''}</Text>
+                  <Text style={[styles.totalValue, { color: brandingColors.primary }]}>{totalLabels} etiqueta{totalLabels !== 1 ? 's' : ''}</Text>
                   <Text style={styles.totalSheets}>
                     {sheetsNeeded} folha{sheetsNeeded !== 1 ? 's' : ''} · {format.label} · {format.description}
                   </Text>
@@ -304,7 +633,7 @@ export default function ProductLabelScreen() {
         {totalLabels > 0 && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <Ionicons name="eye-outline" size={20} color={Colors.light.primary} />
+              <Ionicons name="eye-outline" size={20} color={brandingColors.primary} />
               <Text style={styles.cardTitle}>Preview</Text>
               {sheetsNeeded > 1 && (
                 <View style={styles.extraChip}>
@@ -353,28 +682,40 @@ export default function ProductLabelScreen() {
           </View>
         )}
       </ScrollView>
+      </Animated.View>
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Button
-          mode="outlined"
-          onPress={handlePrint}
-          icon="printer-outline"
-          style={styles.footerBtn}
+        <TouchableOpacity
+          style={[styles.footerAction, styles.footerActionSecondary, totalLabels === 0 && styles.footerActionDisabled]}
+          onPress={openPrintDialog}
           disabled={totalLabels === 0}
+          activeOpacity={0.75}
         >
-          Imprimir
-        </Button>
-        <Button
-          mode="contained"
+          <Ionicons name="print-outline" size={18} color={Colors.light.textSecondary} />
+          <Text style={styles.footerActionSecondaryText}>Imprimir</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.footerAction, totalLabels === 0 && styles.footerActionDisabled]}
           onPress={handleShare}
-          icon="share-variant"
-          style={styles.footerBtn}
-          loading={isExporting}
           disabled={totalLabels === 0 || isExporting}
+          activeOpacity={0.8}
         >
-          Compartilhar
-        </Button>
+          <LinearGradient
+            colors={isExporting ? ['#9CA3AF', '#9CA3AF'] : brandingColors.gradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.footerActionPrimaryGradient}
+          >
+            {isExporting ? (
+              <Ionicons name="hourglass-outline" size={18} color="#fff" />
+            ) : (
+              <Ionicons name="share-social-outline" size={18} color="#fff" />
+            )}
+            <Text style={styles.footerActionPrimaryText}>{isExporting ? 'Exportando...' : 'Compartilhar'}</Text>
+          </LinearGradient>
+        </TouchableOpacity>
       </View>
 
       {/* Diálogo de impressão */}
@@ -383,10 +724,10 @@ export default function ProductLabelScreen() {
         type="info"
         icon="print-outline"
         title="Imprimir Etiquetas"
-        message={`${totalLabels} etiqueta${totalLabels !== 1 ? 's' : ''} em ${sheetsNeeded} folha${sheetsNeeded !== 1 ? 's' : ''} (${format.label})\n\nCompartilhe a imagem e envie para a impressora compatível ou app de impressão.`}
-        confirmText="Compartilhar"
+        message={`${totalLabels} etiqueta${totalLabels !== 1 ? 's' : ''} em ${sheetsNeeded} folha${sheetsNeeded !== 1 ? 's' : ''} (${format.label})\n\nO app vai abrir o seletor nativo de impressao do sistema. Se nao houver servico disponivel, tentaremos compartilhar a imagem automaticamente.`}
+        confirmText="Imprimir"
         cancelText="Cancelar"
-        onConfirm={handleShare}
+        onConfirm={handlePrint}
         onCancel={() => setPrintDialog(false)}
         loading={isExporting}
       />
@@ -397,7 +738,7 @@ export default function ProductLabelScreen() {
         type="danger"
         icon="alert-circle-outline"
         title="Erro ao Exportar"
-        message="Não foi possível gerar a imagem das etiquetas. Verifique se o preview está visível e tente novamente."
+        message={errorMessage}
         confirmText="OK"
         cancelText=""
         onConfirm={() => setErrorDialog(false)}
@@ -410,6 +751,7 @@ export default function ProductLabelScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+  scrollWrap: { flex: 1 },
 
   // Scroll
   scroll: { flex: 1 },
@@ -452,25 +794,34 @@ const styles = StyleSheet.create({
     marginTop: 14, marginBottom: 10,
     textTransform: 'uppercase', letterSpacing: 0.5,
   },
-  formatScroll: { marginHorizontal: -4 },
-  formatScrollContent: { gap: 8, paddingHorizontal: 4, paddingBottom: 4 },
+  formatGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 2,
+  },
   formatCard: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
+    width: '48%',
+    paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: Colors.light.border,
     backgroundColor: Colors.light.backgroundSecondary,
-    minWidth: 76,
+    minWidth: 120,
+  },
+  formatCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
   },
   formatCardActive: {
     borderColor: Colors.light.primary,
     backgroundColor: Colors.light.primary + '12',
   },
   formatCardMain: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: Colors.light.textSecondary,
   },
@@ -479,9 +830,36 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: Colors.light.textTertiary,
     marginTop: 2,
-    textAlign: 'center',
+    textAlign: 'left',
   },
   formatCardSubActive: { color: Colors.light.primary + 'aa' },
+  formatMetaRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  formatMetaText: {
+    fontSize: 10,
+    color: Colors.light.textSecondary,
+    fontWeight: '600',
+  },
+  formatMetaDot: {
+    fontSize: 10,
+    color: Colors.light.textTertiary,
+  },
+  bestChip: {
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  bestChipText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: Colors.light.success,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
   optionsRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
   chip: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -538,8 +916,8 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1.5,
-    borderTopColor: Colors.light.primary + '30',
-    backgroundColor: Colors.light.primary + '08',
+    borderTopColor: Colors.light.border,
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingBottom: 12,
@@ -582,5 +960,40 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopWidth: 1, borderTopColor: Colors.light.border,
   },
-  footerBtn: { flex: 1 },
+  footerAction: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+  },
+  footerActionSecondary: {
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  footerActionSecondaryText: {
+    fontSize: theme.fontSize.base,
+    color: Colors.light.textSecondary,
+    fontWeight: '700',
+  },
+  footerActionPrimaryGradient: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: theme.spacing.md,
+  },
+  footerActionPrimaryText: {
+    color: '#fff',
+    fontSize: theme.fontSize.base,
+    fontWeight: '700',
+  },
+  footerActionDisabled: {
+    opacity: 0.55,
+  },
 });

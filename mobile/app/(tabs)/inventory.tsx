@@ -10,20 +10,26 @@
  * - Gráficos: entradas por mês
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   ScrollView,
   RefreshControl,
   TouchableOpacity,
-  Dimensions,
 } from 'react-native';
-import { Text, Card, Chip, Button, Surface, ProgressBar } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
 import { useAuth } from '@/hooks/useAuth';
 import { getStockEntries, getSlowMovingProducts } from '@/services/stockEntryService';
 import { getLowStockProducts, getProducts } from '@/services/productService';
@@ -31,10 +37,8 @@ import { getInventoryValuation } from '@/services/dashboardService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { EntryType } from '@/types';
-import FAB from '@/components/FAB';
-import { HelpButton } from '@/components/tutorial';
-
-const { width } = Dimensions.get('window');
+import PageHeader from '@/components/layout/PageHeader';
+import { useTutorialContext } from '@/components/tutorial';
 
 /**
  * Componente: Card de Estatística
@@ -50,17 +54,20 @@ interface StatCardProps {
 }
 
 function StatCard({ icon, label, value, trend, iconColor, iconBg, onPress }: StatCardProps) {
+  const resolvedIconColor = iconColor || Colors.light.primary;
+  const resolvedIconBg = iconBg || `${resolvedIconColor}14`;
+
   return (
     <TouchableOpacity
-      style={[styles.statCard, { backgroundColor: iconBg || '#F3F4F6' }]}
+      style={styles.statCard}
       onPress={onPress}
-      activeOpacity={0.7}
+      activeOpacity={0.76}
       disabled={!onPress}
     >
       <View style={styles.statContent}>
         <View style={styles.statTopRow}>
-          <View style={[styles.statIconCircle, { backgroundColor: (iconColor || Colors.light.primary) + '15' }]}>
-            <Ionicons name={icon} size={24} color={iconColor || Colors.light.primary} />
+          <View style={[styles.statIconCircle, { backgroundColor: resolvedIconBg }]}>
+            <Ionicons name={icon} size={22} color={resolvedIconColor} />
           </View>
           {trend !== undefined && (
             <View style={[
@@ -81,8 +88,15 @@ function StatCard({ icon, label, value, trend, iconColor, iconBg, onPress }: Sta
             </View>
           )}
         </View>
-        <Text style={styles.statLabel}>{label}</Text>
-        <Text style={styles.statValue}>{value}</Text>
+
+        <View style={styles.statBody}>
+          <Text style={styles.statLabel} numberOfLines={2}>
+            {label}
+          </Text>
+          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
+            {value}
+          </Text>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -120,19 +134,20 @@ function AlertCard({ type, title, message, onPress }: AlertCardProps) {
   const { icon, color, bg } = config[type];
 
   return (
-    <TouchableOpacity onPress={onPress} disabled={!onPress}>
-      <Surface style={[styles.alertCard, { backgroundColor: bg }]}>
-        <View style={{ overflow: 'hidden', flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-          <Ionicons name={icon} size={24} color={color} />
+    <TouchableOpacity onPress={onPress} disabled={!onPress} activeOpacity={0.76}>
+      <View style={styles.alertCard}>
+        <View style={[styles.alertAccent, { backgroundColor: color }]} />
+        <View style={styles.alertMainRow}>
+          <View style={[styles.alertIconWrap, { backgroundColor: bg }]}>
+            <Ionicons name={icon} size={20} color={color} />
+          </View>
           <View style={styles.alertContent}>
             <Text style={[styles.alertTitle, { color }]}>{title}</Text>
             <Text style={styles.alertMessage}>{message}</Text>
           </View>
-          {onPress && (
-            <Ionicons name="chevron-forward" size={20} color={Colors.light.textSecondary} />
-          )}
+          {onPress && <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />}
         </View>
-      </Surface>
+      </View>
     </TouchableOpacity>
   );
 }
@@ -140,7 +155,13 @@ function AlertCard({ type, title, message, onPress }: AlertCardProps) {
 export default function InventoryDashboard() {
   const router = useRouter();
   const { user } = useAuth();
+  const { startTutorial } = useTutorialContext();
   const [refreshing, setRefreshing] = useState(false);
+
+  const headerOpacity = useSharedValue(0);
+  const headerScale = useSharedValue(0.94);
+  const contentOpacity = useSharedValue(0);
+  const contentTransY = useSharedValue(24);
 
   // Queries
   const { data: entries = [], refetch: refetchEntries } = useQuery({
@@ -264,47 +285,60 @@ export default function InventoryDashboard() {
 
   const monthlyEntries = calculateMonthlyEntries();
 
+  useFocusEffect(
+    useCallback(() => {
+      headerOpacity.value = 0;
+      headerScale.value = 0.94;
+      contentOpacity.value = 0;
+      contentTransY.value = 24;
+
+      headerOpacity.value = withTiming(1, {
+        duration: 380,
+        easing: Easing.out(Easing.quad),
+      });
+      headerScale.value = withSpring(1, { damping: 16, stiffness: 200 });
+
+      const timer = setTimeout(() => {
+        contentOpacity.value = withTiming(1, { duration: 340 });
+        contentTransY.value = withSpring(0, { damping: 18, stiffness: 200 });
+      }, 140);
+
+      return () => clearTimeout(timer);
+    }, [contentOpacity, contentTransY, headerOpacity, headerScale])
+  );
+
+  const headerAnimStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTransY.value }],
+  }));
+
   return (
     <View style={styles.container}>
-      {/* Header Premium */}
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerContent}>
-            <View style={styles.headerInfo}>
-              <Text style={styles.greeting}>
-                Inventário
-              </Text>
-              <Text style={styles.headerSubtitle}>
-                {metrics.totalItems} produtos ativos
-              </Text>
-            </View>
-            <View style={styles.headerActions}>
-              <HelpButton tutorialId="inventory" color="#fff" showBadge />
-              <TouchableOpacity
-                style={styles.profileButton}
-                onPress={() => router.push('/(tabs)/more')}
-              >
-                <View style={styles.profileIcon}>
-                  <Ionicons name="person" size={24} color="#fff" />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </LinearGradient>
-      </View>
+      <Animated.View style={styles.headerAnimation}>
+        <Animated.View style={headerAnimStyle}>
+          <PageHeader
+            title="Inventário"
+            subtitle={`${metrics.totalItems} produtos ativos`}
+            rightActions={[
+              { icon: 'help-circle-outline', onPress: () => startTutorial('inventory') },
+            ]}
+          />
+        </Animated.View>
+      </Animated.View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-      >
+      <Animated.View style={[styles.contentAnimation, contentAnimStyle]}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+        >
         {/* KPIs Principais */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Indicadores Principais</Text>
@@ -370,7 +404,7 @@ export default function InventoryDashboard() {
                 value={metrics.lowStockCount}
                 iconColor={Colors.light.warning}
                 iconBg={Colors.light.warningLight}
-                onPress={() => router.push('/(tabs)/products')}
+                onPress={() => router.push('/(tabs)/products?filter=low_stock' as any)}
               />
             </View>
           </View>
@@ -393,8 +427,8 @@ export default function InventoryDashboard() {
             <AlertCard
               type="warning"
               title="Estoque Baixo"
-              message={`${metrics.lowStockCount} produto(s) com menos de 3 unidades em estoque. Considere repor em breve.`}
-              onPress={() => router.push('/products')}
+              message={`${metrics.lowStockCount} produto(s) com menos de 3 unidades em estoque. Toque para ver quais.`}
+              onPress={() => router.push('/(tabs)/products?filter=low_stock' as any)}
             />
           )}
 
@@ -420,18 +454,14 @@ export default function InventoryDashboard() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Entradas por Mês</Text>
-            <Button
-              mode="text"
-              compact
-              onPress={() => router.push('/entries')}
-            >
-              Ver Todas
-            </Button>
+            <TouchableOpacity onPress={() => router.push('/entries')} activeOpacity={0.7}>
+              <Text style={styles.seeAllText}>Ver Todas</Text>
+            </TouchableOpacity>
           </View>
 
           {monthlyEntries.length > 0 ? (
-            <Card style={styles.chartCard}>
-              <Card.Content>
+            <View style={styles.chartCard}>
+              <View style={styles.chartCardContent}>
                 {monthlyEntries.map(([month, data], index) => {
                   // Validar valores para evitar NaN
                   const safeValue = typeof data.value === 'number' && !isNaN(data.value) ? data.value : 0;
@@ -509,15 +539,15 @@ export default function InventoryDashboard() {
                     </View>
                   );
                 })}
-              </Card.Content>
-            </Card>
+              </View>
+            </View>
           ) : (
-            <Surface style={styles.emptyState}>
+            <View style={styles.emptyState}>
               <View style={{ overflow: 'hidden', flex: 1, alignItems: 'center' }}>
                 <Ionicons name="bar-chart-outline" size={48} color={Colors.light.textSecondary} />
                 <Text style={styles.emptyText}>Nenhuma entrada registrada</Text>
               </View>
-            </Surface>
+            </View>
           )}
         </View>
 
@@ -525,13 +555,9 @@ export default function InventoryDashboard() {
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Últimas Entradas</Text>
-            <Button
-              mode="text"
-              compact
-              onPress={() => router.push('/entries')}
-            >
-              Ver Todas
-            </Button>
+            <TouchableOpacity onPress={() => router.push('/entries')} activeOpacity={0.7}>
+              <Text style={styles.seeAllText}>Ver Todas</Text>
+            </TouchableOpacity>
           </View>
 
           {entries.slice(0, 5).map((entry) => (
@@ -541,26 +567,33 @@ export default function InventoryDashboard() {
                 pathname: `/entries/${entry.id}`,
                 params: { from: 'inventory' }
               })}
+              activeOpacity={0.76}
             >
-              <Card style={styles.entryCard}>
-                <Card.Content>
+              <View style={styles.entryCard}>
                   <View style={styles.entryHeader}>
                     <View style={styles.entryInfo}>
                       <Text style={styles.entryCode}>{entry.entry_code}</Text>
                       <Text style={styles.entrySupplier}>{entry.supplier_name}</Text>
                     </View>
-                    <Chip
-                      mode="flat"
+                    <View
                       style={[
                         styles.typeChip,
-                        entry.entry_type === EntryType.TRIP && { backgroundColor: Colors.light.infoLight },
-                        entry.entry_type === EntryType.ONLINE && { backgroundColor: Colors.light.warningLight },
-                        entry.entry_type === EntryType.LOCAL && { backgroundColor: Colors.light.successLight },
+                        entry.entry_type === EntryType.TRIP && { backgroundColor: Colors.light.infoLight, borderColor: Colors.light.info + '24' },
+                        entry.entry_type === EntryType.ONLINE && { backgroundColor: Colors.light.warningLight, borderColor: Colors.light.warning + '24' },
+                        entry.entry_type === EntryType.LOCAL && { backgroundColor: Colors.light.successLight, borderColor: Colors.light.success + '24' },
                       ]}
-                      textStyle={styles.typeChipText}
                     >
-                      {entry.entry_type === EntryType.TRIP ? 'Viagem' : entry.entry_type === EntryType.ONLINE ? 'Online' : 'Local'}
-                    </Chip>
+                      <Text
+                        style={[
+                          styles.typeChipText,
+                          entry.entry_type === EntryType.TRIP && { color: Colors.light.info },
+                          entry.entry_type === EntryType.ONLINE && { color: Colors.light.warning },
+                          entry.entry_type === EntryType.LOCAL && { color: Colors.light.success },
+                        ]}
+                      >
+                        {entry.entry_type === EntryType.TRIP ? 'Compra em Viagem' : entry.entry_type === EntryType.ONLINE ? 'Compra Online' : 'Compra Local'}
+                      </Text>
+                    </View>
                   </View>
 
                   <View style={styles.entryMetrics}>
@@ -573,7 +606,7 @@ export default function InventoryDashboard() {
                       <Text style={styles.metricValue}>{formatCurrency(entry.total_cost || 0)}</Text>
                     </View>
                     <View style={styles.entryMetric}>
-                      <Text style={styles.metricLabel}>Sell-Through</Text>
+                      <Text style={styles.metricLabel}>Vendido</Text>
                       <Text style={[
                         styles.metricValue,
                         {
@@ -587,31 +620,29 @@ export default function InventoryDashboard() {
                       </Text>
                     </View>
                   </View>
-                </Card.Content>
-              </Card>
+              </View>
             </TouchableOpacity>
           ))}
 
           {entries.length === 0 && (
-            <Surface style={styles.emptyState}>
+            <View style={styles.emptyState}>
               <View style={{ overflow: 'hidden', flex: 1, alignItems: 'center' }}>
                 <Ionicons name="cube-outline" size={48} color={Colors.light.textSecondary} />
                 <Text style={styles.emptyText}>Nenhuma entrada cadastrada</Text>
-                <Button
-                  mode="contained"
+                <TouchableOpacity
+                  style={styles.addEntryButton}
                   onPress={() => router.push('/entries/add')}
-                  style={{ marginTop: 16 }}
+                  activeOpacity={0.8}
                 >
-                  Adicionar Entrada
-                </Button>
+                  <Text style={styles.addEntryButtonText}>Adicionar Entrada</Text>
+                </TouchableOpacity>
               </View>
-            </Surface>
+            </View>
           )}
         </View>
-      </ScrollView>
+        </ScrollView>
+      </Animated.View>
 
-      {/* FAB - Adicionar entrada */}
-      <FAB directRoute="/entries/add" />
     </View>
   );
 }
@@ -621,51 +652,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
   },
-  // Header Premium
-  headerContainer: {
-    marginBottom: 0,
+  headerAnimation: {
+    zIndex: 2,
   },
-  headerGradient: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  headerInfo: {
+  contentAnimation: {
     flex: 1,
-  },
-  greeting: {
-    fontSize: theme.fontSize.xxl,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: theme.spacing.xs,
-  },
-  headerSubtitle: {
-    fontSize: theme.fontSize.md,
-    color: '#fff',
-    opacity: 0.9,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  profileButton: {
-    marginLeft: 0,
-  },
-  profileIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   scrollView: {
     flex: 1,
@@ -696,21 +687,20 @@ const styles = StyleSheet.create({
   },
   statCardWrapper: {
     flex: 1,
-    minHeight: 140,
+    minHeight: 132,
   },
   statsGrid: {
     gap: 12,
   },
   statCard: {
-    borderRadius: 16,
-    padding: 16,
     flex: 1,
-    minHeight: 120,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
+    borderRadius: theme.borderRadius.xl,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
+    backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
   },
   statContent: {
     flex: 1,
@@ -720,25 +710,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 12,
+    marginBottom: theme.spacing.md,
   },
   statIconCircle: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: theme.borderRadius.full,
     justifyContent: 'center',
     alignItems: 'center',
   },
+  statBody: {
+    gap: 6,
+  },
   statLabel: {
-    fontSize: 13,
-    fontWeight: '500',
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700',
     color: Colors.light.textSecondary,
-    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.35,
   },
   statValue: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: theme.fontSize.xxl,
+    fontWeight: '800',
     color: Colors.light.text,
+    letterSpacing: -0.5,
   },
   trendBadge: {
     flexDirection: 'row',
@@ -754,14 +749,36 @@ const styles = StyleSheet.create({
   },
   alertCard: {
     flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: theme.borderRadius.lg,
+    alignItems: 'stretch',
+    backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: theme.borderRadius.xl,
     marginBottom: 8,
+    overflow: 'hidden',
+    ...theme.shadows.sm,
+  },
+  alertAccent: {
+    width: 4,
+  },
+  alertMainRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
+    padding: 14,
+  },
+  alertIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: theme.borderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
   },
   alertContent: {
     flex: 1,
+    minWidth: 0,
   },
   alertTitle: {
     fontSize: 15,
@@ -775,6 +792,29 @@ const styles = StyleSheet.create({
   chartCard: {
     backgroundColor: Colors.light.card,
     borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
+  },
+  chartCardContent: {
+    padding: theme.spacing.md,
+  },
+  seeAllText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: Colors.light.primary,
+  },
+  addEntryButton: {
+    marginTop: 16,
+    backgroundColor: Colors.light.primary,
+    borderRadius: theme.borderRadius.lg,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  addEntryButtonText: {
+    color: '#fff',
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
   },
   chartRow: {
     flexDirection: 'row',
@@ -878,7 +918,11 @@ const styles = StyleSheet.create({
   entryCard: {
     backgroundColor: Colors.light.card,
     marginBottom: 12,
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: theme.spacing.md,
+    ...theme.shadows.sm,
   },
   entryHeader: {
     flexDirection: 'row',
@@ -888,6 +932,7 @@ const styles = StyleSheet.create({
   },
   entryInfo: {
     flex: 1,
+    minWidth: 0,
   },
   entryCode: {
     fontSize: 15,
@@ -900,26 +945,40 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
   },
   typeChip: {
-    height: 28,
+    minHeight: 28,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   typeChipText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: '700',
+    color: Colors.light.text,
   },
   entryMetrics: {
     flexDirection: 'row',
     gap: 16,
+    paddingTop: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
   },
   entryMetric: {
     flex: 1,
   },
   metricLabel: {
-    fontSize: 11,
+    fontSize: theme.fontSize.xxs + 1,
+    fontWeight: '700',
     color: Colors.light.textSecondary,
-    marginBottom: 2,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.35,
   },
   metricValue: {
-    fontSize: 13,
+    fontSize: theme.fontSize.sm,
     fontWeight: '700',
     color: Colors.light.text,
   },
@@ -927,7 +986,10 @@ const styles = StyleSheet.create({
     padding: 32,
     alignItems: 'center',
     backgroundColor: Colors.light.card,
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
   },
   emptyText: {
     fontSize: 14,

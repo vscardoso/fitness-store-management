@@ -15,37 +15,46 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  KeyboardAvoidingView,
-  Platform,
   Alert,
   TouchableOpacity,
   Modal,
+  Text,
 } from 'react-native';
 import {
   TextInput,
   Button,
   HelperText,
-  Text,
-  Card,
   Chip,
   Menu,
   IconButton,
   Divider,
-  Surface,
 } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
 import PageHeader from '@/components/layout/PageHeader';
 import { useTrips } from '@/hooks/useTrips';
 import { useProducts } from '@/hooks';
 import { createStockEntry, createStockEntryWithNewProduct, createStockEntryWithNewProductVariants, checkEntryCode } from '@/services/stockEntryService';
-import { getCatalogProducts } from '@/services/catalogService';
+import { getCatalogProducts, activateCatalogProduct } from '@/services/catalogService';
 import { formatCurrency } from '@/utils/format';
 import { cnpjMask, phoneMask } from '@/utils/masks';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import { EntryType, StockEntryCreate, EntryItem, Product } from '@/types';
+import type { WizardStep } from '@/types/wizard';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import WizardStepper from '@/components/products/WizardStepper';
+import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
 import { logInfo, logError } from '@/services/debugLog';
 
 /**
@@ -71,6 +80,44 @@ interface EntryItemForm extends EntryItem {
 export default function AddStockEntryScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const brandingColors = useBrandingColors();
+
+  const headerOpacity = useSharedValue(0);
+  const headerScale = useSharedValue(0.94);
+  const contentOpacity = useSharedValue(0);
+  const contentTranslateY = useSharedValue(24);
+
+  useFocusEffect(
+    useCallback(() => {
+      headerOpacity.value = 0;
+      headerScale.value = 0.94;
+      contentOpacity.value = 0;
+      contentTranslateY.value = 24;
+
+      headerOpacity.value = withTiming(1, {
+        duration: 360,
+        easing: Easing.out(Easing.quad),
+      });
+      headerScale.value = withSpring(1, { damping: 16, stiffness: 210 });
+
+      const timer = setTimeout(() => {
+        contentOpacity.value = withTiming(1, { duration: 320 });
+        contentTranslateY.value = withSpring(0, { damping: 18, stiffness: 200 });
+      }, 140);
+
+      return () => clearTimeout(timer);
+    }, [contentOpacity, contentTranslateY, headerOpacity, headerScale])
+  );
+
+  const headerAnimStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTranslateY.value }],
+  }));
 
   // Ler parâmetros da navegação (produto pré-selecionado do catálogo + viagem criada)
   const params = useLocalSearchParams<{
@@ -98,6 +145,60 @@ export default function AddStockEntryScreen() {
   }>();
 
   const isFromWizard = params.fromWizard === 'true';
+
+  const buildWizardRestorePayload = (): string | null => {
+    if (params.preselectedProductData) {
+      return params.preselectedProductData;
+    }
+
+    if (!params.wizardProductData) {
+      return null;
+    }
+
+    try {
+      const raw = JSON.parse(params.wizardProductData);
+      return JSON.stringify({
+        name: raw.product_name,
+        sku: raw.product_sku,
+        barcode: raw.product_barcode,
+        description: raw.product_description,
+        brand: raw.product_brand,
+        color: raw.product_color,
+        size: raw.product_size,
+        category_id: raw.product_category_id,
+        cost_price: raw.product_cost_price,
+        price: raw.product_price,
+      });
+    } catch {
+      return null;
+    }
+  };
+
+  const goToWizardStep = (targetStep: WizardStep) => {
+    if (!isFromWizard) return;
+
+    const restoreRaw = buildWizardRestorePayload();
+    router.replace({
+      pathname: '/products/wizard',
+      params: {
+        restoreStep: targetStep,
+        ...(restoreRaw ? { restoreProductData: restoreRaw } : {}),
+      },
+    } as any);
+  };
+
+  const handleWizardStepPress = (targetStep: WizardStep) => {
+    if (targetStep === 'entry') return;
+    if (targetStep === 'complete') return;
+    goToWizardStep(targetStep);
+  };
+
+  const getWizardBlockedReason = (targetStep: WizardStep): string | null => {
+    if (targetStep === 'complete') {
+      return 'Finalize a entrada para liberar o resumo.';
+    }
+    return null;
+  };
 
   // Estados do formulário
   const [selectedType, setSelectedType] = useState<EntryType>(EntryType.LOCAL);
@@ -313,9 +414,19 @@ export default function AddStockEntryScreen() {
     }
 
     // New flow: full product data from catalog or wizard
-    if (params.preselectedProductData && (params.fromCatalog === 'true' || params.fromWizard === 'true')) {
+    // Em modo atômico, os dados chegam em wizardProductData (não em preselectedProductData)
+    if ((params.preselectedProductData || params.wizardProductData) && (params.fromCatalog === 'true' || params.fromWizard === 'true')) {
       try {
-        const productData = JSON.parse(params.preselectedProductData);
+        const serializedProductData =
+          params.wizardMode === 'atomic' && params.wizardProductData
+            ? params.wizardProductData
+            : params.preselectedProductData;
+
+        if (!serializedProductData) {
+          return;
+        }
+
+        const productData = JSON.parse(serializedProductData);
         logInfo('Entries/Add', 'Produto parseado', { id: productData.id, name: productData.name });
         
         // Modo ATÔMICO: produto ainda não foi criado (wizardMode='atomic')
@@ -407,7 +518,7 @@ export default function AddStockEntryScreen() {
         setItemPrices({ [newItem.id]: sellPriceFormatted });
       }
     }
-  }, [params.preselectedVariantsData, params.wizardAtomicVariantsData, params.wizardMode, params.preselectedProductData, params.preselectedProductId, params.fromCatalog, params.fromWizard, products]);
+  }, [params.preselectedVariantsData, params.wizardAtomicVariantsData, params.wizardMode, params.wizardProductData, params.preselectedProductData, params.preselectedProductId, params.fromCatalog, params.fromWizard, products]);
 
   /**
    * Auto-selecionar viagem recém-criada (quando volta de /trips/add)
@@ -875,6 +986,46 @@ export default function AddStockEntryScreen() {
       return;
     }
 
+    // Modo TRADICIONAL + catálogo: ativar templates no tenant antes de criar entrada.
+    let normalizedItems = items;
+    const catalogItems = items.filter((item) => item.product?.is_catalog);
+
+    if (catalogItems.length > 0) {
+      try {
+        const activationCache = new Map<number, Product>();
+
+        normalizedItems = await Promise.all(
+          items.map(async (item) => {
+            if (!item.product?.is_catalog) return item;
+
+            const catalogId = item.product_id;
+            let activated = activationCache.get(catalogId);
+
+            if (!activated) {
+              activated = await activateCatalogProduct(catalogId, item.product.price);
+              activationCache.set(catalogId, activated);
+            }
+
+            return {
+              ...item,
+              product_id: activated.id,
+              product: {
+                ...item.product,
+                ...activated,
+                is_catalog: false,
+              },
+            };
+          })
+        );
+      } catch (error: any) {
+        Alert.alert(
+          'Erro ao ativar produto do catálogo',
+          error?.response?.data?.detail || 'Não foi possível ativar o produto para sua loja.'
+        );
+        return;
+      }
+    }
+
     // Modo TRADICIONAL: usar endpoint normal
     const entryData: StockEntryCreate = {
       entry_code: entryCode.trim(),
@@ -887,7 +1038,7 @@ export default function AddStockEntryScreen() {
       invoice_number: invoiceNumber.trim() || undefined,
       payment_method: paymentMethod.trim() || undefined,
       notes: notes.trim() || undefined,
-      items: items.map(item => ({
+      items: normalizedItems.map(item => ({
         product_id: item.product_id,
         variant_id: item.variant_id ?? undefined,
         quantity_received: item.quantity_received,
@@ -989,7 +1140,7 @@ export default function AddStockEntryScreen() {
               dense
               right={
                 parseCost(itemPrices[item.id] || '0') < parseCost(itemCosts[item.id] || '0') ? (
-                  <TextInput.Icon icon="alert" color="#ff9800" />
+                      <TextInput.Icon icon="alert" color={Colors.light.warning} />
                 ) : undefined
               }
             />
@@ -1022,8 +1173,7 @@ export default function AddStockEntryScreen() {
       const item = firstItem;
       const index = indices[0];
       return (
-        <Card key={String(key)} style={styles.itemCard}>
-          <Card.Content>
+        <View key={String(key)} style={styles.itemCard}>
             <View style={styles.itemHeader}>
               <Text style={styles.itemName}>{baseName}</Text>
               <IconButton icon="close" size={20} onPress={() => handleRemoveItem(index)} />
@@ -1063,7 +1213,7 @@ export default function AddStockEntryScreen() {
                   dense
                   right={
                     parseCost(itemPrices[item.id] || '0') < parseCost(itemCosts[item.id] || '0') ? (
-                      <TextInput.Icon icon="alert" color="#ff9800" />
+                      <TextInput.Icon icon="alert" color={Colors.light.warning} />
                     ) : undefined
                   }
                 />
@@ -1074,12 +1224,11 @@ export default function AddStockEntryScreen() {
             </View>
             <View style={styles.itemTotal}>
               <Text style={styles.itemTotalLabel}>Subtotal:</Text>
-              <Text style={styles.itemTotalValue}>
+              <Text style={[styles.itemTotalValue, { color: brandingColors.primary }] }>
                 {formatCurrency((Number(item.quantity_received) || 0) * (Number(item.unit_cost) || 0))}
               </Text>
             </View>
-          </Card.Content>
-        </Card>
+        </View>
       );
     }
 
@@ -1090,15 +1239,14 @@ export default function AddStockEntryScreen() {
     }, 0);
 
     return (
-      <Card key={String(key)} style={styles.itemCard}>
-        <Card.Content>
+      <View key={String(key)} style={styles.itemCard}>
           <View style={styles.variantGroupHeader}>
-            <View style={styles.variantGroupIcon}>
-              <Ionicons name="layers-outline" size={16} color={Colors.light.primary} />
+            <View style={[styles.variantGroupIcon, { backgroundColor: `${brandingColors.primary}14` }]}>
+              <Ionicons name="layers-outline" size={16} color={brandingColors.primary} />
             </View>
             <Text style={[styles.itemName, { flex: 1 }]} numberOfLines={1}>{baseName}</Text>
             {indices.length > 1 && (
-              <View style={styles.variantCountBadge}>
+              <View style={[styles.variantCountBadge, { backgroundColor: brandingColors.primary }]}>
                 <Text style={styles.variantCountText}>{indices.length} var.</Text>
               </View>
             )}
@@ -1106,46 +1254,64 @@ export default function AddStockEntryScreen() {
           {indices.map((idx, i) => renderVariantRow(idx, i > 0))}
           <View style={[styles.itemTotal, { marginTop: 12 }]}>
             <Text style={styles.itemTotalLabel}>Subtotal:</Text>
-            <Text style={styles.itemTotalValue}>{formatCurrency(subtotal)}</Text>
+            <Text style={[styles.itemTotalValue, { color: brandingColors.primary }]}>{formatCurrency(subtotal)}</Text>
           </View>
-        </Card.Content>
-      </Card>
+      </View>
     );
   };
 
   return (
     <View style={styles.container}>
-      <PageHeader
-        title="Nova Entrada"
-        subtitle="Preencha os dados para cadastrar nova entrada de estoque"
-        onBack={() => isFromWizard ? router.back() : router.push('/(tabs)/entries')}
-      />
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title="Nova Entrada"
+          subtitle="Preencha os dados para cadastrar nova entrada de estoque"
+          showBackButton
+          onBack={() => {
+            if (isFromWizard) {
+              // Volta para o passo de entrada preservando contexto completo.
+              goToWizardStep('entry');
+              return;
+            }
+            router.push('/(tabs)/entries');
+          }}
+        />
+      </Animated.View>
 
       {/* Banner de contexto quando vem do Wizard */}
       {isFromWizard && (
-        <View style={styles.wizardBanner}>
-          <Ionicons name="cube" size={20} color={Colors.light.primary} />
-          <View style={styles.wizardBannerText}>
-            <Text style={styles.wizardBannerTitle}>
-              Finalizando cadastro de produto
-            </Text>
-            <Text style={styles.wizardBannerSubtitle}>
-              {params.wizardProductName || 'Produto'}
-            </Text>
+        <View style={[
+          styles.wizardBanner,
+          {
+            backgroundColor: `${brandingColors.primary}10`,
+            borderBottomColor: `${brandingColors.primary}20`,
+          },
+        ]}>
+          <View style={styles.wizardBannerHeaderRow}>
+            <Ionicons name="cube" size={20} color={brandingColors.primary} />
+            <View style={styles.wizardBannerText}>
+              <Text style={styles.wizardBannerTitle}>
+                Finalizando cadastro de produto
+              </Text>
+              <Text style={styles.wizardBannerSubtitle}>
+                {params.wizardProductName || 'Produto'}
+              </Text>
+            </View>
           </View>
-          <View style={styles.wizardBannerStep}>
-            <Text style={styles.wizardBannerStepText}>Passo 3/4</Text>
-          </View>
+          <WizardStepper
+            currentStep="entry"
+            compact
+            onStepPress={handleWizardStepPress}
+            getBlockedReason={getWizardBlockedReason}
+          />
         </View>
       )}
 
-      <KeyboardAvoidingView
-        style={styles.content}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView
+      <Animated.View style={[styles.content, contentAnimStyle]}>
+        <KeyboardAwareScreen
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
+          bottomPadding={theme.spacing.xxl}
         >
         {/* Tipo de Entrada */}
         <View style={styles.section}>
@@ -1154,18 +1320,22 @@ export default function AddStockEntryScreen() {
             <TouchableOpacity
               style={[
                 styles.typeButton,
-                selectedType === EntryType.TRIP && styles.typeButtonActive,
+                selectedType === EntryType.TRIP && {
+                  borderColor: brandingColors.primary,
+                  backgroundColor: `${brandingColors.primary}14`,
+                },
               ]}
+              activeOpacity={0.78}
               onPress={() => setSelectedType(EntryType.TRIP)}
             >
               <Ionicons
                 name="car-outline"
-                size={32}
-                color={selectedType === EntryType.TRIP ? Colors.light.primary : Colors.light.textSecondary}
+                size={18}
+                color={selectedType === EntryType.TRIP ? brandingColors.primary : Colors.light.textSecondary}
               />
               <Text style={[
                 styles.typeButtonText,
-                selectedType === EntryType.TRIP && styles.typeButtonTextActive,
+                selectedType === EntryType.TRIP && { color: brandingColors.primary },
               ]}>
                 Viagem
               </Text>
@@ -1174,18 +1344,22 @@ export default function AddStockEntryScreen() {
             <TouchableOpacity
               style={[
                 styles.typeButton,
-                selectedType === EntryType.ONLINE && styles.typeButtonActive,
+                selectedType === EntryType.ONLINE && {
+                  borderColor: brandingColors.primary,
+                  backgroundColor: `${brandingColors.primary}14`,
+                },
               ]}
+              activeOpacity={0.78}
               onPress={() => setSelectedType(EntryType.ONLINE)}
             >
               <Ionicons
                 name="cart-outline"
-                size={32}
-                color={selectedType === EntryType.ONLINE ? Colors.light.primary : Colors.light.textSecondary}
+                size={18}
+                color={selectedType === EntryType.ONLINE ? brandingColors.primary : Colors.light.textSecondary}
               />
               <Text style={[
                 styles.typeButtonText,
-                selectedType === EntryType.ONLINE && styles.typeButtonTextActive,
+                selectedType === EntryType.ONLINE && { color: brandingColors.primary },
               ]}>
                 Online
               </Text>
@@ -1194,18 +1368,22 @@ export default function AddStockEntryScreen() {
             <TouchableOpacity
               style={[
                 styles.typeButton,
-                selectedType === EntryType.LOCAL && styles.typeButtonActive,
+                selectedType === EntryType.LOCAL && {
+                  borderColor: brandingColors.primary,
+                  backgroundColor: `${brandingColors.primary}14`,
+                },
               ]}
+              activeOpacity={0.78}
               onPress={() => setSelectedType(EntryType.LOCAL)}
             >
               <Ionicons
                 name="storefront-outline"
-                size={32}
-                color={selectedType === EntryType.LOCAL ? Colors.light.primary : Colors.light.textSecondary}
+                size={18}
+                color={selectedType === EntryType.LOCAL ? brandingColors.primary : Colors.light.textSecondary}
               />
               <Text style={[
                 styles.typeButtonText,
-                selectedType === EntryType.LOCAL && styles.typeButtonTextActive,
+                selectedType === EntryType.LOCAL && { color: brandingColors.primary },
               ]}>
                 Local
               </Text>
@@ -1214,11 +1392,10 @@ export default function AddStockEntryScreen() {
         </View>
 
         {/* Informações Básicas */}
-        <Card style={styles.card}>
-          <Card.Content>
+        <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderIcon}>
-                <Ionicons name="document-text-outline" size={20} color={Colors.light.primary} />
+              <View style={[styles.cardHeaderIcon, { backgroundColor: `${brandingColors.primary}14` }]}>
+                <Ionicons name="document-text-outline" size={20} color={brandingColors.primary} />
               </View>
               <Text style={styles.cardTitle}>Informações Básicas</Text>
             </View>
@@ -1237,9 +1414,9 @@ export default function AddStockEntryScreen() {
                 codeValidationStatus === 'checking' ? (
                   <TextInput.Icon icon="clock-outline" />
                 ) : codeValidationStatus === 'valid' ? (
-                  <TextInput.Icon icon="check-circle" color="#4CAF50" />
+                  <TextInput.Icon icon="check-circle" color={Colors.light.success} />
                 ) : codeValidationStatus === 'invalid' ? (
-                  <TextInput.Icon icon="close-circle" color="#f44336" />
+                  <TextInput.Icon icon="close-circle" color={Colors.light.error} />
                 ) : null
               }
             />
@@ -1254,7 +1431,7 @@ export default function AddStockEntryScreen() {
               </HelperText>
             )}
             {!errors.entryCode && codeValidationStatus === 'valid' && (
-              <HelperText type="info" visible={true} style={{ color: '#4CAF50' }}>
+              <HelperText type="info" visible={true} style={{ color: Colors.light.success }}>
                 Código disponível ✓
               </HelperText>
             )}
@@ -1272,8 +1449,7 @@ export default function AddStockEntryScreen() {
               Calculada automaticamente
             </HelperText>
           </View>
-          </Card.Content>
-        </Card>
+        </View>
 
         {/* Seleção de Viagem (se tipo = TRIP) */}
         {selectedType === EntryType.TRIP && (
@@ -1286,9 +1462,10 @@ export default function AddStockEntryScreen() {
                   setShowCreateTripDialog(true);
                 }}
                 style={styles.addButton}
+                activeOpacity={0.75}
               >
-                <Ionicons name="add-circle" size={20} color={Colors.light.primary} />
-                <Text style={styles.addButtonText}>Nova Viagem</Text>
+                <Ionicons name="add-circle" size={20} color={brandingColors.primary} />
+                <Text style={[styles.addButtonText, { color: brandingColors.primary }]}>Nova Viagem</Text>
               </TouchableOpacity>
             </View>
             <Menu
@@ -1318,7 +1495,7 @@ export default function AddStockEntryScreen() {
                     setShowCreateTripDialog(true);
                   }}
                   title="➕ Criar Nova Viagem"
-                  titleStyle={{ color: Colors.light.primary, fontWeight: '600' }}
+                  titleStyle={{ color: brandingColors.primary, fontWeight: '600' }}
                 />
               ) : (
                 <>
@@ -1328,7 +1505,7 @@ export default function AddStockEntryScreen() {
                       setShowCreateTripDialog(true);
                     }}
                     title="➕ Criar Nova Viagem"
-                    titleStyle={{ color: Colors.light.primary, fontWeight: '600' }}
+                    titleStyle={{ color: brandingColors.primary, fontWeight: '600' }}
                   />
                   <Divider />
                   {trips.map((trip) => (
@@ -1356,11 +1533,10 @@ export default function AddStockEntryScreen() {
         )}
 
         {/* Fornecedor */}
-        <Card style={styles.card}>
-          <Card.Content>
+        <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderIcon}>
-                <Ionicons name="briefcase-outline" size={20} color={Colors.light.primary} />
+              <View style={[styles.cardHeaderIcon, { backgroundColor: `${brandingColors.primary}14` }]}>
+                <Ionicons name="briefcase-outline" size={20} color={brandingColors.primary} />
               </View>
               <Text style={styles.cardTitle}>Informações do Fornecedor</Text>
             </View>
@@ -1397,9 +1573,9 @@ export default function AddStockEntryScreen() {
               error={!!errors.supplierCnpj || cnpjValidationStatus === 'invalid'}
               right={
                 cnpjValidationStatus === 'valid' ? (
-                  <TextInput.Icon icon="check-circle" color="#4CAF50" />
+                  <TextInput.Icon icon="check-circle" color={Colors.light.success} />
                 ) : cnpjValidationStatus === 'invalid' ? (
-                  <TextInput.Icon icon="close-circle" color="#f44336" />
+                  <TextInput.Icon icon="close-circle" color={Colors.light.error} />
                 ) : null
               }
             />
@@ -1409,7 +1585,7 @@ export default function AddStockEntryScreen() {
               </HelperText>
             )}
             {!errors.supplierCnpj && cnpjValidationStatus === 'valid' && (
-              <HelperText type="info" visible={true} style={{ color: '#4CAF50' }}>
+              <HelperText type="info" visible={true} style={{ color: Colors.light.success }}>
                 CNPJ válido ✓
               </HelperText>
             )}
@@ -1437,15 +1613,13 @@ export default function AddStockEntryScreen() {
               <HelperText type="error">{errors.supplierContact}</HelperText>
             )}
           </View>
-          </Card.Content>
-        </Card>
+        </View>
 
         {/* Nota Fiscal e Pagamento */}
-        <Card style={styles.card}>
-          <Card.Content>
+        <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderIcon}>
-                <Ionicons name="cash-outline" size={20} color={Colors.light.primary} />
+              <View style={[styles.cardHeaderIcon, { backgroundColor: `${brandingColors.primary}14` }]}>
+                <Ionicons name="cash-outline" size={20} color={brandingColors.primary} />
               </View>
               <Text style={styles.cardTitle}>Pagamento</Text>
             </View>
@@ -1486,8 +1660,7 @@ export default function AddStockEntryScreen() {
               style={{ marginTop: 8 }}
             />
           </View>
-          </Card.Content>
-        </Card>
+        </View>
 
         {/* Lista de Produtos */}
         <View style={styles.section}>
@@ -1498,6 +1671,8 @@ export default function AddStockEntryScreen() {
               onPress={() => setProductMenuVisible(true)}
               icon="plus"
               compact
+              textColor={brandingColors.primary}
+              style={{ borderColor: `${brandingColors.primary}55` }}
             >
               Adicionar
             </Button>
@@ -1606,7 +1781,7 @@ export default function AddStockEntryScreen() {
 
         {/* Resumo */}
         {items.length > 0 && (
-          <Surface style={styles.summaryCard} elevation={2}>
+          <View style={styles.summaryCard}>
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Produtos</Text>
               <Text style={styles.summaryValue}>{items.length} {items.length === 1 ? 'item' : 'itens'}</Text>
@@ -1620,34 +1795,67 @@ export default function AddStockEntryScreen() {
             <Divider style={styles.summaryDivider} />
             <View style={styles.summaryRow}>
               <Text style={styles.totalLabel}>Total da Entrada</Text>
-              <Text style={styles.totalValue}>{formatCurrency(total)}</Text>
+              <Text style={[styles.totalValue, { color: brandingColors.primary }]}>{formatCurrency(total)}</Text>
             </View>
-          </Surface>
+          </View>
         )}
 
         {/* Botões */}
         <View style={styles.actions}>
           <Button
-            mode="contained"
-            onPress={handleSubmit}
-            loading={createMutation.isPending || createAtomicMutation.isPending || createAtomicVariantsMutation.isPending}
-            disabled={createMutation.isPending || createAtomicMutation.isPending || createAtomicVariantsMutation.isPending || items.length === 0 || codeValidationStatus === 'invalid' || codeValidationStatus === 'checking'}
-            style={styles.submitButton}
-            contentStyle={styles.submitButtonContent}
-          >
-            Salvar Entrada
-          </Button>
-
-          <Button
             mode="outlined"
             onPress={() => isFromWizard ? router.back() : router.push('/(tabs)/entries')}
             disabled={createMutation.isPending || createAtomicMutation.isPending || createAtomicVariantsMutation.isPending}
+            textColor={brandingColors.primary}
+            style={[styles.actionButton, { borderColor: `${brandingColors.primary}55` }]}
+            contentStyle={styles.cancelButtonContent}
           >
             Cancelar
           </Button>
+
+          <TouchableOpacity
+            onPress={handleSubmit}
+            activeOpacity={0.8}
+            disabled={
+              createMutation.isPending ||
+              createAtomicMutation.isPending ||
+              createAtomicVariantsMutation.isPending ||
+              items.length === 0 ||
+              codeValidationStatus === 'invalid' ||
+              codeValidationStatus === 'checking'
+            }
+            style={[
+              styles.submitButton,
+              styles.actionButton,
+              (createMutation.isPending ||
+                createAtomicMutation.isPending ||
+                createAtomicVariantsMutation.isPending ||
+                items.length === 0 ||
+                codeValidationStatus === 'invalid' ||
+                codeValidationStatus === 'checking') && styles.submitButtonDisabled,
+            ]}
+          >
+            <LinearGradient
+              colors={brandingColors.gradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.submitButtonContent}
+            >
+              <Ionicons
+                name={(createMutation.isPending || createAtomicMutation.isPending || createAtomicVariantsMutation.isPending) ? 'sync-outline' : 'checkmark-circle-outline'}
+                size={20}
+                color="#fff"
+              />
+              <Text style={styles.submitButtonText}>
+                {(createMutation.isPending || createAtomicMutation.isPending || createAtomicVariantsMutation.isPending)
+                  ? 'Salvando...'
+                  : 'Salvar Entrada'}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+        </KeyboardAwareScreen>
+      </Animated.View>
 
       {/* Dialog de Criar Nova Viagem */}
       <ConfirmDialog
@@ -1845,14 +2053,18 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.backgroundSecondary,
   },
   wizardBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
     backgroundColor: Colors.light.primary + '10',
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     gap: theme.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.primary + '20',
+  },
+  wizardBannerHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
   },
   wizardBannerText: {
     flex: 1,
@@ -1866,20 +2078,9 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.light.text,
   },
-  wizardBannerStep: {
-    backgroundColor: Colors.light.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  wizardBannerStepText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#fff',
-  },
   content: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   scrollView: {
     flex: 1,
@@ -1935,24 +2136,31 @@ const styles = StyleSheet.create({
   },
   typeButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: theme.spacing.sm,
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: theme.spacing.xs,
   },
   typeButton: {
     flex: 1,
-    backgroundColor: Colors.light.card,
-    padding: 16,
-    borderRadius: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
-    borderWidth: 2,
-    borderColor: Colors.light.border,
+    gap: theme.spacing.xs,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   typeButtonActive: {
     borderColor: Colors.light.primary,
     backgroundColor: Colors.light.primaryLight,
+    ...theme.shadows.sm,
   },
   typeButtonText: {
-    marginTop: 8,
-    fontSize: 13,
+    fontSize: theme.fontSize.sm,
     fontWeight: '600',
     color: Colors.light.textSecondary,
   },
@@ -2025,7 +2233,7 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 8,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: Colors.light.border,
   },
   modalTitle: {
     fontSize: 18,
@@ -2047,7 +2255,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
+    borderBottomColor: Colors.light.border,
   },
   productItemContent: {
     flex: 1,
@@ -2074,14 +2282,14 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   catalogBadge: {
-    backgroundColor: '#e3f2fd',
+    backgroundColor: Colors.light.infoLight,
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 10,
   },
   catalogBadgeText: {
     fontSize: 10,
-    color: '#1976d2',
+    color: Colors.light.info,
     fontWeight: '600',
   },
   loadingContainer: {
@@ -2141,7 +2349,7 @@ const styles = StyleSheet.create({
   },
   warningText: {
     fontSize: 11,
-    color: '#ff9800',
+    color: Colors.light.warning,
     marginTop: 4,
   },
   itemTotal: {
@@ -2206,13 +2414,35 @@ const styles = StyleSheet.create({
   },
   actions: {
     marginTop: 8,
-    gap: 12,
+    gap: 10,
+    flexDirection: 'row',
+    alignItems: 'stretch',
+  },
+  actionButton: {
+    flex: 1,
   },
   submitButton: {
-    backgroundColor: Colors.light.primary,
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+    ...theme.shadows.sm,
+  },
+  submitButtonDisabled: {
+    opacity: 0.5,
   },
   submitButtonContent: {
-    paddingVertical: 8,
+    paddingVertical: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: theme.spacing.xs,
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: theme.fontSize.base,
+  },
+  cancelButtonContent: {
+    height: 52,
   },
   // Variante grouped card styles
   variantDivider: {
@@ -2265,7 +2495,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   variantChipColor: {
-    backgroundColor: '#E3F2FD',
+    backgroundColor: Colors.light.infoLight,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 10,

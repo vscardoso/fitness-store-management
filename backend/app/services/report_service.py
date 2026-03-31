@@ -8,6 +8,7 @@ from typing import Optional, List, Dict, Any
 
 from app.models.sale import Sale, SaleItem, PaymentMethod
 from app.models.product import Product
+from app.models.product_variant import ProductVariant
 from app.models.customer import Customer
 from app.schemas.report import (
     SalesReportResponse,
@@ -122,17 +123,29 @@ class ReportService:
             for row in payment_rows
         ]
 
-        # 4. Top produtos
+        # 4. Top produtos (agrupados por variação quando disponível)
         top_products_query = select(
             SaleItem.product_id,
+            SaleItem.variant_id,
             Product.name.label("product_name"),
+            ProductVariant.sku.label("variant_sku"),
+            ProductVariant.size.label("variant_size"),
+            ProductVariant.color.label("variant_color"),
             func.sum(SaleItem.quantity).label("quantity_sold"),
             func.sum(SaleItem.quantity * SaleItem.unit_price).label("revenue"),
             func.sum(SaleItem.quantity * SaleItem.unit_cost).label("cost"),
         ).join(Sale, SaleItem.sale_id == Sale.id)\
-        .join(Product, SaleItem.product_id == Product.id)\
+        .outerjoin(ProductVariant, SaleItem.variant_id == ProductVariant.id)\
+        .join(Product, Product.id == func.coalesce(SaleItem.product_id, ProductVariant.product_id))\
         .where(base_filter)\
-        .group_by(SaleItem.product_id, Product.name)\
+        .group_by(
+            SaleItem.product_id,
+            SaleItem.variant_id,
+            Product.name,
+            ProductVariant.sku,
+            ProductVariant.size,
+            ProductVariant.color,
+        )\
         .order_by(func.sum(SaleItem.quantity * SaleItem.unit_price).desc())\
         .limit(10)
 
@@ -146,9 +159,21 @@ class ReportService:
             profit = revenue - cost
             margin = (profit / revenue * 100) if revenue > 0 else 0
 
+            variant_parts = []
+            if row.variant_color:
+                variant_parts.append(str(row.variant_color))
+            if row.variant_size:
+                variant_parts.append(str(row.variant_size))
+            variant_label = " • ".join(variant_parts) if variant_parts else None
+
             top_products.append(TopProduct(
                 product_id=row.product_id,
                 product_name=row.product_name,
+                variant_id=row.variant_id,
+                variant_sku=row.variant_sku,
+                variant_size=row.variant_size,
+                variant_color=row.variant_color,
+                variant_label=variant_label,
                 quantity_sold=row.quantity_sold,
                 revenue=revenue,
                 profit=profit,

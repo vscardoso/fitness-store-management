@@ -20,6 +20,7 @@ import CustomModal from '@/components/ui/CustomModal';
 import ModalActions from '@/components/ui/ModalActions';
 import { maskCurrencyBR, unmaskCurrency, toBRNumber } from '@/utils/priceFormatter';
 import { Colors } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 // --------------------------------------------------------------------------
 // Types
@@ -83,6 +84,7 @@ export default function EntryItemCostEditor({
   const [price, setPrice] = useState('');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
+  const brandingColors = useBrandingColors();
 
   // Preencher campos quando o item muda
   useEffect(() => {
@@ -147,7 +149,7 @@ export default function EntryItemCostEditor({
     >
       {/* Aviso */}
       <View style={styles.warningBox}>
-        <Ionicons name="information-circle" size={20} color={Colors.light.primary} />
+        <Ionicons name="information-circle" size={20} color={brandingColors.primary} />
         <Text style={styles.warningText}>{warningText ?? defaultWarning}</Text>
       </View>
 
@@ -235,7 +237,7 @@ export default function EntryItemCostEditor({
         cancelText="Cancelar"
         confirmText="Salvar Alterações"
         loading={loading}
-        confirmColor={Colors.light.primary}
+        confirmColor={brandingColors.primary}
       />
     </CustomModal>
   );

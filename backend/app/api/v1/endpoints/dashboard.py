@@ -230,7 +230,7 @@ async def get_dashboard_stats(
 
     # 5. Produtos com estoque baixo (somente produtos com EntryItems — exclui órfãos)
     low_stock_query = (
-        select(func.count(Inventory.id))
+        select(func.count(func.distinct(Inventory.product_id)))
         .join(Product, Inventory.product_id == Product.id)
         .where(
             Inventory.tenant_id == tenant_id,
@@ -648,7 +648,7 @@ async def get_inventory_health(
 
     # Baixo estoque (somente produtos com EntryItems — exclui órfãos)
     low_stock_q = (
-        select(func.count(Inventory.id))
+        select(func.count(func.distinct(Inventory.product_id)))
         .join(Product, Inventory.product_id == Product.id)
         .where(
             Inventory.tenant_id == tenant_id,

@@ -19,6 +19,11 @@ class TopProduct(BaseModel):
     """Produto mais vendido"""
     product_id: int
     product_name: str
+    variant_id: int | None = None
+    variant_sku: str | None = None
+    variant_size: str | None = None
+    variant_color: str | None = None
+    variant_label: str | None = None
     quantity_sold: int
     revenue: float
     profit: float

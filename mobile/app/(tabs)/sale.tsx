@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import KeyboardSafeView from '@/components/ui/KeyboardSafeView';
 import {
   View,
@@ -7,21 +7,15 @@ import {
   TouchableOpacity,
   Keyboard,
   TouchableWithoutFeedback,
-  TextInput as RNTextInput,
-} from 'react-native';
-import {
-  Text,
-  Card,
-  Button,
-  IconButton,
   TextInput,
-  Snackbar,
-} from 'react-native-paper';
+  Text,
+} from 'react-native';
+import { useBrandingColors } from '@/store/brandingStore';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useRouter, useFocusEffect } from 'expo-router';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/layout/PageHeader';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
 import EmptyState from '@/components/ui/EmptyState';
@@ -31,6 +25,7 @@ import { useCart } from '@/hooks/useCart';
 import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
 import { getCustomerById } from '@/services/customerService';
 import { getFIFOCosts } from '@/services/productService';
+import AppButton from '@/components/ui/AppButton';
 import {
   validateProductForCart,
   validateCartStock,
@@ -43,8 +38,10 @@ import QRCodeScanner from '@/components/sale/QRCodeScanner';
 
 export default function SaleScreen() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const cart = useCart();
+  const brandingColors = useBrandingColors();
   const [scannerVisible, setScannerVisible] = useState(false);
   const [customerModalVisible, setCustomerModalVisible] = useState(false);
   const [productModalVisible, setProductModalVisible] = useState(false);
@@ -53,8 +50,6 @@ export default function SaleScreen() {
   const [discountVisible, setDiscountVisible] = useState(false);
   const [discountInput, setDiscountInput] = useState('');
   const [discountType, setDiscountType] = useState<'value' | 'percent'>('value');
-  const [snackText, setSnackText] = useState('');
-  const [snackVisible, setSnackVisible] = useState(false);
   const discountInputRef = useRef<any>(null);
 
   // Estado para controlar diálogos de confirmação
@@ -89,6 +84,18 @@ export default function SaleScreen() {
       cart.setCustomer(undefined);
     }
   }, [customerError]);
+
+  // Ao voltar para o PDV (ex.: após /checkout/success), forçar sincronização
+  // das fontes de produto/estoque para evitar listagem stale.
+  useFocusEffect(
+    useCallback(() => {
+      queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+      queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+    }, [queryClient])
+  );
 
   // Query: FIFO costs para margem em tempo real
   const cartProductIds = useMemo(
@@ -363,9 +370,39 @@ export default function SaleScreen() {
   const handleProductScanned = (product: Product, quantity: number = 1) => {
     setScannerVisible(false);
 
-    const cart_key = `p_${product.id}`;
+    const scannedProduct = product as Product & { variant_id?: number };
+    const cart_key = scannedProduct.variant_id ? `v_${scannedProduct.variant_id}` : `p_${product.id}`;
     const existingItem = cart.getItem(cart_key);
     const newQty = (existingItem?.quantity ?? 0) + quantity;
+    const availableStock = scannedProduct.current_stock ?? 0;
+
+    if (availableStock <= 0) {
+      haptics.warning();
+      setDialog({
+        visible: true,
+        type: 'warning',
+        title: 'Sem estoque',
+        message: 'Este item não tem estoque disponível.',
+        confirmText: 'Entendi',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
+      return;
+    }
+
+    if (newQty > availableStock) {
+      haptics.warning();
+      setDialog({
+        visible: true,
+        type: 'warning',
+        title: 'Estoque insuficiente',
+        message: `Apenas ${availableStock} unidade(s) disponíveis para este item.`,
+        confirmText: 'Entendi',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
+      return;
+    }
 
     if (existingItem) {
       cart.updateQuantity(cart_key, newQty);
@@ -374,8 +411,6 @@ export default function SaleScreen() {
     }
 
     haptics.success();
-    setSnackText(`${quantity}x ${product.name} adicionado`);
-    setSnackVisible(true);
   };
 
   /**
@@ -461,43 +496,40 @@ export default function SaleScreen() {
         {/* Cliente selecionado */}
         <View style={styles.customerSection}>
           {cart.customer_id && selectedCustomer ? (
-            <Card style={styles.customerCard}>
-              <Card.Content style={styles.customerCardContent}>
-                <View style={styles.customerInfo}>
-                  <Ionicons name="person" size={40} color={Colors.light.primary} />
-                  <View style={styles.customerDetails}>
-                    <Text variant="titleMedium" style={styles.customerName}>
-                      {selectedCustomer.full_name}
-                    </Text>
-                    <Text variant="bodySmall" style={styles.customerType}>
-                      {selectedCustomer.email || selectedCustomer.phone || `ID: ${cart.customer_id}`}
-                    </Text>
-                  </View>
-                </View>
-                <IconButton
-                  icon="close"
-                  size={20}
-                  onPress={() => cart.setCustomer(undefined)}
-                />
-              </Card.Content>
-            </Card>
+            <View style={styles.customerCard}>
+              <View style={[styles.customerAvatar, { backgroundColor: brandingColors.primary + '18' }]}>
+                <Ionicons name="person" size={20} color={brandingColors.primary} />
+              </View>
+              <View style={styles.customerDetails}>
+                <Text style={styles.customerName} numberOfLines={1}>
+                  {selectedCustomer.full_name}
+                </Text>
+                <Text style={styles.customerType} numberOfLines={1}>
+                  {selectedCustomer.email || selectedCustomer.phone || `ID: ${cart.customer_id}`}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => cart.setCustomer(undefined)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="close-circle" size={22} color={Colors.light.textTertiary} />
+              </TouchableOpacity>
+            </View>
           ) : (
             <TouchableOpacity
               style={styles.selectCustomerButton}
               onPress={() => setCustomerModalVisible(true)}
+              activeOpacity={0.75}
             >
-              <View style={styles.selectCustomerIconContainer}>
-                <Ionicons name="person-add" size={32} color={Colors.light.primary} />
+              <View style={[styles.selectCustomerIconContainer, { backgroundColor: brandingColors.primary + '12' }]}>
+                <Ionicons name="person-add-outline" size={20} color={brandingColors.primary} />
               </View>
               <View style={styles.selectCustomerTextContainer}>
-                <Text variant="titleMedium" style={styles.selectCustomerText}>
-                  Selecionar Cliente (Opcional)
-                </Text>
-                <Text variant="bodySmall" style={styles.selectCustomerSubtext}>
-                  Toque para escolher um cliente
-                </Text>
+                <Text style={styles.selectCustomerText}>Selecionar Cliente (Opcional)</Text>
+                <Text style={styles.selectCustomerSubtext}>Toque para escolher um cliente</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.light.textTertiary} />
+              <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
             </TouchableOpacity>
           )}
         </View>
@@ -509,26 +541,24 @@ export default function SaleScreen() {
             <TouchableOpacity
               style={[styles.addProductButton, styles.addProductButtonFlex]}
               onPress={() => setProductModalVisible(true)}
+              activeOpacity={0.75}
             >
-              <View style={styles.addProductIconContainer}>
-                <Ionicons name="search" size={28} color={Colors.light.primary} />
+              <View style={[styles.addProductIconContainer, { backgroundColor: brandingColors.primary + '12' }]}>
+                <Ionicons name="search-outline" size={20} color={brandingColors.primary} />
               </View>
               <View style={styles.addProductTextContainer}>
-                <Text variant="titleMedium" style={styles.addProductText}>
-                  Buscar Produtos
-                </Text>
-                <Text variant="bodySmall" style={styles.addProductSubtext}>
-                  Pesquisar por nome ou SKU
-                </Text>
+                <Text style={styles.addProductText}>Buscar Produtos</Text>
+                <Text style={styles.addProductSubtext}>Pesquisar por nome ou SKU</Text>
               </View>
             </TouchableOpacity>
 
             {/* Botão de scanner QR Code */}
             <TouchableOpacity
-              style={styles.scanQRButton}
+              style={[styles.scanQRButton, { backgroundColor: brandingColors.primary }]}
               onPress={handleOpenScanner}
+              activeOpacity={0.8}
             >
-              <Ionicons name="qr-code-outline" size={32} color="#fff" />
+              <Ionicons name="qr-code-outline" size={26} color="#fff" />
               <Text style={styles.scanQRButtonText}>Escanear</Text>
             </TouchableOpacity>
           </View>
@@ -537,18 +567,17 @@ export default function SaleScreen() {
         {/* Carrinho de compras */}
         <View style={styles.cartSection}>
           <View style={styles.cartHeader}>
-            <Text variant="titleLarge" style={styles.cartTitle}>
+            <Text style={styles.cartTitle}>
               Carrinho ({cart.itemCount} {cart.itemCount === 1 ? 'item' : 'itens'})
             </Text>
             {cart.items.length > 0 && (
-              <Button
-                mode="text"
+              <TouchableOpacity
                 onPress={handleClearCart}
-                textColor={Colors.light.error}
-                compact
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               >
-                Limpar
-              </Button>
+                <Text style={styles.clearCartText}>Limpar</Text>
+              </TouchableOpacity>
             )}
           </View>
 
@@ -561,20 +590,20 @@ export default function SaleScreen() {
           ) : (
             <ScrollView style={styles.cartList} showsVerticalScrollIndicator={false}>
               {cart.items.map((item) => (
-                <Card key={item.cart_key} style={styles.cartItem}>
-                  <Card.Content style={styles.cartItemContent}>
+                <View key={item.cart_key} style={styles.cartItem}>
+                  <View style={styles.cartItemContent}>
                     <View style={styles.cartItemInfo}>
-                      <Text variant="titleMedium" style={styles.cartItemName} numberOfLines={2}>
+                      <Text style={styles.cartItemName} numberOfLines={2}>
                         {item.product.name}
                         {item.variant_label ? (
                           <Text style={styles.variantLabel}> ({item.variant_label})</Text>
                         ) : null}
                       </Text>
-                      <Text variant="bodySmall" style={styles.cartItemSku}>
+                      <Text style={styles.cartItemSku}>
                         SKU: {item.product.sku}
                       </Text>
                       <View style={styles.cartItemPriceRow}>
-                        <Text variant="titleSmall" style={styles.cartItemPrice}>
+                        <Text style={styles.cartItemPrice}>
                           {formatCurrency(item.unit_price)}
                         </Text>
                         {fifoCosts?.[String(item.product_id)]?.average_unit_cost != null && (() => {
@@ -583,8 +612,8 @@ export default function SaleScreen() {
                             ? ((item.unit_price - cost) / item.unit_price) * 100
                             : 0;
                           return (
-                            <View style={[styles.cartMarginBadge, { backgroundColor: marginPct >= 30 ? '#E8F5E9' : '#FFF3E0' }]}>
-                              <Text style={[styles.cartMarginText, { color: marginPct >= 30 ? '#2E7D32' : '#F57C00' }]}>
+                            <View style={[styles.cartMarginBadge, { backgroundColor: marginPct >= 30 ? VALUE_COLORS.positive + '18' : VALUE_COLORS.warning + '18' }]}>
+                              <Text style={[styles.cartMarginText, { color: marginPct >= 30 ? VALUE_COLORS.positive : VALUE_COLORS.warning }]}>
                                 {marginPct.toFixed(0)}%
                               </Text>
                             </View>
@@ -595,32 +624,28 @@ export default function SaleScreen() {
 
                     <View style={styles.cartItemActions}>
                       <View style={styles.quantityControl}>
-                        <IconButton
-                          icon="minus"
-                          size={20}
-                          mode="contained"
-                          containerColor={Colors.light.error}
-                          iconColor="#fff"
+                        <TouchableOpacity
+                          style={[styles.qtyBtn, { backgroundColor: VALUE_COLORS.negative }]}
                           onPress={() => handleUpdateQuantity(item.cart_key, item.quantity - 1)}
-                        />
-                        <Text variant="titleMedium" style={styles.quantity}>
-                          {item.quantity}
-                        </Text>
-                        <IconButton
-                          icon="plus"
-                          size={20}
-                          mode="contained"
-                          containerColor={Colors.light.primary}
-                          iconColor="#fff"
+                          activeOpacity={0.75}
+                        >
+                          <Ionicons name="remove" size={14} color="#fff" />
+                        </TouchableOpacity>
+                        <Text style={styles.quantity}>{item.quantity}</Text>
+                        <TouchableOpacity
+                          style={[styles.qtyBtn, { backgroundColor: brandingColors.primary }]}
                           onPress={() => handleUpdateQuantity(item.cart_key, item.quantity + 1)}
-                        />
+                          activeOpacity={0.75}
+                        >
+                          <Ionicons name="add" size={14} color="#fff" />
+                        </TouchableOpacity>
                       </View>
-                      <Text variant="titleLarge" style={styles.itemTotal}>
+                      <Text style={styles.itemTotal}>
                         {formatCurrency(item.unit_price * item.quantity)}
                       </Text>
                     </View>
-                  </Card.Content>
-                </Card>
+                  </View>
+                </View>
               ))}
             </ScrollView>
           )}
@@ -631,12 +656,8 @@ export default function SaleScreen() {
           <View style={styles.footer}>
             <View style={styles.totalsContainer}>
               <View style={styles.totalRow}>
-                <Text variant="bodyLarge" style={styles.totalLabel}>
-                  Subtotal
-                </Text>
-                <Text variant="bodyLarge" style={styles.totalValue}>
-                  {formatCurrency(cart.subtotal)}
-                </Text>
+                <Text style={styles.totalLabel}>Subtotal</Text>
+                <Text style={styles.totalValue}>{formatCurrency(cart.subtotal)}</Text>
               </View>
               {/* Linha de desconto avulso */}
               {!discountVisible && (
@@ -647,7 +668,7 @@ export default function SaleScreen() {
                 >
                   <View style={styles.discountRowLeft}>
                     <Ionicons name="pricetag-outline" size={15} color={cart.discount > 0 ? Colors.light.success : Colors.light.textSecondary} />
-                    <Text variant="bodyMedium" style={cart.discount > 0 ? styles.discountLabel : styles.discountAddLabel}>
+                    <Text style={cart.discount > 0 ? styles.discountLabel : styles.discountAddLabel}>
                       {cart.discount > 0 ? `Desconto  -${formatCurrency(cart.discount)}` : 'Adicionar desconto'}
                     </Text>
                   </View>
@@ -686,38 +707,44 @@ export default function SaleScreen() {
                     value={discountInput}
                     onChangeText={setDiscountInput}
                     keyboardType="decimal-pad"
-                    placeholder={discountType === 'percent' ? '0,00' : '0,00'}
+                    placeholder="0,00"
+                    placeholderTextColor={Colors.light.textTertiary}
                     style={styles.discountInputField}
-                    dense
-                    mode="outlined"
-                    left={<TextInput.Affix text={discountType === 'value' ? 'R$' : ''} />}
-                    right={<TextInput.Affix text={discountType === 'percent' ? '%' : ''} />}
+                    returnKeyType="done"
                     onSubmitEditing={handleApplyDiscount}
                   />
-                  <IconButton icon="check" size={22} iconColor="#fff" containerColor={Colors.light.success} onPress={handleApplyDiscount} style={styles.discountConfirmBtn} />
-                  <IconButton icon="close" size={22} iconColor={Colors.light.textSecondary} onPress={() => { setDiscountVisible(false); setDiscountInput(''); }} style={styles.discountCancelBtn} />
+                  <TouchableOpacity
+                    style={styles.discountConfirmBtn}
+                    onPress={handleApplyDiscount}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="checkmark" size={18} color="#fff" />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.discountCancelBtn}
+                    onPress={() => { setDiscountVisible(false); setDiscountInput(''); }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="close" size={18} color={Colors.light.textSecondary} />
+                  </TouchableOpacity>
                 </View>
               )}
               <View style={[styles.totalRow, styles.totalRowFinal]}>
-                <Text variant="headlineSmall" style={styles.totalFinalLabel}>
-                  Total
-                </Text>
-                <Text variant="headlineSmall" style={styles.totalFinalValue}>
-                  {formatCurrency(cart.total)}
-                </Text>
+                <Text style={styles.totalFinalLabel}>Total</Text>
+                <Text style={styles.totalFinalValue}>{formatCurrency(cart.total)}</Text>
               </View>
               {cartProfit && (
                 <View style={styles.profitRow}>
                   <View style={styles.profitRowLeft}>
-                    <Ionicons name="trending-up" size={16} color="#2E7D32" />
+                    <Ionicons name="trending-up" size={16} color={VALUE_COLORS.positive} />
                     <Text style={styles.profitRowLabel}>Lucro estimado</Text>
                   </View>
                   <View style={styles.profitRowRight}>
-                    <Text style={[styles.profitRowValue, { color: cartProfit.profit >= 0 ? '#2E7D32' : '#C62828' }]}>
+                    <Text style={[styles.profitRowValue, { color: cartProfit.profit >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
                       {formatCurrency(cartProfit.profit)}
                     </Text>
-                    <View style={[styles.profitRowBadge, { backgroundColor: cartProfit.margin >= 30 ? '#E8F5E9' : '#FFF3E0' }]}>
-                      <Text style={[styles.profitRowBadgeText, { color: cartProfit.margin >= 30 ? '#2E7D32' : '#F57C00' }]}>
+                    <View style={[styles.profitRowBadge, { backgroundColor: cartProfit.margin >= 30 ? VALUE_COLORS.positive + '18' : VALUE_COLORS.warning + '18' }]}>
+                      <Text style={[styles.profitRowBadgeText, { color: cartProfit.margin >= 30 ? VALUE_COLORS.positive : VALUE_COLORS.warning }]}>
                         {cartProfit.margin.toFixed(1)}%
                       </Text>
                     </View>
@@ -726,15 +753,15 @@ export default function SaleScreen() {
               )}
             </View>
 
-            <Button
-              mode="contained"
+            <AppButton
+              variant="primary"
+              size="lg"
+              fullWidth
+              icon="cash-outline"
+              label="Finalizar Venda"
               onPress={handleCheckout}
               style={styles.checkoutButton}
-              labelStyle={styles.checkoutButtonLabel}
-              icon="cash-register"
-            >
-              Finalizar Venda
-            </Button>
+            />
           </View>
         )}
 
@@ -765,6 +792,7 @@ export default function SaleScreen() {
           visible={productModalVisible}
           onDismiss={() => setProductModalVisible(false)}
           onSelectProduct={handleSelectProduct}
+          hasStock={true}
         />
 
         {/* QR Code Scanner */}
@@ -772,7 +800,13 @@ export default function SaleScreen() {
           visible={scannerVisible}
           onClose={() => setScannerVisible(false)}
           onProductScanned={handleProductScanned}
-          getCartQuantity={(productId) => cart.getItem(`p_${productId}`)?.quantity ?? 0}
+          getCartQuantity={(product) => {
+            const productWithVariant = product as Product & { variant_id?: number };
+            const cartKey = productWithVariant.variant_id
+              ? `v_${productWithVariant.variant_id}`
+              : `p_${product.id}`;
+            return cart.getItem(cartKey)?.quantity ?? 0;
+          }}
         />
 
         {/* Confirm Dialog */}
@@ -786,16 +820,6 @@ export default function SaleScreen() {
           onConfirm={dialog.onConfirm}
           onCancel={() => setDialog({ ...dialog, visible: false })}
         />
-
-        <Snackbar
-          visible={snackVisible}
-          onDismiss={() => setSnackVisible(false)}
-          duration={1800}
-          style={{ backgroundColor: Colors.light.success, marginBottom: 90 }}
-          rippleColor="transparent"
-        >
-          <Text style={{ color: '#fff', fontWeight: '600' }}>{snackText}</Text>
-        </Snackbar>
     </View>
     </TouchableWithoutFeedback>
     </KeyboardSafeView>
@@ -808,151 +832,180 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.backgroundSecondary,
   },
   customerSection: {
-    paddingHorizontal: 16,
-    marginTop: 16,
+    paddingHorizontal: theme.spacing.md,
+    marginTop: theme.spacing.md,
   },
   customerCard: {
-    borderRadius: theme.borderRadius.lg,
-    elevation: 2,
-  },
-  customerCardContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
+    gap: theme.spacing.sm,
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: theme.spacing.sm + 4,
+    ...theme.shadows.sm,
   },
-  customerInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    flex: 1,
+  customerAvatar: {
+    width: 38, height: 38, borderRadius: 19,
+    justifyContent: 'center', alignItems: 'center',
+    flexShrink: 0,
   },
   customerDetails: {
-    marginLeft: 12,
     flex: 1,
+    minWidth: 0,
   },
   customerName: {
+    fontSize: theme.fontSize.base - 1,
     fontWeight: '600',
+    color: Colors.light.text,
+    marginBottom: 2,
   },
   customerType: {
+    fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
-    marginTop: 2,
   },
   selectCustomerButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.background,
-    padding: 16,
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: 2,
-    borderColor: Colors.light.primary,
-    borderStyle: 'solid',
+    gap: theme.spacing.sm,
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: theme.spacing.sm + 4,
+    ...theme.shadows.sm,
   },
   selectCustomerIconContainer: {
-    marginRight: 12,
+    width: 36, height: 36, borderRadius: 18,
+    justifyContent: 'center', alignItems: 'center',
+    flexShrink: 0,
   },
   selectCustomerTextContainer: {
     flex: 1,
+    minWidth: 0,
   },
   selectCustomerText: {
+    fontSize: theme.fontSize.sm,
     fontWeight: '600',
-    color: Colors.light.primary,
+    color: Colors.light.text,
     marginBottom: 2,
   },
   selectCustomerSubtext: {
+    fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
   },
   addProductSection: {
-    paddingHorizontal: 16,
-    marginTop: 16,
+    paddingHorizontal: theme.spacing.md,
+    marginTop: theme.spacing.sm,
   },
   addProductRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: theme.spacing.sm,
   },
   addProductButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.background,
-    padding: 16,
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: 2,
-    borderColor: Colors.light.primary,
-    borderStyle: 'solid',
+    gap: theme.spacing.sm,
+    backgroundColor: Colors.light.card,
+    padding: theme.spacing.sm + 4,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
   },
   addProductButtonFlex: {
     flex: 1,
   },
   scanQRButton: {
-    backgroundColor: Colors.light.primary,
-    borderRadius: theme.borderRadius.lg,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+    borderRadius: theme.borderRadius.xl,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm + 4,
     alignItems: 'center',
     justifyContent: 'center',
-    minWidth: 80,
+    minWidth: 76,
   },
   scanQRButtonText: {
     color: '#fff',
-    fontSize: 12,
-    fontWeight: '600',
-    marginTop: 4,
+    fontSize: theme.fontSize.xxs,
+    fontWeight: '700',
+    marginTop: 3,
   },
   addProductIconContainer: {
-    marginRight: 12,
+    width: 36, height: 36, borderRadius: 18,
+    justifyContent: 'center', alignItems: 'center',
+    flexShrink: 0,
   },
   addProductTextContainer: {
     flex: 1,
+    minWidth: 0,
   },
   addProductText: {
+    fontSize: theme.fontSize.sm,
     fontWeight: '600',
-    color: Colors.light.primary,
+    color: Colors.light.text,
     marginBottom: 2,
   },
   addProductSubtext: {
+    fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
   },
   cartSection: {
     flex: 1,
-    marginTop: 16,
-    paddingHorizontal: 16,
+    marginTop: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
   },
   cartHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: theme.spacing.sm,
   },
   cartTitle: {
+    fontSize: theme.fontSize.base,
     fontWeight: '700',
+    color: Colors.light.text,
+  },
+  clearCartText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: Colors.light.error,
   },
   cartList: {
     flex: 1,
   },
   cartItem: {
-    marginBottom: 12,
-    borderRadius: theme.borderRadius.lg,
-    elevation: 1,
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    marginBottom: theme.spacing.sm,
+    ...theme.shadows.sm,
   },
   cartItemContent: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingVertical: 8,
+    padding: theme.spacing.sm + 4,
   },
   cartItemInfo: {
     flex: 1,
-    marginRight: 12,
+    minWidth: 0,
+    marginRight: theme.spacing.sm,
   },
   cartItemName: {
+    fontSize: theme.fontSize.sm,
     fontWeight: '600',
+    color: Colors.light.text,
     marginBottom: 4,
   },
   cartItemSku: {
+    fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
-    marginBottom: 8,
+    marginBottom: theme.spacing.sm,
   },
   variantLabel: {
-    fontSize: 13,
-    color: Colors.light.primary,
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
     fontWeight: '500',
   },
   cartItemPriceRow: {
@@ -961,88 +1014,110 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   cartItemPrice: {
-    color: Colors.light.primary,
-    fontWeight: '600',
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
+    color: Colors.light.text,
   },
   cartMarginBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
+    paddingHorizontal: 5, paddingVertical: 2,
+    borderRadius: theme.borderRadius.sm,
   },
   cartMarginText: {
-    fontSize: 11,
+    fontSize: theme.fontSize.xxs,
     fontWeight: '700',
   },
   cartItemActions: {
     alignItems: 'flex-end',
+    flexShrink: 0,
   },
   quantityControl: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: theme.spacing.xs,
+  },
+  qtyBtn: {
+    width: 28, height: 28, borderRadius: theme.borderRadius.sm,
+    justifyContent: 'center', alignItems: 'center',
   },
   quantity: {
-    marginHorizontal: 12,
+    marginHorizontal: theme.spacing.sm,
+    fontSize: theme.fontSize.base - 1,
     fontWeight: '700',
-    minWidth: 30,
+    color: Colors.light.text,
+    minWidth: 24,
     textAlign: 'center',
   },
   itemTotal: {
+    fontSize: theme.fontSize.base,
     fontWeight: '700',
     color: Colors.light.text,
+    flexShrink: 0,
   },
   footer: {
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.light.card,
     borderTopWidth: 1,
     borderTopColor: Colors.light.border,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
     elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 6,
   },
   totalsContainer: {
-    marginBottom: 16,
+    marginBottom: theme.spacing.md,
   },
   totalRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: theme.spacing.xs + 2,
   },
   totalLabel: {
+    fontSize: theme.fontSize.sm,
     color: Colors.light.textSecondary,
   },
   totalValue: {
+    fontSize: theme.fontSize.sm,
     color: Colors.light.text,
     fontWeight: '500',
   },
   discountLabel: {
-    color: Colors.light.success,
+    fontSize: theme.fontSize.sm,
+    color: VALUE_COLORS.positive,
+    fontWeight: '500',
   },
   discountValue: {
-    color: Colors.light.success,
+    fontSize: theme.fontSize.sm,
+    color: VALUE_COLORS.positive,
     fontWeight: '600',
   },
   totalRowFinal: {
-    marginTop: 8,
-    paddingTop: 12,
+    marginTop: theme.spacing.sm,
+    paddingTop: theme.spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Colors.light.border,
   },
   totalFinalLabel: {
+    fontSize: theme.fontSize.base,
     fontWeight: '700',
+    color: Colors.light.text,
   },
   totalFinalValue: {
-    fontWeight: '700',
-    color: Colors.light.primary,
+    fontSize: theme.fontSize.xl,
+    fontWeight: '800',
+    color: Colors.light.text,
+    letterSpacing: -0.5,
   },
   profitRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: theme.spacing.sm,
+    paddingTop: theme.spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: '#E8F5E9',
+    borderTopColor: Colors.light.border,
   },
   profitRowLeft: {
     flexDirection: 'row',
@@ -1050,32 +1125,31 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   profitRowLabel: {
-    fontSize: 13,
-    color: '#666',
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
   },
   profitRowRight: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: theme.spacing.sm,
   },
   profitRowValue: {
-    fontSize: 15,
+    fontSize: theme.fontSize.base - 1,
     fontWeight: '700',
   },
   profitRowBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 8,
+    paddingHorizontal: 6, paddingVertical: 2,
+    borderRadius: theme.borderRadius.sm,
   },
   profitRowBadgeText: {
-    fontSize: 12,
+    fontSize: theme.fontSize.xxs + 1,
     fontWeight: '700',
   },
   discountRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: theme.spacing.xs + 2,
     paddingVertical: 2,
   },
   discountRowLeft: {
@@ -1088,17 +1162,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   discountAddLabel: {
+    fontSize: theme.fontSize.sm,
     color: Colors.light.textSecondary,
   },
   discountInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: theme.spacing.xs + 2,
     gap: 6,
   },
   discountTypeToggle: {
     flexDirection: 'row',
-    borderRadius: 8,
+    borderRadius: theme.borderRadius.md,
     overflow: 'hidden',
     borderWidth: 1,
     borderColor: Colors.light.primary,
@@ -1112,7 +1187,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.primary,
   },
   discountTypeBtnText: {
-    fontSize: 13,
+    fontSize: theme.fontSize.xs,
     fontWeight: '600',
     color: Colors.light.primary,
   },
@@ -1121,27 +1196,31 @@ const styles = StyleSheet.create({
   },
   discountInputField: {
     flex: 1,
-    fontSize: 14,
+    fontSize: theme.fontSize.sm,
     height: 40,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    paddingHorizontal: theme.spacing.sm,
+    color: Colors.light.text,
   },
   discountConfirmBtn: {
-    margin: 0,
+    width: 36, height: 36, borderRadius: theme.borderRadius.md,
+    backgroundColor: Colors.light.success,
+    justifyContent: 'center', alignItems: 'center',
   },
   discountCancelBtn: {
-    margin: 0,
+    width: 36, height: 36, borderRadius: theme.borderRadius.md,
+    backgroundColor: Colors.light.backgroundSecondary,
+    justifyContent: 'center', alignItems: 'center',
   },
   checkoutButton: {
-    paddingVertical: 6,
-    borderRadius: theme.borderRadius.lg,
-  },
-  checkoutButtonLabel: {
-    fontSize: 16,
-    fontWeight: '700',
+    width: '100%',
   },
   fab: {
     position: 'absolute',
     right: 16,
     bottom: 100,
-    backgroundColor: Colors.light.secondary,
   },
 });

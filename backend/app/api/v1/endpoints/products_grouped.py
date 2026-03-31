@@ -131,7 +131,7 @@ async def list_grouped_products(
             params["cat_id"] = category_id
         
         if search:
-            id_query += " AND (p.name ILIKE :search OR p.brand ILIKE :search)"
+            id_query += " AND (LOWER(p.name) LIKE LOWER(:search) OR LOWER(p.brand) LIKE LOWER(:search))"
             params["search"] = f"%{search}%"
         
         if has_stock:
@@ -166,13 +166,20 @@ async def list_grouped_products(
                        SELECT SUM(ei.quantity_remaining)
                        FROM entry_items ei
                        JOIN stock_entries se ON se.id = ei.entry_id
-                       WHERE ei.variant_id = v.id AND ei.is_active = true AND se.is_active = true
+                                             WHERE ei.variant_id = v.id
+                                                 AND ei.tenant_id = :tid
+                                                 AND se.tenant_id = :tid
+                                                 AND ei.is_active = true
+                                                 AND se.is_active = true
                    ), 0) as variant_stock,
-                   i.min_stock
+                   (
+                       SELECT MAX(i2.min_stock)
+                       FROM inventory i2
+                       WHERE i2.product_id = p.id AND i2.tenant_id = :tid
+                   ) as min_stock
             FROM products p
             LEFT JOIN product_variants v
                    ON p.id = v.product_id AND v.is_active = true AND v.tenant_id = :tid
-            LEFT JOIN inventory i ON v.id = i.variant_id AND i.tenant_id = :tid
             WHERE p.id IN ({ids_placeholder})
             ORDER BY p.name, v.size, v.color
         """

@@ -225,6 +225,7 @@ class SaleService:
                     amount=float(payment_data.amount),
                     payment_method=payment_data.payment_method.value,
                     payment_reference=payment_data.payment_reference,
+                    installments=payment_data.installments if payment_data.installments else 1,
                     status='confirmed',  # PaymentCreate no tem status, sempre confirmar
                     notes=None,  # PaymentCreate no tem notes
                     tenant_id=tenant_id,

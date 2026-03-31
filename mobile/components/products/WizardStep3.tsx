@@ -18,31 +18,68 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { Text, TextInput, Button } from 'react-native-paper';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import { formatCurrency } from '@/utils/format';
 import { getStockEntries } from '@/services/stockEntryService';
 import type { StockEntry } from '@/types';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface WizardStep3Props {
   wizard: UseProductWizardReturn;
 }
 
+const QUICK_QTY_OPTIONS = [1, 5, 10];
+
 export default function WizardStep3({ wizard }: WizardStep3Props) {
   const { state } = wizard;
+  const brandingColors = useBrandingColors();
+  const visual = useMemo(
+    () => ({
+      primarySoft: `${brandingColors.primary}10`,
+      primaryBorder: `${brandingColors.primary}35`,
+      secondarySoft: `${brandingColors.secondary}10`,
+      secondaryBorder: `${brandingColors.secondary}35`,
+      primaryStrong: `${brandingColors.primary}20`,
+      secondaryStrong: `${brandingColors.secondary}20`,
+    }),
+    [brandingColors.primary, brandingColors.secondary],
+  );
 
   // Variantes do produto criado (se houver)
   const productVariants: any[] = useMemo(
     () => (state.createdProduct as any)?.variants ?? [],
     [state.createdProduct],
   );
-  const hasVariants = productVariants.length > 0;
+  const hasVariants = useMemo(() => {
+    const productAny = state.createdProduct as any;
+    if (!productAny) return false;
 
-  // Modal para Nova Entrada — modo simples (sem variantes)
-  const [newEntryModalVisible, setNewEntryModalVisible] = useState(false);
-  const [newEntryQuantity, setNewEntryQuantity] = useState('');
-  const [newEntryQuantityError, setNewEntryQuantityError] = useState('');
+    // Regra principal: flag explícita do wizard (evita estado fantasma entre restores).
+    if (typeof productAny._hasWizardVariants === 'boolean') {
+      return productAny._hasWizardVariants;
+    }
+
+    // Fluxo atômico sempre representa produto com variantes.
+    if (productAny._atomicVariants === true) {
+      return true;
+    }
+
+    // Produto virtual simples não deve abrir modal de variantes.
+    if (productAny._virtual === true && state.hasVariants === false) {
+      return false;
+    }
+
+    return productVariants.length > 0;
+  }, [state.createdProduct, state.hasVariants, productVariants]);
+
+  // Modal de quantidade unificado para produto simples (nova/existente)
+  const [quantityModalVisible, setQuantityModalVisible] = useState(false);
+  const [quantityMode, setQuantityMode] = useState<'new' | 'existing'>('new');
+  const [quantityValue, setQuantityValue] = useState('');
+  const [quantityError, setQuantityError] = useState('');
 
   // Modal para Nova Entrada — modo variantes
   const [variantQtyModalVisible, setVariantQtyModalVisible] = useState(false);
@@ -50,11 +87,6 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
   const [variantQtyMode, setVariantQtyMode] = useState<'new' | 'existing'>('new');
   const [variantQtys, setVariantQtys] = useState<Record<number, string>>({});
 
-  // Modal para Entrada Existente
-  const [existingEntryModalVisible, setExistingEntryModalVisible] = useState(false);
-  const [existingEntryQuantity, setExistingEntryQuantity] = useState('');
-  const [existingEntryQuantityError, setExistingEntryQuantityError] = useState('');
-  
   // Estado para verificar se existem entradas
   const [hasExistingEntries, setHasExistingEntries] = useState<boolean | null>(null);
   const [isLoadingEntries, setIsLoadingEntries] = useState(true);
@@ -92,23 +124,29 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
     if (hasVariants) {
       openVariantQtyModal('new');
     } else {
-      setNewEntryModalVisible(true);
-      setNewEntryQuantity('');
-      setNewEntryQuantityError('');
+      setQuantityMode('new');
+      setQuantityModalVisible(true);
+      setQuantityValue('');
+      setQuantityError('');
     }
   };
 
-  // Confirma quantidade para Nova Entrada (produto simples, sem variantes)
-  const handleConfirmNewEntry = () => {
-    const qty = parseInt(newEntryQuantity);
+  // Confirma quantidade para produto simples (nova/existente)
+  const handleConfirmSimpleEntry = () => {
+    const qty = parseInt(quantityValue);
     if (isNaN(qty) || qty <= 0) {
-      setNewEntryQuantityError('Quantidade deve ser maior que zero');
+      setQuantityError('Quantidade deve ser maior que zero');
       return;
     }
 
     Keyboard.dismiss();
-    setNewEntryModalVisible(false);
-    // Navegar para criação de entrada com a quantidade informada
+    setQuantityModalVisible(false);
+
+    if (quantityMode === 'existing') {
+      wizard.goToExistingEntry(qty);
+      return;
+    }
+
     wizard.goToNewEntry(qty);
   };
 
@@ -134,24 +172,11 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
     if (hasVariants) {
       openVariantQtyModal('existing');
     } else {
-      setExistingEntryModalVisible(true);
-      setExistingEntryQuantity('');
-      setExistingEntryQuantityError('');
+      setQuantityMode('existing');
+      setQuantityModalVisible(true);
+      setQuantityValue('');
+      setQuantityError('');
     }
-  };
-
-  // Confirma quantidade para Entrada Existente
-  const handleConfirmExistingEntry = () => {
-    const qty = parseInt(existingEntryQuantity);
-    if (isNaN(qty) || qty <= 0) {
-      setExistingEntryQuantityError('Quantidade deve ser maior que zero');
-      return;
-    }
-
-    Keyboard.dismiss();
-    setExistingEntryModalVisible(false);
-    // Passar a quantidade para o wizard
-    wizard.goToExistingEntry(qty);
   };
 
   const getVariantLabel = (v: any): string => {
@@ -177,6 +202,20 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
     return formatCurrency(product?.price ?? 0);
   }, [productVariants, product]);
 
+  const renderPrimaryModalAction = (label: string, onPress: () => void) => (
+    <TouchableOpacity style={styles.modalConfirmButton} onPress={onPress} activeOpacity={0.8}>
+      <LinearGradient
+        colors={brandingColors.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.modalConfirmGradient}
+      >
+        <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+        <Text style={styles.modalConfirmText}>{label}</Text>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
+
   return (
     <>
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
@@ -186,10 +225,10 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
           <Ionicons
             name={isAtomicVariants ? 'cube-outline' : 'checkmark-circle'}
             size={56}
-            color={isAtomicVariants ? Colors.light.primary : Colors.light.success}
+            color={isAtomicVariants ? brandingColors.primary : Colors.light.success}
           />
         </View>
-        <Text style={[styles.successTitle, isAtomicVariants && styles.pendingTitle]}>
+        <Text style={[styles.successTitle, isAtomicVariants && { color: brandingColors.primary }]}>
           {isAtomicVariants ? 'Dados Configurados' : 'Produto Criado!'}
         </Text>
         {isAtomicVariants && (
@@ -200,14 +239,14 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
 
         {/* Resumo inline do produto */}
         {product && (
-          <View style={styles.productSummary}>
+          <View style={[styles.productSummary, { backgroundColor: visual.primarySoft, borderColor: visual.primaryBorder }]}>
             <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
             <View style={styles.productMeta}>
               <Text style={styles.productSku}>{product.sku}</Text>
-              <Text style={styles.productPrice}>{priceDisplay}</Text>
+              <Text style={[styles.productPrice, { color: VALUE_COLORS.neutral }]}>{priceDisplay}</Text>
             </View>
             {isAtomicVariants && productVariants.length > 0 && (
-              <Text style={styles.variantCountLabel}>
+              <Text style={[styles.variantCountLabel, { color: brandingColors.primary }]}>
                 {productVariants.length} {productVariants.length === 1 ? 'variação' : 'variações'} configuradas
               </Text>
             )}
@@ -216,13 +255,21 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
       </View>
 
       {/* Aviso contextual */}
-      <View style={[styles.stockWarning, isAtomicVariants && styles.stockWarningInfo]}>
+      <View
+        style={[
+          styles.stockWarning,
+          {
+            backgroundColor: isAtomicVariants ? visual.secondarySoft : visual.primarySoft,
+            borderColor: isAtomicVariants ? visual.secondaryBorder : visual.primaryBorder,
+          },
+        ]}
+      >
         <Ionicons
           name={isAtomicVariants ? 'information-circle' : 'alert-circle'}
           size={18}
-          color={isAtomicVariants ? Colors.light.info : Colors.light.warning}
+          color={isAtomicVariants ? brandingColors.secondary : brandingColors.primary}
         />
-        <Text style={[styles.stockWarningText, isAtomicVariants && styles.stockWarningTextInfo]}>
+        <Text style={[styles.stockWarningText, { color: isAtomicVariants ? brandingColors.secondary : brandingColors.primary }]}>
           {isAtomicVariants
             ? 'Produto ainda não foi criado — escolha uma entrada abaixo para concluir o cadastro'
             : 'Estoque atual: 0 unidades — vincule a uma entrada para rastreabilidade FIFO'}
@@ -233,12 +280,12 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
       <View style={styles.optionsContainer}>
         {/* Nova Entrada - Recomendado */}
         <TouchableOpacity
-          style={styles.optionCard}
+          style={[styles.optionCard, { backgroundColor: visual.primarySoft, borderColor: visual.primaryBorder }]}
           onPress={handleNewEntryPress}
           activeOpacity={0.8}
         >
-          <View style={styles.optionIconContainer}>
-            <Ionicons name="add-circle" size={28} color={Colors.light.primary} />
+          <View style={[styles.optionIconContainer, { backgroundColor: visual.primaryStrong }]}>
+            <Ionicons name="add-circle" size={28} color={brandingColors.primary} />
           </View>
           <View style={styles.optionContent}>
             <View style={styles.optionHeader}>
@@ -255,23 +302,23 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
               Compra avulsa, reposição ou estoque inicial
             </Text>
           </View>
-          <Ionicons name="chevron-forward" size={24} color={Colors.light.primary} />
+          <Ionicons name="chevron-forward" size={24} color={brandingColors.primary} />
         </TouchableOpacity>
 
         {/* Entrada Existente - Só aparece se houver entradas cadastradas */}
         {isLoadingEntries ? (
           <View style={[styles.optionCard, styles.optionCardSecondary, styles.loadingCard]}>
-            <ActivityIndicator size="small" color={Colors.light.secondary} />
+            <ActivityIndicator size="small" color={brandingColors.secondary} />
             <Text style={styles.loadingText}>Verificando entradas...</Text>
           </View>
         ) : hasExistingEntries ? (
           <TouchableOpacity
-            style={[styles.optionCard, styles.optionCardSecondary]}
+            style={[styles.optionCard, { backgroundColor: visual.secondarySoft, borderColor: visual.secondaryBorder }]}
             onPress={handleExistingEntryPress}
             activeOpacity={0.8}
           >
-            <View style={[styles.optionIconContainer, styles.optionIconContainerSecondary]}>
-              <Ionicons name="link" size={28} color={Colors.light.secondary} />
+            <View style={[styles.optionIconContainer, { backgroundColor: visual.secondaryStrong }]}>
+              <Ionicons name="link" size={28} color={brandingColors.secondary} />
             </View>
             <View style={styles.optionContent}>
               <Text style={styles.optionTitle}>Entrada Existente</Text>
@@ -282,7 +329,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
                 Viagem ou compra em andamento
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={24} color={Colors.light.secondary} />
+            <Ionicons name="chevron-forward" size={24} color={brandingColors.secondary} />
           </TouchableOpacity>
         ) : (
           <View style={[styles.optionCard, styles.optionCardDisabled]}>
@@ -305,7 +352,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
 
       {/* Info Card */}
       <View style={styles.infoCard}>
-        <Ionicons name="cube-outline" size={20} color={Colors.light.info} />
+        <Ionicons name="cube-outline" size={20} color={brandingColors.secondary} />
         <Text style={styles.infoText}>
           Produtos no catálogo ficam disponíveis para adicionar em qualquer entrada futura.
         </Text>
@@ -333,9 +380,9 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
           {/* View simples: não interfere no sistema de responder do ScrollView */}
           <View style={[styles.modalContainer, styles.variantModalContainer]}>
             {/* Header */}
-            <View style={styles.modalHeader}>
-              <View style={styles.modalIconContainer}>
-                <Ionicons name="layers" size={28} color={Colors.light.primary} />
+            <View style={[styles.modalHeader, { backgroundColor: visual.primarySoft }]}>
+              <View style={[styles.modalIconContainer, { backgroundColor: visual.primaryStrong }]}>
+                <Ionicons name="layers" size={28} color={brandingColors.primary} />
               </View>
               <Text style={styles.modalTitle}>Quantidades por Variação</Text>
               <Text style={styles.modalSubtitle}>
@@ -357,20 +404,20 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
                 <View key={v.id} style={styles.variantRow}>
                   <View style={styles.variantInfo}>
                     <Text style={styles.variantLabel}>{getVariantLabel(v)}</Text>
-                    <Text style={styles.variantPrice}>{formatCurrency(v.price)}</Text>
+                    <Text style={[styles.variantPrice, { color: VALUE_COLORS.neutral }]}>{formatCurrency(v.price)}</Text>
                   </View>
                   {/* Quick buttons */}
                   <View style={styles.variantQuickButtons}>
-                    {[1, 5, 10].map((num) => (
+                    {QUICK_QTY_OPTIONS.map((num) => (
                       <TouchableOpacity
                         key={num}
-                        style={styles.variantQuickButton}
+                        style={[styles.variantQuickButton, { backgroundColor: visual.primarySoft, borderColor: visual.primaryBorder }]}
                         onPress={() => {
                           setVariantQtys((prev) => ({ ...prev, [v.id]: String(num) }));
                           Keyboard.dismiss();
                         }}
                       >
-                        <Text style={styles.variantQuickButtonText}>{num}</Text>
+                        <Text style={[styles.variantQuickButtonText, { color: brandingColors.primary }]}>{num}</Text>
                       </TouchableOpacity>
                     ))}
                   </View>
@@ -407,50 +454,61 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
               >
                 Cancelar
               </Button>
-              <Button
-                mode="contained"
-                onPress={handleConfirmVariantEntry}
-                style={styles.modalConfirmButton}
-                icon="check"
-              >
-                Continuar
-              </Button>
+              {renderPrimaryModalAction('Continuar', handleConfirmVariantEntry)}
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* Modal de Quantidade para Nova Entrada (produto sem variantes) */}
+      {/* Modal de Quantidade Unificado (produto sem variantes) */}
       <Modal
-        visible={newEntryModalVisible}
+        visible={quantityModalVisible}
         transparent
         animationType="fade"
         statusBarTranslucent
         onRequestClose={() => {
           Keyboard.dismiss();
-          setNewEntryModalVisible(false);
+          setQuantityModalVisible(false);
         }}
       >
         <View style={styles.modalOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => { Keyboard.dismiss(); setNewEntryModalVisible(false); }} activeOpacity={1} />
+          <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => { Keyboard.dismiss(); setQuantityModalVisible(false); }} activeOpacity={1} />
           <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalIconContainer}>
-                <Ionicons name="add-circle" size={28} color={Colors.light.primary} />
+            <View style={[styles.modalHeader, { backgroundColor: visual.primarySoft }]}>
+              <View
+                style={[
+                  styles.modalIconContainer,
+                  {
+                    backgroundColor:
+                      quantityMode === 'existing'
+                        ? visual.secondaryStrong
+                        : visual.primaryStrong,
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={quantityMode === 'existing' ? 'link' : 'add-circle'}
+                  size={28}
+                  color={quantityMode === 'existing' ? brandingColors.secondary : brandingColors.primary}
+                />
               </View>
-              <Text style={styles.modalTitle}>Nova Entrada</Text>
+              <Text style={styles.modalTitle}>
+                {quantityMode === 'existing' ? 'Entrada Existente' : 'Nova Entrada'}
+              </Text>
               <Text style={styles.modalSubtitle}>
-                Quantos itens deste produto você está adicionando ao estoque?
+                {quantityMode === 'existing'
+                  ? 'Quantos itens deste produto você está adicionando?'
+                  : 'Quantos itens deste produto você está adicionando ao estoque?'}
               </Text>
             </View>
 
             <View style={styles.modalContent}>
               <TextInput
                 label="Quantidade *"
-                value={newEntryQuantity}
+                value={quantityValue}
                 onChangeText={(text) => {
-                  setNewEntryQuantity(text.replace(/[^0-9]/g, ''));
-                  setNewEntryQuantityError('');
+                  setQuantityValue(text.replace(/[^0-9]/g, ''));
+                  setQuantityError('');
                 }}
                 mode="outlined"
                 keyboardType="number-pad"
@@ -459,33 +517,35 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
                 onSubmitEditing={() => Keyboard.dismiss()}
                 style={styles.quantityInput}
                 left={<TextInput.Icon icon="package-variant" />}
-                error={!!newEntryQuantityError}
+                error={!!quantityError}
                 placeholder="Digite a quantidade"
               />
-              {newEntryQuantityError ? (
-                <Text style={styles.errorText}>{newEntryQuantityError}</Text>
+              {quantityError ? (
+                <Text style={styles.errorText}>{quantityError}</Text>
               ) : null}
 
               <View style={styles.quickButtons}>
-                {[1, 5, 10, 20, 50].map((num) => (
+                {QUICK_QTY_OPTIONS.map((num) => (
                   <TouchableOpacity
                     key={num}
-                    style={styles.quickButton}
+                    style={[styles.quickButton, { backgroundColor: visual.primarySoft, borderColor: visual.primaryBorder }]}
                     onPress={() => {
                       Keyboard.dismiss();
-                      setNewEntryQuantity(String(num));
-                      setNewEntryQuantityError('');
+                      setQuantityValue(String(num));
+                      setQuantityError('');
                     }}
                   >
-                    <Text style={styles.quickButtonText}>{num}</Text>
+                    <Text style={[styles.quickButtonText, { color: brandingColors.primary }]}>{num}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
 
-              <View style={styles.modalHint}>
-                <Ionicons name="information-circle" size={16} color={Colors.light.info} />
-                <Text style={styles.modalHintText}>
-                  Você será levado para criar a entrada de estoque
+              <View style={[styles.modalHint, { backgroundColor: visual.secondarySoft }] }>
+                <Ionicons name="information-circle" size={16} color={brandingColors.secondary} />
+                <Text style={[styles.modalHintText, { color: brandingColors.secondary }]}>
+                  {quantityMode === 'existing'
+                    ? 'Você será levado para selecionar a entrada existente'
+                    : 'Você será levado para criar a entrada de estoque'}
                 </Text>
               </View>
             </View>
@@ -495,114 +555,13 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
                 mode="outlined"
                 onPress={() => {
                   Keyboard.dismiss();
-                  setNewEntryModalVisible(false);
+                  setQuantityModalVisible(false);
                 }}
                 style={styles.modalCancelButton}
               >
                 Cancelar
               </Button>
-              <Button
-                mode="contained"
-                onPress={handleConfirmNewEntry}
-                style={styles.modalConfirmButton}
-                icon="check"
-              >
-                Continuar
-              </Button>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Modal de Quantidade para Entrada Existente */}
-      <Modal
-        visible={existingEntryModalVisible}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => {
-          Keyboard.dismiss();
-          setExistingEntryModalVisible(false);
-        }}
-      >
-        <View style={styles.modalOverlay}>
-          <TouchableOpacity style={StyleSheet.absoluteFillObject} onPress={() => { Keyboard.dismiss(); setExistingEntryModalVisible(false); }} activeOpacity={1} />
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <View style={[styles.modalIconContainer, { backgroundColor: Colors.light.secondary + '20' }]}>
-                <Ionicons name="link" size={28} color={Colors.light.secondary} />
-              </View>
-              <Text style={styles.modalTitle}>Entrada Existente</Text>
-              <Text style={styles.modalSubtitle}>
-                Quantos itens deste produto você está adicionando?
-              </Text>
-            </View>
-
-            <View style={styles.modalContent}>
-              <TextInput
-                label="Quantidade *"
-                value={existingEntryQuantity}
-                onChangeText={(text) => {
-                  setExistingEntryQuantity(text.replace(/[^0-9]/g, ''));
-                  setExistingEntryQuantityError('');
-                }}
-                mode="outlined"
-                keyboardType="number-pad"
-                returnKeyType="done"
-                blurOnSubmit
-                onSubmitEditing={() => Keyboard.dismiss()}
-                style={styles.quantityInput}
-                left={<TextInput.Icon icon="package-variant" />}
-                error={!!existingEntryQuantityError}
-                placeholder="Digite a quantidade"
-              />
-              {existingEntryQuantityError ? (
-                <Text style={styles.errorText}>{existingEntryQuantityError}</Text>
-              ) : null}
-
-              <View style={styles.quickButtons}>
-                {[1, 5, 10, 20, 50].map((num) => (
-                  <TouchableOpacity
-                    key={num}
-                    style={styles.quickButton}
-                    onPress={() => {
-                      Keyboard.dismiss();
-                      setExistingEntryQuantity(String(num));
-                      setExistingEntryQuantityError('');
-                    }}
-                  >
-                    <Text style={styles.quickButtonText}>{num}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-
-              <View style={styles.modalHint}>
-                <Ionicons name="information-circle" size={16} color={Colors.light.info} />
-                <Text style={styles.modalHintText}>
-                  Você será levado para selecionar a entrada existente
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.modalFooter}>
-              <Button
-                mode="outlined"
-                onPress={() => {
-                  Keyboard.dismiss();
-                  setExistingEntryModalVisible(false);
-                }}
-                style={styles.modalCancelButton}
-              >
-                Cancelar
-              </Button>
-              <Button
-                mode="contained"
-                onPress={handleConfirmExistingEntry}
-                style={styles.modalConfirmButton}
-                icon="check"
-              >
-                Continuar
-              </Button>
+              {renderPrimaryModalAction('Continuar', handleConfirmSimpleEntry)}
             </View>
           </View>
         </View>
@@ -614,7 +573,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
 const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   container: {
     padding: theme.spacing.md,
@@ -633,7 +592,7 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: Colors.light.success,
+    color: Colors.light.primary,
     marginBottom: theme.spacing.sm,
   },
   pendingTitle: {
@@ -654,13 +613,13 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   productSummary: {
-    backgroundColor: Colors.light.primary + '08',
+    backgroundColor: Colors.light.background,
     borderRadius: 12,
     padding: theme.spacing.md,
     width: '100%',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.light.primary + '20',
+    borderColor: Colors.light.border,
   },
   productName: {
     fontSize: 16,
@@ -695,25 +654,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 10,
     padding: theme.spacing.md,
-    backgroundColor: Colors.light.warning + '12',
+    backgroundColor: Colors.light.background,
     borderRadius: 12,
     marginBottom: theme.spacing.lg,
     borderWidth: 1,
-    borderColor: Colors.light.warning + '30',
+    borderColor: Colors.light.border,
   },
   stockWarningText: {
     flex: 1,
     fontSize: 13,
-    color: Colors.light.warning,
+    color: Colors.light.text,
     fontWeight: '500',
     lineHeight: 18,
-  },
-  stockWarningInfo: {
-    backgroundColor: Colors.light.info + '10',
-    borderColor: Colors.light.info + '30',
-  },
-  stockWarningTextInfo: {
-    color: Colors.light.info,
   },
 
   // Options
@@ -735,7 +687,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.light.secondary,
   },
   optionCardOutline: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     borderColor: Colors.light.border,
   },
   loadingCard: {
@@ -843,7 +795,7 @@ const styles = StyleSheet.create({
   modalContainer: {
     width: '100%',
     maxWidth: 400,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     borderRadius: 24,
     overflow: 'hidden',
     elevation: 8,
@@ -877,7 +829,7 @@ const styles = StyleSheet.create({
     padding: theme.spacing.lg,
   },
   quantityInput: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     marginBottom: theme.spacing.md,
   },
   errorText: {
@@ -909,14 +861,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    backgroundColor: Colors.light.info + '10',
+    backgroundColor: Colors.light.background,
     padding: theme.spacing.md,
     borderRadius: 12,
   },
   modalHintText: {
     flex: 1,
     fontSize: 12,
-    color: Colors.light.info,
+    color: Colors.light.textSecondary,
     lineHeight: 16,
   },
   modalFooter: {
@@ -932,7 +884,22 @@ const styles = StyleSheet.create({
   },
   modalConfirmButton: {
     flex: 2,
-    backgroundColor: Colors.light.primary,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+    ...theme.shadows.sm,
+  },
+  modalConfirmGradient: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: theme.spacing.md,
+  },
+  modalConfirmText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
   },
 
   // Variant qty modal
@@ -983,7 +950,7 @@ const styles = StyleSheet.create({
     color: Colors.light.primary,
   },
   variantQtyInput: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     width: 72,
   },
   

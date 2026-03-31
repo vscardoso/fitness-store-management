@@ -129,6 +129,19 @@ class Trip(BaseModel):
         lazy="selectin"
     )
 
+    @staticmethod
+    def _to_utc_naive(dt: datetime | None) -> datetime | None:
+        """Normaliza datetime para UTC naive para comparacoes seguras.
+
+        SQLite frequentemente retorna datetime naive, mesmo em colunas timezone=True.
+        Este helper evita TypeError ao comparar valores naive e aware.
+        """
+        if dt is None:
+            return None
+        if dt.tzinfo is None:
+            return dt
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+
     @property
     def computed_status(self) -> TripStatus:
         """
@@ -142,14 +155,16 @@ class Trip(BaseModel):
         Returns:
             TripStatus: Status calculado automaticamente
         """
-        now = datetime.now(timezone.utc)
+        now = datetime.utcnow()
+        return_time = self._to_utc_naive(self.return_time)
+        departure_time = self._to_utc_naive(self.departure_time)
 
         # Se tem horário de retorno e já passou, está completada
-        if self.return_time and now >= self.return_time:
+        if return_time and now >= return_time:
             return TripStatus.COMPLETED
 
         # Se tem horário de partida e já passou (mas retorno não), está em andamento
-        if self.departure_time and now >= self.departure_time:
+        if departure_time and now >= departure_time:
             return TripStatus.IN_PROGRESS
 
         # Caso contrário, ainda está planejada
@@ -188,8 +203,11 @@ class Trip(BaseModel):
         Returns:
             float | None: Duração em horas, ou None se não houver horários definidos
         """
-        if self.departure_time and self.return_time:
-            duration = self.return_time - self.departure_time
+        departure_time = self._to_utc_naive(self.departure_time)
+        return_time = self._to_utc_naive(self.return_time)
+
+        if departure_time and return_time:
+            duration = return_time - departure_time
             return duration.total_seconds() / 3600
         return None
     

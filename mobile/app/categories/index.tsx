@@ -1,68 +1,98 @@
-import React, { useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
   FlatList,
   TouchableOpacity,
   RefreshControl,
-  StatusBar,
+  Text,
+  ActivityIndicator,
 } from 'react-native';
-import { Text, ActivityIndicator } from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
 import { useCategories, useDeleteCategory } from '@/hooks/useCategories';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import type { Category } from '@/types';
 import FAB from '@/components/FAB';
+import PageHeader from '@/components/layout/PageHeader';
+import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
-// Ícones por palavra-chave no nome da categoria
+// ── Ícone por palavra-chave no nome da categoria ──
 const getCategoryIcon = (name: string): keyof typeof Ionicons.glyphMap => {
   const lower = name.toLowerCase();
-  if (lower.includes('suplement') || lower.includes('proteína') || lower.includes('whey')) return 'fitness';
-  if (lower.includes('roupa') || lower.includes('camisa') || lower.includes('camiseta') || lower.includes('short')) return 'shirt';
-  if (lower.includes('sapato') || lower.includes('tênis') || lower.includes('calçad')) return 'footsteps';
-  if (lower.includes('acessór') || lower.includes('bolsa') || lower.includes('mochila')) return 'bag-handle';
-  if (lower.includes('equipament') || lower.includes('haltere') || lower.includes('peso')) return 'barbell';
-  if (lower.includes('bebida') || lower.includes('energét') || lower.includes('isotônic')) return 'cafe';
-  if (lower.includes('vitamina') || lower.includes('minerais') || lower.includes('saúde')) return 'medkit';
-  return 'pricetag';
+  if (lower.includes('suplement') || lower.includes('proteína') || lower.includes('whey')) return 'fitness-outline';
+  if (lower.includes('roupa') || lower.includes('camisa') || lower.includes('camiseta') || lower.includes('short')) return 'shirt-outline';
+  if (lower.includes('sapato') || lower.includes('tênis') || lower.includes('calçad')) return 'footsteps-outline';
+  if (lower.includes('acessór') || lower.includes('bolsa') || lower.includes('mochila')) return 'bag-handle-outline';
+  if (lower.includes('equipament') || lower.includes('haltere') || lower.includes('peso')) return 'barbell-outline';
+  if (lower.includes('bebida') || lower.includes('energét') || lower.includes('isotônic')) return 'cafe-outline';
+  if (lower.includes('vitamina') || lower.includes('minerais') || lower.includes('saúde')) return 'medkit-outline';
+  return 'pricetag-outline';
 };
 
-// Cores fixas para categorias raiz
-const ROOT_CATEGORY_COLORS: [string, string][] = [
-  ['#6366F1', '#8B5CF6'],
-  ['#10B981', '#059669'],
-  ['#F59E0B', '#D97706'],
-  ['#EF4444', '#DC2626'],
-  ['#3B82F6', '#2563EB'],
-  ['#EC4899', '#DB2777'],
-  ['#8B5CF6', '#7C3AED'],
+// ── Cores para ícones de categorias (ciclo) ──
+const CATEGORY_COLORS = [
+  '#6366F1', '#10B981', '#F59E0B', '#EF4444',
+  '#3B82F6', '#EC4899', '#8B5CF6', '#06B6D4',
 ];
+
+const getCategoryColor = (id: number): string => {
+  return CATEGORY_COLORS[id % CATEGORY_COLORS.length];
+};
 
 export default function CategoriesScreen() {
   const router = useRouter();
-  const [refreshing, setRefreshing] = useState(false);
+  const brandingColors = useBrandingColors();
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [deletedName, setDeletedName] = useState('');
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [deleteError, setDeleteError] = useState('');
   const [showErrorDialog, setShowErrorDialog] = useState(false);
-  const { categories, isLoading, refetch } = useCategories();
+  const { categories, isLoading, refetch, isRefetching } = useCategories();
   const deleteMutation = useDeleteCategory();
+
+  // ── Animação de entrada ──
+  const headerOpacity  = useSharedValue(0);
+  const headerScale    = useSharedValue(0.94);
+  const contentOpacity = useSharedValue(0);
+  const contentTransY  = useSharedValue(24);
 
   useFocusEffect(
     useCallback(() => {
       refetch();
+
+      headerOpacity.value  = 0;
+      headerScale.value    = 0.94;
+      contentOpacity.value = 0;
+      contentTransY.value  = 24;
+
+      headerOpacity.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.quad) });
+      headerScale.value   = withSpring(1, { damping: 16, stiffness: 200 });
+      const t = setTimeout(() => {
+        contentOpacity.value = withTiming(1, { duration: 340 });
+        contentTransY.value  = withSpring(0, { damping: 18, stiffness: 200 });
+      }, 140);
+      return () => clearTimeout(t);
     }, [refetch])
   );
 
-  const onRefresh = async () => {
-    setRefreshing(true);
-    await refetch();
-    setRefreshing(false);
-  };
+  const headerAnimStyle  = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTransY.value }],
+  }));
 
   const handleDelete = (category: Category) => {
     setCategoryToDelete(category);
@@ -86,148 +116,132 @@ export default function CategoriesScreen() {
   // Separar raízes e filhas
   const rootCategories = categories.filter((c) => !c.parent_id);
   const childCategories = categories.filter((c) => !!c.parent_id);
-
   const getChildren = (parentId: number) =>
     childCategories.filter((c) => c.parent_id === parentId);
 
-  const renderSubcategory = (sub: Category) => (
-    <View key={sub.id} style={styles.subItem}>
-      <View style={styles.subIconWrap}>
-        <Ionicons name="arrow-forward" size={12} color={Colors.light.textSecondary} />
-      </View>
-      <Text style={styles.subName} numberOfLines={1}>
-        {sub.name}
-      </Text>
-      {sub.description ? (
-        <Text style={styles.subDescription} numberOfLines={1}>
-          {sub.description}
-        </Text>
-      ) : null}
-      <TouchableOpacity
-        style={styles.editBtn}
-        onPress={() => router.push(`/categories/edit/${sub.id}`)}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <Ionicons name="pencil-outline" size={16} color={Colors.light.primary} />
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.deleteBtn}
-        onPress={() => handleDelete(sub)}
-        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-      >
-        <Ionicons name="trash-outline" size={16} color={Colors.light.error} />
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderCategory = ({ item, index }: { item: Category; index: number }) => {
-    const colors = ROOT_CATEGORY_COLORS[index % ROOT_CATEGORY_COLORS.length];
-    const children = getChildren(item.id);
+  // ── Renderizar categoria (2 por linha) ──
+  const renderCategory = ({ item }: { item: Category }) => {
+    const color = getCategoryColor(item.id);
     const icon = getCategoryIcon(item.name);
+    const children = getChildren(item.id);
+    const productCount = (item as any).product_count || 0;
 
     return (
-      <View style={styles.card}>
-        {/* Header da categoria raiz */}
-        <LinearGradient colors={colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.cardHeader}>
-          <View style={styles.cardIconWrap}>
-            <Ionicons name={icon} size={24} color="#fff" />
+      <TouchableOpacity
+        style={styles.cardWrapper}
+        onPress={() => router.push(`/categories/edit/${item.id}`)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.card}>
+          {/* Ícone */}
+          <View style={[styles.iconContainer, { backgroundColor: color + '15' }]}>
+            <Ionicons name={icon} size={32} color={color} />
           </View>
-          <View style={styles.cardInfo}>
-            <Text style={styles.cardName}>{item.name}</Text>
-            {item.description ? (
-              <Text style={styles.cardDescription} numberOfLines={1}>
-                {item.description}
-              </Text>
-            ) : null}
-            <Text style={styles.cardMeta}>
-              {children.length} subcategoria{children.length !== 1 ? 's' : ''}
-            </Text>
-          </View>
-          <TouchableOpacity
-            style={styles.cardEditBtn}
-            onPress={() => router.push(`/categories/edit/${item.id}`)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="pencil-outline" size={18} color="rgba(255,255,255,0.9)" />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.cardDeleteBtn}
-            onPress={() => handleDelete(item)}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-          >
-            <Ionicons name="trash-outline" size={18} color="rgba(255,255,255,0.9)" />
-          </TouchableOpacity>
-        </LinearGradient>
 
-        {/* Subcategorias */}
-        {children.length > 0 && (
-          <View style={styles.childrenWrap}>
-            {children.map(renderSubcategory)}
+          {/* Nome */}
+          <Text style={styles.categoryName} numberOfLines={2}>
+            {item.name}
+          </Text>
+
+          {/* Descrição */}
+          {item.description ? (
+            <Text style={styles.categoryDescription} numberOfLines={2}>
+              {item.description}
+            </Text>
+          ) : null}
+
+          {/* Contador */}
+          <View style={styles.statsRow}>
+            {children.length > 0 && (
+              <View style={styles.statBadge}>
+                <Ionicons name="folder-outline" size={12} color={Colors.light.textSecondary} />
+                <Text style={styles.statText}>{children.length}</Text>
+              </View>
+            )}
+            {productCount > 0 && (
+              <View style={styles.statBadge}>
+                <Ionicons name="pricetag-outline" size={12} color={Colors.light.textSecondary} />
+                <Text style={styles.statText}>{productCount}</Text>
+              </View>
+            )}
           </View>
-        )}
-      </View>
+
+          {/* Botões de ação */}
+          <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={[styles.actionBtn, { borderColor: brandingColors.primary + '40' }]}
+              onPress={(e) => {
+                e.stopPropagation();
+                router.push(`/categories/edit/${item.id}`);
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="pencil-outline" size={16} color={brandingColors.primary} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionBtn, { borderColor: Colors.light.error + '40' }]}
+              onPress={(e) => {
+                e.stopPropagation();
+                handleDelete(item);
+              }}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="trash-outline" size={16} color={Colors.light.error} />
+            </TouchableOpacity>
+          </View>
+        </View>
+      </TouchableOpacity>
     );
   };
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
-
-      {/* Header */}
-      <LinearGradient
-        colors={[Colors.light.primary, Colors.light.secondary]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <View style={styles.headerTitles}>
-          <Text style={styles.headerTitle}>Categorias</Text>
-          <Text style={styles.headerSubtitle}>
-            {categories.length} categoria{categories.length !== 1 ? 's' : ''} cadastrada{categories.length !== 1 ? 's' : ''}
-          </Text>
-        </View>
-        <TouchableOpacity
-          style={styles.addBtn}
-          onPress={() => router.push('/categories/add')}
-        >
-          <Ionicons name="add" size={24} color="#fff" />
-        </TouchableOpacity>
-      </LinearGradient>
-
-      {/* Conteúdo */}
-      {isLoading ? (
-        <View style={styles.loading}>
-          <ActivityIndicator color={Colors.light.primary} />
-        </View>
-      ) : (
-        <FlatList
-          data={rootCategories}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderCategory}
-          contentContainerStyle={styles.list}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[Colors.light.primary]}
-            />
-          }
-          ListEmptyComponent={
-            <View style={styles.emptyWrap}>
-              <Ionicons name="pricetags-outline" size={64} color={Colors.light.textTertiary} />
-              <Text style={styles.emptyTitle}>Nenhuma categoria</Text>
-              <Text style={styles.emptyDesc}>
-                Toque no botão + para criar a primeira categoria
-              </Text>
-            </View>
-          }
+      {/* ── Header animado ── */}
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title="Categorias"
+          subtitle={`${rootCategories.length} ${rootCategories.length === 1 ? 'categoria' : 'categorias'}`}
+          showBackButton
+          onBack={() => router.back()}
         />
-      )}
+      </Animated.View>
 
-      <FAB directRoute="/categories/add" bottom={24} />
+      {/* ── Conteúdo animado ── */}
+      <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
+        {isLoading && !isRefetching ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={brandingColors.primary} />
+            <Text style={styles.loadingText}>Carregando categorias...</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={rootCategories}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={renderCategory}
+            numColumns={2}
+            contentContainerStyle={styles.listContent}
+            columnWrapperStyle={styles.columnWrapper}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefetching}
+                onRefresh={refetch}
+                colors={[brandingColors.primary]}
+              />
+            }
+            ListEmptyComponent={
+              <EmptyState
+                icon="pricetags-outline"
+                title="Nenhuma categoria"
+                description="Toque no botão + para criar a primeira categoria"
+              />
+            }
+          />
+        )}
+      </Animated.View>
+
+      {/* FAB */}
+      <FAB directRoute="/categories/add" />
 
       {/* Sucesso de exclusão */}
       <ConfirmDialog
@@ -269,182 +283,111 @@ export default function CategoriesScreen() {
   );
 }
 
+// ─── Estilos ──────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
   },
-
-  // Header
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingTop: 50,
-    paddingBottom: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.md,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    gap: theme.spacing.md,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+  centerContainer: {
+    flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: theme.spacing.lg,
   },
-  headerTitles: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: theme.fontSize.xxl,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  headerSubtitle: {
+  loadingText: {
+    marginTop: theme.spacing.md,
+    color: Colors.light.textSecondary,
     fontSize: theme.fontSize.sm,
-    color: 'rgba(255,255,255,0.85)',
-    marginTop: 2,
-  },
-  addBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 
-  // Loading
-  loading: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+  // ── Lista ──
+  listContent: {
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.xxl,
+  },
+  columnWrapper: {
+    justifyContent: 'flex-start',
+    paddingHorizontal: theme.spacing.sm,
   },
 
-  // List
-  list: {
-    padding: theme.spacing.md,
-    paddingBottom: 120,
-    gap: theme.spacing.md,
+  // ── Card ──
+  cardWrapper: {
+    width: '47%',
+    marginHorizontal: 6,
+    marginBottom: theme.spacing.sm,
   },
-
-  // Card (categoria raiz)
   card: {
-    borderRadius: theme.borderRadius.xl,
-    overflow: 'hidden',
     backgroundColor: Colors.light.card,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 6,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: theme.spacing.md,
-    gap: theme.spacing.md,
-  },
-  cardIconWrap: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.25)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cardInfo: {
-    flex: 1,
-  },
-  cardName: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: '700',
-    color: '#fff',
-  },
-  cardDescription: {
-    fontSize: theme.fontSize.xs,
-    color: 'rgba(255,255,255,0.85)',
-    marginTop: 2,
-  },
-  cardMeta: {
-    fontSize: theme.fontSize.xs,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 4,
-  },
-  cardEditBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  cardDeleteBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(0,0,0,0.15)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
-  // Subcategorias
-  childrenWrap: {
-    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.xl,
+    paddingVertical: theme.spacing.md,
     paddingHorizontal: theme.spacing.sm,
-    gap: 2,
-  },
-  subItem: {
-    flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.sm,
-    gap: theme.spacing.sm,
-    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
   },
-  subIconWrap: {
-    width: 20,
-    height: 20,
+  iconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
+    marginBottom: theme.spacing.sm,
   },
-  subName: {
-    flex: 1,
-    fontSize: theme.fontSize.base,
-    color: Colors.light.text,
-    fontWeight: '500',
-  },
-  subDescription: {
-    fontSize: theme.fontSize.xs,
-    color: Colors.light.textSecondary,
-    flex: 1,
-  },
-  editBtn: {
-    padding: 4,
-  },
-  deleteBtn: {
-    padding: 4,
-  },
-
-  // Empty state
-  emptyWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingTop: 80,
-    gap: theme.spacing.md,
-  },
-  emptyTitle: {
-    fontSize: theme.fontSize.xl,
-    fontWeight: '700',
-    color: Colors.light.text,
-  },
-  emptyDesc: {
-    fontSize: theme.fontSize.base,
-    color: Colors.light.textSecondary,
+  categoryName: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
     textAlign: 'center',
-    paddingHorizontal: theme.spacing.xl,
+    marginBottom: theme.spacing.xs,
+    color: Colors.light.text,
+    minHeight: 36,
+  },
+  categoryDescription: {
+    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.xxs,
+    textAlign: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+
+  // ── Stats ──
+  statsRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.xs,
+    marginTop: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
+  },
+  statBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: Colors.light.backgroundSecondary,
+  },
+  statText: {
+    fontSize: theme.fontSize.xxs,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+  },
+
+  // ── Actions ──
+  actionsRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    width: '100%',
+    justifyContent: 'center',
+  },
+  actionBtn: {
+    flex: 1,
+    maxWidth: 60,
+    height: 32,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.light.card,
   },
 });

@@ -1,7 +1,8 @@
 /**
  * KeyboardSafeView
  * Substitui o <View style={styles.container}> raiz de telas que têm inputs.
- * Usa KeyboardAvoidingView com o behavior correto por plataforma.
+ * Wrapper de compatibilidade que delega para KeyboardAwareScreen.
+ * Mantido para evitar quebrar imports legados.
  *
  * Uso:
  *   import KeyboardSafeView from '@/components/ui/KeyboardSafeView';
@@ -9,7 +10,8 @@
  */
 
 import React from 'react';
-import { KeyboardAvoidingView, Platform, StyleSheet, ViewStyle } from 'react-native';
+import { StyleSheet, ViewStyle } from 'react-native';
+import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
 
 interface Props {
   children: React.ReactNode;
@@ -18,15 +20,18 @@ interface Props {
 
 export default function KeyboardSafeView({ children, style }: Props) {
   return (
-    <KeyboardAvoidingView
-      style={[styles.root, style]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <KeyboardAwareScreen
+      style={style}
+      contentContainerStyle={styles.content}
+      bottomPadding={140}
     >
       {children}
-    </KeyboardAvoidingView>
+    </KeyboardAwareScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1 },
+  content: {
+    flexGrow: 1,
+  },
 });

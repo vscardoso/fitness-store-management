@@ -38,6 +38,7 @@ export default function ProductSelectionModal({
     data: products,
     isLoading,
     isError,
+    refetch,
   } = useQuery({
     queryKey: ['grouped-products-modal', hasStock],
     queryFn: () => getGroupedProducts({ limit: 500, has_stock: hasStock }),
@@ -49,11 +50,17 @@ export default function ProductSelectionModal({
     if (visible) {
       setSearchQuery('');
       setSelectedProduct(null);
+      refetch();
     }
-  }, [visible]);
+  }, [visible, refetch]);
 
   // Filter products by search query (client-side filtering)
   const filteredProducts = products?.filter((product: ProductGrouped) => {
+    // Em fluxos de venda/condicional com hasStock=true, nunca listar produto zerado
+    if (hasStock && (product.total_stock ?? 0) <= 0) {
+      return false;
+    }
+
     if (!searchQuery.trim()) {
       return true;
     }
@@ -121,11 +128,13 @@ export default function ProductSelectionModal({
         {/* Variantes - apenas se selecionado */}
         {isSelected && (
           <View style={styles.variantsContainer}>
-            {item.variants.map((variant) => {
+            {item.variants
+              .filter((variant) => !hasStock || (variant.current_stock ?? 0) > 0)
+              .map((variant) => {
               const hasVariantStock = variant.current_stock > 0;
               return (
                 <TouchableOpacity
-                  key={variant.id}
+                  key={`${item.id}-${variant.id}-${variant.sku ?? 'nosku'}`}
                   onPress={() => handleVariantPress(item, variant)}
                   activeOpacity={0.7}
                   disabled={!hasVariantStock}
@@ -208,7 +217,7 @@ export default function ProductSelectionModal({
             <FlatList
               data={filteredProducts}
               renderItem={renderProduct}
-              keyExtractor={(item) => item.id.toString()}
+              keyExtractor={(item, index) => `${item.id}-${item.name}-${index}`}
               contentContainerStyle={styles.listContent}
               ListEmptyComponent={
                 <EmptyState

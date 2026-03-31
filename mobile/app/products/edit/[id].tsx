@@ -23,6 +23,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
 import useBackToList from '@/hooks/useBackToList';
+import { useBrandingColors } from '@/store/brandingStore';
 import { useQuery } from '@tanstack/react-query';
 import { useCategories, useUpdateProduct } from '@/hooks';
 import { getProductById } from '@/services/productService';
@@ -35,6 +36,7 @@ import { formatPriceInput, formatPriceDisplay, formatMoneyDisplay } from '@/util
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const brandingColors = useBrandingColors();
   const { categories, isLoading: loadingCategories } = useCategories();
   const updateMutation = useUpdateProduct();
 
@@ -111,6 +113,10 @@ export default function EditProductScreen() {
    */
   useEffect(() => {
     if (product) {
+      console.log('📦 Produto carregado:', product);
+      console.log('📋 Category ID:', product.category_id);
+      console.log('📋 Category:', product.category);
+      
       setName(product.name || '');
       setSku(product.sku || '');
 
@@ -118,7 +124,15 @@ export default function EditProductScreen() {
       setBrand(product.brand || '');
       setColor(product.color || '');
       setSize(product.size || '');
-      setCategoryId(product.category_id);
+      
+      // Garantir que category_id seja um número válido
+      if (product.category_id !== null && product.category_id !== undefined) {
+        setCategoryId(product.category_id);
+        console.log('✅ Category ID setado:', product.category_id);
+      } else {
+        console.warn('⚠️ Category ID inválido ou ausente:', product.category_id);
+        setCategoryId(undefined);
+      }
       
       const safeToFixed = (value: any): string => {
         if (value == null) return '';
@@ -488,6 +502,12 @@ export default function EditProductScreen() {
               <HelperText type="error">Nenhuma categoria disponível. Cadastre categorias primeiro.</HelperText>
             ) : (
               <>
+                {console.log('🔍 Renderizando select:', {
+                  categoryId,
+                  productCategory: product?.category,
+                  categoriesLength: categories.length,
+                  foundInList: categories.find(c => c.id === categoryId)?.name
+                })}
                 <TouchableOpacity
                   onPress={() => setMenuVisible(true)}
                   style={[
@@ -502,9 +522,14 @@ export default function EditProductScreen() {
                       color={categoryId ? Colors.light.primary : Colors.light.textTertiary}
                     />
                     <Text style={categoryId ? styles.categoryText : styles.categoryPlaceholder}>
-                      {categoryId 
-                        ? categories.find(c => c.id === categoryId)?.name 
-                        : 'Selecione uma categoria'}
+                      {(() => {
+                        if (!categoryId) return 'Selecione uma categoria';
+                        // Usar o nome da categoria que vem do produto (mais confiável)
+                        if (product?.category?.name) return product.category.name;
+                        // Fallback: procurar na lista de categorias
+                        const found = categories.find(c => c.id === categoryId);
+                        return found?.name || 'Selecione uma categoria';
+                      })()}
                     </Text>
                     <Ionicons
                       name="chevron-forward"
@@ -623,17 +648,6 @@ export default function EditProductScreen() {
                     {/* Header melhorado */}
                     <View style={styles.variantHeader}>
                       <View style={styles.variantHeaderLeft}>
-                        {/* Thumbnail da foto */}
-                        {(variant as any).image_url ? (
-                          <Image
-                            source={{ uri: (variant as any).image_url }}
-                            style={styles.variantThumb}
-                          />
-                        ) : (
-                          <View style={styles.variantThumbPlaceholder}>
-                            <Ionicons name="camera-outline" size={14} color={Colors.light.textSecondary} />
-                          </View>
-                        )}
                         <View style={[
                           styles.variantStockDot,
                           vStock === 0 ? { backgroundColor: Colors.light.error }
@@ -725,7 +739,7 @@ export default function EditProductScreen() {
             activeOpacity={0.85}
           >
             <LinearGradient
-              colors={['#6366F1', '#8B5CF6']}
+              colors={brandingColors.gradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.photosButtonGradient}
@@ -745,24 +759,38 @@ export default function EditProductScreen() {
 
         {/* Botões de ação */}
         <View style={styles.actions}>
-          <Button
-            mode="outlined"
+          <TouchableOpacity
+            style={[styles.actionButton, styles.cancelActionButton]}
             onPress={() => router.back()}
-            style={styles.button}
             disabled={updateMutation.isPending}
+            activeOpacity={0.75}
           >
-            Cancelar
-          </Button>
+            <Ionicons name="close-circle-outline" size={18} color={Colors.light.textSecondary} />
+            <Text style={styles.cancelActionButtonText}>Cancelar</Text>
+          </TouchableOpacity>
 
-          <Button
-            mode="contained"
+          <TouchableOpacity
+            style={[styles.actionButton, styles.saveActionButton, updateMutation.isPending && styles.saveActionButtonDisabled]}
             onPress={handleSave}
-            style={[styles.button, styles.buttonPrimary]}
-            loading={updateMutation.isPending}
             disabled={updateMutation.isPending}
+            activeOpacity={0.8}
           >
-            Salvar Alterações
-          </Button>
+            <LinearGradient
+              colors={updateMutation.isPending ? ['#9CA3AF', '#9CA3AF'] : brandingColors.gradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.saveActionButtonGradient}
+            >
+              {updateMutation.isPending ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+              )}
+              <Text style={styles.saveActionButtonText}>
+                {updateMutation.isPending ? 'Salvando...' : 'Salvar Alterações'}
+              </Text>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
         </ScrollView>
       </KeyboardAvoidingView>
@@ -1001,15 +1029,47 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: theme.spacing.sm,
     marginTop: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.md,
+    paddingHorizontal: 0,
     paddingBottom: theme.spacing.md,
   },
-  button: {
+  actionButton: {
     flex: 1,
-    borderRadius: 12,
+    borderRadius: theme.borderRadius.lg,
+    minHeight: 52,
+    overflow: 'hidden',
   },
-  buttonPrimary: {
-    backgroundColor: Colors.light.primary,
+  cancelActionButton: {
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  cancelActionButtonText: {
+    fontSize: theme.fontSize.base,
+    color: Colors.light.textSecondary,
+    fontWeight: '700',
+  },
+  saveActionButton: {
+    ...theme.shadows.sm,
+  },
+  saveActionButtonDisabled: {
+    opacity: 1,
+  },
+  saveActionButtonGradient: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: theme.spacing.md,
+  },
+  saveActionButtonText: {
+    fontSize: theme.fontSize.base,
+    color: '#fff',
+    fontWeight: '700',
   },
   errorTitle: {
     fontSize: 18,
@@ -1570,7 +1630,7 @@ const styles = StyleSheet.create({
   variantHeaderLeft: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     flex: 1,
   },
   variantStockDot: {

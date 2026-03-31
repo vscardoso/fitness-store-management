@@ -93,14 +93,15 @@ elif _is_sqlite and settings.ENVIRONMENT == "test":
 
 else:
     # SQLite dev local
-    ASYNC_DATABASE_URL = database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
+    # Evita duplo "+aiosqlite" caso DATABASE_URL já inclua o driver
+    if "+aiosqlite" not in database_url:
+        ASYNC_DATABASE_URL = database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
+    else:
+        ASYNC_DATABASE_URL = database_url
     engine = create_async_engine(
         ASYNC_DATABASE_URL,
         echo=settings.DEBUG,
-        pool_size=5,
-        max_overflow=10,
-        pool_pre_ping=True,
-        pool_recycle=300,
+        connect_args={"check_same_thread": False},
     )
 
 # ── Session factory ───────────────────────────────────────────────────

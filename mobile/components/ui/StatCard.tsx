@@ -1,46 +1,61 @@
-import { View, StyleSheet } from 'react-native';
-import { Text } from 'react-native-paper';
+import Animated, { useSharedValue, useAnimatedStyle, withSpring, withTiming, Easing } from 'react-native-reanimated';
+import { useEffect } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
 
 interface StatCardProps {
-  /** Label da estatística */
   label: string;
-  /** Valor principal */
   value: string;
-  /** Ícone (opcional) */
   icon?: keyof typeof Ionicons.glyphMap;
-  /** Cor do valor (opcional) */
   valueColor?: string;
-  /** Valor secundário (opcional, ex: "un", "%") */
   suffix?: string;
+  /** índice para animação staggered (0, 1, 2...) */
+  index?: number;
 }
 
 export default function StatCard({
   label,
   value,
   icon,
-  valueColor = Colors.light.primary,
+  valueColor,
   suffix,
+  index = 0,
 }: StatCardProps) {
+  const color = valueColor ?? Colors.light.primary;
+
+  const opacity = useSharedValue(0);
+  const translateY = useSharedValue(12);
+  const scale = useSharedValue(0.95);
+
+  useEffect(() => {
+    const delay = index * 60;
+    const timer = setTimeout(() => {
+      opacity.value = withTiming(1, { duration: 300, easing: Easing.out(Easing.quad) });
+      translateY.value = withSpring(0, { damping: 18, stiffness: 200 });
+      scale.value = withSpring(1, { damping: 16, stiffness: 200 });
+    }, delay);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ translateY: translateY.value }, { scale: scale.value }],
+  }));
+
   return (
-    <View style={styles.container}>
+    <Animated.View style={[styles.container, animatedStyle]}>
       {icon && (
-        <Ionicons
-          name={icon}
-          size={20}
-          color={Colors.light.icon}
-          style={styles.icon}
-        />
+        <Ionicons name={icon} size={20} color={Colors.light.icon} style={styles.icon} />
       )}
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label]}>{label}</Text>
       <View style={styles.valueContainer}>
-        <Text style={[styles.value, { color: valueColor }]} numberOfLines={1} adjustsFontSizeToFit>
+        <Text style={[styles.value, { color }]} numberOfLines={1} adjustsFontSizeToFit>
           {value}
         </Text>
-        {suffix && <Text style={styles.suffix}>{suffix}</Text>}
+        {suffix && <Text style={[styles.suffix]}>{suffix}</Text>}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -48,30 +63,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     minWidth: 100,
-    backgroundColor: '#fff',
-    padding: 12,
-    borderRadius: 16,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    padding: theme.spacing.sm + 4,
+    borderRadius: theme.borderRadius.xl,
+    backgroundColor: Colors.light.card,
+    ...theme.shadows.sm,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.06)',
+    borderColor: Colors.light.border,
     alignItems: 'center',
   },
-  icon: {
-    marginBottom: 8,
-    opacity: 0.8,
-  },
+  icon: { marginBottom: theme.spacing.sm, opacity: 0.8 },
   label: {
-    fontSize: 11,
-    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.xs,
     marginBottom: 6,
-    fontWeight: '600',
+    fontWeight: theme.fontWeight.semibold,
     textTransform: 'uppercase',
     letterSpacing: 0.3,
     textAlign: 'center',
+    color: Colors.light.textSecondary,
   },
   valueContainer: {
     flexDirection: 'row',
@@ -80,15 +88,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   value: {
-    fontSize: 18,
-    fontWeight: '800',
+    fontSize: theme.fontSize.lg,
+    fontWeight: theme.fontWeight.extrabold,
     letterSpacing: -0.3,
     textAlign: 'center',
   },
   suffix: {
-    fontSize: 14,
-    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.md,
     marginLeft: 3,
-    fontWeight: '600',
+    fontWeight: theme.fontWeight.semibold,
+    color: Colors.light.textSecondary,
   },
 });

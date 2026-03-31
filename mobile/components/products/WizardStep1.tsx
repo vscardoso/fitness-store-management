@@ -22,9 +22,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import * as MediaLibrary from 'expo-media-library';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import type { IdentifyMethod } from '@/types/wizard';
-import type { Category, Product } from '@/types';
+import type { Category, Product, DuplicateMatch } from '@/types';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getCatalogProducts } from '@/services/productService';
@@ -43,16 +44,44 @@ export default function WizardStep1({
   // Guard defensivo: garante que categories é sempre um array
   const categories = Array.isArray(categoriesProp) ? categoriesProp : [];
   const { state } = wizard;
+  const brandingColors = useBrandingColors();
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [isSavingToGallery, setIsSavingToGallery] = useState(false);
 
-  // Estado do catálogo
+  // State para catálogo
   const [catalogSearch, setCatalogSearch] = useState('');
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [galleryDialog, setGalleryDialog] = useState<{
     visible: boolean; title: string; message: string; type: 'success' | 'danger' | 'warning';
   }>({ visible: false, title: '', message: '', type: 'success' });
+
+  // Guardrails para seleção de duplicado
+  const [isLoadingDuplicate, setIsLoadingDuplicate] = useState(false);
+  const duplicateSelectInProgressRef = React.useRef(false);
+
+  const renderPrimaryAction = (
+    label: string,
+    onPress: () => void,
+    options?: { icon?: keyof typeof Ionicons.glyphMap; disabled?: boolean; style?: any }
+  ) => (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.8}
+      disabled={options?.disabled}
+      style={[styles.gradientActionButton, options?.style, options?.disabled && styles.gradientActionButtonDisabled]}
+    >
+      <LinearGradient
+        colors={brandingColors.gradient}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={styles.gradientActionButtonContent}
+      >
+        {options?.icon ? <Ionicons name={options.icon} size={18} color="#fff" /> : null}
+        <Text style={styles.gradientActionButtonText}>{label}</Text>
+      </LinearGradient>
+    </TouchableOpacity>
+  );
 
   // Carregar catálogo quando método = catalog
   useEffect(() => {
@@ -88,6 +117,42 @@ export default function WizardStep1({
     }, 400);
     return () => clearTimeout(timer);
   }, [catalogSearch, state.identifyMethod]);
+
+  // ── BLOCO BLINDADO ────────────────────────────────────────────────────────────
+  // O auto-avanço para Step 2 ao selecionar um produto similar foi REMOVIDO daqui.
+  // A navegação agora é feita diretamente dentro de selectDuplicateProduct no hook
+  // (via currentStep: 'confirm' no setState), eliminando a dependência frágil de
+  // state.duplicates.length > 0 e o loop de volta (back → Step1 → onNext() loop).
+  // NÃO reintroduzir um useEffect de auto-avanço aqui sem revisar o hook primeiro.
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  // Guardrails para seleção de duplicado com prevenção de double-click
+  const handleSelectDuplicate = useCallback((productId: number) => {
+    // Invariant 1: Já há um carregamento em progresso
+    if (duplicateSelectInProgressRef.current || isLoadingDuplicate) {
+      return; // Ignora cliques adicionais (prevenção de double-click)
+    }
+
+    // Invariant 2: ProductId válido
+    if (!productId || productId <= 0) {
+      console.warn('[WizardStep1] ProductId inválido:', productId);
+      return;
+    }
+
+    // Invariant 3: Verifique se o produto tem um sku (sanidade)
+    const selectedDup = state.duplicates.find((d: DuplicateMatch) => d.product_id === productId);
+    if (!selectedDup) {
+      console.warn('[WizardStep1] Duplicado não encontrado na lista:', productId);
+      return;
+    }
+
+    // Tudo OK — marca como em progresso e chama a função
+    duplicateSelectInProgressRef.current = true;
+    setIsLoadingDuplicate(true);
+
+    wizard.selectDuplicateProduct(productId);
+    // Note: O useEffect monitorará createdProduct e resetará os flags quando navegar
+  }, [wizard, state.duplicates, isLoadingDuplicate]);
 
   // Função para salvar foto na galeria (usa ConfirmDialog local)
   const saveToGallery = async () => {
@@ -137,21 +202,21 @@ export default function WizardStep1({
         <TouchableOpacity
           style={[
             styles.methodButton,
-            state.identifyMethod === 'scanner' && styles.methodButtonActive,
+            state.identifyMethod === 'scanner' && { borderColor: brandingColors.primary },
           ]}
           onPress={() => wizard.selectMethod('scanner')}
           activeOpacity={0.8}
         >
           <LinearGradient
             colors={state.identifyMethod === 'scanner'
-              ? [Colors.light.primary, Colors.light.secondary]
+              ? [brandingColors.primary, brandingColors.secondary]
               : ['#F3F4F6', '#F3F4F6']}
             style={styles.methodButtonGradient}
           >
             <Ionicons
               name="scan"
               size={32}
-              color={state.identifyMethod === 'scanner' ? '#fff' : Colors.light.primary}
+              color={state.identifyMethod === 'scanner' ? '#fff' : brandingColors.primary}
             />
             <Text style={[
               styles.methodButtonText,
@@ -172,23 +237,23 @@ export default function WizardStep1({
         <TouchableOpacity
           style={[
             styles.methodButton,
-            state.identifyMethod === 'manual' && styles.methodButtonActive,
+            state.identifyMethod === 'manual' && { borderColor: brandingColors.primary },
           ]}
           onPress={() => wizard.selectMethod('manual')}
           activeOpacity={0.8}
         >
           <View style={[
             styles.methodButtonContent,
-            state.identifyMethod === 'manual' && styles.methodButtonContentActive,
+            state.identifyMethod === 'manual' && { backgroundColor: brandingColors.primary + '15' },
           ]}>
             <Ionicons
               name="pencil"
               size={32}
-              color={state.identifyMethod === 'manual' ? Colors.light.primary : Colors.light.textSecondary}
+              color={state.identifyMethod === 'manual' ? brandingColors.primary : Colors.light.textSecondary}
             />
             <Text style={[
               styles.methodButtonText,
-              state.identifyMethod === 'manual' && styles.methodButtonTextManual,
+              state.identifyMethod === 'manual' && { color: brandingColors.primary },
             ]}>
               Manual
             </Text>
@@ -203,7 +268,7 @@ export default function WizardStep1({
       <TouchableOpacity
         style={[
           styles.catalogMethodButton,
-          state.identifyMethod === 'catalog' && styles.catalogMethodButtonActive,
+          state.identifyMethod === 'catalog' && { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary + '08' },
         ]}
         onPress={() => wizard.selectMethod('catalog')}
         activeOpacity={0.8}
@@ -211,12 +276,12 @@ export default function WizardStep1({
         <Ionicons
           name="library-outline"
           size={22}
-          color={state.identifyMethod === 'catalog' ? Colors.light.primary : Colors.light.textSecondary}
+          color={state.identifyMethod === 'catalog' ? brandingColors.primary : Colors.light.textSecondary}
         />
         <View style={styles.catalogMethodTextContainer}>
           <Text style={[
             styles.catalogMethodText,
-            state.identifyMethod === 'catalog' && styles.catalogMethodTextActive,
+            state.identifyMethod === 'catalog' && { color: brandingColors.primary },
           ]}>
             Selecionar do Catálogo
           </Text>
@@ -227,7 +292,7 @@ export default function WizardStep1({
         <Ionicons
           name="chevron-forward"
           size={18}
-          color={state.identifyMethod === 'catalog' ? Colors.light.primary : Colors.light.textTertiary}
+          color={state.identifyMethod === 'catalog' ? brandingColors.primary : Colors.light.textTertiary}
         />
       </TouchableOpacity>
     </View>
@@ -302,7 +367,7 @@ export default function WizardStep1({
         {/* Lista de produtos */}
         {catalogLoading ? (
           <View style={styles.catalogLoadingContainer}>
-            <ActivityIndicator size="small" color={Colors.light.primary} />
+            <ActivityIndicator size="small" color={brandingColors.primary} />
             <Text style={styles.catalogLoadingText}>Carregando...</Text>
           </View>
         ) : catalogProducts.length === 0 ? (
@@ -322,7 +387,7 @@ export default function WizardStep1({
                   key={product.id}
                   style={[
                     styles.catalogItem,
-                    isSelected && styles.catalogItemSelected,
+                    isSelected && { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary + '06' },
                   ]}
                   onPress={() => wizard.selectCatalogProduct(isSelected ? null as any : product)}
                   activeOpacity={0.7}
@@ -330,7 +395,7 @@ export default function WizardStep1({
                   {/* Indicador de seleção */}
                   <View style={[
                     styles.catalogItemRadio,
-                    isSelected && styles.catalogItemRadioSelected,
+                    isSelected && { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary },
                   ]}>
                     {isSelected && <Ionicons name="checkmark" size={12} color="#fff" />}
                   </View>
@@ -338,7 +403,7 @@ export default function WizardStep1({
                   <View style={styles.catalogItemInfo}>
                     <Text style={[
                       styles.catalogItemName,
-                      isSelected && styles.catalogItemNameSelected,
+                      isSelected && { color: brandingColors.primary },
                     ]} numberOfLines={1}>
                       {product.name}
                     </Text>
@@ -352,7 +417,7 @@ export default function WizardStep1({
                   {product.price != null && product.price > 0 ? (
                     <Text style={[
                       styles.catalogItemPrice,
-                      isSelected && styles.catalogItemPriceSelected,
+                      isSelected && { color: brandingColors.primary },
                     ]}>
                       R$ {Number(product.price).toFixed(2).replace('.', ',')}
                     </Text>
@@ -374,10 +439,10 @@ export default function WizardStep1({
         <View style={styles.scannerContainer}>
           <View style={styles.illustrationContainer}>
             <LinearGradient
-              colors={[Colors.light.primary + '20', Colors.light.secondary + '20']}
+              colors={[brandingColors.primary + '20', brandingColors.secondary + '20']}
               style={styles.illustrationGradient}
             >
-              <Ionicons name="camera" size={60} color={Colors.light.primary} />
+              <Ionicons name="camera" size={60} color={brandingColors.primary} />
             </LinearGradient>
           </View>
 
@@ -387,25 +452,15 @@ export default function WizardStep1({
           </Text>
 
           <View style={styles.captureButtons}>
-            <Button
-              mode="contained"
-              onPress={wizard.takePhoto}
-              icon="camera"
-              style={styles.captureButton}
-              contentStyle={styles.captureButtonContent}
-            >
-              Tirar Foto
-            </Button>
+            {renderPrimaryAction('Tirar Foto', wizard.takePhoto, {
+              icon: 'camera-outline',
+              style: styles.captureButton,
+            })}
 
-            <Button
-              mode="contained"
-              onPress={wizard.pickFromGallery}
-              icon="image-multiple"
-              style={styles.captureButton}
-              contentStyle={styles.captureButtonContent}
-            >
-              Galeria
-            </Button>
+            {renderPrimaryAction('Galeria', wizard.pickFromGallery, {
+              icon: 'images-outline',
+              style: styles.captureButton,
+            })}
           </View>
 
           {/* Dicas */}
@@ -485,9 +540,9 @@ export default function WizardStep1({
                 Identificado
               </Text>
             </View>
-            <View style={[styles.badge, { backgroundColor: Colors.light.primary + '20' }]}>
-              <Ionicons name="analytics" size={14} color={Colors.light.primary} />
-              <Text style={[styles.badgeText, { color: Colors.light.primary }]}>
+            <View style={[styles.badge, { backgroundColor: brandingColors.primary + '20' }]}>
+              <Ionicons name="analytics" size={14} color={brandingColors.primary} />
+              <Text style={[styles.badgeText, { color: brandingColors.primary }]}>
                 {Math.round(state.scanResult.confidence * 100)}% confiança
               </Text>
             </View>
@@ -498,79 +553,71 @@ export default function WizardStep1({
             <Card.Content>
               <Text style={styles.previewName}>{state.scanResult.name}</Text>
               <Text style={styles.previewSku}>SKU: {state.scanResult.suggested_sku}</Text>
-              <Text style={styles.previewCategory}>{state.scanResult.suggested_category}</Text>
+              <Text style={[styles.previewCategory, { color: brandingColors.primary }]}>{state.scanResult.suggested_category}</Text>
             </Card.Content>
           </Card>
 
           {/* Painel de duplicados expandido */}
           {state.duplicates.length > 0 && (
-            <Card style={styles.duplicatesCard}>
-              <Card.Content>
-                <View style={styles.duplicatesHeader}>
-                  <View style={styles.duplicatesIconContainer}>
-                    <Ionicons name="alert-circle" size={20} color={Colors.light.warning} />
-                  </View>
-                  <View style={styles.duplicatesHeaderText}>
-                    <Text style={styles.duplicatesTitle}>
-                      {state.duplicates.length} produto(s) similar(es)
-                    </Text>
-                    <Text style={styles.duplicatesSubtitle}>
-                      Já existe no sistema. Deseja usar um deles?
-                    </Text>
-                  </View>
+            <View style={styles.duplicatesCard}>
+              <View style={styles.duplicatesHeader}>
+                <View style={styles.duplicatesIconContainer}>
+                  <Ionicons name="alert-circle" size={20} color={Colors.light.warning} />
                 </View>
-
-                {state.duplicates.slice(0, 3).map((dup) => (
-                  <View key={dup.product_id} style={styles.duplicateItem}>
-                    <View style={styles.duplicateInfo}>
-                      <Text style={styles.duplicateName} numberOfLines={1}>
-                        {dup.product_name}
-                      </Text>
-                      <Text style={styles.duplicateMeta}>
-                        SKU: {dup.sku} • {Math.round(dup.similarity_score * 100)}% similar
-                      </Text>
-                    </View>
-                    <View style={styles.duplicateActions}>
-                      <TouchableOpacity
-                        style={[
-                          styles.duplicateActionBtn,
-                          state.isCreating && styles.duplicateActionBtnDisabled,
-                        ]}
-                        disabled={state.isCreating}
-                        onPress={() => wizard.addStockToDuplicate(dup.product_id)}
-                      >
-                        {state.isCreating ? (
-                          <ActivityIndicator size={16} color={Colors.light.primary} />
-                        ) : (
-                          <Ionicons name="add-circle" size={20} color={Colors.light.primary} />
-                        )}
-                        <Text style={styles.duplicateActionText}>
-                          {state.isCreating ? 'Carregando...' : 'Usar'}
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
-                ))}
-
-                <View style={styles.duplicatesFooter}>
-                  <Ionicons name="information-circle" size={14} color={Colors.light.info} />
-                  <Text style={styles.duplicatesFooterText}>
-                    Ou continue abaixo para criar um produto novo
+                <View style={styles.duplicatesHeaderText}>
+                  <Text style={styles.duplicatesTitle}>
+                    {state.duplicates.length} produto(s) similar(es)
+                  </Text>
+                  <Text style={styles.duplicatesSubtitle}>
+                    Já existe no catálogo. Deseja usar um deles?
                   </Text>
                 </View>
-              </Card.Content>
-            </Card>
+              </View>
+
+              {state.duplicates.map((dup) => (
+                <View key={dup.product_id} style={styles.duplicateItem}>
+                  <View style={styles.duplicateInfo}>
+                    <Text style={styles.duplicateName} numberOfLines={1}>
+                      {dup.product_name}
+                    </Text>
+                    <Text style={styles.duplicateMeta}>
+                      SKU: {dup.sku} • {Math.round(dup.similarity_score * 100)}% similar
+                    </Text>
+                  </View>
+
+                  <View style={styles.duplicateActions}>
+                    <TouchableOpacity
+                      style={[
+                        styles.duplicateActionBtn,
+                        { backgroundColor: brandingColors.primary + '15' },
+                        isLoadingDuplicate && styles.duplicateActionBtnDisabled,
+                      ]}
+                      onPress={() => handleSelectDuplicate(dup.product_id)}
+                      disabled={isLoadingDuplicate}
+                    >
+                      <Ionicons name="git-branch-outline" size={20} color={brandingColors.primary} />
+                      <Text style={[styles.duplicateActionText, { color: brandingColors.primary }]}>
+                        Usar Similar
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              ))}
+
+              <View style={styles.duplicatesFooter}>
+                <Ionicons name="information-circle" size={14} color={Colors.light.info} />
+                <Text style={styles.duplicatesFooterText}>
+                  Ou continue abaixo para criar um produto novo
+                </Text>
+              </View>
+            </View>
           )}
 
-          <Button
-            mode="contained"
-            onPress={onNext}
-            style={styles.nextButton}
-            icon="arrow-right"
-            contentStyle={styles.nextButtonContent}
-          >
-            {state.duplicates.length > 0 ? 'Criar Novo Mesmo Assim' : 'Revisar Dados'}
-          </Button>
+          {renderPrimaryAction(
+            state.duplicates.length > 0 ? 'Criar Novo Mesmo Assim' : 'Revisar Dados',
+            onNext,
+            { icon: 'arrow-forward-outline', style: styles.nextButton }
+          )}
         </View>
       );
     }
@@ -581,9 +628,7 @@ export default function WizardStep1({
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color={Colors.light.error} />
           <Text style={styles.errorText}>{String(state.analyzeError || 'Erro desconhecido')}</Text>
-          <Button mode="contained" onPress={wizard.retakePhoto}>
-            Tentar Novamente
-          </Button>
+          {renderPrimaryAction('Tentar Novamente', wizard.retakePhoto, { icon: 'refresh-outline' })}
         </View>
       );
     }
@@ -619,7 +664,7 @@ export default function WizardStep1({
             <Ionicons
               name="grid-outline"
               size={20}
-              color={selectedCategory ? Colors.light.primary : Colors.light.textTertiary}
+              color={selectedCategory ? brandingColors.primary : Colors.light.textTertiary}
             />
             <Text style={selectedCategory ? styles.categoryText : styles.categoryPlaceholder}>
               {selectedCategory?.name || 'Selecionar categoria *'}
@@ -628,15 +673,11 @@ export default function WizardStep1({
           </View>
         </TouchableOpacity>
 
-        <Button
-          mode="contained"
-          onPress={onNext}
-          style={styles.nextButton}
-          icon="arrow-right"
-          disabled={!state.productData.name || !state.productData.category_id}
-        >
-          Continuar
-        </Button>
+        {renderPrimaryAction('Continuar', onNext, {
+          icon: 'arrow-forward-outline',
+          style: styles.nextButton,
+          disabled: !state.productData.name || !state.productData.category_id,
+        })}
 
         <CategoryPickerModal
           visible={categoryModalVisible}
@@ -838,10 +879,7 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xl,
   },
   captureButton: {
-    backgroundColor: Colors.light.primary,
-  },
-  captureButtonContent: {
-    paddingVertical: 6,
+    flex: 1,
   },
   tipsContainer: {
     backgroundColor: Colors.light.backgroundSecondary,
@@ -964,9 +1002,10 @@ const styles = StyleSheet.create({
   // Duplicates Card
   duplicatesCard: {
     borderRadius: 16,
-    backgroundColor: Colors.light.warning + '08',
+    backgroundColor: Colors.light.card,
     borderWidth: 1,
-    borderColor: Colors.light.warning + '30',
+    borderColor: Colors.light.warning + '50',
+    padding: theme.spacing.md,
   },
   duplicatesHeader: {
     flexDirection: 'row',
@@ -1039,6 +1078,79 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.light.primary,
   },
+  // Confirmação inline de quantidade
+  inlineConfirm: {
+    marginTop: 10,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: 10,
+    padding: 10,
+    gap: 8,
+  },
+  inlineConfirmLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
+  inlineQtyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  qtyBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qtyInput: {
+    flex: 1,
+    height: 36,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: 8,
+    textAlign: 'center',
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.light.text,
+    backgroundColor: Colors.light.card,
+    paddingHorizontal: 8,
+  },
+  inlineBtns: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  inlineConfirmBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  inlineConfirmBtnText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  inlineCancelBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  inlineCancelBtnText: {
+    fontSize: 13,
+    color: Colors.light.textSecondary,
+  },
+
   duplicatesFooter: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1055,10 +1167,27 @@ const styles = StyleSheet.create({
   },
   nextButton: {
     marginTop: theme.spacing.md,
-    backgroundColor: Colors.light.primary,
   },
-  nextButtonContent: {
-    paddingVertical: 6,
+  gradientActionButton: {
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+    ...theme.shadows.sm,
+  },
+  gradientActionButtonDisabled: {
+    opacity: 0.5,
+  },
+  gradientActionButtonContent: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: theme.spacing.md,
+  },
+  gradientActionButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
   },
 
   // Error

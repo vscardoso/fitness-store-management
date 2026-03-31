@@ -37,6 +37,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface RightAction {
   icon: keyof typeof Ionicons.glyphMap;
@@ -53,6 +54,8 @@ interface PageHeaderProps {
   showBackButton?: boolean;
   /** Callback customizado para voltar */
   onBack?: () => void;
+  /** Elemento visual fixo à esquerda (quando não houver botão voltar) */
+  leftVisual?: React.ReactNode;
   /** Ações à direita (máx 3) */
   rightActions?: RightAction[];
   /** Cores do gradiente (padrão: primary → secondary) */
@@ -66,11 +69,14 @@ export default function PageHeader({
   subtitle,
   showBackButton = false,
   onBack,
+  leftVisual,
   rightActions = [],
-  gradientColors = [Colors.light.primary, Colors.light.secondary],
+  gradientColors,
   children,
 }: PageHeaderProps) {
   const router = useRouter();
+  const brandingColors = useBrandingColors();
+  const resolvedGradient = gradientColors ?? brandingColors.gradient;
 
   const handleBack = () => {
     if (onBack) {
@@ -82,9 +88,9 @@ export default function PageHeader({
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={gradientColors[0]} />
+      <StatusBar barStyle="light-content" backgroundColor={resolvedGradient[0]} />
       <LinearGradient
-        colors={gradientColors}
+        colors={resolvedGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradient}
@@ -97,6 +103,8 @@ export default function PageHeader({
               <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                 <Ionicons name="arrow-back" size={24} color="#fff" />
               </TouchableOpacity>
+            ) : leftVisual ? (
+              <View style={styles.leftVisualWrap}>{leftVisual}</View>
             ) : (
               <View style={styles.placeholder} />
             )}
@@ -167,6 +175,12 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 40, // Mesmo tamanho do botão voltar para manter centralizado
+  },
+  leftVisualWrap: {
+    width: 40,
+    height: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerInfo: {
     flex: 1,

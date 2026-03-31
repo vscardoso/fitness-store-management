@@ -15,12 +15,15 @@ import {
   TouchableOpacity,
   BackHandler,
   Platform,
+  AccessibilityInfo,
+  Animated,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import { useCategories } from '@/hooks';
 import { useProductWizard } from '@/hooks/useProductWizard';
 import type { IdentifyMethod } from '@/types/wizard';
@@ -33,6 +36,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 export default function ProductWizardScreen() {
   const router = useRouter();
+  const brandingColors = useBrandingColors();
   const params = useLocalSearchParams<{
     method?: string;
     /** Dados pré-preenchidos do scanner IA (JSON string com campos do produto) */
@@ -46,13 +50,65 @@ export default function ProductWizardScreen() {
     createdProductData?: string; // Dados do produto para restaurar
     // Params do catálogo
     catalogProductData?: string; // Dados do produto selecionado do catálogo
+    restoreStep?: string;
+    restoreProductData?: string;
   }>();
   const { categories } = useCategories();
   const wizard = useProductWizard();
   const { state } = wizard;
+  const restoreFromRoute = wizard.restoreFromRoute;
+  const handleEntryCreated = wizard.handleEntryCreated;
 
   const [showExitDialog, setShowExitDialog] = React.useState(false);
   const [showSkipEntryDialog, setShowSkipEntryDialog] = React.useState(false);
+  const [reduceMotionEnabled, setReduceMotionEnabled] = React.useState(false);
+  const contentOpacity = React.useRef(new Animated.Value(1)).current;
+  const contentTranslateY = React.useRef(new Animated.Value(0)).current;
+  const lastRestoreKeyRef = React.useRef<string | null>(null);
+  const lastEntryReturnKeyRef = React.useRef<string | null>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (mounted) {
+          setReduceMotionEnabled(enabled);
+        }
+      })
+      .catch(() => {});
+
+    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotionEnabled);
+
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (reduceMotionEnabled) {
+      contentOpacity.setValue(1);
+      contentTranslateY.setValue(0);
+      return;
+    }
+
+    contentOpacity.setValue(0);
+    contentTranslateY.setValue(10);
+
+    Animated.parallel([
+      Animated.timing(contentOpacity, {
+        toValue: 1,
+        duration: 180,
+        useNativeDriver: true,
+      }),
+      Animated.timing(contentTranslateY, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [state.currentStep, reduceMotionEnabled, contentOpacity, contentTranslateY]);
 
   // Se veio com method=scanner, já inicia no modo scanner
   useEffect(() => {
@@ -86,9 +142,41 @@ export default function ProductWizardScreen() {
     }
   }, [params.method, params.catalogProductData, params.prefillData]);
 
+  // Restaurar etapa ao voltar da tela de entrada (mantendo fluxo no wizard)
+  useEffect(() => {
+    if (!params.restoreStep) return;
+
+    const restoreKey = `${params.restoreStep}|${params.restoreProductData || ''}`;
+    if (lastRestoreKeyRef.current === restoreKey) return;
+    lastRestoreKeyRef.current = restoreKey;
+
+    const step = params.restoreStep as any;
+    if (step === 'identify' || step === 'confirm' || step === 'entry' || step === 'complete') {
+      let restoreProduct: any = undefined;
+      if (params.restoreProductData) {
+        try {
+          restoreProduct = JSON.parse(params.restoreProductData);
+        } catch (e) {
+          console.error('Erro ao parsear restoreProductData:', e);
+        }
+      }
+      restoreFromRoute(step, restoreProduct);
+    }
+  }, [params.restoreStep, params.restoreProductData, restoreFromRoute]);
+
   // Processar retorno do entries/add ou entries/index (entrada existente)
   useEffect(() => {
     if (params.returnFromEntry === 'true' && params.createdEntryId) {
+      const returnKey = [
+        params.createdEntryId,
+        params.createdEntryCode || '',
+        params.createdEntryQuantity || '',
+        params.createdEntrySupplier || '',
+        params.createdProductData || '',
+      ].join('|');
+      if (lastEntryReturnKeyRef.current === returnKey) return;
+      lastEntryReturnKeyRef.current = returnKey;
+
       // Restaurar dados do produto se vier de entrada existente
       let productData = null;
       if (params.createdProductData) {
@@ -99,7 +187,7 @@ export default function ProductWizardScreen() {
         }
       }
 
-      wizard.handleEntryCreated(
+      handleEntryCreated(
         {
           id: parseInt(params.createdEntryId, 10),
           code: params.createdEntryCode || '',
@@ -109,7 +197,15 @@ export default function ProductWizardScreen() {
         productData // Passar dados do produto para restaurar
       );
     }
-  }, [params.returnFromEntry, params.createdEntryId]);
+  }, [
+    params.returnFromEntry,
+    params.createdEntryId,
+    params.createdEntryCode,
+    params.createdEntryQuantity,
+    params.createdEntrySupplier,
+    params.createdProductData,
+    handleEntryCreated,
+  ]);
 
   // Handle hardware back button
   useEffect(() => {
@@ -122,9 +218,10 @@ export default function ProductWizardScreen() {
   }, [state.isDirty, state.currentStep]);
 
   const handleBack = useCallback(async () => {
-    // Se está no Step 1 e não tem dados, pode sair direto
-    if (state.currentStep === 'identify' && !state.isDirty) {
-      router.back();
+    // Back sempre volta para o passo anterior do fluxo.
+    if (state.currentStep === 'identify') {
+      // No primeiro passo, confirma saída em vez de navegar direto para home.
+      setShowExitDialog(true);
       return;
     }
 
@@ -136,13 +233,17 @@ export default function ProductWizardScreen() {
 
     // Se está no Step 3 (produto já criado), confirmar antes de pular a entrada
     if (state.currentStep === 'entry') {
+      if (!state.createdProduct) {
+        wizard.goToStep('confirm');
+        return;
+      }
       setShowSkipEntryDialog(true);
       return;
     }
 
-    // Se está no Step 4 (complete), ir para lista de produtos
+    // Se está no Step 4 (complete), volta para Step 3
     if (state.currentStep === 'complete') {
-      router.replace('/(tabs)/products');
+      wizard.goToStep('entry');
       return;
     }
 
@@ -153,6 +254,60 @@ export default function ProductWizardScreen() {
       router.back();
     }
   }, [state.currentStep, state.isDirty, wizard, router]);
+
+  const handleStepPress = useCallback((targetStep: 'identify' | 'confirm' | 'entry' | 'complete') => {
+    if (targetStep === state.currentStep) {
+      // Refresh explícito do Step 3 para reidratar contexto sem reset destrutivo.
+      if (targetStep === 'entry') {
+        restoreFromRoute('entry', state.createdProduct ?? state.productData);
+      }
+      return;
+    }
+
+    if (targetStep === 'identify') {
+      wizard.goToStep('identify');
+      return;
+    }
+
+    if (targetStep === 'confirm') {
+      if (state.identifyMethod || state.productData?.name) {
+        wizard.goToStep('confirm');
+      }
+      return;
+    }
+
+    if (targetStep === 'entry') {
+      if (state.createdProduct) {
+        wizard.goToStep('entry');
+      }
+      return;
+    }
+
+    if (targetStep === 'complete' && state.linkedEntry) {
+      wizard.goToStep('complete');
+    }
+  }, [state.currentStep, state.identifyMethod, state.productData, state.createdProduct, state.linkedEntry, wizard, restoreFromRoute]);
+
+  const getBlockedReason = useCallback((targetStep: 'identify' | 'confirm' | 'entry' | 'complete') => {
+    if (targetStep === 'identify') return null;
+
+    if (targetStep === 'confirm') {
+      if (!state.identifyMethod && !state.productData?.name) {
+        return 'Primeiro escolha um método e identifique o produto.';
+      }
+      return null;
+    }
+
+    if (targetStep === 'entry' && !state.createdProduct) {
+      return 'Conclua a etapa Confirmar para criar/selecionar o produto.';
+    }
+
+    if (targetStep === 'complete' && !state.linkedEntry) {
+      return 'Finalize a vinculação da entrada para liberar o resumo.';
+    }
+
+    return null;
+  }, [state.identifyMethod, state.productData, state.createdProduct, state.linkedEntry]);
 
   const confirmExit = () => {
     setShowExitDialog(false);
@@ -192,12 +347,12 @@ export default function ProductWizardScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
+      <StatusBar barStyle="light-content" backgroundColor={brandingColors.primary} />
 
       {/* Header */}
       <View style={styles.headerContainer}>
         <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
+          colors={[brandingColors.primary, brandingColors.secondary]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.headerGradient}
@@ -220,10 +375,22 @@ export default function ProductWizardScreen() {
       </View>
 
       {/* Stepper */}
-      <WizardStepper currentStep={state.currentStep} />
+      <WizardStepper
+        currentStep={state.currentStep}
+        onStepPress={handleStepPress as any}
+        getBlockedReason={getBlockedReason as any}
+      />
 
       {/* Content - cada step gerencia seu próprio KeyboardAvoidingView */}
-      <View style={styles.content}>
+      <Animated.View
+        style={[
+          styles.content,
+          {
+            opacity: contentOpacity,
+            transform: [{ translateY: contentTranslateY }],
+          },
+        ]}
+      >
         {state.currentStep === 'identify' && (
           <WizardStep1
             wizard={wizard}
@@ -247,7 +414,7 @@ export default function ProductWizardScreen() {
         {state.currentStep === 'complete' && (
           <WizardComplete wizard={wizard} onGoToProducts={() => router.replace('/(tabs)/products')} />
         )}
-      </View>
+      </Animated.View>
 
       {/* Exit Dialog */}
       <ConfirmDialog

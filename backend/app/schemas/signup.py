@@ -19,6 +19,9 @@ class SignupRequest(BaseModel):
     # Store data
     store_name: str = Field(..., min_length=3, max_length=255, description="Nome da loja/empresa")
     store_slug: Optional[str] = Field(None, max_length=100, description="Slug da loja (gerado se não informado)")
+    primary_color: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$", description="Cor principal da loja (hex)")
+    secondary_color: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$", description="Cor secundária da loja (hex)")
+    accent_color: Optional[str] = Field(None, pattern=r"^#[0-9A-Fa-f]{6}$", description="Cor de destaque da loja (hex)")
     
     # Address data (optional - for store location)
     zip_code: Optional[str] = Field(None, max_length=10, description="CEP da loja")

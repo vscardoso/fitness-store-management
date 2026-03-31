@@ -2,6 +2,7 @@
  * Funções utilitárias de formatação
  * Moeda, data, telefone, CPF, etc
  */
+import { VALUE_COLORS, type ValueColorType } from '@/constants/Colors';
 
 /**
  * Formata número para moeda brasileira (R$)
@@ -105,6 +106,36 @@ export const truncate = (text: string, maxLength: number): string => {
 export const capitalize = (text: string): string => {
   return text.charAt(0).toUpperCase() + text.slice(1).toLowerCase();
 };
+
+/**
+ * Retorna a cor semântica correta para um campo de valor.
+ *
+ * @param value  - número a avaliar
+ * @param type   - 'profit' | 'revenue' | 'cost' | 'neutral' | 'auto'
+ *
+ * Exemplos:
+ *   valueColor(lucro, 'profit')   → verde se > 0, vermelho se < 0
+ *   valueColor(receita, 'revenue') → sempre verde
+ *   valueColor(custo, 'cost')     → sempre neutro
+ *   valueColor(qty, 'neutral')    → sempre neutro
+ *   valueColor(percent, 'auto')   → verde se >= 0, vermelho se < 0
+ */
+export function valueColor(
+  value: number,
+  type: 'profit' | 'revenue' | 'cost' | 'neutral' | 'auto' = 'auto'
+): string {
+  switch (type) {
+    case 'revenue': return VALUE_COLORS.positive;
+    case 'cost':    return VALUE_COLORS.neutral;
+    case 'neutral': return VALUE_COLORS.neutral;
+    case 'profit':
+    case 'auto':
+    default:
+      if (value > 0) return VALUE_COLORS.positive;
+      if (value < 0) return VALUE_COLORS.negative;
+      return VALUE_COLORS.neutral;
+  }
+}
 
 /**
  * Capitaliza primeira letra de cada palavra

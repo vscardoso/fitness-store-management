@@ -1,3 +1,4 @@
+
 # 🚀 Alternativas de Hospedagem Gratuitas para Produção
 
 **Data de Análise**: 18 de janeiro de 2026  

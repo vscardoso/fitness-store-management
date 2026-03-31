@@ -4,22 +4,25 @@
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Text, TextInput, ActivityIndicator } from 'react-native';
 import KeyboardSafeView from '@/components/ui/KeyboardSafeView';
-import { Text, Button, Card, Chip, TextInput, IconButton, ActivityIndicator, Divider } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import PageHeader from '@/components/layout/PageHeader';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import useBackToList from '@/hooks/useBackToList';
 import { useCart } from '@/hooks/useCart';
 import { useCreateSale } from '@/hooks';
 import { getCustomerById } from '@/services/customerService';
 import { getPaymentDiscounts, type PaymentDiscount } from '@/services/paymentDiscountService';
+import { getProductById } from '@/services/productService';
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import AppButton from '@/components/ui/AppButton';
+import { skipLoading } from '@/utils/apiHelpers';
 import {
   validateCheckout,
   validatePayments,
@@ -51,6 +54,7 @@ const installmentOptions = Array.from({ length: 12 }, (_, i) => ({
 export default function CheckoutScreen() {
   const cart = useCart();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { goBack } = useBackToList('/(tabs)/sale');
   const createSaleMutation = useCreateSale();
 
@@ -474,6 +478,46 @@ export default function CheckoutScreen() {
     setLoading(true);
 
     try {
+      const stockChecks = await Promise.all(
+        cart.items.map(async (item) => {
+          const latestProduct = await getProductById(item.product_id, skipLoading());
+          const latestVariant = item.variant_id
+            ? (latestProduct as any).variants?.find((variant: any) => variant?.id === item.variant_id)
+            : undefined;
+          const availableStock = item.variant_id
+            ? Number(latestVariant?.current_stock ?? 0)
+            : Number(latestProduct.current_stock ?? 0);
+          const itemLabel = item.variant_label
+            ? `${item.product.name} (${item.variant_label})`
+            : item.product.name;
+
+          return {
+            item,
+            itemLabel,
+            availableStock,
+          };
+        })
+      );
+
+      const unavailableItem = stockChecks.find(({ item, availableStock }) => item.quantity > availableStock);
+
+      if (unavailableItem) {
+        haptics.warning();
+        setDialog({
+          visible: true,
+          type: 'warning',
+          title: 'Estoque insuficiente',
+          message: `${unavailableItem.itemLabel}: disponível ${unavailableItem.availableStock}, solicitado ${unavailableItem.item.quantity}.`,
+          confirmText: 'Voltar ao carrinho',
+          cancelText: 'Fechar',
+          onConfirm: () => {
+            setDialog({ ...dialog, visible: false });
+            router.back();
+          },
+        });
+        return;
+      }
+
       // Mapear items para formato da API
       const items = cart.items.map(item => ({
         product_id: item.product_id,
@@ -520,6 +564,13 @@ export default function CheckoutScreen() {
       createSaleMutation.mutate(saleData, {
         onSuccess: (sale) => {
           haptics.success();
+
+          // Sincronizar listagens de produto/estoque usadas no PDV e inventário
+          queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+          queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
+          queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
+          queryClient.invalidateQueries({ queryKey: ['products'] });
+          queryClient.invalidateQueries({ queryKey: ['low-stock'] });
 
           // Limpar carrinho
           cart.clear();
@@ -603,41 +654,42 @@ export default function CheckoutScreen() {
           showsVerticalScrollIndicator={false}
         >
           {/* Resumo do Carrinho */}
-          <Card style={styles.card}>
-            <Card.Content>
+          <View style={styles.card}>
+            <View style={styles.cardContent}>
               <View style={styles.sectionHeader}>
-                <Text variant="titleMedium" style={styles.sectionTitle}>
+                <Text style={styles.sectionTitle}>
                   Resumo do Carrinho
                 </Text>
-                <Button
-                  mode="text"
-                  compact
+                <AppButton
+                  variant="outlined"
+                  size="sm"
+                  icon="create-outline"
+                  label="Editar"
                   onPress={handleGoBack}
-                >
-                  Editar
-                </Button>
+                  style={styles.editCartButton}
+                />
               </View>
 
               {cart.items.map((item, index) => (
-                <View key={item.product_id}>
+                <View key={item.cart_key ?? `${item.product_id}-${item.variant_id ?? 'base'}-${index}`}>
                   {index > 0 && <View style={styles.itemDivider} />}
                   <View style={styles.cartItem}>
                     <View style={styles.cartItemInfo}>
-                      <Text variant="bodyMedium" numberOfLines={1}>
+                      <Text style={styles.cartItemName} numberOfLines={1}>
                         {item.product.name}
                       </Text>
-                      <Text variant="bodySmall" style={styles.cartItemQty}>
+                      <Text style={styles.cartItemQty}>
                         {item.quantity}x {formatCurrency(item.unit_price)}
                       </Text>
                     </View>
-                    <Text variant="bodyMedium" style={styles.cartItemTotal}>
+                    <Text style={styles.cartItemTotal}>
                       {formatCurrency(item.quantity * item.unit_price - item.discount)}
                     </Text>
                   </View>
                 </View>
               ))}
-            </Card.Content>
-          </Card>
+            </View>
+          </View>
 
           {/* Cliente */}
           {cart.customer_id && (
@@ -733,7 +785,15 @@ export default function CheckoutScreen() {
             {/* Seletor de parcelas (crédito, modo simples) */}
             {pendingCreditCard && !isMixedMode && (
               <View style={styles.installmentPicker}>
-                <Text style={styles.installmentPickerLabel}>Parcelas:</Text>
+                <View style={styles.installmentPickerHeader}>
+                  <View style={styles.installmentPickerIconWrap}>
+                    <Ionicons name="card-outline" size={14} color={Colors.light.primary} />
+                  </View>
+                  <View style={styles.installmentPickerHeaderText}>
+                    <Text style={styles.installmentPickerLabel}>Pagamento no cartão</Text>
+                    <Text style={styles.installmentPickerHint}>Escolha a quantidade de parcelas</Text>
+                  </View>
+                </View>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.installmentScroll}>
                   <View style={styles.installmentChipsRow}>
                     {installmentOptions.map((opt) => (
@@ -754,17 +814,18 @@ export default function CheckoutScreen() {
                     ))}
                   </View>
                 </ScrollView>
-                <Button
-                  mode="contained"
+                <AppButton
+                  variant="primary"
+                  size="md"
+                  fullWidth
+                  icon="checkmark-circle-outline"
+                  label={installments === 1 ? 'Confirmar à Vista' : `Confirmar ${installments}x`}
                   onPress={() => {
                     handleAddDirectPayment(PaymentMethod.CREDIT_CARD, installments);
                     setPendingCreditCard(false);
                   }}
-                  icon="check"
-                  style={styles.confirmInstallmentBtn}
-                >
-                  {installments === 1 ? 'Confirmar à Vista' : `Confirmar ${installments}x`}
-                </Button>
+                  style={{ marginTop: 12 }}
+                />
               </View>
             )}
 
@@ -807,22 +868,22 @@ export default function CheckoutScreen() {
               {isMixedMode && (
                 <>
                   <View style={styles.mixedModeHeader}>
-                    <Text variant="bodySmall" style={styles.mixedModeHelp}>
+                    <Text style={styles.mixedModeHelp}>
                       💡 No modo 2 Métodos, escolha a forma e digite o valor para cada pagamento.
                     </Text>
-                    <Button
-                      mode="text"
-                      compact
+                    <AppButton
+                      variant="outlined"
+                      size="sm"
+                      icon="close-outline"
+                      label="Cancelar"
                       onPress={() => {
                         setIsMixedMode(false);
                         cart.clearPayments();
                         setSelectedMethod(null);
                         haptics.light();
                       }}
-                      labelStyle={{ fontSize: 11 }}
-                    >
-                      Cancelar
-                    </Button>
+                      style={styles.cancelMixedButton}
+                    />
                   </View>
 
                   {/* Seleção de método no modo misto */}
@@ -832,19 +893,30 @@ export default function CheckoutScreen() {
                     style={styles.methodsScroll}
                   >
                     {paymentMethods.filter(m => m.value !== 'MIXED').map((method) => (
-                      <Chip
+                      <TouchableOpacity
                         key={method.value}
-                        selected={selectedMethod === method.value}
+                        style={[
+                          styles.methodChip,
+                          selectedMethod === method.value && { backgroundColor: Colors.light.primary + '15', borderColor: Colors.light.primary },
+                        ]}
                         onPress={() => {
                           setSelectedMethod(method.value as PaymentMethod);
                           setInstallments(1);
                           haptics.selection();
                         }}
-                        icon={method.icon}
-                        style={styles.methodChip}
                       >
-                        {method.label}
-                      </Chip>
+                        <Ionicons
+                          name={method.icon as any}
+                          size={14}
+                          color={selectedMethod === method.value ? Colors.light.primary : Colors.light.textSecondary}
+                        />
+                        <Text style={[
+                          styles.methodChipText,
+                          selectedMethod === method.value && { color: Colors.light.primary },
+                        ]}>
+                          {method.label}
+                        </Text>
+                      </TouchableOpacity>
                     ))}
                   </ScrollView>
 
@@ -872,62 +944,65 @@ export default function CheckoutScreen() {
 
                   {/* Input de valor */}
                   <View style={styles.paymentInputRow}>
-                    <TextInput
-                      label="Valor"
-                      value={paymentAmount}
-                      onChangeText={(text) => setPaymentAmount(formatMoneyInput(text))}
-                      keyboardType="numeric"
-                      mode="outlined"
-                      dense
-                      left={<TextInput.Affix text="R$" />}
-                      style={styles.paymentInput}
-                    />
-                    <Button
-                      mode="outlined"
+                    <View style={styles.paymentInputContainer}>
+                      <Text style={styles.inputPrefix}>R$</Text>
+                      <TextInput
+                        value={paymentAmount}
+                        onChangeText={(text) => setPaymentAmount(formatMoneyInput(text))}
+                        keyboardType="numeric"
+                        style={styles.paymentInput}
+                        placeholder="0,00"
+                        placeholderTextColor={Colors.light.textTertiary}
+                      />
+                    </View>
+                    <AppButton
+                      variant="outlined"
+                      size="md"
+                      icon="sparkles-outline"
+                      label="Preencher"
                       onPress={handleFillRemaining}
                       style={styles.fillButton}
-                      compact
-                    >
-                      Preencher
-                    </Button>
+                    />
                   </View>
 
                   {/* Botão adicionar pagamento */}
-                  <Button
-                    mode="contained"
+                  <AppButton
+                    variant="primary"
+                    size="lg"
+                    fullWidth
                     onPress={handleAddPayment}
-                    icon="plus"
+                    icon="add-circle-outline"
+                    label="Adicionar Pagamento"
                     style={styles.addPaymentButton}
-                  >
-                    Adicionar Pagamento
-                  </Button>
+                  />
                 </>
               )}
 
             {/* Lista de pagamentos adicionados - APENAS para modo misto */}
             {isMixedMode && cart.payments.length > 0 && (
                 <View style={styles.paymentsListContainer}>
-                  <Text variant="bodySmall" style={styles.paymentsListTitle}>
+                  <Text style={styles.paymentsListTitle}>
                     Pagamentos adicionados:
                   </Text>
                   {cart.payments.map((payment, index) => (
                     <View key={index} style={styles.paymentItem}>
                       <View style={styles.paymentItemInfo}>
-                        <Text variant="bodyMedium">
+                        <Text style={styles.paymentItemMethod}>
                           {getPaymentMethodLabel(payment.method)}
                         </Text>
-                        <Text variant="bodySmall" style={styles.paymentItemDetail}>
+                        <Text style={styles.paymentItemDetail}>
                           {payment.installments > 1
                             ? `${payment.installments}x de ${formatCurrency(payment.amount / payment.installments)}`
                             : formatCurrency(payment.amount)
                           }
                         </Text>
                       </View>
-                      <IconButton
-                        icon="delete"
-                        size={20}
+                      <TouchableOpacity
                         onPress={() => handleRemovePayment(index)}
-                      />
+                        style={styles.deletePaymentBtn}
+                      >
+                        <Ionicons name="trash-outline" size={20} color={Colors.light.error} />
+                      </TouchableOpacity>
                     </View>
                   ))}
                 </View>
@@ -939,21 +1014,22 @@ export default function CheckoutScreen() {
             <View style={styles.section}>
               <Text style={styles.label}>Cálculo de Troco</Text>
 
-              <TextInput
-                label="Valor Recebido"
-                value={cashReceived}
-                onChangeText={(text) => setCashReceived(formatMoneyInput(text))}
-                keyboardType="numeric"
-                mode="outlined"
-                dense
-                left={<TextInput.Affix text="R$" />}
-                style={styles.cashInput}
-              />
+              <View style={styles.cashInputContainer}>
+                <Text style={styles.inputPrefix}>R$</Text>
+                <TextInput
+                  value={cashReceived}
+                  onChangeText={(text) => setCashReceived(formatMoneyInput(text))}
+                  keyboardType="numeric"
+                  style={styles.cashInput}
+                  placeholder="0,00"
+                  placeholderTextColor={Colors.light.textTertiary}
+                />
+              </View>
 
               {cashReceived && (
                 <View style={styles.changeContainer}>
-                  <Text variant="bodyLarge">Troco:</Text>
-                  <Text variant="headlineSmall" style={styles.changeValue}>
+                  <Text style={styles.changeLabel}>Troco:</Text>
+                  <Text style={styles.changeValue}>
                     {formatCurrency(calculateChange())}
                   </Text>
                 </View>
@@ -980,78 +1056,64 @@ export default function CheckoutScreen() {
           )}
 
           {/* Totais */}
-          <Card style={[styles.card, styles.totalsCard]}>
-            <Card.Content>
-              <View style={styles.totalRow}>
-                <Text variant="bodyLarge">Subtotal</Text>
-                <Text variant="bodyLarge">{formatCurrency(cart.subtotal)}</Text>
+          <View style={[styles.card, styles.totalsCard]}>
+            <View style={styles.cardContent}>
+              <View style={styles.totalsStack}>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Subtotal</Text>
+                  <Text style={styles.summaryValue}>{formatCurrency(cart.subtotal)}</Text>
+                </View>
+
+                {cart.discount > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, styles.discountText]}>
+                      Desconto Manual
+                    </Text>
+                    <Text style={[styles.summaryValue, styles.discountText]}>
+                      - {formatCurrency(cart.discount)}
+                    </Text>
+                  </View>
+                )}
+
+                {appliedDiscount && (
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, styles.discountText]}>
+                      Desconto {appliedDiscount.payment_method.toUpperCase()} ({appliedDiscount.discount_percentage}%)
+                    </Text>
+                    <Text style={[styles.summaryValue, styles.discountText]}>
+                      - {formatCurrency((cart.total * appliedDiscount.discount_percentage) / 100)}
+                    </Text>
+                  </View>
+                )}
               </View>
 
-              {cart.discount > 0 && (
-                <View style={styles.totalRow}>
-                  <Text variant="bodyLarge" style={styles.discountText}>
-                    Desconto Manual
-                  </Text>
-                  <Text variant="bodyLarge" style={styles.discountText}>
-                    - {formatCurrency(cart.discount)}
-                  </Text>
-                </View>
-              )}
-
-              {appliedDiscount && (
-                <View style={styles.totalRow}>
-                  <Text variant="bodyLarge" style={styles.discountText}>
-                    Desconto {appliedDiscount.payment_method.toUpperCase()} ({appliedDiscount.discount_percentage}%)
-                  </Text>
-                  <Text variant="bodyLarge" style={styles.discountText}>
-                    - {formatCurrency((cart.total * appliedDiscount.discount_percentage) / 100)}
-                  </Text>
-                </View>
-              )}
-
-              <View style={styles.totalDivider} />
-
-              <View style={styles.totalRow}>
-                <Text variant="headlineSmall" style={styles.totalLabel}>
-                  TOTAL
-                </Text>
-                <Text variant="headlineSmall" style={styles.totalValue}>
-                  {formatCurrency(finalTotal)}
-                </Text>
+              <View style={styles.totalHighlightBox}>
+                <Text style={styles.totalCaption}>Total da Venda</Text>
+                <Text style={styles.totalMainValue}>{formatCurrency(finalTotal)}</Text>
               </View>
 
               {/* Mostrar Total Pago e Restante APENAS no modo misto */}
               {isMixedMode && cart.payments.length > 0 && (
-                <>
-                  <View style={styles.totalDivider} />
-
-                  <View style={styles.totalRow}>
-                    <Text variant="bodyLarge" style={styles.paidText}>
-                      Total Pago
-                    </Text>
-                    <Text variant="bodyLarge" style={styles.paidText}>
+                <View style={styles.paymentBalanceBox}>
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, styles.paidText]}>Total Pago</Text>
+                    <Text style={[styles.summaryValue, styles.paidText]}>
                       {formatCurrency(cart.totalPaid)}
                     </Text>
                   </View>
 
-                  <View style={styles.totalRow}>
-                    <Text
-                      variant="bodyLarge"
-                      style={(finalTotal - cart.totalPaid) > 0 ? styles.remainingText : styles.changeText}
-                    >
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, (finalTotal - cart.totalPaid) > 0 ? styles.remainingText : styles.changeText]}>
                       {(finalTotal - cart.totalPaid) > 0 ? 'Restante' : 'Troco'}
                     </Text>
-                    <Text
-                      variant="bodyLarge"
-                      style={(finalTotal - cart.totalPaid) > 0 ? styles.remainingText : styles.changeText}
-                    >
+                    <Text style={[styles.summaryValue, (finalTotal - cart.totalPaid) > 0 ? styles.remainingText : styles.changeText]}>
                       {formatCurrency(Math.abs(finalTotal - cart.totalPaid))}
                     </Text>
                   </View>
-                </>
+                </View>
               )}
-            </Card.Content>
-          </Card>
+            </View>
+          </View>
 
           {/* Espaçamento para botão fixo */}
           <View style={styles.bottomSpacer} />
@@ -1059,20 +1121,17 @@ export default function CheckoutScreen() {
 
         {/* Footer com botão de finalizar */}
         <View style={styles.footer}>
-          <Button
-            mode="contained"
+          <AppButton
+            variant="primary"
+            size="lg"
+            fullWidth
             onPress={handleFinalizeSale}
             disabled={cart.items.length === 0 || cart.totalPaid < finalTotal || loading}
             loading={loading}
-            icon="check"
-            style={[
-              styles.finalizeButton,
-              cart.totalPaid >= finalTotal && styles.finalizeButtonEnabled
-            ]}
-            labelStyle={styles.finalizeButtonLabel}
-          >
-            {loading ? 'Processando...' : 'Confirmar Venda'}
-          </Button>
+            icon="checkmark-circle-outline"
+            label={loading ? 'Processando...' : 'Confirmar Venda'}
+            style={styles.finalizeButton}
+          />
         </View>
       </View>
 
@@ -1107,10 +1166,19 @@ const styles = StyleSheet.create({
   },
   card: {
     marginBottom: 16,
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.light.card,
     borderWidth: 1,
     borderColor: Colors.light.border,
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.xl,
+    ...theme.shadows.sm,
+  },
+  cardContent: {
+    padding: theme.spacing.md,
+  },
+  cartItemName: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.text,
+    fontWeight: '500',
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -1130,6 +1198,9 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontWeight: '600',
     marginBottom: 12,
+  },
+  editCartButton: {
+    minWidth: 104,
   },
   cartItem: {
     flexDirection: 'row',
@@ -1255,31 +1326,74 @@ const styles = StyleSheet.create({
   },
   mixedModeHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     marginBottom: 8,
+    gap: 12,
   },
   methodsScroll: {
     marginBottom: 16,
   },
   methodChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginRight: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+  },
+  methodChipText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
   },
   mixedModeHelp: {
     color: Colors.light.textSecondary,
     fontStyle: 'italic',
     flex: 1,
   },
+  cancelMixedButton: {
+    minWidth: 116,
+  },
   paymentInputRow: {
     flexDirection: 'row',
     gap: 8,
     marginBottom: 16,
+    alignItems: 'stretch',
+  },
+  paymentInputContainer: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: Colors.light.background,
+    overflow: 'hidden',
   },
   paymentInput: {
     flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.text,
+  },
+  inputPrefix: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+    borderRightWidth: 1,
+    borderRightColor: Colors.light.border,
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   fillButton: {
-    justifyContent: 'center',
+    minWidth: 132,
   },
   installmentsContainer: {
     marginBottom: 16,
@@ -1313,12 +1427,35 @@ const styles = StyleSheet.create({
   paymentItemInfo: {
     flex: 1,
   },
+  paymentItemMethod: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
   paymentItemDetail: {
+    fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
     marginTop: 2,
   },
-  cashInput: {
+  deletePaymentBtn: {
+    padding: 8,
+  },
+  cashInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: Colors.light.background,
     marginBottom: 16,
+    overflow: 'hidden',
+  },
+  cashInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.text,
   },
   changeContainer: {
     flexDirection: 'row',
@@ -1328,32 +1465,69 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 16,
   },
+  changeLabel: {
+    fontSize: theme.fontSize.base,
+    color: Colors.light.text,
+  },
   changeValue: {
+    fontSize: theme.fontSize.xl,
     fontWeight: '700',
     color: Colors.light.success,
   },
   totalsCard: {
     backgroundColor: Colors.light.background,
-    borderWidth: 2,
-    borderColor: Colors.light.primary,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
-  totalRow: {
+  totalsStack: {
+    gap: 6,
+    marginBottom: 12,
+  },
+  summaryRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: 10,
   },
-  totalDivider: {
-    height: 1,
-    backgroundColor: Colors.light.border,
-    marginVertical: 12,
+  summaryLabel: {
+    flex: 1,
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
+    fontWeight: '600',
   },
-  totalLabel: {
+  summaryValue: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.text,
     fontWeight: '700',
   },
-  totalValue: {
+  totalHighlightBox: {
+    backgroundColor: `${Colors.light.primary}10`,
+    borderWidth: 1,
+    borderColor: `${Colors.light.primary}28`,
+    borderRadius: theme.borderRadius.lg,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm + 2,
+    marginBottom: 10,
+  },
+  totalCaption: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
     fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 2,
+  },
+  totalMainValue: {
+    fontSize: theme.fontSize.xxl,
     color: Colors.light.primary,
+    fontWeight: '800',
+    letterSpacing: -0.4,
+  },
+  paymentBalanceBox: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+    paddingTop: 10,
+    gap: 6,
   },
   discountText: {
     color: Colors.light.error,
@@ -1374,21 +1548,41 @@ const styles = StyleSheet.create({
   installmentPicker: {
     marginTop: 12,
     padding: 12,
-    backgroundColor: `${Colors.light.primary}08`,
+    backgroundColor: Colors.light.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: `${Colors.light.primary}30`,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
+  },
+  installmentPickerHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 10,
+  },
+  installmentPickerIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: `${Colors.light.primary}12`,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  installmentPickerHeaderText: {
+    flex: 1,
   },
   installmentPickerMixed: {
     marginBottom: 12,
   },
   installmentPickerLabel: {
-    fontSize: 12,
-    fontWeight: '600',
+    fontSize: theme.fontSize.xs,
+    fontWeight: '800',
+    color: Colors.light.text,
+  },
+  installmentPickerHint: {
+    fontSize: 11,
     color: Colors.light.textSecondary,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    marginTop: 1,
   },
   installmentScroll: {
     marginBottom: 12,
@@ -1401,16 +1595,16 @@ const styles = StyleSheet.create({
   installmentChip: {
     alignItems: 'center',
     paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 10,
-    borderWidth: 1.5,
+    paddingVertical: 9,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
     borderColor: Colors.light.border,
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.light.backgroundSecondary,
     minWidth: 52,
   },
   installmentChipActive: {
     borderColor: Colors.light.primary,
-    backgroundColor: `${Colors.light.primary}12`,
+    backgroundColor: `${Colors.light.primary}14`,
   },
   installmentChipText: {
     fontSize: 13,
@@ -1428,9 +1622,7 @@ const styles = StyleSheet.create({
   installmentChipSubActive: {
     color: Colors.light.primary,
   },
-  confirmInstallmentBtn: {
-    borderRadius: 10,
-  },
+
   creditSummary: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1455,21 +1647,15 @@ const styles = StyleSheet.create({
     height: 80,
   },
   footer: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
     backgroundColor: Colors.light.background,
     borderTopWidth: 1,
     borderTopColor: Colors.light.border,
   },
   finalizeButton: {
-    backgroundColor: Colors.light.textSecondary,
-  },
-  finalizeButtonEnabled: {
-    backgroundColor: Colors.light.success,
-  },
-  finalizeButtonLabel: {
-    fontSize: 16,
-    fontWeight: '700',
-    paddingVertical: 4,
+    alignSelf: 'stretch',
   },
   discountBanner: {
     flexDirection: 'row',

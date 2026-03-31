@@ -42,6 +42,7 @@ export default function ScanProductScreen() {
     isCreating,
     editManually,
     addToDuplicate,
+    addAsVariant,
     retake,
     reset,
     showSimilarModal,
@@ -382,25 +383,21 @@ export default function ScanProductScreen() {
 
         {/* Duplicados encontrados */}
         {scanResult.possible_duplicates.length > 0 && (
-          <Card style={[styles.dataCard, styles.duplicatesCard]}>
-            <Card.Content>
-              <View style={styles.cardHeader}>
-                <View style={[styles.cardHeaderIcon, { backgroundColor: Colors.light.warning + '20' }]}>
-                  <Ionicons name="copy" size={20} color={Colors.light.warning} />
-                </View>
-                <Text style={styles.cardTitle}>Produtos Similares</Text>
+          <View style={[styles.dataCard, styles.duplicatesCard]}>
+            <View style={styles.cardHeader}>
+              <View style={[styles.cardHeaderIcon, { backgroundColor: Colors.light.warning + '20' }]}>
+                <Ionicons name="copy" size={20} color={Colors.light.warning} />
               </View>
+              <Text style={styles.cardTitle}>Produtos Similares</Text>
+            </View>
 
-              <Text style={styles.duplicatesSubtitle}>
-                Encontramos {scanResult.possible_duplicates.length} produto(s) similar(es) no seu catálogo
-              </Text>
+            <Text style={styles.duplicatesSubtitle}>
+              Encontramos {scanResult.possible_duplicates.length} produto(s) similar(es) no seu catálogo
+            </Text>
 
-              {scanResult.possible_duplicates.slice(0, 3).map((dup, index) => (
-                <TouchableOpacity
-                  key={dup.product_id}
-                  style={styles.duplicateItem}
-                  onPress={() => addToDuplicate(dup.product_id)}
-                >
+            {scanResult.possible_duplicates.map((dup) => (
+              <View key={dup.product_id} style={styles.duplicateItem}>
+                <View style={styles.duplicateItemTop}>
                   <View style={styles.duplicateInfo}>
                     <Text style={styles.duplicateName}>{dup.product_name}</Text>
                     <Text style={styles.duplicateSku}>SKU: {dup.sku}</Text>
@@ -412,11 +409,28 @@ export default function ScanProductScreen() {
                     </Text>
                     <Text style={styles.duplicateScoreLabel}>similar</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color={Colors.light.textTertiary} />
-                </TouchableOpacity>
-              ))}
-            </Card.Content>
-          </Card>
+                </View>
+                <View style={styles.duplicateActions}>
+                  <TouchableOpacity
+                    style={styles.dupActionBtnPrimary}
+                    onPress={() => addToDuplicate(dup.product_id)}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons name="add-circle-outline" size={14} color="#fff" />
+                    <Text style={styles.dupActionBtnPrimaryText}>Repor estoque</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.dupActionBtnSecondary}
+                    onPress={() => addAsVariant(dup.product_id)}
+                    activeOpacity={0.75}
+                  >
+                    <Ionicons name="color-palette-outline" size={14} color={Colors.light.textSecondary} />
+                    <Text style={styles.dupActionBtnSecondaryText}>Nova variação</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </View>
         )}
 
         {/* Tipo de produto */}
@@ -527,9 +541,13 @@ export default function ScanProductScreen() {
         visible={showSimilarModal}
         duplicates={scanResult?.possible_duplicates ?? []}
         scannedName={scanResult?.name ?? ''}
-        onUseProduct={(productId) => {
+        onUseProduct={(productId, _name, quantity) => {
           dismissSimilarModal();
-          addToDuplicate(productId);
+          addToDuplicate(productId, quantity);
+        }}
+        onCreateVariant={(productId) => {
+          dismissSimilarModal();
+          addAsVariant(productId);
         }}
         onCreateNew={dismissSimilarModal}
       />
@@ -979,12 +997,50 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   duplicateItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
     padding: theme.spacing.sm,
     backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: 12,
     marginBottom: 8,
+    gap: 10,
+  },
+  duplicateItemTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  duplicateActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dupActionBtnPrimary: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    backgroundColor: Colors.light.primary,
+    borderRadius: 8,
+    paddingVertical: 8,
+  },
+  dupActionBtnPrimaryText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  dupActionBtnSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  dupActionBtnSecondaryText: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: Colors.light.textSecondary,
   },
   duplicateInfo: {
     flex: 1,

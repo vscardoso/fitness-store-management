@@ -55,7 +55,9 @@ def _get_sync_url() -> str:
         else:
             return base.replace("postgresql://", "postgresql+psycopg2://", 1) + "?sslmode=require"
 
-    # SQLite (dev/test)
+    # SQLite (dev/test) — remove driver async aiosqlite
+    if db_url.startswith("sqlite+aiosqlite://"):
+        return db_url.replace("sqlite+aiosqlite://", "sqlite://", 1)
     return db_url
 
 

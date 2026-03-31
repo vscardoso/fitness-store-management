@@ -6,11 +6,13 @@
  * - Produto com variantes: mostra grade de variações com SKU e preço de cada uma
  */
 
-import { View, StyleSheet, ScrollView } from 'react-native';
-import { Text, Button, Card } from 'react-native-paper';
+import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { Text, Card } from 'react-native-paper';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import { formatCurrency } from '@/utils/format';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import type { ProductVariant } from '@/types/productVariant';
@@ -24,6 +26,7 @@ const MAX_VARIANTS_VISIBLE = 6;
 
 export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) {
   const router = useRouter();
+  const brandingColors = useBrandingColors();
   const { state, resetWizard } = wizard;
   const { createdProduct, linkedEntry } = state;
 
@@ -109,14 +112,14 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
       <Card style={styles.card}>
         <Card.Content>
           <View style={styles.cardHeader}>
-            <View style={styles.cardHeaderIcon}>
-              <Ionicons name="cube" size={22} color={Colors.light.primary} />
+            <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
+              <Ionicons name="cube" size={22} color={brandingColors.primary} />
             </View>
             <Text style={styles.cardTitle}>Resumo do Produto</Text>
             {isVariantProduct && (
-              <View style={styles.variantBadge}>
-                <Ionicons name="layers" size={12} color={Colors.light.primary} />
-                <Text style={styles.variantBadgeText}>{activeVariants.length} variações</Text>
+              <View style={[styles.variantBadge, { backgroundColor: brandingColors.primary + '15' }]}>
+                <Ionicons name="layers" size={12} color={brandingColors.primary} />
+                <Text style={[styles.variantBadgeText, { color: brandingColors.primary }]}>{activeVariants.length} variações</Text>
               </View>
             )}
           </View>
@@ -162,7 +165,7 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
                 <View style={styles.priceDivider} />
                 <View style={styles.priceItem}>
                   <Text style={styles.priceLabel}>Venda</Text>
-                  <Text style={styles.priceValueHighlight}>
+                  <Text style={[styles.priceValueHighlight, { color: VALUE_COLORS.neutral }]}>
                     {formatCurrency(singlePrice ?? 0)}
                   </Text>
                 </View>
@@ -204,7 +207,7 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
               <View style={styles.priceContainer}>
                 <View style={[styles.priceItem, { flex: 2 }]}>
                   <Text style={styles.priceLabel}>Faixa de Preço</Text>
-                  <Text style={styles.priceValueHighlight}>
+                  <Text style={[styles.priceValueHighlight, { color: VALUE_COLORS.neutral }]}>
                     {priceRange
                       ? priceRange[0] === priceRange[1]
                         ? formatCurrency(priceRange[0])
@@ -215,7 +218,7 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
                 <View style={styles.priceDivider} />
                 <View style={styles.priceItem}>
                   <Text style={styles.priceLabel}>Variações</Text>
-                  <Text style={styles.priceValueHighlight}>{activeVariants.length}</Text>
+                  <Text style={[styles.priceValueHighlight, { color: brandingColors.primary }]}>{activeVariants.length}</Text>
                 </View>
               </View>
 
@@ -225,8 +228,8 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
                   <Text style={styles.variantTagsLabel}>CORES</Text>
                   <View style={styles.variantTagsRow}>
                     {uniqueColors.map(c => (
-                      <View key={c} style={styles.colorChip}>
-                        <Text style={styles.colorChipText}>{c}</Text>
+                      <View key={c} style={[styles.colorChip, { backgroundColor: brandingColors.primary + '15' }]}>
+                        <Text style={[styles.colorChipText, { color: brandingColors.primary }]}>{c}</Text>
                       </View>
                     ))}
                   </View>
@@ -272,7 +275,7 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
                       </View>
                       {/* Preço + markup */}
                       <View style={styles.variantRowRight}>
-                        <Text style={styles.variantPrice}>
+                        <Text style={[styles.variantPrice, { color: VALUE_COLORS.neutral }]}>
                           {formatCurrency(Number(v.price))}
                         </Text>
                         {varMarkup !== null && varMarkup > 0 && (
@@ -373,57 +376,63 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
 
       {/* ───── Botões de ação ───── */}
       <View style={styles.actions}>
-        <Button
-          mode="contained"
+        <TouchableOpacity
           onPress={handleCreateAnother}
           style={styles.primaryButton}
-          icon="plus"
+          activeOpacity={0.8}
         >
-          Criar Outro Produto
-        </Button>
+          <LinearGradient
+            colors={brandingColors.gradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.primaryButtonGradient}
+          >
+            <Ionicons name="add-circle-outline" size={20} color="#fff" />
+            <Text style={styles.primaryButtonText}>Criar Outro Produto</Text>
+          </LinearGradient>
+        </TouchableOpacity>
 
         <View style={styles.secondaryActions}>
           {canViewProduct && (
-            <Button
-              mode="outlined"
+            <TouchableOpacity
               onPress={() => router.push(`/products/photos/${createdProduct!.id}` as any)}
-              style={[styles.secondaryButton, { borderColor: '#6366F1' }]}
-              textColor="#6366F1"
-              icon="images"
+              style={[styles.secondaryButton, { borderColor: brandingColors.primary }]}
+              activeOpacity={0.7}
             >
-              Adicionar Fotos
-            </Button>
+              <Ionicons name="images-outline" size={18} color={brandingColors.primary} />
+              <Text style={[styles.secondaryButtonText, { color: brandingColors.primary }]}>Adicionar Fotos</Text>
+            </TouchableOpacity>
           )}
 
           {canViewProduct && (
-            <Button
-              mode="outlined"
+            <TouchableOpacity
               onPress={handleViewProduct}
-              style={styles.secondaryButton}
-              icon="eye"
+              style={[styles.secondaryButton, { borderColor: brandingColors.primary }]}
+              activeOpacity={0.7}
             >
-              Ver Produto
-            </Button>
+              <Ionicons name="eye-outline" size={18} color={brandingColors.primary} />
+              <Text style={[styles.secondaryButtonText, { color: brandingColors.primary }]}>Ver Produto</Text>
+            </TouchableOpacity>
           )}
 
-          <Button
-            mode="outlined"
+          <TouchableOpacity
             onPress={handleGoToProducts}
-            style={styles.secondaryButton}
-            icon="grid"
+            style={[styles.secondaryButton, { borderColor: brandingColors.primary }]}
+            activeOpacity={0.7}
           >
-            Ver Produtos
-          </Button>
+            <Ionicons name="grid-outline" size={18} color={brandingColors.primary} />
+            <Text style={[styles.secondaryButtonText, { color: brandingColors.primary }]}>Ver Produtos</Text>
+          </TouchableOpacity>
 
           {linkedEntry && (
-            <Button
-              mode="outlined"
+            <TouchableOpacity
               onPress={handleGoToStock}
-              style={styles.secondaryButton}
-              icon="archive"
+              style={[styles.secondaryButton, { borderColor: brandingColors.primary }]}
+              activeOpacity={0.7}
             >
-              Ir para Estoque
-            </Button>
+              <Ionicons name="archive-outline" size={18} color={brandingColors.primary} />
+              <Text style={[styles.secondaryButtonText, { color: brandingColors.primary }]}>Ir para Estoque</Text>
+            </TouchableOpacity>
           )}
         </View>
       </View>
@@ -467,8 +476,10 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: theme.spacing.md,
     borderRadius: 16,
-    elevation: 2,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
   },
   cardEntry: {
     borderLeftWidth: 4,
@@ -791,17 +802,43 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.lg,
   },
   primaryButton: {
-    borderRadius: 12,
-    paddingVertical: 4,
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
     marginBottom: theme.spacing.md,
+  },
+  primaryButtonGradient: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  primaryButtonText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
   },
   secondaryActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: theme.spacing.sm,
   },
   secondaryButton: {
     flex: 1,
-    borderRadius: 12,
+    minWidth: 140,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1.5,
+    paddingVertical: 12,
+    paddingHorizontal: theme.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Colors.light.card,
+  },
+  secondaryButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
 });
 

@@ -88,7 +88,13 @@ export const useCartStore = create<CartState>()(
        * Adicionar produto simples ao carrinho
        */
       addItem: (product: Product, quantity: number = 1) => {
-        const cart_key = `p_${product.id}`;
+        const productWithVariant = product as Product & {
+          variant_id?: number;
+          variant_label?: string;
+        };
+        const cart_key = productWithVariant.variant_id
+          ? `v_${productWithVariant.variant_id}`
+          : `p_${product.id}`;
         const items = get().items;
         const existingItem = items.find((item) => item.cart_key === cart_key);
 
@@ -104,6 +110,8 @@ export const useCartStore = create<CartState>()(
           const newItem: CartItem = {
             cart_key,
             product_id: product.id,
+            variant_id: productWithVariant.variant_id,
+            variant_label: productWithVariant.variant_label,
             product,
             quantity,
             unit_price: product.price,

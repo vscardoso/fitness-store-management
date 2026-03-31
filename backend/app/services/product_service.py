@@ -223,6 +223,7 @@ class ProductService:
                 # Incluir entry_id nos dados do item e usar assinatura correta (db, data)
                 item_dict = item_data.model_dump(exclude={"selling_price"})
                 item_dict["entry_id"] = entry.id
+                item_dict["tenant_id"] = tenant_id
                 item = await item_repo.create(self.db, item_dict)
                 logger.info(f" Item de entrada criado - ID: {item.id}, Qty: {initial_stock}")
 

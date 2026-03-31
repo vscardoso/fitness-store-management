@@ -1,9 +1,23 @@
 import { useLocalSearchParams } from 'expo-router';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { Text, ActivityIndicator, Button } from 'react-native-paper';
+import {
+  View,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  Text,
+  ActivityIndicator,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useRef, useState, useCallback } from 'react';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import PageHeader from '@/components/layout/PageHeader';
@@ -12,28 +26,40 @@ import { getSaleById } from '@/services/saleService';
 import { getReturnHistory } from '@/services/returnService';
 import { formatCurrency, formatDateTime } from '@/utils/format';
 import type { SaleReturn } from '@/services/returnService';
-import { Colors } from '@/constants/Colors';
+import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import { useAuthStore } from '@/store/authStore';
 import SaleReceipt from '@/components/receipt/SaleReceipt';
 import ReturnModal from '@/components/sale/ReturnModal';
+import AppButton from '@/components/ui/AppButton';
 import type { SaleWithDetails } from '@/types';
 
-const statusMap: Record<string, { label: string; color: string; bg: string }> = {
-  pending:            { label: 'Pendente',     color: '#F57C00', bg: '#FFF3E0' },
-  completed:          { label: 'Concluída',    color: '#2E7D32', bg: '#E8F5E9' },
-  cancelled:          { label: 'Cancelada',    color: '#C62828', bg: '#FFEBEE' },
-  partially_refunded: { label: 'Dev. Parcial', color: '#F57C00', bg: '#FFF3E0' },
-  refunded:           { label: 'Devolvida',    color: '#7B1FA2', bg: '#F3E5F5' },
+const statusMap: Record<string, { label: string; color: string; solid?: boolean; icon: keyof typeof Ionicons.glyphMap }> = {
+  pending:            { label: 'Pendente',     color: '#F59E0B', icon: 'time-outline' },
+  completed:          { label: 'Concluída',    color: VALUE_COLORS.positive, solid: true, icon: 'checkmark-circle' },
+  cancelled:          { label: 'Cancelada',    color: VALUE_COLORS.negative, icon: 'close-circle' },
+  partially_refunded: { label: 'Dev. Parcial', color: '#F59E0B', icon: 'refresh-circle' },
+  refunded:           { label: 'Devolvida',    color: '#7B1FA2', solid: true, icon: 'arrow-undo-circle' },
 };
 
 const paymentLabel: Record<string, string> = {
-  cash: 'Dinheiro', credit_card: 'Crédito', debit_card: 'Débito',
-  pix: 'Pix', transfer: 'Transferência',
+  cash: 'Dinheiro',
+  credit_card: 'Crédito',
+  debit_card: 'Débito',
+  pix: 'Pix',
+  bank_transfer: 'Transferência',
+  installments: 'Parcelado',
+  loyalty_points: 'Pontos de Fidelidade',
 };
 
 const paymentIcon: Record<string, string> = {
-  cash: 'cash', credit_card: 'card', debit_card: 'card',
-  pix: 'qr-code-outline', transfer: 'swap-horizontal',
+  cash: 'cash',
+  credit_card: 'card',
+  debit_card: 'card',
+  pix: 'qr-code-outline',
+  bank_transfer: 'swap-horizontal',
+  installments: 'card',
+  loyalty_points: 'star-outline',
 };
 
 export default function SaleDetailsScreen() {
@@ -42,7 +68,15 @@ export default function SaleDetailsScreen() {
   const { goBack } = useBackToList('/(tabs)/sales');
   const receiptRef = useRef<View>(null);
   const { user } = useAuthStore();
+  const brandingColors = useBrandingColors();
   const [returnModalVisible, setReturnModalVisible] = useState(false);
+  const animated = useRef(false);
+
+  // ── Animação de entrada ──
+  const headerOpacity  = useSharedValue(0);
+  const headerScale    = useSharedValue(0.94);
+  const contentOpacity = useSharedValue(0);
+  const contentTransY  = useSharedValue(24);
 
   const { data: sale, isLoading, isError, refetch } = useQuery<SaleWithDetails>({
     queryKey: ['sale', saleId],
@@ -54,6 +88,30 @@ export default function SaleDetailsScreen() {
     queryFn: () => getReturnHistory(saleId),
     enabled: !!saleId,
   });
+
+  // Dispara animação de entrada quando dados carregam
+  const animateIn = useCallback(() => {
+    headerOpacity.value  = 0;
+    headerScale.value    = 0.94;
+    contentOpacity.value = 0;
+    contentTransY.value  = 24;
+    headerOpacity.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.quad) });
+    headerScale.value   = withSpring(1, { damping: 16, stiffness: 200 });
+    const t = setTimeout(() => {
+      contentOpacity.value = withTiming(1, { duration: 340 });
+      contentTransY.value  = withSpring(0, { damping: 18, stiffness: 200 });
+    }, 140);
+    return t;
+  }, []);
+
+  const headerAnimStyle  = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTransY.value }],
+  }));
 
   const handleReturnSuccess = useCallback(() => {
     refetch();
@@ -83,7 +141,7 @@ export default function SaleDetailsScreen() {
       <View style={styles.container}>
         <PageHeader title="Venda" showBackButton onBack={goBack} />
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={brandingColors.primary} />
           <Text style={styles.loadingText}>Carregando venda...</Text>
         </View>
       </View>
@@ -98,10 +156,14 @@ export default function SaleDetailsScreen() {
           <Ionicons name="alert-circle-outline" size={64} color="#999" />
           <Text style={styles.errorTitle}>Erro ao carregar venda</Text>
           <Text style={styles.errorSubtitle}>Toque para tentar novamente</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={() => refetch()}>
-            <Ionicons name="refresh" size={20} color="#fff" />
-            <Text style={styles.retryText}>Tentar novamente</Text>
-          </TouchableOpacity>
+          <AppButton
+            variant="primary"
+            size="lg"
+            icon="refresh-outline"
+            label="Tentar novamente"
+            onPress={() => refetch()}
+            style={styles.retryButton}
+          />
         </View>
       </View>
     );
@@ -113,32 +175,45 @@ export default function SaleDetailsScreen() {
   const hasDiscount = Number(sale.discount_amount) > 0;
   const hasTax = Number(sale.tax_amount) > 0;
 
+  // Dispara animação uma vez após dados disponíveis
+  if (!animated.current) {
+    animated.current = true;
+    animateIn();
+  }
+
   return (
     <View style={styles.container}>
-      <PageHeader
-        title={sale.sale_number}
-        subtitle={`${datePart} · ${timePart}`}
-        showBackButton
-        onBack={goBack}
-        rightActions={[{ icon: 'share-outline', onPress: handleShareReceipt }]}
-      >
-        <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-          <Ionicons name="checkmark-circle" size={13} color={statusStyle.color} />
-          <Text style={[styles.statusText, { color: statusStyle.color }]}>{statusStyle.label}</Text>
-        </View>
-      </PageHeader>
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title={sale.sale_number}
+          subtitle={`${datePart} · ${timePart}`}
+          showBackButton
+          onBack={goBack}
+          rightActions={[{ icon: 'share-outline', onPress: handleShareReceipt }]}
+        >
+          <View style={[styles.statusBadge, { backgroundColor: statusStyle.solid ? statusStyle.color : statusStyle.color + '18' }]}>
+            <Ionicons name={statusStyle.icon} size={13} color={statusStyle.solid ? '#fff' : statusStyle.color} />
+            <Text style={[styles.statusText, { color: statusStyle.solid ? '#fff' : statusStyle.color }]}>{statusStyle.label}</Text>
+          </View>
+        </PageHeader>
+      </Animated.View>
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <Animated.ScrollView contentContainerStyle={styles.scrollContent} style={contentAnimStyle}>
 
         {/* ── HERO: Total + Formas de pagamento ─────────────────── */}
-        <View style={styles.heroCard}>
+        <LinearGradient
+          colors={brandingColors.gradient}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.heroCard}
+        >
           <Text style={styles.heroLabel}>TOTAL DA VENDA</Text>
           <Text style={styles.heroAmount}>{formatCurrency(sale.total_amount)}</Text>
           <Text style={styles.heroItems}>
             {sale.items.length} {sale.items.length === 1 ? 'produto' : 'produtos'}
           </Text>
 
-        </View>
+        </LinearGradient>
 
         {/* ── FORMAS DE PAGAMENTO ────────────────────────────────── */}
         {sale.payments.length > 0 && (
@@ -177,24 +252,24 @@ export default function SaleDetailsScreen() {
         {/* ── RENTABILIDADE (FIFO) — só exibe quando disponível ── */}
         {sale.total_profit != null && (
           <View style={styles.profitCard}>
-            <Ionicons name="trending-up" size={16} color="#2E7D32" />
+            <Ionicons name="trending-up" size={16} color={VALUE_COLORS.positive} />
             <Text style={styles.profitTitle}>Rentabilidade</Text>
             <View style={styles.profitSep} />
             <View style={styles.profitCol}>
               <Text style={styles.profitLbl}>Custo</Text>
-              <Text style={styles.profitVal}>{formatCurrency(sale.total_cost || 0)}</Text>
+              <Text style={[styles.profitVal, { color: VALUE_COLORS.negative }]}>{formatCurrency(sale.total_cost || 0)}</Text>
             </View>
             <View style={styles.profitSep} />
             <View style={styles.profitCol}>
               <Text style={styles.profitLbl}>Lucro</Text>
-              <Text style={[styles.profitVal, { color: (sale.total_profit ?? 0) >= 0 ? '#2E7D32' : '#C62828' }]}>
+              <Text style={[styles.profitVal, { color: (sale.total_profit ?? 0) >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
                 {formatCurrency(sale.total_profit ?? 0)}
               </Text>
             </View>
             <View style={styles.profitSep} />
             <View style={styles.profitCol}>
               <Text style={styles.profitLbl}>Margem</Text>
-              <Text style={[styles.profitVal, { color: (sale.profit_margin_percent ?? 0) >= 0 ? '#2E7D32' : '#C62828' }]}>
+              <Text style={[styles.profitVal, { color: (sale.profit_margin_percent ?? 0) >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
                 {(sale.profit_margin_percent ?? 0).toFixed(1)}%
               </Text>
             </View>
@@ -395,19 +470,19 @@ export default function SaleDetailsScreen() {
         {/* ── BOTÃO DEVOLUÇÃO ───────────────────────────────────── */}
         {(sale.status === 'completed' || sale.status === 'partially_refunded') && (
           <View style={styles.returnSection}>
-            <Button
-              mode="outlined"
+            <AppButton
+              variant="danger-outline"
+              size="lg"
+              fullWidth
+              icon="refresh-outline"
+              label={sale.status === 'partially_refunded' ? 'Nova Devolução' : 'Realizar Devolução'}
               onPress={() => setReturnModalVisible(true)}
               style={styles.returnButton}
-              textColor={Colors.light.error}
-              icon="refresh"
-            >
-              {sale.status === 'partially_refunded' ? 'Nova Devolução' : 'Realizar Devolução'}
-            </Button>
+            />
             <Text style={styles.returnInfoText}>Prazo de até 7 dias após a venda</Text>
           </View>
         )}
-      </ScrollView>
+      </Animated.ScrollView>
 
       {/* Recibo invisível — apenas para captura e compartilhamento */}
       <View style={styles.hiddenReceipt} pointerEvents="none">
@@ -427,179 +502,181 @@ export default function SaleDetailsScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24, gap: 16 },
-  loadingText: { color: Colors.light.textSecondary },
-  errorTitle: { fontSize: 18, fontWeight: '700', color: '#222', marginTop: 12 },
-  errorSubtitle: { fontSize: 14, color: '#666' },
+  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: theme.spacing.lg, gap: theme.spacing.md },
+  loadingText: { color: Colors.light.textSecondary, fontSize: theme.fontSize.sm },
+  errorTitle: { fontSize: theme.fontSize.lg, fontWeight: '700', color: Colors.light.text, marginTop: theme.spacing.sm },
+  errorSubtitle: { fontSize: theme.fontSize.sm, color: Colors.light.textSecondary },
   retryButton: {
-    marginTop: 12, flexDirection: 'row', alignItems: 'center', gap: 8,
-    backgroundColor: Colors.light.primary, paddingHorizontal: 20, paddingVertical: 12, borderRadius: 24,
+    marginTop: theme.spacing.sm,
+    width: '100%',
+    maxWidth: 260,
   },
-  retryText: { color: '#fff', fontWeight: '600' },
 
   // Header status badge
   statusBadge: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12,
+    paddingHorizontal: theme.spacing.sm, paddingVertical: 3, borderRadius: theme.borderRadius.sm,
   },
-  statusText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
+  statusText: { fontSize: theme.fontSize.xxs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
 
-  scrollContent: { padding: 16, paddingBottom: 48 },
+  scrollContent: { padding: theme.spacing.md, paddingBottom: theme.spacing.xxl },
 
   // ── Hero ──────────────────────────────────────────────────
   heroCard: {
-    backgroundColor: Colors.light.primary,
-    borderRadius: 20, padding: 24, marginBottom: 12,
+    borderRadius: theme.borderRadius.xxl, padding: theme.spacing.lg, marginBottom: theme.spacing.sm,
     alignItems: 'center',
-    elevation: 4,
-    shadowColor: Colors.light.primary,
+    elevation: 6,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.25,
-    shadowRadius: 10,
+    shadowOpacity: 0.2,
+    shadowRadius: 12,
   },
   heroLabel: {
-    fontSize: 11, fontWeight: '700',
+    fontSize: theme.fontSize.xxs, fontWeight: '700',
     color: 'rgba(255,255,255,0.65)',
     letterSpacing: 1.5, textTransform: 'uppercase', marginBottom: 4,
   },
   heroAmount: { fontSize: 40, fontWeight: '800', color: '#fff', letterSpacing: -1 },
-  heroItems: { fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 4, marginBottom: 16 },
-  paymentLine: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 10 },
-  paymentLineText: { fontSize: 13, color: 'rgba(255,255,255,0.65)' },
+  heroItems: { fontSize: theme.fontSize.xs, color: 'rgba(255,255,255,0.65)', marginTop: 4 },
 
   // ── Rentabilidade ─────────────────────────────────────────
   profitCard: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: '#fff', borderRadius: 14,
-    padding: 14, marginBottom: 12, gap: 8,
-    elevation: 2,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.07, shadowRadius: 3,
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1, borderColor: Colors.light.border,
+    padding: theme.spacing.sm + 6, marginBottom: theme.spacing.sm, gap: theme.spacing.sm,
+    ...theme.shadows.sm,
   },
-  profitTitle: { fontSize: 12, fontWeight: '700', color: '#2E7D32', flex: 1 },
-  profitSep: { width: 1, height: 24, backgroundColor: '#e5e7eb' },
+  profitTitle: { fontSize: theme.fontSize.xs, fontWeight: '700', color: VALUE_COLORS.positive, flex: 1 },
+  profitSep: { width: 1, height: 24, backgroundColor: Colors.light.border },
   profitCol: { alignItems: 'center', flex: 1 },
   profitLbl: {
-    fontSize: 10, color: '#888',
+    fontSize: theme.fontSize.xxs, color: Colors.light.textTertiary,
     textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2,
   },
-  profitVal: { fontSize: 13, fontWeight: '700', color: '#222' },
+  profitVal: { fontSize: theme.fontSize.sm, fontWeight: '700', color: Colors.light.text },
 
   // ── Card genérico ─────────────────────────────────────────
   card: {
-    backgroundColor: '#fff', borderRadius: 16, padding: 16, marginBottom: 12,
-    elevation: 2,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.07, shadowRadius: 4,
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl, padding: theme.spacing.md, marginBottom: theme.spacing.sm,
+    borderWidth: 1, borderColor: Colors.light.border,
+    ...theme.shadows.sm,
   },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
-  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#222' },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginBottom: theme.spacing.sm + 2 },
+  sectionTitle: { fontSize: theme.fontSize.base, fontWeight: '700', color: Colors.light.text },
 
   // ── Itens ─────────────────────────────────────────────────
-  itemDivider: { height: 1, backgroundColor: '#f0f0f0', marginVertical: 10 },
+  itemDivider: { height: 1, backgroundColor: Colors.light.border, marginVertical: theme.spacing.sm },
   itemRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  itemLeft: { flex: 1, paddingRight: 12 },
-  itemName: { fontSize: 14, fontWeight: '600', color: '#222', marginBottom: 3 },
-  itemQtyPrice: { fontSize: 12, color: '#888' },
-  itemRight: { alignItems: 'flex-end', gap: 3 },
-  itemStrike: { fontSize: 11, color: '#bbb', textDecorationLine: 'line-through' },
-  itemSubtotal: { fontSize: 15, fontWeight: '700', color: '#222' },
-  marginBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8 },
-  marginBadgeText: { fontSize: 11, fontWeight: '700' },
+  itemLeft: { flex: 1, minWidth: 0, paddingRight: theme.spacing.sm },
+  itemName: { fontSize: theme.fontSize.sm, fontWeight: '600', color: Colors.light.text, marginBottom: 3 },
+  itemQtyPrice: { fontSize: theme.fontSize.xs, color: Colors.light.textSecondary },
+  itemRight: { alignItems: 'flex-end', gap: 3, flexShrink: 0 },
+  itemStrike: { fontSize: theme.fontSize.xxs + 1, color: Colors.light.textTertiary, textDecorationLine: 'line-through' },
+  itemSubtotal: { fontSize: theme.fontSize.base - 1, fontWeight: '700', color: Colors.light.text },
+  marginBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: theme.borderRadius.sm },
+  marginBadgeText: { fontSize: theme.fontSize.xxs + 1, fontWeight: '700' },
 
   // ── Formas de pagamento ───────────────────────────────────
   paymentRow: {
-    flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 4,
+    flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, paddingVertical: 4,
   },
   paymentIconWrap: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: `${Colors.light.primary}12`,
+    backgroundColor: Colors.light.backgroundSecondary,
     justifyContent: 'center', alignItems: 'center',
   },
   paymentMethodInfo: { flex: 1 },
-  paymentMethodLabel: { fontSize: 15, fontWeight: '600', color: '#222' },
-  paymentInstallments: { fontSize: 12, color: '#888', marginTop: 1 },
-  paymentMethodAmount: { fontSize: 15, fontWeight: '700', color: Colors.light.primary },
+  paymentMethodLabel: { fontSize: theme.fontSize.base - 1, fontWeight: '600', color: Colors.light.text },
+  paymentInstallments: { fontSize: theme.fontSize.xs, color: Colors.light.textSecondary, marginTop: 1 },
+  paymentMethodAmount: { fontSize: theme.fontSize.base - 1, fontWeight: '700', color: VALUE_COLORS.positive, flexShrink: 0 },
 
   // ── Rodapé de totais ──────────────────────────────────────
   totalsFooter: {
-    marginTop: 14, paddingTop: 14,
-    borderTopWidth: 1, borderTopColor: '#f0f0f0', gap: 8,
+    marginTop: theme.spacing.sm, paddingTop: theme.spacing.sm,
+    borderTopWidth: 1, borderTopColor: Colors.light.border, gap: theme.spacing.sm,
   },
   totalLine: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  totalLineLabel: { fontSize: 14, color: '#666' },
-  totalLineValue: { fontSize: 14, fontWeight: '600', color: '#555' },
+  totalLineLabel: { fontSize: theme.fontSize.sm, color: Colors.light.textSecondary },
+  totalLineValue: { fontSize: theme.fontSize.sm, fontWeight: '600', color: Colors.light.text },
   grandTotalLine: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    paddingTop: 10, borderTopWidth: 1, borderTopColor: '#e5e7eb', marginTop: 2,
+    paddingTop: theme.spacing.sm, borderTopWidth: 1, borderTopColor: Colors.light.border, marginTop: 2,
   },
   grandTotalLabel: {
-    fontSize: 14, fontWeight: '800', color: '#111',
+    fontSize: theme.fontSize.sm, fontWeight: '800', color: Colors.light.text,
     textTransform: 'uppercase', letterSpacing: 0.5,
   },
-  grandTotalValue: { fontSize: 22, fontWeight: '800', color: Colors.light.primary },
+  grandTotalValue: { fontSize: 22, fontWeight: '800' },
   paymentMethodLine: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    marginTop: 8,
+    marginTop: theme.spacing.sm,
   },
-  paymentMethodText: { fontSize: 13, color: Colors.light.textSecondary },
+  paymentMethodText: { fontSize: theme.fontSize.sm, color: Colors.light.textSecondary },
 
   // ── Envolvidos ────────────────────────────────────────────
-  personRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  personRowSpacing: { marginTop: 12 },
+  personRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
+  personRowSpacing: { marginTop: theme.spacing.sm },
   personAvatar: {
     width: 38, height: 38, borderRadius: 19,
-    backgroundColor: `${Colors.light.primary}15`,
+    backgroundColor: Colors.light.backgroundSecondary,
     justifyContent: 'center', alignItems: 'center',
   },
   personInfo: { flex: 1 },
   personLabel: {
-    fontSize: 10, color: '#aaa',
+    fontSize: theme.fontSize.xxs, color: Colors.light.textTertiary,
     textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2,
   },
-  personName: { fontSize: 15, fontWeight: '600', color: '#222' },
+  personName: { fontSize: theme.fontSize.base - 1, fontWeight: '600', color: Colors.light.text },
 
   // ── Notas ─────────────────────────────────────────────────
   notesCard: {
-    flexDirection: 'row', gap: 10, alignItems: 'flex-start',
-    backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 12,
+    flexDirection: 'row', gap: theme.spacing.sm, alignItems: 'flex-start',
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.lg, padding: theme.spacing.sm + 2, marginBottom: theme.spacing.sm,
     borderLeftWidth: 3, borderLeftColor: Colors.light.info,
-    elevation: 1,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05, shadowRadius: 2,
+    borderWidth: 1, borderColor: Colors.light.border,
+    ...theme.shadows.sm,
   },
-  notesText: { flex: 1, fontSize: 14, color: '#444', lineHeight: 20 },
+  notesText: { flex: 1, fontSize: theme.fontSize.sm, color: Colors.light.textSecondary, lineHeight: 20 },
 
   // ── Devoluções ────────────────────────────────────────────
-  returnMeta: { marginBottom: 8 },
-  returnNumber: { fontSize: 13, fontWeight: '700', color: '#333' },
-  returnDate: { fontSize: 11, color: '#888', marginTop: 1 },
+  returnMeta: { marginBottom: theme.spacing.sm },
+  returnNumber: { fontSize: theme.fontSize.sm, fontWeight: '700', color: Colors.light.text },
+  returnDate: { fontSize: theme.fontSize.xxs + 1, color: Colors.light.textSecondary, marginTop: 1 },
   returnItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 5 },
-  returnItemName: { flex: 1, fontSize: 13, color: '#555' },
-  returnItemQty: { fontSize: 12, color: '#888', marginHorizontal: 8 },
-  returnItemVal: { fontSize: 13, fontWeight: '600', color: Colors.light.error },
+  returnItemName: { flex: 1, minWidth: 0, fontSize: theme.fontSize.sm, color: Colors.light.textSecondary },
+  returnItemQty: { fontSize: theme.fontSize.xs, color: Colors.light.textTertiary, marginHorizontal: theme.spacing.sm },
+  returnItemVal: { fontSize: theme.fontSize.sm, fontWeight: '600', color: VALUE_COLORS.negative, flexShrink: 0 },
   returnTotal: {
     flexDirection: 'row', justifyContent: 'space-between',
-    paddingTop: 8, marginTop: 4, borderTopWidth: 1, borderTopColor: '#f0f0f0',
+    paddingTop: theme.spacing.sm, marginTop: 4, borderTopWidth: 1, borderTopColor: Colors.light.border,
   },
-  returnTotalLabel: { fontSize: 13, fontWeight: '600', color: '#666' },
-  returnTotalValue: { fontSize: 14, fontWeight: '700', color: Colors.light.error },
-  returnReason: { fontSize: 12, color: '#888', marginTop: 6, fontStyle: 'italic' },
+  returnTotalLabel: { fontSize: theme.fontSize.sm, fontWeight: '600', color: Colors.light.textSecondary },
+  returnTotalValue: { fontSize: theme.fontSize.sm, fontWeight: '700', color: VALUE_COLORS.negative },
+  returnReason: { fontSize: theme.fontSize.xs, color: Colors.light.textSecondary, marginTop: 6, fontStyle: 'italic' },
   returnGrandTotal: {
     flexDirection: 'row', justifyContent: 'space-between',
-    paddingTop: 12, marginTop: 12, borderTopWidth: 1, borderTopColor: '#e0e0e0',
+    paddingTop: theme.spacing.sm, marginTop: theme.spacing.sm, borderTopWidth: 1, borderTopColor: Colors.light.border,
   },
-  returnGrandTotalLabel: { fontSize: 14, fontWeight: '700', color: '#333' },
-  returnGrandTotalValue: { fontSize: 16, fontWeight: '800', color: Colors.light.error },
+  returnGrandTotalLabel: { fontSize: theme.fontSize.sm, fontWeight: '700', color: Colors.light.text },
+  returnGrandTotalValue: { fontSize: theme.fontSize.base, fontWeight: '800', color: VALUE_COLORS.negative },
 
   // ── Botão devolução ───────────────────────────────────────
-  returnSection: { alignItems: 'center', marginTop: 4, marginBottom: 24 },
-  returnButton: { borderColor: Colors.light.error, borderWidth: 2 },
+  returnSection: { width: '100%', alignItems: 'center', marginTop: theme.spacing.xs, marginBottom: theme.spacing.lg },
+  returnButton: {
+    width: '100%',
+    maxWidth: 360,
+    alignSelf: 'center',
+  },
   returnInfoText: {
-    fontSize: 12, color: Colors.light.textSecondary, marginTop: 8, textAlign: 'center',
+    fontSize: theme.fontSize.xs, color: Colors.light.textSecondary, marginTop: theme.spacing.sm, textAlign: 'center',
   },
 
   // ── Recibo oculto (somente para captura/share) ────────────
   hiddenReceipt: { position: 'absolute', left: -5000, top: 0, width: 400 },
 });
+
 

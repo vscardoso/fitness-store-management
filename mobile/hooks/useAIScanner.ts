@@ -34,7 +34,8 @@ export interface UseAIScannerReturn {
   confirmAndCreate: () => Promise<void>;
   isCreating: boolean;
   editManually: () => void;
-  addToDuplicate: (productId: number) => void;
+  addToDuplicate: (productId: number, quantity?: number) => void;
+  addAsVariant: (productId: number) => void;
   retake: () => void;
   reset: () => void;
   // Modal de similares
@@ -134,7 +135,7 @@ export function useAIScanner(): UseAIScannerReturn {
 
     try {
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: [ImagePicker.MediaType.Images],
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
@@ -163,7 +164,7 @@ export function useAIScanner(): UseAIScannerReturn {
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: [ImagePicker.MediaType.Images],
         allowsEditing: true,
         aspect: [4, 3],
         quality: 0.8,
@@ -266,17 +267,50 @@ export function useAIScanner(): UseAIScannerReturn {
   }, [scanResult, router]);
 
   /**
-   * Adiciona estoque a um produto duplicado encontrado
+   * Adiciona estoque a um produto EXISTENTE (mesmo produto).
+   * Usa a tela rápida add-stock dedicada a este fluxo.
    */
-  const addToDuplicate = useCallback((productId: number) => {
+  const addToDuplicate = useCallback((productId: number, quantity: number = 1) => {
+    const dup = scanResult?.possible_duplicates?.find(d => d.product_id === productId);
     router.push({
-      pathname: '/entries/add',
+      pathname: '/entries/add-stock',
       params: {
-        preselectedProductId: String(productId),
-        preselectedQuantity: '1',
+        productId:    String(productId),
+        quantity:     String(quantity),
+        ...(dup?.product_name ? { productName:   dup.product_name }            : {}),
+        ...(dup?.sku           ? { productSku:    dup.sku }                     : {}),
+        ...(dup?.current_stock !== undefined ? { currentStock: String(dup.current_stock) } : {}),
+        ...(dup?.cost_price    ? { costPrice:     String(dup.cost_price) }      : {}),
       },
-    });
-  }, [router]);
+    } as any);
+  }, [router, scanResult]);
+
+  /**
+   * Cria uma nova variação baseada em um produto similar existente.
+   * Vai para o wizard (Step 2) com os dados do produto similar pré-preenchidos,
+   * permitindo ajustar cor, tamanho, SKU etc. antes de criar a entrada.
+   */
+  const addAsVariant = useCallback((productId: number) => {
+    const dup = scanResult?.possible_duplicates?.find(d => d.product_id === productId);
+    // Mescla dados do produto similar com dados do scan (scan tem cor/tamanho da foto)
+    // Usa prefillData para ir direto ao Step 2 (igual ao editManually)
+    const prefillData = {
+      name: scanResult?.name || dup?.product_name || '',
+      cost_price: dup?.cost_price ?? scanResult?.suggested_cost_price ?? 0,
+      price: scanResult?.suggested_sale_price ?? 0,
+      color: scanResult?.color || undefined,
+      size: scanResult?.size || undefined,
+      brand: scanResult?.brand || undefined,
+      description: scanResult?.description || undefined,
+      category_id: scanResult?.suggested_category_id || undefined,
+    };
+    router.push({
+      pathname: '/products/wizard',
+      params: {
+        prefillData: JSON.stringify(prefillData),
+      },
+    } as any);
+  }, [router, scanResult]);
 
   /**
    * Refaz a foto
@@ -321,6 +355,7 @@ export function useAIScanner(): UseAIScannerReturn {
     isCreating,
     editManually,
     addToDuplicate,
+    addAsVariant,
     retake,
     reset,
     showSimilarModal,

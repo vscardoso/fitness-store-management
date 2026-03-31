@@ -90,8 +90,14 @@ class Token(BaseModel):
 class TokenResponse(BaseModel):
     """Schema for token response (with user data)."""
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+
+class RefreshTokenRequest(BaseModel):
+    """Schema para renovacao de sessao via refresh token."""
+    refresh_token: str
 
 
 # ========== SCHEMAS PARA GERENCIAMENTO DE EQUIPE ==========

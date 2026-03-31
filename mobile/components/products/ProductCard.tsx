@@ -30,15 +30,15 @@ export default function ProductCard({ product, onPress }: ProductCardProps) {
     // Estoque baixo: menor ou igual ao mínimo
     if (currentStock <= minStock) {
       return {
-        color: '#F57C00',
-        backgroundColor: '#FFF3E0',
+        color: Colors.light.warning,
+        backgroundColor: Colors.light.warningLight,
         text: 'Estoque baixo',
         icon: 'alert-circle' as const,
       };
     }
     return {
-      color: '#2E7D32',
-      backgroundColor: '#E8F5E9',
+      color: Colors.light.success,
+      backgroundColor: Colors.light.successLight,
       text: 'Disponível',
       icon: 'checkmark-circle' as const,
     };

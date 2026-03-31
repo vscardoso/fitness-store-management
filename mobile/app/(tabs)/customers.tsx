@@ -5,21 +5,29 @@ import {
   FlatList,
   RefreshControl,
   TouchableOpacity,
+  Text,
+  TextInput,
   ActivityIndicator,
 } from 'react-native';
-import { Searchbar, Text, Card } from 'react-native-paper';
 import { useRouter, useFocusEffect } from 'expo-router';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
 import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';
+import PageHeader from '@/components/layout/PageHeader';
 import { getCustomers } from '@/services/customerService';
 import { formatPhone } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
-import { HelpButton } from '@/components/tutorial';
+import { useBrandingColors } from '@/store/brandingStore';
 import type { Customer } from '@/types';
 
 export default function CustomersScreen() {
@@ -28,8 +36,14 @@ export default function CustomersScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const brandingColors = useBrandingColors();
 
-  // Query: Lista de clientes
+  // ── Animação de entrada ──
+  const headerOpacity  = useSharedValue(0);
+  const headerScale    = useSharedValue(0.94);
+  const contentOpacity = useSharedValue(0);
+  const contentTransY  = useSharedValue(24);
+
   const {
     data: customers,
     isLoading,
@@ -43,401 +57,230 @@ export default function CustomersScreen() {
     retry: false,
   });
 
-  // Auto-refresh quando a tela recebe foco
   useFocusEffect(
     useCallback(() => {
-      if (isAuthenticated) {
-        refetch();
-      }
+      if (isAuthenticated) refetch();
+
+      headerOpacity.value  = 0;
+      headerScale.value    = 0.94;
+      contentOpacity.value = 0;
+      contentTransY.value  = 24;
+
+      headerOpacity.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.quad) });
+      headerScale.value   = withSpring(1, { damping: 16, stiffness: 200 });
+      const t = setTimeout(() => {
+        contentOpacity.value = withTiming(1, { duration: 340 });
+        contentTransY.value  = withSpring(0, { damping: 18, stiffness: 200 });
+      }, 140);
+      return () => clearTimeout(t);
     }, [isAuthenticated, refetch])
   );
 
-  /**
-   * Filtrar clientes por busca e status
-   */
+  const headerAnimStyle  = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTransY.value }],
+  }));
+
+  // ── Filtros ──
   const filteredCustomers = customers?.filter((customer: Customer) => {
-    // Filtro de busca
     const search = searchQuery.toLowerCase();
     const matchesSearch =
       customer.full_name.toLowerCase().includes(search) ||
       customer.email?.toLowerCase().includes(search) ||
       customer.phone?.includes(search) ||
       customer.document_number?.includes(search);
-
-    // Filtro de status
     const matchesStatus =
       statusFilter === 'all' ||
       (statusFilter === 'active' && customer.is_active) ||
       (statusFilter === 'inactive' && !customer.is_active);
-
     return matchesSearch && matchesStatus;
   });
 
-  /**
-   * Contar clientes por status
-   */
-  const activeCount = customers?.filter((c: Customer) => c.is_active).length || 0;
+  const activeCount   = customers?.filter((c: Customer) => c.is_active).length || 0;
   const inactiveCount = customers?.filter((c: Customer) => !c.is_active).length || 0;
-  const totalCount = customers?.length || 0;
+  const totalCount    = customers?.length || 0;
+  const customerCount = filteredCustomers?.length || 0;
 
-  /**
-   * Renderizar card de cliente (layout compacto)
-   */
+  // ── Item de cliente ──
   const renderCustomer = ({ item }: { item: Customer }) => (
     <TouchableOpacity
       style={styles.cardWrapper}
       onPress={() => router.push(`/customers/${item.id}`)}
       activeOpacity={0.7}
     >
-      <Card style={styles.card}>
-        <Card.Content style={styles.cardContent}>
-          {/* Avatar */}
-          <View style={styles.avatarContainer}>
-            <Ionicons name="person" size={24} color={Colors.light.primary} />
-          </View>
+      <View style={styles.card}>
+        {/* Avatar */}
+        <View style={[styles.avatarContainer, { backgroundColor: brandingColors.primary + '15' }]}>
+          <Ionicons name="person" size={24} color={brandingColors.primary} />
+        </View>
 
-          {/* Nome */}
-          <Text variant="titleSmall" style={styles.customerName} numberOfLines={2}>
-            {item.full_name}
+        {/* Nome */}
+        <Text style={styles.customerName} numberOfLines={2}>{item.full_name}</Text>
+
+        {/* Email */}
+        {item.email ? (
+          <Text style={styles.customerEmail} numberOfLines={1}>{item.email}</Text>
+        ) : null}
+
+        {/* Telefone */}
+        {item.phone ? (
+          <View style={styles.infoRow}>
+            <Ionicons name="call-outline" size={13} color={Colors.light.textSecondary} />
+            <Text style={styles.infoText} numberOfLines={1}>{formatPhone(item.phone)}</Text>
+          </View>
+        ) : null}
+
+        {/* Status */}
+        <View style={styles.statusBadge}>
+          <View style={[styles.statusDot, item.is_active ? styles.statusDotActive : styles.statusDotInactive]} />
+          <Text style={[styles.statusText, item.is_active ? styles.statusTextActive : styles.statusTextInactive]}>
+            {item.is_active ? 'Ativo' : 'Inativo'}
           </Text>
-
-          {/* Email */}
-          {item.email && (
-            <Text variant="bodySmall" style={styles.customerEmail} numberOfLines={1}>
-              {item.email}
-            </Text>
-          )}
-
-          {/* Telefone */}
-          {item.phone && (
-            <View style={styles.infoRow}>
-              <Ionicons name="call-outline" size={14} color={Colors.light.textSecondary} />
-              <Text variant="bodySmall" style={styles.infoText} numberOfLines={1}>
-                {formatPhone(item.phone)}
-              </Text>
-            </View>
-          )}
-
-          {/* Status badge */}
-          <View style={styles.statusBadge}>
-            <View
-              style={[
-                styles.statusDot,
-                item.is_active ? styles.statusDotActive : styles.statusDotInactive,
-              ]}
-            />
-            <Text
-              variant="bodySmall"
-              style={[
-                styles.statusText,
-                item.is_active ? styles.statusTextActive : styles.statusTextInactive,
-              ]}
-            >
-              {item.is_active ? 'Ativo' : 'Inativo'}
-            </Text>
-          </View>
-        </Card.Content>
-      </Card>
+        </View>
+      </View>
     </TouchableOpacity>
   );
 
-  /**
-   * Renderizar loading
-   */
-  if (isLoading && !isRefetching) {
-    return (
-      <View style={styles.container}>
-        {/* Header Premium */}
-        <View style={styles.headerContainer}>
-          <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.headerGradient}
-          >
-            <View style={styles.headerContent}>
-              <View style={styles.headerInfo}>
-                <Text style={styles.greeting}>
-                  Clientes
-                </Text>
-                <Text style={styles.headerSubtitle}>
-                  0 clientes
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.profileButton}
-                onPress={() => router.push('/(tabs)/more')}
-              >
-                <View style={styles.profileIcon}>
-                  <Ionicons name="person" size={24} color="#fff" />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </View>
-
-        <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
-          <Text style={styles.loadingText}>Carregando clientes...</Text>
-        </View>
-      </View>
-    );
-  }
-
-  /**
-   * Renderizar erro
-   */
-  if (isError) {
-    return (
-      <View style={styles.container}>
-        {/* Header Premium */}
-        <View style={styles.headerContainer}>
-          <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.headerGradient}
-          >
-            <View style={styles.headerContent}>
-              <View style={styles.headerInfo}>
-                <Text style={styles.greeting}>
-                  Clientes
-                </Text>
-                <Text style={styles.headerSubtitle}>
-                  0 clientes
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.profileButton}
-                onPress={() => router.push('/(tabs)/more')}
-              >
-                <View style={styles.profileIcon}>
-                  <Ionicons name="person" size={24} color="#fff" />
-                </View>
-              </TouchableOpacity>
-            </View>
-          </LinearGradient>
-        </View>
-
-        <EmptyState
-          icon="alert-circle-outline"
-          title="Erro ao carregar clientes"
-          description="Verifique sua conexão e tente novamente"
-        />
-      </View>
-    );
-  }
-
-  const customerCount = filteredCustomers?.length || 0;
-
   return (
     <View style={styles.container}>
-      {/* Header Premium */}
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerContent}>
-            <View style={styles.headerInfo}>
-              <Text style={styles.greeting}>
-                Clientes
-              </Text>
-              <Text style={styles.headerSubtitle}>
-                {customerCount} {customerCount === 1 ? 'cliente' : 'clientes'}
-              </Text>
-            </View>
-            <View style={styles.headerActions}>
-              <HelpButton tutorialId="customers" color="#fff" showBadge />
-              <TouchableOpacity
-                style={styles.profileButton}
-                onPress={() => router.push('/(tabs)/more')}
-              >
-                <View style={styles.profileIcon}>
-                  <Ionicons name="person" size={24} color="#fff" />
+
+      {/* ── Header animado ── */}
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title="Clientes"
+          subtitle={`${customerCount} ${customerCount === 1 ? 'cliente' : 'clientes'}`}
+          rightActions={[
+            { icon: 'person-outline', onPress: () => router.push('/(tabs)/more') },
+          ]}
+        />
+      </Animated.View>
+
+      {/* ── Conteúdo animado ── */}
+      <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
+
+        {isLoading && !isRefetching ? (
+          <View style={styles.centerContainer}>
+            <ActivityIndicator size="large" color={brandingColors.primary} />
+            <Text style={styles.loadingText}>Carregando clientes...</Text>
+          </View>
+        ) : isError ? (
+          <EmptyState
+            icon="alert-circle-outline"
+            title="Erro ao carregar clientes"
+            description="Verifique sua conexão e tente novamente"
+          />
+        ) : (
+          <>
+            {/* Stats */}
+            <View style={styles.statsContainer}>
+              {([
+                { label: 'Ativos',   value: activeCount   },
+                { label: 'Inativos', value: inactiveCount },
+                { label: 'Total',    value: totalCount    },
+              ] as const).map(({ label, value }) => (
+                <View key={label} style={styles.statCard}>
+                  <Text style={styles.statLabel}>{label}</Text>
+                  <Text style={styles.statValue}>{value}</Text>
                 </View>
-              </TouchableOpacity>
+              ))}
             </View>
-          </View>
-        </LinearGradient>
-      </View>
 
-      {/* Estatísticas */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Ativos</Text>
-          <Text style={styles.statValue}>{activeCount}</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Inativos</Text>
-          <Text style={styles.statValue}>{inactiveCount}</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Total</Text>
-          <Text style={styles.statValue}>{totalCount}</Text>
-        </View>
-      </View>
+            {/* Busca */}
+            <View style={styles.searchRow}>
+              <Ionicons name="search-outline" size={18} color={Colors.light.textTertiary} style={{ flexShrink: 0 }} />
+              <TextInput
+                style={styles.searchInput}
+                placeholder="Buscar por nome, email, telefone..."
+                placeholderTextColor={Colors.light.textTertiary}
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+                autoCorrect={false}
+                returnKeyType="search"
+              />
+              {searchQuery.length > 0 && (
+                <TouchableOpacity
+                  onPress={() => setSearchQuery('')}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                >
+                  <Ionicons name="close-circle" size={18} color={Colors.light.textTertiary} />
+                </TouchableOpacity>
+              )}
+            </View>
 
-      {/* Barra de busca */}
-      <Searchbar
-        placeholder="Buscar por nome, email, telefone..."
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-        style={styles.searchbar}
-      />
+            {/* Filtros */}
+            <View style={styles.filterContainer}>
+              {([
+                { key: 'active'   as const, label: 'Ativos',   icon: 'checkmark-circle-outline' as const, count: activeCount   },
+                { key: 'inactive' as const, label: 'Inativos', icon: 'close-circle-outline'     as const, count: inactiveCount },
+                { key: 'all'      as const, label: 'Todos',    icon: 'people-outline'            as const, count: totalCount   },
+              ]).map(({ key, label, icon, count }) => {
+                const isActive = statusFilter === key;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    style={[
+                      styles.filterChip,
+                      isActive && { backgroundColor: brandingColors.primary + '15', borderColor: brandingColors.primary },
+                    ]}
+                    onPress={() => setStatusFilter(key)}
+                    activeOpacity={0.7}
+                  >
+                    <Ionicons
+                      name={icon}
+                      size={16}
+                      color={isActive ? brandingColors.primary : Colors.light.textSecondary}
+                    />
+                    <Text style={[styles.filterChipText, isActive && { color: brandingColors.primary }]}>
+                      {label}
+                    </Text>
+                    <View style={[styles.filterBadge, isActive && { backgroundColor: brandingColors.primary }]}>
+                      <Text style={[styles.filterBadgeText, isActive && { color: '#fff' }]}>{count}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
 
-      {/* Filtros */}
-      <View style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[
-            styles.filterChip,
-            statusFilter === 'active' && styles.filterChipActive,
-          ]}
-          onPress={() => setStatusFilter('active')}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="checkmark-circle-outline"
-            size={16}
-            color={statusFilter === 'active' ? Colors.light.primary : Colors.light.textSecondary}
-          />
-          <Text
-            style={[
-              styles.filterChipText,
-              statusFilter === 'active' && styles.filterChipTextActive,
-            ]}
-          >
-            Ativos
-          </Text>
-          <View
-            style={[
-              styles.filterBadge,
-              statusFilter === 'active' && styles.filterBadgeActive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.filterBadgeText,
-                statusFilter === 'active' && styles.filterBadgeTextActive,
-              ]}
-            >
-              {activeCount}
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.filterChip,
-            statusFilter === 'inactive' && styles.filterChipActive,
-          ]}
-          onPress={() => setStatusFilter('inactive')}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="close-circle-outline"
-            size={16}
-            color={statusFilter === 'inactive' ? Colors.light.primary : Colors.light.textSecondary}
-          />
-          <Text
-            style={[
-              styles.filterChipText,
-              statusFilter === 'inactive' && styles.filterChipTextActive,
-            ]}
-          >
-            Inativos
-          </Text>
-          <View
-            style={[
-              styles.filterBadge,
-              statusFilter === 'inactive' && styles.filterBadgeActive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.filterBadgeText,
-                statusFilter === 'inactive' && styles.filterBadgeTextActive,
-              ]}
-            >
-              {inactiveCount}
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.filterChip,
-            statusFilter === 'all' && styles.filterChipActive,
-          ]}
-          onPress={() => setStatusFilter('all')}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="people-outline"
-            size={16}
-            color={statusFilter === 'all' ? Colors.light.primary : Colors.light.textSecondary}
-          />
-          <Text
-            style={[
-              styles.filterChipText,
-              statusFilter === 'all' && styles.filterChipTextActive,
-            ]}
-          >
-            Todos
-          </Text>
-          <View
-            style={[
-              styles.filterBadge,
-              statusFilter === 'all' && styles.filterBadgeActive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.filterBadgeText,
-                statusFilter === 'all' && styles.filterBadgeTextActive,
-              ]}
-            >
-              {totalCount}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-
-        {/* Lista de clientes (grid 2 colunas) */}
-        <FlatList
-          data={filteredCustomers}
-          renderItem={renderCustomer}
-          keyExtractor={(item) => item.id.toString()}
-          numColumns={2}
-          contentContainerStyle={styles.listContent}
-          columnWrapperStyle={styles.columnWrapper}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={refetch}
-              colors={[Colors.light.primary]}
-            />
-          }
-          ListEmptyComponent={
-            <EmptyState
-              icon="people-outline"
-              title={searchQuery ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}
-              description={
-                searchQuery
-                  ? 'Tente outro termo de busca'
-                  : 'Toque no botão + para adicionar'
+            {/* Lista */}
+            <FlatList
+              data={filteredCustomers}
+              renderItem={renderCustomer}
+              keyExtractor={(item) => item.id.toString()}
+              numColumns={2}
+              contentContainerStyle={styles.listContent}
+              columnWrapperStyle={styles.columnWrapper}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              refreshControl={
+                <RefreshControl
+                  refreshing={isRefetching}
+                  onRefresh={refetch}
+                  colors={[brandingColors.primary]}
+                />
+              }
+              ListEmptyComponent={
+                <EmptyState
+                  icon="people-outline"
+                  title={searchQuery ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}
+                  description={searchQuery ? 'Tente outro termo de busca' : 'Toque no botão + para adicionar'}
+                />
               }
             />
-          }
-        />
+          </>
+        )}
+      </Animated.View>
 
-        {/* FAB - Adicionar cliente */}
-        <FAB directRoute="/customers/add" />
-      </View>
-    );
-  }
+      {/* FAB */}
+      <FAB directRoute="/customers/add" />
+    </View>
+  );
+}
+
+// ─── Estilos ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   container: {
@@ -448,215 +291,181 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: theme.spacing.lg,
   },
-  // Header Premium
-  headerContainer: {
-    marginBottom: 0,
+  loadingText: {
+    marginTop: theme.spacing.md,
+    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.sm,
   },
-  headerGradient: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: theme.fontSize.xxl,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: theme.spacing.xs,
-  },
-  headerSubtitle: {
-    fontSize: theme.fontSize.md,
-    color: '#fff',
-    opacity: 0.9,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  profileButton: {
-    marginLeft: 0,
-  },
-  profileIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  searchbar: {
-    marginHorizontal: 16,
-    marginBottom: 12,
-    elevation: 2,
-    backgroundColor: Colors.light.card,
-  },
+
+  // ── Stats ──
   statsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 12,
-    marginBottom: 12,
-    marginTop: 12,
+    paddingHorizontal: theme.spacing.md,
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
   },
   statCard: {
     flex: 1,
     backgroundColor: Colors.light.card,
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: theme.borderRadius.lg,
+    paddingVertical: theme.spacing.sm,
     alignItems: 'center',
-    elevation: 1,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
   },
   statLabel: {
-    fontSize: 11,
-    color: Colors.light.textSecondary,
-    marginBottom: 4,
+    fontSize: theme.fontSize.xxs,
+    fontWeight: '600',
+    color: Colors.light.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: theme.spacing.xs,
   },
   statValue: {
-    fontSize: 16,
+    fontSize: theme.fontSize.xl,
     fontWeight: '700',
     color: Colors.light.text,
+    letterSpacing: -0.5,
   },
+
+  // ── Busca ──
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: theme.spacing.md,
+    marginVertical: theme.spacing.sm,
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.lg,
+    paddingHorizontal: theme.spacing.sm,
+    height: 44,
+    gap: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: theme.fontSize.base,
+    color: Colors.light.text,
+    paddingVertical: 0,
+  },
+
+  // ── Filtros ──
   filterContainer: {
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
   },
   filterChip: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 8,
+    gap: 4,
+    paddingHorizontal: theme.spacing.sm,
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: theme.borderRadius.lg,
     backgroundColor: Colors.light.card,
     borderWidth: 1,
     borderColor: Colors.light.border,
-  },
-  filterChipActive: {
-    backgroundColor: Colors.light.primary + '15',
-    borderColor: Colors.light.primary,
+    minHeight: 44,
   },
   filterChipText: {
-    fontSize: 12,
+    fontSize: theme.fontSize.xs,
     fontWeight: '600',
     color: Colors.light.textSecondary,
     flexShrink: 1,
   },
-  filterChipTextActive: {
-    color: Colors.light.primary,
-  },
   filterBadge: {
-    minWidth: 22,
-    height: 22,
-    borderRadius: 11,
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
     backgroundColor: Colors.light.backgroundSecondary,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 6,
-  },
-  filterBadgeActive: {
-    backgroundColor: Colors.light.primary,
+    paddingHorizontal: 5,
   },
   filterBadgeText: {
-    fontSize: 11,
+    fontSize: theme.fontSize.xxs,
     fontWeight: '700',
     color: Colors.light.textSecondary,
   },
-  filterBadgeTextActive: {
-    color: '#fff',
-  },
+
+  // ── Lista ──
   listContent: {
-    paddingTop: 8,
-    paddingBottom: 80,
+    paddingTop: theme.spacing.xs,
+    paddingBottom: theme.spacing.xxl,
   },
   columnWrapper: {
     justifyContent: 'flex-start',
-    paddingHorizontal: 8,
+    paddingHorizontal: theme.spacing.sm,
   },
-  loadingText: {
-    marginTop: 16,
-    color: Colors.light.icon,
-  },
-  // Card compacto para grid 2 colunas
+
+  // ── Card ──
   cardWrapper: {
     width: '47%',
     marginHorizontal: 6,
-    marginBottom: 12,
+    marginBottom: theme.spacing.sm,
   },
   card: {
-    borderRadius: 12,
-    elevation: 2,
     backgroundColor: Colors.light.card,
-  },
-  cardContent: {
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    borderRadius: theme.borderRadius.xl,
+    paddingVertical: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
   },
-  // Avatar centralizado
   avatarContainer: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: `${Colors.light.primary}15`,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: theme.spacing.sm,
   },
-  // Nome centralizado
   customerName: {
+    fontSize: theme.fontSize.sm,
     fontWeight: '600',
     textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: theme.spacing.xs,
     color: Colors.light.text,
   },
-  // Email compacto
   customerEmail: {
     color: Colors.light.textSecondary,
-    fontSize: 10,
+    fontSize: theme.fontSize.xxs,
     textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: theme.spacing.xs,
   },
-  // Info row compacta
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 6,
+    marginBottom: theme.spacing.xs,
     width: '100%',
+    gap: 4,
   },
   infoText: {
-    marginLeft: 4,
     color: Colors.light.textSecondary,
-    fontSize: 10,
+    fontSize: theme.fontSize.xxs,
     flex: 1,
+    minWidth: 0,
   },
-  // Status badge compacto
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 6,
+    marginTop: theme.spacing.xs,
+    gap: 4,
   },
   statusDot: {
     width: 6,
     height: 6,
     borderRadius: 3,
-    marginRight: 4,
   },
   statusDotActive: {
     backgroundColor: Colors.light.success,
@@ -665,13 +474,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.error,
   },
   statusText: {
-    fontSize: 10,
+    fontSize: theme.fontSize.xxs,
     color: Colors.light.textSecondary,
   },
   statusTextActive: {
     color: Colors.light.success,
+    fontWeight: '600',
   },
   statusTextInactive: {
     color: Colors.light.error,
+    fontWeight: '600',
   },
 });

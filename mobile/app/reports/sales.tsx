@@ -2,33 +2,48 @@
  * Relatório de Vendas
  * Análise completa de vendas, lucro, margem e breakdown
  */
-import { useState } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, ActivityIndicator } from 'react-native';
-import { Text, Card } from 'react-native-paper';
-import { useRouter } from 'expo-router';
+import { useState, useCallback } from 'react';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import * as Print from 'expo-print';
 import { shareAsync } from 'expo-sharing';
 import * as FileSystem from 'expo-file-system/legacy';
 
 import useBackToList from '@/hooks/useBackToList';
-import { getSalesReport, PeriodFilter as PeriodFilterType } from '@/services/reportService';
+import {
+  getSalesReport,
+  PeriodFilter as PeriodFilterType,
+  type TopProduct,
+} from '@/services/reportService';
 import { formatCurrency } from '@/utils/format';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import PeriodFilter from '@/components/PeriodFilter';
 import type { PeriodFilterValue } from '@/components/PeriodFilter';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import PageHeader from '@/components/layout/PageHeader';
+import { useBrandingColors } from '@/store/brandingStore';
 
 export default function SalesReportScreen() {
-  const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/more');
+  const brandingColors = useBrandingColors();
   const [period, setPeriod] = useState<PeriodFilterType>('this_month');
   const [isExporting, setIsExporting] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [showErrorDialog, setShowErrorDialog] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const headerOpacity  = useSharedValue(0);
+  const headerScale    = useSharedValue(0.94);
+  const contentOpacity = useSharedValue(0);
+  const contentTransY  = useSharedValue(24);
 
   const { data: report, isLoading, refetch } = useQuery({
     queryKey: ['sales-report', period],
@@ -53,6 +68,44 @@ export default function SalesReportScreen() {
     'installments': 'Parcelado',
     'loyalty_points': 'Pontos',
   };
+
+  const getVariantLabel = (product: TopProduct): string | null => {
+    if (product.variant_label && product.variant_label.trim().length > 0) {
+      return product.variant_label;
+    }
+
+    const pieces = [product.variant_color, product.variant_size].filter(
+      (value): value is string => Boolean(value && value.trim().length > 0)
+    );
+
+    return pieces.length > 0 ? pieces.join(' • ') : null;
+  };
+
+  const headerAnimStyle  = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTransY.value }],
+  }));
+
+  useFocusEffect(
+    useCallback(() => {
+      headerOpacity.value  = 0;
+      headerScale.value    = 0.94;
+      contentOpacity.value = 0;
+      contentTransY.value  = 24;
+
+      headerOpacity.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.quad) });
+      headerScale.value   = withSpring(1, { damping: 16, stiffness: 200 });
+      const t = setTimeout(() => {
+        contentOpacity.value = withTiming(1, { duration: 340 });
+        contentTransY.value  = withSpring(0, { damping: 18, stiffness: 200 });
+      }, 140);
+      return () => clearTimeout(t);
+    }, [])
+  );
 
   /**
    * Gerar HTML para PDF
@@ -100,6 +153,9 @@ export default function SalesReportScreen() {
             <div style="font-weight: 600; color: #1f2937; margin-bottom: 4px;">${
               product.product_name
             }</div>
+            <div style="font-size: 12px; color: #4b5563; margin-bottom: 4px;">
+              ${getVariantLabel(product) || 'Variação padrão'}${product.variant_sku ? ` • SKU: ${product.variant_sku}` : ''}
+            </div>
             <div style="font-size: 12px; color: #6b7280;">${
               product.quantity_sold
             } unidades • Margem: ${product.margin.toFixed(1)}%</div>
@@ -397,164 +453,191 @@ export default function SalesReportScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header Premium */}
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title="Relatório de Vendas"
+          subtitle={report ? `${periodLabels[period]} • ${report.total_sales} vendas` : periodLabels[period]}
+          showBackButton
+          onBack={goBack}
+          rightActions={[
+            {
+              icon: isExporting ? 'hourglass-outline' : 'download-outline',
+              onPress: handleExportPDF,
+            },
+          ]}
+        />
+      </Animated.View>
+
+      <Animated.View style={[styles.contentAnimation, contentAnimStyle]}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={isLoading}
+              onRefresh={refetch}
+              colors={[brandingColors.primary]}
+              tintColor={brandingColors.primary}
+            />
+          }
+          showsVerticalScrollIndicator={false}
         >
-          <View style={styles.headerContent}>
-            <TouchableOpacity onPress={goBack} style={styles.backIconButton}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <View style={styles.headerInfo}>
-              <Text style={styles.greeting}>Relatório de Vendas</Text>
-              <Text style={styles.headerSubtitle}>Análise de Performance</Text>
-            </View>
-            <TouchableOpacity 
-              onPress={handleExportPDF} 
-              style={styles.exportButton}
-              disabled={isExporting || isLoading}
-            >
-              {isExporting ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Ionicons name="download-outline" size={24} color="#fff" />
-              )}
-            </TouchableOpacity>
+          <View style={styles.periodContainer}>
+            <PeriodFilter
+              value={period as PeriodFilterValue}
+              onChange={(value) => setPeriod(value as PeriodFilterType)}
+            />
           </View>
-        </LinearGradient>
-      </View>
 
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl refreshing={isLoading} onRefresh={refetch} />
-        }
-      >
-        {report && (
-          <>
-            {/* Period Filter */}
-            <View style={styles.periodContainer}>
-              <PeriodFilter 
-                value={period as PeriodFilterValue} 
-                onChange={(value) => setPeriod(value as PeriodFilterType)} 
-              />
+          {isLoading && (
+            <View style={styles.loadingStateCard}>
+              <ActivityIndicator size="large" color={brandingColors.primary} />
+              <Text style={styles.loadingText}>Carregando relatório...</Text>
             </View>
+          )}
 
-            {/* Métricas Principais */}
-            <View style={styles.metricsGrid}>
-              {/* Total de Vendas */}
-              <Card style={[styles.metricCard, styles.metricCardPrimary]}>
-                <Card.Content>
+          {!isLoading && !report && (
+            <View style={styles.emptyStateCard}>
+              <View style={[styles.emptyStateIconWrap, { backgroundColor: brandingColors.primary + '12' }]}>
+                <Ionicons name="bar-chart-outline" size={28} color={brandingColors.primary} />
+              </View>
+              <Text style={styles.emptyStateTitle}>Sem dados para este período</Text>
+              <Text style={styles.emptyStateDescription}>
+                Ajuste o filtro para visualizar vendas, lucro e ticket médio.
+              </Text>
+            </View>
+          )}
+
+          {!isLoading && report && (
+            <>
+              <View style={styles.metricsGrid}>
+                <View style={styles.metricCardWide}>
                   <View style={styles.metricHeader}>
-                    <Ionicons name="cash-outline" size={24} color={Colors.light.success} />
+                    <View style={[styles.metricIconWrap, { backgroundColor: VALUE_COLORS.positive + '18' }]}>
+                      <Ionicons name="cash-outline" size={18} color={VALUE_COLORS.positive} />
+                    </View>
+                    <Text style={styles.metricLabel}>Receita</Text>
                   </View>
-                  <Text style={styles.metricLabel}>Total de Vendas</Text>
-                  <Text style={styles.metricValue}>{formatCurrency(report.total_revenue)}</Text>
+                  <Text style={[styles.metricValue, { color: VALUE_COLORS.positive }]}>{formatCurrency(report.total_revenue)}</Text>
                   <Text style={styles.metricCount}>{report.total_sales} vendas</Text>
-                </Card.Content>
-              </Card>
+                </View>
 
-              {/* Lucro */}
-              <Card style={[styles.metricCard, styles.metricCardPrimary]}>
-                <Card.Content>
+                <View style={styles.metricCardWide}>
                   <View style={styles.metricHeader}>
-                    <Ionicons name="trending-up" size={24} color={Colors.light.success} />
+                    <View style={[styles.metricIconWrap, { backgroundColor: VALUE_COLORS.positive + '18' }]}>
+                      <Ionicons name="trending-up" size={18} color={VALUE_COLORS.positive} />
+                    </View>
+                    <Text style={styles.metricLabel}>Lucro</Text>
                   </View>
-                  <Text style={styles.metricLabel}>Lucro</Text>
-                  <Text style={styles.metricValue}>
-                    {formatCurrency(report.total_profit)}
-                  </Text>
-                  <Text style={styles.metricCount}>
-                    Margem: {report.profit_margin.toFixed(1)}%
-                  </Text>
-                </Card.Content>
-              </Card>
+                  <Text style={[styles.metricValue, { color: VALUE_COLORS.positive }]}>{formatCurrency(report.total_profit)}</Text>
+                  <Text style={styles.metricCount}>Margem: {report.profit_margin.toFixed(1)}%</Text>
+                </View>
 
-              {/* Ticket Médio */}
-              <Card style={styles.metricCard}>
-                <Card.Content>
+                <View style={styles.metricCard}>
                   <View style={styles.metricHeader}>
-                    <Ionicons name="receipt-outline" size={24} color={Colors.light.primary} />
+                    <View style={[styles.metricIconWrap, { backgroundColor: Colors.light.info + '18' }]}>
+                      <Ionicons name="receipt-outline" size={18} color={Colors.light.info} />
+                    </View>
+                    <Text style={styles.metricLabel}>Ticket Médio</Text>
                   </View>
-                  <Text style={styles.metricLabel}>Ticket Médio</Text>
-                  <Text style={styles.metricValue}>{formatCurrency(report.average_ticket)}</Text>
+                  <Text style={[styles.metricValue, { color: VALUE_COLORS.neutral }]}>{formatCurrency(report.average_ticket)}</Text>
                   <Text style={styles.metricCount}>por venda</Text>
-                </Card.Content>
-              </Card>
+                </View>
 
-              {/* CMV */}
-              <Card style={styles.metricCard}>
-                <Card.Content>
+                <View style={styles.metricCard}>
                   <View style={styles.metricHeader}>
-                    <Ionicons name="pricetag-outline" size={24} color={Colors.light.warning} />
+                    <View style={[styles.metricIconWrap, { backgroundColor: VALUE_COLORS.warning + '18' }]}>
+                      <Ionicons name="pricetag-outline" size={18} color={VALUE_COLORS.warning} />
+                    </View>
+                    <Text style={styles.metricLabel}>CMV (FIFO)</Text>
                   </View>
-                  <Text style={styles.metricLabel}>CMV (FIFO)</Text>
-                  <Text style={styles.metricValue}>{formatCurrency(report.total_cost)}</Text>
+                  <Text style={[styles.metricValue, { color: VALUE_COLORS.negative }]}>{formatCurrency(report.total_cost)}</Text>
                   <Text style={styles.metricCount}>custo total</Text>
-                </Card.Content>
-              </Card>
-            </View>
+                </View>
+              </View>
 
-            {/* Formas de Pagamento */}
-            <Card style={styles.card}>
-              <Card.Content>
+              <View style={styles.sectionCard}>
                 <View style={styles.cardHeader}>
-                  <Ionicons name="card-outline" size={20} color={Colors.light.primary} />
+                  <View style={[styles.sectionIconWrap, { backgroundColor: brandingColors.primary + '12' }]}>
+                    <Ionicons name="card-outline" size={16} color={brandingColors.primary} />
+                  </View>
                   <Text style={styles.cardTitle}>Formas de Pagamento</Text>
                 </View>
 
-                {report.payment_breakdown.map((item, index) => (
-                  <View key={index} style={styles.paymentRow}>
-                    <View style={styles.paymentInfo}>
-                      <Text style={styles.paymentMethod}>
-                        {paymentLabels[item.method] || item.method}
-                      </Text>
-                      <Text style={styles.paymentCount}>{item.count} vendas</Text>
+                {report.payment_breakdown.length === 0 ? (
+                  <Text style={styles.sectionEmptyText}>Nenhum pagamento registrado no período.</Text>
+                ) : (
+                  report.payment_breakdown.map((item, index) => (
+                    <View key={`${item.method}-${index}`} style={styles.paymentRow}>
+                      <View style={styles.paymentInfo}>
+                        <Text style={styles.paymentMethod} numberOfLines={1}>
+                          {paymentLabels[item.method] || item.method}
+                        </Text>
+                        <Text style={styles.paymentCount}>{item.count} vendas</Text>
+                      </View>
+                      <View style={styles.paymentValues}>
+                        <Text style={styles.paymentTotal}>{formatCurrency(item.total)}</Text>
+                        <Text style={styles.paymentPercent}>{item.percentage.toFixed(1)}%</Text>
+                      </View>
                     </View>
-                    <View style={styles.paymentValues}>
-                      <Text style={styles.paymentTotal}>{formatCurrency(item.total)}</Text>
-                      <Text style={styles.paymentPercent}>{item.percentage.toFixed(1)}%</Text>
-                    </View>
-                  </View>
-                ))}
-              </Card.Content>
-            </Card>
+                  ))
+                )}
+              </View>
 
-            {/* Top Produtos */}
-            <Card style={styles.card}>
-              <Card.Content>
+              <View style={styles.sectionCard}>
                 <View style={styles.cardHeader}>
-                  <Ionicons name="trophy-outline" size={20} color={Colors.light.primary} />
+                  <View style={[styles.sectionIconWrap, { backgroundColor: VALUE_COLORS.warning + '18' }]}>
+                    <Ionicons name="trophy-outline" size={16} color={VALUE_COLORS.warning} />
+                  </View>
                   <Text style={styles.cardTitle}>Top Produtos</Text>
                 </View>
 
-                {report.top_products.map((product, index) => (
-                  <View key={index} style={styles.productRow}>
-                    <View style={styles.productRank}>
-                      <Text style={styles.rankNumber}>#{index + 1}</Text>
+                {report.top_products.length === 0 ? (
+                  <Text style={styles.sectionEmptyText}>Nenhum produto vendido no período.</Text>
+                ) : (
+                  report.top_products.map((product, index) => (
+                    <View
+                      key={`${product.product_id}-${product.variant_id ?? 'base'}-${index}`}
+                      style={styles.productRow}
+                    >
+                      <View style={styles.productRank}>
+                        <Text style={styles.rankNumber}>#{index + 1}</Text>
+                      </View>
+                      <View style={styles.productInfo}>
+                        <Text style={styles.productName} numberOfLines={1}>{product.product_name}</Text>
+                        {(getVariantLabel(product) || product.variant_sku) && (
+                          <View style={styles.productVariantRow}>
+                            {getVariantLabel(product) && (
+                              <View style={styles.variantBadge}>
+                                <Ionicons name="color-filter-outline" size={11} color={Colors.light.info} />
+                                <Text style={styles.variantBadgeText} numberOfLines={1}>
+                                  {getVariantLabel(product)}
+                                </Text>
+                              </View>
+                            )}
+                            {product.variant_sku && (
+                              <View style={styles.skuBadge}>
+                                <Text style={styles.skuBadgeText} numberOfLines={1}>SKU {product.variant_sku}</Text>
+                              </View>
+                            )}
+                          </View>
+                        )}
+                        <Text style={styles.productStats} numberOfLines={1}>
+                          {product.quantity_sold} un • Margem: {product.margin.toFixed(1)}%
+                        </Text>
+                      </View>
+                      <View style={styles.productValues}>
+                        <Text style={styles.productRevenue}>{formatCurrency(product.revenue)}</Text>
+                        <Text style={styles.productProfit}>+{formatCurrency(product.profit)}</Text>
+                      </View>
                     </View>
-                    <View style={styles.productInfo}>
-                      <Text style={styles.productName}>{product.product_name}</Text>
-                      <Text style={styles.productStats}>
-                        {product.quantity_sold} un • Margem: {product.margin.toFixed(1)}%
-                      </Text>
-                    </View>
-                    <View style={styles.productValues}>
-                      <Text style={styles.productRevenue}>{formatCurrency(product.revenue)}</Text>
-                      <Text style={styles.productProfit}>+{formatCurrency(product.profit)}</Text>
-                    </View>
-                  </View>
-                ))}
-              </Card.Content>
-            </Card>
-          </>
-        )}
-      </ScrollView>
+                  ))
+                )}
+              </View>
+            </>
+          )}
+        </ScrollView>
+      </Animated.View>
 
       {/* Diálogos */}
       <ConfirmDialog
@@ -589,201 +672,280 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
   },
-  // Header Premium
-  headerContainer: {
-    marginBottom: 0,
+  headerAnimation: {
+    zIndex: 2,
   },
-  headerGradient: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  backIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: theme.spacing.md,
-  },
-  headerInfo: {
+  contentAnimation: {
     flex: 1,
   },
-  greeting: {
-    fontSize: theme.fontSize.xxl,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: theme.spacing.xs,
-  },
-  headerSubtitle: {
-    fontSize: theme.fontSize.md,
-    color: '#fff',
-    opacity: 0.9,
-  },
-  headerPlaceholder: {
-    width: 40,
-  },
-  exportButton: {
-    width: 40,
-    height: 40,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 32,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.xxl,
+    gap: theme.spacing.sm,
   },
   periodContainer: {
-    marginBottom: 16,
     alignItems: 'flex-start',
+  },
+  loadingStateCard: {
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    paddingVertical: theme.spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...theme.shadows.sm,
+  },
+  loadingText: {
+    marginTop: theme.spacing.sm,
+    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.sm,
+  },
+  emptyStateCard: {
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xxl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.xl,
+    alignItems: 'center',
+    ...theme.shadows.sm,
+  },
+  emptyStateIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: theme.borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  emptyStateTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '800',
+    color: Colors.light.text,
+    textAlign: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  emptyStateDescription: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    maxWidth: 300,
   },
   metricsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
-    marginBottom: 16,
+    gap: theme.spacing.xs + 2,
+  },
+  metricCardWide: {
+    width: '100%',
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    padding: theme.spacing.sm + 2,
+    ...theme.shadows.sm,
   },
   metricCard: {
     width: '48%',
-    borderRadius: 12,
-    elevation: 2,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
     backgroundColor: Colors.light.card,
-  },
-  metricCardPrimary: {
-    width: '100%',
+    padding: theme.spacing.sm + 2,
+    ...theme.shadows.sm,
   },
   metricHeader: {
-    marginBottom: 8,
+    marginBottom: theme.spacing.xs,
+    gap: theme.spacing.xs,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  metricIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: theme.borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   metricLabel: {
-    fontSize: 13,
+    fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
-    fontWeight: '600',
+    fontWeight: '700',
     textTransform: 'uppercase',
-    marginBottom: 4,
+    letterSpacing: 0.4,
   },
   metricValue: {
-    fontSize: 24,
-    fontWeight: '700',
+    fontSize: theme.fontSize.xl,
+    fontWeight: '800',
     color: Colors.light.text,
+    letterSpacing: -0.5,
   },
   metricCount: {
-    fontSize: 12,
+    fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
-    marginTop: 2,
+    marginTop: theme.spacing.xxs,
   },
-  card: {
-    marginBottom: 16,
-    borderRadius: 12,
-    elevation: 2,
+  sectionCard: {
     backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: theme.spacing.sm + 2,
+    ...theme.shadows.sm,
   },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 16,
+    gap: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
+  },
+  sectionIconWrap: {
+    width: 24,
+    height: 24,
+    borderRadius: theme.borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cardTitle: {
-    fontSize: 18,
+    fontSize: theme.fontSize.base,
     fontWeight: '700',
     color: Colors.light.text,
+  },
+  sectionEmptyText: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
+    paddingVertical: theme.spacing.xs,
   },
   paymentRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingVertical: theme.spacing.xs + 3,
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.border,
   },
   paymentInfo: {
     flex: 1,
+    minWidth: 0,
   },
   paymentMethod: {
-    fontSize: 15,
+    fontSize: theme.fontSize.sm,
     fontWeight: '600',
     color: Colors.light.text,
   },
   paymentCount: {
-    fontSize: 12,
+    fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
-    marginTop: 2,
+    marginTop: theme.spacing.xxs,
   },
   paymentValues: {
     alignItems: 'flex-end',
+    flexShrink: 0,
   },
   paymentTotal: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.light.text,
+    fontSize: theme.fontSize.base,
+    fontWeight: '800',
+    color: VALUE_COLORS.neutral,
   },
   paymentPercent: {
-    fontSize: 12,
-    color: Colors.light.primary,
-    fontWeight: '600',
-    marginTop: 2,
+    fontSize: theme.fontSize.xs,
+    color: VALUE_COLORS.positive,
+    fontWeight: '700',
+    marginTop: theme.spacing.xxs,
   },
   productRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
+    alignItems: 'flex-start',
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: Colors.light.backgroundSecondary,
+    gap: theme.spacing.xs + 2,
+    marginBottom: theme.spacing.xs,
   },
   productRank: {
     width: 36,
     height: 36,
-    borderRadius: 18,
-    backgroundColor: Colors.light.primary + '20',
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: Colors.light.info + '14',
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    flexShrink: 0,
   },
   rankNumber: {
-    fontSize: 14,
+    fontSize: theme.fontSize.sm,
     fontWeight: '700',
-    color: Colors.light.primary,
+    color: Colors.light.info,
   },
   productInfo: {
     flex: 1,
+    minWidth: 0,
+  },
+  productVariantRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.xxs + 2,
+    marginTop: theme.spacing.xxs + 1,
+  },
+  variantBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 3,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: Colors.light.info + '14',
+  },
+  variantBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: Colors.light.info,
+    maxWidth: 140,
+  },
+  skuBadge: {
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 3,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: VALUE_COLORS.warning + '1f',
+  },
+  skuBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: VALUE_COLORS.warning,
+    maxWidth: 120,
   },
   productName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.light.text,
-  },
-  productStats: {
-    fontSize: 12,
-    color: Colors.light.textSecondary,
-    marginTop: 2,
-  },
-  productValues: {
-    alignItems: 'flex-end',
-  },
-  productRevenue: {
-    fontSize: 15,
+    fontSize: theme.fontSize.sm,
     fontWeight: '700',
     color: Colors.light.text,
   },
-  productProfit: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.light.success,
+  productStats: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+    marginTop: theme.spacing.xxs + 1,
+  },
+  productValues: {
+    alignItems: 'flex-end',
+    flexShrink: 0,
     marginTop: 2,
+  },
+  productRevenue: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '800',
+    color: VALUE_COLORS.neutral,
+  },
+  productProfit: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700',
+    color: VALUE_COLORS.positive,
+    marginTop: theme.spacing.xxs,
   },
 });

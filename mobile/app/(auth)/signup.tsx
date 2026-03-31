@@ -1,22 +1,25 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   KeyboardAvoidingView,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
 import {
   Text,
   TextInput,
-  Button,
   HelperText,
-  useTheme,
   ProgressBar,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
-import { Colors } from '@/constants/Colors';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from '@expo/vector-icons';
+import AppButton from '@/components/ui/AppButton';
+import { Colors, theme } from '@/constants/Colors';
+import { useBrandingStore, useBrandingColors } from '@/store/brandingStore';
 
 interface SignupForm {
   fullName: string;
@@ -35,7 +38,9 @@ interface FormErrors {
 }
 
 export default function SignupScreen() {
-  const theme = useTheme();
+  const { fetchFromServer } = useBrandingStore();
+  const brandingColors = useBrandingColors();
+
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -50,6 +55,10 @@ export default function SignupScreen() {
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    fetchFromServer().catch(() => {});
+  }, []);
 
   // Calcular força da senha em tempo real
   const passwordStrength = useMemo(() => {
@@ -187,7 +196,13 @@ export default function SignupScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <LinearGradient
+      colors={[brandingColors.primary, brandingColors.secondary]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradient}
+    >
+    <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <KeyboardAvoidingView
         style={styles.keyboardView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -196,19 +211,26 @@ export default function SignupScreen() {
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Simple Header - no gradients */}
+          {/* Header */}
           <View style={styles.header}>
+            <View style={styles.headerIconWrap}>
+              <Ionicons name="person-add" size={24} color="#fff" />
+            </View>
             <Text variant="headlineMedium" style={styles.headerTitle}>
-              Fitness Store
+              Criar Conta
             </Text>
             <Text variant="bodyMedium" style={styles.headerSubtitle}>
-              Crie sua conta e comece agora
+              Preencha seus dados para configurar sua loja
             </Text>
           </View>
 
           <View style={styles.formContainer}>
-            <Text variant="headlineMedium" style={styles.formTitle}>
+            <Text variant="titleLarge" style={styles.formTitle}>
               Seus Dados
+            </Text>
+
+            <Text style={styles.formSubtitle}>
+              Esses dados serão usados para acessar e administrar o sistema.
             </Text>
 
           <View style={styles.form}>
@@ -226,6 +248,8 @@ export default function SignupScreen() {
               autoCapitalize="words"
               left={<TextInput.Icon icon="account" />}
               style={styles.input}
+              outlineColor={Colors.light.border}
+              activeOutlineColor={brandingColors.primary}
             />
             {touched.fullName && errors.fullName && (
               <HelperText type="error" visible={!!errors.fullName}>
@@ -254,6 +278,8 @@ export default function SignupScreen() {
               autoComplete="email"
               left={<TextInput.Icon icon="email" />}
               style={styles.input}
+              outlineColor={Colors.light.border}
+              activeOutlineColor={brandingColors.primary}
             />
             {touched.email && errors.email && (
               <HelperText type="error" visible={!!errors.email}>
@@ -289,6 +315,8 @@ export default function SignupScreen() {
               maxLength={15}
               left={<TextInput.Icon icon="phone" />}
               style={styles.input}
+              outlineColor={Colors.light.border}
+              activeOutlineColor={brandingColors.primary}
             />
             {touched.phone && errors.phone && (
               <HelperText type="error" visible={!!errors.phone}>
@@ -318,6 +346,8 @@ export default function SignupScreen() {
               }
               autoCapitalize="none"
               style={styles.input}
+              outlineColor={Colors.light.border}
+              activeOutlineColor={brandingColors.primary}
             />
             {form.password && (
               <View style={styles.passwordStrength}>
@@ -358,6 +388,8 @@ export default function SignupScreen() {
               }
               autoCapitalize="none"
               style={styles.input}
+              outlineColor={Colors.light.border}
+              activeOutlineColor={brandingColors.primary}
             />
             {touched.confirmPassword && errors.confirmPassword && (
               <HelperText type="error" visible={!!errors.confirmPassword}>
@@ -371,85 +403,110 @@ export default function SignupScreen() {
             )}
 
             {/* Botão Criar Conta */}
-            <Button
-              mode="contained"
+            <AppButton
+              variant="primary"
+              size="lg"
+              fullWidth
+              icon="arrow-forward-circle-outline"
+              label={loading ? 'Continuando...' : 'Continuar Cadastro'}
               onPress={handleSignup}
               loading={loading}
               disabled={loading}
-              style={styles.button}
-              contentStyle={styles.buttonContent}
-            >
-              {loading ? 'Criando...' : 'Criar Minha Conta'}
-            </Button>
+              style={styles.primaryButton}
+            />
           </View>{/* Fim form */}
 
             {/* Link Login */}
             <View style={styles.loginLinkContainer}>
-              <Text variant="bodyMedium" style={{ color: theme.colors.onSurfaceVariant }}>
+              <Text variant="bodyMedium" style={styles.loginLabel}>
                 Já tem uma conta?{' '}
               </Text>
-              <Button
-                mode="text"
+              <TouchableOpacity
                 onPress={handleLoginRedirect}
                 disabled={loading}
-                compact
                 style={styles.loginLink}
+                activeOpacity={0.8}
               >
-                Entrar
-              </Button>
+                <Text style={[styles.loginLinkText, { color: brandingColors.primary }]}>Entrar</Text>
+              </TouchableOpacity>
             </View>
           </View>{/* Fim formContainer */}
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
+  gradient: {
+    flex: 1,
+  },
   container: {
     flex: 1,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: 'transparent',
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingBottom: 16,
-    backgroundColor: '#f5f5f5',
+    paddingBottom: theme.spacing.lg,
   },
   header: {
-    backgroundColor: Colors.light.primary,
-    padding: 16,
-    marginBottom: 16,
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.md,
+    paddingBottom: theme.spacing.lg,
+    gap: theme.spacing.xs,
+  },
+  headerIconWrap: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
   },
   headerTitle: {
     color: '#fff',
-    fontWeight: '700',
-    marginBottom: 4,
+    fontWeight: '800',
+    fontSize: 30,
+    letterSpacing: -0.6,
   },
   headerSubtitle: {
-    color: 'rgba(255, 255, 255, 0.9)',
+    color: 'rgba(255,255,255,0.92)',
+    textAlign: 'center',
+    fontSize: theme.fontSize.base,
   },
   formContainer: {
     backgroundColor: '#fff',
-    margin: 16,
+    marginHorizontal: theme.spacing.md,
     marginTop: 0,
-    padding: 16,
-    borderRadius: 12,
-    elevation: 2,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.xxl,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.55)',
+    elevation: 4,
     shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 14,
+    shadowOffset: { width: 0, height: 8 },
   },
   formTitle: {
-    fontWeight: '600',
+    fontWeight: '800',
     color: Colors.light.primary,
-    marginBottom: 16,
+    marginBottom: 4,
+  },
+  formSubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
+    marginBottom: theme.spacing.md,
+    lineHeight: 20,
   },
   form: {
-    gap: 4,
+    gap: 2,
   },
   input: {
     marginBottom: 4,
@@ -471,20 +528,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
-  button: {
-    marginTop: 16,
-    backgroundColor: Colors.light.primary,
-  },
-  buttonContent: {
-    paddingVertical: 8,
+  primaryButton: {
+    marginTop: theme.spacing.sm,
   },
   loginLinkContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    marginTop: 16,
+    marginTop: theme.spacing.md,
+  },
+  loginLabel: {
+    color: Colors.light.textSecondary,
   },
   loginLink: {
-    marginLeft: -8,
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+  },
+  loginLinkText: {
+    fontWeight: '700',
+    fontSize: theme.fontSize.sm,
   },
 });

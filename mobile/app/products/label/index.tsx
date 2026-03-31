@@ -3,18 +3,26 @@
  * aproveitando a folha inteira sem desperdício.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Text,
 } from 'react-native';
-import { Text, Button } from 'react-native-paper';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import ProductLabel, { LabelData } from '@/components/labels/ProductLabel';
 import LabelProductPickerModal, { type PickedItem } from '@/components/labels/LabelProductPickerModal';
@@ -22,6 +30,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import PageHeader from '@/components/layout/PageHeader';
 import { Colors } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
+import { useBrandingColors } from '@/store/brandingStore';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -41,6 +50,12 @@ interface LabelItem {
   quantity: number;
 }
 
+interface FormatMetrics {
+  sheets: number;
+  remainder: number;
+  utilization: number;
+}
+
 // ─── Formatos de papel colante ────────────────────────────────────────────────
 
 const LABEL_FORMATS: LabelFormat[] = [
@@ -55,9 +70,16 @@ const LABEL_FORMATS: LabelFormat[] = [
 
 export default function LabelStudioScreen() {
   const router = useRouter();
+  const brandingColors = useBrandingColors();
   const viewShotRef = useRef<ViewShot>(null);
 
+  const headerOpacity = useSharedValue(0);
+  const headerScale = useSharedValue(0.94);
+  const contentOpacity = useSharedValue(0);
+  const contentTransY = useSharedValue(24);
+
   const [formatId,      setFormatId]      = useState('f14');
+  const [autoBestFormat, setAutoBestFormat] = useState(true);
   const [showPrice,     setShowPrice]     = useState(true);
   const [showSku,       setShowSku]       = useState(true);
   const [items,         setItems]         = useState<LabelItem[]>([]);
@@ -65,6 +87,37 @@ export default function LabelStudioScreen() {
   const [exporting,     setExporting]     = useState(false);
   const [printDialog,   setPrintDialog]   = useState(false);
   const [errorDialog,   setErrorDialog]   = useState(false);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      headerOpacity.value = 0;
+      headerScale.value = 0.94;
+      contentOpacity.value = 0;
+      contentTransY.value = 24;
+
+      headerOpacity.value = withTiming(1, {
+        duration: 380,
+        easing: Easing.out(Easing.quad),
+      });
+      headerScale.value = withSpring(1, { damping: 18, stiffness: 200 });
+
+      contentOpacity.value = withTiming(1, {
+        duration: 480,
+        easing: Easing.out(Easing.quad),
+      });
+      contentTransY.value = withSpring(0, { damping: 20, stiffness: 180 });
+    }, [contentOpacity, contentTransY, headerOpacity, headerScale])
+  );
+
+  const headerAnimStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTransY.value }],
+  }));
 
   // ── Derivados ──────────────────────────────────────────────────────────────
 
@@ -79,35 +132,97 @@ export default function LabelStudioScreen() {
   const emptySlots   = totalLabels > 0 ? perSheet - lastPageFill : 0;
   const utilizePct   = totalLabels > 0 ? Math.round((lastPageFill / perSheet) * 100) : 0;
 
+  const getFormatMetrics = (targetPerSheet: number): FormatMetrics => {
+    if (totalLabels <= 0) {
+      return { sheets: 0, remainder: 0, utilization: 0 };
+    }
+
+    const sheets = Math.ceil(totalLabels / targetPerSheet);
+    const remainder = (targetPerSheet - (totalLabels % targetPerSheet)) % targetPerSheet;
+    const usedOnLastSheet = remainder === 0 ? targetPerSheet : targetPerSheet - remainder;
+    const utilization = Math.round((usedOnLastSheet / targetPerSheet) * 100);
+
+    return { sheets, remainder, utilization };
+  };
+
+  const bestFormatId = totalLabels > 0
+    ? LABEL_FORMATS
+        .map((fmt) => ({ fmt, metrics: getFormatMetrics(fmt.perSheet) }))
+        .sort((a, b) => {
+          if (a.metrics.sheets !== b.metrics.sheets) {
+            return a.metrics.sheets - b.metrics.sheets;
+          }
+          if (a.metrics.remainder !== b.metrics.remainder) {
+            return a.metrics.remainder - b.metrics.remainder;
+          }
+          return b.metrics.utilization - a.metrics.utilization;
+        })[0]?.fmt.id
+    : undefined;
+
+  const bestFormat = bestFormatId
+    ? LABEL_FORMATS.find((fmt) => fmt.id === bestFormatId)
+    : undefined;
+
+  const bestFormatMetrics = bestFormat
+    ? getFormatMetrics(bestFormat.perSheet)
+    : undefined;
+
+  useEffect(() => {
+    if (!autoBestFormat) return;
+    if (!bestFormatId) return;
+    if (bestFormatId !== formatId) {
+      setFormatId(bestFormatId);
+    }
+  }, [autoBestFormat, bestFormatId, formatId]);
+
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  /** Recebe N itens do picker e os adiciona/incrementa no estúdio */
-  const handlePickConfirm = (picked: PickedItem[]) => {
+  /** Recebe seleção completa do picker e sincroniza com o estúdio */
+  const handlePickConfirm = (picked: PickedItem[], selectedVariantIds: number[]) => {
     setItems(prev => {
-      const next = [...prev];
-      for (const { product, variant } of picked) {
-        const key = `v_${variant.id}`;
-        const idx = next.findIndex(i => i.key === key);
-        if (idx >= 0) {
-          next[idx] = { ...next[idx], quantity: Math.min(99, next[idx].quantity + 1) };
-        } else {
-          const parts = [variant.size, variant.color].filter(Boolean);
-          next.push({
-            key,
-            displayName: `${product.name}${parts.length > 0 ? ` · ${parts.join('/')}` : ''}`,
-            labelData: {
-              productId: product.id,
-              sku: variant.sku ?? '',
-              name: product.name,
-              price: Number(variant.price),
-              size: variant.size ?? undefined,
-              color: variant.color ?? undefined,
-            },
-            stock: variant.current_stock ?? 0,
-            quantity: 1,
-          });
+      if (selectedVariantIds.length === 0) return [];
+
+      const pickedMap = new Map<number, PickedItem>();
+      picked.forEach((item) => pickedMap.set(item.variant.id, item));
+
+      const prevMap = new Map<number, LabelItem>();
+      prev.forEach((item) => {
+        const variantId = Number(item.key.replace('v_', ''));
+        if (!Number.isNaN(variantId)) {
+          prevMap.set(variantId, item);
         }
-      }
+      });
+
+      const next: LabelItem[] = [];
+
+      selectedVariantIds.forEach((variantId) => {
+        const existing = prevMap.get(variantId);
+        if (existing) {
+          next.push(existing);
+          return;
+        }
+
+        const pickedItem = pickedMap.get(variantId);
+        if (!pickedItem) return;
+
+        const { product, variant } = pickedItem;
+        const parts = [variant.size, variant.color].filter(Boolean);
+        next.push({
+          key: `v_${variant.id}`,
+          displayName: `${product.name}${parts.length > 0 ? ` · ${parts.join('/')}` : ''}`,
+          labelData: {
+            productId: product.id,
+            sku: variant.sku ?? '',
+            name: product.name,
+            price: Number(variant.price),
+            size: variant.size ?? undefined,
+            color: variant.color ?? undefined,
+          },
+          stock: variant.current_stock ?? 0,
+          quantity: 1,
+        });
+      });
+
       return next;
     });
   };
@@ -173,55 +288,132 @@ export default function LabelStudioScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader
-        title="Estúdio de Etiquetas"
-        subtitle={
-          totalLabels > 0
-            ? `${totalLabels} etiqueta${totalLabels !== 1 ? 's' : ''} · ${sheetsNeeded} folha${sheetsNeeded !== 1 ? 's' : ''}`
-            : 'Selecione produtos e defina quantidades'
-        }
-        showBackButton
-        onBack={() => router.back()}
-      />
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title="Estúdio de Etiquetas"
+          subtitle={
+            totalLabels > 0
+              ? `${totalLabels} etiqueta${totalLabels !== 1 ? 's' : ''} · ${sheetsNeeded} folha${sheetsNeeded !== 1 ? 's' : ''}`
+              : 'Selecione produtos e defina quantidades'
+          }
+          showBackButton
+          onBack={() => router.back()}
+        />
+      </Animated.View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}>
+      <Animated.View style={[styles.scrollWrap, contentAnimStyle]}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
 
         {/* ── Configuração de folha ── */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Ionicons name="settings-outline" size={18} color={Colors.light.primary} />
+            <Ionicons name="settings-outline" size={18} color={brandingColors.primary} />
             <Text style={styles.cardTitle}>Configuração</Text>
           </View>
           <View style={styles.cardContent}>
             <Text style={styles.configLabel}>Formato de Papel Colante</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.formatScroll} contentContainerStyle={styles.formatScrollContent}>
-              {LABEL_FORMATS.map(fmt => (
-                <TouchableOpacity
-                  key={fmt.id}
-                  style={[styles.formatCard, formatId === fmt.id && styles.formatCardActive]}
-                  onPress={() => setFormatId(fmt.id)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.formatCardMain, formatId === fmt.id && styles.formatCardMainActive]}>
-                    {fmt.label}
-                  </Text>
-                  <Text style={[styles.formatCardSub, formatId === fmt.id && styles.formatCardSubActive]}>
-                    {fmt.description}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
+            <View style={styles.formatGrid}>
+              {LABEL_FORMATS.map(fmt => {
+                const selected = formatId === fmt.id;
+                const metrics = getFormatMetrics(fmt.perSheet);
+                const isBest = bestFormatId === fmt.id;
+
+                return (
+                  <TouchableOpacity
+                    key={fmt.id}
+                    style={[
+                      styles.formatCard,
+                      selected && {
+                        borderColor: brandingColors.primary,
+                        backgroundColor: brandingColors.primary + '12',
+                      },
+                    ]}
+                    onPress={() => {
+                      setAutoBestFormat(false);
+                      setFormatId(fmt.id);
+                    }}
+                    activeOpacity={0.75}
+                  >
+                    <View style={styles.formatCardTop}>
+                      <Text style={[styles.formatCardMain, selected && { color: brandingColors.primary }]}> 
+                        {fmt.label}
+                      </Text>
+                      {isBest && totalLabels > 0 && (
+                        <View style={[styles.bestChip, { backgroundColor: Colors.light.success + '18' }]}> 
+                          <Text style={styles.bestChipText}>Melhor</Text>
+                        </View>
+                      )}
+                    </View>
+                    <Text style={[styles.formatCardSub, selected && { color: brandingColors.primary + 'AA' }]}> 
+                      {fmt.description}
+                    </Text>
+
+                    <View style={styles.formatMetaRow}>
+                      <Text style={styles.formatMetaText}>
+                        {metrics.sheets > 0 ? `${metrics.sheets} folha${metrics.sheets !== 1 ? 's' : ''}` : '--'}
+                      </Text>
+                      <Text style={styles.formatMetaDot}>•</Text>
+                      <Text style={styles.formatMetaText}>
+                        {metrics.sheets > 0 ? `${metrics.remainder} vaga${metrics.remainder !== 1 ? 's' : ''}` : 'sem calculo'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <View style={styles.recommendationRow}>
+              <TouchableOpacity
+                style={[
+                  styles.autoModeChip,
+                  autoBestFormat && { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary + '14' },
+                ]}
+                onPress={() => {
+                  const nextValue = !autoBestFormat;
+                  setAutoBestFormat(nextValue);
+                  if (nextValue && bestFormatId) {
+                    setFormatId(bestFormatId);
+                  }
+                }}
+                activeOpacity={0.75}
+              >
+                <Ionicons
+                  name={autoBestFormat ? 'lock-open-outline' : 'lock-closed-outline'}
+                  size={13}
+                  color={autoBestFormat ? brandingColors.primary : Colors.light.textSecondary}
+                />
+                <Text style={[styles.autoModeChipText, autoBestFormat && { color: brandingColors.primary }]}> 
+                  {autoBestFormat ? 'Auto recomendado' : 'Formato travado'}
+                </Text>
+              </TouchableOpacity>
+
+              <Text style={styles.recommendationText}>
+                {totalLabels > 0
+                  ? `Melhor agora: ${bestFormat?.label ?? format.label}${
+                      bestFormatMetrics
+                        ? ` · ${bestFormatMetrics.sheets} folha${bestFormatMetrics.sheets !== 1 ? 's' : ''} · ${bestFormatMetrics.remainder} vaga${bestFormatMetrics.remainder !== 1 ? 's' : ''}`
+                        : ''
+                    }`
+                  : 'Adicione itens para calcular o melhor formato automaticamente.'}
+              </Text>
+            </View>
 
             <View style={styles.optionsRow}>
               <TouchableOpacity
-                style={[styles.chip, showPrice && styles.chipActive]}
+                style={[
+                  styles.chip,
+                  showPrice && { backgroundColor: brandingColors.primary, borderColor: brandingColors.primary },
+                ]}
                 onPress={() => setShowPrice(v => !v)}
               >
                 <Ionicons name="pricetag-outline" size={14} color={showPrice ? '#fff' : Colors.light.textSecondary} />
                 <Text style={[styles.chipText, showPrice && styles.chipTextActive]}>Preço</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[styles.chip, showSku && styles.chipActive]}
+                style={[
+                  styles.chip,
+                  showSku && { backgroundColor: brandingColors.primary, borderColor: brandingColors.primary },
+                ]}
                 onPress={() => setShowSku(v => !v)}
               >
                 <Ionicons name="barcode-outline" size={14} color={showSku ? '#fff' : Colors.light.textSecondary} />
@@ -235,7 +427,7 @@ export default function LabelStudioScreen() {
         {totalLabels > 0 && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <Ionicons name="albums-outline" size={18} color={Colors.light.primary} />
+              <Ionicons name="albums-outline" size={18} color={brandingColors.primary} />
               <Text style={styles.cardTitle}>Aproveitamento da Folha</Text>
             </View>
             <View style={styles.cardContent}>
@@ -265,7 +457,7 @@ export default function LabelStudioScreen() {
                   styles.utilizeBarFill,
                   {
                     width: `${utilizePct}%` as any,
-                    backgroundColor: emptySlots === 0 ? Colors.light.success : Colors.light.primary,
+                    backgroundColor: emptySlots === 0 ? Colors.light.success : brandingColors.primary,
                   },
                 ]} />
               </View>
@@ -300,15 +492,15 @@ export default function LabelStudioScreen() {
         {/* ── Lista de produtos ── */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Ionicons name="layers-outline" size={18} color={Colors.light.primary} />
+            <Ionicons name="layers-outline" size={18} color={brandingColors.primary} />
             <Text style={styles.cardTitle}>
               Produtos{items.length > 0 ? ` (${items.length})` : ''}
             </Text>
             <View style={styles.headerActions}>
               {items.some(i => i.stock > 0) && (
                 <TouchableOpacity onPress={fillFromStock} style={styles.actionBtn}>
-                  <Ionicons name="flash-outline" size={13} color={Colors.light.primary} />
-                  <Text style={styles.actionBtnText}>Do estoque</Text>
+                  <Ionicons name="flash-outline" size={13} color={brandingColors.primary} />
+                  <Text style={[styles.actionBtnText, { color: brandingColors.primary }]}>Do estoque</Text>
                 </TouchableOpacity>
               )}
               {items.length > 0 && (
@@ -369,12 +561,12 @@ export default function LabelStudioScreen() {
               onPress={() => setModalOpen(true)}
               activeOpacity={0.7}
             >
-              <Ionicons name="add-circle-outline" size={20} color={Colors.light.primary} />
+              <Ionicons name="add-circle-outline" size={20} color={brandingColors.primary} />
               <View style={styles.addProductTextWrap}>
-                <Text style={styles.addProductText}>
+                <Text style={[styles.addProductText, { color: brandingColors.primary }]}>
                   {items.length === 0 ? 'Selecionar produtos' : 'Adicionar mais produtos'}
                 </Text>
-                <Text style={styles.addProductSub}>Marque vários de uma vez</Text>
+                <Text style={[styles.addProductSub, { color: brandingColors.primary + 'AA' }]}>Marque vários de uma vez</Text>
               </View>
             </TouchableOpacity>
 
@@ -383,7 +575,7 @@ export default function LabelStudioScreen() {
               <View style={styles.totalRow}>
                 <Text style={styles.totalLabel}>Total</Text>
                 <View style={styles.totalRight}>
-                  <Text style={styles.totalValue}>{totalLabels} etiqueta{totalLabels !== 1 ? 's' : ''}</Text>
+                  <Text style={[styles.totalValue, { color: brandingColors.primary }]}>{totalLabels} etiqueta{totalLabels !== 1 ? 's' : ''}</Text>
                   <Text style={styles.totalSheets}>
                     {sheetsNeeded} folha{sheetsNeeded !== 1 ? 's' : ''} · {format.label} · {format.description}
                   </Text>
@@ -397,7 +589,7 @@ export default function LabelStudioScreen() {
         {totalLabels > 0 && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <Ionicons name="eye-outline" size={18} color={Colors.light.primary} />
+              <Ionicons name="eye-outline" size={18} color={brandingColors.primary} />
               <Text style={styles.cardTitle}>Preview</Text>
               {sheetsNeeded > 1 && (
                 <View style={styles.extraChip}>
@@ -450,28 +642,36 @@ export default function LabelStudioScreen() {
 
         <View style={{ height: 100 }} />
       </ScrollView>
+      </Animated.View>
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Button
-          mode="outlined"
+        <TouchableOpacity
+          style={[styles.footerAction, styles.footerActionSecondary, totalLabels === 0 && styles.footerActionDisabled]}
           onPress={handlePrint}
-          icon="printer-outline"
-          style={styles.footerBtn}
           disabled={totalLabels === 0}
+          activeOpacity={0.75}
         >
-          Imprimir
-        </Button>
-        <Button
-          mode="contained"
+          <Ionicons name="print-outline" size={18} color={Colors.light.textSecondary} />
+          <Text style={styles.footerActionSecondaryText}>Imprimir</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.footerAction, totalLabels === 0 && styles.footerActionDisabled]}
           onPress={handleShare}
-          icon="share-variant"
-          style={styles.footerBtn}
-          loading={exporting}
           disabled={totalLabels === 0 || exporting}
+          activeOpacity={0.8}
         >
-          Compartilhar
-        </Button>
+          <LinearGradient
+            colors={exporting ? ['#9CA3AF', '#9CA3AF'] : brandingColors.gradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.footerActionPrimaryGradient}
+          >
+            <Ionicons name={exporting ? 'hourglass-outline' : 'share-social-outline'} size={18} color="#fff" />
+            <Text style={styles.footerActionPrimaryText}>{exporting ? 'Exportando...' : 'Compartilhar'}</Text>
+          </LinearGradient>
+        </TouchableOpacity>
       </View>
 
       {/* Modal de seleção em massa */}
@@ -516,6 +716,7 @@ export default function LabelStudioScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
+  scrollWrap: { flex: 1 },
   scroll: { flex: 1 },
   content: { padding: 16, gap: 14 },
 
@@ -552,44 +753,101 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 10,
   },
-  formatScroll: { marginHorizontal: -4 },
-  formatScrollContent: { gap: 8, paddingHorizontal: 4, paddingBottom: 4 },
+  formatGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 2,
+  },
   formatCard: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 14,
+    width: '48%',
+    paddingHorizontal: 12,
     paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 1.5,
     borderColor: Colors.light.border,
     backgroundColor: Colors.light.backgroundSecondary,
-    minWidth: 76,
+    minWidth: 120,
   },
-  formatCardActive: {
-    borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primary + '12',
+  formatCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 6,
   },
   formatCardMain: {
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: '800',
     color: Colors.light.textSecondary,
   },
-  formatCardMainActive: { color: Colors.light.primary },
   formatCardSub: {
     fontSize: 10,
     color: Colors.light.textTertiary,
     marginTop: 2,
-    textAlign: 'center',
+    textAlign: 'left',
   },
-  formatCardSubActive: { color: Colors.light.primary + 'aa' },
+  formatMetaRow: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  formatMetaText: {
+    fontSize: 10,
+    color: Colors.light.textSecondary,
+    fontWeight: '600',
+  },
+  formatMetaDot: {
+    fontSize: 10,
+    color: Colors.light.textTertiary,
+  },
+  bestChip: {
+    borderRadius: 8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  bestChipText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: Colors.light.success,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
   optionsRow: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  recommendationRow: {
+    marginTop: 10,
+    gap: 8,
+  },
+  autoModeChip: {
+    alignSelf: 'flex-start',
+    minHeight: 30,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.backgroundSecondary,
+    paddingHorizontal: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  autoModeChipText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: Colors.light.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  recommendationText: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    fontWeight: '600',
+  },
   chip: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
     gap: 6, paddingVertical: 10, borderRadius: 10,
     backgroundColor: Colors.light.backgroundSecondary,
     borderWidth: 1.5, borderColor: Colors.light.border,
   },
-  chipActive: { backgroundColor: Colors.light.primary, borderColor: Colors.light.primary },
   chipText: { fontSize: 13, fontWeight: '600', color: Colors.light.textSecondary },
   chipTextActive: { color: '#fff' },
 
@@ -682,13 +940,13 @@ const styles = StyleSheet.create({
     padding: 14,
     borderRadius: 12,
     borderWidth: 2,
-    borderColor: Colors.light.primary,
+    borderColor: Colors.light.border,
     borderStyle: 'dashed',
-    backgroundColor: Colors.light.primary + '06',
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   addProductTextWrap: { flex: 1 },
-  addProductText: { fontSize: 15, fontWeight: '600', color: Colors.light.primary },
-  addProductSub: { fontSize: 12, color: Colors.light.primary + 'aa', marginTop: 1 },
+  addProductText: { fontSize: 15, fontWeight: '600' },
+  addProductSub: { fontSize: 12, marginTop: 1 },
 
   totalRow: {
     flexDirection: 'row',
@@ -697,13 +955,13 @@ const styles = StyleSheet.create({
     marginTop: 14,
     padding: 12,
     borderRadius: 10,
-    backgroundColor: Colors.light.primary + '08',
+    backgroundColor: Colors.light.backgroundSecondary,
     borderWidth: 1,
-    borderColor: Colors.light.primary + '25',
+    borderColor: Colors.light.border,
   },
   totalLabel: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
   totalRight: { alignItems: 'flex-end' },
-  totalValue: { fontSize: 16, fontWeight: '800', color: Colors.light.primary },
+  totalValue: { fontSize: 16, fontWeight: '800' },
   totalSheets: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 },
 
   // Preview
@@ -742,5 +1000,40 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopWidth: 1, borderTopColor: Colors.light.border,
   },
-  footerBtn: { flex: 1 },
+  footerAction: {
+    flex: 1,
+    minHeight: 52,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  footerActionSecondary: {
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  footerActionSecondaryText: {
+    fontSize: 16,
+    color: Colors.light.textSecondary,
+    fontWeight: '700',
+  },
+  footerActionPrimaryGradient: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+  },
+  footerActionPrimaryText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  footerActionDisabled: {
+    opacity: 0.55,
+  },
 });

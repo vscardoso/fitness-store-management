@@ -26,6 +26,7 @@ export default function AuthLayout() {
         contentStyle: { backgroundColor: '#fff' },
       }}
     >
+      <Stack.Screen name="onboarding" />
       <Stack.Screen name="login" />
       <Stack.Screen name="signup" />
       <Stack.Screen name="create-store" />

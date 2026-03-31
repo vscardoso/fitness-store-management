@@ -169,6 +169,52 @@ export const TUTORIALS: Record<string, Tutorial> = {
     ],
   },
 
+  'product-details': {
+    id: 'product-details',
+    name: 'Detalhes do Produto',
+    description: 'Aprenda a usar a tela de detalhes do produto',
+    icon: 'cube-outline',
+    screen: '/products/[id]',
+    steps: [
+      {
+        id: 'product-details-welcome',
+        title: 'Visao geral do produto',
+        description: 'Aqui voce acompanha estoque, preco, variacoes e historico de entradas do produto em um unico lugar.',
+        position: 'bottom',
+      },
+      {
+        id: 'product-details-quick-cards',
+        title: 'Estoque e preco rapido',
+        description: 'Os cards do topo mostram status de estoque e faixa de preco. Assim voce identifica risco de ruptura rapidamente.',
+        position: 'bottom',
+      },
+      {
+        id: 'product-details-variants',
+        title: 'Variacoes e desempenho',
+        description: 'Se o produto tem variacoes, voce ve estoque por variacao, margem e preco para decidir reposicao com mais precisao.',
+        position: 'bottom',
+      },
+      {
+        id: 'product-details-entries',
+        title: 'Historico de entradas',
+        description: 'A secao de entradas mostra origem, consumo e saldo por lote, ajudando no controle FIFO e rastreabilidade.',
+        position: 'top',
+      },
+      {
+        id: 'product-details-actions',
+        title: 'Acoes rapidas',
+        description: 'Use as acoes de Etiqueta, QR Code e Estudio para imprimir, compartilhar e trabalhar em lote sem sair do fluxo.',
+        position: 'top',
+      },
+      {
+        id: 'product-details-header-actions',
+        title: 'Editar e excluir',
+        description: 'No cabecalho voce encontra os atalhos para editar, gerenciar fotos das variacoes e excluir o produto quando necessario.',
+        position: 'bottom',
+      },
+    ],
+  },
+
   customers: {
     id: 'customers',
     name: 'Clientes',

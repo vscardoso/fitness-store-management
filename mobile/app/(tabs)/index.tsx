@@ -5,25 +5,39 @@ import {
   ScrollView,
   RefreshControl,
   TouchableOpacity,
+  Modal,
   Dimensions,
+  Text,
+  Image,
 } from 'react-native';
-import { Text, Card } from 'react-native-paper';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
 import { useAuth } from '@/hooks/useAuth';
+import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
+import { useUIStore } from '@/store/uiStore';
 import { getDashboardStats, getInventoryValuation, getPeriodSalesStats, getPeriodPurchases, getDailySales, getTopProducts, getFifoPerformance, getYoYComparison } from '@/services/dashboardService';
 import { getMonthlyResult } from '@/services/expenseService';
 import type { DailySalesData } from '@/services/dashboardService';
 import { getSales } from '@/services/saleService';
+import { getLowStockProducts } from '@/services/productService';
 import type { Sale } from '@/types';
 import { formatCurrency } from '@/utils/format';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
+import { valueColor } from '@/utils/format';
 import FAB from '@/components/FAB';
 import PeriodFilter, { type PeriodFilterValue, PERIOD_OPTIONS } from '@/components/PeriodFilter';
 import { HelpButton } from '@/components/tutorial';
 import PageHeader from '@/components/layout/PageHeader';
+import { FitFlowLogo } from '@/components/branding/FitFlowLogo';
 
 const { width } = Dimensions.get('window');
 
@@ -41,6 +55,56 @@ export default function DashboardScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilterValue>('this_month');
+  const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+  const brandingColors = useBrandingColors();
+  const logoUri = useBrandingStore((state) => state.branding.logoUri);
+  const dashboardRefreshTick = useUIStore((s) => s.dashboardRefreshTick);
+
+  // Toque no ícone Início (estando já nessa aba) dispara refresh
+  React.useEffect(() => {
+    if (dashboardRefreshTick > 0) onRefresh();
+  }, [dashboardRefreshTick]);
+
+  // Animações de entrada — mesmo padrão do login
+  const headerOpacity = useSharedValue(0);
+  const headerScale = useSharedValue(0.92);
+  const contentOpacity = useSharedValue(0);
+  const contentTranslateY = useSharedValue(28);
+
+  const playEntryAnimation = useCallback(() => {
+    headerOpacity.value = 0;
+    headerScale.value = 0.92;
+    contentOpacity.value = 0;
+    contentTranslateY.value = 28;
+
+    headerOpacity.value = withTiming(1, { duration: 500, easing: Easing.out(Easing.quad) });
+    headerScale.value = withSpring(1, { damping: 14, stiffness: 180 });
+
+    const t = setTimeout(() => {
+      contentOpacity.value = withTiming(1, { duration: 400 });
+      contentTranslateY.value = withSpring(0, { damping: 18, stiffness: 200 });
+    }, 180);
+
+    return t;
+  }, []);
+
+  // Ao focar a aba
+  useFocusEffect(
+    useCallback(() => {
+      const t = playEntryAnimation();
+      return () => clearTimeout(t);
+    }, [playEntryAnimation])
+  );
+
+  const headerAnimStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTranslateY.value }],
+  }));
 
   // Queries
   const { data: dashboardStats, refetch: refetchStats } = useQuery({
@@ -133,6 +197,7 @@ export default function DashboardScreen() {
       refetchMonthly(),
     ]);
     setRefreshing(false);
+    playEntryAnimation();
   };
 
   // Auto-refresh no foco
@@ -159,7 +224,7 @@ export default function DashboardScreen() {
   const marginToday = dashboardStats?.sales?.margin_today || 0;
   const lowStockCount = dashboardStats?.stock?.low_stock_count || 0;
   const totalProducts = dashboardStats?.stock?.total_products || 0;
-  const totalSkus = dashboardStats?.stock?.total_skus || totalProducts;
+  const totalSkus = totalProducts;
   const totalCustomers = dashboardStats?.customers?.total || 0;
 
   // Período selecionado
@@ -201,7 +266,7 @@ export default function DashboardScreen() {
       id: 'new-sale',
       title: 'Nova Venda',
       icon: 'cart',
-      color: '#10B981',
+      color: VALUE_COLORS.positive,
       onPress: () => router.push('/(tabs)/sale'),
     },
     {
@@ -229,7 +294,7 @@ export default function DashboardScreen() {
       id: 'entries',
       title: 'Entradas',
       icon: 'albums',
-      color: '#F59E0B',
+      color: VALUE_COLORS.warning,
       onPress: () => router.push('/entries'),
     },
     {
@@ -243,15 +308,27 @@ export default function DashboardScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader
-        title={`${getGreeting()}, ${user?.full_name?.split(' ')[0] || 'Usuário'}!`}
-        subtitle={user?.store_name || 'Fitness Store'}
-        rightActions={[
-          { icon: 'help-circle-outline', onPress: () => {} },
-          { icon: 'person-circle-outline', onPress: () => router.push('/(tabs)/more') },
-        ]}
-      />
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title={`${getGreeting()}, ${user?.full_name?.split(' ')[0] || 'Usuário'}!`}
+          subtitle={user?.store_name || 'Fitness Store'}
+          leftVisual={
+            logoUri ? (
+              <Image source={{ uri: logoUri }} style={styles.headerStoreLogoImage} resizeMode="cover" />
+            ) : (
+              <View style={styles.headerStoreLogoFallback}>
+                <FitFlowLogo size={32} />
+              </View>
+            )
+          }
+          rightActions={[
+            { icon: 'help-circle-outline', onPress: () => {} },
+            { icon: 'person-circle-outline', onPress: () => router.push('/(tabs)/more') },
+          ]}
+        />
+      </Animated.View>
 
+      <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
@@ -259,18 +336,36 @@ export default function DashboardScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[Colors.light.primary]}
+            colors={[brandingColors.primary]}
           />
         }
         showsVerticalScrollIndicator={false}
       >
+        {/* Alerta de estoque baixo — proeminente quando há itens */}
+        {lowStockCount > 0 && (
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onPress={() => router.push('/(tabs)/products?filter=low_stock' as any)}
+          >
+            <View style={styles.stockAlert}>
+              <Ionicons name="warning" size={20} color={Colors.light.warning} />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.stockAlertTitle}>
+                  {lowStockCount} produto{lowStockCount !== 1 ? 's' : ''} com estoque baixo
+                </Text>
+                <Text style={styles.stockAlertSub}>Toque para ver alertas</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.light.warning} />
+            </View>
+          </TouchableOpacity>
+        )}
         {/* ========== CARD PRINCIPAL: VENDAS HOJE ========== */}
         <TouchableOpacity
           activeOpacity={0.9}
           onPress={() => router.push('/(tabs)/sales')}
         >
           <LinearGradient
-            colors={['#10B981', '#059669']}
+            colors={[brandingColors.primary, brandingColors.secondary]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.mainCard}
@@ -355,7 +450,12 @@ export default function DashboardScreen() {
             <View style={[styles.monthCardIcon, { backgroundColor: '#EEF2FF' }]}>
               <Ionicons name="wallet-outline" size={22} color="#6366F1" />
             </View>
-            <Text style={styles.monthCardLabel}>Faturamento</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={styles.monthCardLabel}>Faturamento</Text>
+              <TouchableOpacity onPress={() => setActiveTooltip('faturamento')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                <Ionicons name="information-circle-outline" size={11} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
             <Text style={styles.monthCardValue}>{formatCurrency(periodTotal)}</Text>
             <View style={styles.monthCardFooter}>
               <Text style={styles.monthCardSubtitle}>{periodCount} vendas</Text>
@@ -367,11 +467,11 @@ export default function DashboardScreen() {
                   <Ionicons
                     name={totalChangePercent >= 0 ? 'arrow-up' : 'arrow-down'}
                     size={10}
-                    color={totalChangePercent >= 0 ? '#10B981' : '#EF4444'}
+                    color={totalChangePercent >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative}
                   />
                   <Text style={[
                     styles.changeText,
-                    { color: totalChangePercent >= 0 ? '#10B981' : '#EF4444' }
+                    { color: totalChangePercent >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
                   ]}>
                     {Math.abs(totalChangePercent).toFixed(0)}%
                   </Text>
@@ -387,10 +487,15 @@ export default function DashboardScreen() {
             onPress={() => router.push('/reports/sales-period' as any)}
           >
             <View style={[styles.monthCardIcon, { backgroundColor: '#ECFDF5' }]}>
-              <Ionicons name="cash-outline" size={22} color="#10B981" />
+              <Ionicons name="cash-outline" size={22} color={VALUE_COLORS.positive} />
             </View>
-            <Text style={styles.monthCardLabel}>Lucro Líquido</Text>
-            <Text style={[styles.monthCardValue, { color: '#10B981' }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={styles.monthCardLabel}>Lucro Líquido</Text>
+              <TouchableOpacity onPress={() => setActiveTooltip('lucro-periodo')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                <Ionicons name="information-circle-outline" size={11} color="#9CA3AF" />
+              </TouchableOpacity>
+            </View>
+            <Text style={[styles.monthCardValue, { color: VALUE_COLORS.positive }]}>
               {formatCurrency(periodProfit)}
             </Text>
             <View style={styles.monthCardFooter}>
@@ -403,11 +508,11 @@ export default function DashboardScreen() {
                   <Ionicons
                     name={profitChangePercent >= 0 ? 'arrow-up' : 'arrow-down'}
                     size={10}
-                    color={profitChangePercent >= 0 ? '#10B981' : '#EF4444'}
+                    color={profitChangePercent >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative}
                   />
                   <Text style={[
                     styles.changeText,
-                    { color: profitChangePercent >= 0 ? '#10B981' : '#EF4444' }
+                    { color: profitChangePercent >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
                   ]}>
                     {Math.abs(profitChangePercent).toFixed(0)}%
                   </Text>
@@ -423,7 +528,7 @@ export default function DashboardScreen() {
             activeOpacity={0.85}
             onPress={() => router.push('/(tabs)/expenses/resultado')}
           >
-            <Card style={styles.plSummaryCard}>
+            <View style={styles.plSummaryCard}>
               <View style={styles.plSummaryHeader}>
                 <View style={styles.plSummaryTitleRow}>
                   <Ionicons name="stats-chart-outline" size={18} color="#7C3AED" />
@@ -460,7 +565,7 @@ export default function DashboardScreen() {
                   </Text>
                 </View>
               </View>
-            </Card>
+            </View>
           </TouchableOpacity>
         )}
 
@@ -497,7 +602,7 @@ export default function DashboardScreen() {
                           styles.bar, 
                           { 
                             height: `${barHeight}%`,
-                            backgroundColor: isToday ? '#10B981' : day.total > 0 ? '#6366F1' : '#E5E7EB'
+                            backgroundColor: isToday ? VALUE_COLORS.positive : day.total > 0 ? brandingColors.primary : '#E5E7EB'
                           }
                         ]} 
                       />
@@ -518,15 +623,25 @@ export default function DashboardScreen() {
               </View>
               <View style={styles.chartSummaryDivider} />
               <View style={styles.chartSummaryItem}>
-                <Text style={styles.chartSummaryLabel}>Lucro Líquido</Text>
-                <Text style={[styles.chartSummaryValue, { color: '#10B981' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                  <Text style={styles.chartSummaryLabel}>Lucro Líquido</Text>
+                  <TouchableOpacity onPress={() => setActiveTooltip('lucro-periodo')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                    <Ionicons name="information-circle-outline" size={10} color="#9CA3AF" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={[styles.chartSummaryValue, { color: VALUE_COLORS.positive }]}>
                   {formatCurrency(dailySales.totals?.profit || 0)}
                 </Text>
               </View>
               <View style={styles.chartSummaryDivider} />
               <View style={styles.chartSummaryItem}>
-                <Text style={styles.chartSummaryLabel}>Custo dos Produtos</Text>
-                <Text style={[styles.chartSummaryValue, { color: '#EF4444' }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                  <Text style={styles.chartSummaryLabel}>Custo dos Produtos</Text>
+                  <TouchableOpacity onPress={() => setActiveTooltip('cmv')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                    <Ionicons name="information-circle-outline" size={10} color="#9CA3AF" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={[styles.chartSummaryValue, { color: VALUE_COLORS.negative }]}>
                   {formatCurrency(dailySales.totals?.cmv || 0)}
                 </Text>
               </View>
@@ -546,7 +661,7 @@ export default function DashboardScreen() {
             {topProducts.products.map((product, index) => {
               const maxRevenue = topProducts.products[0]?.revenue || 1;
               const barWidth = (product.revenue / maxRevenue) * 100;
-              const colors = ['#6366F1', '#10B981', '#F59E0B', '#EC4899', '#3B82F6'];
+              const colors = [brandingColors.primary, VALUE_COLORS.positive, VALUE_COLORS.warning, '#EC4899', Colors.light.info];
               const color = colors[index % colors.length];
               return (
                 <View key={product.product_id} style={styles.topProductItem}>
@@ -565,7 +680,7 @@ export default function DashboardScreen() {
                     </View>
                     <View style={styles.topProductStats}>
                       <Text style={styles.topProductStatText}>{product.qty_sold} un vendidas</Text>
-                      <Text style={[styles.topProductStatText, { color: '#10B981' }]}>
+                      <Text style={[styles.topProductStatText, { color: valueColor(product.profit, 'profit') }]}>
                         Lucro: {formatCurrency(product.profit)} ({product.margin_percent.toFixed(0)}%)
                       </Text>
                     </View>
@@ -584,7 +699,7 @@ export default function DashboardScreen() {
                 <Text style={styles.fifoTitle}>📦 Saúde do Estoque</Text>
                 <Text style={styles.fifoSubtitle}>Análise detalhada do seu inventário</Text>
               </View>
-              <TouchableOpacity style={styles.fifoInfoButton} activeOpacity={0.6}>
+              <TouchableOpacity style={styles.fifoInfoButton} activeOpacity={0.6} onPress={() => setActiveTooltip('giro')}>
                 <Ionicons name="information-circle-outline" size={20} color="#6366F1" />
               </TouchableOpacity>
             </View>
@@ -603,8 +718,8 @@ export default function DashboardScreen() {
                 ]}>
                   <Text style={[
                     styles.fifoSellThroughBadgeText,
-                    { color: fifoPerf.sell_through.rate >= 70 ? '#10B981' :
-                      fifoPerf.sell_through.rate >= 40 ? '#F59E0B' : '#EF4444' }
+                    { color: fifoPerf.sell_through.rate >= 70 ? VALUE_COLORS.positive :
+                      fifoPerf.sell_through.rate >= 40 ? VALUE_COLORS.warning : VALUE_COLORS.negative }
                   ]}>
                     {fifoPerf.sell_through.rate >= 70 ? 'Excelente' :
                       fifoPerf.sell_through.rate >= 40 ? 'Moderado' : 'Crítico'}
@@ -626,8 +741,8 @@ export default function DashboardScreen() {
                     styles.fifoGaugeFill,
                     {
                       width: `${Math.min(fifoPerf.sell_through.rate, 100)}%`,
-                      backgroundColor: fifoPerf.sell_through.rate >= 70 ? '#10B981' :
-                        fifoPerf.sell_through.rate >= 40 ? '#F59E0B' : '#EF4444'
+                      backgroundColor: fifoPerf.sell_through.rate >= 70 ? VALUE_COLORS.positive :
+                        fifoPerf.sell_through.rate >= 40 ? VALUE_COLORS.warning : VALUE_COLORS.negative
                     }
                   ]} />
                 </View>
@@ -651,19 +766,24 @@ export default function DashboardScreen() {
                   <Ionicons
                     name={fifoPerf.roi.avg_roi >= 0 ? 'trending-up' : 'trending-down'}
                     size={24}
-                    color={fifoPerf.roi.avg_roi >= 0 ? '#10B981' : '#EF4444'}
+                    color={fifoPerf.roi.avg_roi >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative}
                   />
                 </View>
-                <Text style={styles.fifoMetricLabel}>Lucro Médio</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                  <Text style={styles.fifoMetricLabel}>Lucro Médio</Text>
+                  <TouchableOpacity onPress={() => setActiveTooltip('lucro-medio')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                    <Ionicons name="information-circle-outline" size={10} color="#9CA3AF" />
+                  </TouchableOpacity>
+                </View>
                 <Text style={[
                   styles.fifoMetricValue,
-                  { color: fifoPerf.roi.avg_roi >= 0 ? '#10B981' : '#EF4444' }
+                  { color: fifoPerf.roi.avg_roi >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
                 ]}>
                   {fifoPerf.roi.avg_roi > 0 ? '+' : ''}{fifoPerf.roi.avg_roi.toFixed(0)}%
                 </Text>
                 <View style={[
                   styles.fifoMetricBadge,
-                  { backgroundColor: fifoPerf.roi.avg_roi >= 0 ? '#10B981' : '#EF4444' }
+                  { backgroundColor: fifoPerf.roi.avg_roi >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
                 ]}>
                   <Text style={styles.fifoMetricBadgeText}>
                     {fifoPerf.roi.avg_roi >= 0 ? 'Lucrativo' : 'Prejuízo'}
@@ -686,19 +806,24 @@ export default function DashboardScreen() {
                   <Ionicons
                     name={fifoPerf.roi.negative_count === 0 ? 'checkmark-circle' : 'alert-circle'}
                     size={24}
-                    color={fifoPerf.roi.negative_count === 0 ? '#10B981' : '#EF4444'}
+                    color={fifoPerf.roi.negative_count === 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative}
                   />
                 </View>
-                <Text style={styles.fifoMetricLabel}>Prejuízo</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                  <Text style={styles.fifoMetricLabel}>Prejuízo</Text>
+                  <TouchableOpacity onPress={() => setActiveTooltip('prejuizo-fifo')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                    <Ionicons name="information-circle-outline" size={10} color="#9CA3AF" />
+                  </TouchableOpacity>
+                </View>
                 <Text style={[
                   styles.fifoMetricValue,
-                  { color: fifoPerf.roi.negative_count === 0 ? '#10B981' : '#EF4444' }
+                  { color: fifoPerf.roi.negative_count === 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
                 ]}>
                   {fifoPerf.roi.negative_count}
                 </Text>
                 <View style={[
                   styles.fifoMetricBadge,
-                  { backgroundColor: fifoPerf.roi.negative_count === 0 ? '#10B981' : '#EF4444' }
+                  { backgroundColor: fifoPerf.roi.negative_count === 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
                 ]}>
                   <Text style={styles.fifoMetricBadgeText}>
                     {fifoPerf.roi.negative_count === 0 ? 'Nenhuma' : 'Atenção'}
@@ -721,19 +846,24 @@ export default function DashboardScreen() {
                   <Ionicons
                     name={fifoPerf.sell_through.total_remaining === 0 ? 'cube' : 'archive'}
                     size={24}
-                    color={fifoPerf.sell_through.total_remaining === 0 ? '#10B981' : '#F59E0B'}
+                    color={fifoPerf.sell_through.total_remaining === 0 ? VALUE_COLORS.positive : VALUE_COLORS.warning}
                   />
                 </View>
-                <Text style={styles.fifoMetricLabel}>Itens Parados</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                  <Text style={styles.fifoMetricLabel}>Itens Parados</Text>
+                  <TouchableOpacity onPress={() => setActiveTooltip('itens-parados')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                    <Ionicons name="information-circle-outline" size={10} color="#9CA3AF" />
+                  </TouchableOpacity>
+                </View>
                 <Text style={[
                   styles.fifoMetricValue,
-                  { color: fifoPerf.sell_through.total_remaining === 0 ? '#10B981' : '#F59E0B' }
+                  { color: fifoPerf.sell_through.total_remaining === 0 ? VALUE_COLORS.positive : VALUE_COLORS.warning }
                 ]}>
                   {fifoPerf.sell_through.total_remaining}
                 </Text>
                 <View style={[
                   styles.fifoMetricBadge,
-                  { backgroundColor: fifoPerf.sell_through.total_remaining === 0 ? '#10B981' : '#F59E0B' }
+                  { backgroundColor: fifoPerf.sell_through.total_remaining === 0 ? VALUE_COLORS.positive : VALUE_COLORS.warning }
                 ]}>
                   <Text style={styles.fifoMetricBadgeText}>
                     {fifoPerf.sell_through.total_remaining === 0 ? 'Livre' : 'Estocado'}
@@ -788,9 +918,9 @@ export default function DashboardScreen() {
                   <Ionicons
                     name={isPositive ? 'trending-up' : 'trending-down'}
                     size={16}
-                    color={isPositive ? '#10B981' : '#EF4444'}
+                    color={isPositive ? VALUE_COLORS.positive : VALUE_COLORS.negative}
                   />
-                  <Text style={[styles.yoyChangePct, { color: isPositive ? '#10B981' : '#EF4444' }]}>
+                  <Text style={[styles.yoyChangePct, { color: isPositive ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
                     {isPositive ? '+' : ''}{yoyData.totals.total_change_percent.toFixed(1)}% no ano
                   </Text>
                 </View>
@@ -831,7 +961,7 @@ export default function DashboardScreen() {
                   const prevW = (month.prev_total / maxVal) * 100;
                   const currW = (month.current_total / maxVal) * 100;
                   const chg = month.change_percent;
-                  const chgColor = chg > 0 ? '#10B981' : chg < 0 ? '#EF4444' : '#9CA3AF';
+                  const chgColor = chg > 0 ? VALUE_COLORS.positive : chg < 0 ? VALUE_COLORS.negative : VALUE_COLORS.neutral;
                   const chgBg = chg > 0 ? '#ECFDF5' : chg < 0 ? '#FEF2F2' : '#F3F4F6';
                   return (
                     <View
@@ -890,10 +1020,15 @@ export default function DashboardScreen() {
         >
           <View style={styles.purchasesHeader}>
             <View style={styles.purchasesIconContainer}>
-              <Ionicons name="cart-outline" size={22} color="#F59E0B" />
+              <Ionicons name="cart-outline" size={22} color={VALUE_COLORS.warning} />
             </View>
             <View style={styles.purchasesInfo}>
-              <Text style={styles.purchasesLabel}>Compras do Periodo</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <Text style={styles.purchasesLabel}>Compras do Período</Text>
+                <TouchableOpacity onPress={() => setActiveTooltip('compras')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
+                  <Ionicons name="information-circle-outline" size={11} color="#9CA3AF" />
+                </TouchableOpacity>
+              </View>
               <Text style={styles.purchasesValue}>{formatCurrency(purchasesTotal)}</Text>
               <Text style={styles.purchasesPeriodNote}>{periodLabel}</Text>
             </View>
@@ -905,11 +1040,11 @@ export default function DashboardScreen() {
                 <Ionicons
                   name={purchasesChangePercent >= 0 ? 'arrow-up' : 'arrow-down'}
                   size={10}
-                  color={purchasesChangePercent >= 0 ? '#F59E0B' : '#10B981'}
+                  color={purchasesChangePercent >= 0 ? VALUE_COLORS.warning : VALUE_COLORS.positive}
                 />
                 <Text style={[
                   styles.changeText,
-                  { color: purchasesChangePercent >= 0 ? '#F59E0B' : '#10B981' }
+                  { color: purchasesChangePercent >= 0 ? VALUE_COLORS.warning : VALUE_COLORS.positive }
                 ]}>
                   {Math.abs(purchasesChangePercent).toFixed(0)}%
                 </Text>
@@ -931,32 +1066,55 @@ export default function DashboardScreen() {
 
         {/* ========== SEU ESTOQUE ========== */}
         <Text style={styles.sectionTitle}>Seu Estoque</Text>
-        <Card style={styles.stockCard}>
+        <View style={styles.stockCard}>
           <View style={styles.stockContent}>
-            {/* Linha 1: Investido e Valor de Venda */}
+            {/* Linha 1: Capital Investido e Potencial de Venda */}
             <View style={styles.stockRow}>
               <View style={styles.stockItem}>
                 <View style={styles.stockItemHeader}>
                   <Ionicons name="cube-outline" size={18} color="#6B7280" />
                   <Text style={styles.stockItemLabel}>Capital Investido</Text>
+                  <TouchableOpacity
+                    onPress={() => setActiveTooltip('capital')}
+                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  >
+                    <Ionicons name="information-circle-outline" size={13} color="#9CA3AF" />
+                  </TouchableOpacity>
                 </View>
                 <Text style={styles.stockItemValue}>{formatCurrency(stockCost)}</Text>
+                {purchasesTotal > 0 && stockCost !== purchasesTotal && (
+                  <Text style={styles.stockItemPeriodHint}>
+                    + {formatCurrency(purchasesTotal)} comprado {periodLabel.toLowerCase() === 'este mês' ? 'este mês' : `em ${periodLabel.toLowerCase()}`}
+                  </Text>
+                )}
               </View>
               <View style={styles.stockDivider} />
               <View style={styles.stockItem}>
                 <View style={styles.stockItemHeader}>
                   <Ionicons name="pricetag-outline" size={18} color="#6B7280" />
-                  <Text style={styles.stockItemLabel}>Valor de Venda</Text>
+                  <Text style={styles.stockItemLabel}>Se Vender Tudo</Text>
+                  <TouchableOpacity
+                    onPress={() => setActiveTooltip('venda')}
+                    hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                  >
+                    <Ionicons name="information-circle-outline" size={13} color="#9CA3AF" />
+                  </TouchableOpacity>
                 </View>
                 <Text style={styles.stockItemValue}>{formatCurrency(stockRetail)}</Text>
               </View>
             </View>
 
-            {/* Linha 2: Lucro Potencial */}
+            {/* Linha 2: Lucro Estimado */}
             <View style={styles.stockProfitRow}>
               <View style={styles.stockProfitLeft}>
-                <Ionicons name="trending-up" size={20} color="#10B981" />
-                <Text style={styles.stockProfitLabel}>Lucro Potencial</Text>
+                <Ionicons name="trending-up" size={20} color={VALUE_COLORS.positive} />
+                <Text style={styles.stockProfitLabel}>Lucro Estimado</Text>
+                <TouchableOpacity
+                  onPress={() => setActiveTooltip('lucro')}
+                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+                >
+                  <Ionicons name="information-circle-outline" size={13} color={VALUE_COLORS.positive + '99'} />
+                </TouchableOpacity>
               </View>
               <View style={styles.stockProfitRight}>
                 <Text style={styles.stockProfitValue}>{formatCurrency(stockProfit)}</Text>
@@ -969,13 +1127,183 @@ export default function DashboardScreen() {
             {/* Info: Total de produtos */}
             <View style={styles.stockInfo}>
               <Text style={styles.stockInfoText}>
-                {totalProducts} {totalProducts === 1 ? 'produto' : 'produtos'}
-                {totalSkus > totalProducts ? ` · ${totalSkus} variações` : ''} em estoque
+                {totalSkus > totalProducts
+                  ? `${totalSkus} variações de ${totalProducts} ${totalProducts === 1 ? 'produto' : 'produtos'} em estoque`
+                  : `${totalProducts} ${totalProducts === 1 ? 'produto' : 'produtos'} em estoque`
+                }
               </Text>
-              <Text style={styles.stockInfoSubtext}>Total acumulado — independente do período</Text>
             </View>
           </View>
-        </Card>
+        </View>
+
+        {/* Tooltip Modal */}
+        <Modal
+          visible={activeTooltip !== null}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setActiveTooltip(null)}
+        >
+          <TouchableOpacity
+            style={styles.tooltipOverlay}
+            activeOpacity={1}
+            onPress={() => setActiveTooltip(null)}
+          >
+            <Animated.View style={[styles.tooltipBox, { transform: [{ scale: activeTooltip !== null ? 1 : 0.9 }] }]}>
+              {activeTooltip === 'capital' && (
+                <>
+                  <View style={styles.tooltipHeader}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#EEF2FF' }]}>
+                      <Ionicons name="cube-outline" size={20} color="#6366F1" />
+                    </View>
+                    <Text style={styles.tooltipTitle}>Capital Investido</Text>
+                  </View>
+                  <View style={styles.tooltipDivider} />
+                  <Text style={styles.tooltipText}>
+                    Quanto você pagou pelos produtos que ainda estão no estoque.{purchasesTotal > 0 && stockCost !== purchasesTotal ? `\n\nO valor comprado ${periodLabel.toLowerCase() === 'este mês' ? 'este mês' : `em ${periodLabel.toLowerCase()}`} (${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(purchasesTotal)}) pode ser maior, pois inclui produtos que já foram vendidos.` : ''}
+                  </Text>
+                </>
+              )}
+              {activeTooltip === 'venda' && (
+                <>
+                  <View style={styles.tooltipHeader}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#FEF3C7' }]}>
+                      <Ionicons name="pricetag-outline" size={20} color="#F59E0B" />
+                    </View>
+                    <Text style={styles.tooltipTitle}>Se Vender Tudo</Text>
+                  </View>
+                  <View style={styles.tooltipDivider} />
+                  <Text style={styles.tooltipText}>
+                    Quanto você receberia se vendesse todo o estoque pelo preço atual de venda.
+                  </Text>
+                </>
+              )}
+              {activeTooltip === 'lucro' && (
+                <>
+                  <View style={styles.tooltipHeader}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#ECFDF5' }]}>
+                      <Ionicons name="trending-up" size={20} color={VALUE_COLORS.positive} />
+                    </View>
+                    <Text style={styles.tooltipTitle}>Lucro Estimado</Text>
+                  </View>
+                  <View style={styles.tooltipDivider} />
+                  <Text style={styles.tooltipText}>
+                    Diferença entre o preço de venda e o custo do estoque atual.{`\n\nMargem média de ${stockMarginPercent.toFixed(0)}% sobre o custo — se vender tudo ao preço atual.`}
+                  </Text>
+                </>
+              )}
+              {activeTooltip === 'faturamento' && (
+                <>
+                  <View style={styles.tooltipHeader}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#EEF2FF' }]}>
+                      <Ionicons name="wallet-outline" size={20} color="#6366F1" />
+                    </View>
+                    <Text style={styles.tooltipTitle}>Faturamento</Text>
+                  </View>
+                  <View style={styles.tooltipDivider} />
+                  <Text style={styles.tooltipText}>Total cobrado dos clientes no período. É a receita bruta — ainda não foram descontados os custos dos produtos.</Text>
+                </>
+              )}
+              {activeTooltip === 'lucro-periodo' && (
+                <>
+                  <View style={styles.tooltipHeader}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#ECFDF5' }]}>
+                      <Ionicons name="cash-outline" size={20} color={VALUE_COLORS.positive} />
+                    </View>
+                    <Text style={styles.tooltipTitle}>Lucro Líquido</Text>
+                  </View>
+                  <View style={styles.tooltipDivider} />
+                  <Text style={styles.tooltipText}>{`Faturamento menos o custo de aquisição dos produtos vendidos. É o que realmente sobrou para o negócio após pagar o que custou cada produto.`}</Text>
+                </>
+              )}
+              {activeTooltip === 'cmv' && (
+                <>
+                  <View style={styles.tooltipHeader}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#FEF2F2' }]}>
+                      <Ionicons name="calculator-outline" size={20} color={VALUE_COLORS.negative} />
+                    </View>
+                    <Text style={styles.tooltipTitle}>Custo dos Produtos</Text>
+                  </View>
+                  <View style={styles.tooltipDivider} />
+                  <Text style={styles.tooltipText}>{`Quanto você pagou para comprar os produtos que foram vendidos neste período (CMV). Não inclui o que ainda está em estoque.`}</Text>
+                </>
+              )}
+              {activeTooltip === 'giro' && (
+                <>
+                  <View style={styles.tooltipHeader}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#EEF2FF' }]}>
+                      <Ionicons name="sync-outline" size={20} color="#6366F1" />
+                    </View>
+                    <Text style={styles.tooltipTitle}>Giro de Estoque</Text>
+                  </View>
+                  <View style={styles.tooltipDivider} />
+                  <Text style={styles.tooltipText}>{`% do estoque comprado que já foi vendido. Quanto maior, mais rápido seu estoque circula.\n\n70%+ = excelente | 40–69% = moderado | abaixo de 40% = atenção`}</Text>
+                </>
+              )}
+              {activeTooltip === 'lucro-medio' && (
+                <>
+                  <View style={styles.tooltipHeader}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#ECFDF5' }]}>
+                      <Ionicons name="trending-up" size={20} color={VALUE_COLORS.positive} />
+                    </View>
+                    <Text style={styles.tooltipTitle}>Lucro Médio</Text>
+                  </View>
+                  <View style={styles.tooltipDivider} />
+                  <Text style={styles.tooltipText}>{`Margem média de lucro sobre o custo dos produtos vendidos.\n\nEx: 40% = para cada R$ 100 de custo, você lucra R$ 40.`}</Text>
+                </>
+              )}
+              {activeTooltip === 'prejuizo-fifo' && (
+                <>
+                  <View style={styles.tooltipHeader}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#FEF2F2' }]}>
+                      <Ionicons name="alert-circle" size={20} color={VALUE_COLORS.negative} />
+                    </View>
+                    <Text style={styles.tooltipTitle}>Compras com Prejuízo</Text>
+                  </View>
+                  <View style={styles.tooltipDivider} />
+                  <Text style={styles.tooltipText}>{`Número de lotes de compra onde o preço de venda está abaixo do custo. Zero é o ideal — se positivo, revise os preços desses produtos.`}</Text>
+                </>
+              )}
+              {activeTooltip === 'itens-parados' && (
+                <>
+                  <View style={styles.tooltipHeader}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#FEF3C7' }]}>
+                      <Ionicons name="archive" size={20} color={VALUE_COLORS.warning} />
+                    </View>
+                    <Text style={styles.tooltipTitle}>Itens Parados</Text>
+                  </View>
+                  <View style={styles.tooltipDivider} />
+                  <Text style={styles.tooltipText}>{`Unidades em estoque de lotes mais antigos que ainda não foram vendidas. Pelo FIFO, esses itens devem ser os próximos a sair.`}</Text>
+                </>
+              )}
+              {activeTooltip === 'compras' && (
+                <>
+                  <View style={styles.tooltipHeader}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#FEF3C7' }]}>
+                      <Ionicons name="cart-outline" size={20} color={VALUE_COLORS.warning} />
+                    </View>
+                    <Text style={styles.tooltipTitle}>Compras do Período</Text>
+                  </View>
+                  <View style={styles.tooltipDivider} />
+                  <Text style={styles.tooltipText}>{`Total gasto comprando mercadoria neste período. Pode ser maior que o capital em estoque porque inclui produtos que já foram vendidos.`}</Text>
+                </>
+              )}
+              <TouchableOpacity 
+                onPress={() => setActiveTooltip(null)} 
+                style={styles.tooltipClose}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={brandingColors.gradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.tooltipCloseGradient}
+                >
+                  <Text style={styles.tooltipCloseText}>Entendi</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
+          </TouchableOpacity>
+        </Modal>
 
         {/* ========== ALERTA DE ESTOQUE BAIXO ========== */}
         {lowStockCount > 0 && (
@@ -1040,7 +1368,7 @@ export default function DashboardScreen() {
         </View>
 
         {recentSales && recentSales.length > 0 ? (
-          <Card style={styles.recentCard}>
+          <View style={styles.recentCard}>
             {recentSales.slice(0, 4).map((sale: Sale, index: number) => (
               <View
                 key={sale.id}
@@ -1050,11 +1378,22 @@ export default function DashboardScreen() {
                 ]}
               >
                 <View style={styles.recentItemLeft}>
-                  <View style={styles.recentItemIcon}>
-                    <Ionicons name="receipt-outline" size={16} color="#6366F1" />
+                  <View style={[styles.recentItemIcon, ['cancelled','refunded','partially_refunded'].includes(sale.status) && { backgroundColor: Colors.light.errorLight }]}>
+                    <Ionicons
+                      name={['cancelled','refunded','partially_refunded'].includes(sale.status) ? 'arrow-undo' : 'receipt-outline'}
+                      size={16}
+                      color={['cancelled','refunded','partially_refunded'].includes(sale.status) ? VALUE_COLORS.negative : brandingColors.primary}
+                    />
                   </View>
                   <View>
-                    <Text style={styles.recentItemTitle}>Venda #{sale.id}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                      <Text style={styles.recentItemTitle}>Venda #{sale.id}</Text>
+                      {['cancelled','refunded','partially_refunded'].includes(sale.status) && (
+                        <View style={{ backgroundColor: VALUE_COLORS.negative + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
+                          <Text style={{ fontSize: 9, fontWeight: '700', color: VALUE_COLORS.negative, textTransform: 'uppercase' }}>Estorno</Text>
+                        </View>
+                      )}
+                    </View>
                     <Text style={styles.recentItemDate}>
                       {new Date(sale.created_at).toLocaleDateString('pt-BR', {
                         day: '2-digit',
@@ -1065,14 +1404,14 @@ export default function DashboardScreen() {
                     </Text>
                   </View>
                 </View>
-                <Text style={styles.recentItemValue}>
-                  {formatCurrency(sale.total_amount || (sale as any).total || 0)}
+                <Text style={[styles.recentItemValue, ['cancelled','refunded','partially_refunded'].includes(sale.status) && { color: VALUE_COLORS.negative }]}>
+                  {['cancelled','refunded','partially_refunded'].includes(sale.status) ? '−' : ''}{formatCurrency(sale.total_amount || (sale as any).total || 0)}
                 </Text>
               </View>
             ))}
-          </Card>
+          </View>
         ) : (
-          <Card style={styles.emptyCard}>
+          <View style={styles.emptyCard}>
             <View style={styles.emptyContent}>
               <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
               <Text style={styles.emptyText}>Nenhuma venda ainda</Text>
@@ -1083,12 +1422,13 @@ export default function DashboardScreen() {
                 <Text style={styles.emptyButtonText}>Fazer primeira venda</Text>
               </TouchableOpacity>
             </View>
-          </Card>
+          </View>
         )}
 
         {/* Espaçamento para FAB */}
         <View style={{ height: 100 }} />
       </ScrollView>
+      </Animated.View>
 
       <FAB />
     </View>
@@ -1105,6 +1445,61 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
+    gap: 16,
+  },
+
+  // Logo da loja no header (alinhado ao lado do título)
+  headerStoreLogoImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.75)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginLeft: 45,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+  headerStoreLogoFallback: {
+    width: 65,
+    height: 65,
+    borderRadius: 32.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: 'rgba(255,255,255,0.22)',
+    marginLeft: 15,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 5,
+    elevation: 3,
+  },
+
+  // Alerta de estoque baixo
+  stockAlert: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: Colors.light.warningLight,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    borderLeftWidth: 4,
+    borderLeftColor: Colors.light.warning,
+  },
+  stockAlertTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: theme.fontWeight.semibold,
+    color: Colors.light.text,
+  },
+  stockAlertSub: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
   },
 
   // Card Principal - Vendas Hoje
@@ -1266,10 +1661,10 @@ const styles = StyleSheet.create({
   plSummaryCard: {
     marginTop: 12,
     borderRadius: theme.borderRadius.lg,
-    elevation: 2,
     borderWidth: 1,
     borderColor: Colors.light.border,
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.light.card,
+    ...theme.shadows.sm,
   },
   plSummaryHeader: {
     flexDirection: 'row',
@@ -1341,7 +1736,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
     borderLeftWidth: 4,
-    borderLeftColor: '#F59E0B',
+    borderLeftColor: VALUE_COLORS.warning,
   },
   purchasesHeader: {
     flexDirection: 'row',
@@ -1388,7 +1783,7 @@ const styles = StyleSheet.create({
   purchasesStatValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#F59E0B',
+    color: VALUE_COLORS.warning,
   },
   purchasesStatLabel: {
     fontSize: 12,
@@ -1405,7 +1800,10 @@ const styles = StyleSheet.create({
   stockCard: {
     borderRadius: 16,
     marginBottom: 16,
-    elevation: 2,
+    backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
   },
   stockContent: {
     padding: 16,
@@ -1468,10 +1866,10 @@ const styles = StyleSheet.create({
   stockProfitValue: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#10B981',
+    color: VALUE_COLORS.positive,
   },
   stockProfitBadge: {
-    backgroundColor: '#10B981',
+    backgroundColor: VALUE_COLORS.positive,
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 6,
@@ -1487,12 +1885,82 @@ const styles = StyleSheet.create({
   stockInfoText: {
     fontSize: 12,
     color: '#9CA3AF',
+    fontWeight: '500',
   },
-  stockInfoSubtext: {
+  stockItemPeriodHint: {
     fontSize: 11,
-    color: '#D1D5DB',
+    color: '#6366F1',
     marginTop: 2,
-    fontStyle: 'italic',
+    fontWeight: '500',
+  },
+  tooltipOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 24,
+  },
+  tooltipBox: {
+    backgroundColor: '#fff',
+    borderRadius: 20,
+    padding: 0,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.25,
+    shadowRadius: 32,
+    elevation: 16,
+    overflow: 'hidden',
+  },
+  tooltipHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
+  },
+  tooltipIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  tooltipTitle: {
+    flex: 1,
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  tooltipDivider: {
+    height: 1,
+    backgroundColor: '#F3F4F6',
+    marginHorizontal: 20,
+  },
+  tooltipText: {
+    fontSize: 14,
+    color: '#6B7280',
+    lineHeight: 22,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 20,
+  },
+  tooltipClose: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  tooltipCloseGradient: {
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  tooltipCloseText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#fff',
   },
 
   // Alerta
@@ -1603,8 +2071,11 @@ const styles = StyleSheet.create({
   },
   recentCard: {
     borderRadius: 16,
-    elevation: 2,
+    backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
     overflow: 'hidden',
+    ...theme.shadows.sm,
   },
   recentItem: {
     flexDirection: 'row',
@@ -1642,13 +2113,16 @@ const styles = StyleSheet.create({
   recentItemValue: {
     fontSize: 15,
     fontWeight: '700',
-    color: '#10B981',
+    color: VALUE_COLORS.positive,
   },
 
   // Empty State
   emptyCard: {
     borderRadius: 16,
-    elevation: 2,
+    backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
   },
   emptyContent: {
     alignItems: 'center',
@@ -1742,7 +2216,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   barLabelToday: {
-    color: '#10B981',
+    color: VALUE_COLORS.positive,
     fontWeight: '700',
   },
   barValue: {
@@ -1956,17 +2430,17 @@ const styles = StyleSheet.create({
   fifoMetricCardPositive: {
     backgroundColor: '#ECFDF5',
     borderWidth: 1,
-    borderColor: '#10B981',
+    borderColor: VALUE_COLORS.positive,
   },
   fifoMetricCardNegative: {
     backgroundColor: '#FEF2F2',
     borderWidth: 1,
-    borderColor: '#EF4444',
+    borderColor: VALUE_COLORS.negative,
   },
   fifoMetricCardNeutral: {
     backgroundColor: '#FEF3C7',
     borderWidth: 1,
-    borderColor: '#F59E0B',
+    borderColor: VALUE_COLORS.warning,
   },
   fifoMetricIconContainer: {
     width: 48,
@@ -2015,7 +2489,7 @@ const styles = StyleSheet.create({
   fifoAlertTitle: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#EF4444',
+    color: VALUE_COLORS.negative,
     marginBottom: 2,
   },
   fifoAlertText: {

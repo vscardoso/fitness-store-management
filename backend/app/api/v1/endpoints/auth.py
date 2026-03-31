@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
-from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, TokenResponse
+from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, TokenResponse, RefreshTokenRequest
 from app.schemas.signup import (
     SignupRequest,
     SignupResponse,
@@ -120,17 +120,18 @@ async def login(
             detail="Usuário inativo. Entre em contato com o administrador."
         )
 
-    # Criar token de acesso
+    # Criar sessão (access_token + refresh_token rastreado no banco)
     try:
-        access_token = await auth_service.create_token(user)
+        access_token, refresh_token = await auth_service.create_session(user)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao criar token de acesso: {str(e)}"
+            detail=f"Erro ao criar sessão: {str(e)}"
         )
 
     return {
         "access_token": access_token,
+        "refresh_token": refresh_token,
         "token_type": "bearer",
         "user": user
     }
@@ -222,39 +223,51 @@ async def logout(
     "/refresh",
     response_model=Token,
     summary="Renovar token de acesso",
-    description="Gera novo token de acesso usando refresh token (implementação futura)"
+    description="Renova sessao com refresh token, respeitando regra de inatividade"
 )
 async def refresh_token(
-    current_user: User = Depends(get_current_active_user),
+    payload: RefreshTokenRequest,
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Renovar token de acesso.
-    
-    Nota: Por enquanto, retorna novo token baseado no usuário atual.
-    Em produção, validar refresh token separadamente.
+    Renovar sessao via refresh token com rotacao.
     
     Args:
-        current_user: Usuário atual (injetado pela dependência)
+        payload: refresh_token enviado pelo cliente
         db: Sessão do banco de dados
         
     Returns:
         Token: Novo token de acesso JWT
         
     Raises:
-        HTTPException 401: Se refresh token for inválido
+        HTTPException 401: Se refresh token for inválido/expirado por inatividade/sessão
     """
     auth_service = AuthService(db)
-    
+
     try:
-        # Criar novo token de acesso
-        access_token = await auth_service.create_token(current_user)
-        
+        access_token, refresh_token, reason = await auth_service.refresh_session(
+            payload.refresh_token
+        )
+
+        if reason:
+            detail_map = {
+                "INACTIVITY": "Sessão expirada por inatividade (60 min). Faça login novamente.",
+                "SESSION_EXPIRED": "Sessão expirada. Faça login novamente.",
+                "INVALID": "Refresh token inválido.",
+            }
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=detail_map.get(reason, "Sessão inválida. Faça login novamente."),
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
         return {
             "access_token": access_token,
-            "refresh_token": access_token,  # Por enquanto, mesmo token
+            "refresh_token": refresh_token,
             "token_type": "bearer"
         }
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

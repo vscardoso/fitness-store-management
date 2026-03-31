@@ -47,6 +47,33 @@ class Store(BaseModel):
         default=False,
         comment="Marca se é o tenant padrão"
     )
+
+    # Branding da loja
+    tagline: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="Slogan da loja"
+    )
+    primary_color: Mapped[str] = mapped_column(
+        String(7),
+        default="#667eea",
+        comment="Cor principal (hex)"
+    )
+    secondary_color: Mapped[str] = mapped_column(
+        String(7),
+        default="#764ba2",
+        comment="Cor secundária (hex)"
+    )
+    accent_color: Mapped[str] = mapped_column(
+        String(7),
+        default="#10B981",
+        comment="Cor de destaque (hex)"
+    )
+    logo_path: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Caminho do logo no servidor"
+    )
     
     # Novo: plano atual (denormalizado para queries rápidas)
     plan: Mapped[Optional[str]] = mapped_column(
@@ -60,6 +87,43 @@ class Store(BaseModel):
         DateTime,
         nullable=True,
         comment="Data de expiração do trial"
+    )
+
+    # Endereço da loja
+    zip_code: Mapped[Optional[str]] = mapped_column(
+        String(10),
+        nullable=True,
+        comment="CEP da loja"
+    )
+    street: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="Rua/Avenida"
+    )
+    number: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="Número"
+    )
+    complement: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Complemento"
+    )
+    neighborhood: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Bairro"
+    )
+    city: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="Cidade"
+    )
+    state: Mapped[Optional[str]] = mapped_column(
+        String(2),
+        nullable=True,
+        comment="UF do estado"
     )
 
     # Relationships

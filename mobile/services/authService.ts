@@ -87,11 +87,12 @@ export const getCurrentUser = async (): Promise<User> => {
  */
 export const refreshToken = async (refreshToken: string): Promise<string> => {
   try {
-    const { data } = await api.post<AuthResponse>('/auth/refresh', {
+    const { data } = await api.post<{ access_token: string; refresh_token: string; token_type: string }>('/auth/refresh', {
       refresh_token: refreshToken,
     });
     
     await saveAccessToken(data.access_token);
+    await saveRefreshToken(data.refresh_token);
     return data.access_token;
   } catch (error) {
     throw error;

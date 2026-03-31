@@ -110,8 +110,8 @@ class ProductVariantMinimalResponse(BaseModel):
     price: Decimal
     cost_price: Optional[Decimal] = None
     is_active: bool = True
-    # current_stock omitido intencionalmente (evita lazy load async)
-    
+    current_stock: Optional[int] = None
+
     class Config:
         from_attributes = True
 
@@ -126,6 +126,9 @@ class ProductResponse(ProductBase):
     current_stock: Optional[int] = Field(None, description="Quantidade atual em estoque")
     min_stock_threshold: Optional[int] = Field(None, description="Estoque mínimo")
     entry_items: Optional[List[ProductEntryItem]] = Field(None, description="Histórico FIFO de entradas do produto")
+    
+    # Garantir que category_id seja sempre incluído no response
+    category_id: int = Field(..., description="ID da categoria do produto")
     
     #  Relação com categoria
     category: Optional[CategoryResponse] = Field(None, description="Categoria do produto")

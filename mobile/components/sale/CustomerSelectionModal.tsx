@@ -7,12 +7,14 @@ import {
   FlatList,
   Pressable,
   ActivityIndicator,
+  TextInput,
+  Text,
 } from 'react-native';
-import { Text, Searchbar, Card } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
-import { Colors, theme } from '@/constants/Colors';
-import { formatPhone } from '@/utils/format';
+import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
+import { formatPhone, formatCurrency } from '@/utils/format';
 import { getCustomers } from '@/services/customerService';
 import EmptyState from '@/components/ui/EmptyState';
 import type { Customer } from '@/types';
@@ -28,9 +30,9 @@ export default function CustomerSelectionModal({
   onDismiss,
   onSelectCustomer,
 }: CustomerSelectionModalProps) {
+  const brandingColors = useBrandingColors();
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Query: Lista de clientes
   const {
     data: customers,
     isLoading,
@@ -38,17 +40,13 @@ export default function CustomerSelectionModal({
   } = useQuery({
     queryKey: ['customers'],
     queryFn: () => getCustomers(),
-    enabled: visible, // Only fetch when modal is visible
+    enabled: visible,
   });
 
-  // Reset search when modal opens
   useEffect(() => {
-    if (visible) {
-      setSearchQuery('');
-    }
+    if (visible) setSearchQuery('');
   }, [visible]);
 
-  // Filter customers by search query
   const filteredCustomers = customers?.filter((customer: Customer) => {
     const search = searchQuery.toLowerCase();
     return (
@@ -68,39 +66,34 @@ export default function CustomerSelectionModal({
     <TouchableOpacity
       onPress={() => handleSelectCustomer(item)}
       activeOpacity={0.7}
+      style={styles.customerRow}
     >
-      <Card style={styles.customerCard}>
-        <Card.Content style={styles.customerCardContent}>
-          {/* Avatar */}
-          <View style={styles.avatarContainer}>
-            <Ionicons name="person" size={24} color={Colors.light.primary} />
-          </View>
+      {/* Avatar */}
+      <View style={[styles.avatarContainer, { backgroundColor: brandingColors.primary + '15' }]}>
+        <Ionicons name="person" size={18} color={brandingColors.primary} />
+      </View>
 
-          {/* Customer Info */}
-          <View style={styles.customerInfo}>
-            <Text variant="titleMedium" style={styles.customerName} numberOfLines={1}>
-              {item.full_name}
+      {/* Info */}
+      <View style={styles.customerInfo}>
+        <Text style={styles.customerName} numberOfLines={1}>
+          {item.full_name}
+        </Text>
+        <Text style={styles.customerDetail} numberOfLines={1}>
+          {item.phone ? formatPhone(item.phone) : item.email ?? '—'}
+        </Text>
+      </View>
+
+      {/* Stats */}
+      <View style={styles.customerStats}>
+        {item.total_purchases > 0 && (
+          <View style={[styles.purchaseBadge, { backgroundColor: brandingColors.primary + '12' }]}>
+            <Text style={[styles.purchaseBadgeText, { color: brandingColors.primary }]}>
+              {item.total_purchases}×
             </Text>
-            {item.email && (
-              <Text variant="bodySmall" style={styles.customerDetail} numberOfLines={1}>
-                {item.email}
-              </Text>
-            )}
-            {item.phone && (
-              <Text variant="bodySmall" style={styles.customerDetail} numberOfLines={1}>
-                {formatPhone(item.phone)}
-              </Text>
-            )}
           </View>
-
-          {/* Selection icon */}
-          <Ionicons
-            name="chevron-forward"
-            size={24}
-            color={Colors.light.textTertiary}
-          />
-        </Card.Content>
-      </Card>
+        )}
+        <Ionicons name="chevron-forward" size={16} color={Colors.light.textTertiary} />
+      </View>
     </TouchableOpacity>
   );
 
@@ -114,29 +107,46 @@ export default function CustomerSelectionModal({
     >
       <Pressable style={styles.modalOverlay} onPress={onDismiss}>
         <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+
           {/* Header */}
           <View style={styles.header}>
-            <Text variant="headlineSmall" style={styles.title}>
-              Selecionar Cliente
-            </Text>
-            <TouchableOpacity onPress={onDismiss} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={Colors.light.textSecondary} />
+            <View style={styles.headerLeft}>
+              <View style={[styles.headerIcon, { backgroundColor: brandingColors.primary + '15' }]}>
+                <Ionicons name="people" size={18} color={brandingColors.primary} />
+              </View>
+              <Text style={styles.title}>Selecionar Cliente</Text>
+            </View>
+            <TouchableOpacity onPress={onDismiss} style={styles.closeButton} activeOpacity={0.7}>
+              <Ionicons name="close" size={20} color={Colors.light.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          {/* Search Bar */}
-          <Searchbar
-            placeholder="Buscar por nome, email, telefone..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            style={styles.searchbar}
-            elevation={0}
-          />
+          {/* Search Bar nativo */}
+          <View style={styles.searchContainer}>
+            <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} style={styles.searchIcon} />
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Buscar por nome, telefone, email..."
+              placeholderTextColor={Colors.light.textTertiary}
+              style={styles.searchInput}
+              returnKeyType="search"
+              autoCorrect={false}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity
+                onPress={() => setSearchQuery('')}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
+              </TouchableOpacity>
+            )}
+          </View>
 
-          {/* Customer List */}
+          {/* Lista */}
           {isLoading ? (
             <View style={styles.centerContainer}>
-              <ActivityIndicator size="large" color={Colors.light.primary} />
+              <ActivityIndicator size="large" color={brandingColors.primary} />
               <Text style={styles.loadingText}>Carregando clientes...</Text>
             </View>
           ) : isError ? (
@@ -151,6 +161,7 @@ export default function CustomerSelectionModal({
               renderItem={renderCustomer}
               keyExtractor={(item) => item.id.toString()}
               contentContainerStyle={styles.listContent}
+              showsVerticalScrollIndicator={false}
               ListEmptyComponent={
                 <EmptyState
                   icon="people-outline"
@@ -167,10 +178,11 @@ export default function CustomerSelectionModal({
 
           {/* Footer */}
           <View style={styles.footer}>
-            <TouchableOpacity style={styles.continueButton} onPress={onDismiss}>
+            <TouchableOpacity style={styles.continueButton} onPress={onDismiss} activeOpacity={0.7}>
               <Text style={styles.continueButtonText}>Continuar sem cliente</Text>
             </TouchableOpacity>
           </View>
+
         </Pressable>
       </Pressable>
     </Modal>
@@ -180,16 +192,18 @@ export default function CustomerSelectionModal({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: Colors.light.background,
     borderTopLeftRadius: theme.borderRadius.xxl,
     borderTopRightRadius: theme.borderRadius.xxl,
-    maxHeight: '80%',
-    paddingBottom: 20,
+    maxHeight: '82%',
+    paddingBottom: theme.spacing.md,
   },
+
+  // Header
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -198,69 +212,118 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.lg,
     paddingBottom: theme.spacing.md,
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  headerIcon: {
+    width: 32, height: 32, borderRadius: theme.borderRadius.md,
+    justifyContent: 'center', alignItems: 'center',
+  },
   title: {
+    fontSize: theme.fontSize.lg,
     fontWeight: '700',
     color: Colors.light.text,
   },
   closeButton: {
-    width: 40,
-    height: 40,
+    width: 36, height: 36,
     borderRadius: theme.borderRadius.full,
     backgroundColor: Colors.light.backgroundSecondary,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: 'center', alignItems: 'center',
   },
-  searchbar: {
+
+  // Search
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginHorizontal: theme.spacing.lg,
     marginBottom: theme.spacing.md,
     backgroundColor: Colors.light.backgroundSecondary,
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    paddingHorizontal: theme.spacing.sm + 4,
+    height: 44,
+    gap: theme.spacing.sm,
   },
+  searchIcon: {},
+  searchInput: {
+    flex: 1,
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.text,
+    paddingVertical: 0,
+  },
+
+  // Loading
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: theme.spacing.lg,
+    gap: theme.spacing.sm,
   },
   loadingText: {
-    marginTop: 16,
+    fontSize: theme.fontSize.sm,
     color: Colors.light.textSecondary,
   },
+
+  // List
   listContent: {
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.md,
+    gap: theme.spacing.xs,
   },
-  customerCard: {
-    marginBottom: 12,
-    borderRadius: theme.borderRadius.lg,
-    elevation: 1,
-  },
-  customerCardContent: {
+
+  // Customer Row
+  customerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    gap: theme.spacing.sm,
+    backgroundColor: Colors.light.card,
+    paddingVertical: theme.spacing.sm + 2,
+    paddingHorizontal: theme.spacing.sm + 4,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
   },
   avatarContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: `${Colors.light.primary}15`,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
+    width: 36, height: 36,
+    borderRadius: 18,
+    justifyContent: 'center', alignItems: 'center',
+    flexShrink: 0,
   },
   customerInfo: {
     flex: 1,
-    marginRight: 12,
+    minWidth: 0,
   },
   customerName: {
+    fontSize: theme.fontSize.sm,
     fontWeight: '600',
-    marginBottom: 4,
-  },
-  customerDetail: {
-    color: Colors.light.textSecondary,
+    color: Colors.light.text,
     marginBottom: 2,
   },
+  customerDetail: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+  },
+  customerStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    flexShrink: 0,
+  },
+  purchaseBadge: {
+    paddingHorizontal: 7, paddingVertical: 2,
+    borderRadius: theme.borderRadius.sm,
+  },
+  purchaseBadgeText: {
+    fontSize: theme.fontSize.xxs,
+    fontWeight: '700',
+  },
+
+  // Footer
   footer: {
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.md,
@@ -272,8 +335,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   continueButtonText: {
+    fontSize: theme.fontSize.sm,
     color: Colors.light.textSecondary,
-    fontSize: theme.fontSize.md,
     fontWeight: '500',
   },
 });
+

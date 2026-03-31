@@ -371,25 +371,30 @@ async def get_low_stock(
             if product.id not in products_with_entries_ids:
                 continue
 
-            # Inventory já está carregado via selectinload
-            inventory = product.inventory[0] if product.inventory else None
+            # Evita lazy load acidental em contexto async ao serializar a resposta.
+            inventories = product.__dict__.get("inventory") or []
+            variants = product.__dict__.get("variants") or []
+            inventory = inventories[0] if inventories else None
+            active_variant = next((variant for variant in variants if variant.is_active), None)
             
             if not inventory:
                 continue
             
             current_stock = inventory.quantity
             min_stock_value = threshold if threshold is not None else inventory.min_stock
+            price = active_variant.price if active_variant and active_variant.price is not None else product.base_price
+            sku = active_variant.sku if active_variant else None
             
             result.append({
                 "product_id": product.id,
                 "name": product.name,
-                "sku": product.sku,
-                "barcode": product.barcode,
+                "sku": sku,
+                "barcode": None,
                 "category_id": product.category_id,
                 "current_stock": current_stock,
                 "min_stock": min_stock_value,
                 "deficit": min_stock_value - current_stock,
-                "price": float(product.price) if product.price else 0.0
+                "price": float(price) if price else 0.0
             })
         
         # Ordenar por déficit (maior déficit primeiro)
@@ -925,13 +930,18 @@ async def get_product(
         )
         variant_row = variant_result.fetchone()
 
-        # Todas as variantes
+        # Todas as variantes com estoque FIFO por variante
         all_variants_result = await db.execute(
             text("""
-                SELECT id, sku, size, color, price, cost_price, is_active
-                FROM product_variants
-                WHERE product_id = :pid AND tenant_id = :tid
-                ORDER BY id
+                SELECT
+                    pv.id, pv.sku, pv.size, pv.color, pv.price, pv.cost_price, pv.is_active,
+                    COALESCE(SUM(CASE WHEN se.is_active = true THEN ei.quantity_remaining ELSE 0 END), 0) AS current_stock
+                FROM product_variants pv
+                LEFT JOIN entry_items ei ON ei.variant_id = pv.id AND ei.is_active = true
+                LEFT JOIN stock_entries se ON se.id = ei.entry_id
+                WHERE pv.product_id = :pid AND pv.tenant_id = :tid
+                GROUP BY pv.id, pv.sku, pv.size, pv.color, pv.price, pv.cost_price, pv.is_active
+                ORDER BY pv.id
             """),
             {"pid": product_id, "tid": tenant_id}
         )
@@ -944,9 +954,13 @@ async def get_product(
                 "price": float(v[4]) if v[4] else 0.0,
                 "cost_price": float(v[5]) if v[5] else None,
                 "is_active": v[6],
+                "current_stock": int(v[7]) if v[7] is not None else 0,
             }
             for v in all_variants_result.fetchall()
         ]
+
+        # current_stock do produto = soma FIFO das variantes (fonte de verdade)
+        current_stock = sum(v["current_stock"] for v in variants_list) if variants_list else (inv_row[0] if inv_row else 0)
 
         # Entradas de estoque (FIFO) associadas ao produto
         entry_items_result = await db.execute(

@@ -9,33 +9,44 @@
  * - Estados de loading e erro
  */
 
-import { useState, useCallback, useRef } from 'react';
-import { View, StyleSheet, ScrollView, Alert } from 'react-native';
+import { useState, useCallback, useRef, useEffect } from 'react';
+import { View, StyleSheet, ScrollView, Alert, Animated, Easing, Text, ActivityIndicator } from 'react-native';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { Text, Button, ActivityIndicator } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import { getSaleBySaleNumber } from '@/services/saleService';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import { formatCurrency } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
 import { useAuthStore } from '@/store/authStore';
 import SaleReceipt from '@/components/receipt/SaleReceipt';
 import PageHeader from '@/components/layout/PageHeader';
+import AppButton from '@/components/ui/AppButton';
 
 /**
  * Componente principal da tela de sucesso
  */
 export default function CheckoutSuccessScreen() {
   const router = useRouter();
+  const brandingColors = useBrandingColors();
   const { sale_number, change: changeParam } = useLocalSearchParams<{ sale_number: string; change?: string }>();
   const change = changeParam ? parseFloat(changeParam) : 0;
   const { user } = useAuthStore();
   const receiptRef = useRef<View>(null);
   const [errorDialog, setErrorDialog] = useState(false);
+  const hasAnimated = useRef(false);
+  const headerScale = useRef(new Animated.Value(0.96)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const badgeScale = useRef(new Animated.Value(0.88)).current;
+  const badgeOpacity = useRef(new Animated.Value(0)).current;
+  const contentTranslateY = useRef(new Animated.Value(28)).current;
+  const contentOpacity = useRef(new Animated.Value(0)).current;
+  const actionsTranslateY = useRef(new Animated.Value(20)).current;
+  const actionsOpacity = useRef(new Animated.Value(0)).current;
 
   // Buscar detalhes da venda
   const { data: sale, isLoading, error, refetch } = useQuery({
@@ -96,19 +107,108 @@ export default function CheckoutSuccessScreen() {
     }
   }, [sale]);
 
+  useEffect(() => {
+    if (!sale || hasAnimated.current) {
+      return;
+    }
+
+    hasAnimated.current = true;
+    haptics.success();
+
+    Animated.parallel([
+      Animated.spring(headerScale, {
+        toValue: 1,
+        damping: 16,
+        stiffness: 180,
+        mass: 0.9,
+        useNativeDriver: true,
+      }),
+      Animated.timing(headerOpacity, {
+        toValue: 1,
+        duration: 320,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }),
+      Animated.sequence([
+        Animated.delay(120),
+        Animated.parallel([
+          Animated.spring(badgeScale, {
+            toValue: 1,
+            damping: 12,
+            stiffness: 220,
+            mass: 0.8,
+            useNativeDriver: true,
+          }),
+          Animated.timing(badgeOpacity, {
+            toValue: 1,
+            duration: 260,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+      Animated.sequence([
+        Animated.delay(180),
+        Animated.parallel([
+          Animated.spring(contentTranslateY, {
+            toValue: 0,
+            damping: 18,
+            stiffness: 170,
+            mass: 0.9,
+            useNativeDriver: true,
+          }),
+          Animated.timing(contentOpacity, {
+            toValue: 1,
+            duration: 320,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+      Animated.sequence([
+        Animated.delay(280),
+        Animated.parallel([
+          Animated.spring(actionsTranslateY, {
+            toValue: 0,
+            damping: 18,
+            stiffness: 180,
+            mass: 0.85,
+            useNativeDriver: true,
+          }),
+          Animated.timing(actionsOpacity, {
+            toValue: 1,
+            duration: 260,
+            easing: Easing.out(Easing.quad),
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+    ]).start();
+  }, [
+    actionsOpacity,
+    actionsTranslateY,
+    badgeOpacity,
+    badgeScale,
+    contentOpacity,
+    contentTranslateY,
+    headerOpacity,
+    headerScale,
+    sale,
+  ]);
+
   // Estado de carregamento
   if (isLoading) {
     return (
       <View style={styles.container}>
         <PageHeader
           title="Venda Concluída"
-          gradientColors={[Colors.light.success, '#4caf50']}
+          gradientColors={brandingColors.gradient}
           showBackButton
           onBack={() => router.replace('/(tabs)')}
         />
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color={Colors.light.primary} />
-          <Text variant="bodyLarge" style={styles.loadingText}>
+          <Text style={styles.loadingText}>
             Carregando detalhes da venda...
           </Text>
         </View>
@@ -122,25 +222,36 @@ export default function CheckoutSuccessScreen() {
       <View style={styles.container}>
         <PageHeader
           title="Venda Concluída"
-          gradientColors={[Colors.light.success, '#4caf50']}
+          gradientColors={brandingColors.gradient}
           showBackButton
           onBack={() => router.replace('/(tabs)')}
         />
         <View style={styles.centerContainer}>
           <Ionicons name="alert-circle" size={80} color={Colors.light.error} />
-          <Text variant="headlineSmall" style={styles.errorTitle}>
+          <Text style={styles.errorTitle}>
             Erro ao carregar detalhes
           </Text>
-          <Text variant="bodyMedium" style={styles.errorText}>
+          <Text style={styles.errorText}>
             {error instanceof Error ? error.message : 'Não foi possível carregar os detalhes da venda'}
           </Text>
           <View style={styles.errorActions}>
-            <Button mode="contained" onPress={() => refetch()} style={styles.retryButton}>
-              Tentar Novamente
-            </Button>
-            <Button mode="outlined" onPress={handleNewSale}>
-              Voltar ao PDV
-            </Button>
+            <AppButton
+              variant="primary"
+              size="lg"
+              fullWidth
+              icon="refresh-outline"
+              label="Tentar Novamente"
+              onPress={() => refetch()}
+              style={styles.retryButton}
+            />
+            <AppButton
+              variant="secondary"
+              size="lg"
+              fullWidth
+              icon="storefront-outline"
+              label="Voltar ao PDV"
+              onPress={handleNewSale}
+            />
           </View>
         </View>
       </View>
@@ -150,29 +261,47 @@ export default function CheckoutSuccessScreen() {
   // Renderização principal
   return (
     <View style={styles.container}>
-      <PageHeader
-        title="Venda Concluída!"
-        subtitle={sale.sale_number}
-        gradientColors={[Colors.light.success, '#4caf50']}
-        showBackButton
-        onBack={() => { haptics.light(); router.replace('/(tabs)'); }}
-        rightActions={[{
-          icon: 'share-outline',
-          onPress: () => { haptics.light(); handleShare(); },
-        }]}
+      <Animated.View
+        style={{
+          opacity: headerOpacity,
+          transform: [{ scale: headerScale }],
+        }}
       >
-        {/* Ícone celebrativo + troco */}
-        <View style={styles.successInfo}>
-          <Ionicons name="checkmark-circle" size={56} color="#fff" />
-          {change > 0 && (
-            <View style={styles.changeBadge}>
-              <Ionicons name="cash-outline" size={18} color="#fff" />
-              <Text style={styles.changeLabel}>Troco: </Text>
-              <Text style={styles.changeAmount}>{formatCurrency(change)}</Text>
+        <PageHeader
+          title="Venda Concluída!"
+          subtitle={sale.sale_number}
+          gradientColors={brandingColors.gradient}
+          showBackButton
+          onBack={() => { haptics.light(); router.replace('/(tabs)'); }}
+          rightActions={[{
+            icon: 'share-outline',
+            onPress: () => { haptics.light(); handleShare(); },
+          }]}
+        >
+          {/* Meta da venda concluída */}
+          <Animated.View
+            style={[
+              styles.successInfo,
+              {
+                opacity: badgeOpacity,
+                transform: [{ scale: badgeScale }],
+              },
+            ]}
+          >
+            <View style={styles.saleNumberPill}>
+              <Ionicons name="receipt-outline" size={16} color="#fff" />
+              <Text style={styles.saleNumberPillText}>Venda registrada com sucesso</Text>
             </View>
-          )}
-        </View>
-      </PageHeader>
+            {change > 0 && (
+              <View style={styles.changeBadge}>
+                <Ionicons name="cash-outline" size={18} color="#fff" />
+                <Text style={styles.changeLabel}>Troco: </Text>
+                <Text style={styles.changeAmount}>{formatCurrency(change)}</Text>
+              </View>
+            )}
+          </Animated.View>
+        </PageHeader>
+      </Animated.View>
 
       <ConfirmDialog
         visible={errorDialog}
@@ -183,8 +312,14 @@ export default function CheckoutSuccessScreen() {
         onConfirm={() => setErrorDialog(false)}
       />
 
-      <ScrollView
-        style={styles.scrollContent}
+      <Animated.ScrollView
+        style={[
+          styles.scrollContent,
+          {
+            opacity: contentOpacity,
+            transform: [{ translateY: contentTranslateY }],
+          },
+        ]}
         contentContainerStyle={styles.scrollContentContainer}
         showsVerticalScrollIndicator={false}
       >
@@ -196,30 +331,38 @@ export default function CheckoutSuccessScreen() {
         />
 
         {/* Botões de ação */}
-        <View style={styles.actionsContainer}>
+        <Animated.View
+          style={[
+            styles.actionsContainer,
+            {
+              opacity: actionsOpacity,
+              transform: [{ translateY: actionsTranslateY }],
+            },
+          ]}
+        >
           <View style={styles.inlineButtonsRow}>
-            <Button
-              mode="contained"
-              icon="cart-plus"
+            <AppButton
+              variant="primary"
+              size="lg"
+              fullWidth
+              icon="cart-outline"
+              label="Nova Venda"
               onPress={handleNewSale}
-              style={styles.inlineButton}
-              contentStyle={styles.buttonContent}
-            >
-              Nova Venda
-            </Button>
+              style={styles.actionButton}
+            />
 
-            <Button
-              mode="outlined"
-              icon="receipt"
+            <AppButton
+              variant="secondary"
+              size="lg"
+              fullWidth
+              icon="receipt-outline"
+              label="Ver Detalhes"
               onPress={handleViewDetails}
-              style={styles.inlineButton}
-              contentStyle={styles.buttonContent}
-            >
-              Ver Detalhes
-            </Button>
+              style={styles.actionButton}
+            />
           </View>
-        </View>
-      </ScrollView>
+        </Animated.View>
+      </Animated.ScrollView>
     </View>
   );
 }
@@ -230,56 +373,71 @@ export default function CheckoutSuccessScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.background,
   },
   successInfo: {
     alignItems: 'center',
     paddingTop: 8,
+    gap: 12,
+  },
+  saleNumberPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  saleNumberPillText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
   },
   changeBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(0,0,0,0.25)',
+    backgroundColor: 'rgba(255,255,255,0.14)',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 20,
-    marginTop: 12,
+    borderRadius: 999,
     gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
   },
   changeLabel: {
     color: 'rgba(255,255,255,0.85)',
-    fontSize: 16,
+    fontSize: 14,
   },
   changeAmount: {
     color: '#fff',
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: '800',
   },
   
   // Conteúdo
   scrollContent: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.background,
   },
   scrollContentContainer: {
     paddingBottom: 24,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.background,
   },
 
   // Botões de ação
   actionsContainer: {
     paddingHorizontal: 16,
-    marginTop: 8,
+    marginTop: 12,
   },
   inlineButtonsRow: {
     flexDirection: 'row',
     gap: 12,
   },
-  inlineButton: {
+  actionButton: {
     flex: 1,
-  },
-  buttonContent: {
-    paddingVertical: 8,
   },
 
   // Estados de loading/erro

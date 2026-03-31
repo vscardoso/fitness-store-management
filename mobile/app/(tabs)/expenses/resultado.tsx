@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
-import { Text, Card, ActivityIndicator } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import PageHeader from '@/components/layout/PageHeader';
@@ -51,7 +52,7 @@ export default function MonthlyResultScreen() {
         <TouchableOpacity onPress={prevMonth} style={styles.navBtn}>
           <Ionicons name="chevron-back" size={24} color={Colors.light.primary} />
         </TouchableOpacity>
-        <Text variant="titleLarge" style={styles.monthLabel}>
+        <Text style={styles.monthLabel}>
           {MONTHS[month - 1]} {year}
         </Text>
         <TouchableOpacity onPress={nextMonth} style={styles.navBtn} disabled={!canGoNext}>
@@ -76,7 +77,7 @@ export default function MonthlyResultScreen() {
 function PLCard({ data }: { data: MonthlyResult }) {
   const netPositive = data.net_profit >= 0;
   return (
-    <Card style={styles.plCard}>
+    <View style={styles.plCard}>
       <View style={styles.plContent}>
         <PLRow label="Receita Bruta" value={data.revenue} color={Colors.light.success} icon="trending-up" />
         <PLRow label={`CMV (custo mercadoria)`} value={-data.cmv} color={Colors.light.warning} icon="cube-outline" isNegative />
@@ -104,7 +105,7 @@ function PLCard({ data }: { data: MonthlyResult }) {
           </Text>
         </View>
       </View>
-    </Card>
+    </View>
   );
 }
 
@@ -132,9 +133,9 @@ function PLRow({
 function ExpenseBreakdown({ items, total }: { items: ExpenseByCategoryItem[]; total: number }) {
   if (items.length === 0) return null;
   return (
-    <Card style={[styles.plCard, { marginTop: 12 }]}>
+    <View style={[styles.plCard, { marginTop: 12 }]}>
       <View style={styles.plContent}>
-        <Text variant="titleSmall" style={styles.breakdownTitle}>Despesas por Categoria</Text>
+        <Text style={styles.breakdownTitle}>Despesas por Categoria</Text>
         {items.map((item) => {
           const pct = total > 0 ? (item.total / total) * 100 : 0;
           return (
@@ -151,7 +152,7 @@ function ExpenseBreakdown({ items, total }: { items: ExpenseByCategoryItem[]; to
           );
         })}
       </View>
-    </Card>
+    </View>
   );
 }
 
@@ -165,10 +166,16 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   navBtn: { padding: theme.spacing.sm },
-  monthLabel: { fontWeight: '700', color: Colors.light.text, minWidth: 180, textAlign: 'center' },
+  monthLabel: { fontWeight: '700', color: Colors.light.text, minWidth: 180, textAlign: 'center', fontSize: theme.fontSize.xl },
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   content: { padding: theme.spacing.md, paddingBottom: theme.spacing.xl },
-  plCard: { borderRadius: theme.borderRadius.lg, elevation: 2, borderWidth: 1, borderColor: Colors.light.border },
+  plCard: { 
+    backgroundColor: Colors.light.card, 
+    borderRadius: theme.borderRadius.lg, 
+    borderWidth: 1, 
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
+  },
   plContent: { padding: theme.spacing.md, gap: theme.spacing.md },
   plRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
   plRowLabel: { flex: 1, fontSize: 14, color: Colors.light.text },
@@ -187,7 +194,7 @@ const styles = StyleSheet.create({
   netLabel: { fontWeight: '700', fontSize: 15 },
   netMargin: { fontSize: 11, marginTop: 2 },
   netValue: { fontWeight: 'bold', fontSize: 20 },
-  breakdownTitle: { fontWeight: '700', color: Colors.light.text, marginBottom: theme.spacing.xs },
+  breakdownTitle: { fontWeight: '700', color: Colors.light.text, marginBottom: theme.spacing.xs, fontSize: theme.fontSize.sm },
   catRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, paddingVertical: theme.spacing.xs },
   catDot: {
     width: 30,

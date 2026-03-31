@@ -1,31 +1,29 @@
-import React, { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   ScrollView,
   RefreshControl,
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { Text, Card, Avatar } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
+import PageHeader from '@/components/layout/PageHeader';
 
-interface ReportItem {
-  id: string;
-  title: string;
-  subtitle: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  iconColor: string;
-  iconBg: string;
-  route?: string;
-  onPress?: () => void;
-}
-
-interface ConfigItem {
+interface MenuItem {
   id: string;
   title: string;
   subtitle: string;
@@ -39,11 +37,44 @@ interface ConfigItem {
 export default function ReportsScreen() {
   const router = useRouter();
   const { user, logout } = useAuth();
+  const brandingColors = useBrandingColors();
   const [refreshing, setRefreshing] = useState(false);
+
+  // ── Animação de entrada ──
+  const headerOpacity  = useSharedValue(0);
+  const headerScale    = useSharedValue(0.94);
+  const contentOpacity = useSharedValue(0);
+  const contentTransY  = useSharedValue(24);
+
+  useFocusEffect(
+    useCallback(() => {
+      headerOpacity.value  = 0;
+      headerScale.value    = 0.94;
+      contentOpacity.value = 0;
+      contentTransY.value  = 24;
+
+      headerOpacity.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.quad) });
+      headerScale.value   = withSpring(1, { damping: 16, stiffness: 200 });
+      const t = setTimeout(() => {
+        contentOpacity.value = withTiming(1, { duration: 340 });
+        contentTransY.value  = withSpring(0, { damping: 18, stiffness: 200 });
+      }, 140);
+      return () => clearTimeout(t);
+    }, [])
+  );
+
+  const headerAnimStyle  = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTransY.value }],
+  }));
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 900));
     setRefreshing(false);
   };
 
@@ -69,20 +100,19 @@ export default function ReportsScreen() {
       seller: 'Vendedor',
       MANAGER: 'Gerente',
       manager: 'Gerente',
-      EMPLOYEE: 'Funcionário',
+      EMPLOYEE: 'Funcionario',
       CASHIER: 'Caixa',
       cashier: 'Caixa',
     };
     return roles[role] || role;
   };
 
-  // Relatórios
-  const reports: ReportItem[] = [
+  const reports: MenuItem[] = [
     {
       id: 'sales',
-      title: 'Relatório de Vendas',
-      subtitle: 'Análise completa de vendas, lucro e margem',
-      icon: 'bar-chart',
+      title: 'Relatorio de Vendas',
+      subtitle: 'Analise completa de vendas, lucro e margem',
+      icon: 'bar-chart-outline',
       iconColor: Colors.light.success,
       iconBg: Colors.light.successLight,
       route: '/reports/sales',
@@ -90,95 +120,66 @@ export default function ReportsScreen() {
     {
       id: 'best-sellers',
       title: 'Produtos Mais Vendidos',
-      subtitle: 'Análise de performance',
-      icon: 'trending-up',
-      iconColor: '#EC4899',
-      iconBg: '#FCE7F3',
-      onPress: () =>
-        Alert.alert(
-          'Em desenvolvimento',
-          'Análise de produtos será implementada em breve!'
-        ),
+      subtitle: 'Ranking com indicadores de desempenho',
+      icon: 'trending-up-outline',
+      iconColor: Colors.light.info,
+      iconBg: Colors.light.infoLight,
+      route: '/reports/top-products',
     },
     {
       id: 'history',
-      title: 'Histórico',
-      subtitle: 'Vendas e movimentações',
-      icon: 'calendar',
-      iconColor: '#8B5CF6',
-      iconBg: '#EDE9FE',
-      onPress: () =>
-        Alert.alert(
-          'Em desenvolvimento',
-          'Histórico será implementado em breve!'
-        ),
+      title: 'Historico',
+      subtitle: 'Timeline de vendas e movimentacoes',
+      icon: 'time-outline',
+      iconColor: brandingColors.primary,
+      iconBg: brandingColors.primary + '14',
+      route: '/reports/history',
     },
     {
       id: 'inventory-report',
-      title: 'Relatório de Inventário',
-      subtitle: 'Movimentações de estoque',
-      icon: 'file-tray-stacked',
-      iconColor: '#F97316',
-      iconBg: '#FFEDD5',
-      onPress: () =>
-        Alert.alert(
-          'Em desenvolvimento',
-          'Relatório de inventário será implementado em breve!'
-        ),
+      title: 'Relatorio de Inventario',
+      subtitle: 'Movimentacoes de estoque',
+      icon: 'file-tray-stacked-outline',
+      iconColor: Colors.light.warning,
+      iconBg: Colors.light.warning + '14',
+      onPress: () => Alert.alert('Em desenvolvimento', 'Relatorio de inventario sera implementado em breve!'),
     },
   ];
 
-  // Configurações
-  const configs: ConfigItem[] = [
+  const configs: MenuItem[] = [
     {
       id: 'profile',
       title: 'Meu Perfil',
-      subtitle: 'Dados pessoais e preferências',
-      icon: 'person-circle',
-      iconColor: Colors.light.primary,
-      iconBg: Colors.light.primaryLight,
-      onPress: () =>
-        Alert.alert(
-          'Em desenvolvimento',
-          'Tela de perfil será implementada em breve!'
-        ),
+      subtitle: 'Dados pessoais e preferencias',
+      icon: 'person-circle-outline',
+      iconColor: brandingColors.primary,
+      iconBg: brandingColors.primary + '14',
+      onPress: () => Alert.alert('Em desenvolvimento', 'Tela de perfil sera implementada em breve!'),
     },
     {
       id: 'notifications',
-      title: 'Notificações',
+      title: 'Notificacoes',
       subtitle: 'Alertas e lembretes',
-      icon: 'notifications',
-      iconColor: '#F97316',
-      iconBg: '#FFEDD5',
-      onPress: () =>
-        Alert.alert(
-          'Em desenvolvimento',
-          'Configurações serão implementadas em breve!'
-        ),
+      icon: 'notifications-outline',
+      iconColor: Colors.light.warning,
+      iconBg: Colors.light.warning + '14',
+      onPress: () => Alert.alert('Em desenvolvimento', 'Configuracoes serao implementadas em breve!'),
     },
     {
       id: 'help',
       title: 'Ajuda e Suporte',
       subtitle: 'Central de ajuda',
-      icon: 'help-circle',
-      iconColor: '#06B6D4',
-      iconBg: '#CFFAFE',
-      onPress: () =>
-        Alert.alert(
-          'Em desenvolvimento',
-          'Seção de ajuda será implementada em breve!'
-        ),
+      icon: 'help-circle-outline',
+      iconColor: Colors.light.info,
+      iconBg: Colors.light.infoLight,
+      onPress: () => Alert.alert('Em desenvolvimento', 'Secao de ajuda sera implementada em breve!'),
     },
   ];
 
-  // Renderizar item
-  const MenuItem = ({
-    item,
-  }: {
-    item: ReportItem | ConfigItem;
-  }) => (
+  const renderMenuCard = (item: MenuItem) => (
     <TouchableOpacity
-      style={styles.menuItem}
+      key={item.id}
+      style={styles.menuCard}
       onPress={() => {
         if (item.route) {
           router.push(item.route as any);
@@ -186,127 +187,79 @@ export default function ReportsScreen() {
           item.onPress();
         }
       }}
-      activeOpacity={0.7}
+      activeOpacity={0.75}
     >
-      <View
-        style={[styles.menuIconContainer, { backgroundColor: item.iconBg }]}
-      >
-        <Ionicons name={item.icon} size={24} color={item.iconColor} />
+      <View style={[styles.menuIconContainer, { backgroundColor: item.iconBg }]}> 
+        <Ionicons name={item.icon} size={20} color={item.iconColor} />
       </View>
+
       <View style={styles.menuItemContent}>
-        <Text style={styles.menuItemTitle}>{item.title}</Text>
-        <Text style={styles.menuItemSubtitle}>{item.subtitle}</Text>
+        <Text style={styles.menuItemTitle} numberOfLines={1}>{item.title}</Text>
+        <Text style={styles.menuItemSubtitle} numberOfLines={2}>{item.subtitle}</Text>
       </View>
-      <Ionicons
-        name="chevron-forward"
-        size={20}
-        color={Colors.light.textTertiary}
-      />
+
+      <View style={styles.menuActionPill}>
+        <Text style={styles.menuActionText}>Abrir</Text>
+      </View>
+      <Ionicons name="chevron-forward" size={16} color={Colors.light.textTertiary} />
     </TouchableOpacity>
   );
 
   return (
     <View style={styles.container}>
-      {/* Header com Profile */}
-      <LinearGradient
-        colors={[Colors.light.primary, Colors.light.secondary]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <View style={styles.profileContent}>
-          <View style={styles.avatarContainer}>
-            <Avatar.Text
-              size={64}
-              label={user?.full_name?.charAt(0) || 'U'}
-              style={styles.avatar}
-              labelStyle={styles.avatarLabel}
+      {/* ── Header animado ── */}
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title={user?.full_name || 'Perfil'}
+          subtitle={getRoleLabel(user?.role || '')}
+        />
+      </Animated.View>
+
+      <Animated.View style={[styles.contentAnimation, contentAnimStyle]}>
+        <ScrollView
+          style={styles.scrollView}
+          contentContainerStyle={styles.content}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[brandingColors.primary]}
+              tintColor={brandingColors.primary}
             />
-          </View>
-          <Text style={styles.profileName}>{user?.full_name}</Text>
-          <Text style={styles.profileEmail}>{user?.email}</Text>
-          <View style={styles.roleChip}>
-            <Ionicons name="shield-checkmark" size={14} color="#fff" />
-            <Text style={styles.roleText}>
-              {getRoleLabel(user?.role || '')}
-            </Text>
-          </View>
-        </View>
-      </LinearGradient>
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[Colors.light.primary]}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Seção: Relatórios */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons
-              name="analytics"
-              size={20}
-              color={Colors.light.primary}
-            />
-            <Text style={styles.sectionTitle}>Relatórios</Text>
-          </View>
-          <Card style={styles.menuCard}>
-            {reports.map((report, index) => (
-              <View key={report.id}>
-                <MenuItem item={report} />
-                {index < reports.length - 1 && <View style={styles.divider} />}
-              </View>
-            ))}
-          </Card>
-        </View>
-
-        {/* Seção: Configurações */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Ionicons name="settings" size={20} color={Colors.light.primary} />
-            <Text style={styles.sectionTitle}>Configurações</Text>
-          </View>
-          <Card style={styles.menuCard}>
-            {configs.map((config, index) => (
-              <View key={config.id}>
-                <MenuItem item={config} />
-                {index < configs.length - 1 && <View style={styles.divider} />}
-              </View>
-            ))}
-          </Card>
-        </View>
-
-        {/* Logout Button */}
-        <TouchableOpacity
-          style={styles.logoutButton}
-          onPress={handleLogout}
-          activeOpacity={0.7}
+          }
+          showsVerticalScrollIndicator={false}
         >
-          <LinearGradient
-            colors={['#ef4444', '#dc2626']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.logoutGradient}
-          >
-            <Ionicons name="log-out" size={24} color="#fff" />
-            <Text style={styles.logoutText}>Sair da Conta</Text>
-          </LinearGradient>
-        </TouchableOpacity>
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="analytics-outline" size={16} color={brandingColors.primary} />
+              <Text style={styles.sectionTitle}>Relatorios</Text>
+            </View>
+            <View style={styles.sectionCards}>{reports.map(renderMenuCard)}</View>
+          </View>
 
-        {/* App Version */}
-        <Text style={styles.version}>
-          Versão 1.0.1 • Fitness Store Management
-        </Text>
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Ionicons name="settings-outline" size={16} color={brandingColors.primary} />
+              <Text style={styles.sectionTitle}>Configuracoes</Text>
+            </View>
+            <View style={styles.sectionCards}>{configs.map(renderMenuCard)}</View>
+          </View>
 
-        {/* Espaçamento */}
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout} activeOpacity={0.75}>
+            <LinearGradient
+              colors={['#EF4444', '#DC2626']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={styles.logoutGradient}
+            >
+              <Ionicons name="log-out-outline" size={18} color="#fff" />
+              <Text style={styles.logoutText}>Sair da Conta</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <Text style={styles.version}>Versao 1.0.1 • Fitness Store Management</Text>
+        </ScrollView>
+      </Animated.View>
     </View>
   );
 }
@@ -316,150 +269,110 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
   },
-
-  // Header
-  header: {
-    paddingTop: theme.spacing.xl + 20,
-    paddingBottom: theme.spacing.xl,
-    paddingHorizontal: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xxl,
-    borderBottomRightRadius: theme.borderRadius.xxl,
+  contentAnimation: {
+    flex: 1,
   },
-  profileContent: {
-    alignItems: 'center',
-  },
-  avatarContainer: {
-    marginBottom: theme.spacing.md,
-  },
-  avatar: {
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  avatarLabel: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  profileName: {
-    fontSize: theme.fontSize.xl,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  profileEmail: {
-    fontSize: theme.fontSize.md,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginBottom: theme.spacing.md,
-  },
-  roleChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: 6,
-    borderRadius: theme.borderRadius.full,
-    gap: 6,
-  },
-  roleText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 13,
-  },
-
-  // Content
   scrollView: {
     flex: 1,
   },
   content: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.xxl,
+    gap: theme.spacing.lg,
   },
-
-  // Section
   section: {
-    marginBottom: theme.spacing.xl,
+    gap: theme.spacing.sm,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: theme.spacing.md,
-    gap: theme.spacing.sm,
+    gap: theme.spacing.xs,
+    paddingHorizontal: 2,
   },
   sectionTitle: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: '700',
-    color: Colors.light.text,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '800',
+    color: Colors.light.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
-
-  // Menu Card
+  sectionCards: {
+    gap: theme.spacing.xs + 2,
+  },
   menuCard: {
-    borderRadius: theme.borderRadius.xl,
-    elevation: 2,
-    backgroundColor: Colors.light.background,
-    overflow: 'hidden',
-  },
-  menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: theme.spacing.lg,
+    gap: theme.spacing.xs + 2,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
+    minHeight: 76,
+    ...theme.shadows.sm,
   },
   menuIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: theme.borderRadius.lg,
-    justifyContent: 'center',
+    width: 40,
+    height: 40,
+    borderRadius: theme.borderRadius.md,
     alignItems: 'center',
-    marginRight: theme.spacing.md,
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   menuItemContent: {
     flex: 1,
+    minWidth: 0,
   },
   menuItemTitle: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '600',
+    fontSize: theme.fontSize.base - 1,
+    fontWeight: '800',
     color: Colors.light.text,
     marginBottom: 2,
   },
   menuItemSubtitle: {
-    fontSize: theme.fontSize.sm,
+    fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
+    lineHeight: 16,
   },
-  divider: {
-    height: 1,
-    backgroundColor: Colors.light.border,
-    marginLeft: theme.spacing.lg + 48 + theme.spacing.md,
+  menuActionPill: {
+    borderRadius: theme.borderRadius.full,
+    paddingHorizontal: theme.spacing.xs + 2,
+    paddingVertical: 4,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    marginRight: 2,
   },
-
-  // Logout
+  menuActionText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: Colors.light.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
   logoutButton: {
-    marginTop: theme.spacing.lg,
-    marginBottom: theme.spacing.xl,
+    marginTop: theme.spacing.xs,
     borderRadius: theme.borderRadius.xl,
     overflow: 'hidden',
-    elevation: 4,
   },
   logoutGradient: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: theme.spacing.lg,
-    gap: theme.spacing.sm,
+    gap: theme.spacing.xs,
+    paddingVertical: theme.spacing.md,
   },
   logoutText: {
-    fontSize: theme.fontSize.md,
-    fontWeight: '700',
+    fontSize: theme.fontSize.sm,
+    fontWeight: '800',
     color: '#fff',
   },
-
-  // Version
   version: {
     textAlign: 'center',
-    fontSize: theme.fontSize.sm,
+    fontSize: theme.fontSize.xs,
     color: Colors.light.textTertiary,
-    marginBottom: theme.spacing.lg,
-  },
-
-  // Spacing
-  bottomSpacing: {
-    height: 100,
+    marginTop: theme.spacing.xs,
   },
 });

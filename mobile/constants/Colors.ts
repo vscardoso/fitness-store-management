@@ -102,6 +102,7 @@ export const theme = {
     medium: '500',
     semibold: '600',
     bold: '700',
+    extrabold: '800',
   },
   elevation: {
     xs: 1,
@@ -110,4 +111,54 @@ export const theme = {
     lg: 8,
     xl: 12,
   },
+  shadows: {
+    sm: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.08,
+      shadowRadius: 3,
+      elevation: 2,
+    },
+    md: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.12,
+      shadowRadius: 6,
+      elevation: 4,
+    },
+    lg: {
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.16,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+  },
 } as const;
+
+/**
+ * Cores semânticas para campos de valor — padrão único do app.
+ * NÃO usar branding primary para valores financeiros.
+ *
+ * neutro  → fato sem julgamento (preço, quantidade, estoque)
+ * positivo → receita, lucro, margem ↑, tendência boa
+ * negativo → custo, prejuízo, margem ↓, estoque baixo
+ */
+export const VALUE_COLORS = {
+  positive: '#10B981',   // verde — receita, lucro
+  negative: '#EF4444',   // vermelho — custo, prejuízo
+  neutral:  '#11181C',   // texto escuro — valores sem julgamento
+  warning:  '#F59E0B',   // laranja — atenção (estoque baixo, prazo)
+} as const;
+
+export type ValueColorType = keyof typeof VALUE_COLORS;
+
+// Paletas de branding pré-definidas
+export const PRESET_THEMES = [
+  { name: 'Roxo Padrão',    primary: '#667eea', secondary: '#764ba2', accent: '#10B981' },
+  { name: 'Azul Oceano',    primary: '#0EA5E9', secondary: '#0284C7', accent: '#F59E0B' },
+  { name: 'Verde Fitness',  primary: '#10B981', secondary: '#059669', accent: '#667eea' },
+  { name: 'Laranja Energia',primary: '#F97316', secondary: '#EA580C', accent: '#0EA5E9' },
+  { name: 'Rosa Vibrante',  primary: '#EC4899', secondary: '#DB2777', accent: '#8B5CF6' },
+  { name: 'Cinza Neutro',   primary: '#374151', secondary: '#1F2937', accent: '#667eea' },
+] as const;

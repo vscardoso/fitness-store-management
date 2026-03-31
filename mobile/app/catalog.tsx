@@ -3,18 +3,20 @@
  * Mostra os 115 produtos templates que podem ser ativados
  */
 import React, { useState } from 'react';
-import { View, StyleSheet, FlatList, RefreshControl, TouchableOpacity, Keyboard, ScrollView } from 'react-native';
 import {
-  Searchbar,
-  Card,
+  View,
+  StyleSheet,
+  FlatList,
+  RefreshControl,
+  TouchableOpacity,
+  Keyboard,
+  ScrollView,
   Text,
-  Button,
-  Chip,
-  ActivityIndicator,
-  Portal,
-  Modal,
   TextInput,
-} from 'react-native-paper';
+  ActivityIndicator,
+  Modal,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
@@ -26,13 +28,15 @@ import { Product, StockEntry } from '@/types';
 import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 const PAGE_SIZE = 20;
 
 export default function CatalogScreen() {
   const queryClient = useQueryClient();
   const router = useRouter();
+  const brandingColors = useBrandingColors();
   const { goBack } = useBackToList('/catalog');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -228,16 +232,16 @@ export default function CatalogScreen() {
   };
 
   const renderProduct = ({ item }: { item: Product }) => (
-    <Card style={styles.card} mode="elevated" elevation={2}>
-      <Card.Content>
+    <View style={styles.card}>
+      <View style={styles.cardContent}>
         <View style={styles.cardHeader}>
-          <Text variant="titleMedium" style={styles.productName} numberOfLines={2}>
+          <Text style={styles.productName} numberOfLines={2}>
             {[item.name, item.color, item.size].filter(Boolean).join(' - ')}
           </Text>
           {item.brand && (
-            <Chip mode="flat" compact style={styles.brandChip} textStyle={styles.brandText}>
-              {item.brand}
-            </Chip>
+            <View style={[styles.brandChip, { backgroundColor: brandingColors.primary + '15' }]}>
+              <Text style={[styles.brandText, { color: brandingColors.primary }]}>{item.brand}</Text>
+            </View>
           )}
         </View>
 
@@ -246,13 +250,13 @@ export default function CatalogScreen() {
           <View style={styles.detailsRow}>
             {item.color && (
               <View style={styles.detailChip}>
-                <Ionicons name="color-palette-outline" size={14} color={Colors.light.primary} />
+                <Ionicons name="color-palette-outline" size={14} color={brandingColors.primary} />
                 <Text style={styles.detailText}>{item.color}</Text>
               </View>
             )}
             {item.size && (
               <View style={styles.detailChip}>
-                <Ionicons name="resize-outline" size={14} color={Colors.light.primary} />
+                <Ionicons name="resize-outline" size={14} color={brandingColors.primary} />
                 <Text style={styles.detailText}>{item.size}</Text>
               </View>
             )}
@@ -260,7 +264,7 @@ export default function CatalogScreen() {
         )}
 
         <View style={styles.priceRow}>
-          <Text variant="headlineSmall" style={styles.price}>
+          <Text style={[styles.price, { color: VALUE_COLORS.neutral }]}>
             R$ {item.price ? Number(item.price).toFixed(2) : '0.00'}
           </Text>
           <View style={styles.suggestedChip}>
@@ -269,30 +273,42 @@ export default function CatalogScreen() {
         </View>
 
         {item.cost_price && (
-          <Text variant="bodySmall" style={styles.costPrice}>
+          <Text style={styles.costPrice}>
             Custo: R$ {Number(item.cost_price).toFixed(2)}
           </Text>
         )}
 
         {item.sku && (
-          <Text variant="bodySmall" style={styles.sku}>
+          <Text style={styles.sku}>
             SKU: {item.sku}
           </Text>
         )}
-      </Card.Content>
+      </View>
 
-      <Card.Actions style={styles.cardActions}>
-        <Button
-          mode="contained"
+      <View style={styles.cardActions}>
+        <TouchableOpacity
           onPress={() => handleActivateProduct(item)}
-          loading={activateMutation.isPending && selectedProduct?.id === item.id}
-          icon="plus"
-          contentStyle={styles.buttonContent}
+          activeOpacity={0.8}
+          style={styles.addButton}
         >
-          Adicionar
-        </Button>
-      </Card.Actions>
-    </Card>
+          <LinearGradient
+            colors={brandingColors.gradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.addButtonGradient}
+          >
+            {activateMutation.isPending && selectedProduct?.id === item.id ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Ionicons name="add" size={16} color="#fff" />
+                <Text style={styles.addButtonText}>Adicionar</Text>
+              </>
+            )}
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 
   return (
@@ -305,17 +321,26 @@ export default function CatalogScreen() {
       />
 
       {/* Barra de busca */}
-      <Searchbar
-        placeholder="Buscar por nome, marca, cor ou tamanho..."
-        onChangeText={setSearchQuery}
-        value={searchQuery}
-        style={styles.searchbar}
-      />
+      <View style={styles.searchbar}>
+        <Ionicons name="search-outline" size={18} color={Colors.light.textSecondary} />
+        <TextInput
+          style={styles.searchbarInput}
+          placeholder="Buscar por nome, marca, cor ou tamanho..."
+          placeholderTextColor={Colors.light.textTertiary}
+          onChangeText={setSearchQuery}
+          value={searchQuery}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <Ionicons name="close-circle" size={18} color={Colors.light.textSecondary} />
+          </TouchableOpacity>
+        )}
+      </View>
 
         {/* Loading state inicial */}
         {isLoading ? (
           <View style={styles.centerContainer}>
-            <ActivityIndicator size="large" color={Colors.light.primary} />
+            <ActivityIndicator size="large" color={brandingColors.primary} />
             <Text style={styles.loadingText}>Carregando catálogo...</Text>
           </View>
         ) : isError ? (
@@ -336,7 +361,7 @@ export default function CatalogScreen() {
               <RefreshControl
                 refreshing={isRefetching}
                 onRefresh={refetch}
-                colors={[Colors.light.primary]}
+                colors={[brandingColors.primary]}
               />
             }
             onEndReached={() => {
@@ -348,7 +373,7 @@ export default function CatalogScreen() {
             ListFooterComponent={
               isFetchingNextPage ? (
                 <View style={styles.footerLoader}>
-                  <ActivityIndicator size="small" color={Colors.light.primary} />
+                  <ActivityIndicator size="small" color={brandingColors.primary} />
                   <Text style={styles.loadingMoreText}>Carregando mais produtos...</Text>
                 </View>
               ) : !hasNextPage && allProducts.length > 0 ? (
@@ -372,16 +397,18 @@ export default function CatalogScreen() {
         )}
 
       {/* Modal de Confirmação */}
-      <Portal>
-        <Modal
-          visible={!!selectedProduct && !activateMutation.isPending}
-          onDismiss={() => {
-            setSelectedProduct(null);
-            Keyboard.dismiss();
-          }}
-          contentContainerStyle={styles.modalContainer}
-        >
-          <ScrollView 
+      <Modal
+        visible={!!selectedProduct && !activateMutation.isPending}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setSelectedProduct(null);
+          Keyboard.dismiss();
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+          <ScrollView
             style={styles.modalScrollView}
             contentContainerStyle={styles.modalScrollContent}
             showsVerticalScrollIndicator={false}
@@ -389,110 +416,104 @@ export default function CatalogScreen() {
           >
             {selectedProduct && (
               <View style={styles.modalInnerContent}>
-                <Text variant="titleLarge" style={styles.modalTitle}>
+                <Text style={styles.modalTitle}>
                   Adicionar Produto à Loja
                 </Text>
 
-                <Text variant="bodySmall" style={styles.modalSubtitle}>
+                <Text style={styles.modalSubtitle}>
                   Revise e personalize as informações antes de adicionar
                 </Text>
 
                 {/* Nome do Produto */}
+                <Text style={styles.inputLabel}>Nome do Produto</Text>
                 <TextInput
-                  label="Nome do Produto"
-                  mode="outlined"
                   value={customName}
                   onChangeText={setCustomName}
                   style={styles.input}
                   placeholder="Nome do produto"
+                  placeholderTextColor={Colors.light.textTertiary}
                 />
 
                 {/* Detalhes do Produto Original */}
                 <View style={styles.detailsCard}>
-                  <Text variant="bodySmall" style={styles.detailLabel}>
+                  <Text style={styles.detailLabel}>
                     Informações do Catálogo:
                   </Text>
                   {selectedProduct.brand && (
-                    <Text variant="bodySmall" style={styles.detailText}>
-                      • Marca: {selectedProduct.brand}
-                    </Text>
+                    <Text style={styles.detailText}>• Marca: {selectedProduct.brand}</Text>
                   )}
                   {selectedProduct.color && (
-                    <Text variant="bodySmall" style={styles.detailText}>
-                      • Cor: {selectedProduct.color}
-                    </Text>
+                    <Text style={styles.detailText}>• Cor: {selectedProduct.color}</Text>
                   )}
                   {selectedProduct.size && (
-                    <Text variant="bodySmall" style={styles.detailText}>
-                      • Tamanho: {selectedProduct.size}
-                    </Text>
+                    <Text style={styles.detailText}>• Tamanho: {selectedProduct.size}</Text>
                   )}
                   {selectedProduct.sku && (
-                    <Text variant="bodySmall" style={styles.detailText}>
-                      • SKU: {selectedProduct.sku}
-                    </Text>
+                    <Text style={styles.detailText}>• SKU: {selectedProduct.sku}</Text>
                   )}
                   {selectedProduct.description && (
-                    <Text variant="bodySmall" style={styles.detailText} numberOfLines={2}>
-                      • Descrição: {selectedProduct.description}
-                    </Text>
+                    <Text style={styles.detailText} numberOfLines={2}>• Descrição: {selectedProduct.description}</Text>
                   )}
                 </View>
 
                 {/* Preço de Custo */}
-                <TextInput
-                  label="Preço de Custo"
-                  mode="outlined"
-                  value={customCostPrice}
-                  onChangeText={(text) => handlePriceChange(text, setCustomCostPrice)}
-                  keyboardType="numeric"
-                  left={<TextInput.Affix text="R$" />}
-                  style={styles.input}
-                  placeholder="0,00"
-                />
+                <Text style={styles.inputLabel}>Preço de Custo</Text>
+                <View style={styles.prefixInputRow}>
+                  <Text style={styles.prefixText}>R$</Text>
+                  <TextInput
+                    value={customCostPrice}
+                    onChangeText={(text) => handlePriceChange(text, setCustomCostPrice)}
+                    keyboardType="numeric"
+                    style={styles.prefixInput}
+                    placeholder="0,00"
+                    placeholderTextColor={Colors.light.textTertiary}
+                  />
+                </View>
 
-                <Text variant="bodySmall" style={styles.helpText}>
+                <Text style={styles.helpText}>
                   Valor que você paga pelo produto
                 </Text>
 
                 {/* Preço de Venda */}
-                <TextInput
-                  label="Preço de Venda"
-                  mode="outlined"
-                  value={customPrice}
-                  onChangeText={(text) => handlePriceChange(text, setCustomPrice)}
-                  keyboardType="numeric"
-                  left={<TextInput.Affix text="R$" />}
-                  style={styles.input}
-                  placeholder="0,00"
-                />
+                <Text style={styles.inputLabel}>Preço de Venda</Text>
+                <View style={styles.prefixInputRow}>
+                  <Text style={styles.prefixText}>R$</Text>
+                  <TextInput
+                    value={customPrice}
+                    onChangeText={(text) => handlePriceChange(text, setCustomPrice)}
+                    keyboardType="numeric"
+                    style={styles.prefixInput}
+                    placeholder="0,00"
+                    placeholderTextColor={Colors.light.textTertiary}
+                  />
+                </View>
 
-                <Text variant="bodySmall" style={styles.helpText}>
+                <Text style={styles.helpText}>
                   Valor que você cobra do cliente (sugestão: R$ {selectedProduct.price ? Number(selectedProduct.price).toFixed(2).replace('.', ',') : '0,00'})
                 </Text>
 
                 {/* Quantidade */}
+                <Text style={styles.inputLabel}>Quantidade Inicial *</Text>
                 <TextInput
-                  label="Quantidade Inicial *"
-                  mode="outlined"
                   value={quantity}
                   onChangeText={setQuantity}
                   keyboardType="numeric"
                   style={styles.input}
                   placeholder="1"
+                  placeholderTextColor={Colors.light.textTertiary}
                 />
 
-                <Text variant="bodySmall" style={styles.helpText}>
+                <Text style={styles.helpText}>
                   Quantidade que você está adicionando ao estoque
                 </Text>
 
                 {/* Seleção de Entrada */}
                 <View style={styles.entrySection}>
-                  <Text variant="titleSmall" style={styles.entrySectionTitle}>
+                  <Text style={styles.entrySectionTitle}>
                     Vinculação de Entrada (Obrigatório) *
                   </Text>
 
-                  <Text variant="bodySmall" style={styles.entryHelpText}>
+                  <Text style={styles.entryHelpText}>
                     Para rastreabilidade, vincule este produto a uma entrada de estoque
                   </Text>
 
@@ -500,7 +521,7 @@ export default function CatalogScreen() {
                   <TouchableOpacity
                     style={[
                       styles.entryOption,
-                      createNewEntry && styles.entryOptionSelected,
+                      createNewEntry && { borderColor: brandingColors.primary, borderWidth: 2, backgroundColor: brandingColors.primary + '10' },
                     ]}
                     onPress={() => {
                       setCreateNewEntry(true);
@@ -511,13 +532,13 @@ export default function CatalogScreen() {
                       <Ionicons
                         name={createNewEntry ? 'radio-button-on' : 'radio-button-off'}
                         size={24}
-                        color={createNewEntry ? Colors.light.primary : '#666'}
+                        color={createNewEntry ? brandingColors.primary : '#666'}
                       />
                       <View style={styles.entryOptionText}>
-                        <Text variant="bodyMedium" style={styles.entryOptionTitle}>
+                        <Text style={styles.entryOptionTitle}>
                           Criar Nova Entrada
                         </Text>
-                        <Text variant="bodySmall" style={styles.entryOptionSubtitle}>
+                        <Text style={styles.entryOptionSubtitle}>
                           Será redirecionado para criar uma entrada
                         </Text>
                       </View>
@@ -527,17 +548,16 @@ export default function CatalogScreen() {
                   {/* Opção: Vincular a Entrada Existente */}
                   {entries && entries.length > 0 && (
                     <View style={styles.existingEntriesSection}>
-                      <Text variant="bodyMedium" style={styles.existingEntriesTitle}>
+                      <Text style={styles.existingEntriesTitle}>
                         Ou vincular a entrada existente:
                       </Text>
 
                       <TextInput
-                        mode="outlined"
-                        label="Buscar entrada (código, fornecedor)"
                         value={entrySearch}
                         onChangeText={setEntrySearch}
                         style={styles.existingEntriesSearch}
                         placeholder="Ex: ENT-2024, Fornecedor X"
+                        placeholderTextColor={Colors.light.textTertiary}
                       />
 
                       <View style={styles.entriesScrollableArea}>
@@ -559,7 +579,7 @@ export default function CatalogScreen() {
                                   key={entry.id}
                                   style={[
                                     styles.entryOption,
-                                    selected && styles.entryOptionSelected,
+                                    selected && { borderColor: brandingColors.primary, borderWidth: 2, backgroundColor: brandingColors.primary + '10' },
                                   ]}
                                   onPress={() => {
                                     setSelectedEntryId(entry.id);
@@ -570,30 +590,30 @@ export default function CatalogScreen() {
                                     <Ionicons
                                       name={selected ? 'radio-button-on' : 'radio-button-off'}
                                       size={24}
-                                      color={selected ? Colors.light.primary : '#666'}
+                                      color={selected ? brandingColors.primary : '#666'}
                                     />
                                     <View style={styles.entryOptionText}>
                                       <View style={styles.entryOptionHeaderRow}>
-                                        <Text variant="bodyMedium" style={styles.entryOptionTitle}>
+                                        <Text style={styles.entryOptionTitle}>
                                           {entry.entry_code}
                                         </Text>
-                                        <View style={styles.entryTypeChip}>
-                                          <Text style={styles.entryTypeChipText}>
+                                        <View style={[styles.entryTypeChip, { backgroundColor: brandingColors.primary + '15' }]}>
+                                          <Text style={[styles.entryTypeChipText, { color: brandingColors.primary }]}>
                                             {entry.entry_type}
                                           </Text>
                                         </View>
                                       </View>
-                                      <Text variant="bodySmall" style={styles.entryOptionSubtitle}>
+                                      <Text style={styles.entryOptionSubtitle}>
                                         {entry.supplier_name} • {new Date(entry.entry_date).toLocaleDateString('pt-BR')}
                                       </Text>
-                                      <Text variant="bodySmall" style={styles.entryMetricsText}>
+                                      <Text style={styles.entryMetricsText}>
                                         {(entry.total_items ?? 0)} itens • {(entry.total_quantity ?? 0)} unidades • R$ {(() => {
                                           const costVal = typeof entry.total_cost === 'number' ? entry.total_cost : Number(entry.total_cost);
                                           return isNaN(costVal) ? '0,00' : costVal.toFixed(2).replace('.', ',');
                                         })()}
                                       </Text>
                                       {typeof entry.sell_through_rate === 'number' && (
-                                        <Text variant="bodySmall" style={styles.entrySellThroughText}>
+                                        <Text style={styles.entrySellThroughText}>
                                           Sell-through: {entry.sell_through_rate.toFixed(1)}% {entry.roi !== undefined && `• ROI: ${entry.roi?.toFixed(2)}`}
                                         </Text>
                                       )}
@@ -614,10 +634,10 @@ export default function CatalogScreen() {
                 {/* Margem de Lucro */}
                 {customPrice && customCostPrice && parseCurrency(customPrice) > 0 && parseCurrency(customCostPrice) >= 0 && (
                   <View style={styles.profitCard}>
-                    <Text variant="bodySmall" style={styles.profitLabel}>
+                    <Text style={styles.profitLabel}>
                       Margem de Lucro:
                     </Text>
-                    <Text variant="titleMedium" style={styles.profitValue}>
+                    <Text style={styles.profitValue}>
                       R$ {(parseCurrency(customPrice) - parseCurrency(customCostPrice)).toFixed(2).replace('.', ',')}
                       {' '}
                       ({parseCurrency(customPrice) > 0 ? (((parseCurrency(customPrice) - parseCurrency(customCostPrice)) / parseCurrency(customPrice)) * 100).toFixed(1) : '0'}%)
@@ -626,30 +646,39 @@ export default function CatalogScreen() {
                 )}
 
                 <View style={styles.modalActions}>
-                  <Button
-                    mode="outlined"
+                  <TouchableOpacity
+                    style={styles.modalBtnSecondary}
                     onPress={() => {
                       setSelectedProduct(null);
                       Keyboard.dismiss();
                     }}
-                    style={styles.modalButton}
                   >
-                    Cancelar
-                  </Button>
-                  <Button
-                    mode="contained"
+                    <Text style={styles.modalBtnSecondaryText}>Cancelar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.modalBtnPrimary,
+                      (!customName.trim() || parseCurrency(customPrice) <= 0) && { opacity: 0.5 },
+                    ]}
                     onPress={confirmActivation}
-                    style={styles.modalButton}
                     disabled={!customName.trim() || parseCurrency(customPrice) <= 0}
                   >
-                    Adicionar
-                  </Button>
+                    <LinearGradient
+                      colors={brandingColors.gradient}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.modalBtnGradient}
+                    >
+                      <Text style={styles.modalBtnPrimaryText}>Adicionar</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
                 </View>
               </View>
             )}
           </ScrollView>
-        </Modal>
-      </Portal>
+          </View>
+        </View>
+      </Modal>
 
       {/* Dialog de Sucesso */}
       <ConfirmDialog
@@ -757,10 +786,24 @@ const styles = StyleSheet.create({
     padding: 24,
   },
   searchbar: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginHorizontal: theme.spacing.md,
     marginVertical: theme.spacing.sm,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: theme.borderRadius.lg,
     backgroundColor: Colors.light.card,
-    elevation: 2,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    gap: 8,
+    ...theme.shadows.sm,
+  },
+  searchbarInput: {
+    flex: 1,
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.text,
+    padding: 0,
   },
   row: {
     justifyContent: 'space-between',
@@ -776,6 +819,13 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.sm,
     backgroundColor: Colors.light.card,
     borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    overflow: 'hidden',
+    ...theme.shadows.sm,
+  },
+  cardContent: {
+    padding: theme.spacing.sm,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -790,12 +840,12 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   brandChip: {
-    backgroundColor: Colors.light.primary + '15',
-    minHeight: 28,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: theme.borderRadius.md,
   },
   brandText: {
     fontSize: theme.fontSize.xs,
-    color: Colors.light.primary,
     lineHeight: 16,
   },
   detailsRow: {
@@ -825,8 +875,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   price: {
+    fontSize: theme.fontSize.lg,
     fontWeight: 'bold',
-    color: Colors.light.primary,
   },
   suggestedChip: {
     backgroundColor: Colors.light.backgroundSecondary,
@@ -846,11 +896,24 @@ const styles = StyleSheet.create({
     color: Colors.light.textTertiary,
   },
   cardActions: {
-    paddingHorizontal: theme.spacing.md,
-    paddingBottom: theme.spacing.md,
+    paddingHorizontal: theme.spacing.sm,
+    paddingBottom: theme.spacing.sm,
   },
-  buttonContent: {
-    height: 40,
+  addButton: {
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+  },
+  addButtonGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    height: 38,
+  },
+  addButtonText: {
+    color: '#fff',
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
   },
   loadingText: {
     marginTop: theme.spacing.md,
@@ -871,8 +934,13 @@ const styles = StyleSheet.create({
     color: Colors.light.textTertiary,
     fontSize: theme.fontSize.xs,
   },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
   modalContent: {
-    backgroundColor: 'white',
+    backgroundColor: Colors.light.card,
     padding: 24,
     marginHorizontal: 20,
     borderRadius: 12,
@@ -881,9 +949,9 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     backgroundColor: Colors.light.card,
-    marginHorizontal: theme.spacing.lg,
-    borderRadius: theme.borderRadius.xl,
-    maxHeight: '100%',
+    borderTopLeftRadius: theme.borderRadius.xxl,
+    borderTopRightRadius: theme.borderRadius.xxl,
+    maxHeight: '90%',
   },
   modalScrollView: {
     maxHeight: '100%',
@@ -895,15 +963,59 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.card,
   },
   modalTitle: {
+    fontSize: theme.fontSize.xl,
     fontWeight: 'bold',
+    color: Colors.light.text,
     marginBottom: theme.spacing.sm,
   },
   modalSubtitle: {
+    fontSize: theme.fontSize.sm,
     color: Colors.light.textSecondary,
     marginBottom: theme.spacing.lg,
   },
+  inputLabel: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: Colors.light.text,
+    marginBottom: 6,
+  },
   input: {
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.text,
+    backgroundColor: Colors.light.background,
     marginBottom: theme.spacing.sm,
+  },
+  prefixInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: Colors.light.background,
+    marginBottom: theme.spacing.sm,
+    overflow: 'hidden',
+  },
+  prefixText: {
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+    borderRightWidth: 1,
+    borderRightColor: Colors.light.border,
+    backgroundColor: Colors.light.backgroundSecondary,
+  },
+  prefixInput: {
+    flex: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.text,
   },
   detailsCard: {
     backgroundColor: Colors.light.backgroundSecondary,
@@ -939,9 +1051,36 @@ const styles = StyleSheet.create({
   modalActions: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
   },
-  modalButton: {
+  modalBtnSecondary: {
     flex: 1,
+    height: 48,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalBtnSecondaryText: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+  },
+  modalBtnPrimary: {
+    flex: 1,
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+  },
+  modalBtnGradient: {
+    height: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalBtnPrimaryText: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '700',
+    color: '#fff',
   },
   entrySection: {
     marginTop: theme.spacing.lg,
@@ -965,9 +1104,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.card,
   },
   entryOptionSelected: {
-    borderColor: Colors.light.primary,
     borderWidth: 2,
-    backgroundColor: Colors.light.primary + '10',
   },
   entryOptionContent: {
     flexDirection: 'row',
@@ -995,6 +1132,14 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
   },
   existingEntriesSearch: {
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.text,
+    backgroundColor: Colors.light.background,
     marginBottom: theme.spacing.sm,
   },
   entriesScrollableArea: {
@@ -1012,14 +1157,12 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.xs,
   },
   entryTypeChip: {
-    backgroundColor: Colors.light.primary + '15',
     paddingHorizontal: theme.spacing.sm,
     paddingVertical: theme.spacing.xxs,
     borderRadius: theme.borderRadius.sm,
   },
   entryTypeChipText: {
     fontSize: theme.fontSize.xxs,
-    color: Colors.light.primary,
     textTransform: 'uppercase',
     fontWeight: '600',
   },

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,26 +6,38 @@ import {
   FlatList,
   RefreshControl,
 } from 'react-native';
-
-import { Text, ActivityIndicator } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
-import useBackToList from '@/hooks/useBackToList';
+import { useRouter, useFocusEffect } from 'expo-router';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
 import { useQuery } from '@tanstack/react-query';
 import api from '@/services/api';
 import { formatCurrency } from '@/utils/format';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
+import PageHeader from '@/components/layout/PageHeader';
+import useBackToList from '@/hooks/useBackToList';
+
+// ─── Tipos ────────────────────────────────────────────────────────────────────
+
+type SaleStatus = 'pending' | 'completed' | 'cancelled' | 'refunded' | 'partially_refunded';
+
+const ESTORNO_STATUSES: SaleStatus[] = ['cancelled', 'refunded', 'partially_refunded'];
 
 interface Sale {
   id: number;
   sale_number: string;
   total_amount: number;
   created_at: string;
-  customer_id?: number;
-  seller_id: number;
-  discount_amount: number;
-  status: string;
+  status: SaleStatus;
+  customer_name?: string;
+  payment_method?: string;
 }
 
 interface SalesByPeriodResponse {
@@ -35,24 +47,48 @@ interface SalesByPeriodResponse {
     total_sales: number;
     total_count: number;
     average_ticket: number;
+    estorno_count: number;
+    estorno_amount: number;
+    net_sales: number;
   };
-  pagination: {
-    skip: number;
-    limit: number;
-    total: number;
-  };
+  pagination: { skip: number; limit: number; total: number };
 }
 
-const getSalesByPeriod = async (year: number, month: number): Promise<SalesByPeriodResponse> => {
+const MONTHS = [
+  'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+  'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro',
+];
+
+const getSalesByPeriod = async (year: number, month: number) => {
   const { data } = await api.get<SalesByPeriodResponse>('/sales/reports/by-period', {
     params: { year, month },
   });
   return data;
 };
 
+function isEstorno(status: SaleStatus) {
+  return ESTORNO_STATUSES.includes(status);
+}
+
+function statusLabel(status: SaleStatus): string {
+  switch (status) {
+    case 'cancelled':          return 'Cancelada';
+    case 'refunded':           return 'Estornada';
+    case 'partially_refunded': return 'Est. Parcial';
+    case 'pending':            return 'Pendente';
+    default:                   return '';
+  }
+}
+
+// ─── Componente ───────────────────────────────────────────────────────────────
+
 export default function SalesPeriodScreen() {
-  const router = useRouter();  const { goBack } = useBackToList('/(tabs)');  const today = new Date();
-  const [selectedYear, setSelectedYear] = useState(today.getFullYear());
+  const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)');
+  const brandingColors = useBrandingColors();
+  const today = new Date();
+
+  const [selectedYear, setSelectedYear]   = useState(today.getFullYear());
   const [selectedMonth, setSelectedMonth] = useState(today.getMonth() + 1);
 
   const { data, isLoading, error, refetch, isRefetching } = useQuery({
@@ -60,387 +96,511 @@ export default function SalesPeriodScreen() {
     queryFn: () => getSalesByPeriod(selectedYear, selectedMonth),
   });
 
-  const months = [
-    'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-    'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-  ];
+  // Animação de entrada
+  const headerOpacity     = useSharedValue(0);
+  const headerScale       = useSharedValue(0.92);
+  const contentOpacity    = useSharedValue(0);
+  const contentTranslateY = useSharedValue(24);
 
-  const goToPreviousMonth = () => {
-    if (selectedMonth === 1) {
-      setSelectedMonth(12);
-      setSelectedYear(selectedYear - 1);
-    } else {
-      setSelectedMonth(selectedMonth - 1);
-    }
+  const playAnimation = useCallback(() => {
+    headerOpacity.value     = 0;
+    headerScale.value       = 0.92;
+    contentOpacity.value    = 0;
+    contentTranslateY.value = 24;
+
+    headerOpacity.value = withTiming(1, { duration: 450, easing: Easing.out(Easing.quad) });
+    headerScale.value   = withSpring(1, { damping: 14, stiffness: 180 });
+    const t = setTimeout(() => {
+      contentOpacity.value    = withTiming(1, { duration: 380 });
+      contentTranslateY.value = withSpring(0, { damping: 18, stiffness: 200 });
+    }, 160);
+    return t;
+  }, []);
+
+  useFocusEffect(useCallback(() => {
+    const t = playAnimation();
+    return () => clearTimeout(t);
+  }, [playAnimation]));
+
+  const headerAnimStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTranslateY.value }],
+  }));
+
+  // Navegação de meses
+  const isCurrentMonth = () =>
+    selectedYear === today.getFullYear() && selectedMonth === (today.getMonth() + 1);
+
+  const goToPrev = () => {
+    if (selectedMonth === 1) { setSelectedMonth(12); setSelectedYear(y => y - 1); }
+    else setSelectedMonth(m => m - 1);
+  };
+  const goToNext = () => {
+    if (selectedMonth === 12) { setSelectedMonth(1); setSelectedYear(y => y + 1); }
+    else setSelectedMonth(m => m + 1);
   };
 
-  const goToNextMonth = () => {
-    if (selectedMonth === 12) {
-      setSelectedMonth(1);
-      setSelectedYear(selectedYear + 1);
-    } else {
-      setSelectedMonth(selectedMonth + 1);
-    }
-  };
+  // ─── Item da lista ───────────────────────────────────────────────────────────
+  const renderSaleItem = ({ item }: { item: Sale }) => {
+    const estorno = isEstorno(item.status);
+    return (
+      <TouchableOpacity
+        onPress={() => router.push(`/sales/${item.id}` as any)}
+        style={[styles.saleCard, estorno && styles.saleCardEstorno]}
+        activeOpacity={0.75}
+      >
+        <View style={styles.saleRow}>
+          {/* Ícone */}
+          <View style={[
+            styles.saleIconBox,
+            { backgroundColor: estorno ? Colors.light.errorLight : brandingColors.primary + '15' },
+          ]}>
+            <Ionicons
+              name={estorno ? 'arrow-undo' : 'receipt-outline'}
+              size={18}
+              color={estorno ? VALUE_COLORS.negative : brandingColors.primary}
+            />
+          </View>
 
-  const isCurrentMonth = () => {
-    const now = new Date();
-    return selectedYear === now.getFullYear() && selectedMonth === (now.getMonth() + 1);
-  };
+          {/* Info — ocupa o espaço disponível */}
+          <View style={styles.saleInfo}>
+            <Text style={styles.saleNumber} numberOfLines={1}>{item.sale_number}</Text>
+            <Text style={styles.saleDate}>
+              {new Date(item.created_at).toLocaleDateString('pt-BR', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit',
+              })}
+            </Text>
+            {item.customer_name ? (
+              <Text style={styles.saleCustomer} numberOfLines={1}>{item.customer_name}</Text>
+            ) : null}
+          </View>
 
-  const getMonthName = (month: number) => months[month - 1];
-
-  const renderSaleItem = ({ item }: { item: Sale }) => (
-    <TouchableOpacity
-      onPress={() => router.push(`/sales/${item.id}` as any)}
-      style={styles.saleCard}
-    >
-      <View style={styles.saleRow}>
-        <View style={styles.saleInfo}>
-          <Text style={styles.saleNumber}>{item.sale_number}</Text>
-          <Text style={styles.saleDate}>
-            {new Date(item.created_at).toLocaleDateString('pt-BR', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit',
-            })}
-          </Text>
+          {/* Coluna direita: valor + badge + chevron — sem sobreposição */}
+          <View style={styles.salePriceCol}>
+            <Text style={[styles.saleAmount, estorno && styles.saleAmountEstorno]}>
+              {estorno ? '−' : ''}{formatCurrency(item.total_amount)}
+            </Text>
+            {estorno ? (
+              <View style={styles.estornoBadge}>
+                <Text style={styles.estornoBadgeText}>{statusLabel(item.status)}</Text>
+              </View>
+            ) : (
+              <Ionicons name="chevron-forward" size={14} color={Colors.light.textTertiary} />
+            )}
+          </View>
         </View>
-        <View style={styles.salePrice}>
-          <Text style={styles.saleAmount}>{formatCurrency(item.total_amount)}</Text>
-          <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
+      </TouchableOpacity>
+    );
+  };
+
+  // ─── Cabeçalho da lista ───────────────────────────────────────────────────────
+  const ListHeader = () => {
+    const s = data?.summary;
+
+    return (
+      <View style={styles.listHeaderContainer}>
+        {/* ── Seletor de mês no corpo da página ── */}
+        <View style={styles.monthSelector}>
+          <TouchableOpacity
+            onPress={goToPrev}
+            style={styles.monthBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Ionicons name="chevron-back" size={22} color={Colors.light.text} />
+          </TouchableOpacity>
+
+          <View style={styles.monthLabelContainer}>
+            <Text style={styles.monthText}>{MONTHS[selectedMonth - 1]} {selectedYear}</Text>
+            {s && (
+              <Text style={styles.monthSubtext}>
+                {s.total_count} venda{s.total_count !== 1 ? 's' : ''} efetivada{s.total_count !== 1 ? 's' : ''}
+              </Text>
+            )}
+          </View>
+
+          <TouchableOpacity
+            onPress={goToNext}
+            style={styles.monthBtn}
+            disabled={isCurrentMonth()}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Ionicons
+              name="chevron-forward"
+              size={22}
+              color={isCurrentMonth() ? Colors.light.textTertiary : Colors.light.text}
+            />
+          </TouchableOpacity>
         </View>
+
+        {/* ── Cards de resumo — grade 2×2 uniforme ── */}
+        {s && (
+          <View style={styles.summaryGrid}>
+            {/* Receita Líquida */}
+            <SummaryCard
+              icon="trending-up"
+              iconBg={brandingColors.primary + '18'}
+              iconColor={brandingColors.primary}
+              label="Receita Líquida"
+              value={formatCurrency(s.net_sales)}
+              valueColor={VALUE_COLORS.positive}
+              note={s.estorno_count > 0 ? `bruto ${formatCurrency(s.total_sales)}` : undefined}
+            />
+
+            {/* Ticket Médio */}
+            <SummaryCard
+              icon="stats-chart-outline"
+              iconBg={Colors.light.infoLight}
+              iconColor={Colors.light.info}
+              label="Ticket Médio"
+              value={formatCurrency(s.average_ticket)}
+              valueColor={Colors.light.info}
+            />
+
+            {/* Vendas */}
+            <SummaryCard
+              icon="cart-outline"
+              iconBg={VALUE_COLORS.positive + '18'}
+              iconColor={VALUE_COLORS.positive}
+              label="Vendas"
+              value={String(s.total_count)}
+              valueColor={VALUE_COLORS.positive}
+            />
+
+            {/* Estornos */}
+            <SummaryCard
+              icon="arrow-undo"
+              iconBg={VALUE_COLORS.negative + '18'}
+              iconColor={VALUE_COLORS.negative}
+              label="Estornos"
+              value={String(s.estorno_count)}
+              valueColor={s.estorno_count > 0 ? VALUE_COLORS.negative : Colors.light.textSecondary}
+              note={s.estorno_count > 0 ? `−${formatCurrency(s.estorno_amount)}` : undefined}
+              noteColor={VALUE_COLORS.negative}
+              danger={s.estorno_count > 0}
+            />
+          </View>
+        )}
+
+        <Text style={styles.listSectionTitle}>Movimentações</Text>
       </View>
-    </TouchableOpacity>
-  );
-
-  const ListHeader = () => (
-    <>
-      {/* Cards de Resumo */}
-      {data && (
-        <View style={styles.summaryContainer}>
-          {/* Card Total de Vendas */}
-          <View style={styles.summaryCardWrapper}>
-            <LinearGradient
-              colors={[Colors.light.primary, Colors.light.secondary]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.summaryCard}
-            >
-              <Ionicons name="cash-outline" size={32} color="#fff" />
-              <Text style={styles.summaryValue}>
-                {formatCurrency(data.summary.total_sales)}
-              </Text>
-              <Text style={styles.summaryLabel}>Total de Vendas</Text>
-            </LinearGradient>
-          </View>
-
-          {/* Card Vendas Realizadas */}
-          <View style={styles.summaryCardWrapper}>
-            <LinearGradient
-              colors={['#11998e', '#38ef7d']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.summaryCard}
-            >
-              <Ionicons name="cart-outline" size={32} color="#fff" />
-              <Text style={styles.summaryValue}>{data.summary.total_count}</Text>
-              <Text style={styles.summaryLabel}>Vendas Realizadas</Text>
-            </LinearGradient>
-          </View>
-
-          {/* Card Ticket Médio */}
-          <View style={styles.summaryCardWrapper}>
-            <LinearGradient
-              colors={['#fa709a', '#fee140']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.summaryCard}
-            >
-              <Ionicons name="stats-chart-outline" size={32} color="#fff" />
-              <Text style={styles.summaryValue}>
-                {formatCurrency(data.summary.average_ticket)}
-              </Text>
-              <Text style={styles.summaryLabel}>Ticket Médio</Text>
-            </LinearGradient>
-          </View>
-        </View>
-      )}
-
-      {/* Título da Lista - REMOVIDO, já está no header */}
-    </>
-  );
+    );
+  };
 
   const ListEmpty = () => (
     <View style={styles.emptyContainer}>
-      <Ionicons name="cart-outline" size={64} color={theme.colors.textSecondary} />
+      <Ionicons name="cart-outline" size={56} color={Colors.light.textTertiary} />
       <Text style={styles.emptyText}>Nenhuma venda neste período</Text>
     </View>
   );
 
+  const totalLabel = data
+    ? `${data.pagination.total} movimentaç${data.pagination.total === 1 ? 'ão' : 'ões'}`
+    : '';
+
   return (
     <View style={styles.container}>
-      {/* Header com Gradiente */}
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerContent}>
-            <TouchableOpacity onPress={goBack} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <View style={styles.headerInfo}>
-              <Text style={styles.greeting}>Vendas por Período</Text>
-              <Text style={styles.headerSubtitle}>
-                {data?.pagination.total || 0} {data?.pagination.total === 1 ? 'venda' : 'vendas'}
-              </Text>
-            </View>
-          </View>
-
-          {/* Seletor de Mês no Header */}
-          <View style={styles.monthSelector}>
-            <TouchableOpacity 
-              onPress={goToPreviousMonth}
-              style={styles.monthButton}
-            >
-              <Ionicons name="chevron-back" size={28} color="#fff" />
-            </TouchableOpacity>
-            
-            <Text style={styles.monthText}>
-              {getMonthName(selectedMonth)} {selectedYear}
-            </Text>
-            
-            <TouchableOpacity 
-              onPress={goToNextMonth}
-              style={styles.monthButton}
-              disabled={isCurrentMonth()}
-            >
-              <Ionicons 
-                name="chevron-forward" 
-                size={28} 
-                color={isCurrentMonth() ? 'rgba(255,255,255,0.3)' : '#fff'} 
-              />
-            </TouchableOpacity>
-          </View>
-        </LinearGradient>
-      </View>
-
-      {/* Lista de Vendas */}
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
-      ) : error ? (
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={48} color={theme.colors.error} />
-          <Text style={styles.errorText}>Erro ao carregar vendas</Text>
-          <TouchableOpacity onPress={() => refetch()} style={styles.retryButton}>
-            <Text style={styles.retryText}>Tentar novamente</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <FlatList
-          data={data?.sales || []}
-          renderItem={renderSaleItem}
-          keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.listContent}
-          ListHeaderComponent={ListHeader}
-          ListEmptyComponent={ListEmpty}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={refetch}
-              colors={[theme.colors.primary]}
-              tintColor={theme.colors.primary}
-            />
-          }
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title="Vendas por Período"
+          subtitle={totalLabel}
+          showBackButton
+          onBack={goBack}
         />
-      )}
+      </Animated.View>
+
+      <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <Ionicons name="hourglass-outline" size={40} color={brandingColors.primary} />
+            <Text style={styles.loadingText}>Carregando...</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.errorContainer}>
+            <Ionicons name="alert-circle-outline" size={48} color={VALUE_COLORS.negative} />
+            <Text style={styles.errorText}>Erro ao carregar vendas</Text>
+            <TouchableOpacity
+              onPress={() => refetch()}
+              style={[styles.retryButton, { backgroundColor: brandingColors.primary }]}
+            >
+              <Text style={styles.retryText}>Tentar novamente</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <FlatList
+            data={data?.sales || []}
+            renderItem={renderSaleItem}
+            keyExtractor={(item) => item.id.toString()}
+            contentContainerStyle={styles.listContent}
+            ListHeaderComponent={ListHeader}
+            ListEmptyComponent={ListEmpty}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefetching}
+                onRefresh={refetch}
+                colors={[brandingColors.primary]}
+                tintColor={brandingColors.primary}
+              />
+            }
+          />
+        )}
+      </Animated.View>
     </View>
   );
 }
 
+// ─── Card de resumo reutilizável ──────────────────────────────────────────────
+
+interface SummaryCardProps {
+  icon: React.ComponentProps<typeof Ionicons>['name'];
+  iconBg: string;
+  iconColor: string;
+  label: string;
+  value: string;
+  valueColor: string;
+  note?: string;
+  noteColor?: string;
+  danger?: boolean;
+}
+
+function SummaryCard({ icon, iconBg, iconColor, label, value, valueColor, note, noteColor, danger }: SummaryCardProps) {
+  return (
+    <View style={[styles.summaryCard, danger && styles.summaryCardDanger]}>
+      <View style={[styles.summaryCardIcon, { backgroundColor: iconBg }]}>
+        <Ionicons name={icon} size={18} color={iconColor} />
+      </View>
+      <Text style={styles.summaryCardLabel} numberOfLines={1}>{label}</Text>
+      <Text style={[styles.summaryCardValue, { color: valueColor }]} numberOfLines={1} adjustsFontSizeToFit>
+        {value}
+      </Text>
+      {note ? (
+        <Text style={[styles.summaryCardNote, noteColor ? { color: noteColor } : undefined]} numberOfLines={1}>
+          {note}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
+
+// ─── Estilos ──────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background,
+    backgroundColor: Colors.light.backgroundSecondary,
   },
-  headerContainer: {
-    marginBottom: 0,
-  },
-  headerGradient: {
+
+  // ── Cabeçalho da lista ──
+  listHeaderContainer: {
     paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
+    paddingTop: theme.spacing.lg,
+    gap: theme.spacing.md,
   },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: theme.spacing.md,
-  },
-  backButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: theme.spacing.md,
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: theme.fontSize.xxl,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: theme.spacing.xs,
-  },
-  headerSubtitle: {
-    fontSize: theme.fontSize.md,
-    color: '#fff',
-    opacity: 0.9,
-  },
+
+  // Seletor de mês no corpo
   monthSelector: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    borderRadius: theme.borderRadius.lg,
-    paddingVertical: theme.spacing.sm,
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    paddingVertical: theme.spacing.sm + 4,
     paddingHorizontal: theme.spacing.md,
-    marginTop: theme.spacing.xs,
+    ...theme.shadows.sm,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
-  monthButton: {
-    padding: 4,
-  },
+  monthBtn: { padding: 4 },
+  monthLabelContainer: { alignItems: 'center', gap: 2 },
   monthText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.bold,
+    color: Colors.light.text,
   },
-  summaryContainer: {
+  monthSubtext: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+  },
+
+  // Grade 2×2 — todos os cards com mesma flex basis
+  summaryGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
-    paddingHorizontal: theme.spacing.lg,
-    marginTop: theme.spacing.xl,
-  },
-  summaryCardWrapper: {
-    width: '48%',
-    marginBottom: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
   summaryCard: {
-    padding: theme.spacing.lg,
+    // Cada card ocupa ~50% - gap
+    width: '47.5%',
+    backgroundColor: Colors.light.card,
     borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.md,
+    ...theme.shadows.sm,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    gap: 4,
+  },
+  summaryCardDanger: {
+    borderColor: VALUE_COLORS.negative + '40',
+    backgroundColor: '#FFF5F5',
+  },
+  summaryCardIcon: {
+    width: 34,
+    height: 34,
+    borderRadius: theme.borderRadius.md,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 140,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    marginBottom: 4,
   },
-  summaryValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#fff',
-    marginTop: theme.spacing.sm,
+  summaryCardLabel: {
+    fontSize: theme.fontSize.xxs,
+    fontWeight: theme.fontWeight.semibold,
+    color: Colors.light.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
-  summaryLabel: {
-    fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.9)',
+  summaryCardValue: {
+    fontSize: theme.fontSize.xl,
+    fontWeight: theme.fontWeight.extrabold,
+    letterSpacing: -0.5,
+  },
+  summaryCardNote: {
+    fontSize: theme.fontSize.xxs,
+    color: Colors.light.textTertiary,
+  },
+
+  listSectionTitle: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: theme.fontWeight.semibold,
+    color: Colors.light.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
     marginTop: theme.spacing.xs,
-    textAlign: 'center',
   },
+
+  // ── Item de venda ──
   listContent: {
-    paddingBottom: theme.spacing.xl,
+    paddingBottom: theme.spacing.xxl,
   },
   saleCard: {
-    backgroundColor: '#fff',
-    marginHorizontal: theme.spacing.lg,
+    backgroundColor: Colors.light.card,
+    marginHorizontal: theme.spacing.md,
     marginBottom: theme.spacing.sm,
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.xl,
     padding: theme.spacing.md,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
+    ...theme.shadows.sm,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  saleCardEstorno: {
+    borderColor: VALUE_COLORS.negative + '30',
+    backgroundColor: '#FFF8F8',
   },
   saleRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  saleIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: theme.borderRadius.lg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   saleInfo: {
     flex: 1,
+    gap: 2,
+    minWidth: 0, // garante que o texto trunca e não empurra o valor
   },
   saleNumber: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: theme.colors.text,
-    marginBottom: theme.spacing.xs,
+    fontSize: theme.fontSize.md,
+    fontWeight: theme.fontWeight.bold,
+    color: Colors.light.text,
   },
   saleDate: {
-    fontSize: 13,
-    color: theme.colors.textSecondary,
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
   },
-  salePrice: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
+  saleCustomer: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textTertiary,
+  },
+
+  // Coluna direita — valor + badge OU chevron, empilhados
+  salePriceCol: {
+    alignItems: 'flex-end',
+    gap: 6,
+    flexShrink: 0,
   },
   saleAmount: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: theme.colors.primary,
+    fontSize: theme.fontSize.md,
+    fontWeight: theme.fontWeight.extrabold,
+    color: VALUE_COLORS.positive,
   },
+  saleAmountEstorno: {
+    color: VALUE_COLORS.negative,
+  },
+  estornoBadge: {
+    backgroundColor: VALUE_COLORS.negative + '18',
+    borderRadius: theme.borderRadius.sm,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+  },
+  estornoBadgeText: {
+    fontSize: theme.fontSize.xxs,
+    fontWeight: theme.fontWeight.bold,
+    color: VALUE_COLORS.negative,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+
+  // ── Loading / Error / Empty ──
   loadingContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+    gap: theme.spacing.md,
+  },
+  loadingText: {
+    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.md,
   },
   errorContainer: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.xl,
+    gap: theme.spacing.md,
   },
   errorText: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    marginTop: theme.spacing.md,
+    fontSize: theme.fontSize.base,
+    color: Colors.light.textSecondary,
     textAlign: 'center',
   },
   retryButton: {
-    marginTop: theme.spacing.lg,
     paddingVertical: theme.spacing.sm,
     paddingHorizontal: theme.spacing.xl,
-    backgroundColor: theme.colors.primary,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.lg,
   },
   retryText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: theme.fontSize.md,
+    fontWeight: theme.fontWeight.semibold,
     color: '#fff',
   },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: theme.spacing.xxl * 2,
+    gap: theme.spacing.md,
   },
   emptyText: {
-    fontSize: 16,
-    color: theme.colors.textSecondary,
-    marginTop: theme.spacing.lg,
+    fontSize: theme.fontSize.base,
+    color: Colors.light.textSecondary,
   },
 });

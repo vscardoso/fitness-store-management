@@ -7,6 +7,7 @@ import { useEffect, useState } from 'react';
 import { Redirect } from 'expo-router';
 import { View, ActivityIndicator } from 'react-native';
 import { useAuthStore } from '@/store/authStore';
+import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
 import { getAccessToken } from '@/services/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/Colors';
@@ -17,6 +18,11 @@ export default function Index() {
   const user = useAuthStore((state) => state.user);
   const isLoading = useAuthStore((state) => state.isLoading);
   const logout = useAuthStore((state) => state.logout);
+  const brandingColors = useBrandingColors();
+  const brandingSynced = useBrandingStore((state) => state.synced);
+  const brandingHydrating = useBrandingStore((state) => state.isHydrating);
+  const initialSyncAttempted = useBrandingStore((state) => state.initialSyncAttempted);
+  const fetchBrandingFromServer = useBrandingStore((state) => state.fetchFromServer);
   const [checking, setChecking] = useState(true);
   const [onboardingCompleted, setOnboardingCompleted] = useState(false);
 
@@ -40,10 +46,24 @@ export default function Index() {
     checkAuth();
   }, []);
 
+  useEffect(() => {
+    if (user && !brandingSynced && !initialSyncAttempted && !brandingHydrating) {
+      fetchBrandingFromServer().catch(() => {});
+    }
+  }, [user, brandingSynced, initialSyncAttempted, brandingHydrating, fetchBrandingFromServer]);
+
   if (isLoading || checking) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
+        <ActivityIndicator size="large" color={brandingColors.primary} />
+      </View>
+    );
+  }
+
+  if (user && (brandingHydrating || (!brandingSynced && !initialSyncAttempted))) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
+        <ActivityIndicator size="large" color={brandingColors.primary} />
       </View>
     );
   }
@@ -53,14 +73,10 @@ export default function Index() {
     return <Redirect href="/(tabs)" />;
   }
 
-  // TODO: Temporário - sempre mostrar onboarding para testes
-  // Depois adicionar timestamp ou versão para controlar
-  return <Redirect href="/(auth)/onboarding" />;
-
   // Primeira vez? Mostrar onboarding
-  // if (!onboardingCompleted) {
-  //   return <Redirect href="/(auth)/onboarding" />;
-  // }
+  if (!onboardingCompleted) {
+    return <Redirect href="/(auth)/onboarding" />;
+  }
 
-  // return <Redirect href="/(auth)/login" />;
+  return <Redirect href="/(auth)/login" />;
 }

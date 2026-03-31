@@ -10,7 +10,7 @@
  * - Gráfico de performance
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   StyleSheet,
@@ -18,39 +18,74 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
-} from 'react-native';
-import {
   Text,
-  Card,
-  Button,
-  Chip,
-  ProgressBar,
-  TextInput,
-  HelperText,
-} from 'react-native-paper';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+  TextInput as RNTextInput,
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
 import PageHeader from '@/components/layout/PageHeader';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import InfoRow from '@/components/ui/InfoRow';
 import StatCard from '@/components/ui/StatCard';
+import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import CustomModal from '@/components/ui/CustomModal';
 import ModalActions from '@/components/ui/ModalActions';
+import AppButton from '@/components/ui/AppButton';
 import { getStockEntryById, deleteStockEntry, updateEntryItem } from '@/services/stockEntryService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { toBRNumber, maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
+import EmptyState from '@/components/ui/EmptyState';
+import { useBrandingColors } from '@/store/brandingStore';
 import { EntryType, EntryItemResponse } from '@/types';
 
 export default function StockEntryDetailsScreen() {
   const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const brandingColors = useBrandingColors();
 
   // Validar ID
   const entryId = id ? parseInt(id as string) : NaN;
   const isValidId = !isNaN(entryId) && entryId > 0;
+
+  // ── Animações de entrada ──
+  const headerOpacity  = useSharedValue(0);
+  const headerScale    = useSharedValue(0.94);
+  const contentOpacity = useSharedValue(0);
+  const contentTransY  = useSharedValue(20);
+
+  useFocusEffect(useCallback(() => {
+    headerOpacity.value  = 0;
+    headerScale.value    = 0.94;
+    contentOpacity.value = 0;
+    contentTransY.value  = 20;
+    headerOpacity.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.quad) });
+    headerScale.value   = withSpring(1, { damping: 16, stiffness: 200 });
+    const t = setTimeout(() => {
+      contentOpacity.value = withTiming(1, { duration: 340 });
+      contentTransY.value  = withSpring(0, { damping: 18, stiffness: 200 });
+    }, 140);
+    return () => clearTimeout(t);
+  }, []));
+
+  const headerAnimStyle  = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTransY.value }],
+  }));
 
   /**
    * Função para voltar para a tela anterior
@@ -72,10 +107,6 @@ export default function StockEntryDetailsScreen() {
     message: string;
   }>({ visible: false, message: '' });
   const [errorDialog, setErrorDialog] = useState<{
-    visible: boolean;
-    message: string;
-  }>({ visible: false, message: '' });
-  const [deleteSuccessDialog, setDeleteSuccessDialog] = useState<{
     visible: boolean;
     message: string;
   }>({ visible: false, message: '' });
@@ -106,7 +137,7 @@ export default function StockEntryDetailsScreen() {
    */
   const deleteMutation = useMutation({
     mutationFn: () => deleteStockEntry(entryId),
-    onSuccess: async (result: any) => {
+    onSuccess: (result: any) => {
       setShowDeleteDialog(false);
 
       // Preparar mensagem de sucesso
@@ -118,30 +149,13 @@ export default function StockEntryDetailsScreen() {
         messages.push(`${result.total_stock_removed} unidades removidas`);
       }
 
-      // NAVEGAR DE VOLTA IMEDIATAMENTE (antes de invalidar queries)
-      if (from) {
-        router.push(from as any);
-      } else {
-        router.back();
-      }
-
-      // Invalidar queries DEPOIS de sair da tela
-      // Usa setTimeout para garantir que a navegação aconteça primeiro
-      setTimeout(async () => {
-        await Promise.all([
-          queryClient.removeQueries({ queryKey: ['stock-entry', entryId] }),
-          queryClient.invalidateQueries({ queryKey: ['stock-entries'] }),
-          queryClient.invalidateQueries({ queryKey: ['products'] }),
-          queryClient.invalidateQueries({ queryKey: ['active-products'] }),
-          queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
-          queryClient.invalidateQueries({ queryKey: ['low-stock'] }),
-        ]);
-      }, 100);
-
-      // Mostrar dialog de sucesso
-      setDeleteSuccessDialog({
-        visible: true,
-        message: messages.join(' • '),
+      // Navega diretamente para a lista e deixa o refresh acontecer na tela correta.
+      router.replace({
+        pathname: '/(tabs)/entries',
+        params: {
+          deleteSuccessMessage: messages.join(' • '),
+          deleteSuccessNonce: String(Date.now()),
+        },
       });
     },
     onError: (error: any) => {
@@ -316,29 +330,20 @@ export default function StockEntryDetailsScreen() {
   };
 
   /**
-   * Renderizar badge de tipo
+   * Renderizar badge de tipo usando Badge unificado
    */
   const renderTypeBadge = (type: EntryType) => {
-    const typeConfig: Record<EntryType, { label: string; icon: string }> = {
-      [EntryType.TRIP]: { label: 'Viagem', icon: 'car-outline' },
-      [EntryType.ONLINE]: { label: 'Online', icon: 'cart-outline' },
-      [EntryType.LOCAL]: { label: 'Local', icon: 'storefront-outline' },
-      [EntryType.INITIAL_INVENTORY]: { label: 'Estoque Inicial', icon: 'archive-outline' },
-      [EntryType.ADJUSTMENT]: { label: 'Ajuste', icon: 'construct-outline' },
-      [EntryType.RETURN]: { label: 'Devolução', icon: 'return-up-back-outline' },
-      [EntryType.DONATION]: { label: 'Doação', icon: 'gift-outline' },
+    const typeConfig: Record<EntryType, { label: string; variant: 'info' | 'warning' | 'success' | 'neutral'; icon: keyof typeof Ionicons.glyphMap }> = {
+      [EntryType.TRIP]:              { label: 'Viagem',       variant: 'info',    icon: 'car-outline'           },
+      [EntryType.ONLINE]:            { label: 'Online',       variant: 'warning', icon: 'cart-outline'          },
+      [EntryType.LOCAL]:             { label: 'Local',        variant: 'success', icon: 'storefront-outline'    },
+      [EntryType.INITIAL_INVENTORY]: { label: 'Est. Inicial', variant: 'neutral', icon: 'archive-outline'       },
+      [EntryType.ADJUSTMENT]:        { label: 'Ajuste',       variant: 'neutral', icon: 'construct-outline'     },
+      [EntryType.RETURN]:            { label: 'Devolução',    variant: 'neutral', icon: 'return-up-back-outline'},
+      [EntryType.DONATION]:          { label: 'Doação',       variant: 'neutral', icon: 'gift-outline'          },
     };
-
     const config = typeConfig[type];
-
-    return (
-      <View style={styles.typeBadge}>
-        <Ionicons name={config.icon as any} size={16} color="#fff" />
-        <Text style={styles.typeBadgeText}>
-          {config.label}
-        </Text>
-      </View>
-    );
+    return <Badge label={config.label} variant={config.variant} icon={config.icon} size="md" />;
   };
 
   /**
@@ -373,9 +378,9 @@ export default function StockEntryDetailsScreen() {
     const isBestSeller = depletionRate >= 70;
     const hasSales = item.quantity_sold > 0;
 
+    const progressColor = depletionRate >= 70 ? Colors.light.success : depletionRate >= 40 ? Colors.light.warning : Colors.light.error;
     return (
-      <Card key={item.id} style={styles.productCard}>
-        <Card.Content>
+      <View key={item.id} style={styles.productCard}>
           <View style={styles.productHeader}>
             <View style={{ flex: 1 }}>
               <Text style={styles.productName}>
@@ -390,14 +395,16 @@ export default function StockEntryDetailsScreen() {
             </View>
             <View style={styles.productHeaderRight}>
               {isBestSeller && (
-                <Chip icon="trophy" style={styles.bestSellerChip} textStyle={styles.chipText}>
-                  Best Seller
-                </Chip>
+                <View style={styles.bestSellerChip}>
+                  <Ionicons name="trophy" size={11} color={Colors.light.success} />
+                  <Text style={[styles.chipText, { color: Colors.light.success }]}>Best Seller</Text>
+                </View>
               )}
               {isSlowMover && (
-                <Chip icon="alert" style={styles.slowMoverChip} textStyle={styles.chipText}>
-                  Parado
-                </Chip>
+                <View style={styles.slowMoverChip}>
+                  <Ionicons name="alert" size={11} color={Colors.light.warning} />
+                  <Text style={[styles.chipText, { color: Colors.light.warning }]}>Parado</Text>
+                </View>
               )}
               <TouchableOpacity
                 onPress={() => handleEditItem(item)}
@@ -406,7 +413,7 @@ export default function StockEntryDetailsScreen() {
                 <Ionicons
                   name={hasSales ? "lock-closed" : "create-outline"}
                   size={16}
-                  color={hasSales ? Colors.light.textSecondary : Colors.light.primary}
+                  color={hasSales ? Colors.light.textSecondary : brandingColors.primary}
                 />
                 <Text style={[styles.editItemButtonText, hasSales && styles.editItemButtonTextDisabled]}>
                   {hasSales ? 'Protegido' : 'Editar'}
@@ -439,18 +446,13 @@ export default function StockEntryDetailsScreen() {
           <View style={styles.progressContainer}>
             <View style={styles.progressHeader}>
               <Text style={styles.progressLabel}>Sell-Through</Text>
-              <Text style={[
-                styles.progressPercentage,
-                { color: depletionRate >= 70 ? Colors.light.success : depletionRate >= 40 ? Colors.light.warning : Colors.light.error }
-              ]}>
+              <Text style={[styles.progressPercentage, { color: progressColor }]}>
                 {depletionRate.toFixed(1)}%
               </Text>
             </View>
-            <ProgressBar
-              progress={depletionRate / 100}
-              color={depletionRate >= 70 ? Colors.light.success : depletionRate >= 40 ? Colors.light.warning : Colors.light.error}
-              style={styles.progressBar}
-            />
+            <View style={styles.progressBarTrack}>
+              <View style={[styles.progressBarFill, { width: `${Math.min(depletionRate, 100)}%` as any, backgroundColor: progressColor }]} />
+            </View>
           </View>
 
           {/* Custo */}
@@ -466,8 +468,7 @@ export default function StockEntryDetailsScreen() {
               <Text style={styles.itemNotesText}>{item.notes}</Text>
             </View>
           )}
-        </Card.Content>
-      </Card>
+      </View>
     );
   };
 
@@ -478,7 +479,7 @@ export default function StockEntryDetailsScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={brandingColors.primary} />
           <Text style={styles.loadingText}>Carregando entrada...</Text>
         </View>
       </View>
@@ -501,9 +502,16 @@ export default function StockEntryDetailsScreen() {
           <Text style={styles.errorSubtext}>
             A entrada pode ter sido excluída ou o link está incorreto.
           </Text>
-          <Button mode="contained" onPress={handleGoBack} style={styles.errorButton}>
-            Voltar para Lista
-          </Button>
+          <TouchableOpacity onPress={handleGoBack} style={styles.errorButton} activeOpacity={0.8}>
+            <LinearGradient
+              colors={brandingColors.gradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.errorButtonGradient}
+            >
+              <Text style={styles.errorButtonText}>Voltar para Lista</Text>
+            </LinearGradient>
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -514,16 +522,19 @@ export default function StockEntryDetailsScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader
-        title={entry.entry_code}
-        subtitle={`Fornecedor: ${entry.supplier_name}`}
-        showBackButton
-        onBack={handleGoBack}
-        rightActions={[
-          { icon: 'trash', onPress: handleDelete },
-        ]}
-      />
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title={entry.entry_code}
+          subtitle={`Fornecedor: ${entry.supplier_name}`}
+          showBackButton
+          onBack={handleGoBack}
+          rightActions={[
+            { icon: 'trash', onPress: handleDelete },
+          ]}
+        />
+      </Animated.View>
 
+      <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
@@ -532,8 +543,7 @@ export default function StockEntryDetailsScreen() {
           }
         >
         {/* Info Básica */}
-        <Card style={styles.card}>
-          <Card.Content>
+        <View style={styles.card}>
             <Text style={styles.cardTitle}>Informações</Text>
 
             <InfoRow label="Data de Entrada" value={formatDate(entry.entry_date)} icon="calendar-outline" />
@@ -551,17 +561,16 @@ export default function StockEntryDetailsScreen() {
               <InfoRow label="Pagamento" value={entry.payment_method} icon="cash-outline" />
             )}
             {entry.trip_code && (
-              <InfoRow 
-                label="Viagem" 
+              <InfoRow
+                label="Viagem"
                 value={`${entry.trip_code}${entry.trip_destination ? ` - ${entry.trip_destination}` : ''}`}
-                icon="airplane-outline" 
+                icon="airplane-outline"
               />
             )}
             {entry.notes && (
               <InfoRow label="Observações" value={entry.notes} icon="document-outline" />
             )}
-          </Card.Content>
-        </Card>
+        </View>
 
         {/* KPIs */}
         <View style={styles.statsGrid}>
@@ -569,35 +578,39 @@ export default function StockEntryDetailsScreen() {
             label="Custo Total"
             value={formatCurrency(entry.total_cost)}
             icon="cash-outline"
+            valueColor={Colors.light.text}
           />
           <StatCard
             label="Total Items"
             value={`${entry.total_items} (${entry.total_quantity} un)`}
             icon="cube-outline"
+            valueColor={Colors.light.text}
           />
           <StatCard
             label="Vendidos"
             value={`${entry.items_sold}`}
             icon="cart-outline"
+            valueColor={Colors.light.success}
           />
           <StatCard
             label="Taxa de Venda"
             value={`${entry.sell_through_rate.toFixed(1)}%`}
             icon="trending-up"
+            valueColor={entry.sell_through_rate >= 70 ? Colors.light.success : entry.sell_through_rate >= 40 ? Colors.light.warning : Colors.light.error}
           />
           {entry.roi !== null && entry.roi !== undefined && (
             <StatCard
               label="Retorno"
               value={`${entry.roi >= 0 ? '+' : ''}${entry.roi.toFixed(1)}%`}
               icon="analytics-outline"
+              valueColor={entry.roi >= 0 ? Colors.light.success : Colors.light.error}
             />
           )}
         </View>
 
         {/* Best Sellers */}
         {bestSellers.length > 0 && (
-          <Card style={styles.card}>
-            <Card.Content>
+          <View style={styles.card}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="trophy-outline" size={20} color={Colors.light.success} />
                 <Text style={styles.sectionTitle}>Best Sellers</Text>
@@ -615,14 +628,12 @@ export default function StockEntryDetailsScreen() {
                   </View>
                 </View>
               ))}
-            </Card.Content>
-          </Card>
+          </View>
         )}
 
         {/* Slow Movers */}
         {slowMovers.length > 0 && (
-          <Card style={styles.card}>
-            <Card.Content>
+          <View style={styles.card}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="alert-circle-outline" size={20} color={Colors.light.warning} />
                 <Text style={styles.sectionTitle}>Produtos Parados</Text>
@@ -640,8 +651,7 @@ export default function StockEntryDetailsScreen() {
                   </View>
                 </View>
               ))}
-            </Card.Content>
-          </Card>
+          </View>
         )}
 
         {/* Lista de Produtos */}
@@ -652,11 +662,11 @@ export default function StockEntryDetailsScreen() {
           {entry.entry_items && entry.entry_items.length > 0 ? (
             entry.entry_items.map(renderProductItem)
           ) : (
-            <Card style={styles.card}>
-              <Card.Content>
-                <Text style={styles.emptyText}>Nenhum produto nesta entrada</Text>
-              </Card.Content>
-            </Card>
+            <EmptyState
+              icon="cube-outline"
+              title="Nenhum produto"
+              description="Nenhum produto nesta entrada"
+            />
           )}
         </View>
 
@@ -665,7 +675,7 @@ export default function StockEntryDetailsScreen() {
           {/* Tooltip explicativo quando tem vendas */}
           {entry.has_sales && (
             <View style={styles.protectionInfo}>
-              <Ionicons name="information-circle" size={16} color={Colors.light.primary} />
+              <Ionicons name="information-circle" size={16} color={brandingColors.primary} />
               <Text style={styles.protectionInfoText}>
                 Esta entrada não pode ser excluída pois possui {entry.items_sold} unidade(s) já vendida(s).
                 Entradas com vendas são mantidas como histórico para rastreabilidade FIFO.
@@ -673,20 +683,15 @@ export default function StockEntryDetailsScreen() {
             </View>
           )}
 
-          <Button
-            mode="outlined"
+          <AppButton
+            variant="danger"
+            icon="trash-outline"
+            label={entry.has_sales ? 'Não Pode Excluir (Com Vendas)' : 'Excluir Entrada'}
             onPress={handleDelete}
             disabled={entry.has_sales || deleteMutation.isPending}
             loading={deleteMutation.isPending}
-            icon="delete"
-            textColor={entry.has_sales ? Colors.light.textSecondary : Colors.light.error}
-            style={[
-              styles.deleteButton,
-              entry.has_sales && styles.deleteButtonDisabled
-            ]}
-          >
-            {entry.has_sales ? 'Não Pode Excluir (Com Vendas)' : 'Excluir Entrada'}
-          </Button>
+            fullWidth
+          />
         </View>
       </ScrollView>
 
@@ -729,18 +734,6 @@ export default function StockEntryDetailsScreen() {
           icon="alert-circle"
         />
 
-        {/* Dialog de Sucesso após Exclusão */}
-        <ConfirmDialog
-          visible={deleteSuccessDialog.visible}
-          title="Entrada Excluída"
-          message={deleteSuccessDialog.message}
-          confirmText="OK"
-          onConfirm={() => setDeleteSuccessDialog({ visible: false, message: '' })}
-          onCancel={() => setDeleteSuccessDialog({ visible: false, message: '' })}
-          type="success"
-          icon="checkmark-circle"
-        />
-
         {/* Modal de Edição de Item */}
         <CustomModal
           visible={editItemDialog.visible}
@@ -749,63 +742,61 @@ export default function StockEntryDetailsScreen() {
           subtitle={editItemDialog.item?.product_name}
         >
           <View style={styles.warningBox}>
-            <Ionicons name="information-circle" size={20} color={Colors.light.primary} />
+            <Ionicons name="information-circle" size={20} color={brandingColors.primary} />
             <Text style={styles.warningText}>
               Ao editar quantidade ou custo, o inventário será recalculado automaticamente.
             </Text>
           </View>
 
-          <TextInput
-            label="Quantidade Recebida *"
+          <Text style={styles.inputLabel}>Quantidade Recebida *</Text>
+          <RNTextInput
             value={editQuantity}
             onChangeText={setEditQuantity}
             keyboardType="numeric"
-            mode="outlined"
-            style={styles.input}
+            style={styles.nativeInput}
             placeholder="Digite a quantidade"
+            placeholderTextColor={Colors.light.textTertiary}
           />
 
-          <TextInput
-            label="Custo Unitário (R$) *"
-            value={editCost}
-            onChangeText={(text) => setEditCost(maskCurrencyBR(text))}
-            keyboardType="numeric"
-            mode="outlined"
-            style={styles.input}
-            placeholder="0,00"
-            left={<TextInput.Affix text="R$" />}
-          />
+          <Text style={styles.inputLabel}>Custo Unitário (R$) *</Text>
+          <View style={styles.nativeInputRow}>
+            <Text style={styles.inputPrefix}>R$</Text>
+            <RNTextInput
+              value={editCost}
+              onChangeText={(text) => setEditCost(maskCurrencyBR(text))}
+              keyboardType="numeric"
+              style={[styles.nativeInput, { flex: 1 }]}
+              placeholder="0,00"
+              placeholderTextColor={Colors.light.textTertiary}
+            />
+          </View>
 
-          <TextInput
-            label="Preço de Venda (R$)"
-            value={editPrice}
-            onChangeText={(text) => setEditPrice(maskCurrencyBR(text))}
-            keyboardType="numeric"
-            mode="outlined"
-            style={styles.input}
-            placeholder="0,00"
-            left={<TextInput.Affix text="R$" />}
-            right={
-              unmaskCurrency(editPrice) < unmaskCurrency(editCost) ? (
-                <TextInput.Icon icon="alert" color="#ff9800" />
-              ) : undefined
-            }
-          />
+          <Text style={styles.inputLabel}>Preço de Venda (R$)</Text>
+          <View style={styles.nativeInputRow}>
+            <Text style={styles.inputPrefix}>R$</Text>
+            <RNTextInput
+              value={editPrice}
+              onChangeText={(text) => setEditPrice(maskCurrencyBR(text))}
+              keyboardType="numeric"
+              style={[styles.nativeInput, { flex: 1 }]}
+              placeholder="0,00"
+              placeholderTextColor={Colors.light.textTertiary}
+            />
+          </View>
           {unmaskCurrency(editPrice) < unmaskCurrency(editCost) && (
-            <HelperText type="info" visible={true} style={{ color: '#ff9800' }}>
-              ⚠️ Preço menor que o custo
-            </HelperText>
+            <Text style={styles.helperWarning}>⚠️ Preço menor que o custo</Text>
           )}
 
-          <TextInput
-            label="Observações"
+          <Text style={styles.inputLabel}>Observações</Text>
+          <RNTextInput
             value={editNotes}
             onChangeText={setEditNotes}
-            mode="outlined"
             multiline
             numberOfLines={3}
-            style={styles.input}
+            style={[styles.nativeInput, styles.nativeInputMultiline]}
             placeholder="Observações sobre este item (opcional)"
+            placeholderTextColor={Colors.light.textTertiary}
+            textAlignVertical="top"
           />
 
           <ModalActions
@@ -814,10 +805,10 @@ export default function StockEntryDetailsScreen() {
             cancelText="Cancelar"
             confirmText="Salvar Alterações"
             loading={updateItemMutation.isPending}
-            confirmColor={Colors.light.primary}
+            confirmColor={brandingColors.primary}
           />
         </CustomModal>
-
+      </Animated.View>
     </View>
   );
 }
@@ -853,7 +844,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   errorButton: {
-    paddingHorizontal: 24,
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+    marginTop: theme.spacing.sm,
+  },
+  errorButtonGradient: {
+    paddingHorizontal: theme.spacing.xl,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  errorButtonText: {
+    fontSize: theme.fontSize.md,
+    fontWeight: theme.fontWeight.bold,
+    color: '#fff',
   },
   typeBadgeInHeader: {
     marginBottom: theme.spacing.xs,
@@ -868,7 +872,11 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 16,
     backgroundColor: Colors.light.card,
-    elevation: 2,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: theme.spacing.md,
+    ...theme.shadows.sm,
   },
   cardTitle: {
     fontSize: 18,
@@ -877,32 +885,34 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   typeBadge: {
+    // Substituído por <Badge> — mantido como fallback
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 12,
-    backgroundColor: '#4A90E2', // Azul claro contrastante
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: Colors.light.infoLight,
   },
   typeBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#fff',
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.semibold,
+    color: Colors.light.info,
   },
   salesProtectionBadge: {
+    // Substituído por <Badge> — mantido como fallback
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#E8F5E9',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    gap: theme.spacing.xxs,
+    backgroundColor: Colors.light.successLight,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xxs,
+    borderRadius: theme.borderRadius.md,
   },
   salesProtectionText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: '#2E7D32',
+    fontSize: theme.fontSize.xxs,
+    fontWeight: theme.fontWeight.semibold,
+    color: Colors.light.success,
     textTransform: 'uppercase',
   },
   statsGrid: {
@@ -1119,15 +1129,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.light.text,
     lineHeight: 18,
-  },
-  deleteButton: {
-    borderColor: Colors.light.error,
-    borderWidth: 1.5,
-    borderRadius: 12,
-  },
-  deleteButtonDisabled: {
-    borderColor: Colors.light.border,
-    opacity: 0.5,
   },
   itemNotesContainer: {
     flexDirection: 'row',

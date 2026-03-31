@@ -2,13 +2,22 @@ import { Tabs, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator } from 'react-native-paper';
 import { Text } from 'react-native-paper';
 import { useAuthStore } from '@/store/authStore';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
+import { useUIStore } from '@/store/uiStore';
 
 export default function TabsLayout() {
   const router = useRouter();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const brandingColors = useBrandingColors();
+  const brandingSynced = useBrandingStore((state) => state.synced);
+  const brandingHydrating = useBrandingStore((state) => state.isHydrating);
+  const initialSyncAttempted = useBrandingStore((state) => state.initialSyncAttempted);
+  const fetchBrandingFromServer = useBrandingStore((state) => state.fetchFromServer);
+  const triggerDashboardRefresh = useUIStore((s) => s.triggerDashboardRefresh);
 
   // Se não autenticado, redirecionar para login
   useEffect(() => {
@@ -17,10 +26,25 @@ export default function TabsLayout() {
     }
   }, [isAuthenticated]);
 
+  // Gatilho agressivo: antes da primeira render das tabs, garante tentativa inicial de hidratação.
+  useEffect(() => {
+    if (isAuthenticated && !brandingSynced && !initialSyncAttempted && !brandingHydrating) {
+      fetchBrandingFromServer().catch(() => {});
+    }
+  }, [isAuthenticated, brandingSynced, initialSyncAttempted, brandingHydrating, fetchBrandingFromServer]);
+
+  if (isAuthenticated && (brandingHydrating || (!brandingSynced && !initialSyncAttempted))) {
+    return (
+      <View style={styles.brandingGateContainer}>
+        <ActivityIndicator size="large" color={brandingColors.primary} />
+      </View>
+    );
+  }
+
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: Colors.light.primary,
+        tabBarActiveTintColor: brandingColors.primary,
         tabBarInactiveTintColor: Colors.light.tabIconDefault,
         tabBarStyle: {
           height: Platform.OS === 'ios' ? 85 : 65,
@@ -58,6 +82,13 @@ export default function TabsLayout() {
             />
           ),
         }}
+        listeners={({ navigation }) => ({
+          tabPress: () => {
+            if (navigation.isFocused()) {
+              triggerDashboardRefresh();
+            }
+          },
+        })}
       />
 
       {/* Tab 2: PDV (Centro - Botão Destacado) */}
@@ -69,7 +100,8 @@ export default function TabsLayout() {
             <View
               style={[
                 styles.centralButton,
-                focused && styles.centralButtonActive,
+                { backgroundColor: brandingColors.primary + '33', borderColor: Colors.light.background },
+                focused && [styles.centralButtonActive, { backgroundColor: brandingColors.primary }],
               ]}
             >
               <Ionicons
@@ -83,7 +115,7 @@ export default function TabsLayout() {
             <Text
               style={[
                 styles.centralLabel,
-                { color: focused ? Colors.light.primary : color },
+                { color: focused ? brandingColors.primary : color },
               ]}
             >
               PDV
@@ -114,6 +146,7 @@ export default function TabsLayout() {
 
       <Tabs.Screen name="management" options={{ href: null }} />
       <Tabs.Screen name="products" options={{ href: null }} />
+      <Tabs.Screen name="categories" options={{ href: null }} />
       <Tabs.Screen name="customers" options={{ href: null }} />
       <Tabs.Screen name="inventory" options={{ href: null }} />
       <Tabs.Screen name="reports" options={{ href: null }} />
@@ -141,19 +174,22 @@ export default function TabsLayout() {
 }
 
 const styles = StyleSheet.create({
+  brandingGateContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.light.background,
+  },
   centralButton: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.light.primaryLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 20,
     borderWidth: 3,
-    borderColor: Colors.light.background,
     ...Platform.select({
       ios: {
-        shadowColor: Colors.light.primary,
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.3,
         shadowRadius: 8,
@@ -164,7 +200,6 @@ const styles = StyleSheet.create({
     }),
   },
   centralButtonActive: {
-    backgroundColor: Colors.light.primary,
     transform: [{ scale: 1.05 }],
   },
   centralLabel: {

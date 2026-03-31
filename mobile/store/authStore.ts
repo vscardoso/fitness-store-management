@@ -11,6 +11,26 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { User, LoginCredentials, SignupData } from '@/types';
 import * as authService from '@/services/authService';
 import { getUser, clearAuthData } from '@/services/storage';
+import { useCartStore } from './cartStore';
+import { useNotificationStore } from './notificationStore';
+import { useBrandingStore } from './brandingStore';
+
+const SESSION_STORAGE_KEYS = [
+  'auth-storage',
+  'cart-storage',
+  '@fitness_store:cart',
+  '@notifications',
+  '@notification_config',
+];
+
+async function clearSessionState() {
+  // Limpar stores em memória imediatamente
+  useCartStore.getState().clear();
+  useNotificationStore.getState().clearAll();
+
+  // Limpar persistências de sessão no AsyncStorage
+  await AsyncStorage.multiRemove(SESSION_STORAGE_KEYS);
+}
 
 /**
  * Interface do Auth Store
@@ -19,6 +39,7 @@ interface AuthState {
   // State
   user: User | null;
   token: string | null;
+  tenant_id: number | null;  // Identificador da loja (tenant)
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -43,6 +64,7 @@ export const useAuthStore = create<AuthState>()(
       // Estado inicial
       user: null,
       token: null,
+      tenant_id: null,
       isAuthenticated: false,
       isLoading: false,
       error: null,
@@ -55,6 +77,9 @@ export const useAuthStore = create<AuthState>()(
         
         try {
           const user = await authService.login(credentials);
+
+          // Estrategia agressiva: sempre tenta hidratar branding do banco antes de marcar sessao autenticada.
+          await useBrandingStore.getState().fetchFromServer();
           
           // TEMP: Sentry desabilitado
           // Sentry.Native.setUser({
@@ -66,6 +91,7 @@ export const useAuthStore = create<AuthState>()(
           
           set({
             user,
+            tenant_id: user.tenant_id,  // Persistir tenant da loja
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -88,6 +114,9 @@ export const useAuthStore = create<AuthState>()(
         
         try {
           const user = await authService.signup(signupData);
+
+          // Garantir branding do tenant recem-criado aplicado ainda no fluxo de autenticacao.
+          await useBrandingStore.getState().fetchFromServer();
           
           // TEMP: Sentry desabilitado
           // Sentry.Native.setUser({
@@ -99,6 +128,7 @@ export const useAuthStore = create<AuthState>()(
           
           set({
             user,
+            tenant_id: user.tenant_id,  // Persistir tenant da loja
             isAuthenticated: true,
             isLoading: false,
             error: null,
@@ -124,13 +154,16 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null,
           token: null,
+          tenant_id: null,
           isAuthenticated: false,
           error: null,
         });
 
         // Limpar AsyncStorage
         try {
+          useBrandingStore.getState().resetToDefault();
           await clearAuthData();
+          await clearSessionState();
         } catch (error) {
           console.error('Erro ao limpar dados de autenticação:', error);
         }
@@ -150,13 +183,16 @@ export const useAuthStore = create<AuthState>()(
         set({
           user: null,
           token: null,
+          tenant_id: null,
           isAuthenticated: false,
           error: reason || 'Sessão expirada. Faça login novamente.',
         });
 
         // Limpar AsyncStorage
         try {
+          useBrandingStore.getState().resetToDefault();
           await clearAuthData();
+          await clearSessionState();
         } catch (error) {
           console.error('Erro ao limpar dados de autenticação:', error);
         }
@@ -174,6 +210,7 @@ export const useAuthStore = create<AuthState>()(
           if (user) {
             set({
               user,
+              tenant_id: user.tenant_id,
               isAuthenticated: true,
               isLoading: false,
             });

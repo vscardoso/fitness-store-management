@@ -14,7 +14,7 @@ class StockEntryBase(BaseModel):
     entry_date: date = Field(..., description="Data da entrada")
     entry_type: EntryType = Field(..., description="Tipo de entrada (trip/online/local)")
     trip_id: Optional[int] = Field(None, description="ID da viagem (se entry_type = 'trip')")
-    supplier_name: str = Field(..., min_length=3, max_length=255, description="Nome do fornecedor")
+    supplier_name: str = Field(..., min_length=1, max_length=255, description="Nome do fornecedor")
     supplier_cnpj: Optional[str] = Field(None, max_length=18, description="CNPJ do fornecedor")
     supplier_contact: Optional[str] = Field(None, max_length=255, description="Contato do fornecedor")
     invoice_number: Optional[str] = Field(None, max_length=100, description="Número da nota fiscal")
@@ -53,7 +53,7 @@ class StockEntryUpdate(BaseModel):
     entry_date: Optional[date] = None
     entry_type: Optional[EntryType] = None
     trip_id: Optional[int] = None
-    supplier_name: Optional[str] = Field(None, min_length=3, max_length=255)
+    supplier_name: Optional[str] = Field(None, min_length=1, max_length=255)
     supplier_cnpj: Optional[str] = Field(None, max_length=18)
     supplier_contact: Optional[str] = Field(None, max_length=255)
     invoice_number: Optional[str] = Field(None, max_length=100)

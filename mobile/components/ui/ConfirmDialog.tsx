@@ -9,7 +9,8 @@ import React from 'react';
 import { View, StyleSheet, ScrollView, Animated } from 'react-native';
 import { Portal, Modal, Text, Button, Surface, IconButton } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 export interface ConfirmDialogProps {
   visible: boolean;
@@ -38,35 +39,37 @@ export default function ConfirmDialog({
   icon,
   loading = false,
 }: ConfirmDialogProps) {
+  const brandingColors = useBrandingColors();
+
   const getTypeConfig = () => {
     switch (type) {
       case 'danger':
         return {
-          color: '#d32f2f',
-          backgroundColor: '#ffebee',
+          color: Colors.light.error,
+          backgroundColor: Colors.light.errorLight,
           icon: icon || 'alert-circle',
-          confirmButtonColor: '#d32f2f',
+          confirmButtonColor: Colors.light.error,
         };
       case 'warning':
         return {
-          color: '#f57c00',
-          backgroundColor: '#fff3e0',
+          color: Colors.light.warning,
+          backgroundColor: Colors.light.warningLight,
           icon: icon || 'warning',
-          confirmButtonColor: '#f57c00',
+          confirmButtonColor: Colors.light.warning,
         };
       case 'info':
         return {
-          color: Colors.light.primary,
-          backgroundColor: '#e3f2fd',
+          color: brandingColors.primary,
+          backgroundColor: brandingColors.primary + '18',
           icon: icon || 'information-circle',
-          confirmButtonColor: Colors.light.primary,
+          confirmButtonColor: brandingColors.primary,
         };
       case 'success':
         return {
-          color: '#388e3c',
-          backgroundColor: '#e8f5e9',
+          color: Colors.light.success,
+          backgroundColor: Colors.light.successLight,
           icon: icon || 'checkmark-circle',
-          confirmButtonColor: '#388e3c',
+          confirmButtonColor: Colors.light.success,
         };
     }
   };
@@ -167,18 +170,15 @@ const styles = StyleSheet.create({
   },
   dialog: {
     backgroundColor: '#fff',
-    borderRadius: 20,
-    paddingVertical: 32,
-    paddingHorizontal: 24,
+    borderRadius: theme.borderRadius.xxl,
+    paddingVertical: theme.spacing.xl,
+    paddingHorizontal: theme.spacing.lg,
     position: 'relative',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 8,
-    },
+    shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.25,
     shadowRadius: 16,
-    elevation: 12,
+    elevation: theme.elevation.xl,
   },
   closeButton: {
     position: 'absolute',
@@ -190,35 +190,28 @@ const styles = StyleSheet.create({
   iconContainer: {
     width: 88,
     height: 88,
-    borderRadius: 44,
+    borderRadius: theme.borderRadius.full,
     justifyContent: 'center',
     alignItems: 'center',
     alignSelf: 'center',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 4,
+    marginBottom: theme.spacing.md,
+    ...theme.shadows.md,
   },
   title: {
-    fontWeight: '700',
+    fontWeight: theme.fontWeight.bold,
     textAlign: 'center',
-    marginBottom: 12,
+    marginBottom: theme.spacing.sm,
     color: Colors.light.text,
-    fontSize: 22,
-    lineHeight: 28,
+    fontSize: theme.fontSize.xxl,
+    lineHeight: 30,
   },
   message: {
     textAlign: 'center',
     color: Colors.light.textSecondary,
-    marginBottom: 20,
+    marginBottom: theme.spacing.md,
     lineHeight: 24,
-    fontSize: 15,
-    paddingHorizontal: 8,
+    fontSize: theme.fontSize.base,
+    paddingHorizontal: theme.spacing.sm,
   },
   detailsContainer: {
     maxHeight: 200,

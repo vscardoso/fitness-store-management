@@ -17,6 +17,8 @@ import {
   Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { Colors } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 const { width } = Dimensions.get('window');
 
@@ -85,6 +87,7 @@ export default function PeriodFilter({
   onChange,
   compact = false,
 }: PeriodFilterProps) {
+  const brandingColors = useBrandingColors();
   const [modalVisible, setModalVisible] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -115,22 +118,22 @@ export default function PeriodFilter({
   return (
     <>
       <TouchableOpacity
-        style={[styles.trigger, compact && styles.triggerCompact]}
+        style={[styles.trigger, compact && styles.triggerCompact, { backgroundColor: brandingColors.primary + '15', borderColor: brandingColors.primary + '40' }]}
         onPress={openModal}
         activeOpacity={0.7}
       >
         <Ionicons
           name="calendar-outline"
           size={compact ? 16 : 18}
-          color="#6366F1"
+          color={brandingColors.primary}
         />
-        <Text style={[styles.triggerText, compact && styles.triggerTextCompact]}>
+        <Text style={[styles.triggerText, compact && styles.triggerTextCompact, { color: brandingColors.primary }]}>
           {compact ? selectedOption?.shortLabel : selectedOption?.label}
         </Text>
         <Ionicons
           name="chevron-down"
           size={compact ? 14 : 16}
-          color="#6B7280"
+          color={Colors.light.textSecondary}
         />
       </TouchableOpacity>
 
@@ -161,7 +164,7 @@ export default function PeriodFilter({
               <View style={styles.modalHeader}>
                 <Text style={styles.modalTitle}>Selecionar Período</Text>
                 <TouchableOpacity onPress={closeModal} style={styles.closeButton}>
-                  <Ionicons name="close" size={24} color="#6B7280" />
+                  <Ionicons name="close" size={24} color={Colors.light.textSecondary} />
                 </TouchableOpacity>
               </View>
 
@@ -175,7 +178,7 @@ export default function PeriodFilter({
                       key={option.value}
                       style={[
                         styles.optionItem,
-                        isSelected && styles.optionItemSelected,
+                        isSelected && { backgroundColor: brandingColors.primary + '12' },
                         !isLast && styles.optionItemBorder,
                       ]}
                       onPress={() => handleSelect(option.value)}
@@ -185,7 +188,7 @@ export default function PeriodFilter({
                         <Text
                           style={[
                             styles.optionLabel,
-                            isSelected && styles.optionLabelSelected,
+                            isSelected && { color: brandingColors.primary, fontWeight: '600' },
                           ]}
                         >
                           {option.label}
@@ -195,7 +198,7 @@ export default function PeriodFilter({
                         </Text>
                       </View>
                       {isSelected && (
-                        <View style={styles.checkIcon}>
+                        <View style={[styles.checkIcon, { backgroundColor: brandingColors.primary }]}>
                           <Ionicons name="checkmark" size={20} color="#fff" />
                         </View>
                       )}
@@ -216,13 +219,11 @@ const styles = StyleSheet.create({
   trigger: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#EEF2FF',
     paddingHorizontal: 14,
     paddingVertical: 10,
     borderRadius: 12,
     gap: 8,
     borderWidth: 1,
-    borderColor: '#C7D2FE',
   },
   triggerCompact: {
     paddingHorizontal: 10,
@@ -233,7 +234,6 @@ const styles = StyleSheet.create({
   triggerText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#4338CA',
   },
   triggerTextCompact: {
     fontSize: 12,
@@ -252,7 +252,7 @@ const styles = StyleSheet.create({
     maxWidth: 380,
   },
   modalContent: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     borderRadius: 20,
     overflow: 'hidden',
     shadowColor: '#000',
@@ -270,12 +270,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: Colors.light.backgroundSecondary,
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: Colors.light.text,
   },
   closeButton: {
     padding: 4,
@@ -293,33 +293,27 @@ const styles = StyleSheet.create({
   },
   optionItemBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: Colors.light.backgroundSecondary,
   },
-  optionItemSelected: {
-    backgroundColor: '#EEF2FF',
-  },
+  optionItemSelected: {},
   optionContent: {
     flex: 1,
   },
   optionLabel: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#1F2937',
+    color: Colors.light.text,
     marginBottom: 2,
   },
-  optionLabelSelected: {
-    color: '#4338CA',
-    fontWeight: '600',
-  },
+  optionLabelSelected: {},
   optionDescription: {
     fontSize: 13,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
   },
   checkIcon: {
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: '#6366F1',
     justifyContent: 'center',
     alignItems: 'center',
   },

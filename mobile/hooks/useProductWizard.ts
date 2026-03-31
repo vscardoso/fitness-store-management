@@ -16,6 +16,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { scanProductImage } from '@/services/aiService';
 import { createProduct, getProductById, getCatalogProducts, updateProduct } from '@/services/productService';
+import { skipLoading } from '@/utils/apiHelpers';
 import { createProductWithVariants } from '@/services/productVariantService';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { logError, logWarn, logInfo } from '@/services/debugLog';
@@ -30,6 +31,11 @@ import type {
 } from '@/types/wizard';
 import type { Product, ProductCreate, ProductScanResult } from '@/types';
 import type { ProductVariantCreate } from '@/types/productVariant';
+
+// Backup module-level do produto criado — sobrevive a remounts causados por router.replace.
+// entries/add pode retornar ao wizard via replace (novo componente), perdendo o estado React.
+// Armazenamos aqui como fallback antes de navegar para qualquer tela de entrada.
+let _wizardCreatedProductBackup: any = null;
 
 // Tipo de retorno do hook para uso nos componentes
 export interface UseProductWizardReturn {
@@ -58,7 +64,7 @@ export interface UseProductWizardReturn {
   setIsEditing: (editing: boolean) => void;
   validateProductData: () => boolean;
   createProduct: () => Promise<void>;
-  addStockToDuplicate: (productId: number, partialData?: Partial<Product>) => Promise<void>;
+  selectDuplicateProduct: (productId: number, quantity?: number) => void;
 
   // Step 3 - Entrada
   goToNewEntry: (quantity?: number) => void;
@@ -72,6 +78,7 @@ export interface UseProductWizardReturn {
 
   // Step 4 - Complete (retorno de entrada)
   handleEntryCreated: (entryData: LinkedEntryData, productData?: Partial<Product> | null) => void;
+  restoreFromRoute: (step: WizardStep, productData?: any) => void;
 
   setHasVariants: (value: boolean) => void;
   setVariantSizes: (sizes: string[]) => void;
@@ -111,6 +118,31 @@ const INITIAL_STATE: WizardState = {
 };
 
 const STEP_ORDER: WizardStep[] = ['identify', 'confirm', 'entry', 'complete'];
+
+function normalizeRouteProductData(input: any): any {
+  if (!input || typeof input !== 'object') return null;
+
+  if ('product_name' in input || 'product_sku' in input) {
+    return {
+      id: input.id,
+      name: input.product_name,
+      sku: input.product_sku,
+      barcode: input.product_barcode,
+      description: input.product_description,
+      brand: input.product_brand,
+      color: input.product_color,
+      size: input.product_size,
+      gender: input.product_gender,
+      material: input.product_material,
+      category_id: input.product_category_id,
+      cost_price: input.product_cost_price,
+      price: input.product_price,
+      variants: input.variants,
+    };
+  }
+
+  return input;
+}
 
 export function useProductWizard() {
   const router = useRouter();
@@ -231,6 +263,8 @@ export function useProductWizard() {
     setState(prev => ({
       ...prev,
       identifyMethod: method,
+      // Duplicados só fazem sentido no fluxo de scanner.
+      duplicates: method === 'scanner' ? prev.duplicates : [],
       isDirty: true,
     }));
   }, []);
@@ -284,6 +318,8 @@ export function useProductWizard() {
             brand: result.brand || undefined,
             color: result.color || undefined,
             size: result.size || undefined,
+            gender: (result as any).gender || undefined,
+            material: (result as any).material || undefined,
             category_id: result.suggested_category_id || undefined,
             cost_price: result.suggested_cost_price || undefined,
             price: result.suggested_sale_price || 0,
@@ -381,6 +417,7 @@ export function useProductWizard() {
     setState(prev => ({
       ...prev,
       selectedCatalogProduct: product,
+      duplicates: [],
       productData: {
         name: product.name,
         sku: undefined, // NÃO copiar SKU - será gerado automaticamente no Step 2
@@ -389,6 +426,8 @@ export function useProductWizard() {
         brand: product.brand || undefined,
         color: product.color || undefined,
         size: product.size || undefined,
+        gender: product.gender || undefined,
+        material: product.material || undefined,
         category_id: product.category_id || undefined,
         cost_price: product.cost_price || undefined,
         price: product.price || 0,
@@ -458,6 +497,8 @@ export function useProductWizard() {
         brand: state.productData.brand?.trim() || undefined,
         color: state.productData.color?.trim() || undefined,
         size: state.productData.size?.trim() || undefined,
+        gender: state.productData.gender?.trim() || undefined,
+        material: state.productData.material?.trim() || undefined,
         category_id: state.productData.category_id!,
         cost_price: state.productData.cost_price,
         price: state.productData.price!,
@@ -518,6 +559,8 @@ export function useProductWizard() {
           barcode: state.productData.barcode?.trim() || undefined,
           description: state.productData.description?.trim() || undefined,
           brand: state.productData.brand?.trim() || undefined,
+          gender: state.productData.gender?.trim() || undefined,
+          material: state.productData.material?.trim() || undefined,
           category_id: state.productData.category_id!,
           price: state.productData.price ?? 0,
           cost_price: state.productData.cost_price,
@@ -526,6 +569,7 @@ export function useProductWizard() {
           is_active: true,
           is_catalog: true,
           _atomicVariants: true, // Flag para o fluxo atômico de variantes
+          _hasWizardVariants: true,
           variants: variantsList.map((v, idx) => ({
             id: idx, // IDs temporários baseados em índice (sem banco)
             sku: v.sku,
@@ -538,16 +582,26 @@ export function useProductWizard() {
         } as any;
 
       // ── Produto simples ─────────────────────────────────────────────
+      // NÃO cria na API ainda — produto + entrada são criados atomicamente
+      // em entries/add (wizardMode: 'atomic'). Se o usuário voltar ou fechar
+      // o app antes de confirmar a entrada, nada é persistido no banco.
       } else {
-        created = await createProduct(productData);
+        created = {
+          ...productData,
+          _virtual: true, // ainda não existe no banco
+          _hasWizardVariants: false,
+          current_stock: 0,
+          min_stock_threshold: 5,
+          is_active: true,
+        } as any;
       }
 
-      // Fazer upload de imagem apenas para produtos já existentes no banco (não virtuais)
-      if (state.capturedImage && created.id && created.id > 0) {
+      // Upload de imagem: apenas para produtos que já existem no banco
+      // (variantes criadas via goToExistingEntryWithVariants antes de retornar aqui)
+      if (state.capturedImage && (created as any)._atomicVariants !== true && (created as any)._virtual !== true && created.id && created.id > 0) {
         try {
           created = await uploadProductImageWithFallback(created.id, state.capturedImage);
         } catch (uploadError) {
-          // Log do erro mas não bloqueia criação do produto
           logWarn('Wizard', 'Erro ao fazer upload da imagem', uploadError);
         }
       }
@@ -558,6 +612,7 @@ export function useProductWizard() {
       queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
 
       // Atualizar estado e IR PARA STEP 3 (não navegar para fora!)
+      _wizardCreatedProductBackup = created; // Backup para sobreviver router.replace
       setState(prev => ({
         ...prev,
         createdProduct: created,
@@ -575,33 +630,68 @@ export function useProductWizard() {
     }
   }, [state.productData, state.capturedImage, state.hasVariants, state.variantColors, state.variantSizes, state.colorSizes, state.variantPrices, validateProductData, queryClient, showDialog]);
 
-  const addStockToDuplicate = useCallback(async (productId: number, partialData?: Partial<Product>) => {
-    // Mostrar loading
-    setState(prev => ({ ...prev, isCreating: true }));
+  // ─────────────────────────────────────────────────────────────────────────────
+  // selectDuplicateProduct — BLOCO BLINDADO: não alterar sem revisar todo o fluxo
+  // de seleção de similar. Qualquer mudança aqui impacta: WizardStep1 (remoção do
+  // useEffect de auto-avanço), WizardStep2 (guard de SKU), e o ciclo de vida do
+  // wizard inteiro.
+  //
+  // COMPORTAMENTO ESPERADO:
+  //  1. Busca produto existente por ID
+  //  2. Limpa duplicates (evita painel fantasma no Step 1 e loop de volta)
+  //  3. Navega DIRETAMENTE para 'confirm' (Step 2) via currentStep no setState
+  //     — Isso elimina a necessidade do useEffect de auto-avanço no WizardStep1
+  //     — E garante que SKU NÃO seja regenerado no Step 2 (createdProduct.id > 0)
+  //  4. hasVariants: false — variantes do produto existente NÃO são pre-selecionadas
+  //     (o produto já existe; o wizard está sendo usado para repor estoque, não criar)
+  // ─────────────────────────────────────────────────────────────────────────────
+  const selectDuplicateProduct = useCallback((productId: number, quantity: number = 1) => {
+    logInfo('Wizard', 'Produto duplicado selecionado — iniciando fetch em background', { productId, quantity });
 
-    try {
-      // Buscar dados completos do produto
-      const product = await getProductById(productId);
+    getProductById(productId)
+      .then(existingProduct => {
+        logInfo('Wizard', 'Produto duplicado carregado com sucesso', { productId });
 
-      logInfo('Wizard', 'Usando produto existente', {
-        productId: product.id,
-        productName: product.name,
+        const existingWithFlag = {
+          ...(existingProduct as any),
+          _hasWizardVariants: false, // Não pré-selecionar variantes: produto já existe
+        } as Product;
+
+        _wizardCreatedProductBackup = existingWithFlag;
+        setState(prev => ({
+          ...prev,
+          createdProduct: existingWithFlag,
+          hasVariants: false,          // Produto existente: não pré-marcar variantes
+          duplicates: [],              // Limpar para sumir o painel e evitar loop de volta
+          currentStep: 'confirm',      // Navegar diretamente — sem depender de useEffect externo
+          productData: {
+            ...prev.productData,
+            name: existingProduct.name,
+            sku: existingProduct.sku,
+            barcode: existingProduct.barcode || undefined,
+            description: existingProduct.description || undefined,
+            brand: existingProduct.brand || undefined,
+            color: existingProduct.color || undefined,
+            size: existingProduct.size || undefined,
+            gender: existingProduct.gender || undefined,
+            material: existingProduct.material || undefined,
+            category_id: existingProduct.category_id,
+            cost_price: existingProduct.cost_price || undefined,
+            price: existingProduct.price || prev.productData.price,
+          },
+          entryChoice: 'new',
+          isDirty: true,
+        }));
+      })
+      .catch(error => {
+        logError('Wizard', 'Erro ao carregar produto duplicado', {
+          productId,
+          message: error?.message,
+        });
+        showDialog('Erro', 'Não foi possível carregar o produto existente.', 'danger');
       });
-
-      // Usar produto existente e ir para Step 3 do wizard
-      setState(prev => ({
-        ...prev,
-        createdProduct: product,
-        currentStep: 'entry',
-        isDirty: false,
-        isCreating: false,
-      }));
-    } catch (error: any) {
-      logError('Wizard', 'Erro ao buscar produto duplicado', error);
-      setState(prev => ({ ...prev, isCreating: false }));
-      showDialog('Erro', 'Nao foi possivel carregar os dados do produto', 'danger');
-    }
   }, [showDialog]);
+  // ─────────────────────────────────────────────────────────────────────────────
 
   // ============================================
   // STEP 3 - ENTRADA
@@ -639,10 +729,14 @@ export function useProductWizard() {
             product_brand: product.brand,
             product_color: product.color,
             product_size: product.size,
+            product_gender: product.gender,
+            product_material: product.material,
             product_category_id: product.category_id,
             product_cost_price: product.cost_price,
             product_price: product.price,
           }),
+          // Snapshot para restaurar contexto completo ao voltar da entrada.
+          preselectedProductData: JSON.stringify(state.createdProduct),
           preselectedQuantity: String(validQuantity),
         },
       });
@@ -711,6 +805,8 @@ export function useProductWizard() {
             product_barcode: product.barcode ?? undefined,
             product_description: product.description ?? undefined,
             product_brand: product.brand ?? undefined,
+            product_gender: product.gender ?? undefined,
+            product_material: product.material ?? undefined,
             product_category_id: product.category_id,
             base_price: product.price ?? 0,
             variants: variantsWithQty,
@@ -761,19 +857,127 @@ export function useProductWizard() {
   // Processar retorno da tela de criação de entrada
   // Aceita dados do produto opcionalmente (para caso de entrada existente, onde o estado foi perdido)
   const handleEntryCreated = useCallback((entryData: LinkedEntryData, productData?: Partial<Product> | null) => {
+    // Prioridade: params > backup module-level > estado React atual
+    // O backup garante que mesmo um router.replace (novo componente, estado zerado)
+    // ainda consiga exibir o produto correto no WizardComplete.
+    const backup = _wizardCreatedProductBackup;
+    _wizardCreatedProductBackup = null; // Consumido
+    const normalized = normalizeRouteProductData(productData as any);
+    const normalizedHasVariants =
+      typeof (normalized as any)?._hasWizardVariants === 'boolean'
+        ? (normalized as any)._hasWizardVariants
+        : Array.isArray((normalized as any)?.variants)
+          ? (normalized as any).variants.length > 0
+          : undefined;
+
     setState(prev => ({
       ...prev,
       linkedEntry: entryData,
-      // Se tiver productData e não tiver createdProduct, restaurar
-      // productData tem prioridade sobre o sentinel local (que pode ter perdido estado após router.replace)
-      createdProduct: productData ? productData as Product : prev.createdProduct,
+      identifyMethod: prev.identifyMethod ?? (normalized?.name ? 'manual' : prev.identifyMethod),
+      productData: {
+        ...prev.productData,
+        ...(normalized?.name ? {
+          name: normalized.name,
+          sku: normalized.sku,
+          barcode: normalized.barcode || undefined,
+          description: normalized.description || undefined,
+          brand: normalized.brand || undefined,
+          color: normalized.color || undefined,
+          size: normalized.size || undefined,
+          gender: normalized.gender || undefined,
+          material: normalized.material || undefined,
+          category_id: normalized.category_id,
+          cost_price: normalized.cost_price || undefined,
+          price: normalized.price || prev.productData.price,
+        } : {}),
+      },
+      createdProduct: (normalized as Product) ?? backup ?? prev.createdProduct,
+      hasVariants: normalizedHasVariants ?? prev.hasVariants,
       currentStep: 'complete',
       isDirty: false,
     }));
   }, []);
 
-  const goToExistingEntry = useCallback((quantity: number = 1) => {
+  const restoreFromRoute = useCallback((step: WizardStep, productData?: any) => {
+    const normalized = normalizeRouteProductData(productData);
+    const normalizedHasVariants =
+      typeof (normalized as any)?._hasWizardVariants === 'boolean'
+        ? (normalized as any)._hasWizardVariants
+        : Array.isArray((normalized as any)?.variants)
+          ? (normalized as any).variants.length > 0
+          : undefined;
+
+    setState(prev => ({
+      ...prev,
+      identifyMethod: prev.identifyMethod ?? (normalized?.name ? 'manual' : prev.identifyMethod),
+      productData: {
+        ...prev.productData,
+        ...(normalized?.name ? {
+          name: normalized.name,
+          sku: normalized.sku,
+          barcode: normalized.barcode || undefined,
+          description: normalized.description || undefined,
+          brand: normalized.brand || undefined,
+          color: normalized.color || undefined,
+          size: normalized.size || undefined,
+          gender: normalized.gender || undefined,
+          material: normalized.material || undefined,
+          category_id: normalized.category_id,
+          cost_price: normalized.cost_price || undefined,
+          price: normalized.price || prev.productData.price,
+        } : {}),
+      },
+      createdProduct:
+        step === 'entry' || step === 'complete'
+          ? (normalized as Product) ?? prev.createdProduct
+          : prev.createdProduct,
+      hasVariants:
+        normalized
+          ? (normalizedHasVariants ?? false)
+          : prev.hasVariants,
+      currentStep: step,
+      isDirty: true,
+    }));
+  }, []);
+
+  const goToExistingEntry = useCallback(async (quantity: number = 1) => {
     if (!state.createdProduct) return;
+
+    const productAny = state.createdProduct as any;
+
+    // Produto simples virtual: criar na API antes de vincular a entrada existente
+    if (productAny._virtual) {
+      setState(prev => ({ ...prev, isCreating: true }));
+      try {
+        const { _virtual, ...productPayload } = productAny;
+        const realProduct = await createProduct({ ...productPayload, is_catalog: true } as any);
+        queryClient.invalidateQueries({ queryKey: ['products'] });
+        _wizardCreatedProductBackup = realProduct;
+        setState(prev => ({ ...prev, createdProduct: realProduct as Product, isCreating: false }));
+        // Navegar com o produto real recém-criado
+        router.push({
+          pathname: '/entries',
+          params: {
+            selectMode: 'true',
+            fromWizard: 'true',
+            productToLink: JSON.stringify({
+              id: realProduct.id,
+              name: realProduct.name,
+              sku: realProduct.sku,
+              cost_price: realProduct.cost_price,
+              price: realProduct.price,
+              category_id: realProduct.category_id,
+              quantity,
+            }),
+          },
+        });
+        return;
+      } catch (err: any) {
+        setState(prev => ({ ...prev, isCreating: false }));
+        showDialog('Erro', 'Não foi possível criar o produto. Tente novamente.', 'danger');
+        return;
+      }
+    }
 
     logInfo('Wizard', 'goToExistingEntry - navegando para entries', {
       productId: state.createdProduct.id,
@@ -823,6 +1027,8 @@ export function useProductWizard() {
           name: product.name,
           description: product.description,
           brand: product.brand,
+          gender: product.gender,
+          material: product.material,
           category_id: product.category_id,
           base_price: product.price,
           is_catalog: true, // Catálogo: ativado quando a entrada for vinculada
@@ -839,6 +1045,7 @@ export function useProductWizard() {
           is_active: true,
         } as any;
 
+        _wizardCreatedProductBackup = product; // Backup para sobreviver router.replace
         setState(prev => ({ ...prev, createdProduct: product as Product, isCreating: false }));
         queryClient.invalidateQueries({ queryKey: ['products'] });
         queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
@@ -855,15 +1062,14 @@ export function useProductWizard() {
       }
     }
 
-    // Montar payload com variantes e quantidades
-    // Para o caso atômico: variantQtys usa índices temporários (0, 1, 2...) como chave.
-    // Após criação da API, product.variants tem IDs reais → mapear por índice.
+    // Montar payload com variantes e quantidades.
+    // variantQtys é keyed por v.id:
+    //   - Fluxo atômico (criado agora): id temporário = índice (0,1,2) → usar idx
+    //   - Fluxo direto (produto existente): id real do banco → usar v.id
+    // A expressão idx ?? v.id cobre ambos os casos corretamente.
     const finalVariants: any[] = (product as any).variants ?? variants;
-    const wasAtomicVariants = !(product as any)._atomicVariants; // já foi criado, flag removida
     const variantsPayload = finalVariants
       .map((v: any, idx: number) => {
-        // Se veio do fluxo atômico: índice era o mapeamento de qtd
-        // Se veio direto: v.id é o ID real no banco
         const qty = variantQtys[idx] ?? variantQtys[v.id] ?? 0;
         return {
           variant_id: v.id,
@@ -909,26 +1115,104 @@ export function useProductWizard() {
 
   const skipEntry = useCallback(() => {
     const product = state.createdProduct as any;
-    // Apenas chamar updateProduct se o produto realmente existe no banco (não é virtual)
-    if (state.createdProduct?.id && state.createdProduct.id > 0 && !product?._atomicVariants) {
-      updateProduct(state.createdProduct.id, { is_catalog: true } as any).catch(err => {
+
+    // PRODUTO SIMPLES VIRTUAL: nunca foi criado no banco.
+    // Criar como catálogo agora (usuário escolheu explicitamente pular a entrada).
+    if (product?._virtual) {
+      setState(prev => ({ ...prev, isCreating: true }));
+      const { _virtual, ...productPayload } = product;
+      createProduct({ ...productPayload, is_catalog: true } as any).then((created) => {
+        queryClient.invalidateQueries({ queryKey: ['products'], refetchType: 'none' });
+        queryClient.invalidateQueries({ queryKey: ['grouped-products'], refetchType: 'none' });
+        queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'], refetchType: 'none' });
+        setState(prev => ({
+          ...prev,
+          createdProduct: created as Product,
+          linkedEntry: null,
+          currentStep: 'complete',
+          isDirty: false,
+          isCreating: false,
+        }));
+      }).catch((err: any) => {
+        logError('Wizard', 'skipEntry - erro ao criar produto virtual no catálogo', err);
+        setState(prev => ({ ...prev, isCreating: false }));
+        showDialog('Erro', 'Não foi possível salvar o produto. Tente novamente.', 'danger');
+      });
+      return;
+    }
+
+    // PRODUTO COM VARIANTES VIRTUAL: nunca foi criado no banco.
+    // Criar como catálogo agora para não perder os dados configurados pelo usuário.
+    if (product?._atomicVariants) {
+      setState(prev => ({ ...prev, isCreating: true }));
+      const variantsList: ProductVariantCreate[] = (product.variants ?? []).map((v: any) => ({
+        sku: v.sku,
+        size: v.size || undefined,
+        color: v.color || undefined,
+        price: v.price,
+        cost_price: v.cost_price,
+      }));
+      createProductWithVariants({
+        name: product.name,
+        description: product.description,
+        brand: product.brand,
+        gender: product.gender,
+        material: product.material,
+        category_id: product.category_id,
+        base_price: product.price,
+        is_catalog: true,
+        variants: variantsList,
+      }).then((created) => {
+        const createdProduct = {
+          ...created,
+          sku: created.variants?.[0]?.sku || product.sku,
+          price: created.base_price ?? created.variants?.[0]?.price ?? 0,
+          cost_price: created.variants?.[0]?.cost_price ?? undefined,
+          current_stock: 0,
+          min_stock_threshold: 5,
+          is_active: true,
+        } as any;
+        _wizardCreatedProductBackup = createdProduct;
+        queryClient.invalidateQueries({ queryKey: ['products'], refetchType: 'none' });
+        queryClient.invalidateQueries({ queryKey: ['grouped-products'], refetchType: 'none' });
+        queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'], refetchType: 'none' });
+        setState(prev => ({
+          ...prev,
+          createdProduct: createdProduct as Product,
+          linkedEntry: null,
+          currentStep: 'complete',
+          isDirty: false,
+          isCreating: false,
+        }));
+      }).catch((err: any) => {
+        logError('Wizard', 'skipEntry - erro ao criar produto atômico no catálogo', err);
+        setState(prev => ({ ...prev, isCreating: false }));
+        showDialog('Erro', 'Não foi possível salvar o produto. Tente novamente.', 'danger');
+      });
+      return;
+    }
+
+    // Produto simples: atualizar is_catalog se necessário (silencioso — não mostrar loading)
+    if (state.createdProduct?.id && state.createdProduct.id > 0) {
+      updateProduct(state.createdProduct.id, { is_catalog: true } as any, skipLoading()).catch(err => {
         logWarn('Wizard', 'Falha ao restaurar is_catalog=True no skipEntry', err);
       });
     }
 
     setState(prev => ({
       ...prev,
-      linkedEntry: null, // Sem entrada vinculada
+      linkedEntry: null,
       currentStep: 'complete',
       isDirty: false,
     }));
-  }, [state.createdProduct]);
+  }, [state.createdProduct, queryClient, showDialog]);
 
   // ============================================
   // UTILS
   // ============================================
 
   const resetWizard = useCallback(() => {
+    _wizardCreatedProductBackup = null;
     setState(INITIAL_STATE);
   }, []);
 
@@ -986,7 +1270,7 @@ export function useProductWizard() {
     setIsEditing,
     validateProductData,
     createProduct: handleCreateProduct,
-    addStockToDuplicate,
+    selectDuplicateProduct,
 
     // Variant management - COM SINCRONIZAÇÃO AUTOMÁTICA
     setHasVariants: useCallback((value: boolean) => {
@@ -1080,6 +1364,7 @@ export function useProductWizard() {
 
     // Step 4 - Complete (retorno de entrada)
     handleEntryCreated,
+    restoreFromRoute,
 
     // Utils
     resetWizard,

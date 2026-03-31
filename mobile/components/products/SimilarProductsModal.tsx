@@ -30,7 +30,8 @@ interface SimilarProductsModalProps {
   visible: boolean;
   duplicates: DuplicateMatch[];
   scannedName: string;
-  onUseProduct: (productId: number, productName: string) => void;
+  onUseProduct: (productId: number, productName: string, quantity: number) => void;
+  onCreateVariant?: (productId: number) => void;
   onCreateNew: () => void;
 }
 
@@ -60,6 +61,7 @@ export default function SimilarProductsModal({
   duplicates,
   scannedName,
   onUseProduct,
+  onCreateVariant,
   onCreateNew,
 }: SimilarProductsModalProps) {
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -147,7 +149,7 @@ export default function SimilarProductsModal({
         )}
 
         <Text style={styles.hint}>
-          Antes de criar, verifique se é um produto existente. Toque em "Usar este" para adicionar estoque.
+          Verifique se o produto já existe no catálogo antes de criar um novo.
         </Text>
 
         {/* Lista de similares */}
@@ -158,6 +160,7 @@ export default function SimilarProductsModal({
         >
           {duplicates.map((dup) => {
             const color = scoreColor(dup.similarity_score);
+            const isActive = activeId === dup.product_id;
             return (
               <View key={dup.product_id} style={styles.dupCard}>
                 {/* Score pill */}
@@ -172,7 +175,7 @@ export default function SimilarProductsModal({
                   </Text>
                 </View>
 
-                {/*Product info */}
+                {/* Product info */}
                 <Text style={styles.dupName} numberOfLines={2}>
                   {dup.product_name}
                 </Text>
@@ -180,7 +183,6 @@ export default function SimilarProductsModal({
                 <View style={styles.dupMeta}>
                   <Text style={styles.dupSku}>{dup.sku}</Text>
 
-                  {/* Estoque */}
                   {dup.current_stock !== undefined && dup.current_stock !== null && (
                     <View style={styles.stockBadge}>
                       <Ionicons name="cube-outline" size={12} color={
@@ -196,7 +198,6 @@ export default function SimilarProductsModal({
                     </View>
                   )}
 
-                  {/* Custo */}
                   {dup.cost_price != null && dup.cost_price > 0 && (
                     <Text style={styles.dupCost}>
                       Custo: R$ {Number(dup.cost_price).toFixed(2)}
@@ -204,27 +205,36 @@ export default function SimilarProductsModal({
                   )}
                 </View>
 
-                {/* Reason */}
                 <Text style={styles.dupReason}>{dup.reason}</Text>
 
-                {/* CTA */}
-                <TouchableOpacity
-                  style={styles.useBtn}
-                  onPress={() => onUseProduct(dup.product_id, dup.product_name)}
-                  activeOpacity={0.75}
-                >
-                  <LinearGradient
-                    colors={[color + 'CC', color]}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.useBtnGradient}
+                <View style={styles.actionRow}>
+                  <TouchableOpacity
+                    style={[styles.useBtn, styles.useBtnFlex]}
+                    onPress={() => onUseProduct(dup.product_id, dup.product_name, 1)}
+                    activeOpacity={0.75}
                   >
-                    <Ionicons name="add-circle-outline" size={16} color="#fff" />
-                    <Text style={styles.useBtnText}>
-                      {dup.current_stock === 0 ? 'Repor estoque' : 'Usar este produto'}
-                    </Text>
-                  </LinearGradient>
-                </TouchableOpacity>
+                    <LinearGradient
+                      colors={[color + 'CC', color]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={styles.useBtnGradient}
+                    >
+                      <Ionicons name="add-circle-outline" size={16} color="#fff" />
+                      <Text style={styles.useBtnText}>Repor estoque</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+
+                  {onCreateVariant && (
+                    <TouchableOpacity
+                      style={styles.variantBtn}
+                      onPress={() => onCreateVariant(dup.product_id)}
+                      activeOpacity={0.75}
+                    >
+                      <Ionicons name="color-palette-outline" size={15} color={Colors.light.textSecondary} />
+                      <Text style={styles.variantBtnText}>Nova variação</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
               </View>
             );
           })}
@@ -422,10 +432,20 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
 
+  actionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+    alignItems: 'stretch',
+  },
   useBtn: {
     borderRadius: 10,
     overflow: 'hidden',
     marginTop: 4,
+  },
+  useBtnFlex: {
+    flex: 1,
+    marginTop: 0,
   },
   useBtnGradient: {
     flexDirection: 'row',
@@ -438,6 +458,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#fff',
+  },
+  variantBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.backgroundSecondary,
+  },
+  variantBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
   },
 
   footer: {

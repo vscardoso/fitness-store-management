@@ -1,19 +1,28 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   ScrollView,
   RefreshControl,
   TouchableOpacity,
   Dimensions,
 } from 'react-native';
-import { Text, Card } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
 import { useQuery } from '@tanstack/react-query';
 import { getLowStockProducts } from '@/services/productService';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
+import PageHeader from '@/components/layout/PageHeader';
 import { useAuth } from '@/hooks/useAuth';
 
 const { width } = Dimensions.get('window');
@@ -31,7 +40,40 @@ interface ManagementModule {
 export default function ManagementScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const brandingColors = useBrandingColors();
   const [refreshing, setRefreshing] = useState(false);
+
+  // ── Animação de entrada ──
+  const headerOpacity  = useSharedValue(0);
+  const headerScale    = useSharedValue(0.94);
+  const contentOpacity = useSharedValue(0);
+  const contentTransY  = useSharedValue(24);
+
+  useFocusEffect(
+    useCallback(() => {
+      headerOpacity.value  = 0;
+      headerScale.value    = 0.94;
+      contentOpacity.value = 0;
+      contentTransY.value  = 24;
+
+      headerOpacity.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.quad) });
+      headerScale.value   = withSpring(1, { damping: 16, stiffness: 200 });
+      const t = setTimeout(() => {
+        contentOpacity.value = withTiming(1, { duration: 340 });
+        contentTransY.value  = withSpring(0, { damping: 18, stiffness: 200 });
+      }, 140);
+      return () => clearTimeout(t);
+    }, [])
+  );
+
+  const headerAnimStyle  = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTransY.value }],
+  }));
 
   // Query para badge de low-stock
   const { data: lowStockProducts, refetch } = useQuery({
@@ -55,7 +97,7 @@ export default function ManagementScreen() {
       title: 'Produtos',
       subtitle: 'Catálogo completo',
       icon: 'cube',
-      colors: [Colors.light.primary, Colors.light.secondary],
+      colors: [brandingColors.primary, brandingColors.secondary],
       route: '/(tabs)/products',
       badge: lowStockCount > 0 ? lowStockCount : undefined,
     },
@@ -101,7 +143,7 @@ export default function ManagementScreen() {
       subtitle: 'Organizar produtos',
       icon: 'pricetags',
       colors: ['#a8edea', '#fed6e3'],
-      route: '/categories',
+      route: '/(tabs)/categories',
     },
   ];
 
@@ -112,7 +154,7 @@ export default function ManagementScreen() {
       onPress={() => router.push(module.route as any)}
       activeOpacity={0.7}
     >
-      <Card style={styles.moduleCardInner}>
+      <View style={styles.moduleCardInner}>
         <LinearGradient
           colors={module.colors}
           start={{ x: 0, y: 0 }}
@@ -128,7 +170,7 @@ export default function ManagementScreen() {
 
           {/* Icon */}
           <View style={styles.moduleIconContainer}>
-            <Ionicons name={module.icon} size={40} color="#fff" />
+            <Ionicons name={module.icon} size={32} color="#fff" />
           </View>
 
           {/* Content */}
@@ -142,33 +184,21 @@ export default function ManagementScreen() {
             <Ionicons name="chevron-forward" size={24} color="#fff" />
           </View>
         </LinearGradient>
-      </Card>
+      </View>
     </TouchableOpacity>
   );
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerContent}>
-            <View style={styles.headerInfo}>
-              <Text style={styles.greeting}>
-                Gestão Completa 📈
-              </Text>
-              <Text style={styles.headerSubtitle}>
-                {user?.store_name ? `${user.store_name} - Fitness Store` : 'Fitness Store Management'}
-              </Text>
-            </View>
-          </View>
-        </LinearGradient>
-      </View>
+      {/* ── Header animado ── */}
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title="Gestão"
+          subtitle={user?.store_name || 'Fitness Store Management'}
+        />
+      </Animated.View>
 
+      <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.content}
@@ -176,7 +206,7 @@ export default function ManagementScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[Colors.light.primary]}
+            colors={[brandingColors.primary]}
           />
         }
         showsVerticalScrollIndicator={false}
@@ -187,7 +217,7 @@ export default function ManagementScreen() {
             <Ionicons
               name="briefcase"
               size={20}
-              color={Colors.light.primary}
+              color={brandingColors.primary}
             />
             <Text style={styles.sectionTitle}>Operações</Text>
           </View>
@@ -201,7 +231,7 @@ export default function ManagementScreen() {
         {/* Seção: Controle */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="settings" size={20} color={Colors.light.primary} />
+            <Ionicons name="settings" size={20} color={brandingColors.primary} />
             <Text style={styles.sectionTitle}>Controle</Text>
           </View>
           <View style={styles.modulesGrid}>
@@ -214,6 +244,7 @@ export default function ManagementScreen() {
         {/* Espaçamento */}
         <View style={styles.bottomSpacing} />
       </ScrollView>
+      </Animated.View>
     </View>
   );
 }
@@ -222,37 +253,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
-  },
-
-  // Header Premium (idêntic o a index.tsx)
-  headerContainer: {
-    marginBottom: theme.spacing.md,
-  },
-  headerGradient: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  headerInfo: {
-    flex: 1,
-  },
-  greeting: {
-    fontSize: theme.fontSize.xxl,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: theme.spacing.xs,
-  },
-  headerSubtitle: {
-    fontSize: theme.fontSize.md,
-    color: '#fff',
-    opacity: 0.9,
   },
 
   // Content
@@ -282,21 +282,24 @@ const styles = StyleSheet.create({
 
   // Modules Grid
   modulesGrid: {
-    gap: theme.spacing.md,
+    gap: theme.spacing.sm + 2,
   },
   moduleCard: {
     width: '100%',
   },
   moduleCardInner: {
     borderRadius: theme.borderRadius.xl,
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.md,
     overflow: 'hidden',
   },
   moduleGradient: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: theme.spacing.lg,
-    minHeight: 100,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.md,
+    minHeight: 92,
     position: 'relative',
   },
 
@@ -323,13 +326,13 @@ const styles = StyleSheet.create({
 
   // Icon
   moduleIconContainer: {
-    width: 72,
-    height: 72,
+    width: 58,
+    height: 58,
     borderRadius: theme.borderRadius.xl,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: theme.spacing.md,
+    marginRight: theme.spacing.sm,
   },
 
   // Content
@@ -337,15 +340,16 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   moduleTitle: {
-    fontSize: theme.fontSize.xl,
-    fontWeight: '700',
+    fontSize: theme.fontSize.lg,
+    fontWeight: '800',
     color: '#fff',
-    marginBottom: 4,
+    marginBottom: 2,
   },
   moduleSubtitle: {
     fontSize: theme.fontSize.sm,
     color: '#fff',
-    opacity: 0.9,
+    opacity: 0.92,
+    lineHeight: 17,
   },
 
   // Arrow

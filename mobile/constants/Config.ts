@@ -13,7 +13,7 @@
 // ============================================================================
 
 // let MODE = 'local' as 'local' | 'tunnel';
-let MODE = 'tunnel' as 'local' | 'tunnel';
+let MODE = 'local' as 'local' | 'tunnel';
 
 // IP do PC na rede WiFi — atualizado por .\use_local.ps1 ou manualmente via ipconfig
 let LOCAL_IP = '192.168.100.158';

@@ -857,14 +857,23 @@ async def get_sales_by_period(
             end_date=last_day,
             tenant_id=tenant_id
         )
-        
-        # Aplicar paginação
+
+        # Separar vendas por status
+        ESTORNO_STATUSES = {"cancelled", "refunded", "partially_refunded"}
+        completed = [s for s in sales if s.status not in ESTORNO_STATUSES]
+        estornos  = [s for s in sales if s.status in ESTORNO_STATUSES]
+
+        # Totais apenas das vendas efetivadas
+        total_sales   = sum(float(s.total_amount) for s in completed)
+        total_count   = len(completed)
+
+        # Totais de estornos
+        estorno_count  = len(estornos)
+        estorno_amount = sum(float(s.total_amount) for s in estornos)
+
+        # Paginação sobre todas as vendas (para exibir lista completa)
         paginated_sales = sales[skip:skip + limit]
-        
-        # Calcular totais do período
-        total_sales = sum(float(s.total_amount) for s in sales)
-        total_count = len(sales)
-        
+
         return {
             "sales": paginated_sales,
             "summary": {
@@ -872,11 +881,14 @@ async def get_sales_by_period(
                 "total_sales": total_sales,
                 "total_count": total_count,
                 "average_ticket": total_sales / total_count if total_count > 0 else 0.0,
+                "estorno_count": estorno_count,
+                "estorno_amount": estorno_amount,
+                "net_sales": total_sales - estorno_amount,
             },
             "pagination": {
                 "skip": skip,
                 "limit": limit,
-                "total": total_count,
+                "total": len(sales),
             },
         }
         
@@ -929,6 +941,7 @@ async def get_top_products(
     from sqlalchemy import func, desc
     from app.models.sale import Sale, SaleItem
     from app.models.product import Product
+    from app.models.product_variant import ProductVariant
     from app.models.category import Category
 
     tz = ZoneInfo("America/Sao_Paulo")
@@ -989,9 +1002,12 @@ async def get_top_products(
         query = (
             sa_select(
                 Product.id.label('product_id'),
+                SaleItem.variant_id.label('variant_id'),
                 Product.name.label('product_name'),
                 Product.brand,
-                Product.sku,
+                func.coalesce(ProductVariant.sku, Product.sku).label('sku'),
+                ProductVariant.size.label('variant_size'),
+                ProductVariant.color.label('variant_color'),
                 Product.base_price.label('current_price'),
                 Category.name.label('category_name'),
                 func.sum(SaleItem.quantity).label('quantity_sold'),
@@ -1000,14 +1016,19 @@ async def get_top_products(
             )
             .select_from(SaleItem)
             .join(Sale, SaleItem.sale_id == Sale.id)
-            .join(Product, SaleItem.product_id == Product.id)
+            .outerjoin(ProductVariant, SaleItem.variant_id == ProductVariant.id)
+            .join(Product, Product.id == func.coalesce(SaleItem.product_id, ProductVariant.product_id))
             .outerjoin(Category, Product.category_id == Category.id)
             .where(and_(*conditions))
             .group_by(
                 Product.id,
+                SaleItem.variant_id,
                 Product.name,
                 Product.brand,
                 Product.sku,
+                ProductVariant.sku,
+                ProductVariant.size,
+                ProductVariant.color,
                 Product.base_price,
                 Category.name
             )
@@ -1048,12 +1069,23 @@ async def get_top_products(
             if quantity > max_quantity:
                 max_quantity = quantity
 
+            variant_label_parts = []
+            if row.variant_color:
+                variant_label_parts.append(str(row.variant_color))
+            if row.variant_size:
+                variant_label_parts.append(str(row.variant_size))
+            variant_label = ' • '.join(variant_label_parts) if variant_label_parts else None
+
             products.append({
                 "ranking": idx + 1,
                 "product_id": row.product_id,
+                "variant_id": row.variant_id,
                 "product_name": row.product_name,
                 "brand": row.brand or "",
                 "sku": row.sku or "",
+                "variant_size": row.variant_size,
+                "variant_color": row.variant_color,
+                "variant_label": variant_label,
                 "category": row.category_name or "Sem categoria",
                 "current_price": float(row.current_price or 0),
                 "quantity_sold": quantity,

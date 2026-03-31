@@ -1,20 +1,18 @@
 import { useState, useEffect } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   ScrollView,
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
 } from 'react-native';
-import {
-  Text,
-  Card,
-} from 'react-native-paper';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
+import { Card } from 'react-native-paper';
 import PageHeader from '@/components/layout/PageHeader';
 import InfoRow from '@/components/ui/InfoRow';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -25,11 +23,13 @@ import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { getEntryTypeLabel, getEntryTypeColor, getEntryTypeIcon } from '@/constants/entryTypes';
 import { useTutorialContext } from '@/components/tutorial';
+import { useBrandingColors } from '@/store/brandingStore';
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/products');
+  const brandingColors = useBrandingColors();
   const queryClient = useQueryClient();
   const { startTutorial } = useTutorialContext();
 
@@ -263,7 +263,7 @@ export default function ProductDetailsScreen() {
       >
         {/* ── ESTOQUE + PREÇO (quick cards) ── */}
         <View style={styles.quickGrid}>
-          <View style={[styles.quickCard, { borderLeftColor: stockColor }]}>
+          <View style={styles.quickCard}>
             <View style={[styles.quickIconWrap, { backgroundColor: stockColor + '20' }]}>
               <Ionicons
                 name={isOutOfStock ? 'alert-circle-outline' : 'cube-outline'}
@@ -284,7 +284,7 @@ export default function ProductDetailsScreen() {
             </View>
           </View>
 
-          <View style={[styles.quickCard, { borderLeftColor: Colors.light.primary }]}>
+          <View style={styles.quickCard}>
             <View style={[styles.quickIconWrap, { backgroundColor: Colors.light.primary + '20' }]}>
               <Ionicons name="pricetag-outline" size={22} color={Colors.light.primary} />
             </View>
@@ -304,8 +304,8 @@ export default function ProductDetailsScreen() {
 
         {/* ── VARIAÇÕES — grid 2 colunas ── */}
         {hasVariants && (
-          <Card style={styles.card}>
-            <Card.Content>
+          <View style={styles.card}>
+            <View style={styles.cardInner}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderIcon}>
                   <Ionicons name="layers-outline" size={20} color={Colors.light.primary} />
@@ -380,13 +380,13 @@ export default function ProductDetailsScreen() {
                   );
                 })}
               </View>
-            </Card.Content>
-          </Card>
+            </View>
+          </View>
         )}
 
         {/* ── INFORMAÇÕES DO PRODUTO ── */}
-        <Card style={styles.card}>
-          <Card.Content>
+        <View style={styles.card}>
+          <View style={styles.cardInner}>
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderIcon}>
                 <Ionicons name="clipboard-outline" size={20} color={Colors.light.primary} />
@@ -431,13 +431,13 @@ export default function ProductDetailsScreen() {
                 <Text style={styles.descriptionText}>{product.description}</Text>
               </View>
             )}
-          </Card.Content>
-        </Card>
+          </View>
+        </View>
 
         {/* ── PREÇOS (somente produto simples) ── */}
         {!hasVariants && (
-          <Card style={styles.card}>
-            <Card.Content>
+          <View style={styles.card}>
+            <View style={styles.cardInner}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderIcon}>
                   <Ionicons name="cash-outline" size={20} color={Colors.light.primary} />
@@ -446,7 +446,7 @@ export default function ProductDetailsScreen() {
               </View>
               <View style={styles.pricingRow}>
                 {product.cost_price != null && product.cost_price > 0 && (
-                  <View style={[styles.pricingTile, styles.pricingTileCost]}>
+                  <View style={styles.pricingTile}>
                     <Ionicons name="trending-down" size={22} color={Colors.light.warning} style={{ marginBottom: 6 }} />
                     <Text style={styles.pricingLabel}>Custo</Text>
                     <Text style={[styles.pricingValue, { color: Colors.light.warning }]}>
@@ -454,7 +454,7 @@ export default function ProductDetailsScreen() {
                     </Text>
                   </View>
                 )}
-                <View style={[styles.pricingTile, styles.pricingTileSale]}>
+                <View style={styles.pricingTile}>
                   <Ionicons name="pricetag" size={22} color={Colors.light.primary} style={{ marginBottom: 6 }} />
                   <Text style={styles.pricingLabel}>Venda</Text>
                   <Text style={[styles.pricingValue, { color: Colors.light.primary }]}>
@@ -462,7 +462,7 @@ export default function ProductDetailsScreen() {
                   </Text>
                 </View>
                 {product.cost_price != null && product.cost_price > 0 && (
-                  <View style={[styles.pricingTile, styles.pricingTileMargin]}>
+                  <View style={styles.pricingTile}>
                     <Ionicons name="trending-up" size={22} color={Colors.light.success} style={{ marginBottom: 6 }} />
                     <Text style={styles.pricingLabel}>Margem</Text>
                     <Text style={[styles.pricingValue, { color: Colors.light.success }]}>
@@ -472,8 +472,8 @@ export default function ProductDetailsScreen() {
                 )}
               </View>
               <Text style={styles.minStockNote}>Estoque mínimo: {minStock} unidades</Text>
-            </Card.Content>
-          </Card>
+            </View>
+          </View>
         )}
 
         {/* ── ENTRADAS DE ESTOQUE ── */}
@@ -486,8 +486,8 @@ export default function ProductDetailsScreen() {
           const totalSold = totalReceived - totalRemaining;
 
           return (
-            <Card style={styles.card}>
-              <Card.Content>
+            <View style={styles.card}>
+              <View style={styles.cardInner}>
                 {/* Header */}
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderIcon}>
@@ -606,41 +606,54 @@ export default function ProductDetailsScreen() {
                     );
                   })}
                 </View>
-              </Card.Content>
-            </Card>
+              </View>
+            </View>
           );
         })()}
 
-        {/* ── ETIQUETAS ── */}
-        <View style={styles.labelRow}>
-          <TouchableOpacity
-            style={[styles.labelCard, styles.labelCardHalf]}
-            onPress={() => router.push(`/products/label/${productId}` as any)}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.quickIconWrap, { backgroundColor: Colors.light.primary + '18' }]}>
-              <Ionicons name="qr-code-outline" size={18} color={Colors.light.primary} />
+        {/* ── ETIQUETAS & QR CODE ── */}
+        <Card style={styles.card}>
+          <Card.Content>
+            <View style={styles.cardHeader}>
+              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
+                <Ionicons name="print-outline" size={20} color={brandingColors.primary} />
+              </View>
+              <Text style={styles.cardTitle}>Impressao e Codigo</Text>
             </View>
-            <View style={styles.labelCardContent}>
-              <Text style={styles.labelCardTitle}>Este produto</Text>
-              <Text style={styles.labelCardSub}>Etiquetas rápidas</Text>
-            </View>
-          </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.labelCard, styles.labelCardHalf]}
-            onPress={() => router.push('/products/label' as any)}
-            activeOpacity={0.75}
-          >
-            <View style={[styles.quickIconWrap, { backgroundColor: Colors.light.success + '18' }]}>
-              <Ionicons name="pricetags-outline" size={18} color={Colors.light.success} />
+            <View style={styles.actionList}>
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={() => router.push(`/products/qrcode/${productId}` as any)}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.actionCardIcon, { backgroundColor: Colors.light.info + '16' }]}>
+                  <Ionicons name="qr-code-outline" size={18} color={Colors.light.info} />
+                </View>
+                <View style={styles.actionCardContent}>
+                  <Text style={styles.actionCardTitle}>Identificação</Text>
+                  <Text style={styles.actionCardSub}>QR e etiqueta na mesma tela</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={() => router.push('/products/label' as any)}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.actionCardIcon, { backgroundColor: Colors.light.success + '16' }]}>
+                  <Ionicons name="albums-outline" size={18} color={Colors.light.success} />
+                </View>
+                <View style={styles.actionCardContent}>
+                  <Text style={styles.actionCardTitle}>Estudio</Text>
+                  <Text style={styles.actionCardSub}>Criar etiquetas em lote</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
+              </TouchableOpacity>
             </View>
-            <View style={styles.labelCardContent}>
-              <Text style={styles.labelCardTitle}>Estúdio</Text>
-              <Text style={styles.labelCardSub}>Multi-produto</Text>
-            </View>
-          </TouchableOpacity>
-        </View>
+          </Card.Content>
+        </Card>
 
         <View style={{ height: 32 }} />
       </ScrollView>
@@ -684,7 +697,6 @@ const styles = StyleSheet.create({
     padding: 14,
     borderWidth: 1,
     borderColor: Colors.light.border,
-    borderLeftWidth: 4,
     elevation: 2,
   },
   quickIconWrap: {
@@ -839,18 +851,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     alignItems: 'center',
     borderWidth: 1,
-  },
-  pricingTileCost: {
-    backgroundColor: Colors.light.warning + '10',
-    borderColor: Colors.light.warning + '30',
-  },
-  pricingTileSale: {
-    backgroundColor: Colors.light.primary + '08',
-    borderColor: Colors.light.primary + '25',
-  },
-  pricingTileMargin: {
-    backgroundColor: Colors.light.success + '10',
-    borderColor: Colors.light.success + '30',
+    backgroundColor: Colors.light.card,
+    borderColor: Colors.light.border,
   },
   pricingLabel: {
     fontSize: 10,
@@ -868,28 +870,41 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // ── Label Cards ──
-  labelRow: {
-    flexDirection: 'row',
+  // ── Acoes (Etiqueta, QR, Estudio) ──
+  actionList: {
     gap: 10,
   },
-  labelCardHalf: {
-    flex: 1,
-  },
-  labelCard: {
+  actionCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    backgroundColor: Colors.light.card,
+    backgroundColor: Colors.light.background,
     borderRadius: 12,
-    padding: 14,
+    padding: 12,
     borderWidth: 1,
     borderColor: Colors.light.border,
-    elevation: 2,
   },
-  labelCardContent: { flex: 1 },
-  labelCardTitle: { fontSize: 15, fontWeight: '700', color: Colors.light.text },
-  labelCardSub: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 },
+  actionCardIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionCardContent: {
+    flex: 1,
+    minWidth: 0,
+  },
+  actionCardTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  actionCardSub: {
+    marginTop: 1,
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+  },
 
   // ── Entradas de Estoque ──
   entrySummaryRow: {

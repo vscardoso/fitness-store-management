@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface Badge {
   icon: keyof typeof Ionicons.glyphMap;
@@ -50,6 +51,7 @@ export default function DetailHeader({
   customElement,
 }: DetailHeaderProps) {
   const router = useRouter();
+  const brandingColors = useBrandingColors();
 
   const getBadgeStyle = (type: Badge['type']) => {
     switch (type) {
@@ -67,7 +69,7 @@ export default function DetailHeader({
   return (
     <View style={styles.headerContainer}>
       <LinearGradient
-        colors={['#667eea', '#764ba2']}
+        colors={brandingColors.gradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.headerGradient}
@@ -207,9 +209,8 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   headerInfo: {
-    // Container do título
     alignItems: 'center',
-    marginTop: -16,
+    marginTop: theme.spacing.xs,
   },
   greeting: {
     fontSize: theme.fontSize.xxl,
@@ -247,13 +248,13 @@ const styles = StyleSheet.create({
     borderRadius: 16,
   },
   badgeSuccess: {
-    backgroundColor: 'rgba(76, 175, 80, 0.9)',
+    backgroundColor: Colors.light.success + 'E6',
   },
   badgeWarning: {
-    backgroundColor: 'rgba(255, 152, 0, 0.9)',
+    backgroundColor: Colors.light.warning + 'E6',
   },
   badgeError: {
-    backgroundColor: 'rgba(244, 67, 54, 0.9)',
+    backgroundColor: Colors.light.error + 'E6',
   },
   badgeInfo: {
     backgroundColor: 'rgba(255, 255, 255, 0.25)',

@@ -1,144 +1,159 @@
 /**
  * LoadingOverlay Component
- * Global loading indicator com animações ultra criativas
+ * Global loading indicator — minimal premium design com branding dinâmico
  * Automatically managed by Axios interceptors
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 import { Text, Portal } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
+import { Ionicons } from '@expo/vector-icons';
 import { loadingManager } from '@/services/loadingManager';
-import { CreativeSpinner } from './GradientSpinner';
-import { Colors } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface LoadingOverlayProps {
-  /**
-   * Override visibility state (for testing)
-   */
+  /** Override visibility state (for testing) */
   visible?: boolean;
-  /**
-   * Override message (for testing)
-   */
+  /** Override message (for testing) */
   message?: string;
 }
 
-/**
- * Global loading overlay component
- * Shows during API requests with optional message
- */
 export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
+  const brandingColors = useBrandingColors();
   const [isVisible, setIsVisible] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState<string | undefined>();
   const [showTimeout, setShowTimeout] = useState(false);
 
-  // Animation values for native animations
-  const fadeAnim = useState(new Animated.Value(0))[0];
-  const scaleAnim = useState(new Animated.Value(0.8))[0];
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const pillAnim = useRef(new Animated.Value(0.86)).current;
+  const dot1 = useRef(new Animated.Value(0)).current;
+  const dot2 = useRef(new Animated.Value(0)).current;
+  const dot3 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Subscribe to loading manager
     const unsubscribe = loadingManager.subscribe((state) => {
       setIsVisible(state.isLoading);
       setLoadingMessage(state.message);
       setShowTimeout(state.showTimeout);
     });
-
     return unsubscribe;
   }, []);
 
-  // Allow prop override for testing
   const shouldShow = visible !== undefined ? visible : isVisible;
   const displayMessage = message !== undefined ? message : loadingMessage;
 
-  // Entrada/saída com scaling dramático
+  // Stagger dots — CYCLE 1400ms, STAGGER 400ms, cada step 280ms
+  // Dot 1: rise(280) + fall(280) + delay(840) = 1400 ✓
+  // Dot 2: delay(400) + rise(280) + fall(280) + delay(440) = 1400 ✓
+  // Dot 3: delay(800) + rise(280) + fall(280) + delay(40) = 1400 ✓
+  useEffect(() => {
+    const STEP = 280;
+    const a1 = Animated.loop(
+      Animated.sequence([
+        Animated.timing(dot1, { toValue: 1, duration: STEP, useNativeDriver: true }),
+        Animated.timing(dot1, { toValue: 0, duration: STEP, useNativeDriver: true }),
+        Animated.delay(840),
+      ])
+    );
+    const a2 = Animated.loop(
+      Animated.sequence([
+        Animated.delay(400),
+        Animated.timing(dot2, { toValue: 1, duration: STEP, useNativeDriver: true }),
+        Animated.timing(dot2, { toValue: 0, duration: STEP, useNativeDriver: true }),
+        Animated.delay(440),
+      ])
+    );
+    const a3 = Animated.loop(
+      Animated.sequence([
+        Animated.delay(800),
+        Animated.timing(dot3, { toValue: 1, duration: STEP, useNativeDriver: true }),
+        Animated.timing(dot3, { toValue: 0, duration: STEP, useNativeDriver: true }),
+        Animated.delay(40),
+      ])
+    );
+    a1.start();
+    a2.start();
+    a3.start();
+    return () => {
+      a1.stop();
+      a2.stop();
+      a3.stop();
+    };
+  }, [dot1, dot2, dot3]);
+
+  // Entrada: fade + spring no pill
   useEffect(() => {
     if (shouldShow) {
+      pillAnim.setValue(0.86);
       Animated.parallel([
-        Animated.spring(fadeAnim, {
-          toValue: 1,
-          friction: 6,
-          tension: 40,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          friction: 8,
-          tension: 40,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    } else {
-      Animated.parallel([
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 200,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 0.8,
-          duration: 200,
-          useNativeDriver: true,
-        }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+        Animated.spring(pillAnim, { toValue: 1, friction: 7, tension: 52, useNativeDriver: true }),
       ]).start();
     }
-  }, [shouldShow]);
+  }, [shouldShow, fadeAnim, pillAnim]);
 
-  if (!shouldShow) {
-    return null;
-  }
+  if (!shouldShow) return null;
+
+  const d1Scale = dot1.interpolate({ inputRange: [0, 1], outputRange: [1, 1.7] });
+  const d2Scale = dot2.interpolate({ inputRange: [0, 1], outputRange: [1, 1.7] });
+  const d3Scale = dot3.interpolate({ inputRange: [0, 1], outputRange: [1, 1.7] });
+  const d1Op = dot1.interpolate({ inputRange: [0, 1], outputRange: [0.22, 1] });
+  const d2Op = dot2.interpolate({ inputRange: [0, 1], outputRange: [0.22, 1] });
+  const d3Op = dot3.interpolate({ inputRange: [0, 1], outputRange: [0.22, 1] });
 
   return (
     <Portal>
-      <Animated.View
-        style={[
-          styles.overlay,
-          {
-            opacity: fadeAnim,
-          },
-        ]}
-      >
-        <BlurView intensity={40} style={StyleSheet.absoluteFillObject} />
+      <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+        <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFillObject} />
+        <View style={styles.scrim} />
 
-        <Animated.View
-          style={[
-            styles.content,
-            {
-              transform: [{ scale: scaleAnim }],
-              opacity: fadeAnim,
-            },
-          ]}
-        >
-          {/* Spinner Criativo */}
-          <CreativeSpinner size={100} />
+        <Animated.View style={[styles.pill, { transform: [{ scale: pillAnim }] }]}>
+          {/* 3 stagger dots com cores de branding */}
+          <View style={styles.dotsRow}>
+            <Animated.View
+              style={[
+                styles.dot,
+                {
+                  backgroundColor: brandingColors.primary,
+                  transform: [{ scale: d1Scale }],
+                  opacity: d1Op,
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.dot,
+                {
+                  backgroundColor: brandingColors.secondary,
+                  transform: [{ scale: d2Scale }],
+                  opacity: d2Op,
+                },
+              ]}
+            />
+            <Animated.View
+              style={[
+                styles.dot,
+                {
+                  backgroundColor: brandingColors.accent,
+                  transform: [{ scale: d3Scale }],
+                  opacity: d3Op,
+                },
+              ]}
+            />
+          </View>
 
-          {/* Mensagem */}
-          {displayMessage && (
-            <View style={styles.messageContainer}>
-              <Text style={styles.message}>{displayMessage}</Text>
-            </View>
-          )}
-
-          {!displayMessage && (
-            <View style={styles.messageContainer}>
-              <Text style={styles.defaultMessage}>Carregando...</Text>
-              <View style={styles.dots}>
-                <Animated.View style={[styles.dot, styles.dot1]} />
-                <Animated.View style={[styles.dot, styles.dot2]} />
-                <Animated.View style={[styles.dot, styles.dot3]} />
-              </View>
-            </View>
-          )}
-
-          {/* Aviso de Timeout */}
-          {showTimeout && (
-            <View style={styles.timeoutContainer}>
-              <Text style={styles.timeoutWarning}>
-                ⏱️ Isso está demorando mais que o esperado...
-              </Text>
-            </View>
-          )}
+          {displayMessage ? (
+            <Text style={styles.message}>{displayMessage}</Text>
+          ) : null}
         </Animated.View>
+
+        {showTimeout && (
+          <View style={styles.timeoutRow}>
+            <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.45)" />
+            <Text style={styles.timeoutText}>Operação demorando mais que o esperado</Text>
+          </View>
+        )}
       </Animated.View>
     </Portal>
   );
@@ -152,70 +167,54 @@ const styles = StyleSheet.create({
     zIndex: 9999,
     elevation: 9999,
   },
-  content: {
+  scrim: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+  },
+  pill: {
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
+    gap: 18,
+    paddingVertical: 26,
+    paddingHorizontal: 40,
+    borderRadius: 28,
+    backgroundColor: 'rgba(10, 12, 20, 0.7)',
+    borderWidth: 0.5,
+    borderColor: 'rgba(255, 255, 255, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.4,
+    shadowRadius: 22,
+    elevation: 18,
   },
-  messageContainer: {
-    marginTop: 32,
-    alignItems: 'center',
-    gap: 12,
-  },
-  message: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#fff',
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-    paddingHorizontal: 24,
-    maxWidth: 280,
-  },
-  defaultMessage: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#fff',
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  dots: {
+  dotsRow: {
     flexDirection: 'row',
-    gap: 6,
-    marginTop: 4,
+    alignItems: 'center',
+    gap: 10,
   },
   dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#fff',
-    shadowColor: '#fff',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
   },
-  dot1: {},
-  dot2: {},
-  dot3: {},
-  timeoutContainer: {
-    backgroundColor: Colors.light.warning + 'E0',
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 16,
-    marginTop: 24,
-    borderWidth: 2,
-    borderColor: '#fff',
-  },
-  timeoutWarning: {
-    color: '#fff',
-    textAlign: 'center',
-    fontWeight: '700',
+  message: {
     fontSize: 13,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    color: 'rgba(255, 255, 255, 0.58)',
+    letterSpacing: 0.35,
+    textAlign: 'center',
+    fontWeight: '500',
+    maxWidth: 220,
+    lineHeight: 18,
+  },
+  timeoutRow: {
+    position: 'absolute',
+    bottom: 60,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  timeoutText: {
+    fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.45)',
+    fontWeight: '500',
   },
 });

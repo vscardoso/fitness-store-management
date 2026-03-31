@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -6,12 +6,13 @@ import {
   TouchableOpacity,
   FlatList,
   Dimensions,
-  StatusBar,
+  TextInput,
+  Animated,
+  Text,
 } from 'react-native';
-import { Text, Searchbar } from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import type { Category } from '@/types';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -25,9 +26,35 @@ interface CategoryPickerModalProps {
   showProductCount?: boolean;
 }
 
-/**
- * Modal premium para seleção de categorias com busca e design visual rico
- */
+// ─── Ícone por nome de categoria ─────────────────────────────────────────────
+
+function getCategoryIcon(category: Category): keyof typeof Ionicons.glyphMap {
+  const name = category.name.toLowerCase();
+  if (name.includes('roupa') || name.includes('vestuário') || name.includes('camiseta')) return 'shirt-outline';
+  if (name.includes('calça') || name.includes('legging') || name.includes('shorts')) return 'fitness-outline';
+  if (name.includes('sapato') || name.includes('tênis') || name.includes('calçado')) return 'footsteps-outline';
+  if (name.includes('acessório') || name.includes('relógio') || name.includes('óculos')) return 'watch-outline';
+  if (name.includes('suplemento') || name.includes('whey') || name.includes('proteína')) return 'nutrition-outline';
+  if (name.includes('equipamento') || name.includes('haltere') || name.includes('musculação')) return 'barbell-outline';
+  if (name.includes('feminino') || name.includes('feminina')) return 'woman-outline';
+  if (name.includes('masculino') || name.includes('masculina')) return 'man-outline';
+  if (name.includes('unissex') || name.includes('infantil')) return 'people-outline';
+  if (name.includes('mochila') || name.includes('bolsa') || name.includes('bag')) return 'bag-outline';
+  return 'pricetag-outline';
+}
+
+// Cores neutras para os ícones de categoria (não branding — categorias são entidades neutras)
+const CATEGORY_ICON_COLORS = [
+  '#6366F1', '#8B5CF6', '#EC4899', '#F59E0B',
+  '#10B981', '#3B82F6', '#EF4444', '#06B6D4',
+];
+
+function getCategoryColor(id: number): string {
+  return CATEGORY_ICON_COLORS[id % CATEGORY_ICON_COLORS.length];
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────────
+
 export default function CategoryPickerModal({
   visible,
   categories,
@@ -36,154 +63,117 @@ export default function CategoryPickerModal({
   onDismiss,
   showProductCount = false,
 }: CategoryPickerModalProps) {
+  const brandingColors = useBrandingColors();
   const [searchQuery, setSearchQuery] = useState('');
+  const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+  const backdropAnim = useRef(new Animated.Value(0)).current;
 
-  /**
-   * Filtrar categorias por busca
-   */
+  // ── Animação de entrada/saída ──
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.spring(slideAnim, {
+          toValue: 0,
+          useNativeDriver: true,
+          damping: 22,
+          stiffness: 200,
+        }),
+        Animated.timing(backdropAnim, {
+          toValue: 1,
+          duration: 220,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(slideAnim, {
+          toValue: SCREEN_HEIGHT,
+          duration: 240,
+          useNativeDriver: true,
+        }),
+        Animated.timing(backdropAnim, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [visible]);
+
   const filteredCategories = useMemo(() => {
     if (!searchQuery.trim()) return categories;
-    
-    const query = searchQuery.toLowerCase().trim();
-    return categories.filter((cat) =>
-      cat.name.toLowerCase().includes(query) ||
-      (cat.description && cat.description.toLowerCase().includes(query))
+    const q = searchQuery.toLowerCase().trim();
+    return categories.filter(
+      (cat) =>
+        cat.name.toLowerCase().includes(q) ||
+        (cat.description && cat.description.toLowerCase().includes(q))
     );
   }, [categories, searchQuery]);
 
-  /**
-   * Limpar busca ao fechar
-   */
   const handleDismiss = () => {
     setSearchQuery('');
     onDismiss();
   };
 
-  /**
-   * Selecionar categoria
-   */
   const handleSelect = (category: Category) => {
     setSearchQuery('');
     onSelect(category);
   };
 
-  /**
-   * Obter ícone da categoria (pode ser expandido com lógica de mapeamento)
-   */
-  const getCategoryIcon = (category: Category): keyof typeof Ionicons.glyphMap => {
-    // Mapear por nome ou adicionar campo icon no backend futuramente
-    const name = category.name.toLowerCase();
-    
-    if (name.includes('roupa') || name.includes('vestuário')) return 'shirt-outline';
-    if (name.includes('calça') || name.includes('legging')) return 'fitness-outline';
-    if (name.includes('sapato') || name.includes('tênis')) return 'footsteps-outline';
-    if (name.includes('acessório')) return 'watch-outline';
-    if (name.includes('suplemento')) return 'nutrition-outline';
-    if (name.includes('equipamento')) return 'barbell-outline';
-    if (name.includes('feminino')) return 'woman-outline';
-    if (name.includes('masculino')) return 'man-outline';
-    if (name.includes('unissex')) return 'people-outline';
-    
-    // Ícone padrão
-    return 'pricetag-outline';
-  };
-
-  /**
-   * Obter cor da categoria baseado no ID (gradiente de cores)
-   */
-  const getCategoryColor = (id: number): string => {
-    const colors = [
-      '#6366F1', // Indigo
-      '#8B5CF6', // Purple
-      '#EC4899', // Pink
-      '#F59E0B', // Amber
-      '#10B981', // Emerald
-      '#3B82F6', // Blue
-      '#EF4444', // Red
-      '#06B6D4', // Cyan
-    ];
-    
-    return colors[id % colors.length];
-  };
-
-  /**
-   * Renderizar item da categoria
-   */
-  const renderCategory = ({ item, index }: { item: Category; index: number }) => {
+  // ── Item de categoria ──
+  const renderCategory = ({ item }: { item: Category }) => {
     const isSelected = item.id === selectedId;
-    const categoryColor = getCategoryColor(item.id);
-    const categoryIcon = getCategoryIcon(item);
+    const iconColor = getCategoryColor(item.id);
+    const icon = getCategoryIcon(item);
 
     return (
       <TouchableOpacity
         onPress={() => handleSelect(item)}
         style={[
-          styles.categoryItem,
-          isSelected && styles.categoryItemSelected,
+          styles.item,
+          isSelected && {
+            backgroundColor: brandingColors.primary + '0C',
+            borderColor: brandingColors.primary + '40',
+          },
         ]}
-        activeOpacity={0.7}
+        activeOpacity={0.65}
       >
-        <View style={styles.categoryItemContent}>
-          {/* Ícone */}
-          <View
-            style={[
-              styles.categoryIconContainer,
-              { backgroundColor: categoryColor + '15' },
-            ]}
-          >
-            <Ionicons
-              name={categoryIcon}
-              size={24}
-              color={categoryColor}
-            />
-          </View>
+        {/* Acento esquerdo — visível apenas quando selecionado */}
+        {isSelected && (
+          <View style={[styles.itemAccent, { backgroundColor: brandingColors.primary }]} />
+        )}
 
-          {/* Informações */}
-          <View style={styles.categoryInfo}>
-            <Text style={styles.categoryName}>{item.name}</Text>
-            {item.description && (
-              <Text style={styles.categoryDescription} numberOfLines={1}>
-                {item.description}
-              </Text>
-            )}
-          </View>
-
-          {/* Indicador de seleção */}
-          {isSelected && (
-            <View style={styles.selectedIndicator}>
-              <Ionicons name="checkmark-circle" size={24} color={Colors.light.success} />
-            </View>
-          )}
+        {/* Ícone */}
+        <View style={[styles.iconBox, { backgroundColor: iconColor + '15' }]}>
+          <Ionicons name={icon} size={22} color={iconColor} />
         </View>
 
-        {/* Borda colorida para item selecionado */}
-        {isSelected && (
-          <View
-            style={[
-              styles.selectedBorder,
-              { backgroundColor: Colors.light.success },
-            ]}
-          />
+        {/* Texto */}
+        <View style={styles.itemText}>
+          <Text style={styles.itemName}>{item.name}</Text>
+          {item.description ? (
+            <Text style={styles.itemDesc} numberOfLines={1}>{item.description}</Text>
+          ) : null}
+        </View>
+
+        {/* Indicador de seleção */}
+        {isSelected ? (
+          <Ionicons name="checkmark-circle" size={22} color={brandingColors.primary} />
+        ) : (
+          <Ionicons name="chevron-forward" size={16} color={Colors.light.textTertiary} />
         )}
       </TouchableOpacity>
     );
   };
 
-  /**
-   * Renderizar lista vazia
-   */
   const renderEmpty = () => (
-    <View style={styles.emptyContainer}>
-      <View style={styles.emptyIconContainer}>
-        <Ionicons name="search-outline" size={64} color={Colors.light.textTertiary} />
-      </View>
+    <View style={styles.empty}>
+      <Ionicons name="search-outline" size={48} color={Colors.light.textTertiary} />
       <Text style={styles.emptyTitle}>
         {searchQuery ? 'Nenhuma categoria encontrada' : 'Sem categorias'}
       </Text>
-      <Text style={styles.emptyMessage}>
-        {searchQuery
-          ? 'Tente buscar com outros termos'
-          : 'Cadastre categorias primeiro'}
+      <Text style={styles.emptySubtitle}>
+        {searchQuery ? 'Tente outros termos' : 'Cadastre categorias primeiro'}
       </Text>
     </View>
   );
@@ -192,261 +182,259 @@ export default function CategoryPickerModal({
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
-      onRequestClose={handleDismiss}
       statusBarTranslucent
+      animationType="none"
+      onRequestClose={handleDismiss}
     >
-      <View style={styles.modalOverlay}>
-        <StatusBar backgroundColor="rgba(0, 0, 0, 0.5)" barStyle="light-content" />
-        
-        {/* Fundo escuro clicável para fechar */}
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={handleDismiss}
-        />
+      {/* Backdrop animado */}
+      <Animated.View
+        style={[styles.backdrop, { opacity: backdropAnim }]}
+        pointerEvents="box-none"
+      >
+        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={handleDismiss} />
+      </Animated.View>
 
-        {/* Container do modal */}
-        <View style={styles.modalContainer}>
-          {/* Header com gradiente */}
-          <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.modalHeader}
-          >
-            <View style={styles.headerContent}>
-              <View style={styles.headerTop}>
-                <View style={styles.headerIconContainer}>
-                  <Ionicons name="grid" size={24} color="#fff" />
-                </View>
-                <Text style={styles.modalTitle}>Selecionar Categoria</Text>
-                <TouchableOpacity
-                  onPress={handleDismiss}
-                  style={styles.closeButton}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <Ionicons name="close" size={24} color="#fff" />
-                </TouchableOpacity>
-              </View>
+      {/* Sheet deslizante */}
+      <Animated.View
+        style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}
+      >
+        {/* Handle */}
+        <View style={styles.handle} />
 
-              {/* Contador de categorias */}
-              <View style={styles.statsContainer}>
-                <View style={styles.statBadge}>
-                  <Ionicons name="pricetags" size={16} color="#fff" />
-                  <Text style={styles.statText}>
-                    {filteredCategories.length} {filteredCategories.length === 1 ? 'categoria' : 'categorias'}
-                  </Text>
-                </View>
-              </View>
-            </View>
-          </LinearGradient>
-
-          {/* Barra de Busca */}
-          <View style={styles.searchContainer}>
-            <Searchbar
-              placeholder="Buscar categoria..."
-              onChangeText={setSearchQuery}
-              value={searchQuery}
-              style={styles.searchBar}
-              inputStyle={styles.searchInput}
-              iconColor={Colors.light.primary}
-              placeholderTextColor={Colors.light.textTertiary}
-              elevation={0}
-            />
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={[styles.headerIcon, { backgroundColor: brandingColors.primary + '15' }]}>
+            <Ionicons name="grid-outline" size={20} color={brandingColors.primary} />
           </View>
-
-          {/* Lista de Categorias */}
-          <FlatList
-            data={filteredCategories}
-            renderItem={renderCategory}
-            keyExtractor={(item) => item.id.toString()}
-            contentContainerStyle={styles.listContent}
-            showsVerticalScrollIndicator={false}
-            ListEmptyComponent={renderEmpty}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
-            initialNumToRender={10}
-            maxToRenderPerBatch={10}
-            windowSize={5}
-          />
+          <View style={styles.headerText}>
+            <Text style={styles.headerTitle}>Selecionar Categoria</Text>
+            <Text style={styles.headerSub}>
+              {filteredCategories.length}{' '}
+              {filteredCategories.length === 1 ? 'categoria disponível' : 'categorias disponíveis'}
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={handleDismiss}
+            style={styles.closeBtn}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Ionicons name="close" size={20} color={Colors.light.textSecondary} />
+          </TouchableOpacity>
         </View>
-      </View>
+
+        {/* Busca */}
+        <View style={styles.searchRow}>
+          <Ionicons name="search-outline" size={18} color={Colors.light.textTertiary} style={styles.searchIcon} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar categoria..."
+            placeholderTextColor={Colors.light.textTertiary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close-circle" size={18} color={Colors.light.textTertiary} />
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Divisor */}
+        <View style={styles.divider} />
+
+        {/* Lista */}
+        <FlatList
+          data={filteredCategories}
+          renderItem={renderCategory}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          ListEmptyComponent={renderEmpty}
+          keyboardShouldPersistTaps="handled"
+          initialNumToRender={12}
+          maxToRenderPerBatch={12}
+          windowSize={5}
+        />
+      </Animated.View>
     </Modal>
   );
 }
 
+// ─── Estilos ──────────────────────────────────────────────────────────────────
+
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
   backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.52)',
+  },
+
+  sheet: {
     position: 'absolute',
-    top: 0,
+    bottom: 0,
     left: 0,
     right: 0,
-    bottom: 0,
-  },
-  modalContainer: {
-    backgroundColor: '#fff',
+    maxHeight: SCREEN_HEIGHT * 0.84,
+    backgroundColor: Colors.light.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: SCREEN_HEIGHT * 0.85,
-    overflow: 'hidden',
+    paddingBottom: 32,
+    elevation: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 16,
   },
-  modalHeader: {
-    paddingTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
-    paddingHorizontal: theme.spacing.md,
-  },
-  headerContent: {
-    gap: theme.spacing.sm,
-  },
-  headerTop: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  headerIconContainer: {
+
+  handle: {
     width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.light.border,
+    alignSelf: 'center',
+    marginTop: 12,
+    marginBottom: 4,
   },
-  modalTitle: {
-    flex: 1,
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#fff',
-    textAlign: 'center',
-    marginHorizontal: theme.spacing.sm,
-  },
-  closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    gap: theme.spacing.sm,
-  },
-  statBadge: {
+
+  // ── Header ──
+  header: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.25)',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    gap: 6,
-  },
-  statText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  searchContainer: {
+    gap: 12,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.md,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
   },
-  searchBar: {
-    elevation: 0,
+  headerIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerText: {
+    flex: 1,
+    gap: 2,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  headerSub: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.light.backgroundSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // ── Busca ──
+  searchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
     backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: 12,
+    paddingHorizontal: 12,
+    height: 44,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  searchIcon: {
+    flexShrink: 0,
   },
   searchInput: {
+    flex: 1,
     fontSize: 15,
+    color: Colors.light.text,
+    paddingVertical: 0,
   },
+
+  divider: {
+    height: 1,
+    backgroundColor: Colors.light.border,
+    marginBottom: 4,
+  },
+
+  // ── Lista ──
   listContent: {
     paddingHorizontal: theme.spacing.md,
     paddingTop: theme.spacing.sm,
     paddingBottom: theme.spacing.lg,
+    gap: 6,
   },
-  categoryItem: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 2,
-    borderColor: 'transparent',
-  },
-  categoryItemSelected: {
-    borderColor: Colors.light.success,
-    backgroundColor: Colors.light.success + '05',
-  },
-  categoryItemContent: {
+
+  // ── Item ──
+  item: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: theme.spacing.md,
-    gap: theme.spacing.md,
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    overflow: 'hidden',
+    minHeight: 56,
   },
-  categoryIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  categoryInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  categoryName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.light.text,
-  },
-  categoryDescription: {
-    fontSize: 13,
-    color: Colors.light.textSecondary,
-  },
-  selectedIndicator: {
-    marginLeft: 'auto',
-  },
-  selectedBorder: {
+  itemAccent: {
     position: 'absolute',
     left: 0,
     top: 0,
     bottom: 0,
-    width: 4,
+    width: 3,
+    borderTopLeftRadius: 14,
+    borderBottomLeftRadius: 14,
   },
-  separator: {
-    height: theme.spacing.sm,
-  },
-  emptyContainer: {
+  iconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: theme.spacing.xxl,
-    paddingHorizontal: theme.spacing.xl,
+    flexShrink: 0,
   },
-  emptyIconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.light.backgroundSecondary,
+  itemText: {
+    flex: 1,
+    gap: 2,
+    minWidth: 0,
+  },
+  itemName: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
+  itemDesc: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+  },
+
+  // ── Empty ──
+  empty: {
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: theme.spacing.lg,
+    paddingVertical: theme.spacing.xxl * 1.5,
+    gap: theme.spacing.sm,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
     color: Colors.light.text,
-    marginBottom: theme.spacing.xs,
-    textAlign: 'center',
+    marginTop: theme.spacing.sm,
   },
-  emptyMessage: {
-    fontSize: 14,
+  emptySubtitle: {
+    fontSize: 13,
     color: Colors.light.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
   },
 });

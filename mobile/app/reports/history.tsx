@@ -1,25 +1,32 @@
 /**
- * Tela de Histórico Unificado
+ * Tela de Historico Unificado
  * Timeline com vendas, entradas e condicionais
  */
 
 import { useState, useCallback } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   ScrollView,
   RefreshControl,
   TouchableOpacity,
-  StatusBar,
-  FlatList,
 } from 'react-native';
-import { Text, Chip, ActivityIndicator } from 'react-native-paper';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
+import { useBrandingColors } from '@/store/brandingStore';
+import PageHeader from '@/components/layout/PageHeader';
+import useBackToList from '@/hooks/useBackToList';
 import {
   getHistory,
   HistoryPeriod,
@@ -28,9 +35,6 @@ import {
   HistoryGroup,
 } from '@/services/reportService';
 
-/**
- * Opções de período
- */
 const periodOptions: { value: HistoryPeriod; label: string }[] = [
   { value: 'today', label: 'Hoje' },
   { value: 'last_7_days', label: '7 dias' },
@@ -39,153 +43,119 @@ const periodOptions: { value: HistoryPeriod; label: string }[] = [
   { value: 'this_year', label: 'Este ano' },
 ];
 
-/**
- * Opções de tipo de evento
- */
-const typeOptions: { value: HistoryEventType; label: string; icon: string }[] = [
-  { value: null, label: 'Todos', icon: 'apps' },
-  { value: 'sale', label: 'Vendas', icon: 'cart' },
-  { value: 'entry', label: 'Entradas', icon: 'cube' },
-  { value: 'conditional', label: 'Condicionais', icon: 'airplane' },
+const typeOptions: { value: HistoryEventType; label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
+  { value: null, label: 'Todos', icon: 'apps-outline' },
+  { value: 'sale', label: 'Vendas', icon: 'cart-outline' },
+  { value: 'entry', label: 'Entradas', icon: 'cube-outline' },
+  { value: 'conditional', label: 'Condicionais', icon: 'airplane-outline' },
 ];
 
-/**
- * Componente de card de evento
- */
 function EventCard({ event, onPress }: { event: HistoryEvent; onPress: () => void }) {
   return (
-    <TouchableOpacity
-      style={styles.eventCard}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <View style={styles.eventTimeline}>
-        <View style={[styles.eventDot, { backgroundColor: event.color }]} />
-        <View style={styles.eventLine} />
+    <TouchableOpacity style={styles.eventCard} onPress={onPress} activeOpacity={0.75}>
+      <View style={[styles.eventIconWrap, { backgroundColor: event.color + '18' }]}>
+        <Ionicons name={event.icon as any} size={16} color={event.color} />
       </View>
 
       <View style={styles.eventContent}>
-        <View style={styles.eventHeader}>
-          <View style={[styles.eventIconBg, { backgroundColor: event.color + '20' }]}>
-            <Ionicons
-              name={event.icon as any}
-              size={18}
-              color={event.color}
-            />
-          </View>
-          <View style={styles.eventInfo}>
-            <Text style={styles.eventTitle} numberOfLines={1}>
-              {event.title}
-            </Text>
-            <Text style={styles.eventSubtitle} numberOfLines={1}>
-              {event.subtitle}
-            </Text>
+        <View style={styles.eventTopRow}>
+          <View style={styles.eventMainInfo}>
+            <Text style={styles.eventTitle} numberOfLines={1}>{event.title}</Text>
+            <Text style={styles.eventSubtitle} numberOfLines={1}>{event.subtitle}</Text>
           </View>
           <View style={styles.eventMeta}>
             <Text style={styles.eventTime}>{event.time}</Text>
-            {event.value !== null && (
-              <Text style={[styles.eventValue, { color: event.color }]}>
+            {event.value !== null ? (
+              <Text style={[styles.eventValue, { color: event.color }]} numberOfLines={1}>
                 {formatCurrency(event.value)}
               </Text>
-            )}
+            ) : null}
           </View>
         </View>
 
         <View style={styles.eventFooter}>
-          <View style={[styles.eventBadge, { backgroundColor: event.color + '15' }]}>
-            <Text style={[styles.eventBadgeText, { color: event.color }]}>
-              {event.type_label}
-            </Text>
+          <View style={[styles.badge, { backgroundColor: event.color + '14', borderColor: event.color + '2A' }]}>
+            <Text style={[styles.badgeText, { color: event.color }]}>{event.type_label}</Text>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: event.color + '15' }]}>
-            <Text style={[styles.statusText, { color: event.color }]}>
-              {event.status}
-            </Text>
+          <View style={[styles.badge, { backgroundColor: event.color + '14', borderColor: event.color + '2A' }]}>
+            <Text style={[styles.badgeText, { color: event.color }]}>{event.status}</Text>
           </View>
         </View>
       </View>
 
-      <Ionicons name="chevron-forward" size={20} color={Colors.light.textTertiary} />
+      <Ionicons name="chevron-forward" size={16} color={Colors.light.textTertiary} />
     </TouchableOpacity>
   );
 }
 
-/**
- * Componente de grupo por data
- */
 function DateGroup({ group, onEventPress }: { group: HistoryGroup; onEventPress: (event: HistoryEvent) => void }) {
-  // Formatar data
   const formatDateHeader = (dateStr: string) => {
     const [day, month, year] = dateStr.split('/');
-    const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+    const date = new Date(parseInt(year, 10), parseInt(month, 10) - 1, parseInt(day, 10));
     const today = new Date();
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
 
-    if (date.toDateString() === today.toDateString()) {
-      return 'Hoje';
-    } else if (date.toDateString() === yesterday.toDateString()) {
-      return 'Ontem';
-    } else {
-      return date.toLocaleDateString('pt-BR', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-      });
-    }
+    if (date.toDateString() === today.toDateString()) return 'Hoje';
+    if (date.toDateString() === yesterday.toDateString()) return 'Ontem';
+
+    return date.toLocaleDateString('pt-BR', {
+      weekday: 'long',
+      day: 'numeric',
+      month: 'long',
+    });
   };
 
   return (
-    <View style={styles.dateGroup}>
+    <View style={styles.dateGroupCard}>
       <View style={styles.dateHeader}>
-        <Ionicons name="calendar-outline" size={16} color={Colors.light.primary} />
-        <Text style={styles.dateTitle}>{formatDateHeader(group.date)}</Text>
-        <View style={styles.dateBadge}>
-          <Text style={styles.dateBadgeText}>{group.events.length}</Text>
+        <View style={styles.dateHeaderLeft}>
+          <Ionicons name="calendar-outline" size={14} color={Colors.light.info} />
+          <Text style={styles.dateTitle}>{formatDateHeader(group.date)}</Text>
+        </View>
+        <View style={styles.dateCountBadge}>
+          <Text style={styles.dateCountText}>{group.events.length}</Text>
         </View>
       </View>
 
+      <View style={styles.groupDivider} />
+
       {group.events.map((event) => (
-        <EventCard
-          key={event.id}
-          event={event}
-          onPress={() => onEventPress(event)}
-        />
+        <EventCard key={event.id} event={event} onPress={() => onEventPress(event)} />
       ))}
     </View>
   );
 }
 
-/**
- * Estatísticas resumidas
- */
-function QuickStats({ events }: { events: HistoryEvent[] }) {
-  const sales = events.filter(e => e.type === 'sale');
-  const entries = events.filter(e => e.type === 'entry');
-  const conditionals = events.filter(e => e.type === 'conditional');
-
+function QuickStats({ events, brandingPrimary }: { events: HistoryEvent[]; brandingPrimary: string }) {
+  const sales = events.filter((e) => e.type === 'sale');
+  const entries = events.filter((e) => e.type === 'entry');
+  const conditionals = events.filter((e) => e.type === 'conditional');
   const totalSales = sales.reduce((sum, e) => sum + (e.value || 0), 0);
 
   return (
-    <View style={styles.statsContainer}>
+    <View style={styles.statsGrid}>
       <View style={styles.statCard}>
-        <Ionicons name="cart" size={20} color={Colors.light.success} />
+        <Ionicons name="cart-outline" size={18} color={VALUE_COLORS.positive} />
         <Text style={styles.statValue}>{sales.length}</Text>
         <Text style={styles.statLabel}>Vendas</Text>
       </View>
+
       <View style={styles.statCard}>
-        <Ionicons name="cube" size={20} color={Colors.light.info} />
+        <Ionicons name="cube-outline" size={18} color={Colors.light.info} />
         <Text style={styles.statValue}>{entries.length}</Text>
         <Text style={styles.statLabel}>Entradas</Text>
       </View>
+
       <View style={styles.statCard}>
-        <Ionicons name="airplane" size={20} color={Colors.light.warning} />
+        <Ionicons name="airplane-outline" size={18} color={VALUE_COLORS.warning} />
         <Text style={styles.statValue}>{conditionals.length}</Text>
         <Text style={styles.statLabel}>Condicionais</Text>
       </View>
+
       <View style={styles.statCard}>
-        <Ionicons name="cash" size={20} color={Colors.light.primary} />
-        <Text style={styles.statValueSmall}>{formatCurrency(totalSales)}</Text>
+        <Ionicons name="cash-outline" size={18} color={brandingPrimary} />
+        <Text style={styles.statValueSmall} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(totalSales)}</Text>
         <Text style={styles.statLabel}>Vendido</Text>
       </View>
     </View>
@@ -194,19 +164,48 @@ function QuickStats({ events }: { events: HistoryEvent[] }) {
 
 export default function HistoryScreen() {
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/reports');
+  const brandingColors = useBrandingColors();
+
   const [selectedPeriod, setSelectedPeriod] = useState<HistoryPeriod>('last_30_days');
   const [selectedType, setSelectedType] = useState<HistoryEventType>(null);
   const [refreshing, setRefreshing] = useState(false);
 
-  const {
-    data,
-    isLoading,
-    error,
-    refetch,
-  } = useQuery({
+  const headerOpacity  = useSharedValue(0);
+  const headerScale    = useSharedValue(0.94);
+  const contentOpacity = useSharedValue(0);
+  const contentTransY  = useSharedValue(24);
+
+  const headerAnimStyle  = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTransY.value }],
+  }));
+
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['history', selectedPeriod, selectedType],
     queryFn: () => getHistory(selectedPeriod, selectedType, 100, 0),
   });
+
+  useFocusEffect(
+    useCallback(() => {
+      headerOpacity.value  = 0;
+      headerScale.value    = 0.94;
+      contentOpacity.value = 0;
+      contentTransY.value  = 24;
+
+      headerOpacity.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.quad) });
+      headerScale.value   = withSpring(1, { damping: 16, stiffness: 200 });
+      const t = setTimeout(() => {
+        contentOpacity.value = withTiming(1, { duration: 340 });
+        contentTransY.value  = withSpring(0, { damping: 18, stiffness: 200 });
+      }, 140);
+      return () => clearTimeout(t);
+    }, [])
+  );
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -217,160 +216,130 @@ export default function HistoryScreen() {
   const handleEventPress = (event: HistoryEvent) => {
     switch (event.link_type) {
       case 'sale':
-        router.push(`/sales/${event.link_id}`);
+        router.push(`/sales/${event.link_id}` as any);
         break;
       case 'entry':
-        router.push(`/entries/${event.link_id}`);
+        router.push(`/entries/${event.link_id}` as any);
         break;
       case 'conditional':
-        router.push(`/conditionals/${event.link_id}`);
+        router.push(`/conditionals/${event.link_id}` as any);
+        break;
+      default:
         break;
     }
   };
 
+  const totalCount = data?.total_count || 0;
+
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title="Historico"
+          subtitle={`${totalCount} atividades no periodo`}
+          showBackButton
+          onBack={goBack}
+          rightActions={[{ icon: 'time-outline', onPress: () => undefined }]}
+        />
+      </Animated.View>
 
-      {/* Header Premium */}
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerContent}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <View style={styles.headerInfo}>
-              <Text style={styles.headerTitle}>Histórico</Text>
-              <Text style={styles.headerSubtitle}>
-                {data?.total_count || 0} atividades no período
-              </Text>
-            </View>
-            <View style={styles.headerIcon}>
-              <Ionicons name="time" size={28} color="rgba(255,255,255,0.9)" />
-            </View>
+      <Animated.View style={[styles.contentAnimation, contentAnimStyle]}>
+        <View style={styles.filtersArea}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
+            {typeOptions.map((option) => {
+              const selected = selectedType === option.value;
+              return (
+                <TouchableOpacity
+                  key={option.value || 'all'}
+                  style={[
+                    styles.filterChip,
+                    selected && {
+                      backgroundColor: brandingColors.primary + '14',
+                      borderColor: brandingColors.primary + '40',
+                    },
+                  ]}
+                  onPress={() => setSelectedType(option.value)}
+                  activeOpacity={0.75}
+                >
+                  <Ionicons
+                    name={option.icon}
+                    size={14}
+                    color={selected ? brandingColors.primary : Colors.light.textSecondary}
+                  />
+                  <Text style={[styles.filterChipText, selected && { color: brandingColors.primary }]}>{option.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
+            {periodOptions.map((option) => {
+              const selected = selectedPeriod === option.value;
+              return (
+                <TouchableOpacity
+                  key={option.value}
+                  style={[
+                    styles.periodChip,
+                    selected && {
+                      backgroundColor: brandingColors.primary,
+                      borderColor: brandingColors.primary,
+                    },
+                  ]}
+                  onPress={() => setSelectedPeriod(option.value)}
+                  activeOpacity={0.75}
+                >
+                  <Text style={[styles.periodChipText, selected && { color: '#fff' }]}>{option.label}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {isLoading ? (
+          <View style={styles.stateCard}>
+            <Ionicons name="hourglass-outline" size={38} color={brandingColors.primary} />
+            <Text style={styles.stateTitle}>Carregando historico...</Text>
           </View>
-        </LinearGradient>
-      </View>
-
-      {/* Filtro de Tipo */}
-      <View style={styles.filterContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filterContent}
-        >
-          {typeOptions.map((option) => (
-            <Chip
-              key={option.value || 'all'}
-              selected={selectedType === option.value}
-              onPress={() => setSelectedType(option.value)}
-              style={[
-                styles.filterChip,
-                selectedType === option.value && styles.filterChipSelected,
-              ]}
-              textStyle={[
-                styles.filterChipText,
-                selectedType === option.value && styles.filterChipTextSelected,
-              ]}
-              icon={() => (
-                <Ionicons
-                  name={option.icon as any}
-                  size={16}
-                  color={selectedType === option.value ? '#fff' : Colors.light.textSecondary}
-                />
-              )}
-            >
-              {option.label}
-            </Chip>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Filtro de Período */}
-      <View style={styles.periodContainer}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.periodContent}
-        >
-          {periodOptions.map((option) => (
-            <TouchableOpacity
-              key={option.value}
-              style={[
-                styles.periodButton,
-                selectedPeriod === option.value && styles.periodButtonSelected,
-              ]}
-              onPress={() => setSelectedPeriod(option.value)}
-            >
-              <Text
-                style={[
-                  styles.periodButtonText,
-                  selectedPeriod === option.value && styles.periodButtonTextSelected,
-                ]}
-              >
-                {option.label}
-              </Text>
+        ) : error ? (
+          <View style={styles.stateCard}>
+            <Ionicons name="alert-circle-outline" size={38} color={VALUE_COLORS.negative} />
+            <Text style={styles.stateTitle}>Erro ao carregar historico</Text>
+            <TouchableOpacity style={[styles.retryButton, { backgroundColor: brandingColors.primary }]} onPress={() => refetch()}>
+              <Text style={styles.retryText}>Tentar novamente</Text>
             </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Conteúdo */}
-      {isLoading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
-          <Text style={styles.loadingText}>Carregando histórico...</Text>
-        </View>
-      ) : error ? (
-        <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle" size={48} color={Colors.light.error} />
-          <Text style={styles.errorText}>Erro ao carregar histórico</Text>
-          <TouchableOpacity onPress={() => refetch()} style={styles.retryButton}>
-            <Text style={styles.retryButtonText}>Tentar novamente</Text>
-          </TouchableOpacity>
-        </View>
-      ) : data && data.events.length > 0 ? (
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={onRefresh}
-              colors={[Colors.light.primary]}
-            />
-          }
-        >
-          {/* Estatísticas Rápidas */}
-          <QuickStats events={data.events} />
-
-          {/* Timeline */}
-          <View style={styles.timelineSection}>
-            {data.timeline.map((group) => (
-              <DateGroup
-                key={group.date}
-                group={group}
-                onEventPress={handleEventPress}
+          </View>
+        ) : data && data.events.length > 0 ? (
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={onRefresh}
+                colors={[brandingColors.primary]}
+                tintColor={brandingColors.primary}
               />
-            ))}
-          </View>
+            }
+          >
+            <QuickStats events={data.events} brandingPrimary={brandingColors.primary} />
 
-          <View style={styles.bottomSpacer} />
-        </ScrollView>
-      ) : (
-        <View style={styles.emptyContainer}>
-          <Ionicons name="time-outline" size={64} color={Colors.light.textTertiary} />
-          <Text style={styles.emptyTitle}>Sem atividades</Text>
-          <Text style={styles.emptyText}>
-            Nenhuma atividade encontrada no período selecionado.
-          </Text>
-        </View>
-      )}
+            <View style={styles.timelineSection}>
+              {data.timeline.map((group) => (
+                <DateGroup key={group.date} group={group} onEventPress={handleEventPress} />
+              ))}
+            </View>
+          </ScrollView>
+        ) : (
+          <View style={styles.emptyStateCard}>
+            <View style={[styles.emptyIconWrap, { backgroundColor: brandingColors.primary + '12' }]}>
+              <Ionicons name="time-outline" size={28} color={brandingColors.primary} />
+            </View>
+            <Text style={styles.emptyTitle}>Sem atividades</Text>
+            <Text style={styles.emptyText}>Nenhuma atividade encontrada no periodo selecionado.</Text>
+          </View>
+        )}
+      </Animated.View>
     </View>
   );
 }
@@ -380,307 +349,271 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
   },
-  headerContainer: {
-    overflow: 'hidden',
+  headerAnimation: {
+    zIndex: 2,
   },
-  headerGradient: {
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.lg,
-    paddingHorizontal: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  backButton: {
-    padding: theme.spacing.xs,
-  },
-  headerInfo: {
+  contentAnimation: {
     flex: 1,
   },
-  headerTitle: {
-    fontSize: theme.fontSize.xl,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: theme.spacing.xxs,
+  filtersArea: {
+    paddingTop: theme.spacing.sm,
+    gap: theme.spacing.xs,
   },
-  headerSubtitle: {
-    fontSize: theme.fontSize.sm,
-    color: 'rgba(255, 255, 255, 0.9)',
-  },
-  headerIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  filterContainer: {
-    paddingVertical: 12,
-    backgroundColor: Colors.light.background,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
-  },
-  filterContent: {
-    paddingHorizontal: 16,
-    gap: 8,
+  filtersRow: {
+    paddingHorizontal: theme.spacing.md,
+    gap: theme.spacing.xs,
   },
   filterChip: {
-    backgroundColor: Colors.light.backgroundSecondary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
     borderColor: Colors.light.border,
-    marginRight: 8,
-  },
-  filterChipSelected: {
-    backgroundColor: Colors.light.primary,
-    borderColor: Colors.light.primary,
+    backgroundColor: Colors.light.card,
+    paddingHorizontal: theme.spacing.sm + 2,
+    paddingVertical: theme.spacing.xs + 2,
   },
   filterChipText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700',
     color: Colors.light.textSecondary,
-    fontSize: 13,
   },
-  filterChipTextSelected: {
-    color: '#fff',
-    fontWeight: '600',
+  periodChip: {
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    paddingHorizontal: theme.spacing.sm + 4,
+    paddingVertical: theme.spacing.xs + 2,
   },
-  periodContainer: {
-    paddingVertical: 8,
-    backgroundColor: Colors.light.background,
-  },
-  periodContent: {
-    paddingHorizontal: 16,
-    gap: 8,
-  },
-  periodButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: Colors.light.backgroundSecondary,
-    marginRight: 8,
-  },
-  periodButtonSelected: {
-    backgroundColor: Colors.light.primaryLight,
-  },
-  periodButtonText: {
-    fontSize: 13,
+  periodChipText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700',
     color: Colors.light.textSecondary,
-    fontWeight: '500',
-  },
-  periodButtonTextSelected: {
-    color: Colors.light.primary,
-    fontWeight: '600',
   },
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xs + 2,
+    paddingBottom: theme.spacing.xxl,
+    gap: theme.spacing.sm,
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-  },
-  loadingText: {
-    color: Colors.light.textSecondary,
-    fontSize: 14,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-    padding: 32,
-  },
-  errorText: {
-    color: Colors.light.textSecondary,
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  retryButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    backgroundColor: Colors.light.primary,
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 12,
-    padding: 32,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.light.text,
-  },
-  emptyText: {
-    color: Colors.light.textSecondary,
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 20,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: Colors.light.background,
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
+  stateCard: {
+    margin: theme.spacing.md,
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
     borderWidth: 1,
     borderColor: Colors.light.border,
+    paddingVertical: theme.spacing.xl,
+    alignItems: 'center',
+    justifyContent: 'center',
+    ...theme.shadows.sm,
+    gap: theme.spacing.sm,
+  },
+  stateTitle: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
+  },
+  retryButton: {
+    marginTop: theme.spacing.xs,
+    borderRadius: theme.borderRadius.lg,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.sm,
+  },
+  retryText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: theme.fontSize.sm,
+  },
+  emptyStateCard: {
+    margin: theme.spacing.md,
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xxl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.xl,
+    alignItems: 'center',
+    ...theme.shadows.sm,
+  },
+  emptyIconWrap: {
+    width: 64,
+    height: 64,
+    borderRadius: theme.borderRadius.full,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  emptyTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '800',
+    color: Colors.light.text,
+    marginBottom: theme.spacing.xs,
+  },
+  emptyText: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.xs + 2,
+  },
+  statCard: {
+    width: '48%',
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: theme.spacing.sm + 2,
+    ...theme.shadows.sm,
+    alignItems: 'center',
+    gap: 2,
   },
   statValue: {
-    fontSize: 20,
-    fontWeight: '700',
+    fontSize: theme.fontSize.lg,
+    fontWeight: '800',
     color: Colors.light.text,
-    marginTop: 4,
+    letterSpacing: -0.4,
   },
   statValueSmall: {
-    fontSize: 12,
-    fontWeight: '700',
+    width: '100%',
+    fontSize: theme.fontSize.sm,
+    fontWeight: '800',
     color: Colors.light.text,
-    marginTop: 4,
+    letterSpacing: -0.3,
+    textAlign: 'center',
   },
   statLabel: {
-    fontSize: 10,
+    fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
-    marginTop: 2,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   timelineSection: {
-    marginBottom: 20,
+    gap: theme.spacing.sm,
   },
-  dateGroup: {
-    marginBottom: 16,
+  dateGroupCard: {
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: theme.spacing.sm + 2,
+    ...theme.shadows.sm,
+    gap: theme.spacing.sm,
   },
   dateHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-    paddingHorizontal: 4,
+    justifyContent: 'space-between',
+  },
+  dateHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    flex: 1,
+    minWidth: 0,
   },
   dateTitle: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
     color: Colors.light.text,
     textTransform: 'capitalize',
   },
-  dateBadge: {
-    backgroundColor: Colors.light.primaryLight,
-    paddingHorizontal: 8,
+  dateCountBadge: {
+    backgroundColor: Colors.light.info + '15',
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.light.info + '30',
+    paddingHorizontal: theme.spacing.xs + 2,
     paddingVertical: 2,
-    borderRadius: 10,
   },
-  dateBadgeText: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: Colors.light.primary,
+  dateCountText: {
+    fontSize: theme.fontSize.xxs + 1,
+    fontWeight: '700',
+    color: Colors.light.info,
+  },
+  groupDivider: {
+    height: 1,
+    backgroundColor: Colors.light.border,
   },
   eventCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.background,
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 8,
+    gap: theme.spacing.xs + 2,
+    borderRadius: theme.borderRadius.lg,
     borderWidth: 1,
     borderColor: Colors.light.border,
+    backgroundColor: Colors.light.background,
+    padding: theme.spacing.xs + 4,
   },
-  eventTimeline: {
+  eventIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: theme.borderRadius.full,
     alignItems: 'center',
-    marginRight: 12,
-  },
-  eventDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-  },
-  eventLine: {
-    width: 2,
-    flex: 1,
-    backgroundColor: Colors.light.border,
-    marginTop: 4,
-    display: 'none',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   eventContent: {
     flex: 1,
+    gap: theme.spacing.xs,
+    minWidth: 0,
   },
-  eventHeader: {
+  eventTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
+    gap: theme.spacing.sm,
   },
-  eventIconBg: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 10,
-  },
-  eventInfo: {
+  eventMainInfo: {
     flex: 1,
+    minWidth: 0,
   },
   eventTitle: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
     color: Colors.light.text,
   },
   eventSubtitle: {
-    fontSize: 12,
+    fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
     marginTop: 2,
   },
   eventMeta: {
     alignItems: 'flex-end',
+    flexShrink: 0,
   },
   eventTime: {
-    fontSize: 11,
+    fontSize: theme.fontSize.xxs + 1,
     color: Colors.light.textTertiary,
   },
   eventValue: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: theme.fontSize.sm,
+    fontWeight: '800',
     marginTop: 2,
+    letterSpacing: -0.2,
   },
   eventFooter: {
     flexDirection: 'row',
-    gap: 8,
+    flexWrap: 'wrap',
+    gap: theme.spacing.xs,
   },
-  eventBadge: {
-    paddingHorizontal: 8,
+  badge: {
+    paddingHorizontal: theme.spacing.xs + 2,
     paddingVertical: 3,
-    borderRadius: 6,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
   },
-  eventBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '600',
-  },
-  bottomSpacer: {
-    height: 24,
+  badgeText: {
+    fontSize: theme.fontSize.xxs + 1,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
 });

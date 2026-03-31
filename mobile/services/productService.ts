@@ -130,9 +130,9 @@ export const createProduct = async (productData: ProductCreate): Promise<Product
 /**
  * Atualizar produto
  */
-export const updateProduct = async (id: number, productData: ProductUpdate): Promise<Product> => {
+export const updateProduct = async (id: number, productData: ProductUpdate, config?: import('axios').AxiosRequestConfig): Promise<Product> => {
   try {
-    const { data } = await api.put<Product>(`/products/${id}`, productData);
+    const { data } = await api.put<Product>(`/products/${id}`, productData, config);
     return data;
   } catch (error) {
     throw error;

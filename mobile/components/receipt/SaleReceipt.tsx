@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { Text, Card } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency, formatDateTime } from '@/utils/format';
-import { Colors } from '@/constants/Colors';
+import { Colors, theme } from '@/constants/Colors';
 import type { SaleWithDetails, PaymentMethod } from '@/types';
 
 interface SaleReceiptProps {
@@ -211,7 +211,10 @@ const styles = StyleSheet.create({
   },
   detailsCard: {
     marginBottom: 16,
-    elevation: 2,
+    backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
   },
   cardContent: {
     padding: 16,
@@ -286,7 +289,7 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   itemDiscountNote: {
-    color: '#F57C00',
+    color: Colors.light.warning,
     marginTop: 1,
   },
   itemPriceContainer: {
@@ -318,11 +321,11 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   discountLabel: {
-    color: '#F57C00',
+    color: Colors.light.warning,
   },
   discountValue: {
     fontWeight: '600',
-    color: '#F57C00',
+    color: Colors.light.warning,
   },
   totalContainer: {
     alignItems: 'center',

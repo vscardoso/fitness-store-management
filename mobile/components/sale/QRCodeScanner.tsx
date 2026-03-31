@@ -31,8 +31,8 @@ interface QRCodeScannerProps {
   visible: boolean;
   onClose: () => void;
   onProductScanned: (product: Product, quantity: number) => void;
-  /** Retorna quantas unidades desse produto já estão no carrinho */
-  getCartQuantity?: (productId: number) => number;
+  /** Retorna quantas unidades desse item já estão no carrinho */
+  getCartQuantity?: (product: Product) => number;
 }
 
 interface ScannedData {
@@ -112,6 +112,27 @@ export default function QRCodeScanner({
 
       if (!product) {
         throw new Error('Produto não encontrado. Verifique se o cadastro ainda existe.');
+      }
+
+      // Quando o scan veio por SKU de variante, preserva a variação no payload
+      if (data.sku && Array.isArray((product as any).variants)) {
+        const matchedVariant = (product as any).variants.find(
+          (variant: any) => variant?.sku === data.sku
+        );
+
+        if (matchedVariant) {
+          const labelParts = [matchedVariant.size, matchedVariant.color].filter(Boolean);
+          product = {
+            ...product,
+            sku: matchedVariant.sku || data.sku,
+            price: Number(matchedVariant.price ?? product.price),
+            current_stock: Number(matchedVariant.current_stock ?? 0),
+            size: matchedVariant.size ?? product.size,
+            color: matchedVariant.color ?? product.color,
+            variant_id: matchedVariant.id,
+            variant_label: labelParts.length > 0 ? labelParts.join(' / ') : undefined,
+          } as Product;
+        }
       }
 
       setScannedProduct(product);
@@ -230,18 +251,31 @@ export default function QRCodeScanner({
           <Card style={styles.productCard}>
             <Card.Content>
               <View style={styles.productHeader}>
-                <Ionicons name="checkmark-circle" size={32} color={Colors.light.success} />
-                <Text style={styles.productFoundText}>Produto Encontrado!</Text>
+                <View style={styles.productHeaderIconWrap}>
+                  <Ionicons name="checkmark-circle" size={24} color={Colors.light.success} />
+                </View>
+                <View style={styles.productHeaderTextWrap}>
+                  <Text style={styles.productFoundText}>Produto encontrado</Text>
+                  <Text style={styles.productFoundSubtext}>Confirme os dados e a quantidade para adicionar</Text>
+                </View>
               </View>
 
               <View style={styles.productInfo}>
                 <Text style={styles.productName}>{scannedProduct.name}</Text>
-                {(scannedProduct.color || scannedProduct.size) && (
-                  <Text style={styles.productVariant}>
-                    {[scannedProduct.color, scannedProduct.size].filter(Boolean).join(' - ')}
-                  </Text>
-                )}
-                <Text style={styles.productSku}>SKU: {scannedProduct.sku}</Text>
+                <View style={styles.productMetaRow}>
+                  {(scannedProduct.color || scannedProduct.size) && (
+                    <View style={styles.metaChip}>
+                      <Ionicons name="color-filter-outline" size={12} color={Colors.light.info} />
+                      <Text style={styles.metaChipText}>
+                        {[scannedProduct.color, scannedProduct.size].filter(Boolean).join(' • ')}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.metaChip}>
+                    <Ionicons name="barcode-outline" size={12} color={Colors.light.textSecondary} />
+                    <Text style={styles.metaChipText}>SKU {scannedProduct.sku}</Text>
+                  </View>
+                </View>
                 <Text style={styles.productPrice}>
                   {new Intl.NumberFormat('pt-BR', {
                     style: 'currency',
@@ -253,19 +287,26 @@ export default function QRCodeScanner({
               {/* Quantidade */}
               {(() => {
                 const totalStock = scannedProduct.current_stock ?? 0;
-                const inCart = getCartQuantity ? getCartQuantity(scannedProduct.id) : 0;
+                const inCart = getCartQuantity ? getCartQuantity(scannedProduct) : 0;
                 const available = Math.max(0, totalStock - inCart);
                 const atLimit = quantity >= available;
                 const outOfStock = available === 0;
                 return (
                   <View style={styles.quantitySection}>
                     <View style={styles.quantityLabelRow}>
-                      <Text style={styles.quantityLabel}>Quantidade:</Text>
-                      <Text style={[styles.stockInfo, outOfStock && styles.stockInfoEmpty]}>
+                      <Text style={styles.quantityLabel}>Quantidade</Text>
+                      <View style={[styles.stockBadgeInline, outOfStock && styles.stockBadgeInlineEmpty]}>
+                        <Ionicons
+                          name={outOfStock ? 'alert-circle-outline' : 'cube-outline'}
+                          size={12}
+                          color={outOfStock ? Colors.light.error : Colors.light.success}
+                        />
+                        <Text style={[styles.stockInfo, outOfStock && styles.stockInfoEmpty]}>
                         {outOfStock
                           ? 'Sem estoque disponível'
                           : `${available} disponível${available !== 1 ? 'is' : ''}${inCart > 0 ? ` (${inCart} no carrinho)` : ''}`}
-                      </Text>
+                        </Text>
+                      </View>
                     </View>
                     <View style={styles.quantityControls}>
                       <TouchableOpacity
@@ -291,14 +332,16 @@ export default function QRCodeScanner({
               {/* Botões */}
               {(() => {
                 const totalStock = scannedProduct.current_stock ?? 0;
-                const inCart = getCartQuantity ? getCartQuantity(scannedProduct.id) : 0;
+                const inCart = getCartQuantity ? getCartQuantity(scannedProduct) : 0;
                 const available = Math.max(0, totalStock - inCart);
                 return (
                   <View style={styles.actionButtons}>
                     <Button
                       mode="outlined"
                       onPress={handleScanAnother}
-                      style={styles.actionButton}
+                      style={[styles.actionButton, styles.secondaryActionButton]}
+                      contentStyle={styles.actionButtonContent}
+                      labelStyle={[styles.actionButtonLabel, styles.secondaryActionButtonLabel]}
                       icon="qrcode-scan"
                     >
                       Escanear Outro
@@ -306,9 +349,12 @@ export default function QRCodeScanner({
                     <Button
                       mode="contained"
                       onPress={handleAddToCart}
-                      style={styles.actionButton}
+                      style={[styles.actionButton, styles.primaryActionButton]}
+                      contentStyle={styles.actionButtonContent}
+                      labelStyle={[styles.actionButtonLabel, styles.primaryActionButtonLabel]}
                       icon="cart-plus"
                       disabled={available === 0}
+                      buttonColor={Colors.light.success}
                     >
                       Adicionar
                     </Button>
@@ -454,59 +500,89 @@ const styles = StyleSheet.create({
   // Modal de produto
   productModal: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.8)',
+    backgroundColor: 'rgba(0,0,0,0.74)',
     justifyContent: 'center',
     padding: 20,
   },
   productCard: {
-    borderRadius: 16,
+    borderRadius: theme.borderRadius.xxl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
   },
   productHeader: {
     flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    marginBottom: 14,
+  },
+  productHeaderIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: Colors.light.successLight,
     alignItems: 'center',
-    gap: 12,
-    marginBottom: 16,
+    justifyContent: 'center',
+    marginTop: 2,
+  },
+  productHeaderTextWrap: {
+    flex: 1,
   },
   productFoundText: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.light.success,
+    fontSize: theme.fontSize.lg,
+    fontWeight: '800',
+    color: Colors.light.text,
+    marginBottom: 2,
+  },
+  productFoundSubtext: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
   },
   productInfo: {
-    marginBottom: 20,
+    marginBottom: 16,
   },
   productName: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: theme.fontSize.base,
+    fontWeight: '800',
     color: Colors.light.text,
     marginBottom: 4,
   },
-  productVariant: {
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-    marginBottom: 4,
+  productMetaRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 10,
   },
-  productSku: {
-    fontSize: 12,
-    color: Colors.light.textTertiary,
-    fontFamily: 'monospace',
-    marginBottom: 8,
+  metaChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  metaChipText: {
+    fontSize: 10,
+    color: Colors.light.textSecondary,
+    fontWeight: '700',
   },
   productPrice: {
-    fontSize: 22,
+    fontSize: theme.fontSize.xxl,
     fontWeight: '800',
     color: Colors.light.primary,
   },
 
   // Quantidade
   quantitySection: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 20,
+    marginBottom: 18,
     padding: 12,
     backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
   quantityLabelRow: {
     flexDirection: 'row',
@@ -516,16 +592,29 @@ const styles = StyleSheet.create({
   },
   quantityLabel: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '700',
     color: Colors.light.text,
   },
+  stockBadgeInline: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: Colors.light.successLight,
+    borderRadius: theme.borderRadius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  stockBadgeInlineEmpty: {
+    backgroundColor: Colors.light.errorLight,
+  },
   stockInfo: {
-    fontSize: 12,
-    color: Colors.light.textSecondary,
+    fontSize: 11,
+    color: Colors.light.success,
+    fontWeight: '700',
   },
   stockInfoEmpty: {
     color: Colors.light.error,
-    fontWeight: '600',
+    fontWeight: '700',
   },
   quantityControls: {
     flexDirection: 'row',
@@ -561,5 +650,27 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
+    borderRadius: theme.borderRadius.lg,
+  },
+  actionButtonContent: {
+    height: 46,
+  },
+  actionButtonLabel: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  secondaryActionButton: {
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+  },
+  secondaryActionButtonLabel: {
+    color: Colors.light.textSecondary,
+  },
+  primaryActionButton: {
+    borderWidth: 0,
+  },
+  primaryActionButtonLabel: {
+    color: '#fff',
   },
 });

@@ -11,12 +11,16 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
-from app.models import Store, User, Subscription, Product, Category
+from app.models import Store, User, Subscription
 from app.models.user import UserRole
 from app.schemas.signup import SignupRequest, SignupResponse
 from app.core.security import get_password_hash, create_access_token, create_refresh_token
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_PRIMARY_COLOR = "#667eea"
+DEFAULT_SECONDARY_COLOR = "#764ba2"
+DEFAULT_ACCENT_COLOR = "#10B981"
 
 
 class SignupService:
@@ -62,7 +66,17 @@ class SignupService:
                 name=signup_data.store_name,
                 slug=slug,
                 subdomain=subdomain,
-                plan=signup_data.plan
+                plan=signup_data.plan,
+                primary_color=signup_data.primary_color,
+                secondary_color=signup_data.secondary_color,
+                accent_color=signup_data.accent_color,
+                zip_code=signup_data.zip_code,
+                street=signup_data.street,
+                number=signup_data.number,
+                complement=signup_data.complement,
+                neighborhood=signup_data.neighborhood,
+                city=signup_data.city,
+                state=signup_data.state,
             )
             
             # 5. Create Subscription for the store
@@ -202,19 +216,39 @@ class SignupService:
         name: str,
         slug: str,
         subdomain: str,
-        plan: str
+        plan: str,
+        primary_color: Optional[str] = None,
+        secondary_color: Optional[str] = None,
+        accent_color: Optional[str] = None,
+        zip_code: Optional[str] = None,
+        street: Optional[str] = None,
+        number: Optional[str] = None,
+        complement: Optional[str] = None,
+        neighborhood: Optional[str] = None,
+        city: Optional[str] = None,
+        state: Optional[str] = None,
     ) -> Store:
         """Create Store (tenant)"""
         trial_ends_at = datetime.now() + timedelta(days=30) if plan == 'trial' else None
-        
+
         store = Store(
             name=name,
             slug=slug,
             subdomain=subdomain,
             plan=plan,
             trial_ends_at=trial_ends_at,
+            primary_color=primary_color or DEFAULT_PRIMARY_COLOR,
+            secondary_color=secondary_color or DEFAULT_SECONDARY_COLOR,
+            accent_color=accent_color or DEFAULT_ACCENT_COLOR,
             is_default=False,
-            is_active=True
+            is_active=True,
+            zip_code=zip_code,
+            street=street,
+            number=number,
+            complement=complement,
+            neighborhood=neighborhood,
+            city=city,
+            state=state,
         )
         
         self.db.add(store)
@@ -320,83 +354,6 @@ class SignupService:
             }
         }
         return limits.get(plan, limits["trial"])
-    
-    async def _copy_template_products(self, tenant_id: int) -> None:
-        """
-        Copy template products and categories (tenant_id=0) to new store
-        
-        This gives every new store a starter catalog of 80+ fitness products
-        that can be edited, deleted or extended by the store owner.
-        """
-        # 1. Get all template categories (tenant_id = 0)
-        result = await self.db.execute(
-            select(Category).where(
-                Category.tenant_id == 0,
-                Category.is_active == True
-            )
-        )
-        template_categories = result.scalars().all()
-        
-        # 2. Create category mapping (old_id -> new_id)
-        category_mapping = {}
-        
-        for template_cat in template_categories:
-            new_category = Category(
-                name=template_cat.name,
-                description=template_cat.description,
-                slug=template_cat.slug,
-                tenant_id=tenant_id,
-                is_active=True
-            )
-            self.db.add(new_category)
-            await self.db.flush()  # Get new_category.id
-            category_mapping[template_cat.id] = new_category.id
-        
-        # 3. Get all template products
-        result = await self.db.execute(
-            select(Product).where(
-                Product.tenant_id == 0,
-                Product.is_active == True
-            )
-        )
-        template_products = result.scalars().all()
-        
-        # 4. Copy products with new tenant_id and mapped category_id
-        from app.models.product_variant import ProductVariant
-        from decimal import Decimal
-        
-        for template_prod in template_products:
-            # Criar produto pai (sem os campos de variante)
-            new_product = Product(
-                name=template_prod.name,
-                description=template_prod.description,
-                brand=template_prod.brand,
-                gender=template_prod.gender,
-                material=template_prod.material,
-                is_digital=template_prod.is_digital,
-                is_activewear=template_prod.is_activewear,
-                category_id=category_mapping.get(template_prod.category_id),
-                tenant_id=tenant_id,
-                is_active=True
-            )
-            self.db.add(new_product)
-            await self.db.flush()  # Obter product.id
-            
-            # Criar variante com os dados do template
-            variant = ProductVariant(
-                product_id=new_product.id,
-                sku=template_prod.sku,
-                price=template_prod.price or Decimal("0"),
-                cost_price=template_prod.cost_price,
-                color=template_prod.color,
-                size=template_prod.size,
-                tenant_id=tenant_id,
-                is_active=True
-            )
-            self.db.add(variant)
-        
-        # Flush to persist all products
-        await self.db.flush()
     
     async def check_email_available(self, email: str) -> Tuple[bool, str]:
         """

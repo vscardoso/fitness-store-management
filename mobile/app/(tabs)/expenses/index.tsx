@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { Text } from 'react-native-paper';
-import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -16,6 +15,8 @@ import EmptyState from '@/components/ui/EmptyState';
 import { getExpenses, deleteExpense } from '@/services/expenseService';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
+import AppButton from '@/components/ui/AppButton';
 import type { Expense } from '@/types/expense';
 import PeriodFilter, { PeriodFilterValue } from '@/components/PeriodFilter';
 
@@ -42,6 +43,7 @@ function useDateRange(period: PeriodFilterValue) {
 export default function ExpenseListScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const brandingColors = useBrandingColors();
   const [period, setPeriod] = useState<PeriodFilterValue>('this_month');
   const [refreshing, setRefreshing] = useState(false);
   const dateRange = useDateRange(period);
@@ -99,9 +101,9 @@ export default function ExpenseListScreen() {
               {dateStr}
             </Text>
             {item.is_recurring && (
-              <View style={styles.recurringBadge}>
-                <Ionicons name="repeat" size={11} color={Colors.light.primary} />
-                <Text style={styles.recurringText}>Recorrente</Text>
+              <View style={[styles.recurringBadge, { backgroundColor: brandingColors.primary + '20' }]}>
+                <Ionicons name="repeat" size={11} color={brandingColors.primary} />
+                <Text style={[styles.recurringText, { color: brandingColors.primary }]}>Recorrente</Text>
               </View>
             )}
           </View>
@@ -146,22 +148,16 @@ export default function ExpenseListScreen() {
         </View>
 
         {/* Botão P&L */}
-        <TouchableOpacity
-          style={styles.plButton}
-          onPress={() => router.push('/(tabs)/expenses/resultado')}
-          activeOpacity={0.75}
-        >
-          <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.plButtonGradient}
-          >
-            <Ionicons name="stats-chart-outline" size={16} color="#fff" />
-            <Text style={styles.plButtonText}>Ver Resultado P&L</Text>
-            <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.8)" />
-          </LinearGradient>
-        </TouchableOpacity>
+        <View style={styles.plButton}>
+          <AppButton
+            variant="primary"
+            size="md"
+            fullWidth
+            icon="stats-chart-outline"
+            label="Ver Resultado P&L"
+            onPress={() => router.push('/(tabs)/expenses/resultado')}
+          />
+        </View>
       </View>
 
       {/* Spacer antes da lista */}
@@ -172,7 +168,7 @@ export default function ExpenseListScreen() {
         keyExtractor={(item) => String(item.id)}
         renderItem={renderItem}
         contentContainerStyle={expenses?.length === 0 ? styles.emptyContainer : styles.listContent}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[Colors.light.primary]} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[brandingColors.primary]} />}
         ListEmptyComponent={
           isLoading ? null : (
             <EmptyState
@@ -196,7 +192,7 @@ const styles = StyleSheet.create({
   summaryCard: {
     marginHorizontal: theme.spacing.md,
     marginTop: theme.spacing.md,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     borderRadius: 16,
     elevation: 3,
     shadowColor: '#000',
@@ -254,23 +250,6 @@ const styles = StyleSheet.create({
   plButton: {
     marginHorizontal: theme.spacing.md,
     marginBottom: theme.spacing.md,
-    borderRadius: 12,
-    overflow: 'hidden',
-  },
-  plButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingVertical: 11,
-    paddingHorizontal: theme.spacing.md,
-  },
-  plButtonText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 14,
-    flex: 1,
-    textAlign: 'center',
   },
   listContent: {
     paddingHorizontal: theme.spacing.md,
@@ -314,14 +293,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: Colors.light.primaryLight,
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 99,
   },
   recurringText: {
     fontSize: 10,
-    color: Colors.light.primary,
     fontWeight: '600',
   },
   amount: {

@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 const { width } = Dimensions.get('window');
 
@@ -41,6 +42,7 @@ interface FABProps {
 
 export default function FAB({ bottom = 20, directRoute, onPress }: FABProps) {
   const router = useRouter();
+  const brandingColors = useBrandingColors();
   const [visible, setVisible] = useState(false);
   const [scaleAnim] = useState(new Animated.Value(0));
   const [rotateAnim] = useState(new Animated.Value(0));
@@ -155,12 +157,12 @@ export default function FAB({ bottom = 20, directRoute, onPress }: FABProps) {
     <>
       {/* Botão FAB */}
       <TouchableOpacity
-        style={[styles.fab, { bottom }]}
+        style={[styles.fab, { bottom, shadowColor: brandingColors.primary }]}
         onPress={handleFABPress}
         activeOpacity={0.8}
       >
         <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
+          colors={brandingColors.gradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.fabGradient}
@@ -245,7 +247,6 @@ const styles = StyleSheet.create({
     height: 64,
     borderRadius: 32,
     elevation: 8,
-    shadowColor: Colors.light.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 8,

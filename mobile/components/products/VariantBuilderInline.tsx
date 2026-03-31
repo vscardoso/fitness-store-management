@@ -36,6 +36,8 @@ import { Text, TextInput, Switch, Button } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
+import AppButton from '@/components/ui/AppButton';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import {
   DEFAULT_SIZES,
@@ -300,6 +302,8 @@ export default function VariantBuilderInline({
   // Render
   // ─────────────────────────────────────────────────────────
 
+  const brandingColors = useBrandingColors();
+
   return (
     <View style={styles.root}>
 
@@ -310,14 +314,14 @@ export default function VariantBuilderInline({
       >
         <LinearGradient
           colors={hasVariants
-            ? [Colors.light.primary + '20', Colors.light.secondary + '10']
+            ? [brandingColors.primary + '20', brandingColors.secondary + '10']
             : [Colors.light.backgroundSecondary, Colors.light.backgroundSecondary]}
           style={styles.toggleGradient}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
         >
           <View style={styles.toggleLeft}>
-            <View style={[styles.toggleIconBox, hasVariants && styles.toggleIconBoxActive]}>
+            <View style={[styles.toggleIconBox, hasVariants && { backgroundColor: brandingColors.primary }]}>
               <Ionicons
                 name="layers"
                 size={18}
@@ -325,7 +329,7 @@ export default function VariantBuilderInline({
               />
             </View>
             <View style={styles.toggleTextBlock}>
-              <Text style={[styles.toggleTitle, hasVariants && styles.toggleTitleActive]}>
+              <Text style={[styles.toggleTitle, hasVariants && { color: brandingColors.primary }]}>
                 Grade de Variações
               </Text>
               <Text style={styles.toggleSubtitle}>
@@ -338,7 +342,7 @@ export default function VariantBuilderInline({
           <Switch
             value={hasVariants}
             onValueChange={onToggle}
-            color={Colors.light.primary}
+            color={brandingColors.primary}
           />
         </LinearGradient>
       </Pressable>
@@ -351,22 +355,18 @@ export default function VariantBuilderInline({
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={styles.sectionLabelRow}>
-                <View style={styles.sectionAccent} />
+                <View style={[styles.sectionAccent, { backgroundColor: brandingColors.primary }]} />
                 <Text style={styles.sectionLabel}>TAMANHOS</Text>
                 {selectedSizes.length > 0 && (
-                  <View style={styles.countBadge}>
+                  <View style={[styles.countBadge, { backgroundColor: brandingColors.primary }]}>
                     <Text style={styles.countBadgeText}>{selectedSizes.length}</Text>
                   </View>
                 )}
               </View>
               <View style={styles.sectionActions}>
-                <TouchableOpacity onPress={selectAllSizes} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                  <Text style={styles.sectionActionText}>Todos</Text>
-                </TouchableOpacity>
+                <AppButton variant="text" size="sm" label="Todos" onPress={selectAllSizes} />
                 {selectedSizes.length > 0 && (
-                  <TouchableOpacity onPress={clearSizes} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                    <Text style={[styles.sectionActionText, styles.sectionActionDanger]}>Limpar</Text>
-                  </TouchableOpacity>
+                  <AppButton variant="text" size="sm" label="Limpar" textColor={Colors.light.error} onPress={clearSizes} />
                 )}
               </View>
             </View>
@@ -383,11 +383,11 @@ export default function VariantBuilderInline({
                     key={s.value}
                     onPress={() => toggleSize(s.value)}
                     activeOpacity={0.7}
-                    style={[styles.sizeChip, isSelected && styles.sizeChipSelected]}
+                    style={[styles.sizeChip, isSelected && styles.sizeChipSelected, isSelected && { borderColor: brandingColors.primary, shadowColor: brandingColors.primary }]}
                   >
                     {isSelected && (
                       <LinearGradient
-                        colors={[Colors.light.primary, Colors.light.secondary ?? Colors.light.primary]}
+                        colors={[brandingColors.primary, brandingColors.secondary ?? brandingColors.primary]}
                         style={StyleSheet.absoluteFill}
                         start={{ x: 0, y: 0 }}
                         end={{ x: 1, y: 1 }}
@@ -414,18 +414,19 @@ export default function VariantBuilderInline({
                 <View style={[styles.sectionAccent, { backgroundColor: '#F59E0B' }]} />
                 <Text style={styles.sectionLabel}>CORES</Text>
                 {selectedColors.length > 0 && (
-                  <View style={styles.countBadge}>
+                  <View style={[styles.countBadge, { backgroundColor: brandingColors.primary }]}>
                     <Text style={styles.countBadgeText}>{selectedColors.length}</Text>
                   </View>
                 )}
               </View>
               {selectedColors.length > 0 && (
-                <TouchableOpacity
+                <AppButton
+                  variant="text"
+                  size="sm"
+                  label="Limpar"
+                  textColor={Colors.light.error}
                   onPress={() => { onColorsChange([]); onColorSizesChange({}); }}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                >
-                  <Text style={[styles.sectionActionText, styles.sectionActionDanger]}>Limpar</Text>
-                </TouchableOpacity>
+                />
               )}
             </View>
 
@@ -478,7 +479,7 @@ export default function VariantBuilderInline({
                         >
                           <View style={[
                             styles.colorSwatchRing,
-                            isSelected && { borderColor: c.hex || Colors.light.primary },
+                            isSelected && { borderColor: c.hex || brandingColors.primary },
                           ]}>
                             <View style={[
                               styles.colorSwatch,
@@ -508,17 +509,21 @@ export default function VariantBuilderInline({
             <View style={styles.variantSection}>
               {/* Header da grade */}
               <View style={styles.variantSectionHeader}>
-                <View style={styles.variantCountPill}>
-                  <Ionicons name="grid-outline" size={13} color={Colors.light.primary} />
-                  <Text style={styles.variantCountText}>
+                <View style={[styles.variantCountPill, { backgroundColor: brandingColors.primary + '15' }]}>
+                  <Ionicons name="grid-outline" size={13} color={brandingColors.primary} />
+                  <Text style={[styles.variantCountText, { color: brandingColors.primary }]}>
                     {variantCount} {variantCount !== 1 ? 'variações' : 'variação'}
                   </Text>
                 </View>
                 {basePrice > 0 && (
-                  <TouchableOpacity onPress={applyBasePriceToAll} style={styles.equalizeBtn}>
-                    <Ionicons name="sync-outline" size={12} color={Colors.light.textSecondary} />
-                    <Text style={styles.equalizeBtnText}>Redefinir preços</Text>
-                  </TouchableOpacity>
+                  <AppButton
+                    variant="ghost"
+                    size="sm"
+                    icon="sync-outline"
+                    label="Redefinir preços"
+                    onPress={applyBasePriceToAll}
+                    style={{ borderWidth: 1, borderColor: Colors.light.border }}
+                  />
                 )}
               </View>
 
@@ -552,14 +557,13 @@ export default function VariantBuilderInline({
                       )}
                       <View style={styles.colorGroupLine} />
                       {/* Botão de edição em lote */}
-                      <TouchableOpacity
+                      <AppButton
+                        variant="secondary"
+                        size="sm"
+                        icon="create-outline"
+                        label="Editar preços"
                         onPress={() => openBatchEdit(color)}
-                        style={styles.batchEditBtn}
-                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                      >
-                        <Ionicons name="create-outline" size={14} color={Colors.light.primary} />
-                        <Text style={styles.batchEditBtnText}>Editar preços</Text>
-                      </TouchableOpacity>
+                      />
                     </View>
 
                     {/* Seleção de tamanhos desta cor */}
@@ -576,11 +580,11 @@ export default function VariantBuilderInline({
                               key={s.value}
                               onPress={() => toggleColorSize(color, s.value)}
                               activeOpacity={0.7}
-                              style={[styles.colorGroupSizeChip, isSel && styles.colorGroupSizeChipSelected]}
+                              style={[styles.colorGroupSizeChip, isSel && { borderColor: brandingColors.primary }]}
                             >
                               {isSel && (
                                 <LinearGradient
-                                  colors={[Colors.light.primary, Colors.light.secondary ?? Colors.light.primary]}
+                                  colors={[brandingColors.primary, brandingColors.secondary ?? brandingColors.primary]}
                                   style={StyleSheet.absoluteFill}
                                   start={{ x: 0, y: 0 }}
                                   end={{ x: 1, y: 1 }}
@@ -603,18 +607,18 @@ export default function VariantBuilderInline({
                         return (
                           <TouchableOpacity
                             key={size}
-                            style={[styles.variantCard, isCustom && styles.variantCardCustom]}
+                            style={[styles.variantCard, isCustom && styles.variantCardCustom, isCustom && { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary + '08', shadowColor: brandingColors.primary }]}
                             onPress={() => openBatchEdit(color)}
                             activeOpacity={0.7}
                           >
                             {/* Tamanho */}
-                            <View style={[styles.variantCardSizeBadge, isCustom && styles.variantCardSizeBadgeCustom]}>
-                              <Text style={[styles.variantCardSizeText, isCustom && styles.variantCardSizeTextCustom]}>
+                            <View style={[styles.variantCardSizeBadge, isCustom && styles.variantCardSizeBadgeCustom, isCustom && { backgroundColor: brandingColors.primary + '20' }]}>
+                              <Text style={[styles.variantCardSizeText, isCustom && styles.variantCardSizeTextCustom, isCustom && { color: brandingColors.primary }]}>
                                 {size === '—' ? '—' : size}
                               </Text>
                             </View>
                             {/* Preço */}
-                            <Text style={[styles.variantCardPrice, isCustom && styles.variantCardPriceCustom]}>
+                            <Text style={[styles.variantCardPrice, isCustom && styles.variantCardPriceCustom, isCustom && { color: brandingColors.primary }]}>
                               {price > 0 ? `R$\u00a0${price.toFixed(2).replace('.', ',')}` : '—'}
                             </Text>
                             {/* Indicador de preço personalizado */}
@@ -640,8 +644,8 @@ export default function VariantBuilderInline({
             </View>
           ) : (
             <View style={styles.emptyState}>
-              <View style={styles.emptyIconBubble}>
-                <Ionicons name="add-circle-outline" size={32} color={Colors.light.primary} />
+              <View style={[styles.emptyIconBubble, { backgroundColor: brandingColors.primary + '12' }]}>
+                <Ionicons name="add-circle-outline" size={32} color={brandingColors.primary} />
               </View>
               <Text style={styles.emptyTitle}>Selecione tamanhos e/ou cores</Text>
               <Text style={styles.emptySubtitle}>
@@ -688,7 +692,7 @@ export default function VariantBuilderInline({
               {batchEditColorDef?.hex ? (
                 <View style={[styles.modalColorDot, { backgroundColor: batchEditColorDef.hex }]} />
               ) : (
-                <View style={[styles.modalColorDot, { backgroundColor: '#9CA3AF' }]} />
+                <View style={[styles.modalColorDot, { backgroundColor: Colors.light.textTertiary }]} />
               )}
               <View style={styles.modalTitleBlock}>
                 <Text style={styles.modalTitle}>
@@ -758,7 +762,7 @@ export default function VariantBuilderInline({
                         keyboardType="decimal-pad"
                         style={styles.batchInput}
                         underlineColor="transparent"
-                        activeUnderlineColor={Colors.light.primary}
+                        activeUnderlineColor={brandingColors.primary}
                         dense
                         returnKeyType="next"
                         blurOnSubmit={false}
@@ -812,15 +816,15 @@ export default function VariantBuilderInline({
               {costPrice > 0 && (
                 <View style={styles.marginLegend}>
                   <View style={styles.marginLegendItem}>
-                    <View style={[styles.marginLegendDot, { backgroundColor: '#10B981' }]} />
+                    <View style={[styles.marginLegendDot, { backgroundColor: Colors.light.success }]} />
                     <Text style={styles.marginLegendText}>≥30% bom</Text>
                   </View>
                   <View style={styles.marginLegendItem}>
-                    <View style={[styles.marginLegendDot, { backgroundColor: '#F59E0B' }]} />
+                    <View style={[styles.marginLegendDot, { backgroundColor: Colors.light.warning }]} />
                     <Text style={styles.marginLegendText}>10–29% ok</Text>
                   </View>
                   <View style={styles.marginLegendItem}>
-                    <View style={[styles.marginLegendDot, { backgroundColor: '#EF4444' }]} />
+                    <View style={[styles.marginLegendDot, { backgroundColor: Colors.light.error }]} />
                     <Text style={styles.marginLegendText}>&lt;10% baixo</Text>
                   </View>
                 </View>
@@ -877,7 +881,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.light.backgroundSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -948,14 +952,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
-  sectionActionText: {
-    fontSize: 12,
-    color: Colors.light.primary,
-    fontWeight: '600',
-  },
-  sectionActionDanger: {
-    color: Colors.light.error,
-  },
 
   // ── Size chips ─────────────────────────────────────────
   chipsRow: {
@@ -969,12 +965,12 @@ const styles = StyleSheet.create({
     minWidth: 52,
     borderRadius: 12,
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.light.border,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 16,
     overflow: 'hidden',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
@@ -991,7 +987,7 @@ const styles = StyleSheet.create({
   sizeChipText: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
   },
   sizeChipTextSelected: {
     color: '#fff',
@@ -1036,13 +1032,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   colorSwatchFallback: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.light.backgroundSecondary,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.light.border,
   },
   colorLabel: {
     fontSize: 10,
-    color: '#9CA3AF',
+    color: Colors.light.textTertiary,
     textAlign: 'center',
     fontWeight: '500',
   },
@@ -1069,7 +1065,7 @@ const styles = StyleSheet.create({
   colorGroupSectionLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   colorGridRow: {
     flexDirection: 'row',
@@ -1086,12 +1082,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.light.border,
   },
   selectedColorPillDot: {
     width: 10,
@@ -1103,17 +1099,17 @@ const styles = StyleSheet.create({
   selectedColorPillText: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#374151',
+    color: Colors.light.text,
   },
 
   // ── Variant section (cards agrupados por cor) ───────────
   variantSection: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: 16,
     padding: 14,
     gap: 12,
     borderWidth: 1,
-    borderColor: '#F3F4F6',
+    borderColor: Colors.light.backgroundSecondary,
   },
   variantSectionHeader: {
     flexDirection: 'row',
@@ -1138,12 +1134,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.light.border,
   },
   equalizeBtnText: {
     fontSize: 11,
@@ -1169,14 +1165,14 @@ const styles = StyleSheet.create({
   colorGroupName: {
     fontSize: 12,
     fontWeight: '700',
-    color: '#374151',
+    color: Colors.light.text,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   colorGroupLine: {
     flex: 1,
     height: 1,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: Colors.light.border,
   },
 
   // ── Per-color size chips (menores) ────────────────────────
@@ -1191,12 +1187,12 @@ const styles = StyleSheet.create({
     minWidth: 38,
     borderRadius: 8,
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.light.border,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 10,
     overflow: 'hidden',
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
   },
   colorGroupSizeChipSelected: {
     borderColor: Colors.light.primary,
@@ -1204,7 +1200,7 @@ const styles = StyleSheet.create({
   colorGroupSizeText: {
     fontSize: 11,
     fontWeight: '700',
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
   },
   colorGroupSizeTextSelected: {
     color: '#fff',
@@ -1217,13 +1213,13 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   variantCard: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.light.border,
     minWidth: 72,
     position: 'relative',
     shadowColor: '#000',
@@ -1241,7 +1237,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   variantCardSizeBadge: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 3,
@@ -1253,7 +1249,7 @@ const styles = StyleSheet.create({
   variantCardSizeText: {
     fontSize: 13,
     fontWeight: '800',
-    color: '#374151',
+    color: Colors.light.text,
   },
   variantCardSizeTextCustom: {
     color: Colors.light.primary,
@@ -1261,7 +1257,7 @@ const styles = StyleSheet.create({
   variantCardPrice: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
   },
   variantCardPriceCustom: {
     color: Colors.light.primary,
@@ -1274,7 +1270,7 @@ const styles = StyleSheet.create({
   },
   variantCardCustomBadgeText: {
     fontSize: 9,
-    color: '#F59E0B',
+    color: Colors.light.warning,
   },
 
   tapHintRow: {
@@ -1292,7 +1288,7 @@ const styles = StyleSheet.create({
 
   // ── Color group badge + edit button ────────────────────
   colorGroupCustomBadge: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: Colors.light.warningLight,
     borderRadius: 8,
     paddingHorizontal: 6,
     paddingVertical: 2,
@@ -1300,25 +1296,10 @@ const styles = StyleSheet.create({
   colorGroupCustomBadgeText: {
     fontSize: 9,
     fontWeight: '700',
-    color: '#D97706',
+    color: Colors.light.warning,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  batchEditBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: Colors.light.primary + '12',
-    borderRadius: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-  },
-  batchEditBtnText: {
-    fontSize: 11,
-    color: Colors.light.primary,
-    fontWeight: '600',
-  },
-
   // ── Empty state ───────────────────────────────────────
   emptyState: {
     alignItems: 'center',
@@ -1369,7 +1350,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingHorizontal: 20,
@@ -1383,7 +1364,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 4,
     borderRadius: 2,
-    backgroundColor: '#E5E7EB',
+    backgroundColor: Colors.light.border,
     alignSelf: 'center',
     marginBottom: 4,
   },
@@ -1405,11 +1386,11 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#1F2937',
+    color: Colors.light.text,
   },
   modalSubtitle: {
     fontSize: 12,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     marginTop: 1,
   },
 
@@ -1425,25 +1406,25 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
   },
   globalQuickBtn: {
-    backgroundColor: '#F9FAFB',
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 7,
     alignItems: 'center',
     gap: 2,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.light.border,
   },
   globalQuickBtnLabel: {
     fontSize: 10,
-    color: '#6B7280',
+    color: Colors.light.textSecondary,
     fontWeight: '700',
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
   globalQuickBtnValue: {
     fontSize: 11,
-    color: '#1F2937',
+    color: Colors.light.text,
     fontWeight: '700',
   },
 
@@ -1459,12 +1440,12 @@ const styles = StyleSheet.create({
   },
   batchRowBorder: {
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: Colors.light.backgroundSecondary,
   },
   batchSizeBadge: {
     width: 44,
     height: 38,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
@@ -1472,16 +1453,16 @@ const styles = StyleSheet.create({
   batchSizeLabel: {
     fontSize: 14,
     fontWeight: '800',
-    color: '#374151',
+    color: Colors.light.text,
   },
   batchInputWrapper: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#F9FAFB',
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: 10,
     borderWidth: 1.5,
-    borderColor: '#E5E7EB',
+    borderColor: Colors.light.border,
     paddingLeft: 10,
     overflow: 'hidden',
     height: 46,
@@ -1489,7 +1470,7 @@ const styles = StyleSheet.create({
   batchInputPrefix: {
     fontSize: 13,
     fontWeight: '700',
-    color: '#9CA3AF',
+    color: Colors.light.textTertiary,
     marginRight: 4,
   },
   batchInput: {
@@ -1507,22 +1488,22 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 5,
     paddingVertical: 3,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.light.backgroundSecondary,
     alignItems: 'center',
   },
   batchMarginGood: {
-    backgroundColor: '#D1FAE5',
+    backgroundColor: Colors.light.successLight,
   },
   batchMarginOk: {
-    backgroundColor: '#FEF3C7',
+    backgroundColor: Colors.light.warningLight,
   },
   batchMarginLow: {
-    backgroundColor: '#FEE2E2',
+    backgroundColor: Colors.light.errorLight,
   },
   batchMarginText: {
     fontSize: 10,
     fontWeight: '800',
-    color: '#9CA3AF',
+    color: Colors.light.textTertiary,
   },
   batchMarginTextGood: {
     color: '#065F46',
@@ -1537,7 +1518,7 @@ const styles = StyleSheet.create({
     width: 30,
     height: 30,
     borderRadius: 8,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: Colors.light.backgroundSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },

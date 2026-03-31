@@ -6,7 +6,7 @@
 import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 // import * as Sentry from 'sentry-expo'; // TEMP: Desabilitado
 import { API_CONFIG } from '@/constants/Config';
-import { getAccessToken, saveAccessToken, clearAuthData } from './storage';
+import { getAccessToken, getRefreshToken, saveAccessToken, saveRefreshToken, clearAuthData } from './storage';
 import { loadingManager } from './loadingManager';
 import { logError } from './debugLog';
 import type { ApiError } from '@/types';
@@ -31,6 +31,8 @@ export function setForceLogoutCallback(callback: (reason: string) => Promise<voi
  */
 let onInvalidateQueriesCallback: (() => void) | null = null;
 
+let refreshPromise: Promise<string | null> | null = null;
+
 /**
  * Configura o callback para invalidar queries
  * Deve ser chamado ao inicializar o QueryClient
@@ -38,6 +40,65 @@ let onInvalidateQueriesCallback: (() => void) | null = null;
 export function setInvalidateQueriesCallback(callback: () => void) {
   onInvalidateQueriesCallback = callback;
 }
+
+type RefreshResponse = {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+};
+
+const isRefreshEndpoint = (url?: string) => !!url && url.includes('/auth/refresh');
+
+const refreshAccessToken = async (): Promise<string | null> => {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    const refreshToken = await getRefreshToken();
+
+    if (!refreshToken) {
+      if (__DEV__) {
+        console.log('⚠️ Refresh token ausente - não foi possível renovar sessão');
+      }
+      return null;
+    }
+
+    try {
+      // Usa a mesma instância com headers de controle para evitar loop de auth/loading.
+      const { data } = await api.post<RefreshResponse>(
+        '/auth/refresh',
+        { refresh_token: refreshToken },
+        {
+          headers: {
+            'X-Skip-Auth': 'true',
+            'X-Skip-Loading': 'true',
+          },
+        }
+      );
+
+      await saveAccessToken(data.access_token);
+      await saveRefreshToken(data.refresh_token);
+
+      if (__DEV__) {
+        console.log('♻️ Sessão renovada com sucesso via refresh token');
+      }
+
+      return data.access_token;
+    } catch (refreshError) {
+      if (__DEV__) {
+        console.log('🔒 Falha ao renovar sessão via refresh token');
+      }
+      return null;
+    }
+  })();
+
+  try {
+    return await refreshPromise;
+  } finally {
+    refreshPromise = null;
+  }
+};
 
 /**
  * Instância do Axios configurada
@@ -58,13 +119,14 @@ export const api = axios.create({
 api.interceptors.request.use(
   async (config) => {
     const token = await getAccessToken();
+    const skipAuth = config.headers?.['X-Skip-Auth'] === 'true';
 
     // Skip Authorization for signup-related endpoints
     const isSignupEndpoint = config.url?.includes('/auth/signup') ||
                               config.url?.includes('/auth/check-email') ||
                               config.url?.includes('/auth/check-slug');
 
-    if (token && config.headers && !isSignupEndpoint) {
+    if (token && config.headers && !isSignupEndpoint && !skipAuth) {
       config.headers.Authorization = `Bearer ${token}`;
       // Marcar que esta requisição tinha Authorization
       (config as any)._hadAuth = true;
@@ -83,6 +145,20 @@ api.interceptors.request.use(
           console.log('⚠️ Nenhum token encontrado');
         }
       }
+    }
+
+    // Adicionar tenant_id do authStore (multi-tenant)
+    try {
+      const { useAuthStore } = await import('@/store/authStore');
+      const tenant_id = useAuthStore.getState().tenant_id;
+      if (tenant_id) {
+        config.headers['X-Tenant-Id'] = tenant_id.toString();
+        if (__DEV__) {
+          console.log(`🏢 Tenant-ID: ${tenant_id}`);
+        }
+      }
+    } catch (err) {
+      // Silenciosamente ignorar se authStore não estiver disponível ainda
     }
 
     // Log em desenvolvimento com URL completa
@@ -179,14 +255,30 @@ api.interceptors.response.use(
       return Promise.reject(new Error(networkError));
     }
     
-    // Token expirado (401) -> forçar logout
+    // Token expirado (401) -> tenta refresh silencioso antes de forçar logout
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
+      const isRefreshCall = isRefreshEndpoint(originalRequest.url);
 
       // Apenas forçar logout se a requisição tinha Authorization
       const hadAuth = (originalRequest as any)._hadAuth === true;
-      if (hadAuth) {
-        console.log('🔒 Token expirado ou inválido - iniciando logout forçado');
+      if (hadAuth && !isRefreshCall) {
+        const newAccessToken = await refreshAccessToken();
+
+        if (newAccessToken) {
+          if (!originalRequest.headers) {
+            originalRequest.headers = {};
+          }
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
+
+          if (__DEV__) {
+            console.log('🔁 Reenviando requisição após refresh de token');
+          }
+
+          return api(originalRequest);
+        }
+
+        console.log('🔒 Sessão inválida após tentativa de refresh - iniciando logout forçado');
 
         // 1. Limpar AsyncStorage
         await clearAuthData();

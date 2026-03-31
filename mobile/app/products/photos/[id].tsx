@@ -15,14 +15,26 @@ import {
   StatusBar,
   ActivityIndicator,
   Alert,
+  Text,
+  useWindowDimensions,
 } from 'react-native';
-import { Text, Button } from 'react-native-paper';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
+import PageHeader from '@/components/layout/PageHeader';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { getProductById } from '@/services/productService';
 import { getProductVariants } from '@/services/productVariantService';
 import { uploadVariantImageWithFallback } from '@/services/uploadService';
 import type { ProductVariant } from '@/types/productVariant';
@@ -60,21 +72,102 @@ function groupByColor(variants: ProductVariant[]): Map<string, ProductVariant[]>
   return map;
 }
 
+const SIZE_ORDER = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XGG', 'U'];
+
+function normalizeSize(size?: string | null): string {
+  return (size ?? '').toUpperCase().trim().replace(/\s+/g, '');
+}
+
+function sizeRank(size?: string | null): number {
+  const normalized = normalizeSize(size);
+  if (!normalized) return 999;
+
+  const byPreset = SIZE_ORDER.indexOf(normalized);
+  if (byPreset >= 0) return byPreset;
+
+  const numeric = Number(normalized.replace(',', '.'));
+  if (!Number.isNaN(numeric)) return 100 + numeric;
+
+  return 500;
+}
+
+function compareVariants(a: ProductVariant, b: ProductVariant): number {
+  const rankDiff = sizeRank(a.size) - sizeRank(b.size);
+  if (rankDiff !== 0) return rankDiff;
+
+  const sizeDiff = normalizeSize(a.size).localeCompare(normalizeSize(b.size), 'pt-BR');
+  if (sizeDiff !== 0) return sizeDiff;
+
+  const skuA = (a.sku ?? '').toUpperCase();
+  const skuB = (b.sku ?? '').toUpperCase();
+  return skuA.localeCompare(skuB, 'pt-BR');
+}
+
+function compareColors(a: string, b: string): number {
+  const aNoColor = a.toLowerCase() === 'sem cor';
+  const bNoColor = b.toLowerCase() === 'sem cor';
+
+  if (aNoColor && !bNoColor) return 1;
+  if (!aNoColor && bNoColor) return -1;
+
+  return a.localeCompare(b, 'pt-BR');
+}
+
 // ─── Componente ───────────────────────────────────────────────────────────────
 
 export default function VariantPhotosScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const productId = Number(id);
+  const { width } = useWindowDimensions();
   const queryClient = useQueryClient();
+  const brandingColors = useBrandingColors();
 
   // Foto local por variante (uri temporária antes de confirmar)
   const [uploading, setUploading] = useState<Record<number, boolean>>({});
   const [localPhotos, setLocalPhotos] = useState<Record<number, string>>({});
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+
+  // ── Animação de entrada ──
+  const headerOpacity = useSharedValue(0);
+  const headerScale = useSharedValue(0.94);
+  const contentOpacity = useSharedValue(0);
+  const contentTransY = useSharedValue(24);
+
+  useFocusEffect(
+    useCallback(() => {
+      headerOpacity.value = 0;
+      headerScale.value = 0.94;
+      contentOpacity.value = 0;
+      contentTransY.value = 24;
+
+      headerOpacity.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.quad) });
+      headerScale.value = withSpring(1, { damping: 18, stiffness: 200 });
+      
+      contentOpacity.value = withTiming(1, { duration: 480, easing: Easing.out(Easing.quad) });
+      contentTransY.value = withSpring(0, { damping: 20, stiffness: 180 });
+    }, [])
+  );
+
+  const headerAnimStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTransY.value }],
+  }));
 
   const { data: variants = [], isLoading } = useQuery({
     queryKey: ['product-variants', productId],
     queryFn: () => getProductVariants(productId),
+    enabled: !!productId,
+  });
+
+  const { data: product, isLoading: isLoadingProduct } = useQuery({
+    queryKey: ['product', productId],
+    queryFn: () => getProductById(productId),
     enabled: !!productId,
   });
 
@@ -83,6 +176,14 @@ export default function VariantPhotosScreen() {
     (v) => localPhotos[v.id] || v.image_url
   ).length;
   const groups = groupByColor(activeVariants);
+  const sortedGroups = [...groups.entries()]
+    .sort(([colorA], [colorB]) => compareColors(colorA, colorB))
+    .map(([color, items]) => [color, [...items].sort(compareVariants)] as const);
+
+  const CARD_GAP = theme.spacing.sm;
+  const availableWidth = width - (theme.spacing.md * 2) - (theme.spacing.md * 2) - CARD_GAP;
+  const cardSize = Math.max(128, Math.min(176, Math.floor(availableWidth / 2)));
+  const pendingCount = Math.max(0, activeVariants.length - totalWithPhoto);
 
   const pickAndUpload = useCallback(
     async (variant: ProductVariant) => {
@@ -93,7 +194,7 @@ export default function VariantPhotosScreen() {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ['images'],
         allowsEditing: true,
         aspect: [1, 1],
         quality: 0.85,
@@ -124,64 +225,94 @@ export default function VariantPhotosScreen() {
 
   const photoForVariant = (v: ProductVariant) => localPhotos[v.id] ?? v.image_url ?? null;
 
-  if (isLoading) {
+  if (isLoading || isLoadingProduct) {
     return (
       <View style={styles.centered}>
-        <ActivityIndicator color={Colors.light.primary} size="large" />
+        <ActivityIndicator color={brandingColors.primary} size="large" />
       </View>
     );
   }
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
+      <StatusBar barStyle="light-content" />
 
-      {/* ── Header ──────────────────────────────────────────────────── */}
-      <LinearGradient
-        colors={[Colors.light.primary, Colors.light.secondary]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <View style={styles.headerInfo}>
-          <Text style={styles.headerTitle}>Fotos das Variações</Text>
-          <Text style={styles.headerSubtitle}>
-            {totalWithPhoto}/{activeVariants.length} com foto
-          </Text>
-        </View>
+      {/* ── Header animado ────────────────────────────────────────── */}
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title="Fotos das Variações"
+          subtitle={product?.name || 'Produto'}
+          showBackButton
+          onBack={() => router.back()}
+        />
         {/* Barra de progresso */}
-        <View style={styles.progressBarWrap}>
-          <View
-            style={[
-              styles.progressBar,
-              {
-                width: activeVariants.length > 0
-                  ? `${(totalWithPhoto / activeVariants.length) * 100}%`
-                  : '0%',
-              } as any,
-            ]}
-          />
+        <View style={styles.progressBarContainer}>
+          <View style={styles.progressBarWrap}>
+            <View
+              style={[
+                styles.progressBar,
+                {
+                  width: activeVariants.length > 0
+                    ? `${(totalWithPhoto / activeVariants.length) * 100}%`
+                    : '0%',
+                  backgroundColor: brandingColors.primary,
+                } as any,
+              ]}
+            />
+          </View>
         </View>
-      </LinearGradient>
+      </Animated.View>
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+      {/* ── Conteúdo animado ──────────────────────────────────────── */}
+      <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+        >
+        <View style={styles.productContextCard}>
+          <View style={styles.productContextTop}>
+            <View style={[styles.productIconWrap, { backgroundColor: brandingColors.primary + '15' }]}>
+              <Ionicons name="shirt-outline" size={18} color={brandingColors.primary} />
+            </View>
+            <View style={styles.productContextTextWrap}>
+              <Text style={styles.productContextLabel}>PRODUTO</Text>
+              <Text style={styles.productContextName} numberOfLines={2}>
+                {product?.name || 'Produto sem nome'}
+              </Text>
+              <Text style={styles.productContextMeta} numberOfLines={1}>
+                {product?.sku ? `SKU: ${product.sku}` : 'SKU não informado'}
+                {product?.brand ? ` • ${product.brand}` : ''}
+              </Text>
+            </View>
+          </View>
+
+          <View style={styles.productStatsRow}>
+            <View style={styles.productStatChip}>
+              <Text style={styles.productStatValue}>{activeVariants.length}</Text>
+              <Text style={styles.productStatLabel}>variações</Text>
+            </View>
+            <View style={styles.productStatChip}>
+              <Text style={[styles.productStatValue, { color: brandingColors.primary }]}>{totalWithPhoto}</Text>
+              <Text style={styles.productStatLabel}>com foto</Text>
+            </View>
+            <View style={styles.productStatChip}>
+              <Text style={styles.productStatValue}>{activeVariants.length - totalWithPhoto}</Text>
+              <Text style={styles.productStatLabel}>pendentes</Text>
+            </View>
+          </View>
+        </View>
+
         {/* ── Banner informativo ─────────────────────────────────────── */}
         <View style={styles.infoBanner}>
           <Ionicons name="information-circle" size={18} color={Colors.light.info} />
           <Text style={styles.infoText}>
-            Cada variação pode ter sua própria foto. Você pode adicionar agora ou depois.
+            Toque em cada card para adicionar ou trocar a foto da variação.
           </Text>
         </View>
 
         {/* ── Grupos por cor ─────────────────────────────────────────── */}
-        {[...groups.entries()].map(([colorName, colorVariants]) => {
+        {sortedGroups.map(([colorName, colorVariants]) => {
           const hex = colorHex(colorName !== 'Sem cor' ? colorName : null);
           return (
             <View key={colorName} style={styles.colorGroup}>
@@ -190,7 +321,9 @@ export default function VariantPhotosScreen() {
                 {colorName !== 'Sem cor' && (
                   <View style={[styles.colorDot, { backgroundColor: hex }]} />
                 )}
-                <Text style={styles.colorGroupName}>{colorName}</Text>
+                <Text style={styles.colorGroupName} numberOfLines={1}>
+                  {colorName === 'Sem cor' ? 'Sem cor definida' : `Cor: ${colorName}`}
+                </Text>
                 <Text style={styles.colorGroupCount}>
                   {colorVariants.filter((v) => photoForVariant(v)).length}/
                   {colorVariants.length}
@@ -206,14 +339,15 @@ export default function VariantPhotosScreen() {
                   return (
                     <TouchableOpacity
                       key={variant.id}
-                      style={styles.variantCard}
+                      style={[styles.variantCard, { width: cardSize }]}
                       onPress={() => pickAndUpload(variant)}
-                      activeOpacity={0.85}
+                      activeOpacity={0.75}
                       disabled={isUploading}
+                      accessibilityLabel={`Selecionar foto da variação ${variant.size || variant.sku}`}
                     >
                       {/* Foto ou placeholder */}
                       {photo ? (
-                        <View style={styles.photoWrap}>
+                        <View style={[styles.photoWrap, { width: cardSize, height: cardSize }]}>
                           <Image source={{ uri: photo }} style={styles.photo} />
                           {isUploading && (
                             <View style={styles.uploadingOverlay}>
@@ -228,17 +362,17 @@ export default function VariantPhotosScreen() {
                           )}
                         </View>
                       ) : (
-                        <View style={[styles.photoWrap, styles.photoPlaceholder]}>
+                        <View style={[styles.photoWrap, styles.photoPlaceholder, { borderColor: brandingColors.primary, width: cardSize, height: cardSize }]}>
                           {isUploading ? (
-                            <ActivityIndicator color={Colors.light.primary} />
+                            <ActivityIndicator color={brandingColors.primary} />
                           ) : (
                             <>
                               <Ionicons
                                 name="camera-outline"
                                 size={28}
-                                color={Colors.light.primary}
+                                color={brandingColors.primary}
                               />
-                              <Text style={styles.placeholderText}>Adicionar</Text>
+                              <Text style={[styles.placeholderText, { color: brandingColors.primary }]}>Adicionar</Text>
                             </>
                           )}
                         </View>
@@ -246,22 +380,25 @@ export default function VariantPhotosScreen() {
 
                       {/* Label da variação */}
                       <View style={styles.variantLabel}>
-                        {variant.size ? (
-                          <View style={styles.sizePill}>
-                            <Text style={styles.sizePillText}>{variant.size}</Text>
-                          </View>
-                        ) : (
-                          <Text style={styles.variantSku} numberOfLines={1}>
-                            {variant.sku}
-                          </Text>
-                        )}
-                        {photo && !isUploading && (
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={14}
-                            color={Colors.light.success}
-                          />
-                        )}
+                        <View style={styles.variantTopRow}>
+                          {variant.size ? (
+                            <View style={[styles.sizePill, { backgroundColor: brandingColors.primary + '15' }]}>
+                              <Text style={[styles.sizePillText, { color: brandingColors.primary }]}>{variant.size}</Text>
+                            </View>
+                          ) : (
+                            <Text style={styles.variantSizeFallback}>Sem tamanho</Text>
+                          )}
+                          {photo && !isUploading && (
+                            <Ionicons
+                              name="checkmark-circle"
+                              size={14}
+                              color={Colors.light.success}
+                            />
+                          )}
+                        </View>
+                        <Text style={styles.variantSku} numberOfLines={1}>
+                          {variant.sku ? `SKU: ${variant.sku}` : 'SKU não informado'}
+                        </Text>
                       </View>
                     </TouchableOpacity>
                   );
@@ -275,71 +412,148 @@ export default function VariantPhotosScreen() {
           <View style={styles.emptyState}>
             <Ionicons name="layers-outline" size={56} color={Colors.light.textTertiary} />
             <Text style={styles.emptyTitle}>Nenhuma variação ativa</Text>
+            <Text style={styles.emptySubtitle}>Adicione variações ao produto primeiro</Text>
           </View>
         )}
 
         {/* Botão de conclusão */}
-        <Button
-          mode="contained"
-          onPress={() => router.back()}
-          icon="check"
+        <TouchableOpacity
           style={styles.doneBtn}
-          contentStyle={styles.doneBtnContent}
+          onPress={() => setShowSuccessDialog(true)}
+          activeOpacity={0.8}
         >
-          {totalWithPhoto === activeVariants.length
-            ? 'Concluído'
-            : `Concluir (${activeVariants.length - totalWithPhoto} sem foto)`}
-        </Button>
+          <LinearGradient
+            colors={brandingColors.gradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.doneBtnGradient}
+          >
+            <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+            <Text style={styles.doneBtnText}>
+              {totalWithPhoto === activeVariants.length
+                ? 'Concluído'
+                : `Concluir (${pendingCount} sem foto)`}
+            </Text>
+          </LinearGradient>
+        </TouchableOpacity>
       </ScrollView>
+    </Animated.View>
+
+    <ConfirmDialog
+      visible={showSuccessDialog}
+      title="Sucesso!"
+      message={
+        pendingCount === 0
+          ? 'Fotos das variações finalizadas com sucesso.'
+          : `Processo finalizado. ${pendingCount} variação(ões) ainda está(ão) sem foto e você pode completar depois.`
+      }
+      confirmText="OK"
+      onConfirm={() => {
+        setShowSuccessDialog(false);
+        router.back();
+      }}
+      onCancel={() => {
+        setShowSuccessDialog(false);
+        router.back();
+      }}
+      type="success"
+      icon="checkmark-circle"
+    />
     </View>
   );
 }
-
-const CARD_SIZE = 150;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
   centered: { flex: 1, justifyContent: 'center', alignItems: 'center' },
 
-  // Header
-  header: {
-    paddingTop: 50,
-    paddingBottom: theme.spacing.md,
+  // Barra de progresso
+  progressBarContainer: {
     paddingHorizontal: theme.spacing.md,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-    gap: theme.spacing.sm,
-  },
-  backBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  headerInfo: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerTitle: { fontSize: theme.fontSize.xxl, fontWeight: '700', color: '#fff' },
-  headerSubtitle: {
-    fontSize: theme.fontSize.sm,
-    color: 'rgba(255,255,255,0.85)',
-    fontWeight: '600',
+    paddingBottom: theme.spacing.md,
   },
   progressBarWrap: {
     height: 4,
-    backgroundColor: 'rgba(255,255,255,0.25)',
+    backgroundColor: Colors.light.border,
     borderRadius: 2,
     overflow: 'hidden',
   },
   progressBar: {
     height: 4,
-    backgroundColor: '#fff',
     borderRadius: 2,
   },
 
   // Scroll
   scroll: { flex: 1 },
-  content: { padding: theme.spacing.md, paddingBottom: 80, gap: theme.spacing.md },
+  content: { padding: theme.spacing.md, paddingBottom: theme.spacing.xxl, gap: theme.spacing.md },
+
+  // Contexto do produto
+  productContextCard: {
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: theme.spacing.md,
+    gap: theme.spacing.md,
+    ...theme.shadows.sm,
+  },
+  productContextTop: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.sm,
+  },
+  productIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  productContextTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  productContextLabel: {
+    fontSize: theme.fontSize.xs,
+    letterSpacing: 0.7,
+    textTransform: 'uppercase',
+    color: Colors.light.textTertiary,
+    fontWeight: '700',
+  },
+  productContextName: {
+    marginTop: 2,
+    fontSize: theme.fontSize.lg,
+    color: Colors.light.text,
+    fontWeight: '800',
+  },
+  productContextMeta: {
+    marginTop: 2,
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
+  },
+  productStatsRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+  },
+  productStatChip: {
+    flex: 1,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    paddingVertical: theme.spacing.xs,
+    alignItems: 'center',
+  },
+  productStatValue: {
+    fontSize: theme.fontSize.base,
+    color: Colors.light.text,
+    fontWeight: '800',
+  },
+  productStatLabel: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+  },
 
   // Info banner
   infoBanner: {
@@ -364,11 +578,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.card,
     borderRadius: theme.borderRadius.xl,
     padding: theme.spacing.md,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
     gap: theme.spacing.md,
   },
   colorGroupHeader: {
@@ -400,17 +612,13 @@ const styles = StyleSheet.create({
   variantGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    justifyContent: 'space-between',
     gap: theme.spacing.sm,
   },
-  variantCard: {
-    width: CARD_SIZE,
-    gap: theme.spacing.xs,
-  },
+  variantCard: { gap: theme.spacing.xs },
 
   // Foto
   photoWrap: {
-    width: CARD_SIZE,
-    height: CARD_SIZE,
     borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
     backgroundColor: Colors.light.backgroundSecondary,
@@ -423,7 +631,6 @@ const styles = StyleSheet.create({
   },
   photoPlaceholder: {
     borderWidth: 2,
-    borderColor: Colors.light.primary,
     borderStyle: 'dashed',
     justifyContent: 'center',
     alignItems: 'center',
@@ -431,7 +638,6 @@ const styles = StyleSheet.create({
   },
   placeholderText: {
     fontSize: theme.fontSize.xs,
-    color: Colors.light.primary,
     fontWeight: '600',
   },
   uploadingOverlay: {
@@ -454,13 +660,16 @@ const styles = StyleSheet.create({
 
   // Label da variação
   variantLabel: {
+    gap: 4,
+    paddingHorizontal: 2,
+  },
+  variantTopRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 2,
+    minHeight: 18,
   },
   sizePill: {
-    backgroundColor: Colors.light.primary + '15',
     borderRadius: 6,
     paddingHorizontal: 8,
     paddingVertical: 2,
@@ -468,12 +677,15 @@ const styles = StyleSheet.create({
   sizePillText: {
     fontSize: theme.fontSize.sm,
     fontWeight: '700',
-    color: Colors.light.primary,
   },
   variantSku: {
     fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
-    flex: 1,
+  },
+  variantSizeFallback: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textTertiary,
+    fontWeight: '600',
   },
 
   // Empty state
@@ -487,8 +699,28 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.light.textSecondary,
   },
+  emptySubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textTertiary,
+    textAlign: 'center',
+  },
 
   // Done button
-  doneBtn: { borderRadius: 12, marginTop: theme.spacing.sm },
-  doneBtnContent: { paddingVertical: theme.spacing.sm },
+  doneBtn: {
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+    marginTop: theme.spacing.sm,
+  },
+  doneBtnGradient: {
+    paddingVertical: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: theme.spacing.xs,
+  },
+  doneBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: theme.fontSize.base,
+  },
 });

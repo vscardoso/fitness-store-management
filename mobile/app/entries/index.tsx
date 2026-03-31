@@ -20,9 +20,18 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Alert,
+  Text,
+  TextInput,
 } from 'react-native';
-import { Text, Card, Searchbar, Menu, Button, Chip } from 'react-native-paper';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
+import { LinearGradient } from 'expo-linear-gradient';
 import PageHeader from '@/components/layout/PageHeader';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -30,10 +39,12 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '@/hooks/useAuth';
 import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';
+import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getStockEntries, getStockEntriesStats, addItemToEntry } from '@/services/stockEntryService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import { StockEntry, EntryType } from '@/types';
 
 const PAGE_SIZE = 20;
@@ -44,16 +55,47 @@ export default function StockEntriesScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const brandingColors = useBrandingColors();
   const [typeFilter, setTypeFilter] = useState<EntryType | undefined>();
   const [searchQuery, setSearchQuery] = useState('');
-  const [menuVisible, setMenuVisible] = useState(false);
   const [filter, setFilter] = useState<FilterType>('active');
+
+  // ── Animações de entrada ──
+  const headerOpacity  = useSharedValue(0);
+  const headerScale    = useSharedValue(0.94);
+  const contentOpacity = useSharedValue(0);
+  const contentTransY  = useSharedValue(20);
+
+  useFocusEffect(useCallback(() => {
+    headerOpacity.value  = 0;
+    headerScale.value    = 0.94;
+    contentOpacity.value = 0;
+    contentTransY.value  = 20;
+    headerOpacity.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.quad) });
+    headerScale.value   = withSpring(1, { damping: 16, stiffness: 200 });
+    const t = setTimeout(() => {
+      contentOpacity.value = withTiming(1, { duration: 340 });
+      contentTransY.value  = withSpring(0, { damping: 18, stiffness: 200 });
+    }, 140);
+    return () => clearTimeout(t);
+  }, []));
+
+  const headerAnimStyle  = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTransY.value }],
+  }));
 
   // Parâmetros de navegação para modo de seleção
   const params = useLocalSearchParams<{
     selectMode?: string;
     productToLink?: string;
     fromWizard?: string;
+    deleteSuccessMessage?: string;
+    deleteSuccessNonce?: string;
   }>();
 
   // Parse produto a vincular
@@ -75,6 +117,8 @@ export default function StockEntriesScreen() {
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<StockEntry | null>(null);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [deleteSuccessMessage, setDeleteSuccessMessage] = useState('');
+  const [showDeleteSuccessDialog, setShowDeleteSuccessDialog] = useState(false);
   const [showErrorDialog, setShowErrorDialog] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -196,6 +240,15 @@ export default function StockEntriesScreen() {
     });
   }, []);
 
+  useEffect(() => {
+    if (!params.deleteSuccessMessage) return;
+
+    setDeleteSuccessMessage(params.deleteSuccessMessage);
+    setShowDeleteSuccessDialog(true);
+    refetchStats();
+    refetch();
+  }, [params.deleteSuccessMessage, params.deleteSuccessNonce, refetch, refetchStats]);
+
   /**
    * Auto-refresh ao focar na tela
    */
@@ -250,64 +303,20 @@ export default function StockEntriesScreen() {
   }) || [];
 
   /**
-   * Renderizar badge de tipo
+   * Renderizar badge de tipo usando componente Badge unificado
    */
   const renderTypeBadge = (type: EntryType) => {
-    const typeConfig: Record<EntryType, { label: string; color: string; icon: string; bgColor: string }> = {
-      [EntryType.TRIP]: { 
-        label: 'Viagem', 
-        color: Colors.light.info, 
-        icon: 'car-outline',
-        bgColor: Colors.light.info + '20',
-      },
-      [EntryType.ONLINE]: { 
-        label: 'Online', 
-        color: Colors.light.warning, 
-        icon: 'cart-outline',
-        bgColor: Colors.light.warning + '20',
-      },
-      [EntryType.LOCAL]: { 
-        label: 'Local', 
-        color: Colors.light.success, 
-        icon: 'storefront-outline',
-        bgColor: Colors.light.success + '20',
-      },
-      [EntryType.INITIAL_INVENTORY]: {
-        label: 'Estoque Inicial',
-        color: Colors.light.textSecondary,
-        icon: 'archive-outline',
-        bgColor: Colors.light.textSecondary + '20',
-      },
-      [EntryType.ADJUSTMENT]: {
-        label: 'Ajuste',
-        color: Colors.light.textSecondary,
-        icon: 'construct-outline',
-        bgColor: Colors.light.textSecondary + '20',
-      },
-      [EntryType.RETURN]: {
-        label: 'Devolução',
-        color: Colors.light.textSecondary,
-        icon: 'arrow-undo-outline',
-        bgColor: Colors.light.textSecondary + '20',
-      },
-      [EntryType.DONATION]: {
-        label: 'Doação',
-        color: Colors.light.textSecondary,
-        icon: 'heart-outline',
-        bgColor: Colors.light.textSecondary + '20',
-      },
+    const typeConfig: Record<EntryType, { label: string; variant: 'info' | 'warning' | 'success' | 'neutral'; icon: keyof typeof Ionicons.glyphMap }> = {
+      [EntryType.TRIP]:              { label: 'Viagem',         variant: 'info',    icon: 'car-outline'           },
+      [EntryType.ONLINE]:            { label: 'Online',         variant: 'warning', icon: 'cart-outline'          },
+      [EntryType.LOCAL]:             { label: 'Local',          variant: 'success', icon: 'storefront-outline'    },
+      [EntryType.INITIAL_INVENTORY]: { label: 'Est. Inicial',   variant: 'neutral', icon: 'archive-outline'       },
+      [EntryType.ADJUSTMENT]:        { label: 'Ajuste',         variant: 'neutral', icon: 'construct-outline'     },
+      [EntryType.RETURN]:            { label: 'Devolução',      variant: 'neutral', icon: 'arrow-undo-outline'    },
+      [EntryType.DONATION]:          { label: 'Doação',         variant: 'neutral', icon: 'heart-outline'         },
     };
-
-    const config = typeConfig[type] || typeConfig[EntryType.LOCAL];
-
-    return (
-      <View style={[styles.badge, { backgroundColor: config.bgColor }]}>
-        <Ionicons name={config.icon as any} size={14} color={config.color} />
-        <Text style={[styles.badgeText, { color: config.color }]}>
-          {config.label}
-        </Text>
-      </View>
-    );
+    const config = typeConfig[type] ?? typeConfig[EntryType.LOCAL];
+    return <Badge label={config.label} variant={config.variant} icon={config.icon} size="sm" />;
   };
 
   /**
@@ -349,12 +358,12 @@ export default function StockEntriesScreen() {
         onPress={() => handleEntryPress(item)}
         activeOpacity={0.7}
       >
-        <Card style={[styles.card, isSelectMode && styles.cardSelectMode]}>
-          <Card.Content>
+        <View style={[styles.card, isSelectMode && styles.cardSelectMode]}>
+          <View style={styles.cardContent}>
             {/* Header: Código e Tipo */}
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderLeft}>
-                <Ionicons name="receipt-outline" size={20} color={Colors.light.primary} />
+                <Ionicons name="receipt-outline" size={20} color={brandingColors.primary} />
                 <Text style={styles.cardCode}>{item.entry_code}</Text>
               </View>
               {renderTypeBadge(item.entry_type)}
@@ -375,7 +384,7 @@ export default function StockEntriesScreen() {
             {/* Viagem (se houver) */}
             {item.trip_code && (
               <View style={styles.cardRow}>
-                <Ionicons name="airplane-outline" size={16} color={Colors.light.primary} />
+                <Ionicons name="airplane-outline" size={16} color={brandingColors.primary} />
                 <Text style={styles.cardTrip}>
                   {item.trip_code}
                   {item.trip_destination && ` - ${item.trip_destination}`}
@@ -383,19 +392,15 @@ export default function StockEntriesScreen() {
               </View>
             )}
 
-            {/* Badge "COM VENDAS" */}
-            {item.has_sales && (
-              <View style={styles.salesBadge}>
-                <Ionicons name="lock-closed" size={12} color="#F57C00" />
-                <Text style={styles.salesBadgeText}>COM VENDAS</Text>
-              </View>
-            )}
-
-            {/* Badge "HISTÓRICO" */}
-            {item.sell_through_rate >= 100 && (
-              <View style={styles.historyBadge}>
-                <Ionicons name="archive" size={12} color="#757575" />
-                <Text style={styles.historyBadgeText}>HISTÓRICO</Text>
+            {/* Badges de status */}
+            {(item.has_sales || item.sell_through_rate >= 100) && (
+              <View style={styles.statusBadgesRow}>
+                {item.has_sales && (
+                  <Badge label="Com Vendas" variant="warning" icon="lock-closed" size="sm" uppercase />
+                )}
+                {item.sell_through_rate >= 100 && (
+                  <Badge label="Histórico" variant="neutral" icon="archive" size="sm" uppercase />
+                )}
               </View>
             )}
 
@@ -419,38 +424,44 @@ export default function StockEntriesScreen() {
               </View>
             </View>
 
-            {/* KPIs de Performance */}
+            {/* Sell-Through visual */}
             {item.sell_through_rate > 0 && (
-              <View style={styles.kpiRow}>
-                <View style={styles.kpiItem}>
+              <View style={styles.sellThroughContainer}>
+                <View style={styles.sellThroughHeader}>
                   <Text style={styles.kpiLabel}>Sell-Through</Text>
-                  <View style={styles.kpiValueContainer}>
+                  <View style={styles.kpiRow}>
                     <Text style={[
                       styles.kpiValue,
-                      { color: item.sell_through_rate >= 70 ? Colors.light.success : Colors.light.warning }
+                      { color: item.sell_through_rate >= 70 ? Colors.light.success : item.sell_through_rate >= 40 ? Colors.light.warning : Colors.light.error }
                     ]}>
                       {item.sell_through_rate.toFixed(1)}%
                     </Text>
-                  </View>
-                </View>
-
-                {item.roi !== null && item.roi !== undefined && (
-                  <View style={styles.kpiItem}>
-                    <Text style={styles.kpiLabel}>ROI</Text>
-                    <View style={styles.kpiValueContainer}>
+                    {item.roi !== null && item.roi !== undefined && (
                       <Text style={[
                         styles.kpiValue,
+                        styles.roiValue,
                         { color: item.roi >= 0 ? Colors.light.success : Colors.light.error }
                       ]}>
-                        {item.roi >= 0 ? '+' : ''}{item.roi.toFixed(1)}%
+                        ROI {item.roi >= 0 ? '+' : ''}{item.roi.toFixed(1)}%
                       </Text>
-                    </View>
+                    )}
                   </View>
-                )}
+                </View>
+                <View style={styles.sellThroughBar}>
+                  <View style={[
+                    styles.sellThroughFill,
+                    {
+                      width: `${Math.min(item.sell_through_rate, 100)}%` as any,
+                      backgroundColor: item.sell_through_rate >= 70 ? Colors.light.success :
+                        item.sell_through_rate >= 40 ? Colors.light.warning :
+                        Colors.light.error,
+                    },
+                  ]} />
+                </View>
               </View>
             )}
-          </Card.Content>
-        </Card>
+          </View>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -496,7 +507,7 @@ export default function StockEntriesScreen() {
         />
 
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={brandingColors.primary} />
           <Text style={styles.loadingText}>Carregando entradas...</Text>
         </View>
       </View>
@@ -527,149 +538,132 @@ export default function StockEntriesScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader
-        title="Entradas"
-        subtitle={`${entryCount} ${entryCount === 1 ? 'entrada' : 'entradas'}`}
-      />
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title="Entradas"
+          subtitle={`${entryCount} ${entryCount === 1 ? 'entrada' : 'entradas'}`}
+        />
+      </Animated.View>
 
+      <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
       {/* Filtros de Status (Ativas/Histórico/Todas) */}
       <View style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[styles.filterChip, filter === 'active' && styles.filterChipActive]}
-          onPress={() => setFilter('active')}
-        >
-          <Ionicons
-            name="cube"
-            size={16}
-            color={filter === 'active' ? Colors.light.primary : Colors.light.textSecondary}
-          />
-          <Text style={[styles.filterChipText, filter === 'active' && styles.filterChipTextActive]}>
-            Ativas
-          </Text>
-          <View style={[styles.filterBadge, filter === 'active' && styles.filterBadgeActive]}>
-            <Text style={[styles.filterBadgeText, filter === 'active' && styles.filterBadgeTextActive]}>
-              {activeCount}
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.filterChip, filter === 'history' && styles.filterChipActive]}
-          onPress={() => setFilter('history')}
-        >
-          <Ionicons
-            name="archive"
-            size={16}
-            color={filter === 'history' ? Colors.light.primary : Colors.light.textSecondary}
-          />
-          <Text style={[styles.filterChipText, filter === 'history' && styles.filterChipTextActive]}>
-            Histórico
-          </Text>
-          <View style={[styles.filterBadge, filter === 'history' && styles.filterBadgeActive]}>
-            <Text style={[styles.filterBadgeText, filter === 'history' && styles.filterBadgeTextActive]}>
-              {historyCount}
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.filterChip, filter === 'all' && styles.filterChipActive]}
-          onPress={() => setFilter('all')}
-        >
-          <Ionicons
-            name="list"
-            size={16}
-            color={filter === 'all' ? Colors.light.primary : Colors.light.textSecondary}
-          />
-          <Text style={[styles.filterChipText, filter === 'all' && styles.filterChipTextActive]}>
-            Todas
-          </Text>
-          <View style={[styles.filterBadge, filter === 'all' && styles.filterBadgeActive]}>
-            <Text style={[styles.filterBadgeText, filter === 'all' && styles.filterBadgeTextActive]}>
-              {totalCount}
-            </Text>
-          </View>
-        </TouchableOpacity>
+        {(['active', 'history', 'all'] as FilterType[]).map((f) => {
+          const isActive = filter === f;
+          const labels = { active: 'Ativas', history: 'Histórico', all: 'Todas' };
+          const icons  = { active: 'cube', history: 'archive', all: 'list' } as const;
+          const counts = { active: activeCount, history: historyCount, all: totalCount };
+          return (
+            <TouchableOpacity
+              key={f}
+              style={[
+                styles.filterChip,
+                isActive && {
+                  backgroundColor: brandingColors.primary + '15',
+                  borderColor: brandingColors.primary,
+                },
+              ]}
+              onPress={() => setFilter(f)}
+            >
+              <Ionicons
+                name={icons[f]}
+                size={16}
+                color={isActive ? brandingColors.primary : Colors.light.textSecondary}
+              />
+              <Text style={[
+                styles.filterChipText,
+                isActive && { color: brandingColors.primary },
+              ]}>
+                {labels[f]}
+              </Text>
+              <View style={[
+                styles.filterBadge,
+                isActive && { backgroundColor: brandingColors.primary },
+              ]}>
+                <Text style={[
+                  styles.filterBadgeText,
+                  isActive && { color: '#fff' },
+                ]}>
+                  {counts[f]}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* Estatísticas gerais */}
       {stats.totalEntries > 0 && (
-          <View style={styles.statsContainer}>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Total Investido</Text>
-              <Text style={styles.statValue}>
-                {formatCurrency(stats.totalInvested)}
-              </Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Total Itens</Text>
-              <Text style={styles.statValue}>{stats.totalItems}</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statLabel}>Vendido (Média)</Text>
-              <Text style={[
-                styles.statValue,
-                { color: stats.avgSellThrough >= 70 ? Colors.light.success : Colors.light.warning }
-              ]}>
-                {isNaN(stats.avgSellThrough) ? '0' : stats.avgSellThrough.toFixed(0)}%
-              </Text>
-            </View>
+        <LinearGradient
+          colors={[brandingColors.primary + '18', brandingColors.primary + '05']}
+          style={styles.statsContainer}
+        >
+          <View style={styles.statCard}>
+            <Ionicons name="cash-outline" size={16} color={brandingColors.primary} style={{ marginBottom: 4 }} />
+            <Text style={styles.statLabel}>Total Investido</Text>
+            <Text style={[styles.statValue, { color: Colors.light.text }]}>
+              {formatCurrency(stats.totalInvested)}
+            </Text>
           </View>
-        )}
+          <View style={styles.statCard}>
+            <Ionicons name="cube-outline" size={16} color={Colors.light.info} style={{ marginBottom: 4 }} />
+            <Text style={styles.statLabel}>Total Itens</Text>
+            <Text style={[styles.statValue, { color: Colors.light.text }]}>{stats.totalItems}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Ionicons name="trending-up" size={16} color={stats.avgSellThrough >= 70 ? Colors.light.success : Colors.light.warning} style={{ marginBottom: 4 }} />
+            <Text style={styles.statLabel}>Vendido (Média)</Text>
+            <Text style={[
+              styles.statValue,
+              { color: stats.avgSellThrough >= 70 ? Colors.light.success : Colors.light.warning }
+            ]}>
+              {isNaN(stats.avgSellThrough) ? '0' : stats.avgSellThrough.toFixed(0)}%
+            </Text>
+          </View>
+        </LinearGradient>
+      )}
 
         {/* Barra de busca */}
-        <Searchbar
-          placeholder="Buscar por código, fornecedor ou viagem..."
-          onChangeText={setSearchQuery}
-          value={searchQuery}
-          style={styles.searchbar}
-        />
+        <View style={styles.searchbarContainer}>
+          <Ionicons name="search-outline" size={18} color={Colors.light.textSecondary} />
+          <TextInput
+            style={styles.searchbarInput}
+            placeholder="Buscar por código, fornecedor ou viagem..."
+            placeholderTextColor={Colors.light.textTertiary}
+            onChangeText={setSearchQuery}
+            value={searchQuery}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')}>
+              <Ionicons name="close-circle" size={18} color={Colors.light.textSecondary} />
+            </TouchableOpacity>
+          )}
+        </View>
 
-        {/* Filtros */}
+        {/* Filtros de Tipo */}
         <View style={styles.filtersContainer}>
-          <Menu
-            visible={menuVisible}
-            onDismiss={() => setMenuVisible(false)}
-            anchor={
-              <Button
-                mode="outlined"
-                onPress={() => setMenuVisible(true)}
-                icon="filter-outline"
-                style={styles.filterButton}
-              >
-                {typeFilter ? getTypeLabel(typeFilter) : 'Todos os Tipos'}
-              </Button>
-            }
-          >
-            <Menu.Item 
-              onPress={() => { setTypeFilter(undefined); setMenuVisible(false); }} 
-              title="Todos" 
-            />
-            <Menu.Item 
-              onPress={() => { setTypeFilter(EntryType.TRIP); setMenuVisible(false); }} 
-              title="Viagens" 
-            />
-            <Menu.Item 
-              onPress={() => { setTypeFilter(EntryType.ONLINE); setMenuVisible(false); }} 
-              title="Compras Online" 
-            />
-            <Menu.Item 
-              onPress={() => { setTypeFilter(EntryType.LOCAL); setMenuVisible(false); }} 
-              title="Compras Locais" 
-            />
-          </Menu>
-
-          {/* Chips ativos */}
-          <View style={styles.activeFilters}>
-            {typeFilter && (
-              <Chip
-                icon="filter"
-                onClose={() => setTypeFilter(undefined)}
-                style={styles.filterChip}
-              >
-                {getTypeLabel(typeFilter)}
-              </Chip>
-            )}
+          <View style={styles.typeFilterRow}>
+            {([undefined, EntryType.TRIP, EntryType.ONLINE, EntryType.LOCAL] as (EntryType | undefined)[]).map((type) => {
+              const label = type ? getTypeLabel(type) : 'Todos';
+              const isActive = typeFilter === type;
+              return (
+                <TouchableOpacity
+                  key={label}
+                  style={[
+                    styles.typeFilterChip,
+                    isActive && { backgroundColor: brandingColors.primary + '15', borderColor: brandingColors.primary },
+                  ]}
+                  onPress={() => setTypeFilter(type)}
+                >
+                  <Text style={[
+                    styles.typeFilterChipText,
+                    isActive && { color: brandingColors.primary },
+                  ]}>
+                    {label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
@@ -683,7 +677,7 @@ export default function StockEntriesScreen() {
             <RefreshControl
               refreshing={isRefetching}
               onRefresh={refetch}
-              colors={[Colors.light.primary]}
+              colors={[brandingColors.primary]}
             />
           }
           onEndReached={() => {
@@ -695,7 +689,7 @@ export default function StockEntriesScreen() {
           ListFooterComponent={
             isFetchingNextPage ? (
               <View style={styles.footerLoader}>
-                <ActivityIndicator size="small" color={Colors.light.primary} />
+                <ActivityIndicator size="small" color={brandingColors.primary} />
                 <Text style={styles.footerText}>Carregando mais entradas...</Text>
               </View>
             ) : null
@@ -753,7 +747,7 @@ export default function StockEntriesScreen() {
 
         {/* Banner de modo de seleção */}
         {isSelectMode && (
-          <View style={styles.selectModeBanner}>
+          <View style={[styles.selectModeBanner, { backgroundColor: brandingColors.primary }]}>
             <View style={styles.selectModeBannerContent}>
               <Ionicons name="link" size={20} color="#fff" />
               <View style={styles.selectModeBannerText}>
@@ -847,6 +841,25 @@ export default function StockEntriesScreen() {
           icon="checkmark-circle"
         />
 
+        <ConfirmDialog
+          visible={showDeleteSuccessDialog}
+          title="Entrada Excluída"
+          message={deleteSuccessMessage}
+          confirmText="OK"
+          onConfirm={() => {
+            setShowDeleteSuccessDialog(false);
+            setDeleteSuccessMessage('');
+            router.replace('/(tabs)/entries');
+          }}
+          onCancel={() => {
+            setShowDeleteSuccessDialog(false);
+            setDeleteSuccessMessage('');
+            router.replace('/(tabs)/entries');
+          }}
+          type="success"
+          icon="checkmark-circle"
+        />
+
         {/* Dialog de erro */}
         <ConfirmDialog
           visible={showErrorDialog}
@@ -858,6 +871,7 @@ export default function StockEntriesScreen() {
           type="danger"
           icon="alert-circle"
         />
+      </Animated.View>
       </View>
     );
   }
@@ -894,46 +908,74 @@ const styles = StyleSheet.create({
   },
   statsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 12,
-    marginBottom: 12,
+    marginHorizontal: theme.spacing.md,
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.sm,
+    overflow: 'hidden',
   },
   statCard: {
     flex: 1,
     backgroundColor: Colors.light.card,
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: theme.borderRadius.md,
+    padding: theme.spacing.sm,
     alignItems: 'center',
-    elevation: 1,
+    ...theme.shadows.sm,
   },
   statLabel: {
-    fontSize: 11,
+    fontSize: theme.fontSize.xxs,
     color: Colors.light.textSecondary,
-    marginBottom: 4,
+    marginBottom: theme.spacing.xxs,
+    textAlign: 'center',
   },
   statValue: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: theme.fontSize.base,
+    fontWeight: theme.fontWeight.bold,
     color: Colors.light.text,
+    textAlign: 'center',
   },
-  searchbar: {
+  searchbarContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginHorizontal: 16,
     marginBottom: 12,
-    elevation: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: theme.borderRadius.lg,
     backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    gap: 8,
+    ...theme.shadows.sm,
+  },
+  searchbarInput: {
+    flex: 1,
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.text,
+    padding: 0,
   },
   filtersContainer: {
     paddingHorizontal: 16,
     marginBottom: 12,
   },
-  filterButton: {
+  typeFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    flexWrap: 'wrap',
+  },
+  typeFilterChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: Colors.light.card,
+    borderWidth: 1,
     borderColor: Colors.light.border,
   },
-  activeFilters: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginTop: 8,
+  typeFilterChipText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
   },
   listContainer: {
     paddingHorizontal: 16,
@@ -942,7 +984,13 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 12,
     backgroundColor: Colors.light.card,
-    elevation: 2,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
+  },
+  cardContent: {
+    padding: theme.spacing.md,
   },
   emptyCard: {
     height: 0,
@@ -996,39 +1044,11 @@ const styles = StyleSheet.create({
     color: Colors.light.primary,
     fontWeight: '500',
   },
-  salesBadge: {
+  statusBadgesRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#FFF3E0',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginTop: 4,
-    alignSelf: 'flex-start',
-  },
-  salesBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#F57C00',
-    textTransform: 'uppercase',
-  },
-  historyBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#F5F5F5',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginTop: 4,
-    alignSelf: 'flex-start',
-  },
-  historyBadgeText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#757575',
-    textTransform: 'uppercase',
+    gap: theme.spacing.xs,
+    marginTop: theme.spacing.xs,
+    flexWrap: 'wrap',
   },
   filterContainer: {
     flexDirection: 'row',
@@ -1105,28 +1125,54 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.light.text,
   },
-  kpiRow: {
-    flexDirection: 'row',
-    gap: 16,
-    paddingTop: 8,
+  sellThroughContainer: {
+    paddingTop: theme.spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Colors.light.border,
+  },
+  sellThroughHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
+  },
+  sellThroughBar: {
+    height: 5,
+    borderRadius: 3,
+    backgroundColor: Colors.light.border,
+    overflow: 'hidden',
+  },
+  sellThroughFill: {
+    height: 5,
+    borderRadius: 3,
+  },
+  kpiRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
   },
   kpiItem: {
     flex: 1,
   },
   kpiLabel: {
-    fontSize: 11,
+    fontSize: theme.fontSize.xxs,
     color: Colors.light.textSecondary,
-    marginBottom: 2,
+    marginBottom: theme.spacing.xxs,
   },
   kpiValueContainer: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   kpiValue: {
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.bold,
+  },
+  roiValue: {
+    fontSize: theme.fontSize.xs,
+    marginLeft: theme.spacing.sm,
+    paddingLeft: theme.spacing.sm,
+    borderLeftWidth: 1,
+    borderLeftColor: Colors.light.border,
   },
   footerLoader: {
     flexDirection: 'row',

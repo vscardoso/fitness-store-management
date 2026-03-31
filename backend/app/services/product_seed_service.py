@@ -24,6 +24,15 @@ class ProductSeedService:
         self.category_repo = CategoryRepository(db)
         self.sku_counter = 1
 
+    def _generate_catalog_sku(self, product_name: str, size: str | None, color: str | None) -> str:
+        """Gera SKU estável para evitar falhas em bancos com sku NOT NULL."""
+        name_part = ''.join(ch for ch in product_name.upper() if ch.isalnum())[:6] or "ITEM"
+        size_part = ''.join(ch for ch in (size or "UN") if ch.isalnum())[:4].upper() or "UN"
+        color_part = ''.join(ch for ch in (color or "STD") if ch.isalnum())[:4].upper() or "STD"
+        sku = f"CAT-{name_part}-{size_part}-{color_part}-{self.sku_counter:05d}"
+        self.sku_counter += 1
+        return sku
+
     async def seed_fitness_products(self, tenant_id: int) -> int:
         """Cria produtos fitness com variantes para uma nova loja."""
         logger.info(f"Iniciando seed de produtos com variantes para tenant_id={tenant_id}")
@@ -101,11 +110,14 @@ class ProductSeedService:
             await self.db.flush()
             
             for var_data in prod_data.get("variants", []):
-                # IMPORTANTE: Variantes do catálogo NÃO têm SKU
-                # SKU só é gerado quando o produto é ativado (copiado para a loja)
+                # Compatibilidade: alguns bancos legados mantêm sku como NOT NULL.
                 variant = ProductVariant(
                     product_id=product.id,
-                    sku=None,  # Catálogo não tem SKU
+                    sku=self._generate_catalog_sku(
+                        product_name=prod_data["name"],
+                        size=var_data.get("size"),
+                        color=var_data.get("color"),
+                    ),
                     price=Decimal(str(var_data.get("price", prod_data.get("base_price", 0)))),
                     cost_price=Decimal(str(var_data["cost_price"])) if var_data.get("cost_price") else None,
                     color=var_data.get("color"),

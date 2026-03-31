@@ -462,7 +462,8 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
                 Product.id.in_(products_with_entries_sq),
             )
         ).options(
-            selectinload(Product.inventory)
+            selectinload(Product.inventory),
+            selectinload(Product.variants)
         )
         if tenant_id is not None:
             query = query.where(Product.tenant_id == tenant_id)

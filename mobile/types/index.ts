@@ -22,7 +22,7 @@ export interface User {
   phone?: string;
   is_active: boolean;
   created_at: string;
-  tenant_id?: number;
+  tenant_id: number;  // Obrigatório: sempre sabe qual loja é
   store_name?: string;  // Nome da loja do usuário
 }
 
@@ -65,6 +65,9 @@ export interface SignupData {
   // Store data
   store_name: string;
   store_slug?: string;
+  primary_color?: string;
+  secondary_color?: string;
+  accent_color?: string;
   plan?: string;
   
   // Address data

@@ -13,15 +13,15 @@ type ColorScheme = 'light' | 'dark' | 'auto';
  * Interface do UI Store
  */
 interface UIState {
-  // State
   colorScheme: ColorScheme;
   fontSize: number;
   isFirstLaunch: boolean;
+  dashboardRefreshTick: number;
 
-  // Actions
   setColorScheme: (scheme: ColorScheme) => void;
   setFontSize: (size: number) => void;
   setFirstLaunchComplete: () => void;
+  triggerDashboardRefresh: () => void;
 }
 
 /**
@@ -34,6 +34,7 @@ export const useUIStore = create<UIState>()(
       colorScheme: 'light',
       fontSize: 16,
       isFirstLaunch: true,
+      dashboardRefreshTick: 0,
 
       /**
        * Definir esquema de cores
@@ -54,6 +55,9 @@ export const useUIStore = create<UIState>()(
        */
       setFirstLaunchComplete: () => {
         set({ isFirstLaunch: false });
+      },
+      triggerDashboardRefresh: () => {
+        set((s) => ({ dashboardRefreshTick: s.dashboardRefreshTick + 1 }));
       },
     }),
     {

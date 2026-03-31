@@ -15,16 +15,17 @@ import {
   TextInput as RNTextInput,
   Keyboard,
 } from 'react-native';
-import { Text, Button, Card, TextInput, HelperText, ActivityIndicator } from 'react-native-paper';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Text, Button, Card, TextInput, HelperText } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
-import type { Category, DuplicateMatch } from '@/types';
+import type { Category } from '@/types';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
-import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import VariantBuilderInline from '@/components/products/VariantBuilderInline';
 import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
-import { getProductById, getActiveProducts } from '@/services/productService';
+import { getActiveProducts } from '@/services/productService';
 import { generateSKU, generateVariantSKU } from '@/utils/skuGenerator';
 
 interface WizardStep2Props {
@@ -41,9 +42,8 @@ export default function WizardStep2({
   // Guard defensivo: garante que categories é sempre um array
   const categories = Array.isArray(categoriesProp) ? categoriesProp : [];
   const { state } = wizard;
+  const brandingColors = useBrandingColors();
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
-  const [loadingDuplicate, setLoadingDuplicate] = useState(false);
-
   // Refs para navegação entre campos
   const nameRef = useRef<RNTextInput>(null);
   const skuRef = useRef<RNTextInput>(null);
@@ -52,13 +52,9 @@ export default function WizardStep2({
   const brandRef = useRef<RNTextInput>(null);
   const colorRef = useRef<RNTextInput>(null);
   const sizeRef = useRef<RNTextInput>(null);
+  const genderRef = useRef<RNTextInput>(null);
+  const materialRef = useRef<RNTextInput>(null);
   const descRef = useRef<RNTextInput>(null);
-
-  // Estados para ConfirmDialog
-  const [confirmDuplicateVisible, setConfirmDuplicateVisible] = useState(false);
-  const [selectedDuplicate, setSelectedDuplicate] = useState<DuplicateMatch | null>(null);
-  const [errorDialogVisible, setErrorDialogVisible] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
 
   // Controla se o usuário editou o SKU manualmente (desativa auto-regeneração)
   const [skuManuallyEdited, setSkuManuallyEdited] = useState(false);
@@ -102,19 +98,29 @@ export default function WizardStep2({
     wizard.updateProductData(updatedData);
   }, [formData, costPriceStr, salePriceStr]);
 
-  // Auto-regenerar SKU quando name/brand mudam (se não editado manualmente)
-  // Quando variantes estão ativas: SKU base NÃO inclui cor/tamanho (ficam nas variantes)
-  // Quando não há variantes: SKU inclui cor e tamanho do formData
+  // ── BLOCO BLINDADO ────────────────────────────────────────────────────────────
+  // Auto-regenerar SKU quando name/brand mudam (se não editado manualmente).
+  // Quando variantes estão ativas: SKU base NÃO inclui cor/tamanho (ficam nas variantes).
+  // Quando não há variantes: SKU inclui cor e tamanho do formData.
+  //
+  // GUARD OBRIGATÓRIO: se createdProduct.id > 0, o produto JÁ EXISTE no banco
+  // (selecionado via "Usar Similar"). NÃO regenerar SKU neste caso — isso causava
+  // o bug de "duplicidade" onde o generateSKU detectava o SKU original como
+  // "já usado" e gerava um sufixo -002, -003, etc.
+  // ─────────────────────────────────────────────────────────────────────────────
   useEffect(() => {
     if (skuManuallyEdited) return;
     if (!formData.name?.trim()) return;
+    // Guard: produto existente selecionado via "Usar Similar" — SKU não deve ser regenerado
+    if (state.createdProduct?.id && state.createdProduct.id > 0) return;
 
     const newSku = state.hasVariants
       ? generateSKU(formData.name || '', formData.brand, null, null, existingSKUs)
       : generateSKU(formData.name || '', formData.brand, formData.color, formData.size, existingSKUs);
 
     setFormData(prev => ({ ...prev, sku: newSku }));
-  }, [formData.name, formData.brand, formData.color, formData.size, state.hasVariants, skuManuallyEdited, existingSKUs]);
+  }, [formData.name, formData.brand, formData.color, formData.size, state.hasVariants, skuManuallyEdited, existingSKUs, state.createdProduct?.id]);
+  // ─────────────────────────────────────────────────────────────────────────────
 
   // Preview dos SKUs que serão gerados para cada variante
   // Usa a mesma lógica do handleCreateProduct no wizard
@@ -187,35 +193,17 @@ export default function WizardStep2({
   };
 
   const handleCreate = async () => {
+    // Quando o usuário escolhe "usar similar", o produto já existe.
+    // Neste caso, mantém o fluxo e avança para a etapa de entrada.
+    if (state.createdProduct?.id) {
+      wizard.goToStep('entry');
+      return;
+    }
+
     await wizard.createProduct();
   };
 
-  const handleSelectDuplicate = (dup: DuplicateMatch) => {
-    setSelectedDuplicate(dup);
-    setConfirmDuplicateVisible(true);
-  };
 
-  const handleConfirmDuplicate = async () => {
-    if (!selectedDuplicate) return;
-
-    setConfirmDuplicateVisible(false);
-    setLoadingDuplicate(true);
-
-    try {
-      // Buscar dados completos do produto
-      const product = await getProductById(selectedDuplicate.product_id);
-
-      // Passar produto para wizard e ir para step 3
-      wizard.addStockToDuplicate(product.id, product);
-    } catch (error: any) {
-      setErrorMessage('Não foi possível carregar o produto. Tente novamente.');
-      setErrorDialogVisible(true);
-      console.error('Error loading duplicate:', error);
-    } finally {
-      setLoadingDuplicate(false);
-      setSelectedDuplicate(null);
-    }
-  };
 
   return (
     <KeyboardAwareScreen
@@ -225,8 +213,8 @@ export default function WizardStep2({
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.cardHeader}>
-              <View style={styles.cardIconContainer}>
-                <Ionicons name="information-circle" size={20} color={Colors.light.primary} />
+              <View style={[styles.cardIconContainer, { backgroundColor: brandingColors.primary + '15' }]}>
+                <Ionicons name="information-circle" size={20} color={brandingColors.primary} />
               </View>
               <Text style={styles.cardTitle}>Informações Básicas</Text>
             </View>
@@ -267,14 +255,14 @@ export default function WizardStep2({
                 blurOnSubmit={false}
               />
               <TouchableOpacity
-                style={styles.regenerateButton}
+                style={[styles.regenerateButton, { backgroundColor: brandingColors.primary + '15', borderColor: brandingColors.primary + '30' }]}
                 onPress={() => {
                   setSkuManuallyEdited(false);
                   handleRegenerateSKU();
                 }}
                 activeOpacity={0.7}
               >
-                <Ionicons name="refresh" size={20} color={Colors.light.primary} />
+                <Ionicons name="refresh" size={20} color={brandingColors.primary} />
               </TouchableOpacity>
             </View>
             <HelperText type="info" visible style={styles.skuHint}>
@@ -292,10 +280,10 @@ export default function WizardStep2({
 
             {/* Preview de SKUs de variantes */}
             {variantSkuPreviews.length > 0 && (
-              <View style={styles.variantSkuPreview}>
+              <View style={[styles.variantSkuPreview, { backgroundColor: brandingColors.primary + '08', borderColor: brandingColors.primary + '25' }]}>
                 <View style={styles.variantSkuPreviewHeader}>
-                  <Ionicons name="barcode-outline" size={13} color={Colors.light.primary} />
-                  <Text style={styles.variantSkuPreviewTitle}>
+                  <Ionicons name="barcode-outline" size={13} color={brandingColors.primary} />
+                  <Text style={[styles.variantSkuPreviewTitle, { color: brandingColors.primary }]}>
                     SKUs que serão gerados ({variantSkuPreviews.length})
                   </Text>
                 </View>
@@ -303,7 +291,7 @@ export default function WizardStep2({
                   {variantSkuPreviews.slice(0, 6).map((item, i) => (
                     <View key={i} style={styles.variantSkuItem}>
                       <Text style={styles.variantSkuLabel}>{item.label}</Text>
-                      <Text style={styles.variantSkuCode}>{item.sku}</Text>
+                      <Text style={[styles.variantSkuCode, { color: brandingColors.primary, backgroundColor: brandingColors.primary + '12' }]}>{item.sku}</Text>
                     </View>
                   ))}
                   {variantSkuPreviews.length > 6 && (
@@ -424,9 +412,36 @@ export default function WizardStep2({
                 style={styles.input}
                 left={<TextInput.Icon icon="tag" />}
                 returnKeyType="next"
-                onSubmitEditing={() => colorRef.current?.focus()}
+                onSubmitEditing={() => genderRef.current?.focus()}
                 blurOnSubmit={false}
               />
+
+              <View style={styles.row}>
+                <TextInput
+                  ref={genderRef}
+                  label="Gênero"
+                  value={(formData as any).gender || ''}
+                  onChangeText={(text) => updateField('gender', text)}
+                  mode="outlined"
+                  style={[styles.input, styles.halfInput]}
+                  left={<TextInput.Icon icon="account-outline" />}
+                  returnKeyType="next"
+                  onSubmitEditing={() => materialRef.current?.focus()}
+                  blurOnSubmit={false}
+                />
+                <TextInput
+                  ref={materialRef}
+                  label="Material"
+                  value={(formData as any).material || ''}
+                  onChangeText={(text) => updateField('material', text)}
+                  mode="outlined"
+                  style={[styles.input, styles.halfInput]}
+                  left={<TextInput.Icon icon="layers-outline" />}
+                  returnKeyType="next"
+                  onSubmitEditing={() => colorRef.current?.focus()}
+                  blurOnSubmit={false}
+                />
+              </View>
 
               {/* Cor e Tamanho — oculto quando variantes estão ativas */}
               {!state.hasVariants && (
@@ -497,72 +512,7 @@ export default function WizardStep2({
           </Card.Content>
         </Card>
 
-        {/* Painel de Duplicados */}
-        {state.duplicates.length > 0 && (
-          <Card style={styles.duplicatesCard}>
-            <Card.Content>
-              <View style={styles.duplicatesHeader}>
-                <View style={styles.duplicatesIconContainer}>
-                  <Ionicons name="alert-circle" size={22} color={Colors.light.warning} />
-                </View>
-                <Text style={styles.duplicatesTitle}>Produto Já Existe?</Text>
-              </View>
 
-              <Text style={styles.duplicatesSubtitle}>
-                Encontramos {state.duplicates.length} produto(s) similar(es) já cadastrado(s).
-              </Text>
-              <View style={styles.duplicatesHintRow}>
-                <Ionicons name="bulb" size={14} color={Colors.light.info} />
-                <Text style={styles.duplicatesHint}>
-                  Toque em um para adicionar estoque ao invés de criar novo
-                </Text>
-              </View>
-
-              {loadingDuplicate && (
-                <View style={styles.loadingDuplicate}>
-                  <ActivityIndicator size="small" color={Colors.light.primary} />
-                  <Text style={styles.loadingText}>Carregando produto...</Text>
-                </View>
-              )}
-
-              {state.duplicates.slice(0, 3).map((dup: DuplicateMatch) => (
-                <TouchableOpacity
-                  key={dup.product_id}
-                  style={styles.duplicateItem}
-                  onPress={() => handleSelectDuplicate(dup)}
-                  disabled={loadingDuplicate}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.duplicateIconContainer}>
-                    <Ionicons name="cube" size={20} color={Colors.light.primary} />
-                  </View>
-                  <View style={styles.duplicateInfo}>
-                    <Text style={styles.duplicateName}>{String(dup.product_name || '')}</Text>
-                    <Text style={styles.duplicateSku}>SKU: {String(dup.sku || '')}</Text>
-                    <View style={styles.duplicateReasonRow}>
-                      <Ionicons name="checkmark" size={12} color={Colors.light.success} />
-                      <Text style={styles.duplicateReason}>{String(dup.reason || '')}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.duplicateScore}>
-                    <Text style={styles.duplicateScoreValue}>
-                      {Math.round(dup.similarity_score * 100)}%
-                    </Text>
-                    <Text style={styles.duplicateScoreLabel}>similar</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={24} color={Colors.light.textSecondary} />
-                </TouchableOpacity>
-              ))}
-
-              <View style={styles.duplicatesFooter}>
-                <Ionicons name="information-circle" size={16} color={Colors.light.info} />
-                <Text style={styles.duplicatesFooterText}>
-                  Ou continue abaixo para criar um produto novo
-                </Text>
-              </View>
-            </Card.Content>
-          </Card>
-        )}
 
       {/* Footer com botões */}
       <View style={styles.footer}>
@@ -574,16 +524,33 @@ export default function WizardStep2({
         >
           Voltar
         </Button>
-        <Button
-          mode="contained"
+
+        <TouchableOpacity
           onPress={handleCreate}
-          style={styles.createButton}
-          icon="check"
-          loading={state.isCreating}
+          activeOpacity={0.8}
+          style={[styles.createButton, state.isCreating && styles.createButtonDisabled]}
           disabled={state.isCreating}
         >
-          Criar Produto
-        </Button>
+          <LinearGradient
+            colors={brandingColors.gradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.createButtonGradient}
+          >
+            <Ionicons
+              name={state.isCreating ? 'sync-outline' : state.createdProduct?.id ? 'arrow-forward-outline' : 'checkmark-circle-outline'}
+              size={18}
+              color="#fff"
+            />
+            <Text style={styles.createButtonText}>
+              {state.isCreating
+                ? 'Carregando...'
+                : state.createdProduct?.id
+                ? 'Continuar no Fluxo'
+                : 'Criar Produto'}
+            </Text>
+          </LinearGradient>
+        </TouchableOpacity>
       </View>
 
       {/* Modal de Seleção de Categoria */}
@@ -598,39 +565,7 @@ export default function WizardStep2({
         onDismiss={() => setCategoryModalVisible(false)}
       />
 
-      {/* Dialog: Confirmar uso de produto duplicado */}
-      <ConfirmDialog
-        visible={confirmDuplicateVisible}
-        title="Usar Produto Existente?"
-        message={selectedDuplicate ? `Deseja adicionar estoque ao produto "${selectedDuplicate.product_name}"?` : ''}
-        confirmText="Sim, Usar Este"
-        cancelText="Cancelar"
-        type="info"
-        icon="copy"
-        onConfirm={handleConfirmDuplicate}
-        onCancel={() => {
-          setConfirmDuplicateVisible(false);
-          setSelectedDuplicate(null);
-        }}
-        loading={loadingDuplicate}
-        details={selectedDuplicate ? [
-          'Você será levado para criar uma entrada de estoque',
-          'O produto existente será vinculado a essa entrada',
-          `Similaridade: ${(selectedDuplicate.similarity_score * 100).toFixed(0)}%`
-        ] : []}
-      />
 
-      {/* Dialog: Erro ao carregar produto */}
-      <ConfirmDialog
-        visible={errorDialogVisible}
-        title="Erro"
-        message={errorMessage}
-        confirmText="OK"
-        cancelText=""
-        type="danger"
-        onConfirm={() => setErrorDialogVisible(false)}
-        onCancel={() => setErrorDialogVisible(false)}
-      />
     </KeyboardAwareScreen>
   );
 }
@@ -640,7 +575,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 16,
     elevation: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     marginBottom: theme.spacing.md,
   },
   cardHeader: {
@@ -667,7 +602,7 @@ const styles = StyleSheet.create({
   // Inputs
   input: {
     marginBottom: theme.spacing.md,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
   },
   skuRow: {
     flexDirection: 'row',
@@ -676,7 +611,7 @@ const styles = StyleSheet.create({
   },
   skuInput: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
   },
   skuHint: {
     marginTop: -8,
@@ -797,7 +732,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   priceInput: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
   },
 
   // Markup Indicator
@@ -846,146 +781,12 @@ const styles = StyleSheet.create({
     gap: 4,
   },
 
-  // Duplicates
-  duplicatesCard: {
-    borderRadius: 16,
-    elevation: 2,
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: Colors.light.warning + '40',
-    marginBottom: theme.spacing.md,
-  },
-  duplicatesHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 8,
-  },
-  duplicatesIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: Colors.light.warning + '20',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  duplicatesTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.light.text,
-  },
-  duplicatesSubtitle: {
-    fontSize: 13,
-    color: Colors.light.textSecondary,
-    marginBottom: theme.spacing.md,
-    lineHeight: 20,
-  },
-  duplicatesHintRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 6,
-    marginBottom: theme.spacing.md,
-  },
-  duplicatesHint: {
-    flex: 1,
-    fontSize: 13,
-    color: Colors.light.info,
-    fontWeight: '600',
-    lineHeight: 18,
-  },
-  loadingDuplicate: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 10,
-    padding: theme.spacing.md,
-    backgroundColor: Colors.light.backgroundSecondary,
-    borderRadius: 12,
-    marginBottom: theme.spacing.md,
-  },
-  loadingText: {
-    fontSize: 14,
-    color: Colors.light.textSecondary,
-  },
-  duplicateItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.light.backgroundSecondary,
-    borderRadius: 12,
-    padding: theme.spacing.md,
-    marginBottom: 10,
-    gap: 12,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-  },
-  duplicateIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: Colors.light.primary + '15',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  duplicateInfo: {
-    flex: 1,
-  },
-  duplicateName: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: Colors.light.text,
-    marginBottom: 3,
-  },
-  duplicateSku: {
-    fontSize: 12,
-    color: Colors.light.textSecondary,
-    fontFamily: 'monospace',
-    marginBottom: 4,
-  },
-  duplicateReason: {
-    fontSize: 11,
-    color: Colors.light.success,
-    fontWeight: '500',
-  },
-  duplicateScore: {
-    alignItems: 'center',
-    backgroundColor: Colors.light.warning + '20',
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 10,
-  },
-  duplicateScoreValue: {
-    fontSize: 15,
-    fontWeight: '800',
-    color: Colors.light.warning,
-  },
-  duplicateScoreLabel: {
-    fontSize: 9,
-    color: Colors.light.warning,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    marginTop: 2,
-  },
-  duplicatesFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    marginTop: theme.spacing.sm,
-    paddingTop: theme.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.light.border,
-  },
-  duplicatesFooterText: {
-    fontSize: 12,
-    color: Colors.light.info,
-    fontStyle: 'italic',
-  },
-
   // Footer - não usar absolute para que suba com o teclado
   footer: {
     flexDirection: 'row',
     gap: theme.spacing.md,
     padding: theme.spacing.md,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     borderTopWidth: 1,
     borderTopColor: Colors.light.border,
   },
@@ -995,6 +796,24 @@ const styles = StyleSheet.create({
   },
   createButton: {
     flex: 2,
-    backgroundColor: Colors.light.primary,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+    ...theme.shadows.sm,
+  },
+  createButtonDisabled: {
+    opacity: 0.5,
+  },
+  createButtonGradient: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: theme.spacing.md,
+  },
+  createButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
   },
 });

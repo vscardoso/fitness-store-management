@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Image } from 'react-native';
-import { Card } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import { formatCurrency } from '@/utils/format';
 import type { ProductGrouped } from '@/types';
 
@@ -13,162 +13,228 @@ interface ProductGroupCardProps {
 
 export default function ProductGroupCard({ product, onPress }: ProductGroupCardProps) {
   const [imageError, setImageError] = useState(false);
-  const [imageLoaded, setImageLoaded] = useState(false);
-  
+  const brandingColors = useBrandingColors();
+
   const hasVariants = product.variant_count > 1;
   const stockText = product.total_stock > 0 ? `${product.total_stock} un.` : 'Sem estoque';
-  const priceText = product.min_price === product.max_price 
+  const priceText = product.min_price === product.max_price
     ? formatCurrency(product.min_price)
     : `${formatCurrency(product.min_price)} - ${formatCurrency(product.max_price)}`;
+  const lowStockThreshold = product.min_stock_threshold ?? 3;
+
+  const stockStatus = (() => {
+    if (product.total_stock === 0) {
+      return {
+        backgroundColor: Colors.light.error + '14',
+        borderColor: Colors.light.error + '2E',
+        color: Colors.light.error,
+        icon: 'close-circle' as const,
+      };
+    }
+
+    if (product.total_stock <= lowStockThreshold) {
+      return {
+        backgroundColor: Colors.light.warning + '16',
+        borderColor: Colors.light.warning + '33',
+        color: Colors.light.warning,
+        icon: 'warning' as const,
+      };
+    }
+
+    return {
+      backgroundColor: Colors.light.success + '14',
+      borderColor: Colors.light.success + '2E',
+      color: Colors.light.success,
+      icon: 'checkmark-circle' as const,
+    };
+  })();
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
-      <Card style={styles.card}>
-        <Card.Content style={styles.content}>
-          {/* Left: Image/Icon */}
-          <View style={styles.iconContainer}>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.72}>
+      <View style={styles.card}>
+        <View style={styles.content}>
+          <View style={[styles.iconContainer, { backgroundColor: brandingColors.primary + '12' }]}>
             {product.image_url && !imageError ? (
               <Image
                 source={{ uri: product.image_url }}
                 style={styles.productImage}
                 resizeMode="cover"
                 onError={() => setImageError(true)}
-                onLoad={() => setImageLoaded(true)}
               />
             ) : (
-              <Ionicons name="cube" size={32} color={Colors.light.primary} />
+              <Ionicons name="cube-outline" size={24} color={brandingColors.primary} />
             )}
           </View>
 
-          {/* Middle: Info */}
           <View style={styles.infoContainer}>
-            <Text style={styles.name} numberOfLines={1}>
+            <Text style={styles.name} numberOfLines={2}>
               {product.name}
             </Text>
 
-            {product.brand && (
-              <Text style={styles.brand} numberOfLines={1}>
-                {product.brand}
-              </Text>
-            )}
+            <View style={styles.metaRow}>
+              {product.brand ? (
+                <Text style={styles.brand} numberOfLines={1}>
+                  {product.brand}
+                </Text>
+              ) : (
+                <Text style={styles.brandMuted}>Sem marca</Text>
+              )}
+            </View>
 
-            {/* Variants Badge */}
-            {hasVariants && (
-              <View style={styles.variantBadge}>
-                <Ionicons name="layers" size={10} color="#fff" />
-                <Text style={styles.variantText}>{product.variant_count} variações</Text>
-              </View>
-            )}
-
-            {/* Price Range */}
-            <Text style={styles.price}>
+            <Text style={[styles.price, { color: brandingColors.primary }]} numberOfLines={1}>
               {priceText}
             </Text>
           </View>
 
-          {/* Right: Stock & Chevron */}
-          <View style={styles.rightContainer}>
-            <View style={[
-              styles.stockBadge,
-              product.total_stock === 0 && styles.stockBadgeEmpty,
-            ]}>
-              <Ionicons
-                name={product.total_stock === 0 ? "close-circle" : "checkmark-circle"}
-                size={12}
-                color="#fff"
-              />
-              <Text style={styles.stockText}>{stockText}</Text>
+          <View style={styles.badgesColumn}>
+            {hasVariants ? (
+              <View
+                style={[
+                  styles.variantBadge,
+                  {
+                    backgroundColor: brandingColors.primary + '12',
+                    borderColor: brandingColors.primary + '24',
+                  },
+                ]}
+              >
+                <Ionicons name="layers-outline" size={11} color={brandingColors.primary} />
+                <Text style={[styles.variantText, { color: brandingColors.primary }]} numberOfLines={1}>
+                  {product.variant_count} variações
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.badgePlaceholder} />
+            )}
+
+            <View
+              style={[
+                styles.stockBadge,
+                {
+                  backgroundColor: stockStatus.backgroundColor,
+                  borderColor: stockStatus.borderColor,
+                },
+              ]}
+            >
+              <Ionicons name={stockStatus.icon} size={12} color={stockStatus.color} />
+              <Text style={[styles.stockText, { color: stockStatus.color }]} numberOfLines={1}>
+                {stockText}
+              </Text>
             </View>
-            <Ionicons
-              name="chevron-forward"
-              size={20}
-              color={Colors.light.textTertiary}
-            />
           </View>
-        </Card.Content>
-      </Card>
+
+          <View style={styles.chevronColumn}>
+            <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
+          </View>
+        </View>
+      </View>
     </TouchableOpacity>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    marginBottom: 12,
-    borderRadius: theme.borderRadius.lg,
-    elevation: 1,
+    marginBottom: theme.spacing.sm,
+    borderRadius: theme.borderRadius.xl,
+    backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
   },
   content: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm + 4,
+    gap: theme.spacing.sm + 2,
   },
   iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: `${Colors.light.primary}15`,
+    width: 52,
+    height: 52,
+    borderRadius: theme.borderRadius.xl,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
     overflow: 'hidden',
+    flexShrink: 0,
   },
   productImage: {
     width: '100%',
     height: '100%',
-    borderRadius: theme.borderRadius.full,
+    borderRadius: theme.borderRadius.xl,
   },
   infoContainer: {
     flex: 1,
-    marginRight: 12,
+    minWidth: 0,
   },
   name: {
-    fontWeight: '600',
-    marginBottom: 2,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 18,
+    fontWeight: '700',
+    color: Colors.light.text,
+    marginBottom: 4,
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: theme.spacing.xs,
   },
   brand: {
     color: Colors.light.textSecondary,
-    fontSize: 11,
-    marginBottom: 6,
+    fontSize: theme.fontSize.xs,
+    minWidth: 0,
+  },
+  brandMuted: {
+    color: Colors.light.textTertiary,
+    fontSize: theme.fontSize.xs,
+  },
+  badgesColumn: {
+    width: 110,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 6,
+    flexShrink: 0,
   },
   variantBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.primary,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-    alignSelf: 'flex-start',
-    marginBottom: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
     gap: 4,
+    flexShrink: 0,
+  },
+  badgePlaceholder: {
+    minHeight: 20,
   },
   variantText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '600',
+    fontSize: theme.fontSize.xxs,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
   price: {
-    color: Colors.light.primary,
+    fontSize: theme.fontSize.base,
     fontWeight: '700',
+    letterSpacing: -0.2,
   },
-  rightContainer: {
-    alignItems: 'center',
-    gap: 6,
+  chevronColumn: {
+    width: 20,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   stockBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.success,
     paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
     gap: 4,
-  },
-  stockBadgeEmpty: {
-    backgroundColor: Colors.light.error,
+    flexShrink: 0,
   },
   stockText: {
-    color: '#fff',
-    fontSize: 10,
-    fontWeight: '600',
+    fontSize: theme.fontSize.xxs,
+    fontWeight: '700',
+    textTransform: 'uppercase',
   },
 });
