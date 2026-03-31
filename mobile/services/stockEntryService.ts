@@ -265,6 +265,21 @@ export async function updateEntryItem(
 }
 
 /**
+ * Corrigir item com auditoria (mesmo após vendas)
+ */
+export async function correctEntryItem(
+  itemId: number,
+  quantityDiff: number,
+  reason: string
+): Promise<{ message: string; quantity_diff: number; new_quantity_remaining: number }> {
+  const response = await api.post(`${ENTRIES_ENDPOINT}entry-items/${itemId}/correct`, {
+    quantity_diff: quantityDiff,
+    reason,
+  });
+  return response.data;
+}
+
+/**
  * Adicionar item a uma entrada existente
  * Vincula um produto a uma entrada de estoque já criada
  */

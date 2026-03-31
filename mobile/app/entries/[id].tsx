@@ -18,6 +18,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
+  Modal,
   Text,
   TextInput as RNTextInput,
 } from 'react-native';
@@ -40,7 +41,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import CustomModal from '@/components/ui/CustomModal';
 import ModalActions from '@/components/ui/ModalActions';
 import AppButton from '@/components/ui/AppButton';
-import { getStockEntryById, deleteStockEntry, updateEntryItem } from '@/services/stockEntryService';
+import { getStockEntryById, deleteStockEntry, updateEntryItem, correctEntryItem } from '@/services/stockEntryService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { toBRNumber, maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
@@ -120,6 +121,12 @@ export default function StockEntryDetailsScreen() {
   const [editCost, setEditCost] = useState('');
   const [editPrice, setEditPrice] = useState('');
   const [editNotes, setEditNotes] = useState('');
+
+  // Correção auditada
+  const [showCorrectionDialog, setShowCorrectionDialog] = useState(false);
+  const [correctionItem, setCorrectionItem] = useState<EntryItemResponse | null>(null);
+  const [correctionDiff, setCorrectionDiff] = useState('');
+  const [correctionReason, setCorrectionReason] = useState('');
 
   /**
    * Query: Buscar entrada
@@ -204,6 +211,38 @@ export default function StockEntryDetailsScreen() {
     },
   });
 
+  const correctionMutation = useMutation({
+    mutationFn: ({ itemId, diff, reason }: { itemId: number; diff: number; reason: string }) =>
+      correctEntryItem(itemId, diff, reason),
+    onSuccess: async (result: any) => {
+      setShowCorrectionDialog(false);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['stock-entry', entryId] }),
+        queryClient.invalidateQueries({ queryKey: ['stock-entries'] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+      ]);
+      setSuccessDialog({ visible: true, message: result.message });
+    },
+    onError: (error: any) => {
+      setShowCorrectionDialog(false);
+      setErrorDialog({ visible: true, message: error.message || 'Erro ao corrigir item' });
+    },
+  });
+
+  const handleConfirmCorrection = () => {
+    if (!correctionItem) return;
+    const diff = parseInt(correctionDiff);
+    if (isNaN(diff) || diff === 0) {
+      setErrorDialog({ visible: true, message: 'Informe uma diferença válida (positiva ou negativa)' });
+      return;
+    }
+    if (!correctionReason.trim() || correctionReason.trim().length < 5) {
+      setErrorDialog({ visible: true, message: 'Informe o motivo da correção (mínimo 5 caracteres)' });
+      return;
+    }
+    correctionMutation.mutate({ itemId: correctionItem.id, diff, reason: correctionReason.trim() });
+  };
+
   /**
    * Refresh
    */
@@ -231,12 +270,12 @@ export default function StockEntryDetailsScreen() {
    * Abrir diálogo de edição de item
    */
   const handleEditItem = (item: EntryItemResponse) => {
-    // Verificar se item já teve vendas
+    // Item com vendas → abrir modal de correção auditada
     if (item.quantity_sold > 0) {
-      setErrorDialog({
-        visible: true,
-        message: `Este item já teve ${item.quantity_sold} unidade(s) vendida(s). A rastreabilidade FIFO exige que itens com vendas não sejam modificados.`,
-      });
+      setCorrectionItem(item);
+      setCorrectionDiff('');
+      setCorrectionReason('');
+      setShowCorrectionDialog(true);
       return;
     }
 
@@ -420,15 +459,15 @@ export default function StockEntryDetailsScreen() {
               )}
               <TouchableOpacity
                 onPress={() => handleEditItem(item)}
-                style={[styles.editItemButton, hasSales && styles.editItemButtonDisabled]}
+                style={styles.editItemButton}
               >
                 <Ionicons
-                  name={hasSales ? "lock-closed" : "create-outline"}
+                  name={hasSales ? "construct-outline" : "create-outline"}
                   size={16}
-                  color={hasSales ? Colors.light.textSecondary : brandingColors.primary}
+                  color={hasSales ? Colors.light.warning : brandingColors.primary}
                 />
-                <Text style={[styles.editItemButtonText, hasSales && styles.editItemButtonTextDisabled]}>
-                  {hasSales ? 'Protegido' : 'Editar'}
+                <Text style={[styles.editItemButtonText, hasSales && { color: Colors.light.warning }]}>
+                  {hasSales ? 'Corrigir' : 'Editar'}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -710,6 +749,53 @@ export default function StockEntryDetailsScreen() {
           />
         </View>
       </ScrollView>
+
+        {/* Modal de Correção Auditada */}
+        <Modal visible={showCorrectionDialog} transparent animationType="fade" onRequestClose={() => setShowCorrectionDialog(false)}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }}>
+            <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20, gap: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Ionicons name="construct-outline" size={20} color={Colors.light.warning} />
+                <Text style={{ fontSize: 16, fontWeight: '700' }}>Corrigir Item</Text>
+              </View>
+              <Text style={{ fontSize: 13, color: '#666' }}>
+                {correctionItem?.product_name} — {correctionItem?.quantity_sold} un vendidas, {correctionItem?.quantity_remaining} restantes
+              </Text>
+              <RNTextInput
+                placeholder="+2 adiciona unidades  /  -2 remove unidades"
+                keyboardType="numbers-and-punctuation"
+                value={correctionDiff}
+                onChangeText={setCorrectionDiff}
+                style={{ borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: 14 }}
+              />
+              <RNTextInput
+                placeholder="Motivo obrigatório para auditoria..."
+                value={correctionReason}
+                onChangeText={setCorrectionReason}
+                multiline
+                numberOfLines={3}
+                style={{ borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: 14 }}
+              />
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
+                <TouchableOpacity
+                  onPress={() => setShowCorrectionDialog(false)}
+                  style={{ flex: 1, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', alignItems: 'center' }}
+                >
+                  <Text style={{ color: '#666' }}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={handleConfirmCorrection}
+                  disabled={correctionMutation.isPending}
+                  style={{ flex: 1, padding: 12, borderRadius: 8, backgroundColor: Colors.light.warning, alignItems: 'center' }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>
+                    {correctionMutation.isPending ? 'Salvando...' : 'Aplicar'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
 
         {/* Confirm Delete Dialog */}
         <ConfirmDialog

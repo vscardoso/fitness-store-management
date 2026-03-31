@@ -1245,3 +1245,46 @@ async def add_item_to_entry(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao adicionar item: {str(e)}"
         )
+
+
+class EntryItemCorrectionRequest(BaseModel):
+    quantity_diff: int = Field(..., description="Diferença: positivo (+) adiciona, negativo (-) remove")
+    reason: str = Field(..., min_length=5, max_length=500, description="Motivo da correção (obrigatório para auditoria)")
+
+
+class EntryItemCorrectionResponse(BaseModel):
+    message: str
+    original_item_id: int
+    quantity_diff: int
+    new_quantity_remaining: int
+    reason: str
+    corrective_item_id: Optional[int] = None
+
+
+@router.post(
+    "/entry-items/{item_id}/correct",
+    response_model=EntryItemCorrectionResponse,
+    summary="Corrigir item com auditoria",
+    description="Cria correção auditada em vez de bloquear edição após vendas. diff>0 adiciona unidades, diff<0 remove."
+)
+async def correct_entry_item(
+    item_id: int,
+    data: EntryItemCorrectionRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    try:
+        result = await StockEntryService(db).correct_entry_item(
+            item_id=item_id,
+            quantity_diff=data.quantity_diff,
+            reason=data.reason,
+            tenant_id=tenant_id,
+            user_id=current_user.id,
+        )
+        return result
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao corrigir item: {str(e)}")

@@ -1456,3 +1456,113 @@ class StockEntryService:
         except Exception as e:
             await self.db.rollback()
             raise e
+
+    async def correct_entry_item(
+        self,
+        item_id: int,
+        quantity_diff: int,
+        reason: str,
+        tenant_id: int,
+        user_id: int,
+    ) -> dict:
+        """
+        Corrige um item de entrada com auditoria, mesmo após vendas.
+
+        diff > 0: adiciona unidades (cria EntryItem corretivo na mesma entrada)
+        diff < 0: remove unidades (reduz quantity_remaining se houver saldo)
+
+        Preserva FIFO e histórico de vendas intactos.
+        """
+        from app.core.timezone import now_brazil
+
+        item = await self.item_repo.get_by_id(self.db, item_id, include_relations=True)
+        if not item:
+            raise ValueError(f"EntryItem {item_id} não encontrado")
+        if item.tenant_id != tenant_id:
+            raise ValueError("EntryItem não pertence a este tenant")
+        if quantity_diff == 0:
+            raise ValueError("quantity_diff não pode ser zero")
+
+        now_str = now_brazil().strftime("%d/%m/%Y %H:%M")
+        audit_note = f"[CORREÇÃO {now_str} user#{user_id}]: {reason}"
+
+        corrective_item_id = None
+
+        if quantity_diff > 0:
+            # Adicionar unidades: novo EntryItem corretivo na mesma entrada
+            from app.models.entry_item import EntryItem
+            corrective = EntryItem(
+                stock_entry_id=item.stock_entry_id,
+                product_id=item.product_id,
+                variant_id=item.variant_id,
+                quantity_received=quantity_diff,
+                quantity_remaining=quantity_diff,
+                quantity_sold=0,
+                unit_cost=item.unit_cost,
+                tenant_id=tenant_id,
+                notes=audit_note,
+            )
+            self.db.add(corrective)
+            await self.db.flush()
+            corrective_item_id = corrective.id
+
+            # Atualizar inventário: +quantity_diff
+            inventory = await self.inventory_repo.get_by_product(self.db, item.product_id, tenant_id=tenant_id)
+            if inventory:
+                await self.inventory_repo.update(
+                    self.db,
+                    id=inventory.id,
+                    obj_in={"quantity": inventory.quantity + quantity_diff},
+                    tenant_id=tenant_id,
+                )
+            new_remaining = item.quantity_remaining + quantity_diff
+
+        else:
+            # Remover unidades: reduzir quantity_remaining do item original
+            remove = abs(quantity_diff)
+            if remove > item.quantity_remaining:
+                raise ValueError(
+                    f"Não é possível remover {remove} unidade(s): apenas {item.quantity_remaining} disponível(is) "
+                    f"(já foram vendidas {item.quantity_sold})."
+                )
+            new_remaining = item.quantity_remaining - remove
+            existing_notes = item.notes or ""
+            await self.item_repo.update(
+                self.db,
+                id=item_id,
+                obj_in={
+                    "quantity_remaining": new_remaining,
+                    "notes": f"{existing_notes}\n{audit_note}".strip(),
+                },
+                tenant_id=tenant_id,
+            )
+            # Atualizar inventário: -remove
+            inventory = await self.inventory_repo.get_by_product(self.db, item.product_id, tenant_id=tenant_id)
+            if inventory:
+                await self.inventory_repo.update(
+                    self.db,
+                    id=inventory.id,
+                    obj_in={"quantity": max(0, inventory.quantity - remove)},
+                    tenant_id=tenant_id,
+                )
+
+        # Append nota de auditoria no item original (para rastreio)
+        if quantity_diff > 0:
+            existing_notes = item.notes or ""
+            await self.item_repo.update(
+                self.db,
+                id=item_id,
+                obj_in={"notes": f"{existing_notes}\n{audit_note}".strip()},
+                tenant_id=tenant_id,
+            )
+
+        await self.db.commit()
+
+        return {
+            "message": f"Correção aplicada: {'+' if quantity_diff > 0 else ''}{quantity_diff} unidade(s)",
+            "original_item_id": item_id,
+            "quantity_diff": quantity_diff,
+            "new_quantity_remaining": new_remaining,
+            "reason": reason,
+            "corrective_item_id": corrective_item_id,
+        }
