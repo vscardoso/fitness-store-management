@@ -119,12 +119,8 @@ class StockEntryService:
                 if entry_data.entry_type != EntryType.TRIP:
                     raise ValueError("entry_type deve ser 'trip' quando trip_id é fornecido")
             
-            # Validar que há itens
-            if not items or len(items) == 0:
-                raise ValueError("É necessário fornecer ao menos um item")
-            
-            # Validar produtos e atualizar is_catalog
-            for item in items:
+            # Validar produtos e atualizar is_catalog (items é opcional)
+            for item in items or []:
                 product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
                 if not product:
                     raise ValueError(f"Product {item.product_id} não encontrado")
