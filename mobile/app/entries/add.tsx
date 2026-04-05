@@ -15,7 +15,6 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  Alert,
   TouchableOpacity,
   Modal,
   Text,
@@ -234,6 +233,25 @@ export default function AddStockEntryScreen() {
   const [showDeleteItemDialog, setShowDeleteItemDialog] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<number | null>(null);
   const [isFromAIScanner, setIsFromAIScanner] = useState(false); // ✨ Novo: flag para UX especial
+  const [feedbackDialog, setFeedbackDialog] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type: 'danger' | 'warning' | 'info' | 'success';
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'warning',
+  });
+
+  const showFeedbackDialog = (
+    title: string,
+    message: string,
+    type: 'danger' | 'warning' | 'info' | 'success' = 'warning'
+  ) => {
+    setFeedbackDialog({ visible: true, title, message, type });
+  };
 
   // Queries
   const { data: trips = [], refetch: refetchTrips } = useTrips({ status: undefined, limit: 100 });
@@ -622,7 +640,7 @@ export default function AddStockEntryScreen() {
     },
     onError: (error: any) => {
       const errorMessage = error.message || 'Erro ao criar entrada';
-      Alert.alert('Erro', errorMessage);
+      showFeedbackDialog('Erro', errorMessage, 'danger');
     },
   });
 
@@ -662,7 +680,7 @@ export default function AddStockEntryScreen() {
     },
     onError: (error: any) => {
       const errorMessage = error.message || 'Erro ao criar entrada com novo produto';
-      Alert.alert('Erro', errorMessage);
+      showFeedbackDialog('Erro', errorMessage, 'danger');
     },
   });
 
@@ -726,7 +744,7 @@ export default function AddStockEntryScreen() {
     },
     onError: (error: any) => {
       const errorMessage = error.message || 'Erro ao criar produto com variantes e entrada';
-      Alert.alert('Erro', errorMessage);
+      showFeedbackDialog('Erro', errorMessage, 'danger');
     },
   });
 
@@ -778,7 +796,7 @@ export default function AddStockEntryScreen() {
     // Check if this product is already in the list
     const alreadyAdded = items.some(item => item.product_id === product.id);
     if (alreadyAdded) {
-      Alert.alert('Atenção', 'Este produto já foi adicionado à entrada.');
+      showFeedbackDialog('Atenção', 'Este produto já foi adicionado à entrada.', 'warning');
       return;
     }
 
@@ -961,7 +979,7 @@ export default function AddStockEntryScreen() {
    */
   const handleSubmit = async () => {
     if (!validate()) {
-      Alert.alert('Atenção', 'Preencha todos os campos obrigatórios');
+      showFeedbackDialog('Atenção', 'Preencha todos os campos obrigatórios', 'warning');
       return;
     }
 
@@ -978,7 +996,7 @@ export default function AddStockEntryScreen() {
     if (isAtomicMode) {
       // Validação específica para modo atômico
       if (items.length !== 1) {
-        Alert.alert('Atenção', 'Modo atômico: apenas um produto permitido');
+        showFeedbackDialog('Atenção', 'Modo atômico: apenas um produto permitido', 'warning');
         return;
       }
       createAtomicMutation.mutate();
@@ -1017,9 +1035,10 @@ export default function AddStockEntryScreen() {
           })
         );
       } catch (error: any) {
-        Alert.alert(
+        showFeedbackDialog(
           'Erro ao ativar produto do catálogo',
-          error?.response?.data?.detail || 'Não foi possível ativar o produto para sua loja.'
+          error?.response?.data?.detail || 'Não foi possível ativar o produto para sua loja.',
+          'danger'
         );
         return;
       }
@@ -1310,7 +1329,6 @@ export default function AddStockEntryScreen() {
         <KeyboardAwareScreen
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
-          bottomPadding={theme.spacing.xxl}
         >
         {/* Tipo de Entrada */}
         <View style={styles.section}>
@@ -1960,57 +1978,15 @@ export default function AddStockEntryScreen() {
               ].filter(Boolean)
         }
         type="success"
-        confirmText={isFromWizard ? "Ver Resumo" : isFromAIScanner ? "Ver Produto" : items.length === 0 ? "Abrir Entrada" : "Ver Entradas"}
-        cancelText={isFromWizard ? "" : isFromAIScanner ? "Escanear Outro" : "Nova Entrada"}
+        confirmText="Ver Entradas"
+        cancelText=""
         onConfirm={() => {
           setShowSuccessDialog(false);
-
-          // Se veio do wizard, retornar ao wizard com dados da entrada E do produto
-          if (isFromWizard && createdEntryId) {
-            router.replace({
-              pathname: '/products/wizard',
-              params: {
-                returnFromEntry: 'true',
-                createdEntryId: String(createdEntryId),
-                createdEntryCode: createdEntryCode || '',
-                createdEntryQuantity: String(items.reduce((sum, i) => sum + i.quantity_received, 0)),
-                createdEntrySupplier: supplierName || undefined,
-                // Passar dados do produto para restaurar no wizard
-                createdProductData: params.preselectedProductData || '',
-              },
-            });
-            return;
-          }
-
-          if (isFromAIScanner && items.length > 0 && items[0].product?.id) {
-            router.push(`/products/${items[0].product.id}`);
-          } else if (items.length === 0 && createdEntryId) {
-            // Sem produtos: abrir detalhes para vincular depois
-            router.push(`/entries/${createdEntryId}`);
-          } else {
-            router.push('/(tabs)/entries');
-          }
+          router.push('/(tabs)/entries');
         }}
         onCancel={() => {
-          // Reset para nova entrada/scan rápido
           setShowSuccessDialog(false);
-          if (isFromAIScanner) {
-            // Voltar para scanner para escanear outro produto
-            router.replace('/products/scan');
-          } else {
-            // Reset formulário para nova entrada
-            setEntryCode('');
-            setSupplierName('');
-            setSupplierCnpj('');
-            setSupplierContact('');
-            setInvoiceNumber('');
-            setPaymentMethod('');
-            setNotes('');
-            setItems([]);
-            setItemCosts({});
-            setTripId(undefined);
-            setSelectedType(EntryType.LOCAL);
-          }
+          router.push('/(tabs)/entries');
         }}
         icon="checkmark-circle"
       />
@@ -2051,6 +2027,17 @@ export default function AddStockEntryScreen() {
           setItemToDelete(null);
         }}
         icon="trash"
+      />
+
+      <ConfirmDialog
+        visible={feedbackDialog.visible}
+        title={feedbackDialog.title}
+        message={feedbackDialog.message}
+        type={feedbackDialog.type}
+        confirmText="OK"
+        cancelText=""
+        onConfirm={() => setFeedbackDialog({ visible: false, title: '', message: '', type: 'warning' })}
+        onCancel={() => setFeedbackDialog({ visible: false, title: '', message: '', type: 'warning' })}
       />
     </View>
   );

@@ -397,7 +397,6 @@ export default function AddTripScreen() {
       <KeyboardAwareScreen
         style={styles.content}
         contentContainerStyle={styles.scrollContent}
-        bottomPadding={theme.spacing.xxl}
       >
           {/* Informações Básicas */}
           <View style={styles.sectionCard}>
