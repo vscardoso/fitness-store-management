@@ -9,7 +9,7 @@ IMPORTANTE: Após a migração para o sistema de variantes:
 from decimal import Decimal
 from sqlalchemy import String, Text, Numeric, ForeignKey, Integer, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from .base import BaseModel
 
@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from .stock_entry import StockEntry
     from .product import Product
     from .product_variant import ProductVariant
+    from .supplier import Supplier
 
 
 class EntryItem(BaseModel):
@@ -79,7 +80,17 @@ class EntryItem(BaseModel):
         Text,
         comment="Observações sobre este item"
     )
-    
+
+    # Fornecedor associado a este item (opcional — permite rastrear de qual
+    # fornecedor veio cada item individualmente, mesmo que a StockEntry já
+    # guarde supplier_name como texto livre para retrocompatibilidade)
+    supplier_id: Mapped[Optional[int]] = mapped_column(
+        ForeignKey("suppliers.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Fornecedor deste item (FK para suppliers)",
+    )
+
     # Relacionamentos
     stock_entry: Mapped["StockEntry"] = relationship(
         "StockEntry",
@@ -99,7 +110,13 @@ class EntryItem(BaseModel):
         back_populates="entry_items",
         lazy="selectin"
     )
-    
+
+    # Fornecedor deste item
+    supplier: Mapped[Optional["Supplier"]] = relationship(
+        "Supplier",
+        lazy="selectin",
+    )
+
     # Constraints
     __table_args__ = (
         CheckConstraint(

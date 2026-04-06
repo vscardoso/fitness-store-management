@@ -22,6 +22,8 @@ from .look import Look, LookItem
 from .wishlist import Wishlist
 from .product_tag import ProductTag
 from .expense import Expense, ExpenseCategory
+from .supplier import Supplier
+from .supplier_product import SupplierProduct
 
 __all__ = [
     # Base
@@ -97,4 +99,8 @@ __all__ = [
     # Expense
     "Expense",
     "ExpenseCategory",
+
+    # Supplier
+    "Supplier",
+    "SupplierProduct",
 ]
