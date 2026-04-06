@@ -169,6 +169,9 @@ export default function TabsLayout() {
 
       {/* Despesas: oculto do tab bar mas mantém rotas acessíveis */}
       <Tabs.Screen name="expenses" options={{ href: null }} />
+
+      {/* Fornecedores: oculto do tab bar mas mantém rotas acessíveis */}
+      <Tabs.Screen name="suppliers" options={{ href: null }} />
     </Tabs>
   );
 }

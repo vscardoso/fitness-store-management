@@ -161,6 +161,7 @@ export default function MoreScreen() {
             <MenuItem icon="cube-outline" title="Produtos" subtitle="Catálogo e gerenciamento" onPress={() => router.push('/(tabs)/products')} iconColor={Colors.light.primary} iconBg={Colors.light.primaryLight} />
             <MenuItem icon="people-outline" title="Clientes" subtitle="Gerenciar clientes e fidelidade" onPress={() => router.push('/(tabs)/customers')} iconColor={Colors.light.info} iconBg={Colors.light.infoLight} />
             <MenuItem icon="layers-outline" title="Entradas" subtitle="Compras e controle de entradas" onPress={() => router.push('/entries')} iconColor="#9333EA" iconBg="#F3E8FF" />
+            <MenuItem icon="business-outline" title="Fornecedores" subtitle="Catálogo de fornecedores" onPress={() => router.push('/suppliers' as any)} iconColor="#F97316" iconBg="#FFEDD5" />
             <MenuItem icon="pricetags-outline" title="Categorias" subtitle="Organizar produtos por categoria" onPress={() => router.push('/(tabs)/categories')} iconColor="#9333EA" iconBg="#F3E8FF" />
             <MenuItem icon="layers-outline" title="Inventário" subtitle="Dashboard de estoque e alertas" onPress={() => router.push('/(tabs)/inventory')} iconColor={Colors.light.warning} iconBg={Colors.light.warningLight} />
           </View>
