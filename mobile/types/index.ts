@@ -861,6 +861,61 @@ export interface AIStatusResponse {
 export * from './productVariant';
 
 // ============================================
+// SUPPLIER TYPES
+// ============================================
+
+export interface Supplier {
+  id: number;
+  name: string;
+  cnpj?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  notes?: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SupplierCreate {
+  name: string;
+  cnpj?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  notes?: string | null;
+}
+
+export interface SupplierUpdate {
+  name?: string;
+  cnpj?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  notes?: string | null;
+}
+
+/** Produto visto do ângulo de um fornecedor */
+export interface SupplierProduct {
+  product_id: number;
+  product_name: string;
+  product_sku: string;
+  product_image_url?: string | null;
+  last_unit_cost: number;
+  purchase_count: number;
+  last_purchase_date: string;
+}
+
+/** Fornecedor visto do ângulo de um produto */
+export interface ProductSupplier {
+  supplier_id: number;
+  supplier_name: string;
+  supplier_cnpj?: string | null;
+  last_unit_cost: number;
+  purchase_count: number;
+  last_purchase_date: string;
+  is_cheapest: boolean;
+  is_most_frequent: boolean;
+}
+
+// ============================================
 // WIZARD TYPES
 // ============================================
 export * from './wizard';
