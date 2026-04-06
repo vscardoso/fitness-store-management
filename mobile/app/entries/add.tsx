@@ -50,9 +50,10 @@ import { formatCurrency } from '@/utils/format';
 import { cnpjMask, phoneMask } from '@/utils/masks';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import { EntryType, StockEntryCreate, EntryItem, Product } from '@/types';
+import { EntryType, StockEntryCreate, EntryItem, Product, Supplier } from '@/types';
 import type { WizardStep } from '@/types/wizard';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
 import WizardStepper from '@/components/products/WizardStepper';
 import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
 import { logInfo, logError } from '@/services/debugLog';
@@ -75,6 +76,8 @@ interface EntryItemForm extends EntryItem {
   product?: Product;
   variant_color?: string | null;
   variant_size?: string | null;
+  supplier_id?: number | null;
+  supplier_name?: string | null; // cache para display sem re-fetch
 }
 
 export default function AddStockEntryScreen() {
@@ -216,6 +219,9 @@ export default function AddStockEntryScreen() {
   const [items, setItems] = useState<EntryItemForm[]>([]);
   const [itemCosts, setItemCosts] = useState<Record<string, string>>({});
   const [itemPrices, setItemPrices] = useState<Record<string, string>>({});
+
+  // Estado do seletor de fornecedor por item
+  const [supplierPickerItemId, setSupplierPickerItemId] = useState<string | null>(null);
 
   // Estados de UI
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -1120,6 +1126,7 @@ export default function AddStockEntryScreen() {
         unit_cost: item.unit_cost,
         selling_price: item.product?.price || undefined,
         notes: item.notes || undefined,
+        supplier_id: item.supplier_id ?? undefined,
       })),
     };
 
@@ -1302,6 +1309,30 @@ export default function AddStockEntryScreen() {
                 )}
               </View>
             </View>
+            {/* Chip de fornecedor */}
+            <TouchableOpacity
+              style={[
+                styles.supplierChip,
+                item.supplier_id
+                  ? { backgroundColor: Colors.light.primaryLight, borderColor: brandingColors.primary }
+                  : { backgroundColor: Colors.light.backgroundSecondary, borderColor: Colors.light.border },
+              ]}
+              onPress={() => setSupplierPickerItemId(item.id)}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="business-outline" size={14} color={Colors.light.textSecondary} />
+              <Text
+                style={[
+                  styles.supplierChipText,
+                  { color: item.supplier_id ? Colors.light.text : Colors.light.textTertiary },
+                ]}
+                numberOfLines={1}
+              >
+                {item.supplier_name || 'Fornecedor'}
+              </Text>
+              <Ionicons name="chevron-down" size={12} color={Colors.light.textTertiary} />
+            </TouchableOpacity>
+
             <View style={styles.itemTotal}>
               <Text style={styles.itemTotalLabel}>Subtotal:</Text>
               <Text style={[styles.itemTotalValue, { color: brandingColors.primary }] }>
@@ -2102,6 +2133,30 @@ export default function AddStockEntryScreen() {
         onConfirm={() => setFeedbackDialog({ visible: false, title: '', message: '', type: 'warning' })}
         onCancel={() => setFeedbackDialog({ visible: false, title: '', message: '', type: 'warning' })}
       />
+
+      {/* Seletor de fornecedor por item */}
+      {supplierPickerItemId !== null && (() => {
+        const pickerItem = items.find((i) => i.id === supplierPickerItemId);
+        return (
+          <SupplierPickerSheet
+            visible={true}
+            onClose={() => setSupplierPickerItemId(null)}
+            onSelect={(supplier: Supplier | null) => {
+              setItems((prev) =>
+                prev.map((i) =>
+                  i.id === supplierPickerItemId
+                    ? { ...i, supplier_id: supplier?.id ?? null, supplier_name: supplier?.name ?? null }
+                    : i
+                )
+              );
+              setSupplierPickerItemId(null);
+            }}
+            productId={pickerItem?.product_id}
+            productName={pickerItem?.product?.name}
+            selectedSupplierId={pickerItem?.supplier_id}
+          />
+        );
+      })()}
     </View>
   );
 }
@@ -2410,6 +2465,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.light.warning,
     marginTop: 4,
+  },
+  supplierChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderWidth: 1,
+    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: theme.spacing.sm,
+    height: 44,
+    marginTop: theme.spacing.xs,
+  },
+  supplierChipText: {
+    flex: 1,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '500',
   },
   itemTotal: {
     flexDirection: 'row',
