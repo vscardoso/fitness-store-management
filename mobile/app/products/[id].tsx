@@ -27,6 +27,8 @@ import { Colors, theme } from '@/constants/Colors';
 import { getEntryTypeLabel, getEntryTypeColor, getEntryTypeIcon } from '@/constants/entryTypes';
 import { useTutorialContext } from '@/components/tutorial';
 import { useBrandingColors } from '@/store/brandingStore';
+import { useProductSuppliers } from '@/hooks/useSuppliers';
+import { VALUE_COLORS } from '@/constants/Colors';
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -109,6 +111,11 @@ export default function ProductDetailsScreen() {
     queryFn: () => getProductVariants(productId),
     enabled: isValidId,
   });
+
+  /**
+   * Query: Fornecedores do produto
+   */
+  const { data: productSuppliers = [] } = useProductSuppliers(productId);
 
   /**
    * Estado de refresh
@@ -671,6 +678,113 @@ export default function ProductDetailsScreen() {
           );
         })()}
 
+        {/* ── FORNECEDORES ── */}
+        {(() => {
+          const minCost = productSuppliers.length > 0
+            ? Math.min(...productSuppliers.map((ps) => ps.last_unit_cost))
+            : null;
+          const maxCount = productSuppliers.length > 0
+            ? Math.max(...productSuppliers.map((ps) => ps.purchase_count))
+            : null;
+
+          return (
+            <View style={[styles.card, { padding: theme.spacing.md, marginBottom: theme.spacing.sm }]}>
+              {/* Header da seção */}
+              <View style={[styles.cardHeader, { marginBottom: theme.spacing.sm }]}>
+                <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
+                  <Ionicons name="business-outline" size={20} color={brandingColors.primary} />
+                </View>
+                <Text style={styles.cardTitle}>Fornecedores</Text>
+                {productSuppliers.length > 0 && (
+                  <TouchableOpacity
+                    onPress={() => router.push(`/suppliers?productId=${productId}` as any)}
+                    activeOpacity={0.75}
+                    style={{ marginLeft: 'auto' }}
+                  >
+                    <Text style={[styles.seeAllLink, { color: brandingColors.primary }]}>ver todos →</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {productSuppliers.length === 0 ? (
+                <View style={styles.supplierEmptyState}>
+                  <Ionicons name="business-outline" size={32} color={Colors.light.textTertiary} />
+                  <Text style={styles.supplierEmptyTitle}>Nenhum fornecedor registrado</Text>
+                  <Text style={styles.supplierEmptySubtitle}>
+                    Informe o fornecedor ao registrar novas entradas
+                  </Text>
+                </View>
+              ) : (
+                productSuppliers.map((ps) => {
+                  const isCheapest = minCost !== null && ps.last_unit_cost === minCost;
+                  const isMostFrequent = maxCount !== null && ps.purchase_count === maxCount;
+                  return (
+                    <TouchableOpacity
+                      key={ps.supplier_id}
+                      style={styles.supplierCard}
+                      onPress={() => router.push(`/suppliers/${ps.supplier_id}` as any)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={styles.supplierCardTop}>
+                        <View style={styles.supplierCardIcon}>
+                          <Ionicons name="business" size={20} color={brandingColors.primary} />
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0 }}>
+                          <Text style={styles.supplierCardName} numberOfLines={1}>
+                            {ps.supplier_name}
+                          </Text>
+                          {ps.supplier_cnpj ? (
+                            <Text style={styles.supplierCardCnpj}>CNPJ: {ps.supplier_cnpj}</Text>
+                          ) : null}
+                        </View>
+                        <View style={{ flexDirection: 'row', gap: 4 }}>
+                          {isCheapest && (
+                            <View style={styles.badgeCheapest}>
+                              <Ionicons name="trending-down-outline" size={10} color={Colors.light.success} />
+                              <Text style={styles.badgeCheapestText}>Mais barato</Text>
+                            </View>
+                          )}
+                          {isMostFrequent && (
+                            <View style={[styles.badgeFrequent, { backgroundColor: Colors.light.primaryLight }]}>
+                              <Ionicons name="star-outline" size={10} color={brandingColors.primary} />
+                              <Text style={[styles.badgeFrequentText, { color: brandingColors.primary }]}>
+                                Mais frequente
+                              </Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+
+                      {/* Métricas */}
+                      <View style={styles.supplierMetricsRow}>
+                        <View style={styles.supplierMetricCol}>
+                          <Text style={styles.supplierMetricLabel}>Último preço</Text>
+                          <Text style={[
+                            styles.supplierMetricValue,
+                            { color: isCheapest ? VALUE_COLORS.positive : VALUE_COLORS.neutral },
+                          ]}>
+                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ps.last_unit_cost)}
+                          </Text>
+                        </View>
+                        <View style={styles.supplierMetricCol}>
+                          <Text style={styles.supplierMetricLabel}>Compras</Text>
+                          <Text style={styles.supplierMetricValue}>{ps.purchase_count}x</Text>
+                        </View>
+                        <View style={styles.supplierMetricCol}>
+                          <Text style={styles.supplierMetricLabel}>Última compra</Text>
+                          <Text style={styles.supplierMetricValue}>
+                            {new Date(ps.last_purchase_date).toLocaleDateString('pt-BR')}
+                          </Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })
+              )}
+            </View>
+          );
+        })()}
+
         {/* ── ETIQUETAS & QR CODE ── */}
         <Card style={styles.card}>
           <Card.Content>
@@ -868,6 +982,104 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   cardTitle: { fontSize: 16, fontWeight: '700', color: Colors.light.text, flex: 1 },
+  seeAllLink: { fontSize: theme.fontSize.xs, fontWeight: '600' },
+
+  // ── Supplier section ──
+  supplierEmptyState: {
+    alignItems: 'center',
+    paddingVertical: theme.spacing.md,
+    gap: theme.spacing.xs,
+  },
+  supplierEmptyTitle: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+  },
+  supplierEmptySubtitle: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textTertiary,
+    textAlign: 'center',
+  },
+  supplierCard: {
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
+    ...theme.shadows.sm,
+  },
+  supplierCardTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+  },
+  supplierCardIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.light.primaryLight,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  supplierCardName: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  supplierCardCnpj: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  badgeCheapest: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: Colors.light.successLight,
+    borderRadius: theme.borderRadius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  badgeCheapestText: {
+    fontSize: theme.fontSize.xxs,
+    fontWeight: '600',
+    color: Colors.light.success,
+  },
+  badgeFrequent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    borderRadius: theme.borderRadius.full,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  badgeFrequentText: {
+    fontSize: theme.fontSize.xxs,
+    fontWeight: '600',
+  },
+  supplierMetricsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+    paddingTop: theme.spacing.sm,
+    marginTop: theme.spacing.xs,
+  },
+  supplierMetricCol: {
+    alignItems: 'center',
+  },
+  supplierMetricLabel: {
+    fontSize: theme.fontSize.xxs,
+    color: Colors.light.textSecondary,
+    marginBottom: 2,
+  },
+  supplierMetricValue: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
   countBadge: {
     backgroundColor: Colors.light.primary + '18',
     paddingHorizontal: 10,
