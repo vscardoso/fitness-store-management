@@ -18,7 +18,6 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
-  Modal,
   Text,
   TextInput as RNTextInput,
 } from 'react-native';
@@ -38,9 +37,8 @@ import InfoRow from '@/components/ui/InfoRow';
 import StatCard from '@/components/ui/StatCard';
 import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import CustomModal from '@/components/ui/CustomModal';
-import ModalActions from '@/components/ui/ModalActions';
-import AppButton from '@/components/ui/AppButton';
+import BottomSheet from '@/components/ui/BottomSheet';
+import useBackToList from '@/hooks/useBackToList';
 import { getStockEntryById, deleteStockEntry, updateEntryItem, correctEntryItem } from '@/services/stockEntryService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { toBRNumber, maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
@@ -52,6 +50,7 @@ import { EntryType, EntryItemResponse } from '@/types';
 export default function StockEntryDetailsScreen() {
   const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/entries');
   const queryClient = useQueryClient();
   const brandingColors = useBrandingColors();
 
@@ -96,7 +95,7 @@ export default function StockEntryDetailsScreen() {
     if (from) {
       router.push(from as any);
     } else {
-      router.back();
+      goBack();
     }
   };
 
@@ -127,6 +126,7 @@ export default function StockEntryDetailsScreen() {
   const [correctionItem, setCorrectionItem] = useState<EntryItemResponse | null>(null);
   const [correctionDiff, setCorrectionDiff] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
+  const [correctionInlineError, setCorrectionInlineError] = useState('');
 
   /**
    * Query: Buscar entrada
@@ -215,6 +215,7 @@ export default function StockEntryDetailsScreen() {
     mutationFn: ({ itemId, diff, reason }: { itemId: number; diff: number; reason: string }) =>
       correctEntryItem(itemId, diff, reason),
     onSuccess: async (result: any) => {
+      setCorrectionInlineError('');
       setShowCorrectionDialog(false);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['stock-entry', entryId] }),
@@ -224,8 +225,7 @@ export default function StockEntryDetailsScreen() {
       setSuccessDialog({ visible: true, message: result.message });
     },
     onError: (error: any) => {
-      setShowCorrectionDialog(false);
-      setErrorDialog({ visible: true, message: error.message || 'Erro ao corrigir item' });
+      setCorrectionInlineError(error.message || 'Erro ao corrigir item');
     },
   });
 
@@ -233,14 +233,21 @@ export default function StockEntryDetailsScreen() {
     if (!correctionItem) return;
     const diff = parseInt(correctionDiff);
     if (isNaN(diff) || diff === 0) {
-      setErrorDialog({ visible: true, message: 'Informe uma diferença válida (positiva ou negativa)' });
+      setCorrectionInlineError('Informe uma diferença válida (positiva ou negativa).');
       return;
     }
     if (!correctionReason.trim() || correctionReason.trim().length < 5) {
-      setErrorDialog({ visible: true, message: 'Informe o motivo da correção (mínimo 5 caracteres)' });
+      setCorrectionInlineError('Informe o motivo da correção (mínimo 5 caracteres).');
       return;
     }
+    setCorrectionInlineError('');
     correctionMutation.mutate({ itemId: correctionItem.id, diff, reason: correctionReason.trim() });
+  };
+
+  const adjustCorrectionDiff = (delta: number) => {
+    const current = parseInt(correctionDiff, 10);
+    const safeCurrent = Number.isNaN(current) ? 0 : current;
+    setCorrectionDiff(String(safeCurrent + delta));
   };
 
   /**
@@ -273,16 +280,22 @@ export default function StockEntryDetailsScreen() {
     // Item com vendas → abrir modal de correção auditada
     if (item.quantity_sold > 0) {
       setCorrectionItem(item);
-      setCorrectionDiff('');
+      setCorrectionDiff('0');
       setCorrectionReason('');
+      setCorrectionInlineError('');
       setShowCorrectionDialog(true);
       return;
     }
 
-    // Preencher valores atuais com máscara
+    // Preencher valores atuais
+    // unit_cost pode vir como string Decimal do backend ("15.50"), number ou 0
+    const costNum = parseFloat(String(item.unit_cost).replace(',', '.')) || 0;
+    const priceNum = parseFloat(String(item.product_price ?? 0).replace(',', '.')) || 0;
+    console.log('[EditItem] unit_cost raw:', item.unit_cost, '→ parsed:', costNum);
+
     setEditQuantity(item.quantity_received.toString());
-    setEditCost(toBRNumber(item.unit_cost));
-    setEditPrice(toBRNumber(item.product_price || 0));
+    setEditCost(costNum > 0 ? costNum.toFixed(2).replace('.', ',') : '');
+    setEditPrice(priceNum > 0 ? priceNum.toFixed(2).replace('.', ',') : '');
     setEditNotes(item.notes || '');
     setEditItemDialog({ visible: true, item });
   };
@@ -385,7 +398,7 @@ export default function StockEntryDetailsScreen() {
     return <Badge label={config.label} variant={config.variant} icon={config.icon} size="md" />;
   };
 
-  const statusConfig: Record<string, { label: string; variant: any; icon: string }> = {
+  const statusConfig: Record<string, { label: string; variant: any; icon: keyof typeof Ionicons.glyphMap }> = {
     open:     { label: 'Aberta',    variant: 'success', icon: 'checkmark-circle' },
     partial:  { label: 'Parcial',   variant: 'warning', icon: 'time' },
     sold_out: { label: 'Esgotada',  variant: 'neutral', icon: 'archive' },
@@ -424,101 +437,109 @@ export default function StockEntryDetailsScreen() {
    * Renderizar item de produto
    */
   const renderProductItem = (item: EntryItemResponse) => {
-    const depletionRate = ((item.quantity_received - item.quantity_remaining) / item.quantity_received) * 100;
+    const depletionRate = item.quantity_received > 0
+      ? ((item.quantity_received - item.quantity_remaining) / item.quantity_received) * 100
+      : 0;
     const isSlowMover = depletionRate < 30 && item.quantity_remaining > 0;
     const isBestSeller = depletionRate >= 70;
     const hasSales = item.quantity_sold > 0;
-
     const progressColor = depletionRate >= 70 ? Colors.light.success : depletionRate >= 40 ? Colors.light.warning : Colors.light.error;
+
     return (
       <View key={item.id} style={styles.productCard}>
-          <View style={styles.productHeader}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.productName}>
-                {item.product_name}
-              </Text>
-              {item.variant_label && (
-                <Text style={styles.variantLabel}>{item.variant_label}</Text>
-              )}
-              {item.product_sku && (
-                <Text style={styles.productSku}>SKU: {item.product_sku}</Text>
-              )}
-            </View>
-            <View style={styles.productHeaderRight}>
-              {isBestSeller && (
-                <View style={styles.bestSellerChip}>
-                  <Ionicons name="trophy" size={11} color={Colors.light.success} />
-                  <Text style={[styles.chipText, { color: Colors.light.success }]}>Best Seller</Text>
-                </View>
-              )}
-              {isSlowMover && (
-                <View style={styles.slowMoverChip}>
-                  <Ionicons name="alert" size={11} color={Colors.light.warning} />
-                  <Text style={[styles.chipText, { color: Colors.light.warning }]}>Parado</Text>
-                </View>
-              )}
-              <TouchableOpacity
-                onPress={() => handleEditItem(item)}
-                style={styles.editItemButton}
-              >
-                <Ionicons
-                  name={hasSales ? "construct-outline" : "create-outline"}
-                  size={16}
-                  color={hasSales ? Colors.light.warning : brandingColors.primary}
-                />
-                <Text style={[styles.editItemButtonText, hasSales && { color: Colors.light.warning }]}>
-                  {hasSales ? 'Corrigir' : 'Editar'}
-                </Text>
-              </TouchableOpacity>
-            </View>
+        {/* Header: nome + chips + ação */}
+        <View style={styles.productHeader}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.productName} numberOfLines={2}>{item.product_name}</Text>
+            {item.variant_label && (
+              <Text style={styles.variantLabel} numberOfLines={1}>{item.variant_label}</Text>
+            )}
+            {item.product_sku && (
+              <Text style={styles.productSku} numberOfLines={1}>SKU: {item.product_sku}</Text>
+            )}
           </View>
-
-          {/* Métricas */}
-          <View style={styles.productMetrics}>
-            <View style={styles.productMetricItem}>
-              <Text style={styles.productMetricLabel}>Comprado</Text>
-              <Text style={styles.productMetricValue}>{item.quantity_received} un</Text>
-            </View>
-            <View style={styles.productMetricItem}>
-              <Text style={styles.productMetricLabel}>Vendido</Text>
-              <Text style={[styles.productMetricValue, { color: Colors.light.success }]}>
-                {item.quantity_sold || 0} un
+          <View style={styles.productHeaderRight}>
+            {isBestSeller && (
+              <View style={[styles.productChip, { backgroundColor: Colors.light.success + '18' }]}>
+                <Ionicons name="trophy" size={11} color={Colors.light.success} />
+                <Text style={[styles.productChipText, { color: Colors.light.success }]}>Top</Text>
+              </View>
+            )}
+            {isSlowMover && (
+              <View style={[styles.productChip, { backgroundColor: Colors.light.warning + '18' }]}>
+                <Ionicons name="alert" size={11} color={Colors.light.warning} />
+                <Text style={[styles.productChipText, { color: Colors.light.warning }]}>Parado</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              onPress={() => handleEditItem(item)}
+              style={[styles.editItemButton, { borderColor: hasSales ? Colors.light.warning + '40' : brandingColors.primary + '30', backgroundColor: hasSales ? Colors.light.warning + '12' : brandingColors.primary + '12' }]}
+              activeOpacity={0.7}
+            >
+              <Ionicons
+                name={hasSales ? 'construct-outline' : 'create-outline'}
+                size={14}
+                color={hasSales ? Colors.light.warning : brandingColors.primary}
+              />
+              <Text style={[styles.editItemButtonText, { color: hasSales ? Colors.light.warning : brandingColors.primary }]}>
+                {hasSales ? 'Corrigir' : 'Editar'}
               </Text>
-            </View>
-            <View style={styles.productMetricItem}>
-              <Text style={styles.productMetricLabel}>Restante</Text>
-              <Text style={[styles.productMetricValue, { color: Colors.light.warning }]}>
-                {item.quantity_remaining} un
-              </Text>
-            </View>
+            </TouchableOpacity>
           </View>
+        </View>
 
-          {/* Barra de progresso */}
-          <View style={styles.progressContainer}>
-            <View style={styles.progressHeader}>
-              <Text style={styles.progressLabel}>Sell-Through</Text>
-              <Text style={[styles.progressPercentage, { color: progressColor }]}>
-                {depletionRate.toFixed(1)}%
-              </Text>
-            </View>
-            <View style={styles.progressBarTrack}>
-              <View style={[styles.progressBarFill, { width: `${Math.min(depletionRate, 100)}%` as any, backgroundColor: progressColor }]} />
-            </View>
+        {/* Métricas */}
+        <View style={styles.productMetrics}>
+          <View style={styles.productMetricItem}>
+            <Text style={styles.productMetricLabel}>COMPRADO</Text>
+            <Text style={styles.productMetricValue}>{item.quantity_received} un</Text>
           </View>
-
-          {/* Custo */}
-          <View style={styles.productFooter}>
-            <Text style={styles.productCostLabel}>Custo Unit.: {formatCurrency(item.unit_cost)}</Text>
-            <Text style={styles.productTotalCost}>Total: {formatCurrency(item.total_cost)}</Text>
+          <View style={[styles.productMetricItem, styles.productMetricCenter]}>
+            <Text style={styles.productMetricLabel}>VENDIDO</Text>
+            <Text style={[styles.productMetricValue, { color: Colors.light.success }]}>
+              {item.quantity_sold || 0} un
+            </Text>
           </View>
+          <View style={[styles.productMetricItem, { alignItems: 'flex-end' }]}>
+            <Text style={styles.productMetricLabel}>RESTANTE</Text>
+            <Text style={[styles.productMetricValue, { color: item.quantity_remaining === 0 ? Colors.light.textTertiary : Colors.light.warning }]}>
+              {item.quantity_remaining} un
+            </Text>
+          </View>
+        </View>
 
-          {/* Observações do item */}
-          {item.notes && (
-            <View style={styles.itemNotesContainer}>
-              <Ionicons name="document-text-outline" size={14} color={Colors.light.textSecondary} />
-              <Text style={styles.itemNotesText}>{item.notes}</Text>
-            </View>
-          )}
+        {/* Sell-Through */}
+        <View style={styles.progressContainer}>
+          <View style={styles.progressHeader}>
+            <Text style={styles.progressLabel}>Sell-Through</Text>
+            <Text style={[styles.progressPercentage, { color: progressColor }]}>
+              {depletionRate.toFixed(1)}%
+            </Text>
+          </View>
+          <View style={styles.progressBarTrack}>
+            <View style={[styles.progressBarFill, { width: `${Math.min(depletionRate, 100)}%` as any, backgroundColor: progressColor }]} />
+          </View>
+        </View>
+
+        {/* Footer: custo + total */}
+        <View style={styles.productFooter}>
+          <View style={styles.productFooterItem}>
+            <Text style={styles.productMetricLabel}>CUSTO UNIT.</Text>
+            <Text style={[styles.productMetricValue, { color: VALUE_COLORS.neutral }]}>{formatCurrency(item.unit_cost)}</Text>
+          </View>
+          <View style={[styles.productFooterItem, { alignItems: 'flex-end' }]}>
+            <Text style={styles.productMetricLabel}>TOTAL</Text>
+            <Text style={[styles.productMetricValue, { color: VALUE_COLORS.negative, flexShrink: 0 }]}>{formatCurrency(item.total_cost)}</Text>
+          </View>
+        </View>
+
+        {/* Observações */}
+        {item.notes && (
+          <View style={styles.itemNotesContainer}>
+            <Ionicons name="document-text-outline" size={14} color={Colors.light.textSecondary} />
+            <Text style={styles.itemNotesText} numberOfLines={3}>{item.notes}</Text>
+          </View>
+        )}
       </View>
     );
   };
@@ -579,9 +600,6 @@ export default function StockEntryDetailsScreen() {
           subtitle={`Fornecedor: ${entry.supplier_name}`}
           showBackButton
           onBack={handleGoBack}
-          rightActions={[
-            { icon: 'trash', onPress: handleDelete },
-          ]}
         />
       </Animated.View>
 
@@ -725,77 +743,113 @@ export default function StockEntryDetailsScreen() {
           )}
         </View>
 
-        {/* Ações */}
-        <View style={styles.actions}>
-          {/* Tooltip explicativo quando tem vendas */}
-          {entry.has_sales && (
-            <View style={styles.protectionInfo}>
-              <Ionicons name="information-circle" size={16} color={brandingColors.primary} />
-              <Text style={styles.protectionInfoText}>
-                Esta entrada não pode ser excluída pois possui {entry.items_sold} unidade(s) já vendida(s).
-                Entradas com vendas são mantidas como histórico para rastreabilidade FIFO.
-              </Text>
-            </View>
-          )}
+        {entry.has_sales && (
+          <View style={styles.compactNoticeRow}>
+            <Ionicons name="information-circle-outline" size={14} color={Colors.light.textSecondary} />
+            <Text style={styles.compactNoticeText}>
+              Exclusão indisponível: esta entrada possui {entry.items_sold} unidade(s) vendida(s).
+            </Text>
+          </View>
+        )}
 
-          <AppButton
-            variant="danger"
-            icon="trash-outline"
-            label={entry.has_sales ? 'Não Pode Excluir (Com Vendas)' : 'Excluir Entrada'}
-            onPress={handleDelete}
-            disabled={entry.has_sales || deleteMutation.isPending}
-            loading={deleteMutation.isPending}
-            fullWidth
-          />
-        </View>
+        {/* Ações */}
+        {!entry.has_sales && (
+          <View style={styles.actions}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.dangerActionButton]}
+              onPress={handleDelete}
+              activeOpacity={0.75}
+              disabled={deleteMutation.isPending}
+            >
+              <Ionicons name="trash-outline" size={18} color={Colors.light.error} />
+              <Text style={styles.dangerActionButtonText}>
+                {deleteMutation.isPending ? 'Excluindo...' : 'Excluir Entrada'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
       </ScrollView>
 
         {/* Modal de Correção Auditada */}
-        <Modal visible={showCorrectionDialog} transparent animationType="fade" onRequestClose={() => setShowCorrectionDialog(false)}>
-          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 24 }}>
-            <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 20, gap: 12 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Ionicons name="construct-outline" size={20} color={Colors.light.warning} />
-                <Text style={{ fontSize: 16, fontWeight: '700' }}>Corrigir Item</Text>
-              </View>
-              <Text style={{ fontSize: 13, color: '#666' }}>
-                {correctionItem?.product_name} — {correctionItem?.quantity_sold} un vendidas, {correctionItem?.quantity_remaining} restantes
-              </Text>
-              <RNTextInput
-                placeholder="+2 adiciona unidades  /  -2 remove unidades"
-                keyboardType="numbers-and-punctuation"
-                value={correctionDiff}
-                onChangeText={setCorrectionDiff}
-                style={{ borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: 14 }}
-              />
-              <RNTextInput
-                placeholder="Motivo obrigatório para auditoria..."
-                value={correctionReason}
-                onChangeText={setCorrectionReason}
-                multiline
-                numberOfLines={3}
-                style={{ borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10, fontSize: 14 }}
-              />
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 4 }}>
-                <TouchableOpacity
-                  onPress={() => setShowCorrectionDialog(false)}
-                  style={{ flex: 1, padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#ddd', alignItems: 'center' }}
-                >
-                  <Text style={{ color: '#666' }}>Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={handleConfirmCorrection}
-                  disabled={correctionMutation.isPending}
-                  style={{ flex: 1, padding: 12, borderRadius: 8, backgroundColor: Colors.light.warning, alignItems: 'center' }}
-                >
-                  <Text style={{ color: '#fff', fontWeight: '600' }}>
-                    {correctionMutation.isPending ? 'Salvando...' : 'Aplicar'}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+        <BottomSheet
+          visible={showCorrectionDialog}
+          onDismiss={() => {
+            setCorrectionInlineError('');
+            setShowCorrectionDialog(false);
+          }}
+          title="Corrigir Item"
+          subtitle={correctionItem
+            ? `${correctionItem.product_name} • Vendidas: ${correctionItem.quantity_sold} • Disponíveis: ${correctionItem.quantity_remaining}`
+            : undefined}
+          icon="construct-outline"
+          actions={[
+            {
+              label: 'Cancelar',
+              onPress: () => {
+                setCorrectionInlineError('');
+                setShowCorrectionDialog(false);
+              },
+              variant: 'secondary',
+            },
+            { label: 'Aplicar', onPress: handleConfirmCorrection, icon: 'checkmark-circle-outline', loading: correctionMutation.isPending },
+          ]}
+        >
+          <Text style={styles.inputLabel}>Ajuste de quantidade</Text>
+          <View style={styles.stepperRow}>
+            <TouchableOpacity
+              onPress={() => adjustCorrectionDiff(-1)}
+              style={styles.stepperButton}
+              activeOpacity={0.8}
+              accessibilityLabel="Remover uma unidade"
+            >
+              <Ionicons name="remove" size={18} color={Colors.light.text} />
+            </TouchableOpacity>
+
+            <RNTextInput
+              placeholder="0"
+              keyboardType="number-pad"
+              value={correctionDiff}
+              onChangeText={(value) => {
+                const sanitized = value.replace(/[^0-9-]/g, '');
+                const normalized = sanitized.startsWith('-')
+                  ? `-${sanitized.slice(1).replace(/-/g, '')}`
+                  : sanitized.replace(/-/g, '');
+                setCorrectionDiff(normalized);
+              }}
+              style={styles.stepperInput}
+              placeholderTextColor={Colors.light.textTertiary}
+              textAlign="center"
+            />
+
+            <TouchableOpacity
+              onPress={() => adjustCorrectionDiff(1)}
+              style={styles.stepperButton}
+              activeOpacity={0.8}
+              accessibilityLabel="Adicionar uma unidade"
+            >
+              <Ionicons name="add" size={18} color={Colors.light.text} />
+            </TouchableOpacity>
           </View>
-        </Modal>
+          <Text style={styles.stepperHint}>Use + para adicionar e - para remover unidades.</Text>
+
+          <Text style={styles.inputLabel}>Motivo *</Text>
+          <RNTextInput
+            placeholder="Motivo obrigatório para auditoria..."
+            value={correctionReason}
+            onChangeText={(value) => {
+              setCorrectionReason(value);
+              if (correctionInlineError) setCorrectionInlineError('');
+            }}
+            multiline
+            numberOfLines={3}
+            style={[styles.nativeInput, styles.nativeInputMultiline]}
+            placeholderTextColor={Colors.light.textTertiary}
+            textAlignVertical="top"
+          />
+          {!!correctionInlineError && (
+            <Text style={styles.correctionInlineErrorText}>{correctionInlineError}</Text>
+          )}
+        </BottomSheet>
 
         {/* Confirm Delete Dialog */}
         <ConfirmDialog
@@ -837,11 +891,26 @@ export default function StockEntryDetailsScreen() {
         />
 
         {/* Modal de Edição de Item */}
-        <CustomModal
+        <BottomSheet
           visible={editItemDialog.visible}
           onDismiss={cancelEditItem}
-          title="Editar Item da Entrada"
+          title="Editar Item"
           subtitle={editItemDialog.item?.product_name}
+          icon="create-outline"
+          actions={[
+            {
+              label: 'Cancelar',
+              onPress: cancelEditItem,
+              variant: 'secondary',
+            },
+            {
+              label: 'Salvar Alterações',
+              onPress: confirmEditItem,
+              icon: 'checkmark-circle-outline',
+              loading: updateItemMutation.isPending,
+              disabled: updateItemMutation.isPending,
+            },
+          ]}
         >
           <View style={styles.warningBox}>
             <Ionicons name="information-circle" size={20} color={brandingColors.primary} />
@@ -867,7 +936,7 @@ export default function StockEntryDetailsScreen() {
               value={editCost}
               onChangeText={(text) => setEditCost(maskCurrencyBR(text))}
               keyboardType="numeric"
-              style={[styles.nativeInput, { flex: 1 }]}
+              style={[styles.nativeInput, { flex: 1, marginBottom: 0, borderWidth: 0 }]}
               placeholder="0,00"
               placeholderTextColor={Colors.light.textTertiary}
             />
@@ -880,7 +949,7 @@ export default function StockEntryDetailsScreen() {
               value={editPrice}
               onChangeText={(text) => setEditPrice(maskCurrencyBR(text))}
               keyboardType="numeric"
-              style={[styles.nativeInput, { flex: 1 }]}
+              style={[styles.nativeInput, { flex: 1, marginBottom: 0, borderWidth: 0 }]}
               placeholder="0,00"
               placeholderTextColor={Colors.light.textTertiary}
             />
@@ -900,16 +969,7 @@ export default function StockEntryDetailsScreen() {
             placeholderTextColor={Colors.light.textTertiary}
             textAlignVertical="top"
           />
-
-          <ModalActions
-            onCancel={cancelEditItem}
-            onConfirm={confirmEditItem}
-            cancelText="Cancelar"
-            confirmText="Salvar Alterações"
-            loading={updateItemMutation.isPending}
-            confirmColor={brandingColors.primary}
-          />
-        </CustomModal>
+        </BottomSheet>
       </Animated.View>
     </View>
   );
@@ -1076,20 +1136,40 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   productCard: {
-    marginBottom: 12,
+    marginBottom: theme.spacing.sm,
     backgroundColor: Colors.light.card,
-    elevation: 1,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: theme.spacing.md,
+    ...theme.shadows.sm,
   },
   productHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
+    alignItems: 'flex-start',
+    marginBottom: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
   productHeaderRight: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    gap: theme.spacing.xs,
+    flexShrink: 0,
+  },
+  productChip: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: theme.borderRadius.md,
+  },
+  productChipText: {
+    fontSize: theme.fontSize.xxs,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   productName: {
     fontSize: 15,
@@ -1124,55 +1204,46 @@ const styles = StyleSheet.create({
     gap: 4,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    borderRadius: 16,
-    backgroundColor: Colors.light.primary + '15',
+    borderRadius: theme.borderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.light.primary + '30',
-  },
-  editItemButtonDisabled: {
-    backgroundColor: Colors.light.border + '30',
-    borderColor: Colors.light.border,
   },
   editItemButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: Colors.light.primary,
-  },
-  editItemButtonTextDisabled: {
-    color: Colors.light.textSecondary,
-  },
-  bestSellerChip: {
-    backgroundColor: Colors.light.success + '20',
-    height: 24,
-  },
-  slowMoverChip: {
-    backgroundColor: Colors.light.warning + '20',
-    height: 24,
-  },
-  chipText: {
-    fontSize: 11,
-    marginVertical: 0,
+    fontSize: theme.fontSize.xxs,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   productMetrics: {
     flexDirection: 'row',
-    gap: 16,
-    marginBottom: 12,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
   },
   productMetricItem: {
     flex: 1,
   },
+  productMetricCenter: {
+    alignItems: 'center',
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: Colors.light.border,
+  },
   productMetricLabel: {
-    fontSize: 11,
-    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.xxs,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    color: Colors.light.textTertiary,
     marginBottom: 2,
+    textTransform: 'uppercase',
   },
   productMetricValue: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: theme.fontSize.base,
+    fontWeight: '700',
     color: Colors.light.text,
   },
   progressContainer: {
-    marginBottom: 12,
+    marginBottom: theme.spacing.sm,
   },
   progressHeader: {
     flexDirection: 'row',
@@ -1192,21 +1263,27 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
   },
+  progressBarTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.light.border,
+    overflow: 'hidden',
+  },
+  progressBarFill: {
+    height: '100%' as any,
+    borderRadius: 3,
+  },
   productFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    paddingTop: 12,
+    alignItems: 'flex-start',
+    paddingTop: theme.spacing.sm,
+    marginTop: theme.spacing.xs,
     borderTopWidth: 1,
     borderTopColor: Colors.light.border,
   },
-  productCostLabel: {
-    fontSize: 12,
-    color: Colors.light.textSecondary,
-  },
-  productTotalCost: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: Colors.light.primary,
+  productFooterItem: {
+    flex: 1,
   },
   emptyText: {
     textAlign: 'center',
@@ -1214,8 +1291,43 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
   actions: {
-    marginTop: 8,
-    marginBottom: 16,
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+  },
+  compactNoticeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 2,
+    marginBottom: 2,
+    paddingHorizontal: 2,
+  },
+  compactNoticeText: {
+    flex: 1,
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+  },
+  actionButton: {
+    flex: 1,
+    borderRadius: theme.borderRadius.lg,
+    minHeight: 52,
+    overflow: 'hidden',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  dangerActionButton: {
+    borderWidth: 1.5,
+    borderColor: Colors.light.error + '50',
+    backgroundColor: Colors.light.error + '08',
+  },
+  dangerActionButtonText: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '700',
+    color: Colors.light.error,
   },
   protectionInfo: {
     flexDirection: 'row',
@@ -1267,5 +1379,89 @@ const styles = StyleSheet.create({
   },
   input: {
     marginBottom: 16,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.text,
+    marginBottom: 6,
+    marginTop: 4,
+  },
+  nativeInput: {
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: Colors.light.text,
+    backgroundColor: Colors.light.card,
+    marginBottom: 12,
+  },
+  nativeInputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: 10,
+    backgroundColor: Colors.light.card,
+    marginBottom: 12,
+    overflow: 'hidden',
+  },
+  inputPrefix: {
+    paddingHorizontal: 12,
+    fontSize: 15,
+    color: Colors.light.textSecondary,
+    fontWeight: '500',
+  },
+  nativeInputMultiline: {
+    height: 80,
+    paddingTop: 10,
+    textAlignVertical: 'top',
+  },
+  helperWarning: {
+    fontSize: 12,
+    color: Colors.light.warning,
+    marginTop: -8,
+    marginBottom: 12,
+  },
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginBottom: 6,
+  },
+  stepperButton: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepperInput: {
+    flex: 1,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 18,
+    fontWeight: '700',
+    color: Colors.light.text,
+    backgroundColor: Colors.light.card,
+  },
+  stepperHint: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginBottom: 12,
+  },
+  correctionInlineErrorText: {
+    fontSize: 12,
+    color: Colors.light.error,
+    marginTop: -4,
+    marginBottom: 12,
   },
 });

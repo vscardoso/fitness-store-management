@@ -450,5 +450,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
+  metaText: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+    flexShrink: 1,
+  },
 });
 

@@ -2,23 +2,51 @@
 
   🔴 Críticos (impactam operação diária)
 
-  1. Campo status explícito na entrada
+  1. ✅ OK — Campo status explícito na entrada
   O estado atual é inferido por 3 campos distintos. Operacionalmente confuso.
   Adicionar: enum EntryStatus { OPEN, PARTIAL, SOLD_OUT, ARCHIVED }
   Permite filtros na tela de entradas ("Mostrar apenas abertas"), alertas de lote esgotando, e relatórios por estado.
 
-  2. Entrada reutilizável com janela de tempo
+  2. ✅ OK (parcial) — Entrada reutilizável com janela de tempo
   Hoje a entrada trava no primeiro item vendido. O modelo real de varejo é: o lojista compra 50 pares de tênis numa viagem, vai vendendo ao longo de semanas, e às vezes
   encontra mais 5 pares do mesmo fornecedor.
 
   Melhoria: permitir adicionar itens a entradas "parcialmente vendidas" desde que o produto não tenha vendas (apenas o produto específico trava, não a entrada toda).
+  → Implementado: correção auditada por item; adição de itens ainda requer entrada aberta (sem vendas).
 
-  3. Alerta de estoque mínimo vinculado à entrada
+  3. ✅ OK — Correção de entrada com auditoria (item específico em vez de bloquear tudo)
+  (Implementado como: correção auditada de item — o produto específico pode ser corrigido mesmo após vendas)
+
+  4. Alerta de estoque mínimo vinculado à entrada
   Quando quantity_remaining < min_stock, o FITO deveria sugerir "Criar nova entrada de reposição" com o fornecedor pré-preenchido da última entrada daquele produto.
 
-  4. Reabertura de produto no wizard após erro
-  Hoje se o usuário abandona o wizard no meio, o produto fica em estado is_catalog=true sem entrada. Não é erro do backend (rollback protege), mas UX confunde — o
-  usuário não sabe se o produto foi criado ou não. Sugestão: tela de "rascunhos incompletos" na aba produtos.
+  4. Produto órfão após abandono do wizard (is_catalog=true sem entrada)
+
+  O wizard de cadastro salva o produto no backend logo no passo 1 (name, category, variants). Se o usuário sair ou fechar o app antes de concluir o passo 3
+  (criação da StockEntry), o produto existe no banco com is_catalog=true mas sem nenhum EntryItem vinculado.
+
+  Isso não é falha técnica — o rollback só protege contra erros de servidor. O abandono intencional (fechar o app, navegar para trás, perder conexão) cria um
+  produto "fantasma": aparece na lista, mas sem estoque, sem custo, sem entrada rastreável. O lojista não sabe se deve continuar de onde parou ou recadastrar.
+
+  Cenário concreto:
+    Passo 1 ✅ → Product criado (id: 42, is_catalog=true)
+    Passo 2 ✅ → ProductVariants criados (P/M/G)
+    Passo 3 ❌ → usuário fecha o app → StockEntry nunca criada
+    Resultado: produto id:42 existe, Inventory.quantity = 0, sem histórico de custo
+
+  Impacto:
+  - FIFO não tem origem para calcular custo real → venda registra custo R$0
+  - Produto aparece no catálogo com estoque zero, causando confusão na venda
+  - Lojista pode criar entrada duplicada (produto cadastrado duas vezes)
+
+  Solução proposta — três camadas complementares:
+  1. Badge "Incompleto" na listagem de produtos (is_catalog=true + sem EntryItem)
+  2. Ao abrir produto incompleto → oferecer "Continuar cadastro" ou "Excluir rascunho"
+  3. Banner na aba Estoque: "Você tem X produtos sem entrada — clique para completar"
+
+  Alternativa mais radical: salvar produto apenas no final (commit único como na PARTE 1).
+  Requer reestruturar o wizard para guardar os passos 1-2 localmente (AsyncStorage) e
+  só enviar ao backend quando a entrada for confirmada. Elimina o problema na raiz.
 
   ---
   🟡 Importantes (diferenciam do mercado)
@@ -228,7 +256,7 @@
   Impacto: Remove a maior barreira de adoção para quem compra formalmente.
 
   ---
-  #2 — Status explícito na entrada (OPEN → PARTIAL → SOLD_OUT)
+  ✅ OK — #2 — Status explícito na entrada (OPEN → PARTIAL → SOLD_OUT)
 
   O estado atual é inferido por 3 campos diferentes — operacionalmente confuso para quem gerencia múltiplas entradas.
 
@@ -243,7 +271,7 @@
   entrada.
 
   ---
-  #3 — Correção de entrada com auditoria (vs. bloqueio total)
+  ✅ OK — #3 — Correção de entrada com auditoria (vs. bloqueio total)
 
   Erros acontecem: o lojista recebeu 10 mas a nota diz 12. Hoje a entrada trava após a primeira venda — o lojista fica sem opção. Tiny exige extensão instalada. Omie
   exige estorno formal burocrático. O FITO pode ser mais elegante:
@@ -274,7 +302,7 @@
   Impacto: Diferencial absoluto no nicho fitness — nenhum concorrente mobile entrega isso.
 
   ---
-  #5 — ROI por viagem/entrada (análise de lucratividade)
+  ✅ OK — #5 — ROI por viagem/entrada (análise de lucratividade)
 
   A estrutura já existe (StockEntry + FIFO + sale_sources). Falta a tela de análise:
 
@@ -384,17 +412,17 @@
   
   
   
-Melhorias Propostas — FITO                                                                                                                                             
+Melhorias Propostas — FITO                                                                                                                                            
                                                          
-  🔴 Urgentes                                                                                                                                                            
+  🔴 Urgentes                                                                                                                                                             
   1. Importação XML NF-e — importar nota fiscal do fornecedor para preencher entrada automaticamente
-  2. Status explícito de entrada — OPEN / PARTIAL / SOLD_OUT / ARCHIVED visível na UI                                                                                    
-  3. Correção de entrada com auditoria — criar entrada corretiva em vez de bloquear erro após venda                                                                      
+  2. ✅ OK — Status explícito de entrada — OPEN / PARTIAL / SOLD_OUT / ARCHIVED visível na UI
+  3. ✅ OK — Correção de entrada com auditoria — criar entrada corretiva em vez de bloquear erro após venda                                                                     
                                                                                                                                                                          
   🟡 Diferenciadoras
 
   4. FEFO para suplementos — vender o que vence primeiro; alerta de validade próxima
-  5. ROI por viagem/entrada — investimento × receita gerada × margem por lote de compra
+  5. ✅ OK — ROI por viagem/entrada — investimento × receita gerada × margem por lote de compra
   6. Matriz visual de grade — tabela cor × tamanho com tap para incluir/excluir combinações
   7. Alerta de ruptura por variante — estoque mínimo por tamanho específico, não só por produto
   8. Catálogo digital compartilhável — link público do estoque para vender pelo WhatsApp

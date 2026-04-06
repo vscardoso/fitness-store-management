@@ -1,0 +1,239 @@
+ [15:19:17] [mobile] [API] GET /stock-entries/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:19:17] [mobile] [API] GET /stock-entries/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:19:17] [mobile] [API] GET /stock-entries/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:19:17] [mobile] [API] GET /stock-entries/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:29:40] [mobile] [API] POST /stock-entries/ - 400
+   Data: {"status": 400, "detail": "É necessário fornecer ao menos um item", "code": "ERR_BAD_REQUEST"}
+ [15:35:54] [mobile] [API] GET /stock-entries/check-code/ONLINE - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:47:48] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Shorts Fitness Nike Tecnologia Perfurada", "brand": "Nike", "color": "Cinza", "size": null, "category_id": 2, "duplicates_count": 0, "duplicates": []}
+ [16:05:33] [mobile] [API] GET /products/447 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:05:33] [mobile] [API] GET /product-variants/product/447 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:05:33] [mobile] [API] GET /inventory/product/447 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:06:24] [mobile] [API] POST /products/fifo-costs - Network Error
+   Data: {"detail": "Network Error", "code": "ERR_NETWORK"}
+ [16:27:06] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:27:06] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:27:33] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Fitness Top e Legging", "brand": null, "color": "Azul Claro", "size": null, "category_id": null, "duplicates_count": 0, "duplicates": []}
+ [17:30:32] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:32] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:32] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:32] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:32] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:32] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:32] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:32] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:32] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:32] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:32] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Sessão expirada por inatividade (60 min). Faça login novamente.", "code": "ERR_BAD_REQUEST"}
+ [18:06:02] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:06:02] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:06:02] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:06:02] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:06:02] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:06:02] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:06:02] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:06:02] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:06:02] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:06:02] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:24:47] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:24:47] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:24:47] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:24:47] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:24:47] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:24:47] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:24:48] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:24:48] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:24:48] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:24:48] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:45:48] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:45:48] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:45:48] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:45:48] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:45:48] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:45:48] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:45:48] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:45:48] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:45:48] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:45:48] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:45:55] [mobile] [API] GET /trips/1/analytics - 500
+   Data: {"status": 500, "detail": "Erro ao calcular analytics: (sqlite3.OperationalError) unrecognized token: \":\"\n[SQL: \n                SELECT COALESCE(SUM(si.subtotal), 0) AS revenue\n                FROM sale_items si\n                JOIN sales s ON si.sale_id = s.id\n                WHERE s.is_active = true\n                  AND s.status = 'completed'\n                  AND s.tenant_id = ?\n                  AND si.sale_sources IS NOT NULL\n                  AND si.sale_sources <> ''\n                  AND EXISTS (\n                      SELECT 1\n                      FROM jsonb_array_elements(si.sale_sources::jsonb) elem\n                      WHERE (elem->>'entry_id')::int IN (\n                          SELECT id FROM stock_entries\n                          WHERE trip_id = ?\n                            AND is_active = true\n                            AND tenant_id = ?\n                      )\n                  )\n            ]\n[parameters: (5, 1, 5)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [18:45:57] [mobile] [API] GET /trips/1/analytics - 500
+   Data: {"status": 500, "detail": "Erro ao calcular analytics: (sqlite3.OperationalError) unrecognized token: \":\"\n[SQL: \n                SELECT COALESCE(SUM(si.subtotal), 0) AS revenue\n                FROM sale_items si\n                JOIN sales s ON si.sale_id = s.id\n                WHERE s.is_active = true\n                  AND s.status = 'completed'\n                  AND s.tenant_id = ?\n                  AND si.sale_sources IS NOT NULL\n                  AND si.sale_sources <> ''\n                  AND EXISTS (\n                      SELECT 1\n                      FROM jsonb_array_elements(si.sale_sources::jsonb) elem\n                      WHERE (elem->>'entry_id')::int IN (\n                          SELECT id FROM stock_entries\n                          WHERE trip_id = ?\n                            AND is_active = true\n                            AND tenant_id = ?\n                      )\n                  )\n            ]\n[parameters: (5, 1, 5)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [18:46:01] [mobile] [API] GET /trips/2/analytics - 500
+   Data: {"status": 500, "detail": "Erro ao calcular analytics: (sqlite3.OperationalError) unrecognized token: \":\"\n[SQL: \n                SELECT COALESCE(SUM(si.subtotal), 0) AS revenue\n                FROM sale_items si\n                JOIN sales s ON si.sale_id = s.id\n                WHERE s.is_active = true\n                  AND s.status = 'completed'\n                  AND s.tenant_id = ?\n                  AND si.sale_sources IS NOT NULL\n                  AND si.sale_sources <> ''\n                  AND EXISTS (\n                      SELECT 1\n                      FROM jsonb_array_elements(si.sale_sources::jsonb) elem\n                      WHERE (elem->>'entry_id')::int IN (\n                          SELECT id FROM stock_entries\n                          WHERE trip_id = ?\n                            AND is_active = true\n                            AND tenant_id = ?\n                      )\n                  )\n            ]\n[parameters: (5, 2, 5)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [18:46:02] [mobile] [API] GET /trips/2/analytics - 500
+   Data: {"status": 500, "detail": "Erro ao calcular analytics: (sqlite3.OperationalError) unrecognized token: \":\"\n[SQL: \n                SELECT COALESCE(SUM(si.subtotal), 0) AS revenue\n                FROM sale_items si\n                JOIN sales s ON si.sale_id = s.id\n                WHERE s.is_active = true\n                  AND s.status = 'completed'\n                  AND s.tenant_id = ?\n                  AND si.sale_sources IS NOT NULL\n                  AND si.sale_sources <> ''\n                  AND EXISTS (\n                      SELECT 1\n                      FROM jsonb_array_elements(si.sale_sources::jsonb) elem\n                      WHERE (elem->>'entry_id')::int IN (\n                          SELECT id FROM stock_entries\n                          WHERE trip_id = ?\n                            AND is_active = true\n                            AND tenant_id = ?\n                      )\n                  )\n            ]\n[parameters: (5, 2, 5)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [18:54:29] [mobile] [API] GET /trips/2/analytics - 500
+   Data: {"status": 500, "detail": "Erro ao calcular analytics: (sqlite3.OperationalError) unrecognized token: \":\"\n[SQL: \n                    SELECT COALESCE(SUM(si.subtotal), 0) AS revenue\n                    FROM sale_items si\n                    JOIN sales s ON si.sale_id = s.id\n                    WHERE s.is_active = true\n                      AND s.status = 'completed'\n                      AND s.tenant_id = ?\n                      AND si.sale_sources IS NOT NULL\n                      AND si.sale_sources LIKE '[%'\n                      AND EXISTS (\n                          SELECT 1\n                          FROM jsonb_array_elements(si.sale_sources::jsonb) elem\n                          WHERE (elem->>'entry_id')::int = ANY(?)\n                      )\n                ]\n[parameters: (5, [71])]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [18:54:31] [mobile] [API] GET /trips/2/analytics - 500
+   Data: {"status": 500, "detail": "Erro ao calcular analytics: (sqlite3.OperationalError) unrecognized token: \":\"\n[SQL: \n                    SELECT COALESCE(SUM(si.subtotal), 0) AS revenue\n                    FROM sale_items si\n                    JOIN sales s ON si.sale_id = s.id\n                    WHERE s.is_active = true\n                      AND s.status = 'completed'\n                      AND s.tenant_id = ?\n                      AND si.sale_sources IS NOT NULL\n                      AND si.sale_sources LIKE '[%'\n                      AND EXISTS (\n                          SELECT 1\n                          FROM jsonb_array_elements(si.sale_sources::jsonb) elem\n                          WHERE (elem->>'entry_id')::int = ANY(?)\n                      )\n                ]\n[parameters: (5, [71])]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [18:56:10] [mobile] [API] DELETE /trips/2 - 404
+   Data: {"status": 404, "detail": "Não é possível deletar viagem com 1 entradas associadas", "code": "ERR_BAD_REQUEST"}
+ [19:04:28] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [19:04:28] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [19:04:28] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [19:04:31] [mobile] [API] GET /products/incomplete - 500
+   Data: {"status": 500, "detail": "Erro ao listar produtos incompletos: (sqlite3.OperationalError) no such column: p.sku\n[SQL: \n                SELECT p.id, p.name, p.sku, p.brand, p.image_url, p.created_at,\n                       p.category_id, p.base_price, p.gender, p.material,\n                       p.is_digital, p.is_activewear, p.description,\n                       c.name AS category_name\n                FROM products p\n                LEFT JOIN categories c ON c.id = p.category_id\n                WHERE p.is_catalog = true\n                  AND p.is_active = true\n                  AND p.tenant_id = ?\n                  AND p.tenant_id != (\n                      SELECT COALESCE(MIN(tenant_id), 0)\n                      FROM products\n                      WHERE is_catalog = true AND is_active = true\n                  )\n                ORDER BY p.created_at DESC\n            ]\n[parameters: (5,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [19:04:32] [mobile] [API] GET /products/incomplete - 500
+   Data: {"status": 500, "detail": "Erro ao listar produtos incompletos: (sqlite3.OperationalError) no such column: p.sku\n[SQL: \n                SELECT p.id, p.name, p.sku, p.brand, p.image_url, p.created_at,\n                       p.category_id, p.base_price, p.gender, p.material,\n                       p.is_digital, p.is_activewear, p.description,\n                       c.name AS category_name\n                FROM products p\n                LEFT JOIN categories c ON c.id = p.category_id\n                WHERE p.is_catalog = true\n                  AND p.is_active = true\n                  AND p.tenant_id = ?\n                  AND p.tenant_id != (\n                      SELECT COALESCE(MIN(tenant_id), 0)\n                      FROM products\n                      WHERE is_catalog = true AND is_active = true\n                  )\n                ORDER BY p.created_at DESC\n            ]\n[parameters: (5,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [19:09:46] [mobile] [Wizard] goToExistingEntry - navegando para entries
+   Data: {"productId": 444, "productName": "Bolsa Esportiva 40L Preta", "quantity": 5}
+ [19:14:33] [mobile] [Wizard] goToExistingEntry - navegando para entries
+   Data: {"productId": 407, "productName": "Camiseta Dry Fit Preta", "quantity": 5}
+ [19:15:34] [mobile] [Wizard] goToExistingEntry - navegando para entries
+   Data: {"productId": 443, "productName": "Mochila Esportiva 30L Preta", "quantity": 5}
+ [19:19:31] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [19:19:31] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [19:19:31] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [19:37:33] [mobile] [API] GET /stock-entries/71 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [19:45:02] [mobile] [API] DELETE /products/444 - 500
+   Data: {"status": 500, "detail": "Erro ao deletar produto: (sqlite3.OperationalError) near \"ei\": syntax error\n[SQL: UPDATE entry_items ei SET is_active = false, quantity_remaining = 0 FROM product_variants pv WHERE ei.variant_id = pv.id AND pv.product_id = ? AND ei.tenant_id = ? AND ei.is_active = true]\n[parameters: (444, 5)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [19:46:37] [mobile] [API] DELETE /products/447 - 400
+   Data: {"status": 400, "detail": "Não é possível excluir este produto pois ele possui 1 venda registrada.", "code": "ERR_BAD_REQUEST"}
+ [19:52:55] [mobile] [API] GET /inventory/product/444 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [19:52:55] [mobile] [API] GET /inventory/product/444 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [19:53:05] [mobile] [API] DELETE /products/447 - 400
+   Data: {"status": 400, "detail": "Não é possível excluir este produto pois ele possui 1 venda registrada.", "code": "ERR_BAD_REQUEST"}
+ [19:54:03] [mobile] [API] DELETE /products/447 - 400
+   Data: {"status": 400, "detail": "Não é possível excluir este produto pois ele possui 1 venda registrada.", "code": "ERR_BAD_REQUEST"}
+ [19:57:00] [mobile] [API] DELETE /products/447 - 400
+   Data: {"status": 400, "detail": "Não é possível excluir este produto pois ele possui 1 venda registrada.", "code": "ERR_BAD_REQUEST"}
+ [19:58:37] [mobile] [API] DELETE /products/447 - 400
+   Data: {"status": 400, "detail": "Não é possível excluir este produto pois ele possui 1 venda registrada.", "code": "ERR_BAD_REQUEST"}
+ [20:01:39] [mobile] [API] DELETE /products/447 - 400
+   Data: {"status": 400, "detail": "Não é possível excluir este produto pois ele possui 1 venda registrada.", "code": "ERR_BAD_REQUEST"}
+ [20:04:46] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Luva de Musculação", "variantsCount": 4}
+ [20:04:51] [mobile] [Wizard] goToNewEntryWithVariants - modo atômico
+   Data: {"productName": "Luva de Musculação", "variantsCount": 4, "totalQty": 12}
+ [20:08:48] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:08:48] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:13:19] [mobile] [Wizard] goToNewEntry - usando endpoint atômico
+   Data: {"productName": "Viseira Esportiva Preta", "sku": "CAT-VISEIR-UN-STD-00106", "quantity": 1, "atomic": true}
+ [20:13:19] [mobile] [Entries/Add] Produto parseado
+ [20:13:19] [mobile] [Entries/Add] Modo atômico ativo - produto será criado junto com entrada
+   Data: {"productName": "Viseira Esportiva Preta", "quantity": 1}
+ [20:13:24] [mobile] [Wizard] goToExistingEntry - navegando para entries
+   Data: {"productId": 440, "productName": "Viseira Esportiva Preta", "quantity": 1}
+ [20:14:50] [mobile] [Wizard] goToExistingEntry - navegando para entries
+   Data: {"productId": 442, "productName": "Luva de Musculação", "quantity": 1}
+ [20:25:43] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:25:43] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:25:43] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:25:43] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:25:43] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:25:43] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:25:43] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:25:43] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:25:43] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:25:43] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:26:35] [mobile] [Wizard] goToExistingEntry - navegando para entries
+   Data: {"productId": 441, "productName": "Meia Cano Alto Kit 3 Pares Preta", "quantity": 5}
+ [20:30:42] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Canelado Manga Longa", "brand": null, "color": "Verde", "size": null, "category_id": 5, "duplicates_count": 0, "duplicates": []}
+ [20:36:35] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto de Yoga Fitness", "brand": "Alo", "color": "Preto", "size": null, "category_id": 4, "duplicates_count": 0, "duplicates": []}
+ [20:38:07] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Fitness com Detalhes em Branco", "brand": "Alo", "color": "Preto", "size": null, "category_id": 4, "duplicates_count": 0, "duplicates": []}
+ [20:41:00] [mobile] [API] POST /product-variants/804/image - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:56:33] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:56:33] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [20:56:33] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:10:13] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Cropped Alo Yoga Essentials", "brand": "Alo", "color": "Verde Militar", "size": null, "category_id": 4, "duplicates_count": 0, "duplicates": []}
+ [21:10:37] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Cropped Alo Yoga Essentials", "variantsCount": 4}
+ [21:10:44] [mobile] [Wizard] goToNewEntryWithVariants - modo atômico
+   Data: {"productName": "Cropped Alo Yoga Essentials", "variantsCount": 4, "totalQty": 20}
+ [21:11:22] [mobile] [Entries/Add] Imagem do wizard persistida com sucesso
+   Data: {"entryId": 75, "productId": 451}
+ [21:11:40] [mobile] [API] PUT /stock-entries/entry-items/178 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:19:16] [mobile] [API] DELETE /stock-entries/72 - 400
+   Data: {"status": 400, "detail": "Não é possível excluir entrada com produtos já vendidos. Esta entrada faz parte do histórico de vendas (1 produto(s) com 1 unidade(s) vendida(s)). A rastreabilidade e auditoria exigem que entradas com vendas sejam mantidas no sistema.", "code": "ERR_BAD_REQUEST"}
+ [21:20:41] [mobile] [API] POST /stock-entries/entry-items/174/correct - 500
+   Data: {"status": 500, "detail": "Erro ao corrigir item: 'EntryItem' object has no attribute 'stock_entry_id'", "code": "ERR_BAD_RESPONSE"}
+ [21:23:55] [mobile] [API] POST /stock-entries/entry-items/174/correct - 500
+   Data: {"status": 500, "detail": "Erro ao corrigir item: EntryItemRepository.update() got an unexpected keyword argument 'id'", "code": "ERR_BAD_RESPONSE"}
+ [21:28:11] [mobile] [API] POST /stock-entries/entry-items/174/correct - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:32:37] [mobile] [API] POST /stock-entries/entry-items/174/correct - 400
+   Data: {"status": 400, "detail": "Não é possível remover 17 unidade(s): apenas 12 disponível(is) (já foram vendidas 3).", "code": "ERR_BAD_REQUEST"}

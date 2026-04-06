@@ -550,6 +550,7 @@ export default function SaleScreen() {
                 <Text style={styles.addProductText}>Buscar Produtos</Text>
                 <Text style={styles.addProductSubtext}>Pesquisar por nome ou SKU</Text>
               </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
             </TouchableOpacity>
 
             {/* Botão de scanner QR Code */}

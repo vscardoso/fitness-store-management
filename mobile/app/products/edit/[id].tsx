@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
@@ -18,17 +18,20 @@ import {
 } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as ImagePicker from 'expo-image-picker';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
 import useBackToList from '@/hooks/useBackToList';
+import { getImageUrl } from '@/constants/Config';
 import { useBrandingColors } from '@/store/brandingStore';
-import { useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCategories, useUpdateProduct } from '@/hooks';
 import { getProductById } from '@/services/productService';
 import { getProductStock } from '@/services/inventoryService';
 import { getProductVariants, updateVariant, formatVariantLabel } from '@/services/productVariantService';
+import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { Colors, theme } from '@/constants/Colors';
 import type { ProductUpdate } from '@/types';
 import { formatPriceInput, formatPriceDisplay, formatMoneyDisplay } from '@/utils/priceFormatter';
@@ -36,7 +39,9 @@ import { formatPriceInput, formatPriceDisplay, formatMoneyDisplay } from '@/util
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/products');
   const brandingColors = useBrandingColors();
+  const queryClient = useQueryClient();
   const { categories, isLoading: loadingCategories } = useCategories();
   const updateMutation = useUpdateProduct();
 
@@ -75,6 +80,28 @@ export default function EditProductScreen() {
     queryKey: ['product', productId],
     queryFn: () => getProductById(productId),
     enabled: isValidId,
+  });
+
+  const uploadProductPhotoMutation = useMutation({
+    mutationFn: (imageUri: string) => uploadProductImageWithFallback(productId, imageUri),
+    onSuccess: async () => {
+      await Promise.all([
+        refetch(),
+        queryClient.invalidateQueries({ queryKey: ['product', productId] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+        queryClient.invalidateQueries({ queryKey: ['grouped-products'] }),
+        queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] }),
+        queryClient.invalidateQueries({ queryKey: ['active-products'] }),
+        queryClient.invalidateQueries({ queryKey: ['catalog-products-count'] }),
+        queryClient.invalidateQueries({ queryKey: ['incomplete-products-count'] }),
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
+        queryClient.invalidateQueries({ queryKey: ['inventory', productId] }),
+      ]);
+    },
+    onError: (error: any) => {
+      setErrorMessage(error?.response?.data?.detail || 'Falha ao salvar foto do produto.');
+      setShowErrorDialog(true);
+    },
   });
 
   /**
@@ -335,6 +362,31 @@ export default function EditProductScreen() {
     setPendingProductData(null);
   };
 
+  const handlePickProductPhoto = async () => {
+    if (!isValidId) return;
+
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      setErrorMessage('Permita acesso à galeria para selecionar a foto do produto.');
+      setShowErrorDialog(true);
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.85,
+      aspect: [1, 1],
+    });
+
+    if (result.canceled) return;
+
+    const selectedUri = result.assets?.[0]?.uri;
+    if (!selectedUri) return;
+
+    uploadProductPhotoMutation.mutate(selectedUri);
+  };
+
 
 
   // Verificar ID inválido
@@ -386,7 +438,7 @@ export default function EditProductScreen() {
           })()
         }
         showBackButton
-        onBack={() => router.back()}
+        onBack={goBack}
       />
 
       <KeyboardAvoidingView
@@ -486,6 +538,54 @@ export default function EditProductScreen() {
               multiline
               numberOfLines={3}
             />
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="image-outline" size={20} color={Colors.light.primary} />
+            <Text style={styles.cardTitle}>Foto Vinculada ao Produto</Text>
+          </View>
+          <View style={styles.cardContent}>
+            {product.image_url ? (
+              <Image source={{ uri: getImageUrl(product.image_url) }} style={styles.productPhotoPreview} />
+            ) : (
+              <View style={styles.productPhotoPlaceholder}>
+                <Ionicons name="image-outline" size={28} color={Colors.light.textTertiary} />
+                <Text style={styles.productPhotoPlaceholderText}>Nenhuma foto vinculada</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={styles.productPhotoButton}
+              onPress={handlePickProductPhoto}
+              disabled={uploadProductPhotoMutation.isPending}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={uploadProductPhotoMutation.isPending ? ['#9CA3AF', '#9CA3AF'] : brandingColors.gradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.productPhotoButtonGradient}
+              >
+                {uploadProductPhotoMutation.isPending ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Ionicons name="images-outline" size={18} color="#fff" />
+                )}
+                <Text style={styles.productPhotoButtonText}>
+                  {uploadProductPhotoMutation.isPending
+                    ? 'Salvando foto...'
+                    : product.image_url
+                      ? 'Editar foto'
+                      : 'Adicionar foto'}
+                </Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <Text style={styles.productPhotoHint}>
+              Esta imagem fica vinculada ao produto e aparece nas telas que exibem a foto principal.
+            </Text>
           </View>
         </View>
 
@@ -745,14 +845,12 @@ export default function EditProductScreen() {
               style={styles.photosButtonGradient}
             >
               <Ionicons name="images" size={20} color="#fff" />
-              <View style={styles.photosButtonText}>
-                <Text style={styles.photosButtonTitle}>Gerenciar Fotos das Variações</Text>
-                <Text style={styles.photosButtonSub}>
-                  {(variants ?? []).filter((v: any) => v.image_url).length}/
-                  {(variants ?? []).filter((v: any) => v.is_active).length} com foto
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color="rgba(255,255,255,0.8)" />
+              <Text style={styles.photosButtonTitle}>Fotos das variações</Text>
+              <View style={{ flex: 1 }} />
+              <Text style={styles.photosButtonSub}>
+                {(variants ?? []).filter((v: any) => v.image_url).length}/{(variants ?? []).filter((v: any) => v.is_active).length} com foto
+              </Text>
+              <Ionicons name="chevron-forward" size={16} color="rgba(255,255,255,0.7)" />
             </LinearGradient>
           </TouchableOpacity>
         )}
@@ -761,7 +859,7 @@ export default function EditProductScreen() {
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.actionButton, styles.cancelActionButton]}
-            onPress={() => router.back()}
+            onPress={goBack}
             disabled={updateMutation.isPending}
             activeOpacity={0.75}
           >
@@ -1776,23 +1874,70 @@ const styles = StyleSheet.create({
     marginRight: 2,
   },
 
+  productPhotoPreview: {
+    width: '100%',
+    height: 210,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.backgroundSecondary,
+  },
+  productPhotoPlaceholder: {
+    width: '100%',
+    height: 160,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.backgroundSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  productPhotoPlaceholderText: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textTertiary,
+    fontWeight: '600',
+  },
+  productPhotoButton: {
+    marginTop: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
+  },
+  productPhotoButtonGradient: {
+    minHeight: 48,
+    paddingHorizontal: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+  },
+  productPhotoButtonText: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  productPhotoHint: {
+    marginTop: theme.spacing.sm,
+    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.xs,
+    lineHeight: 16,
+  },
+
   // Botão Gerenciar Fotos
   photosButton: {
-    borderRadius: theme.borderRadius.xl,
+    borderRadius: theme.borderRadius.lg,
     overflow: 'hidden',
-    elevation: 3,
-    shadowColor: '#6366F1',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
+    ...theme.shadows.sm,
   },
   photosButtonGradient: {
+    minHeight: 52,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: theme.spacing.md,
-    gap: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
-  photosButtonText: { flex: 1 },
+  photosButtonText: {},
   photosButtonTitle: {
     fontSize: theme.fontSize.base,
     fontWeight: '700',
@@ -1801,6 +1946,5 @@ const styles = StyleSheet.create({
   photosButtonSub: {
     fontSize: theme.fontSize.xs,
     color: 'rgba(255,255,255,0.8)',
-    marginTop: 2,
   },
 });

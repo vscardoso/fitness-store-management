@@ -1514,37 +1514,27 @@ class StockEntryService:
 
         now_str = now_brazil().strftime("%d/%m/%Y %H:%M")
         audit_note = f"[CORREÇÃO {now_str} user#{user_id}]: {reason}"
+        product_id = item.product_id or (item.variant.product_id if item.variant else None)
+        original_sold = item.quantity_sold
 
         corrective_item_id = None
 
         if quantity_diff > 0:
-            # Adicionar unidades: novo EntryItem corretivo na mesma entrada
-            from app.models.entry_item import EntryItem
-            corrective = EntryItem(
-                stock_entry_id=item.stock_entry_id,
-                product_id=item.product_id,
-                variant_id=item.variant_id,
-                quantity_received=quantity_diff,
-                quantity_remaining=quantity_diff,
-                quantity_sold=0,
-                unit_cost=item.unit_cost,
-                tenant_id=tenant_id,
-                notes=audit_note,
-            )
-            self.db.add(corrective)
-            await self.db.flush()
-            corrective_item_id = corrective.id
-
-            # Atualizar inventário: +quantity_diff
-            inventory = await self.inventory_repo.get_by_product(self.db, item.product_id, tenant_id=tenant_id)
-            if inventory:
-                await self.inventory_repo.update(
-                    self.db,
-                    id=inventory.id,
-                    obj_in={"quantity": inventory.quantity + quantity_diff},
-                    tenant_id=tenant_id,
-                )
+            # Adicionar unidades no próprio item (mantendo vendido invariável)
             new_remaining = item.quantity_remaining + quantity_diff
+            new_received = new_remaining + original_sold
+            existing_notes = item.notes or ""
+
+            item.quantity_received = new_received
+            item.quantity_remaining = new_remaining
+            item.notes = f"{existing_notes}\n{audit_note}".strip()
+            await self.db.flush()
+
+            # Segurança extra: vendido deve permanecer exatamente igual
+            if item.quantity_sold != original_sold:
+                raise ValueError(
+                    "Correção inválida: a quantidade vendida não pode ser alterada por ajuste de estoque."
+                )
 
         else:
             # Remover unidades: reduzir quantity_remaining do item original
@@ -1555,35 +1545,35 @@ class StockEntryService:
                     f"(já foram vendidas {item.quantity_sold})."
                 )
             new_remaining = item.quantity_remaining - remove
+            # Regra: correção negativa não altera vendidos (sold = received - remaining)
+            new_received = new_remaining + original_sold
             existing_notes = item.notes or ""
-            await self.item_repo.update(
-                self.db,
-                id=item_id,
-                obj_in={
-                    "quantity_remaining": new_remaining,
-                    "notes": f"{existing_notes}\n{audit_note}".strip(),
-                },
-                tenant_id=tenant_id,
-            )
-            # Atualizar inventário: -remove
-            inventory = await self.inventory_repo.get_by_product(self.db, item.product_id, tenant_id=tenant_id)
-            if inventory:
-                await self.inventory_repo.update(
-                    self.db,
-                    id=inventory.id,
-                    obj_in={"quantity": max(0, inventory.quantity - remove)},
-                    tenant_id=tenant_id,
+            item.quantity_received = new_received
+            item.quantity_remaining = new_remaining
+            item.notes = f"{existing_notes}\n{audit_note}".strip()
+            await self.db.flush()
+
+            # Segurança extra: vendido deve permanecer exatamente igual
+            if item.quantity_sold != original_sold:
+                raise ValueError(
+                    "Correção inválida: a quantidade vendida não pode ser alterada por ajuste de estoque."
                 )
 
-        # Append nota de auditoria no item original (para rastreio)
-        if quantity_diff > 0:
-            existing_notes = item.notes or ""
-            await self.item_repo.update(
-                self.db,
-                id=item_id,
-                obj_in={"notes": f"{existing_notes}\n{audit_note}".strip()},
-                tenant_id=tenant_id,
-            )
+        # Recalcular total_cost da entrada após correção (positiva ou negativa)
+        entry = await self.entry_repo.get_by_id(self.db, item.entry_id, include_items=True, tenant_id=tenant_id)
+        if entry:
+            new_total_cost = Decimal('0.00')
+            for entry_item in entry.entry_items:
+                if entry_item.is_active:
+                    new_total_cost += entry_item.quantity_received * entry_item.unit_cost
+            entry.total_cost = new_total_cost
+            await self.db.flush()
+
+        # Estoque SEMPRE derivado do FIFO (entry_items), sem ajuste manual de inventory
+        if product_id is None:
+            raise ValueError("Item sem produto associado para rebuild de inventário FIFO")
+        inv_service = InventoryService(self.db)
+        await inv_service.rebuild_product_from_fifo(product_id, tenant_id=tenant_id)
 
         await self.db.commit()
 

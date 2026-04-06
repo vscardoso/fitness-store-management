@@ -26,6 +26,7 @@ import { getProductById } from '@/services/productService';
 import { getProductVariants, formatVariantLabel } from '@/services/productVariantService';
 import ProductLabel, { LabelData } from '@/components/labels/ProductLabel';
 import PageHeader from '@/components/layout/PageHeader';
+import useBackToList from '@/hooks/useBackToList';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Colors, theme } from '@/constants/Colors';
 import type { ProductVariant } from '@/types/productVariant';
@@ -69,6 +70,7 @@ type LegacyFileSystemWithEncoding = typeof LegacyFileSystem & {
 
 export default function ProductLabelScreen() {
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/products');
   const brandingColors = useBrandingColors();
   const { id, variantId } = useLocalSearchParams<{ id: string; variantId?: string }>();
   const viewShotRef = useRef<ViewShot>(null);
@@ -470,7 +472,7 @@ export default function ProductLabelScreen() {
               : product.name
           }
           showBackButton
-          onBack={() => router.back()}
+          onBack={goBack}
         />
       </Animated.View>
 

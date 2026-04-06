@@ -1,12 +1,12 @@
-/**
- * Tela de Configuração de Descontos por Forma de Pagamento
+﻿/**
+ * Tela de ConfiguraÃ§Ã£o de Descontos por Forma de Pagamento
  * Apenas ADMIN pode acessar e modificar
- * Redesign seguindo padrões do sistema (customers/products)
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import {
   View,
+  Text,
   StyleSheet,
   FlatList,
   TouchableOpacity,
@@ -14,9 +14,14 @@ import {
   RefreshControl,
   Modal,
   ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  Keyboard,
+  TextInput,
+  Switch,
+  Animated,
 } from 'react-native';
-import { Text, Card, TextInput, Button, Switch } from 'react-native-paper';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,16 +37,20 @@ import { Colors, theme } from '@/constants/Colors';
 import { haptics } from '@/utils/haptics';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import EmptyState from '@/components/ui/EmptyState';
+import FAB from '@/components/FAB';
+import PageHeader from '@/components/layout/PageHeader';
+import { useBrandingColors } from '@/store/brandingStore';
+import useBackToList from '@/hooks/useBackToList';
 
 /**
- * Métodos de pagamento disponíveis
+ * MÃ©todos de pagamento disponÃ­veis
  */
 const PAYMENT_METHODS = [
-  { value: 'pix', label: 'PIX', icon: '💳' },
-  { value: 'cash', label: 'Dinheiro', icon: '💵' },
-  { value: 'debit_card', label: 'Débito', icon: '💳' },
-  { value: 'credit_card', label: 'Crédito', icon: '💳' },
-  { value: 'bank_transfer', label: 'Transferência', icon: '🏦' },
+  { value: 'pix', label: 'PIX', icon: 'ðŸ’³' },
+  { value: 'cash', label: 'Dinheiro', icon: 'ðŸ’µ' },
+  { value: 'debit_card', label: 'DÃ©bito', icon: 'ðŸ’³' },
+  { value: 'credit_card', label: 'CrÃ©dito', icon: 'ðŸ’³' },
+  { value: 'bank_transfer', label: 'TransferÃªncia', icon: 'ðŸ¦' },
 ];
 
 interface DiscountFormData {
@@ -52,8 +61,15 @@ interface DiscountFormData {
 }
 
 export default function PaymentDiscountsScreen() {
-  const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/more');
   const queryClient = useQueryClient();
+  const brandingColors = useBrandingColors();
+
+  // AnimaÃ§Ãµes de entrada
+  const headerScale = useRef(new Animated.Value(0.94)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const contentTranslate = useRef(new Animated.Value(24)).current;
+  const contentOpacity = useRef(new Animated.Value(0)).current;
 
   // Estados locais
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
@@ -77,10 +93,25 @@ export default function PaymentDiscountsScreen() {
     queryFn: () => getPaymentDiscounts(false), // Buscar todos (ativos e inativos)
   });
 
-  // Auto-refresh quando a tela recebe foco
+  // Auto-refresh + animaÃ§Ã£o de entrada quando a tela recebe foco
   useFocusEffect(
     useCallback(() => {
       refetch();
+      headerScale.setValue(0.94);
+      headerOpacity.setValue(0);
+      contentTranslate.setValue(24);
+      contentOpacity.setValue(0);
+      Animated.parallel([
+        Animated.spring(headerScale, { toValue: 1, useNativeDriver: true }),
+        Animated.timing(headerOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+        Animated.sequence([
+          Animated.delay(140),
+          Animated.parallel([
+            Animated.spring(contentTranslate, { toValue: 0, useNativeDriver: true }),
+            Animated.timing(contentOpacity, { toValue: 1, duration: 280, useNativeDriver: true }),
+          ]),
+        ]),
+      ]).start();
     }, [refetch])
   );
 
@@ -97,7 +128,7 @@ export default function PaymentDiscountsScreen() {
     },
     onError: (error: any) => {
       haptics.error();
-      setDialogMessage(error.response?.data?.detail || 'Não foi possível criar desconto');
+      setDialogMessage(error.response?.data?.detail || 'NÃ£o foi possÃ­vel criar desconto');
       setShowErrorDialog(true);
     },
   });
@@ -117,7 +148,7 @@ export default function PaymentDiscountsScreen() {
     },
     onError: (error: any) => {
       haptics.error();
-      setDialogMessage(error.response?.data?.detail || 'Não foi possível atualizar desconto');
+      setDialogMessage(error.response?.data?.detail || 'NÃ£o foi possÃ­vel atualizar desconto');
       setShowErrorDialog(true);
     },
   });
@@ -133,13 +164,13 @@ export default function PaymentDiscountsScreen() {
     },
     onError: (error: any) => {
       haptics.error();
-      setDialogMessage(error.response?.data?.detail || 'Não foi possível remover desconto');
+      setDialogMessage(error.response?.data?.detail || 'NÃ£o foi possÃ­vel remover desconto');
       setShowErrorDialog(true);
     },
   });
 
   /**
-   * Resetar formulário
+   * Resetar formulÃ¡rio
    */
   const resetForm = () => {
     setFormData({
@@ -179,7 +210,7 @@ export default function PaymentDiscountsScreen() {
    * Salvar desconto (criar ou atualizar)
    */
   const handleSave = () => {
-    // Validações
+    // ValidaÃ§Ãµes
     const percentage = parseFloat(formData.discount_percentage);
     
     if (isNaN(percentage) || percentage < 0 || percentage > 100) {
@@ -230,14 +261,14 @@ export default function PaymentDiscountsScreen() {
     });
   };
 
-  // Obter label do método de pagamento
+  // Obter label do mÃ©todo de pagamento
   const getMethodLabel = (method: string) => {
     return PAYMENT_METHODS.find(m => m.value === method)?.label || method;
   };
 
-  // Obter ícone do método de pagamento
+  // Obter Ã­cone do mÃ©todo de pagamento
   const getMethodIcon = (method: string) => {
-    return PAYMENT_METHODS.find(m => m.value === method)?.icon || '💳';
+    return PAYMENT_METHODS.find(m => m.value === method)?.icon || 'ðŸ’³';
   };
 
   /**
@@ -265,55 +296,32 @@ export default function PaymentDiscountsScreen() {
       style={styles.cardWrapper}
       onPress={() => handleEdit(item)}
       onLongPress={() => handleDelete(item.id, getMethodLabel(item.payment_method))}
-      activeOpacity={0.7}
+      activeOpacity={0.75}
     >
-      <Card style={styles.card}>
-        <Card.Content style={styles.cardContent}>
-          {/* Ícone do método */}
-          <View style={styles.iconContainer}>
-            <Text style={styles.methodIcon}>{getMethodIcon(item.payment_method)}</Text>
-          </View>
-
-          {/* Nome do método */}
-          <Text variant="titleSmall" style={styles.methodName} numberOfLines={1}>
-            {getMethodLabel(item.payment_method)}
+      <View style={styles.card}>
+        <View style={[styles.iconContainer, { backgroundColor: brandingColors.primary + '18' }]}>
+          <Text style={styles.methodIcon}>{getMethodIcon(item.payment_method)}</Text>
+        </View>
+        <Text style={styles.methodName} numberOfLines={1}>
+          {getMethodLabel(item.payment_method)}
+        </Text>
+        <Text style={[styles.discountPercentage, { color: brandingColors.primary }]}>
+          {item.discount_percentage}%
+        </Text>
+        <Text style={styles.discountLabel}>de desconto</Text>
+        {item.description ? (
+          <Text style={styles.descriptionText} numberOfLines={2}>{item.description}</Text>
+        ) : null}
+        <View style={[
+          styles.statusBadge,
+          { backgroundColor: item.is_active ? Colors.light.success + '18' : Colors.light.error + '18' },
+        ]}>
+          <View style={[styles.statusDot, { backgroundColor: item.is_active ? Colors.light.success : Colors.light.error }]} />
+          <Text style={[styles.statusText, { color: item.is_active ? Colors.light.success : Colors.light.error }]}>
+            {item.is_active ? 'ATIVO' : 'INATIVO'}
           </Text>
-
-          {/* Percentual em destaque */}
-          <Text variant="headlineSmall" style={styles.discountPercentage}>
-            {item.discount_percentage}%
-          </Text>
-          <Text variant="bodySmall" style={styles.discountLabel}>
-            de desconto
-          </Text>
-
-          {/* Descrição (se houver) */}
-          {item.description && (
-            <Text variant="bodySmall" style={styles.descriptionText} numberOfLines={2}>
-              {item.description}
-            </Text>
-          )}
-
-          {/* Status badge */}
-          <View style={styles.statusBadge}>
-            <View
-              style={[
-                styles.statusDot,
-                item.is_active ? styles.statusDotActive : styles.statusDotInactive,
-              ]}
-            />
-            <Text
-              variant="bodySmall"
-              style={[
-                styles.statusText,
-                item.is_active ? styles.statusTextActive : styles.statusTextInactive,
-              ]}
-            >
-              {item.is_active ? 'Ativo' : 'Inativo'}
-            </Text>
-          </View>
-        </Card.Content>
-      </Card>
+        </View>
+      </View>
     </TouchableOpacity>
   );
 
@@ -323,29 +331,14 @@ export default function PaymentDiscountsScreen() {
   if (isLoading && !isRefetching) {
     return (
       <View style={styles.container}>
-        {/* Header Clean */}
-        <View style={styles.headerContainer}>
-          <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.headerGradient}
-          >
-            <View style={styles.headerContent}>
-              <TouchableOpacity onPress={() => router.back()} style={styles.backIconButton}>
-                <Ionicons name="arrow-back" size={24} color="#fff" />
-              </TouchableOpacity>
-              <View style={styles.headerInfo}>
-                <Text style={styles.greeting}>Descontos</Text>
-                <Text style={styles.headerSubtitle}>0 descontos</Text>
-              </View>
-              <View style={styles.placeholderButton} />
-            </View>
-          </LinearGradient>
-        </View>
-
+        <PageHeader
+          title="Descontos"
+          subtitle="Formas de pagamento"
+          showBackButton
+          onBack={goBack}
+        />
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={brandingColors.primary} />
           <Text style={styles.loadingText}>Carregando descontos...</Text>
         </View>
       </View>
@@ -358,31 +351,16 @@ export default function PaymentDiscountsScreen() {
   if (error) {
     return (
       <View style={styles.container}>
-        {/* Header Clean */}
-        <View style={styles.headerContainer}>
-          <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.headerGradient}
-          >
-            <View style={styles.headerContent}>
-              <TouchableOpacity onPress={() => router.back()} style={styles.backIconButton}>
-                <Ionicons name="arrow-back" size={24} color="#fff" />
-              </TouchableOpacity>
-              <View style={styles.headerInfo}>
-                <Text style={styles.greeting}>Descontos</Text>
-                <Text style={styles.headerSubtitle}>0 descontos</Text>
-              </View>
-              <View style={styles.placeholderButton} />
-            </View>
-          </LinearGradient>
-        </View>
-
+        <PageHeader
+          title="Descontos"
+          subtitle="Formas de pagamento"
+          showBackButton
+          onBack={goBack}
+        />
         <EmptyState
           icon="alert-circle-outline"
           title="Erro ao carregar descontos"
-          description="Verifique sua conexão e tente novamente"
+          description="Verifique sua conexÃ£o e tente novamente"
         />
       </View>
     );
@@ -392,311 +370,236 @@ export default function PaymentDiscountsScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header Clean */}
-      <View style={styles.headerContainer}>
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.headerGradient}
-        >
-          <View style={styles.headerContent}>
-            <TouchableOpacity onPress={() => router.back()} style={styles.backIconButton}>
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
-            <View style={styles.headerInfo}>
-              <Text style={styles.greeting}>Descontos</Text>
-              <Text style={styles.headerSubtitle}>
-                {discountCount} {discountCount === 1 ? 'desconto' : 'descontos'}
-              </Text>
-            </View>
-            <View style={styles.placeholderButton} />
-          </View>
-        </LinearGradient>
-      </View>
+      {/* Header animado */}
+      <Animated.View style={{ transform: [{ scale: headerScale }], opacity: headerOpacity }}>
+        <PageHeader
+          title="Descontos"
+          subtitle={`${discountCount} ${discountCount === 1 ? 'desconto' : 'descontos'}`}
+          showBackButton
+          onBack={goBack}
+        />
+      </Animated.View>
 
-      {/* Estatísticas */}
-      <View style={styles.statsContainer}>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Ativos</Text>
-          <Text style={styles.statValue}>{activeCount}</Text>
+      <Animated.View style={{ flex: 1, transform: [{ translateY: contentTranslate }], opacity: contentOpacity }}>
+        {/* EstatÃ­sticas */}
+        <View style={styles.statsContainer}>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>ATIVOS</Text>
+            <Text style={styles.statValue}>{activeCount}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>INATIVOS</Text>
+            <Text style={styles.statValue}>{inactiveCount}</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Text style={styles.statLabel}>TOTAL</Text>
+            <Text style={styles.statValue}>{totalCount}</Text>
+          </View>
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Inativos</Text>
-          <Text style={styles.statValue}>{inactiveCount}</Text>
+
+        {/* Filtros */}
+        <View style={styles.filterContainer}>
+          {[
+            { key: 'active', label: 'Ativos', count: activeCount, icon: 'checkmark-circle-outline' as const },
+            { key: 'inactive', label: 'Inativos', count: inactiveCount, icon: 'close-circle-outline' as const },
+            { key: 'all', label: 'Todos', count: totalCount, icon: 'pricetags-outline' as const },
+          ].map((f) => {
+            const isActive = statusFilter === f.key;
+            return (
+              <TouchableOpacity
+                key={f.key}
+                style={[styles.filterChip, isActive && { backgroundColor: brandingColors.primary + '15', borderColor: brandingColors.primary }]}
+                onPress={() => setStatusFilter(f.key as any)}
+                activeOpacity={0.7}
+              >
+                <Ionicons name={f.icon} size={16} color={isActive ? brandingColors.primary : Colors.light.textSecondary} />
+                <Text style={[styles.filterChipText, isActive && { color: brandingColors.primary }]}>{f.label}</Text>
+                <View style={[styles.filterBadge, isActive && { backgroundColor: brandingColors.primary }]}>
+                  <Text style={[styles.filterBadgeText, isActive && { color: '#fff' }]}>{f.count}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
         </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statLabel}>Total</Text>
-          <Text style={styles.statValue}>{totalCount}</Text>
-        </View>
-      </View>
 
-      {/* Filtros */}
-      <View style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[
-            styles.filterChip,
-            statusFilter === 'active' && styles.filterChipActive,
-          ]}
-          onPress={() => setStatusFilter('active')}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="checkmark-circle-outline"
-            size={16}
-            color={statusFilter === 'active' ? Colors.light.primary : Colors.light.textSecondary}
-          />
-          <Text
-            style={[
-              styles.filterChipText,
-              statusFilter === 'active' && styles.filterChipTextActive,
-            ]}
-          >
-            Ativos
-          </Text>
-          <View
-            style={[
-              styles.filterBadge,
-              statusFilter === 'active' && styles.filterBadgeActive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.filterBadgeText,
-                statusFilter === 'active' && styles.filterBadgeTextActive,
-              ]}
-            >
-              {activeCount}
-            </Text>
-          </View>
-        </TouchableOpacity>
+        {/* Lista */}
+        <FlatList
+          data={filteredDiscounts}
+          renderItem={renderDiscount}
+          keyExtractor={(item) => item.id.toString()}
+          numColumns={2}
+          contentContainerStyle={styles.listContent}
+          columnWrapperStyle={styles.columnWrapper}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={refetch}
+              colors={[brandingColors.primary]}
+            />
+          }
+          ListEmptyComponent={
+            <EmptyState
+              icon="pricetags-outline"
+              title={statusFilter !== 'all' ? 'Nenhum desconto encontrado' : 'Nenhum desconto configurado'}
+              description={statusFilter !== 'all' ? 'Tente outro filtro' : 'Toque no botÃ£o + para configurar descontos'}
+            />
+          }
+        />
+      </Animated.View>
 
-        <TouchableOpacity
-          style={[
-            styles.filterChip,
-            statusFilter === 'inactive' && styles.filterChipActive,
-          ]}
-          onPress={() => setStatusFilter('inactive')}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="close-circle-outline"
-            size={16}
-            color={statusFilter === 'inactive' ? Colors.light.primary : Colors.light.textSecondary}
-          />
-          <Text
-            style={[
-              styles.filterChipText,
-              statusFilter === 'inactive' && styles.filterChipTextActive,
-            ]}
-          >
-            Inativos
-          </Text>
-          <View
-            style={[
-              styles.filterBadge,
-              statusFilter === 'inactive' && styles.filterBadgeActive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.filterBadgeText,
-                statusFilter === 'inactive' && styles.filterBadgeTextActive,
-              ]}
-            >
-              {inactiveCount}
-            </Text>
-          </View>
-        </TouchableOpacity>
+      {/* FAB */}
+      <FAB onPress={handleAddNew} />
 
-        <TouchableOpacity
-          style={[
-            styles.filterChip,
-            statusFilter === 'all' && styles.filterChipActive,
-          ]}
-          onPress={() => setStatusFilter('all')}
-          activeOpacity={0.7}
-        >
-          <Ionicons
-            name="pricetags-outline"
-            size={16}
-            color={statusFilter === 'all' ? Colors.light.primary : Colors.light.textSecondary}
-          />
-          <Text
-            style={[
-              styles.filterChipText,
-              statusFilter === 'all' && styles.filterChipTextActive,
-            ]}
-          >
-            Todos
-          </Text>
-          <View
-            style={[
-              styles.filterBadge,
-              statusFilter === 'all' && styles.filterBadgeActive,
-            ]}
-          >
-            <Text
-              style={[
-                styles.filterBadgeText,
-                statusFilter === 'all' && styles.filterBadgeTextActive,
-              ]}
-            >
-              {totalCount}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      </View>
-
-      {/* Lista de descontos (grid 2 colunas) */}
-      <FlatList
-        data={filteredDiscounts}
-        renderItem={renderDiscount}
-        keyExtractor={(item) => item.id.toString()}
-        numColumns={2}
-        contentContainerStyle={styles.listContent}
-        columnWrapperStyle={styles.columnWrapper}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={refetch}
-            colors={[Colors.light.primary]}
-          />
-        }
-        ListEmptyComponent={
-          <EmptyState
-            icon="pricetags-outline"
-            title={statusFilter !== 'all' ? 'Nenhum desconto encontrado' : 'Nenhum desconto configurado'}
-            description={
-              statusFilter !== 'all'
-                ? 'Tente outro filtro'
-                : 'Toque no botão + para configurar descontos'
-            }
-          />
-        }
-      />
-
-      {/* FAB - Adicionar desconto */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={handleAddNew}
-        activeOpacity={0.8}
-      >
-        <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.fabGradient}
-        >
-          <Ionicons name="add" size={32} color="#fff" />
-        </LinearGradient>
-      </TouchableOpacity>
-
-      {/* Modal de Formulário */}
+      {/* Modal de FormulÃ¡rio */}
       <Modal
         visible={showFormModal}
         transparent
         animationType="slide"
         onRequestClose={() => {
+          Keyboard.dismiss();
           setShowFormModal(false);
           resetForm();
         }}
       >
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
           <View style={styles.modalContainer}>
-            <ScrollView style={styles.modalContent}>
+            <ScrollView
+              style={styles.modalContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.modalHandle} />
+
               <View style={styles.modalHeader}>
-                <Text variant="titleLarge" style={styles.modalTitle}>
+                <Text style={styles.modalTitle}>
                   {editingId ? 'Editar Desconto' : 'Novo Desconto'}
                 </Text>
                 <TouchableOpacity
                   onPress={() => {
+                    Keyboard.dismiss();
                     setShowFormModal(false);
                     resetForm();
                   }}
                   style={styles.closeButton}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 >
-                  <Ionicons name="close" size={24} color={Colors.light.text} />
+                  <Ionicons name="close" size={22} color={Colors.light.textSecondary} />
                 </TouchableOpacity>
               </View>
 
               {/* Forma de Pagamento */}
-              <Text variant="labelMedium" style={styles.label}>
-                Forma de Pagamento
-              </Text>
+              <Text style={styles.label}>FORMA DE PAGAMENTO</Text>
               <View style={styles.methodButtons}>
-                {PAYMENT_METHODS.map((method) => (
-                  <Button
-                    key={method.value}
-                    mode={formData.payment_method === method.value ? 'contained' : 'outlined'}
-                    onPress={() => setFormData({ ...formData, payment_method: method.value })}
-                    style={styles.methodButton}
-                    compact
-                    disabled={editingId !== null} // Não pode mudar método ao editar
-                  >
-                    {method.icon} {method.label}
-                  </Button>
-                ))}
+                {PAYMENT_METHODS.map((method) => {
+                  const isSelected = formData.payment_method === method.value;
+                  return (
+                    <TouchableOpacity
+                      key={method.value}
+                      style={[
+                        styles.methodButton,
+                        isSelected && { backgroundColor: brandingColors.primary + '18', borderColor: brandingColors.primary },
+                      ]}
+                      onPress={() => !editingId && setFormData({ ...formData, payment_method: method.value })}
+                      activeOpacity={editingId ? 1 : 0.7}
+                      disabled={editingId !== null}
+                    >
+                      <Text style={styles.methodButtonIcon}>{method.icon}</Text>
+                      <Text style={[styles.methodButtonText, isSelected && { color: brandingColors.primary, fontWeight: '700' }]}>
+                        {method.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
 
               {/* Percentual */}
-              <TextInput
-                label="Percentual de Desconto (%)"
-                value={formData.discount_percentage}
-                onChangeText={(text) => setFormData({ ...formData, discount_percentage: text })}
-                keyboardType="decimal-pad"
-                mode="outlined"
-                style={styles.input}
-                right={<TextInput.Affix text="%" />}
-              />
+              <Text style={styles.label}>PERCENTUAL DE DESCONTO</Text>
+              <View style={styles.inputWrapper}>
+                <TextInput
+                  value={formData.discount_percentage}
+                  onChangeText={(text) => setFormData({ ...formData, discount_percentage: text })}
+                  keyboardType="decimal-pad"
+                  placeholder="Ex: 5"
+                  placeholderTextColor={Colors.light.textTertiary}
+                  style={styles.inputInner}
+                />
+                <View style={styles.inputSuffix}>
+                  <Text style={styles.inputSuffixText}>%</Text>
+                </View>
+              </View>
 
-              {/* Descrição */}
+              {/* DescriÃ§Ã£o */}
+              <Text style={[styles.label, { marginTop: theme.spacing.md }]}>DESCRIÃ‡ÃƒO (OPCIONAL)</Text>
               <TextInput
-                label="Descrição (opcional)"
                 value={formData.description}
                 onChangeText={(text) => setFormData({ ...formData, description: text })}
-                mode="outlined"
-                style={styles.input}
+                placeholder="Ex: Desconto Ã  vista"
+                placeholderTextColor={Colors.light.textTertiary}
+                style={styles.textArea}
                 multiline
-                numberOfLines={2}
               />
 
-              {/* Ativo/Inativo */}
+              {/* Switch */}
               <View style={styles.switchRow}>
-                <Text>Desconto ativo</Text>
+                <View>
+                  <Text style={styles.switchLabel}>Desconto ativo</Text>
+                  <Text style={styles.switchSubLabel}>DisponÃ­vel no checkout</Text>
+                </View>
                 <Switch
                   value={formData.is_active}
                   onValueChange={(value) => setFormData({ ...formData, is_active: value })}
+                  trackColor={{ false: Colors.light.border, true: brandingColors.primary + '60' }}
+                  thumbColor={formData.is_active ? brandingColors.primary : Colors.light.textTertiary}
                 />
               </View>
 
-              {/* Botões */}
+              {/* BotÃµes */}
               <View style={styles.formButtons}>
-                <Button
-                  mode="outlined"
+                <TouchableOpacity
+                  style={styles.cancelButton}
                   onPress={() => {
+                    Keyboard.dismiss();
                     setShowFormModal(false);
                     resetForm();
                   }}
-                  style={styles.formButton}
+                  activeOpacity={0.7}
                 >
-                  Cancelar
-                </Button>
-                <Button
-                  mode="contained"
+                  <Text style={styles.cancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.saveButtonWrapper, { flex: 1 }]}
                   onPress={handleSave}
-                  loading={createMutation.isPending || updateMutation.isPending}
-                  style={styles.formButton}
+                  activeOpacity={0.8}
+                  disabled={createMutation.isPending || updateMutation.isPending}
                 >
-                  {editingId ? 'Atualizar' : 'Criar'}
-                </Button>
+                  <LinearGradient
+                    colors={brandingColors.gradient}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={styles.saveButton}
+                  >
+                    {(createMutation.isPending || updateMutation.isPending) ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
+                        <Text style={styles.saveButtonText}>{editingId ? 'Atualizar' : 'Criar'}</Text>
+                      </>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
               </View>
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
-      {/* Diálogos */}
+      {/* DiÃ¡logos */}
       <ConfirmDialog
         visible={showSuccessDialog}
         title="Sucesso!"
@@ -708,7 +611,6 @@ export default function PaymentDiscountsScreen() {
         type="success"
         icon="checkmark-circle"
       />
-
       <ConfirmDialog
         visible={showErrorDialog}
         title="Erro"
@@ -720,10 +622,9 @@ export default function PaymentDiscountsScreen() {
         type="danger"
         icon="alert-circle"
       />
-
       <ConfirmDialog
         visible={showDeleteDialog}
-        title="Confirmar exclusão"
+        title="Confirmar exclusÃ£o"
         message={`Deseja remover o desconto para ${deleteTarget?.method}?`}
         confirmText="Remover"
         cancelText="Cancelar"
@@ -745,252 +646,168 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 24,
+    padding: theme.spacing.lg,
   },
-  // Header Clean
-  headerContainer: {
-    marginBottom: 0,
+  loadingText: {
+    marginTop: theme.spacing.md,
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
   },
-  headerGradient: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.xl + 32,
-    paddingBottom: theme.spacing.lg,
-    borderBottomLeftRadius: theme.borderRadius.xl,
-    borderBottomRightRadius: theme.borderRadius.xl,
-  },
-  headerContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-  },
-  backIconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: 4,
-  },
-  headerInfo: {
-    flex: 1,
-    marginLeft: theme.spacing.md,
-    alignItems: 'center',
-  },
-  greeting: {
-    fontSize: theme.fontSize.xxl,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: theme.fontSize.md,
-    color: '#fff',
-    opacity: 0.9,
-  },
-  placeholderButton: {
-    width: 40,
-    height: 40,
-  },
-  // Estatísticas
   statsContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    gap: 12,
-    marginBottom: 12,
-    marginTop: 12,
+    paddingHorizontal: theme.spacing.md,
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    marginTop: theme.spacing.sm,
   },
   statCard: {
     flex: 1,
     backgroundColor: Colors.light.card,
-    borderRadius: 12,
-    padding: 12,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: theme.spacing.sm,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 2,
     elevation: 1,
   },
   statLabel: {
-    fontSize: 11,
-    color: Colors.light.textSecondary,
-    marginBottom: 4,
+    fontSize: theme.fontSize.xxs,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    color: Colors.light.textTertiary,
+    marginBottom: 2,
   },
   statValue: {
-    fontSize: 16,
-    fontWeight: '700',
+    fontSize: theme.fontSize.lg,
+    fontWeight: '800',
     color: Colors.light.text,
   },
-  // Filtros
   filterContainer: {
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
   },
   filterChip: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    paddingHorizontal: 8,
+    gap: 4,
+    paddingHorizontal: theme.spacing.xs,
     paddingVertical: 10,
-    borderRadius: 12,
+    borderRadius: theme.borderRadius.lg,
     backgroundColor: Colors.light.card,
     borderWidth: 1,
     borderColor: Colors.light.border,
   },
-  filterChipActive: {
-    backgroundColor: Colors.light.primary + '15',
-    borderColor: Colors.light.primary,
-  },
   filterChipText: {
-    fontSize: 12,
+    fontSize: theme.fontSize.xs,
     fontWeight: '600',
     color: Colors.light.textSecondary,
     flexShrink: 1,
   },
-  filterChipTextActive: {
-    color: Colors.light.primary,
-  },
   filterBadge: {
-    minWidth: 22,
-    height: 22,
-    borderRadius: 11,
+    minWidth: 20,
+    height: 20,
+    borderRadius: theme.borderRadius.full,
     backgroundColor: Colors.light.backgroundSecondary,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 6,
-  },
-  filterBadgeActive: {
-    backgroundColor: Colors.light.primary,
+    paddingHorizontal: 5,
   },
   filterBadgeText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '700',
     color: Colors.light.textSecondary,
   },
-  filterBadgeTextActive: {
-    color: '#fff',
-  },
-  // Lista
   listContent: {
-    paddingTop: 8,
-    paddingBottom: 80,
+    paddingTop: theme.spacing.xs,
+    paddingBottom: theme.spacing.xxl,
   },
   columnWrapper: {
     justifyContent: 'flex-start',
-    paddingHorizontal: 8,
+    paddingHorizontal: theme.spacing.sm,
   },
-  loadingText: {
-    marginTop: 16,
-    color: Colors.light.textSecondary,
-  },
-  // Card compacto para grid 2 colunas
   cardWrapper: {
     width: '47%',
     marginHorizontal: 6,
-    marginBottom: 12,
+    marginBottom: theme.spacing.sm,
   },
   card: {
-    borderRadius: 12,
-    elevation: 2,
+    borderRadius: theme.borderRadius.xl,
     backgroundColor: Colors.light.card,
-  },
-  cardContent: {
-    paddingVertical: 12,
-    paddingHorizontal: 8,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: theme.spacing.sm + 4,
     alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  // Ícone do método centralizado
   iconContainer: {
     width: 48,
     height: 48,
-    borderRadius: 24,
-    backgroundColor: `${Colors.light.primary}15`,
+    borderRadius: theme.borderRadius.full,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: theme.spacing.sm,
   },
   methodIcon: {
-    fontSize: 24,
+    fontSize: 22,
   },
-  // Nome do método centralizado
   methodName: {
+    fontSize: theme.fontSize.sm,
     fontWeight: '600',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: theme.spacing.xs,
     color: Colors.light.text,
   },
-  // Percentual em destaque
   discountPercentage: {
-    fontWeight: '700',
-    color: Colors.light.primary,
+    fontSize: 28,
+    fontWeight: '800',
+    letterSpacing: -0.5,
     textAlign: 'center',
   },
   discountLabel: {
+    fontSize: theme.fontSize.xxs,
     color: Colors.light.textSecondary,
-    fontSize: 10,
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: theme.spacing.sm,
   },
-  // Descrição compacta
   descriptionText: {
+    fontSize: theme.fontSize.xxs,
     color: Colors.light.textSecondary,
-    fontSize: 10,
     textAlign: 'center',
-    marginBottom: 6,
+    marginBottom: theme.spacing.xs,
     width: '100%',
   },
-  // Status badge compacto
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 6,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: 3,
+    borderRadius: theme.borderRadius.sm,
+    marginTop: theme.spacing.xs,
   },
   statusDot: {
-    width: 6,
-    height: 6,
+    width: 5,
+    height: 5,
     borderRadius: 3,
     marginRight: 4,
   },
-  statusDotActive: {
-    backgroundColor: Colors.light.success,
-  },
-  statusDotInactive: {
-    backgroundColor: Colors.light.error,
-  },
   statusText: {
-    fontSize: 10,
+    fontSize: 9,
+    fontWeight: '700',
+    letterSpacing: 0.3,
   },
-  statusTextActive: {
-    color: Colors.light.success,
-  },
-  statusTextInactive: {
-    color: Colors.light.error,
-  },
-  // FAB
-  fab: {
-    position: 'absolute',
-    bottom: 90,
-    right: 20,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    elevation: 8,
-    shadowColor: Colors.light.primary,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    zIndex: 1000,
-  },
-  fabGradient: {
-    width: '100%',
-    height: '100%',
-    borderRadius: 32,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  // Modal
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
@@ -998,55 +815,171 @@ const styles = StyleSheet.create({
   },
   modalContainer: {
     backgroundColor: Colors.light.card,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: '90%',
+    borderTopLeftRadius: theme.borderRadius.xxl,
+    borderTopRightRadius: theme.borderRadius.xxl,
+    maxHeight: '92%',
     elevation: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: Colors.light.border,
+    alignSelf: 'center',
+    marginBottom: theme.spacing.md,
   },
   modalContent: {
-    padding: 20,
+    padding: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: theme.spacing.lg,
   },
   modalTitle: {
+    fontSize: theme.fontSize.xl,
     fontWeight: '700',
     color: Colors.light.text,
   },
   closeButton: {
-    padding: 4,
+    width: 32,
+    height: 32,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: Colors.light.backgroundSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   label: {
-    marginBottom: 8,
-    marginTop: 8,
+    fontSize: theme.fontSize.xxs,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    color: Colors.light.textTertiary,
+    marginBottom: theme.spacing.sm,
   },
   methodButtons: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 16,
+    gap: theme.spacing.xs,
+    marginBottom: theme.spacing.md,
   },
   methodButton: {
-    marginRight: 8,
-    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xs + 2,
+    borderRadius: theme.borderRadius.xl,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
-  input: {
-    marginBottom: 16,
+  methodButtonIcon: {
+    fontSize: 14,
+  },
+  methodButtonText: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    marginBottom: theme.spacing.md,
+    overflow: 'hidden',
+  },
+  inputInner: {
+    flex: 1,
+    paddingHorizontal: theme.spacing.md,
+    height: 52,
+    fontSize: theme.fontSize.base,
+    color: Colors.light.text,
+  },
+  textArea: {
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+    minHeight: 80,
+    fontSize: theme.fontSize.base,
+    color: Colors.light.text,
+    marginBottom: theme.spacing.md,
+    textAlignVertical: 'top',
+  },
+  inputSuffix: {
+    paddingHorizontal: theme.spacing.md,
+    height: 52,
+    justifyContent: 'center',
+    borderLeftWidth: 1,
+    borderLeftColor: Colors.light.border,
+  },
+  inputSuffixText: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
   },
   switchRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    paddingVertical: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+  },
+  switchLabel: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
+  switchSubLabel: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
   },
   formButtons: {
     flexDirection: 'row',
-    gap: 12,
+    gap: theme.spacing.sm,
   },
-  formButton: {
+  cancelButton: {
     flex: 1,
+    height: 52,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelButtonText: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+  },
+  saveButtonWrapper: {
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+  },
+  saveButton: {
+    height: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: theme.spacing.xs,
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontSize: theme.fontSize.base,
+    fontWeight: '700',
   },
 });

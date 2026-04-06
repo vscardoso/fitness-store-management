@@ -36,6 +36,7 @@ import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import useBackToList from '@/hooks/useBackToList';
 import { getProductById } from '@/services/productService';
 import { createStockEntry } from '@/services/stockEntryService';
 import { formatCurrency } from '@/utils/format';
@@ -71,6 +72,7 @@ function formatMoneyInput(raw: string): string {
 
 export default function AddStockScreen() {
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/entries');
   const queryClient = useQueryClient();
   const brandingColors = useBrandingColors();
 
@@ -114,8 +116,8 @@ export default function AddStockScreen() {
 
   // Pre-preencher custo quando produto carrega (se não digitado ainda)
   React.useEffect(() => {
-    if (product && !costInput && product.cost_price > 0) {
-      setCostInput(product.cost_price.toFixed(2).replace('.', ','));
+    if (product && !costInput && (product.cost_price ?? 0) > 0) {
+      setCostInput((product.cost_price ?? 0).toFixed(2).replace('.', ','));
     }
   }, [product]);
 
@@ -200,7 +202,7 @@ export default function AddStockScreen() {
 
   const handleSuccessConfirm = () => {
     setShowSuccess(false);
-    router.back();
+    goBack();
   };
 
   // ── Stock badge ──
@@ -224,7 +226,7 @@ export default function AddStockScreen() {
           title="Adicionar Estoque"
           subtitle="Produto existente"
           showBackButton
-          onBack={() => router.back()}
+          onBack={goBack}
         />
       </Animated.View>
 
@@ -471,7 +473,7 @@ const styles = StyleSheet.create({
   },
   optional: {
     fontSize: theme.fontSize.xxs,
-    fontWeight: theme.fontWeight.normal,
+    fontWeight: theme.fontWeight.regular,
     color: Colors.light.textTertiary,
     textTransform: 'none',
     letterSpacing: 0,

@@ -30,6 +30,7 @@ import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
 
 export default function EditCategoryScreen() {
   const router = useRouter();
+  const goBack = () => router.back();
   const { id } = useLocalSearchParams<{ id: string }>();
   const categoryId = Number(id);
   const brandingColors = useBrandingColors();

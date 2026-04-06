@@ -22,12 +22,14 @@ import { Colors, theme } from '@/constants/Colors';
 import { useAIScanner } from '@/hooks/useAIScanner';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import SimilarProductsModal from '@/components/products/SimilarProductsModal';
+import useBackToList from '@/hooks/useBackToList';
 import type { DuplicateMatch } from '@/types';
 
 const { width } = Dimensions.get('window');
 
 export default function ScanProductScreen() {
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/products');
   const {
     hasPermission,
     requestPermission,
@@ -505,7 +507,7 @@ export default function ScanProductScreen() {
           <View style={styles.headerContent}>
             <View style={styles.headerTop}>
               <TouchableOpacity
-                onPress={() => router.back()}
+                onPress={goBack}
                 style={styles.backButton}
               >
                 <Ionicons name="arrow-back" size={24} color="#fff" />
@@ -565,7 +567,7 @@ export default function ScanProductScreen() {
         }}
         onCancel={() => {
           setShowErrorDialog(false);
-          router.back();
+          goBack();
         }}
         type="danger"
         icon="alert-circle"

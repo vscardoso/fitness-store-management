@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -7,11 +7,15 @@ import {
   FlatList,
   Pressable,
   ActivityIndicator,
+  TextInput,
 } from 'react-native';
-import { Text, Searchbar, Card } from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery } from '@tanstack/react-query';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import { formatCurrency } from '@/utils/format';
 import { getGroupedProducts } from '@/services/productService';
 import EmptyState from '@/components/ui/EmptyState';
@@ -30,6 +34,9 @@ export default function ProductSelectionModal({
   onSelectProduct,
   hasStock,
 }: ProductSelectionModalProps) {
+  const brandingColors = useBrandingColors();
+  const insets = useSafeAreaInsets();
+  const searchRef = useRef<TextInput>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<ProductGrouped | null>(null);
 
@@ -73,7 +80,7 @@ export default function ProductSelectionModal({
   });
 
   const handleProductPress = (product: ProductGrouped) => {
-    setSelectedProduct(product);
+    setSelectedProduct(prev => prev?.id === product.id ? null : product);
   };
 
   const handleVariantPress = (product: ProductGrouped, variant: ProductVariant) => {
@@ -83,89 +90,80 @@ export default function ProductSelectionModal({
 
   const renderProduct = ({ item }: { item: ProductGrouped }) => {
     const isSelected = selectedProduct?.id === item.id;
-    const hasNoStock = item.total_stock === 0;
+    const visibleVariants = item.variants.filter(
+      (v) => !hasStock || (v.current_stock ?? 0) > 0
+    );
 
     return (
-      <View>
+      <View style={styles.productCard}>
+        {/* Cabeçalho do produto */}
         <TouchableOpacity
           onPress={() => handleProductPress(item)}
-          activeOpacity={0.7}
-          style={[
-            styles.productGroupHeader,
-            isSelected && styles.productGroupHeaderSelected,
-          ]}
+          activeOpacity={0.75}
+          style={[styles.productRow, isSelected && { borderColor: brandingColors.primary }]}
         >
-          <View style={styles.productGroupInfo}>
-            <View style={styles.iconContainer}>
-              <Ionicons name="cube" size={20} color={isSelected ? Colors.light.primary : Colors.light.textSecondary} />
-            </View>
-            <View style={styles.productGroupDetails}>
-              <Text variant="titleMedium" style={styles.productName} numberOfLines={1}>
-                {item.name}
-              </Text>
-              {item.brand && (
-                <Text variant="bodySmall" style={styles.brand} numberOfLines={1}>
-                  {item.brand}
-                </Text>
-              )}
-            </View>
+          <View style={[styles.productIcon, { backgroundColor: brandingColors.primary + '16' }]}>
+            <Ionicons name="cube-outline" size={18} color={brandingColors.primary} />
           </View>
-          <View style={styles.productGroupRight}>
-            <Text variant="titleSmall" style={styles.priceRange}>
+          <View style={styles.productInfo}>
+            <Text style={styles.productName} numberOfLines={1}>{item.name}</Text>
+            {item.brand ? (
+              <Text style={styles.productBrand} numberOfLines={1}>{item.brand}</Text>
+            ) : null}
+          </View>
+          <View style={styles.productRight}>
+            <Text style={[styles.productPrice, { color: brandingColors.primary }]}>
               {item.min_price === item.max_price
                 ? formatCurrency(item.min_price)
-                : `${formatCurrency(item.min_price)} - ${formatCurrency(item.max_price)}`
-              }
+                : `${formatCurrency(item.min_price)}+`}
             </Text>
-            <Ionicons
-              name={isSelected ? "chevron-up" : "chevron-down"}
-              size={20}
-              color={Colors.light.textTertiary}
-            />
+            <View style={[styles.stockPill, { backgroundColor: (item.total_stock ?? 0) > 0 ? Colors.light.success + '18' : Colors.light.error + '18' }]}>
+              <Text style={[styles.stockPillText, { color: (item.total_stock ?? 0) > 0 ? Colors.light.success : Colors.light.error }]}>
+                {item.total_stock ?? 0}
+              </Text>
+            </View>
           </View>
+          <Ionicons
+            name={isSelected ? 'chevron-up' : 'chevron-down'}
+            size={16}
+            color={isSelected ? brandingColors.primary : Colors.light.textTertiary}
+            style={{ marginLeft: 4 }}
+          />
         </TouchableOpacity>
 
-        {/* Variantes - apenas se selecionado */}
-        {isSelected && (
-          <View style={styles.variantsContainer}>
-            {item.variants
-              .filter((variant) => !hasStock || (variant.current_stock ?? 0) > 0)
-              .map((variant) => {
-              const hasVariantStock = variant.current_stock > 0;
-              return (
-                <TouchableOpacity
-                  key={`${item.id}-${variant.id}-${variant.sku ?? 'nosku'}`}
-                  onPress={() => handleVariantPress(item, variant)}
-                  activeOpacity={0.7}
-                  disabled={!hasVariantStock}
-                  style={styles.variantItem}
-                >
-                  <View style={styles.variantInfo}>
-                    <View style={styles.variantDetails}>
-                      <Text variant="bodyMedium" style={styles.variantLabel}>
-                        {variant.size || 'Único'}
-                      </Text>
-                      {variant.color && (
-                        <Text variant="bodySmall" style={styles.variantColor}>
-                          {variant.color}
-                        </Text>
-                      )}
-                    </View>
-                    <Text variant="titleSmall" style={styles.variantPrice}>
-                      {formatCurrency(variant.price)}
+        {/* Variantes expandidas */}
+        {isSelected && visibleVariants.length > 0 && (
+          <View style={styles.variantsWrap}>
+            {visibleVariants.map((variant) => (
+              <TouchableOpacity
+                key={`${item.id}-${variant.id}`}
+                onPress={() => handleVariantPress(item, variant)}
+                activeOpacity={0.75}
+                style={styles.variantRow}
+              >
+                <View style={styles.variantLeft}>
+                  <View style={styles.variantDot} />
+                  <View>
+                    <Text style={styles.variantLabel}>
+                      {[variant.size, variant.color].filter(Boolean).join(' · ') || 'Único'}
                     </Text>
+                    {variant.sku ? (
+                      <Text style={styles.variantSku}>SKU: {variant.sku}</Text>
+                    ) : null}
                   </View>
-                  <View style={[
-                    styles.variantStockBadge,
-                    !hasVariantStock && styles.variantStockBadgeEmpty,
-                  ]}>
-                    <Text style={styles.variantStockText}>
+                </View>
+                <View style={styles.variantRight}>
+                  <Text style={[styles.variantPrice, { color: brandingColors.primary }]}>
+                    {formatCurrency(variant.price)}
+                  </Text>
+                  <View style={[styles.stockPill, { backgroundColor: Colors.light.success + '18' }]}>
+                    <Text style={[styles.stockPillText, { color: Colors.light.success }]}>
                       {variant.current_stock}
                     </Text>
                   </View>
-                </TouchableOpacity>
-              );
-            })}
+                </View>
+              </TouchableOpacity>
+            ))}
           </View>
         )}
       </View>
@@ -180,239 +178,318 @@ export default function ProductSelectionModal({
       onRequestClose={onDismiss}
       statusBarTranslucent
     >
-      <Pressable style={styles.modalOverlay} onPress={onDismiss}>
-        <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text variant="headlineSmall" style={styles.title}>
-              Buscar Produto
-            </Text>
-            <TouchableOpacity onPress={onDismiss} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={Colors.light.textSecondary} />
+      <Pressable style={styles.backdrop} onPress={onDismiss} />
+
+      <View style={[styles.sheet, { paddingBottom: insets.bottom }]}>
+        {/* Header gradiente — padrão BottomSheet */}
+        <LinearGradient
+          colors={[brandingColors.primary, brandingColors.secondary]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={styles.header}
+        >
+          <View style={styles.handleWrap}>
+            <View style={styles.handle} />
+          </View>
+          <View style={styles.headerRow}>
+            <View style={styles.headerLeft}>
+              <View style={styles.headerIconWrap}>
+                <Ionicons name="search-outline" size={20} color="#fff" />
+              </View>
+              <View>
+                <Text style={styles.headerTitle}>Buscar Produto</Text>
+                <Text style={styles.headerSub}>
+                  {filteredProducts?.length ?? 0} produto{(filteredProducts?.length ?? 0) !== 1 ? 's' : ''} disponíve{(filteredProducts?.length ?? 0) !== 1 ? 'is' : 'l'}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={onDismiss} style={styles.closeBtn} hitSlop={12}>
+              <Ionicons name="close" size={20} color="rgba(255,255,255,0.9)" />
             </TouchableOpacity>
           </View>
+        </LinearGradient>
 
-          {/* Search Bar */}
-          <Searchbar
-            placeholder="Buscar por nome, SKU, código de barras..."
+        {/* Campo de busca */}
+        <View style={styles.searchWrap}>
+          <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} style={styles.searchIcon} />
+          <TextInput
+            ref={searchRef}
+            style={styles.searchInput}
+            placeholder="Nome, marca ou SKU..."
+            placeholderTextColor={Colors.light.textTertiary}
             value={searchQuery}
             onChangeText={setSearchQuery}
-            style={styles.searchbar}
-            elevation={0}
+            autoCorrect={false}
+            returnKeyType="search"
           />
-
-          {/* Product List */}
-          {isLoading ? (
-            <View style={styles.centerContainer}>
-              <ActivityIndicator size="large" color={Colors.light.primary} />
-              <Text style={styles.loadingText}>Carregando produtos...</Text>
-            </View>
-          ) : isError ? (
-            <EmptyState
-              icon="alert-circle-outline"
-              title="Erro ao carregar produtos"
-              description="Verifique sua conexão e tente novamente"
-            />
-          ) : (
-            <FlatList
-              data={filteredProducts}
-              renderItem={renderProduct}
-              keyExtractor={(item, index) => `${item.id}-${item.name}-${index}`}
-              contentContainerStyle={styles.listContent}
-              ListEmptyComponent={
-                <EmptyState
-                  icon="cube-outline"
-                  title={searchQuery ? 'Nenhum produto encontrado' : 'Nenhum produto disponível'}
-                  description={
-                    searchQuery
-                      ? 'Tente outro termo de busca'
-                      : 'Cadastre produtos ativos para vendê-los'
-                  }
-                />
-              }
-            />
-          )}
-
-          {/* Footer */}
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.continueButton} onPress={onDismiss}>
-              <Text style={styles.continueButtonText}>Fechar</Text>
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={() => setSearchQuery('')} hitSlop={8}>
+              <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
             </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Lista */}
+        {isLoading ? (
+          <View style={styles.center}>
+            <ActivityIndicator size="large" color={brandingColors.primary} />
+            <Text style={styles.loadingText}>Carregando produtos...</Text>
           </View>
-        </Pressable>
-      </Pressable>
+        ) : isError ? (
+          <EmptyState
+            icon="alert-circle-outline"
+            title="Erro ao carregar"
+            description="Verifique a conexão e tente novamente"
+          />
+        ) : (
+          <FlatList
+            data={filteredProducts}
+            renderItem={renderProduct}
+            keyExtractor={(item, index) => `${item.id}-${index}`}
+            contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <EmptyState
+                icon="cube-outline"
+                title={searchQuery ? 'Nenhum produto encontrado' : 'Nenhum produto disponível'}
+                description={searchQuery ? 'Tente outro termo de busca' : 'Cadastre produtos ativos para vendê-los'}
+              />
+            }
+          />
+        )}
+      </View>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
+  backdrop: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.45)',
   },
-  modalContent: {
-    backgroundColor: Colors.light.background,
-    borderTopLeftRadius: theme.borderRadius.xxl,
-    borderTopRightRadius: theme.borderRadius.xxl,
-    maxHeight: '80%',
-    paddingBottom: 20,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
-  },
-  title: {
-    fontWeight: '700',
-    color: Colors.light.text,
-  },
-  closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: Colors.light.backgroundSecondary,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  searchbar: {
-    marginHorizontal: theme.spacing.lg,
-    marginBottom: theme.spacing.md,
-    backgroundColor: Colors.light.backgroundSecondary,
-    borderRadius: theme.borderRadius.lg,
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  loadingText: {
-    marginTop: 16,
-    color: Colors.light.textSecondary,
-  },
-  listContent: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
-  },
-  footer: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.light.border,
-  },
-  continueButton: {
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  continueButtonText: {
-    color: Colors.light.textSecondary,
-    fontSize: theme.fontSize.md,
-    fontWeight: '500',
-  },
-  // Product Group Styles
-  productGroupHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  sheet: {
+    position: 'absolute',
+    bottom: 0, left: 0, right: 0,
     backgroundColor: Colors.light.card,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 1,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    maxHeight: '88%',
+    minHeight: '50%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    elevation: 16,
+    overflow: 'hidden',
   },
-  productGroupHeaderSelected: {
-    backgroundColor: `${Colors.light.primary}10`,
-    borderBottomWidth: 2,
-    borderBottomColor: Colors.light.primary,
+  // ── Header ──
+  header: {
+    flexDirection: 'column',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
   },
-  productGroupInfo: {
-    flexDirection: 'row',
+  handleWrap: {
     alignItems: 'center',
-    flex: 1,
-  },
-  productGroupDetails: {
-    marginLeft: 12,
-    flex: 1,
-  },
-  productName: {
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  brand: {
-    color: Colors.light.textSecondary,
-    fontSize: 11,
-  },
-  iconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: `${Colors.light.primary}15`,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  productGroupRight: {
-    alignItems: 'flex-end',
-    gap: 4,
-  },
-  priceRange: {
-    color: Colors.light.primary,
-    fontWeight: '700',
-    fontSize: 13,
-  },
-  // Variants Styles
-  variantsContainer: {
-    backgroundColor: Colors.light.backgroundSecondary,
-    paddingHorizontal: 12,
+    paddingTop: 10,
     paddingBottom: 8,
   },
-  variantItem: {
+  handle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255,255,255,0.45)',
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.light.card,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginBottom: 6,
-    borderRadius: theme.borderRadius.md,
+    paddingHorizontal: 20,
+    paddingBottom: 16,
+    gap: 12,
+  },
+  headerLeft: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  headerIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  headerSub: {
+    fontSize: theme.fontSize.xs,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 1,
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // ── Busca ──
+  searchWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: theme.borderRadius.xl,
+    paddingHorizontal: theme.spacing.md,
+    marginHorizontal: theme.spacing.md,
+    marginTop: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
+    height: 44,
     borderWidth: 1,
     borderColor: Colors.light.border,
   },
-  variantInfo: {
+  searchIcon: { marginRight: 8 },
+  searchInput: {
+    flex: 1,
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.text,
+    height: 44,
+  },
+  // ── Lista ──
+  listContent: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.xs,
+    paddingBottom: theme.spacing.xl,
+    gap: theme.spacing.sm,
+  },
+  center: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 32,
+    minHeight: 200,
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
+  },
+  // ── Card de produto ──
+  productCard: {
+    borderRadius: theme.borderRadius.xl,
+    overflow: 'hidden',
+    backgroundColor: Colors.light.card,
+    ...theme.shadows.sm,
+  },
+  productRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: theme.spacing.sm,
+    padding: theme.spacing.sm + 2,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+  },
+  productIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  productInfo: {
     flex: 1,
+    minWidth: 0,
   },
-  variantDetails: {
-    marginLeft: 12,
-    flex: 1,
+  productName: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
+    color: Colors.light.text,
   },
-  variantLabel: {
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  variantColor: {
+  productBrand: {
+    fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
-    fontSize: 11,
-    marginBottom: 4,
+    marginTop: 1,
   },
-  variantPrice: {
-    color: Colors.light.primary,
+  productRight: {
+    alignItems: 'flex-end',
+    gap: 4,
+    flexShrink: 0,
+  },
+  productPrice: {
+    fontSize: theme.fontSize.sm,
     fontWeight: '700',
   },
-  variantStockBadge: {
-    backgroundColor: Colors.light.success,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
+  stockPill: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
   },
-  variantStockBadgeEmpty: {
-    backgroundColor: Colors.light.error,
-  },
-  variantStockText: {
-    color: '#fff',
+  stockPillText: {
     fontSize: 11,
+    fontWeight: '700',
+  },
+  // ── Variantes expandidas ──
+  variantsWrap: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+    backgroundColor: Colors.light.backgroundSecondary,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    gap: theme.spacing.xs,
+  },
+  variantRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.lg,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  variantLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    minWidth: 0,
+  },
+  variantDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.light.textTertiary,
+    flexShrink: 0,
+  },
+  variantLabel: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
+  variantSku: {
+    fontSize: 11,
+    color: Colors.light.textTertiary,
+    marginTop: 1,
+  },
+  variantRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
+  },
+  variantPrice: {
+    fontSize: theme.fontSize.sm,
     fontWeight: '700',
   },
 });

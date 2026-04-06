@@ -455,6 +455,186 @@ async def list_active_products(
 
 
 @router.get(
+    "/incomplete/count",
+    response_model=dict,
+    summary="Contar produtos incompletos (sem entrada)",
+    description="Produtos criados pelo wizard mas abandonados antes de vincular uma entrada de estoque"
+)
+async def count_incomplete_products(
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Conta produtos is_catalog=true do tenant atual (criados pelo wizard e não vinculados a nenhuma entrada).
+    Exclui os produtos do catálogo global (tenant de referência).
+    """
+    from sqlalchemy import func, and_, select as sa_select
+    try:
+        min_catalog_tenant = sa_select(func.min(Product.tenant_id)).where(
+            and_(Product.is_catalog == True, Product.is_active == True)
+        ).scalar_subquery()
+
+        result = await db.execute(
+            sa_select(func.count()).where(
+                and_(
+                    Product.is_catalog == True,
+                    Product.is_active == True,
+                    Product.tenant_id == tenant_id,
+                    Product.tenant_id != min_catalog_tenant,
+                )
+            )
+        )
+        count = result.scalar() or 0
+        return {"count": count}
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao contar produtos incompletos: {str(e)}"
+        )
+
+
+@router.get(
+    "/incomplete",
+    response_model=List[dict],
+    summary="Listar produtos incompletos (sem entrada)",
+    description="Produtos criados pelo wizard mas abandonados antes de vincular uma entrada de estoque"
+)
+async def list_incomplete_products(
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Lista produtos is_catalog=true do tenant atual, excluindo o catálogo global.
+    Retorna campos mínimos para exibição no banner/tela de produtos incompletos.
+    """
+    from sqlalchemy import func, and_, select as sa_select
+    from app.models.product_variant import ProductVariant
+
+    try:
+        min_catalog_tenant = sa_select(func.min(Product.tenant_id)).where(
+            and_(Product.is_catalog == True, Product.is_active == True)
+        ).scalar_subquery()
+
+        # Subquery: primeiro SKU de cada produto (variante mais antiga)
+        first_sku = (
+            sa_select(ProductVariant.sku)
+            .where(ProductVariant.product_id == Product.id)
+            .order_by(ProductVariant.id)
+            .limit(1)
+            .correlate(Product)
+            .scalar_subquery()
+        )
+
+        stmt = (
+            sa_select(
+                Product.id,
+                Product.name,
+                first_sku.label("sku"),
+                Product.brand,
+                Product.image_url,
+                Product.created_at,
+                Product.category_id,
+                Product.base_price,
+                Product.gender,
+                Product.material,
+                Product.is_digital,
+                Product.is_activewear,
+                Product.description,
+                Category.name.label("category_name"),
+            )
+            .outerjoin(Category, Category.id == Product.category_id)
+            .where(
+                and_(
+                    Product.is_catalog == True,
+                    Product.is_active == True,
+                    Product.tenant_id == tenant_id,
+                    Product.tenant_id != min_catalog_tenant,
+                )
+            )
+            .order_by(Product.created_at.desc())
+        )
+
+        rows = (await db.execute(stmt)).fetchall()
+        return [
+            {
+                "id": r.id,
+                "name": r.name,
+                "sku": r.sku,
+                "brand": r.brand,
+                "image_url": r.image_url,
+                "created_at": r.created_at.isoformat() if r.created_at else None,
+                "category_id": r.category_id,
+                "base_price": float(r.base_price) if r.base_price else None,
+                "gender": r.gender,
+                "material": r.material,
+                "is_digital": r.is_digital,
+                "is_activewear": r.is_activewear,
+                "description": r.description,
+                "category_name": r.category_name,
+                "is_catalog": True,
+                "is_active": True,
+                "current_stock": 0,
+            }
+            for r in rows
+        ]
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao listar produtos incompletos: {str(e)}"
+        )
+
+
+@router.delete(
+    "/incomplete/all",
+    response_model=dict,
+    summary="Excluir todos os produtos incompletos",
+    description="Soft-delete em todos os rascunhos sem entrada de estoque do tenant"
+)
+async def delete_all_incomplete_products(
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    from sqlalchemy import func, and_, select as sa_select, update as sa_update
+
+    try:
+        min_catalog_tenant = sa_select(func.min(Product.tenant_id)).where(
+            and_(Product.is_catalog == True, Product.is_active == True)
+        ).scalar_subquery()
+
+        # IDs dos produtos incompletos do tenant
+        ids_stmt = sa_select(Product.id).where(
+            and_(
+                Product.is_catalog == True,
+                Product.is_active == True,
+                Product.tenant_id == tenant_id,
+                Product.tenant_id != min_catalog_tenant,
+            )
+        )
+        result = await db.execute(ids_stmt)
+        ids = [r[0] for r in result.fetchall()]
+
+        if not ids:
+            return {"deleted": 0}
+
+        await db.execute(
+            sa_update(Product)
+            .where(Product.id.in_(ids))
+            .values(is_active=False)
+        )
+        await db.commit()
+        return {"deleted": len(ids)}
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Erro ao excluir produtos incompletos: {str(e)}"
+        )
+
+
+@router.get(
     "/catalog/count",
     response_model=dict,
     summary="Contar produtos do catálogo",
@@ -962,6 +1142,20 @@ async def get_product(
         # current_stock do produto = soma FIFO das variantes (fonte de verdade)
         current_stock = sum(v["current_stock"] for v in variants_list) if variants_list else (inv_row[0] if inv_row else 0)
 
+        # Verificar se produto possui vendas não canceladas (bloqueia exclusão)
+        sales_count_row = await db.execute(
+            text(
+                "SELECT COUNT(*) FROM sale_items si "
+                "LEFT JOIN product_variants pv ON si.variant_id = pv.id "
+                "JOIN sales s ON s.id = si.sale_id "
+                "WHERE si.tenant_id = :tid AND si.is_active = true "
+                "AND UPPER(s.status) NOT IN ('CANCELLED', 'REFUNDED') "
+                "AND (si.product_id = :pid OR pv.product_id = :pid)"
+            ),
+            {"pid": product_id, "tid": tenant_id},
+        )
+        has_sales = int(sales_count_row.scalar() or 0) > 0
+
         # Entradas de estoque (FIFO) associadas ao produto
         entry_items_result = await db.execute(
             text("""
@@ -1027,6 +1221,7 @@ async def get_product(
             "entry_items": entry_items_list,
             "variants": variants_list,
             "variant_count": len(variants_list),
+            "has_sales": has_sales,
         }
 
     except HTTPException:

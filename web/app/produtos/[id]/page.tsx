@@ -182,7 +182,7 @@ export default async function ProductPage({ params }: Props) {
                 href={wa(waMsg)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-3 font-bold text-white text-base py-4 rounded-2xl transition-all hover:scale-[1.02]"
+                className="w-full flex items-center justify-center gap-3 font-bold text-white text-base py-4 rounded-2xl transition-all hover:-translate-y-0.5 hover:shadow-[0_0_32px_rgba(37,211,102,0.4)]"
                 style={{ background: "#25D366", boxShadow: "0 0 24px rgba(37,211,102,0.3)" }}
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
@@ -195,7 +195,7 @@ export default async function ProductPage({ params }: Props) {
                 href={wa(waCondit)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-2 font-semibold text-sm py-3.5 rounded-2xl transition-all hover:scale-[1.01]"
+                className="w-full flex items-center justify-center gap-2 font-semibold text-sm py-3.5 rounded-2xl transition-all hover:-translate-y-0.5"
                 style={{ background: "rgba(255,26,108,0.1)", border: "1px solid rgba(255,26,108,0.2)", color: "#ff6ba8" }}
               >
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">

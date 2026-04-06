@@ -12,7 +12,7 @@ import type { CategoryCreate } from '@/types';
  * Hook para listar categorias
  */
 export const useCategories = () => {
-  const { data: categories, isLoading, isError, refetch } = useQuery({
+  const { data: categories, isLoading, isError, refetch, isRefetching } = useQuery({
     queryKey: ['categories'],
     queryFn: getCategories,
   });
@@ -22,6 +22,7 @@ export const useCategories = () => {
     isLoading,
     isError,
     refetch,
+    isRefetching,
   };
 };
 

@@ -160,7 +160,6 @@ export default function SimilarProductsModal({
         >
           {duplicates.map((dup) => {
             const color = scoreColor(dup.similarity_score);
-            const isActive = activeId === dup.product_id;
             return (
               <View key={dup.product_id} style={styles.dupCard}>
                 {/* Score pill */}

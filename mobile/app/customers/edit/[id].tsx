@@ -9,11 +9,10 @@ import {
   Text,
   TextInput,
   ActivityIndicator,
-  StatusBar,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import DetailHeader from '@/components/layout/DetailHeader';
+import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
@@ -87,7 +86,7 @@ export default function EditCustomerScreen() {
   const handleCepChange = async (text: string) => {
     const masked = cepMask(text);
     setZipCode(masked);
-    setErrors({ ...errors, zipCode: '' });
+    setErrors((prev) => ({ ...prev, zipCode: '' }));
     const cleanCep = masked.replace(/\D/g, '');
     if (cleanCep.length === 8) {
       setLoadingCep(true);
@@ -178,16 +177,11 @@ export default function EditCustomerScreen() {
   // ── Render ──
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={brandingColors.primary} />
-
-      <DetailHeader
-        title=""
-        entityName={customer.full_name}
-        backRoute="/(tabs)/customers"
-        editRoute=""
-        onDelete={() => {}}
-        badges={[]}
-        metrics={[]}
+      <PageHeader
+        title="Editar Cliente"
+        subtitle={customer.full_name}
+        showBackButton
+        onBack={goBack}
       />
 
       <KeyboardAvoidingView
@@ -214,7 +208,7 @@ export default function EditCustomerScreen() {
               <TextInput
                 style={[styles.input, !!errors.fullName && styles.inputError]}
                 value={fullName}
-                onChangeText={(text) => { setFullName(text); setErrors({ ...errors, fullName: '' }); }}
+                onChangeText={(text) => { setFullName(text); setErrors((prev) => ({ ...prev, fullName: '' })); }}
                 placeholder="Nome completo do cliente"
                 placeholderTextColor={Colors.light.textTertiary}
                 autoCapitalize="words"
@@ -227,7 +221,7 @@ export default function EditCustomerScreen() {
               <TextInput
                 style={[styles.input, !!errors.phone && styles.inputError]}
                 value={phone}
-                onChangeText={(text) => { setPhone(phoneMask(text)); setErrors({ ...errors, phone: '' }); }}
+                onChangeText={(text) => { setPhone(phoneMask(text)); setErrors((prev) => ({ ...prev, phone: '' })); }}
                 placeholder="(00) 00000-0000"
                 placeholderTextColor={Colors.light.textTertiary}
                 keyboardType="phone-pad"
@@ -240,7 +234,7 @@ export default function EditCustomerScreen() {
               <TextInput
                 style={[styles.input, !!errors.email && styles.inputError]}
                 value={email}
-                onChangeText={(text) => { setEmail(text); setErrors({ ...errors, email: '' }); }}
+                onChangeText={(text) => { setEmail(text); setErrors((prev) => ({ ...prev, email: '' })); }}
                 placeholder="email@exemplo.com"
                 placeholderTextColor={Colors.light.textTertiary}
                 keyboardType="email-address"
@@ -264,7 +258,7 @@ export default function EditCustomerScreen() {
               <TextInput
                 style={[styles.input, !!errors.cpf && styles.inputError]}
                 value={cpf}
-                onChangeText={(text) => { setCpf(cpfMask(text)); setErrors({ ...errors, cpf: '' }); }}
+                onChangeText={(text) => { setCpf(cpfMask(text)); setErrors((prev) => ({ ...prev, cpf: '' })); }}
                 placeholder="000.000.000-00"
                 placeholderTextColor={Colors.light.textTertiary}
                 keyboardType="numeric"
@@ -277,7 +271,7 @@ export default function EditCustomerScreen() {
               <TextInput
                 style={[styles.input, !!errors.birthDate && styles.inputError]}
                 value={birthDate}
-                onChangeText={(text) => { setBirthDate(dateMask(text)); setErrors({ ...errors, birthDate: '' }); }}
+                onChangeText={(text) => { setBirthDate(dateMask(text)); setErrors((prev) => ({ ...prev, birthDate: '' })); }}
                 placeholder="DD/MM/AAAA"
                 placeholderTextColor={Colors.light.textTertiary}
                 keyboardType="numeric"

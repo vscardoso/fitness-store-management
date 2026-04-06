@@ -25,8 +25,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import DetailHeader from '@/components/layout/DetailHeader';
 import InfoRow from '@/components/ui/InfoRow';
-import CustomModal from '@/components/ui/CustomModal';
-import ModalActions from '@/components/ui/ModalActions';
+import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import MarkAsSentModal from '@/components/conditional/MarkAsSentModal';
 import ItemStatusModal from '@/components/conditional/ItemStatusModal';
@@ -1232,11 +1231,16 @@ export default function ConditionalShipmentDetailsScreen() {
       />
 
       {/* Modal Cancelar Envio */}
-      <CustomModal
+      <BottomSheet
         visible={activeModal.visible && activeModal.type === 'cancel'}
         onDismiss={() => setActiveModal({ visible: false, type: null })}
         title="Cancelar Envio"
         subtitle="Todo o estoque será devolvido"
+        icon="close-circle-outline"
+        actions={[
+          { label: 'Voltar', onPress: () => setActiveModal({ visible: false, type: null }), variant: 'secondary' },
+          { label: 'Confirmar Cancelamento', onPress: handleCancelShipment, variant: 'danger', loading: cancelMutation.isPending },
+        ]}
       >
         <TextInput
           label="Motivo do cancelamento *"
@@ -1249,15 +1253,7 @@ export default function ConditionalShipmentDetailsScreen() {
           autoFocus
         />
 
-        <ModalActions
-          onCancel={() => setActiveModal({ visible: false, type: null })}
-          onConfirm={handleCancelShipment}
-          confirmText="Confirmar Cancelamento"
-          cancelText="Voltar"
-          confirmColor={Colors.light.error}
-          loading={cancelMutation.isPending}
-        />
-      </CustomModal>
+      </BottomSheet>
 
       {/* Modal Marcar como Enviado - UX Melhorada */}
       <MarkAsSentModal

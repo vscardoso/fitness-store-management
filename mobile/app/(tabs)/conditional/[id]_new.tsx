@@ -32,8 +32,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import DetailHeader from '@/components/layout/DetailHeader';
 import InfoRow from '@/components/ui/InfoRow';
-import CustomModal from '@/components/ui/CustomModal';
-import ModalActions from '@/components/ui/ModalActions';
+import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import StatusStepper from '@/components/conditional/StatusStepper';
 import ShipmentTimeline from '@/components/conditional/ShipmentTimeline';
@@ -697,7 +696,7 @@ export default function ConditionalShipmentDetailsScreen() {
         loading={markAsSentMutation.isPending}
       />
 
-      <CustomModal
+      <BottomSheet
         visible={cancelModalVisible}
         onDismiss={() => {
           setCancelModalVisible(false);
@@ -705,6 +704,11 @@ export default function ConditionalShipmentDetailsScreen() {
         }}
         title="Cancelar Envio"
         subtitle="Todo o estoque será devolvido"
+        icon="close-circle-outline"
+        actions={[
+          { label: 'Voltar', onPress: () => { setCancelModalVisible(false); setCancelReason(''); }, variant: 'secondary' },
+          { label: 'Confirmar Cancelamento', onPress: handleCancelShipment, variant: 'danger', loading: cancelMutation.isPending },
+        ]}
       >
         <TextInput
           label="Motivo do cancelamento *"
@@ -717,18 +721,7 @@ export default function ConditionalShipmentDetailsScreen() {
           autoFocus
         />
 
-        <ModalActions
-          onCancel={() => {
-            setCancelModalVisible(false);
-            setCancelReason('');
-          }}
-          onConfirm={handleCancelShipment}
-          confirmText="Confirmar Cancelamento"
-          cancelText="Voltar"
-          confirmColor={Colors.light.error}
-          loading={cancelMutation.isPending}
-        />
-      </CustomModal>
+      </BottomSheet>
 
       {/* Dialogs */}
       <ConfirmDialog

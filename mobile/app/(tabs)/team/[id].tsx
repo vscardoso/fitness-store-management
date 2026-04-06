@@ -20,8 +20,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { Colors } from '@/constants/Colors';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import CustomModal from '@/components/ui/CustomModal';
-import ModalActions from '@/components/ui/ModalActions';
+import BottomSheet from '@/components/ui/BottomSheet';
 import {
   getTeamMember,
   updateTeamMember,
@@ -488,11 +487,16 @@ export default function TeamMemberDetailScreen() {
       </ScrollView>
 
       {/* Modal: Reset Password */}
-      <CustomModal
+      <BottomSheet
         visible={showPasswordDialog}
         onDismiss={handleCancelResetPassword}
         title="Resetar Senha"
         subtitle={`Defina uma nova senha para ${member.full_name}`}
+        icon="key-outline"
+        actions={[
+          { label: 'Cancelar', onPress: handleCancelResetPassword, variant: 'secondary' },
+          { label: 'Confirmar', onPress: handleResetPassword, icon: 'checkmark-circle-outline', loading: resetPasswordMutation.isPending },
+        ]}
       >
         <TextInput
           label="Nova Senha *"
@@ -524,14 +528,7 @@ export default function TeamMemberDetailScreen() {
           A senha deve ter pelo menos 6 caracteres
         </Text>
 
-        <ModalActions
-          onCancel={handleCancelResetPassword}
-          onConfirm={handleResetPassword}
-          cancelText="Cancelar"
-          confirmText="Confirmar"
-          loading={resetPasswordMutation.isPending}
-        />
-      </CustomModal>
+      </BottomSheet>
 
       {/* ConfirmDialog: Alterar Função */}
       <ConfirmDialog

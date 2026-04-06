@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Barlow:wght@300;400;500;600;700;800&display=swap');
 
 @layer base {
   :root {
@@ -24,9 +24,19 @@
   body {
     background-color: #0d0d18;
     color: #fff;
-    font-family: Inter, system-ui, sans-serif;
+    font-family: Barlow, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: "Barlow Condensed", system-ui, sans-serif;
+  }
+
+  :focus-visible {
+    outline: 2px solid #ff1a6c;
+    outline-offset: 3px;
+    border-radius: 4px;
   }
 
   ::selection {

@@ -41,6 +41,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';
 import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import useBackToList from '@/hooks/useBackToList';
 import { getStockEntries, getStockEntriesStats, addItemToEntry } from '@/services/stockEntryService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
@@ -53,6 +54,7 @@ type FilterType = 'all' | 'active' | 'history';
 
 export default function StockEntriesScreen() {
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/entries');
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const brandingColors = useBrandingColors();
@@ -135,6 +137,7 @@ export default function StockEntriesScreen() {
             .map((v: any) =>
               addItemToEntry(entryId, {
                 product_id: v.product_id,
+                variant_id: v.variant_id,
                 quantity_received: v.quantity,
                 unit_cost: v.cost_price || 0,
                 selling_price: v.price || 0,
@@ -158,17 +161,33 @@ export default function StockEntriesScreen() {
     },
     onSuccess: async (_, variables) => {
       setShowLinkDialog(false);
+
+      const productIdsToRefresh = Array.from(new Set<number>([
+        Number(variables.productData?.id || 0),
+        ...((variables.productData?.variants || []).map((v: any) => Number(v.product_id || 0))),
+      ].filter((id) => id > 0)));
+
       // Invalidar todas as queries relacionadas
       await Promise.all([
         // Invalida lista de entradas (todas as variantes de filtro)
         queryClient.invalidateQueries({ queryKey: ['stock-entries'] }),
         // Invalida detalhes da entrada específica
         queryClient.invalidateQueries({ queryKey: ['stock-entry', variables.entryId] }),
-        // Invalida produtos
+        // Invalida lista agrupada de produtos (queryKey real usado em products.tsx)
+        queryClient.invalidateQueries({ queryKey: ['grouped-products'] }),
+        // Invalida contador de catálogo (staleTime=10min — precisa de invalidação explícita)
+        queryClient.invalidateQueries({ queryKey: ['catalog-products-count'] }),
+        // Invalida contador de produtos incompletos
+        queryClient.invalidateQueries({ queryKey: ['incomplete-products-count'] }),
+        // Invalida aliases legados (usados em outros lugares)
         queryClient.invalidateQueries({ queryKey: ['products'] }),
         queryClient.invalidateQueries({ queryKey: ['active-products'] }),
-        // Invalida stats
+        // Invalida stats de entradas
         queryClient.invalidateQueries({ queryKey: ['stock-entries-stats'] }),
+        // Invalida dashboard (products_registered / catalog count)
+        queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] }),
+        ...productIdsToRefresh.map((id) => queryClient.invalidateQueries({ queryKey: ['product', id] })),
+        ...productIdsToRefresh.map((id) => queryClient.invalidateQueries({ queryKey: ['inventory', id] })),
       ]);
       // Força refetch da lista atual
       await refetch();
@@ -319,7 +338,7 @@ export default function StockEntriesScreen() {
     return <Badge label={config.label} variant={config.variant} icon={config.icon} size="sm" />;
   };
 
-  const statusConfig: Record<string, { label: string; variant: any; icon: string }> = {
+  const statusConfig: Record<string, { label: string; variant: any; icon: keyof typeof Ionicons.glyphMap }> = {
     open:     { label: 'Aberta',    variant: 'success', icon: 'checkmark-circle' },
     partial:  { label: 'Parcial',   variant: 'warning', icon: 'time' },
     sold_out: { label: 'Esgotada',  variant: 'neutral', icon: 'archive' },
@@ -762,7 +781,7 @@ export default function StockEntriesScreen() {
                 </Text>
               </View>
               <TouchableOpacity
-                onPress={() => router.back()}
+                onPress={goBack}
                 style={styles.selectModeBannerClose}
               >
                 <Ionicons name="close" size={20} color="#fff" />
@@ -826,8 +845,16 @@ export default function StockEntriesScreen() {
                         id: productToLink?.id,
                         name: productToLink?.name,
                         sku: productToLink?.sku,
+                      barcode: productToLink?.barcode,
+                      image_url: productToLink?.image_url,
                         cost_price: productToLink?.cost_price,
                         price: productToLink?.price,
+                      description: productToLink?.description,
+                      brand: productToLink?.brand,
+                      color: productToLink?.color,
+                      size: productToLink?.size,
+                      gender: productToLink?.gender,
+                      material: productToLink?.material,
                         category_id: productToLink?.category_id,
                       }),
                 },
@@ -839,7 +866,7 @@ export default function StockEntriesScreen() {
           onCancel={() => {
             setShowSuccessDialog(false);
             if (!isFromWizard) {
-              router.back();
+              goBack();
             }
           }}
           type="success"

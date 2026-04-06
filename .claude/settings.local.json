@@ -112,7 +112,10 @@
       "Bash(wc:*)",
       "Bash(.venvScriptspython.exe migrate.py \"add address fields to stores\")",
       "Bash(sort -t_ -k1)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(\"C:\\\\Users\\\\Victor\\\\Desktop\\\\fitness-store-management\\\\backend\\\\app\\\\api\\\\v1\\\\endpoints\\\\stock_entries.py\":*)",
+      "Bash(ls -la /c/Users/Victor/Desktop/fitness-store-management/mobile/app/\\\\\\(tabs\\\\\\)/)",
+      "Bash(rtk tsc:*)"
     ],
     "deny": [],
     "ask": []

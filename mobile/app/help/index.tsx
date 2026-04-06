@@ -18,9 +18,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useTutorialContext } from '@/contexts/TutorialContext';
 import { TUTORIAL_LIST, TUTORIALS, TUTORIAL_COLORS } from '@/constants/tutorials';
 import { Colors } from '@/constants/Colors';
+import useBackToList from '@/hooks/useBackToList';
 
 export default function HelpScreen() {
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/more');
   const {
     completedTutorials,
     startTutorial,
@@ -72,7 +74,7 @@ export default function HelpScreen() {
       >
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={goBack}
         >
           <Ionicons name="arrow-back" size={24} color="#fff" />
         </TouchableOpacity>

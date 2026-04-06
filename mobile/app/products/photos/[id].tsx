@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Tela de Gerenciamento de Fotos de Variações
  *
  * Permite ao usuário adicionar/trocar a foto de cada variação
@@ -34,9 +34,11 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import useBackToList from '@/hooks/useBackToList';
 import { getProductById } from '@/services/productService';
-import { getProductVariants } from '@/services/productVariantService';
+import { getProductVariants, updateVariant } from '@/services/productVariantService';
 import { uploadVariantImageWithFallback } from '@/services/uploadService';
+import { getImageUrl } from '@/constants/Config';
 import type { ProductVariant } from '@/types/productVariant';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -117,6 +119,7 @@ function compareColors(a: string, b: string): number {
 
 export default function VariantPhotosScreen() {
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/products');
   const { id } = useLocalSearchParams<{ id: string }>();
   const productId = Number(id);
   const { width } = useWindowDimensions();
@@ -127,6 +130,7 @@ export default function VariantPhotosScreen() {
   const [uploading, setUploading] = useState<Record<number, boolean>>({});
   const [localPhotos, setLocalPhotos] = useState<Record<number, string>>({});
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [applyingToAll, setApplyingToAll] = useState(false);
 
   // ── Animação de entrada ──
   const headerOpacity = useSharedValue(0);
@@ -185,6 +189,45 @@ export default function VariantPhotosScreen() {
   const cardSize = Math.max(128, Math.min(176, Math.floor(availableWidth / 2)));
   const pendingCount = Math.max(0, activeVariants.length - totalWithPhoto);
 
+  // Foto principal do produto como fallback
+  const productImageUrl = getImageUrl(product?.image_url) ?? null;
+  // Variantes que NÃO têm foto própria mas o produto tem foto
+  const variantsWithoutPhoto = activeVariants.filter(
+    (v) => !localPhotos[v.id] && !v.image_url
+  );
+  const canApplyProductPhoto =
+    !!productImageUrl && variantsWithoutPhoto.length > 0;
+
+  const applyProductPhotoToAll = useCallback(async () => {
+    if (!product?.image_url || variantsWithoutPhoto.length === 0) return;
+    setApplyingToAll(true);
+    try {
+      await Promise.all(
+        variantsWithoutPhoto.map((v) =>
+          updateVariant(v.id, { image_url: product.image_url } as any)
+        )
+      );
+      queryClient.invalidateQueries({ queryKey: ['product-variants', productId] });
+    } catch (err: any) {
+      Alert.alert('Erro', 'Não foi possível aplicar a foto a todas as variações.');
+    } finally {
+      setApplyingToAll(false);
+    }
+  }, [product?.image_url, variantsWithoutPhoto, productId, queryClient]);
+
+  const applySingleProductPhoto = useCallback(async (variant: ProductVariant) => {
+    if (!product?.image_url) return;
+    setUploading((prev) => ({ ...prev, [variant.id]: true }));
+    try {
+      await updateVariant(variant.id, { image_url: product.image_url } as any);
+      queryClient.invalidateQueries({ queryKey: ['product-variants', productId] });
+    } catch (err: any) {
+      Alert.alert('Erro', 'Não foi possível aplicar a foto.');
+    } finally {
+      setUploading((prev) => ({ ...prev, [variant.id]: false }));
+    }
+  }, [product?.image_url, productId, queryClient]);
+
   const pickAndUpload = useCallback(
     async (variant: ProductVariant) => {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -223,7 +266,10 @@ export default function VariantPhotosScreen() {
     [productId, queryClient]
   );
 
-  const photoForVariant = (v: ProductVariant) => localPhotos[v.id] ?? v.image_url ?? null;
+  const isInherited = (v: ProductVariant) =>
+    !localPhotos[v.id] && !v.image_url && !!productImageUrl;
+  const photoForVariant = (v: ProductVariant) =>
+    getImageUrl(localPhotos[v.id] ?? v.image_url) ?? productImageUrl;
 
   if (isLoading || isLoadingProduct) {
     return (
@@ -243,7 +289,7 @@ export default function VariantPhotosScreen() {
           title="Fotos das Variações"
           subtitle={product?.name || 'Produto'}
           showBackButton
-          onBack={() => router.back()}
+          onBack={goBack}
         />
         {/* Barra de progresso */}
         <View style={styles.progressBarContainer}>
@@ -304,6 +350,34 @@ export default function VariantPhotosScreen() {
         </View>
 
         {/* ── Banner informativo ─────────────────────────────────────── */}
+        {/* ── Banner "aplicar foto do produto" ────────────────────────── */}
+        {canApplyProductPhoto && (
+          <View style={styles.inheritBanner}>
+            <Image
+              source={{ uri: productImageUrl! }}
+              style={styles.inheritBannerThumb}
+            />
+            <View style={styles.inheritBannerText}>
+              <Text style={styles.inheritBannerTitle}>Foto do produto disponível</Text>
+              <Text style={styles.inheritBannerSub}>
+                {variantsWithoutPhoto.length} variação(ões) sem foto própria
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.inheritBannerBtn, { backgroundColor: brandingColors.primary }]}
+              onPress={applyProductPhotoToAll}
+              disabled={applyingToAll}
+              activeOpacity={0.8}
+            >
+              {applyingToAll ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Text style={styles.inheritBannerBtnText}>Aplicar a todas</Text>
+              )}
+            </TouchableOpacity>
+          </View>
+        )}
+
         <View style={styles.infoBanner}>
           <Ionicons name="information-circle" size={18} color={Colors.light.info} />
           <Text style={styles.infoText}>
@@ -354,15 +428,21 @@ export default function VariantPhotosScreen() {
                               <ActivityIndicator color="#fff" size="small" />
                             </View>
                           )}
-                          {/* Badge de trocar */}
-                          {!isUploading && (
+                          {/* Badge herdada do produto */}
+                          {!isUploading && isInherited(variant) && (
+                            <View style={styles.inheritedBadge}>
+                              <Text style={styles.inheritedBadgeText}>do produto</Text>
+                            </View>
+                          )}
+                          {/* Badge de trocar (só para fotos próprias) */}
+                          {!isUploading && !isInherited(variant) && (
                             <View style={styles.changeBadge}>
                               <Ionicons name="camera" size={12} color="#fff" />
                             </View>
                           )}
                         </View>
                       ) : (
-                        <View style={[styles.photoWrap, styles.photoPlaceholder, { borderColor: brandingColors.primary, width: cardSize, height: cardSize }]}>
+                        <View style={[styles.photoWrap, styles.photoPlaceholder, { borderColor: Colors.light.border, width: cardSize, height: cardSize }]}>
                           {isUploading ? (
                             <ActivityIndicator color={brandingColors.primary} />
                           ) : (
@@ -370,9 +450,19 @@ export default function VariantPhotosScreen() {
                               <Ionicons
                                 name="camera-outline"
                                 size={28}
-                                color={brandingColors.primary}
+                                color={Colors.light.textTertiary}
                               />
-                              <Text style={[styles.placeholderText, { color: brandingColors.primary }]}>Adicionar</Text>
+                              <Text style={styles.placeholderText}>Adicionar</Text>
+                              {productImageUrl && (
+                                <TouchableOpacity
+                                  style={[styles.useProductPhotoBtn, { backgroundColor: brandingColors.primary + '18', borderColor: brandingColors.primary + '40' }]}
+                                  onPress={(e) => { e.stopPropagation?.(); applySingleProductPhoto(variant); }}
+                                  activeOpacity={0.8}
+                                  hitSlop={4}
+                                >
+                                  <Text style={[styles.useProductPhotoBtnText, { color: brandingColors.primary }]}>Usar do produto</Text>
+                                </TouchableOpacity>
+                              )}
                             </>
                           )}
                         </View>
@@ -450,11 +540,11 @@ export default function VariantPhotosScreen() {
       confirmText="OK"
       onConfirm={() => {
         setShowSuccessDialog(false);
-        router.back();
+        goBack();
       }}
       onCancel={() => {
         setShowSuccessDialog(false);
-        router.back();
+        goBack();
       }}
       type="success"
       icon="checkmark-circle"
@@ -722,5 +812,78 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '700',
     fontSize: theme.fontSize.base,
+  },
+
+  // Banner "aplicar foto do produto"
+  inheritBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    padding: theme.spacing.sm + 2,
+    ...theme.shadows.sm,
+  },
+  inheritBannerThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: theme.borderRadius.md,
+    backgroundColor: Colors.light.backgroundSecondary,
+    flexShrink: 0,
+  },
+  inheritBannerText: {
+    flex: 1,
+    minWidth: 0,
+  },
+  inheritBannerTitle: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  inheritBannerSub: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+    marginTop: 1,
+  },
+  inheritBannerBtn: {
+    paddingHorizontal: theme.spacing.sm + 2,
+    paddingVertical: 8,
+    borderRadius: theme.borderRadius.lg,
+    flexShrink: 0,
+  },
+  inheritBannerBtnText: {
+    color: '#fff',
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700',
+  },
+  inheritedBadge: {
+    position: 'absolute',
+    bottom: 6,
+    left: 6,
+    right: 6,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 6,
+    paddingVertical: 2,
+    alignItems: 'center',
+  },
+  inheritedBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+  },
+  useProductPhotoBtn: {
+    marginTop: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  useProductPhotoBtnText: {
+    fontSize: 10,
+    fontWeight: '700',
+    textAlign: 'center',
   },
 });

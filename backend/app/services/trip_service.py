@@ -5,9 +5,12 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, date
 from decimal import Decimal
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import func
+from sqlalchemy import func, text
+
+import json
 
 from app.models.trip import Trip, TripStatus
+from app.models.sale import Sale, SaleItem, SaleStatus
 from app.repositories.trip_repository import TripRepository
 from app.repositories.stock_entry_repository import StockEntryRepository
 from app.repositories.entry_item_repository import EntryItemRepository
@@ -180,13 +183,49 @@ class TripService:
         if total_quantity_purchased > 0:
             sell_through_rate = (total_quantity_sold / total_quantity_purchased) * 100
         
-        # Calcular ROI simplificado
-        # ROI = (Receita - Custo) / Custo * 100
-        # Aqui usamos sell-through rate como proxy de retorno
-        roi = sell_through_rate - 100  # Simplificado
-        
         # Total de custos (viagem + produtos)
         total_cost = float(trip.travel_cost_total) + float(total_invested)
+
+        # Calcular ROI real: receita gerada pelas vendas de produtos desta viagem
+        # Busca o subtotal das SaleItems cujas sale_sources referenciam entradas desta viagem
+        # Receita real: soma dos subtotais de SaleItems cujas fontes FIFO incluem
+        # entradas desta viagem. Parsing feito em Python para compatibilidade SQLite/PostgreSQL.
+        entry_ids_result = await self.db.execute(
+            text("""
+                SELECT id FROM stock_entries
+                WHERE trip_id = :trip_id
+                  AND is_active = true
+                  AND tenant_id = :tid
+            """),
+            {"tid": tenant_id, "trip_id": trip_id},
+        )
+        entry_ids = {row[0] for row in entry_ids_result.fetchall()}
+
+        trip_revenue = 0.0
+        if entry_ids:
+            from sqlalchemy import select as sa_select
+            sale_items_result = await self.db.execute(
+                sa_select(SaleItem.subtotal, SaleItem.sale_sources)
+                .join(Sale, SaleItem.sale_id == Sale.id)
+                .where(
+                    Sale.is_active == True,
+                    Sale.status == SaleStatus.COMPLETED,
+                    Sale.tenant_id == tenant_id,
+                    SaleItem.sale_sources.isnot(None),
+                )
+            )
+            for subtotal, sale_sources in sale_items_result.fetchall():
+                if not sale_sources:
+                    continue
+                try:
+                    sources = json.loads(sale_sources)
+                    if any(src.get("entry_id") in entry_ids for src in sources):
+                        trip_revenue += float(subtotal or 0)
+                except (json.JSONDecodeError, TypeError):
+                    continue
+
+        # ROI = (Receita − Custo Total) / Custo Total × 100
+        roi = round(((trip_revenue - total_cost) / total_cost * 100), 2) if total_cost > 0 else 0.0
         
         return {
             "trip_id": trip.id,
@@ -219,6 +258,7 @@ class TripService:
             # Performance
             "sell_through_rate": round(sell_through_rate, 2),
             "roi": round(roi, 2),
+            "trip_revenue": round(trip_revenue, 2),
             
             # Tempo
             "duration_hours": trip.duration_hours,

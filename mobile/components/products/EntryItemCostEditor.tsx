@@ -16,8 +16,7 @@ import { View, StyleSheet } from 'react-native';
 import { TextInput, HelperText } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { Text } from 'react-native-paper';
-import CustomModal from '@/components/ui/CustomModal';
-import ModalActions from '@/components/ui/ModalActions';
+import BottomSheet from '@/components/ui/BottomSheet';
 import { maskCurrencyBR, unmaskCurrency, toBRNumber } from '@/utils/priceFormatter';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -141,11 +140,16 @@ export default function EntryItemCostEditor({
     unmaskCurrency(price) < unmaskCurrency(cost);
 
   return (
-    <CustomModal
+    <BottomSheet
       visible={visible}
       onDismiss={handleDismiss}
       title="Editar Item da Entrada"
       subtitle={item?.product_name ?? (item?.entry_code ? `Entrada ${item.entry_code}` : undefined)}
+      icon="create-outline"
+      actions={[
+        { label: 'Cancelar', onPress: handleDismiss, variant: 'secondary' },
+        { label: 'Salvar Alterações', onPress: handleConfirm, icon: 'checkmark-circle-outline', loading },
+      ]}
     >
       {/* Aviso */}
       <View style={styles.warningBox}>
@@ -231,15 +235,7 @@ export default function EntryItemCostEditor({
         </HelperText>
       )}
 
-      <ModalActions
-        onCancel={handleDismiss}
-        onConfirm={handleConfirm}
-        cancelText="Cancelar"
-        confirmText="Salvar Alterações"
-        loading={loading}
-        confirmColor={brandingColors.primary}
-      />
-    </CustomModal>
+    </BottomSheet>
   );
 }
 

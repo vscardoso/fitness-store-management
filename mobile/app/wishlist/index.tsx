@@ -20,6 +20,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import { getDemandReport } from '@/services/wishlistService';
 import { Colors, theme } from '@/constants/Colors';
+import { getImageUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
 import type { DemandItem } from '@/types/look';
 
@@ -48,7 +49,7 @@ export default function WishlistDemandScreen() {
         <View style={styles.iconContainer}>
           {item.product_image_url ? (
             <Image
-              source={{ uri: item.product_image_url }}
+              source={{ uri: getImageUrl(item.product_image_url) }}
               style={styles.productImage}
               resizeMode="cover"
             />

@@ -43,6 +43,7 @@ interface RightAction {
   icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
   color?: string;
+  variant?: 'default' | 'danger';
 }
 
 interface PageHeaderProps {
@@ -56,7 +57,7 @@ interface PageHeaderProps {
   onBack?: () => void;
   /** Elemento visual fixo à esquerda (quando não houver botão voltar) */
   leftVisual?: React.ReactNode;
-  /** Ações à direita (máx 3) */
+  /** Ações à direita (máx 4) */
   rightActions?: RightAction[];
   /** Cores do gradiente (padrão: primary → secondary) */
   gradientColors?: [string, string];
@@ -118,16 +119,19 @@ export default function PageHeader({
             {/* Ações à direita */}
             {rightActions.length > 0 ? (
               <View style={styles.actions}>
-                {rightActions.slice(0, 3).map((action, index) => (
+                {rightActions.slice(0, 4).map((action, index) => (
                   <TouchableOpacity
                     key={index}
                     onPress={action.onPress}
-                    style={styles.actionButton}
+                    style={[
+                      styles.actionButton,
+                      action.variant === 'danger' && styles.actionButtonDanger,
+                    ]}
                   >
                     <Ionicons
                       name={action.icon}
                       size={20}
-                      color={action.color || '#fff'}
+                      color="#fff"
                     />
                   </TouchableOpacity>
                 ))}
@@ -214,6 +218,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  actionButtonDanger: {
+    backgroundColor: 'rgba(239, 68, 68, 0.35)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
   },
   customContent: {
     marginTop: theme.spacing.md, // 16 (mais espaço entre título e badges)

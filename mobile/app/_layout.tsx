@@ -59,7 +59,7 @@ export default function RootLayout() {
   const clearError = useAuthStore((state) => state.clearError);
   const loadNotifications = useNotificationStore((state) => state.loadFromStorage);
   const brandingColors = useBrandingColors();
-  const brandingSynced = useBrandingStore((state) => state.synced);
+  const brandingInitialSyncAttempted = useBrandingStore((state) => state.initialSyncAttempted);
   const fetchBrandingFromServer = useBrandingStore((state) => state.fetchFromServer);
 
   const theme = {
@@ -99,10 +99,10 @@ export default function RootLayout() {
 
   // Hidrata branding com token valido caso store local nao esteja sincronizado.
   useEffect(() => {
-    if (isAuthenticated && !brandingSynced) {
+    if (isAuthenticated && !brandingInitialSyncAttempted) {
       fetchBrandingFromServer().catch(() => {});
     }
-  }, [isAuthenticated, brandingSynced, fetchBrandingFromServer]);
+  }, [isAuthenticated, brandingInitialSyncAttempted, fetchBrandingFromServer]);
 
   return (
     <ErrorBoundary>

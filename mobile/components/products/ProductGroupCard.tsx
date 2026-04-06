@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Image } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, theme } from '@/constants/Colors';
+import { getImageUrl } from '@/constants/Config';
 import { useBrandingColors } from '@/store/brandingStore';
 import { formatCurrency } from '@/utils/format';
 import type { ProductGrouped } from '@/types';
@@ -56,7 +57,7 @@ export default function ProductGroupCard({ product, onPress }: ProductGroupCardP
           <View style={[styles.iconContainer, { backgroundColor: brandingColors.primary + '12' }]}>
             {product.image_url && !imageError ? (
               <Image
-                source={{ uri: product.image_url }}
+                source={{ uri: getImageUrl(product.image_url) }}
                 style={styles.productImage}
                 resizeMode="cover"
                 onError={() => setImageError(true)}

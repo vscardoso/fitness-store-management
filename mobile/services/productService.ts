@@ -195,6 +195,38 @@ export const getCatalogProducts = async (params?: {
 };
 
 /**
+ * Contar produtos incompletos (criados no wizard sem entrada vinculada)
+ */
+export const getIncompleteProductsCount = async (): Promise<number> => {
+  try {
+    const { data } = await api.get<{ count: number }>('/products/incomplete/count');
+    return data?.count ?? 0;
+  } catch {
+    return 0;
+  }
+};
+
+/**
+ * Listar produtos incompletos (criados no wizard sem entrada vinculada)
+ */
+export const getIncompleteProducts = async (): Promise<Product[]> => {
+  try {
+    const { data } = await api.get<Product[]>('/products/incomplete');
+    return data ?? [];
+  } catch (error) {
+    throw error;
+  }
+};
+
+/**
+ * Excluir todos os produtos incompletos do tenant
+ */
+export const deleteAllIncompleteProducts = async (): Promise<number> => {
+  const { data } = await api.delete<{ deleted: number }>('/products/incomplete/all');
+  return data?.deleted ?? 0;
+};
+
+/**
  * Ajustar quantidade do produto (FIFO)
  */
 export const adjustProductQuantity = async (

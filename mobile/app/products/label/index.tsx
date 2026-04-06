@@ -28,6 +28,7 @@ import ProductLabel, { LabelData } from '@/components/labels/ProductLabel';
 import LabelProductPickerModal, { type PickedItem } from '@/components/labels/LabelProductPickerModal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import PageHeader from '@/components/layout/PageHeader';
+import useBackToList from '@/hooks/useBackToList';
 import { Colors } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -70,6 +71,7 @@ const LABEL_FORMATS: LabelFormat[] = [
 
 export default function LabelStudioScreen() {
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/products');
   const brandingColors = useBrandingColors();
   const viewShotRef = useRef<ViewShot>(null);
 
@@ -297,7 +299,7 @@ export default function LabelStudioScreen() {
               : 'Selecione produtos e defina quantidades'
           }
           showBackButton
-          onBack={() => router.back()}
+          onBack={goBack}
         />
       </Animated.View>
 

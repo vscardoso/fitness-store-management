@@ -29,6 +29,7 @@ import type { Category, Product, DuplicateMatch } from '@/types';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getCatalogProducts } from '@/services/productService';
+import { capitalizeWords } from '@/utils/format';
 
 interface WizardStep1Props {
   wizard: UseProductWizardReturn;
@@ -650,7 +651,8 @@ export default function WizardStep1({
         <TextInput
           label="Nome do Produto *"
           value={state.productData.name || ''}
-          onChangeText={(text) => wizard.setManualData({ name: text })}
+          onChangeText={(text) => wizard.setManualData({ name: capitalizeWords(text) })}
+          autoCapitalize="words"
           mode="outlined"
           style={styles.input}
           placeholder="Ex: Legging Fitness Preta"

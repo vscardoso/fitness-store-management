@@ -287,6 +287,7 @@ export async function addItemToEntry(
   entryId: number,
   data: {
     product_id: number;
+    variant_id?: number;
     quantity_received: number;
     unit_cost: number;
     selling_price?: number;

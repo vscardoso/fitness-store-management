@@ -175,6 +175,11 @@ export default function SaleDetailsScreen() {
   const hasDiscount = Number(sale.discount_amount) > 0;
   const hasTax = Number(sale.tax_amount) > 0;
 
+  const daysSinceSale = Math.floor(
+    (Date.now() - new Date(sale.created_at).getTime()) / (1000 * 60 * 60 * 24)
+  );
+  const isWithinReturnWindow = daysSinceSale < 7;
+
   // Dispara animação uma vez após dados disponíveis
   if (!animated.current) {
     animated.current = true;
@@ -468,7 +473,7 @@ export default function SaleDetailsScreen() {
         )}
 
         {/* ── BOTÃO DEVOLUÇÃO ───────────────────────────────────── */}
-        {(sale.status === 'completed' || sale.status === 'partially_refunded') && (
+        {(sale.status === 'completed' || sale.status === 'partially_refunded') && isWithinReturnWindow && (
           <View style={styles.returnSection}>
             <AppButton
               variant="danger-outline"

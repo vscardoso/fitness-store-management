@@ -23,6 +23,7 @@ import { getLook, deleteLook } from '@/services/lookService';
 import { createShipment } from '@/services/conditionalService';
 import { getCustomers } from '@/services/customerService';
 import { Colors, theme } from '@/constants/Colors';
+import { getImageUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
 import type { LookItemResponse } from '@/types/look';
 import type { Customer } from '@/types';
@@ -293,7 +294,7 @@ function LookItemCard({ item }: { item: LookItemResponse }) {
         <View style={styles.itemIcon}>
           {item.product_image_url ? (
             <Image
-              source={{ uri: item.product_image_url }}
+              source={{ uri: getImageUrl(item.product_image_url) }}
               style={styles.itemImage}
               resizeMode="cover"
             />

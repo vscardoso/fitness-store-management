@@ -41,6 +41,24 @@ export const API_CONFIG = {
   TIMEOUT: 30000, // 30 segundos
 };
 
+// URL base do backend sem o sufixo /api/v1 — usado para montar URLs de imagens
+const BACKEND_BASE_URL = API_CONFIG.BASE_URL.replace(/\/api\/v1\/?$/, '');
+
+/**
+ * Converte uma image_url relativa (/uploads/...) em URL absoluta.
+ * Imagens salvas localmente retornam caminhos relativos; React Native exige URL completa.
+ *
+ * @param url - image_url do produto/variação
+ * @returns URL absoluta ou undefined se vazia
+ */
+export function getImageUrl(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  // URLs absolutas e URIs locais do Expo passam sem alteração
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('file://') || url.startsWith('data:')) return url;
+  // Caminho relativo (/uploads/...) → prefixar com base do backend
+  return `${BACKEND_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 // Configuracoes do Sentry (Error Tracking)
 export const SENTRY_CONFIG = {
   DSN: 'https://f0a8f44b129143c8689af5af8b20ee82@o4510386072715264.ingest.us.sentry.io/4510386085298176',

@@ -161,6 +161,7 @@ export interface Product {
   entry_items?: ProductEntryItem[]; // Histórico FIFO de entradas
   category?: Category;
   batch?: Batch;
+  has_sales?: boolean; // Possui vendas não canceladas (bloqueia exclusão e desativação)
 }
 
 export interface ProductCreate {
@@ -202,6 +203,7 @@ export interface ProductUpdate {
   is_digital?: boolean;
   is_activewear?: boolean;
   is_active?: boolean;
+  image_url?: string;
 }
 
 export interface ProductListResponse {
@@ -618,6 +620,14 @@ export interface TripAnalytics {
   total_profit?: number;
   roi?: number;
   sell_through_rate?: number;
+  trip_revenue?: number;
+  total_quantity_purchased?: number;
+  total_quantity_sold?: number;
+  quantity_remaining?: number;
+  travel_cost_total?: number;
+  total_invested?: number;
+  total_entries?: number;
+  total_items?: number;
 }
 
 // ============================================

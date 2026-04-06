@@ -12,8 +12,7 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import { TextInput, IconButton } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
-import CustomModal from '@/components/ui/CustomModal';
-import ModalActions from '@/components/ui/ModalActions';
+import BottomSheet from '@/components/ui/BottomSheet';
 import { Colors } from '@/constants/Colors';
 
 interface MarkAsSentModalProps {
@@ -54,11 +53,16 @@ export default function MarkAsSentModal({
   };
 
   return (
-    <CustomModal
+    <BottomSheet
       visible={visible}
       onDismiss={handleCancel}
       title="Marcar como Enviado"
       subtitle="O prazo de devolução será iniciado"
+      icon="send-outline"
+      actions={[
+        { label: 'Cancelar', onPress: handleCancel, variant: 'secondary' },
+        { label: 'Confirmar Envio', onPress: handleConfirm, icon: 'send', loading },
+      ]}
     >
       {/* Info Banner */}
       <View style={styles.infoBanner}>
@@ -135,15 +139,7 @@ export default function MarkAsSentModal({
         />
       </View>
 
-      <ModalActions
-        onCancel={handleCancel}
-        onConfirm={handleConfirm}
-        confirmText="Confirmar Envio"
-        cancelText="Cancelar"
-        confirmColor={Colors.light.primary}
-        loading={loading}
-      />
-    </CustomModal>
+    </BottomSheet>
   );
 }
 

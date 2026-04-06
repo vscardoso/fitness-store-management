@@ -26,6 +26,7 @@ import Animated, {
 import { getProductById } from '@/services/productService';
 import { formatVariantLabel, getProductVariants } from '@/services/productVariantService';
 import PageHeader from '@/components/layout/PageHeader';
+import useBackToList from '@/hooks/useBackToList';
 import ProductQRCode from '@/components/products/ProductQRCode';
 import ProductLabel, { LabelData } from '@/components/labels/ProductLabel';
 import { Colors, theme } from '@/constants/Colors';
@@ -63,9 +64,10 @@ const LABEL_FORMATS: LabelFormat[] = [
 export default function ProductQRCodeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/products');
   const brandingColors = useBrandingColors();
-  const qrCaptureRef = React.useRef<ViewShot>(null);
-  const labelCaptureRef = React.useRef<ViewShot>(null);
+  const qrCaptureRef = React.useRef<ViewShot | null>(null) as React.RefObject<ViewShot>;
+  const labelCaptureRef = React.useRef<ViewShot | null>(null) as React.RefObject<ViewShot>;
   const [mode, setMode] = React.useState<'qr' | 'label'>('qr');
   const [formatId, setFormatId] = React.useState('f14');
   const [autoBestFormat, setAutoBestFormat] = React.useState(true);
@@ -469,7 +471,7 @@ export default function ProductQRCodeScreen() {
               : 'QR e etiqueta da mesma variação'
           }
           showBackButton
-          onBack={() => router.back()}
+          onBack={goBack}
         />
       </Animated.View>
 

@@ -21,6 +21,7 @@ import { createProductWithVariants } from '@/services/productVariantService';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { logError, logWarn, logInfo } from '@/services/debugLog';
 import { generateSKU, generateVariantSKU } from '@/utils/skuGenerator';
+import { capitalizeWords } from '@/utils/format';
 import type {
   WizardStep,
   WizardState,
@@ -88,6 +89,7 @@ export interface UseProductWizardReturn {
 
   // Utils
   resetWizard: () => void;
+  resetCreatedProduct: () => void;
 }
 
 const INITIAL_STATE: WizardState = {
@@ -150,6 +152,21 @@ export function useProductWizard() {
 
   const [state, setState] = useState<WizardState>(INITIAL_STATE);
   const [hasPermission, setHasPermission] = useState(false);
+
+  const invalidateProductCaches = useCallback((productId?: number) => {
+    queryClient.invalidateQueries({ queryKey: ['products'] });
+    queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+    queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
+    queryClient.invalidateQueries({ queryKey: ['active-products'] });
+    queryClient.invalidateQueries({ queryKey: ['catalog-products-count'] });
+    queryClient.invalidateQueries({ queryKey: ['incomplete-products-count'] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+
+    if (productId && productId > 0) {
+      queryClient.invalidateQueries({ queryKey: ['product', productId] });
+      queryClient.invalidateQueries({ queryKey: ['inventory', productId] });
+    }
+  }, [queryClient]);
 
   // ============================================
   // PERMISSÕES (separadas para evitar prompt de múltiplas fotos)
@@ -318,7 +335,7 @@ export function useProductWizard() {
             brand: result.brand || undefined,
             color: result.color || undefined,
             size: result.size || undefined,
-            gender: (result as any).gender || undefined,
+            gender: (result as any).gender ? capitalizeWords((result as any).gender) : undefined,
             material: (result as any).material || undefined,
             category_id: result.suggested_category_id || undefined,
             cost_price: result.suggested_cost_price || undefined,
@@ -426,7 +443,7 @@ export function useProductWizard() {
         brand: product.brand || undefined,
         color: product.color || undefined,
         size: product.size || undefined,
-        gender: product.gender || undefined,
+        gender: product.gender ? capitalizeWords(product.gender) : undefined,
         material: product.material || undefined,
         category_id: product.category_id || undefined,
         cost_price: product.cost_price || undefined,
@@ -497,7 +514,9 @@ export function useProductWizard() {
         brand: state.productData.brand?.trim() || undefined,
         color: state.productData.color?.trim() || undefined,
         size: state.productData.size?.trim() || undefined,
-        gender: state.productData.gender?.trim() || undefined,
+        gender: state.productData.gender?.trim()
+          ? capitalizeWords(state.productData.gender.trim())
+          : undefined,
         material: state.productData.material?.trim() || undefined,
         category_id: state.productData.category_id!,
         cost_price: state.productData.cost_price,
@@ -588,6 +607,7 @@ export function useProductWizard() {
       } else {
         created = {
           ...productData,
+          image_url: state.capturedImage || undefined,
           _virtual: true, // ainda não existe no banco
           _hasWizardVariants: false,
           current_stock: 0,
@@ -607,9 +627,7 @@ export function useProductWizard() {
       }
 
       // Invalidar cache
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
-      queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
+      invalidateProductCaches(created?.id);
 
       // Atualizar estado e IR PARA STEP 3 (não navegar para fora!)
       _wizardCreatedProductBackup = created; // Backup para sobreviver router.replace
@@ -628,7 +646,7 @@ export function useProductWizard() {
       }));
       showDialog('Erro ao criar produto', error.message || 'Tente novamente.', 'danger');
     }
-  }, [state.productData, state.capturedImage, state.hasVariants, state.variantColors, state.variantSizes, state.colorSizes, state.variantPrices, validateProductData, queryClient, showDialog]);
+  }, [state.productData, state.capturedImage, state.hasVariants, state.variantColors, state.variantSizes, state.colorSizes, state.variantPrices, validateProductData, invalidateProductCaches, showDialog]);
 
   // ─────────────────────────────────────────────────────────────────────────────
   // selectDuplicateProduct — BLOCO BLINDADO: não alterar sem revisar todo o fluxo
@@ -673,7 +691,7 @@ export function useProductWizard() {
             brand: existingProduct.brand || undefined,
             color: existingProduct.color || undefined,
             size: existingProduct.size || undefined,
-            gender: existingProduct.gender || undefined,
+            gender: existingProduct.gender ? capitalizeWords(existingProduct.gender) : undefined,
             material: existingProduct.material || undefined,
             category_id: existingProduct.category_id,
             cost_price: existingProduct.cost_price || undefined,
@@ -721,6 +739,7 @@ export function useProductWizard() {
         params: {
           fromWizard: 'true',
           wizardMode: 'atomic', // ← Flag para tela de entrada usar endpoint atômico
+          ...(state.capturedImage ? { wizardImageUri: encodeURIComponent(state.capturedImage) } : {}),
           wizardProductData: JSON.stringify({
             product_name: product.name,
             product_sku: product.sku,
@@ -757,12 +776,13 @@ export function useProductWizard() {
           fromWizard: 'true',
           wizardProductId: String(product.id),
           wizardProductName: product.name,
+          ...(state.capturedImage ? { wizardImageUri: encodeURIComponent(state.capturedImage) } : {}),
           preselectedProductData: JSON.stringify(product),
           preselectedQuantity: String(validQuantity),
         },
       });
     }
-  }, [state.createdProduct, state.hasVariants, router]);
+  }, [state.createdProduct, state.hasVariants, state.capturedImage, router]);
 
   const goToNewEntryWithVariants = useCallback((variantQtys: Record<number, number>) => {
     if (!state.createdProduct) return;
@@ -800,6 +820,7 @@ export function useProductWizard() {
           fromWizard: 'true',
           wizardProductName: product.name,
           wizardMode: 'atomic-variants',
+          ...(state.capturedImage ? { wizardImageUri: encodeURIComponent(state.capturedImage) } : {}),
           wizardAtomicVariantsData: JSON.stringify({
             product_name: product.name,
             product_barcode: product.barcode ?? undefined,
@@ -845,6 +866,7 @@ export function useProductWizard() {
         fromWizard: 'true',
         wizardProductId: String(product.id),
         wizardProductName: product.name,
+        ...(state.capturedImage ? { wizardImageUri: encodeURIComponent(state.capturedImage) } : {}),
         preselectedVariantsData: JSON.stringify(variantsPayload),
         // Passa o produto completo (com variants[]) para que entries/add
         // possa devolvê-lo ao wizard via createdProductData ao retornar.
@@ -852,7 +874,7 @@ export function useProductWizard() {
         preselectedProductData: JSON.stringify(state.createdProduct),
       },
     });
-  }, [state.createdProduct, router, goToNewEntry]);
+  }, [state.createdProduct, state.capturedImage, router, goToNewEntry]);
 
   // Processar retorno da tela de criação de entrada
   // Aceita dados do produto opcionalmente (para caso de entrada existente, onde o estado foi perdido)
@@ -884,7 +906,7 @@ export function useProductWizard() {
           brand: normalized.brand || undefined,
           color: normalized.color || undefined,
           size: normalized.size || undefined,
-          gender: normalized.gender || undefined,
+          gender: normalized.gender ? capitalizeWords(normalized.gender) : undefined,
           material: normalized.material || undefined,
           category_id: normalized.category_id,
           cost_price: normalized.cost_price || undefined,
@@ -920,7 +942,7 @@ export function useProductWizard() {
           brand: normalized.brand || undefined,
           color: normalized.color || undefined,
           size: normalized.size || undefined,
-          gender: normalized.gender || undefined,
+          gender: normalized.gender ? capitalizeWords(normalized.gender) : undefined,
           material: normalized.material || undefined,
           category_id: normalized.category_id,
           cost_price: normalized.cost_price || undefined,
@@ -950,8 +972,15 @@ export function useProductWizard() {
       setState(prev => ({ ...prev, isCreating: true }));
       try {
         const { _virtual, ...productPayload } = productAny;
-        const realProduct = await createProduct({ ...productPayload, is_catalog: true } as any);
-        queryClient.invalidateQueries({ queryKey: ['products'] });
+        let realProduct = await createProduct({ ...productPayload, is_catalog: true } as any);
+        if (state.capturedImage) {
+          try {
+            realProduct = await uploadProductImageWithFallback(realProduct.id, state.capturedImage);
+          } catch (uploadErr) {
+            logWarn('Wizard', 'goToExistingEntry - erro ao fazer upload da imagem', uploadErr);
+          }
+        }
+        invalidateProductCaches(realProduct.id);
         _wizardCreatedProductBackup = realProduct;
         setState(prev => ({ ...prev, createdProduct: realProduct as Product, isCreating: false }));
         // Navegar com o produto real recém-criado
@@ -964,6 +993,8 @@ export function useProductWizard() {
               id: realProduct.id,
               name: realProduct.name,
               sku: realProduct.sku,
+              barcode: realProduct.barcode,
+              image_url: realProduct.image_url,
               cost_price: realProduct.cost_price,
               price: realProduct.price,
               category_id: realProduct.category_id,
@@ -996,6 +1027,8 @@ export function useProductWizard() {
           id: state.createdProduct.id,
           name: state.createdProduct.name,
           sku: state.createdProduct.sku,
+          barcode: state.createdProduct.barcode,
+          image_url: (state.createdProduct as any).image_url,
           cost_price: state.createdProduct.cost_price,
           price: state.createdProduct.price,
           category_id: state.createdProduct.category_id,
@@ -1003,7 +1036,7 @@ export function useProductWizard() {
         }),
       },
     });
-  }, [state.createdProduct, router]);
+  }, [state.createdProduct, state.capturedImage, invalidateProductCaches, router, showDialog]);
 
   const goToExistingEntryWithVariants = useCallback(async (variantQtys: Record<number, number>) => {
     if (!state.createdProduct) return;
@@ -1045,11 +1078,17 @@ export function useProductWizard() {
           is_active: true,
         } as any;
 
+        if (state.capturedImage) {
+          try {
+            product = await uploadProductImageWithFallback(product.id, state.capturedImage);
+          } catch (uploadErr) {
+            logWarn('Wizard', 'goToExistingEntryWithVariants - erro ao fazer upload da imagem', uploadErr);
+          }
+        }
+
         _wizardCreatedProductBackup = product; // Backup para sobreviver router.replace
         setState(prev => ({ ...prev, createdProduct: product as Product, isCreating: false }));
-        queryClient.invalidateQueries({ queryKey: ['products'] });
-        queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
-        queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
+        invalidateProductCaches(product.id);
 
         logInfo('Wizard', 'goToExistingEntryWithVariants - produto criado para entrada existente', {
           productId: product.id,
@@ -1099,6 +1138,8 @@ export function useProductWizard() {
           id: product.id,
           name: product.name,
           sku: product.sku,
+          barcode: product.barcode,
+          image_url: product.image_url,
           cost_price: product.cost_price,
           price: product.price,
           category_id: product.category_id,
@@ -1111,7 +1152,7 @@ export function useProductWizard() {
         }),
       },
     });
-  }, [state.createdProduct, router, goToExistingEntry]);
+  }, [state.createdProduct, state.capturedImage, router, goToExistingEntry, invalidateProductCaches, showDialog]);
 
   const skipEntry = useCallback(() => {
     const product = state.createdProduct as any;
@@ -1121,13 +1162,19 @@ export function useProductWizard() {
     if (product?._virtual) {
       setState(prev => ({ ...prev, isCreating: true }));
       const { _virtual, ...productPayload } = product;
-      createProduct({ ...productPayload, is_catalog: true } as any).then((created) => {
-        queryClient.invalidateQueries({ queryKey: ['products'], refetchType: 'none' });
-        queryClient.invalidateQueries({ queryKey: ['grouped-products'], refetchType: 'none' });
-        queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'], refetchType: 'none' });
+      createProduct({ ...productPayload, is_catalog: true } as any).then(async (created) => {
+        let createdWithImage = created;
+        if (state.capturedImage) {
+          try {
+            createdWithImage = await uploadProductImageWithFallback(created.id, state.capturedImage);
+          } catch (uploadErr) {
+            logWarn('Wizard', 'skipEntry - erro ao fazer upload da imagem (produto virtual)', uploadErr);
+          }
+        }
+        invalidateProductCaches(createdWithImage?.id);
         setState(prev => ({
           ...prev,
-          createdProduct: created as Product,
+          createdProduct: createdWithImage as Product,
           linkedEntry: null,
           currentStep: 'complete',
           isDirty: false,
@@ -1162,20 +1209,26 @@ export function useProductWizard() {
         base_price: product.price,
         is_catalog: true,
         variants: variantsList,
-      }).then((created) => {
+      }).then(async (created) => {
+        let createdWithImage = created;
+        if (state.capturedImage) {
+          try {
+            createdWithImage = await uploadProductImageWithFallback(created.id, state.capturedImage);
+          } catch (uploadErr) {
+            logWarn('Wizard', 'skipEntry - erro ao fazer upload da imagem (produto variantes)', uploadErr);
+          }
+        }
         const createdProduct = {
-          ...created,
-          sku: created.variants?.[0]?.sku || product.sku,
-          price: created.base_price ?? created.variants?.[0]?.price ?? 0,
-          cost_price: created.variants?.[0]?.cost_price ?? undefined,
+          ...createdWithImage,
+          sku: createdWithImage.variants?.[0]?.sku || product.sku,
+          price: createdWithImage.base_price ?? createdWithImage.variants?.[0]?.price ?? 0,
+          cost_price: createdWithImage.variants?.[0]?.cost_price ?? undefined,
           current_stock: 0,
           min_stock_threshold: 5,
           is_active: true,
         } as any;
         _wizardCreatedProductBackup = createdProduct;
-        queryClient.invalidateQueries({ queryKey: ['products'], refetchType: 'none' });
-        queryClient.invalidateQueries({ queryKey: ['grouped-products'], refetchType: 'none' });
-        queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'], refetchType: 'none' });
+        invalidateProductCaches(createdProduct?.id);
         setState(prev => ({
           ...prev,
           createdProduct: createdProduct as Product,
@@ -1205,7 +1258,7 @@ export function useProductWizard() {
       currentStep: 'complete',
       isDirty: false,
     }));
-  }, [state.createdProduct, queryClient, showDialog]);
+  }, [state.createdProduct, state.capturedImage, invalidateProductCaches, showDialog]);
 
   // ============================================
   // UTILS
@@ -1369,6 +1422,9 @@ export function useProductWizard() {
     // Utils
     resetWizard,
     clearWizardDialog,
+    resetCreatedProduct: useCallback(() => {
+      setState(prev => ({ ...prev, createdProduct: null }));
+    }, []),
   };
 }
 

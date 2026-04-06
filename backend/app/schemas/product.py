@@ -140,6 +140,9 @@ class ProductResponse(ProductBase):
     variant_count: Optional[int] = Field(None, description="Número de variantes")
     base_price: Optional[Decimal] = Field(None, description="Preço base do produto")
 
+    # Indica se o produto possui vendas não canceladas (bloqueia exclusão e desativação)
+    has_sales: Optional[bool] = Field(None, description="Produto possui vendas não canceladas")
+
     # Expor sale_price no response (espelha "price") para compatibilidade
     @computed_field(return_type=Decimal)
     def sale_price(self) -> Decimal:

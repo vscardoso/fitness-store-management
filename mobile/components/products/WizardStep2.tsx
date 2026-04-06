@@ -27,6 +27,7 @@ import VariantBuilderInline from '@/components/products/VariantBuilderInline';
 import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
 import { getActiveProducts } from '@/services/productService';
 import { generateSKU, generateVariantSKU } from '@/utils/skuGenerator';
+import { capitalizeWords } from '@/utils/format';
 
 interface WizardStep2Props {
   wizard: UseProductWizardReturn;
@@ -193,9 +194,22 @@ export default function WizardStep2({
   };
 
   const handleCreate = async () => {
-    // Quando o usuário escolhe "usar similar", o produto já existe.
-    // Neste caso, mantém o fluxo e avança para a etapa de entrada.
-    if (state.createdProduct?.id) {
+    if (state.createdProduct?.id && state.createdProduct.id > 0) {
+      // Se o usuário adicionou variantes novas a um produto já existente no banco
+      // (ex: restaurado da tela de produtos incompletos), precisamos gerar o fluxo
+      // atômico de variantes. Limpar createdProduct para que createProduct() funcione.
+      const hasNewVariants =
+        state.hasVariants &&
+        (state.variantSizes.length > 0 || state.variantColors.length > 0) &&
+        !(state.createdProduct as any)._atomicVariants;
+
+      if (hasNewVariants) {
+        wizard.resetCreatedProduct();
+        await wizard.createProduct();
+        return;
+      }
+
+      // Fluxo "usar similar": produto existe, apenas avança para entrada.
       wizard.goToStep('entry');
       return;
     }
@@ -223,7 +237,8 @@ export default function WizardStep2({
               ref={nameRef}
               label="Nome do Produto *"
               value={formData.name || ''}
-              onChangeText={(text) => updateField('name', text)}
+              onChangeText={(text) => updateField('name', capitalizeWords(text))}
+              autoCapitalize="words"
               mode="outlined"
               style={styles.input}
               error={!!state.validationErrors.name}
@@ -407,7 +422,8 @@ export default function WizardStep2({
                 ref={brandRef}
                 label="Marca"
                 value={formData.brand || ''}
-                onChangeText={(text) => updateField('brand', text)}
+                onChangeText={(text) => updateField('brand', capitalizeWords(text))}
+                autoCapitalize="words"
                 mode="outlined"
                 style={styles.input}
                 left={<TextInput.Icon icon="tag" />}
@@ -421,7 +437,8 @@ export default function WizardStep2({
                   ref={genderRef}
                   label="Gênero"
                   value={(formData as any).gender || ''}
-                  onChangeText={(text) => updateField('gender', text)}
+                  onChangeText={(text) => updateField('gender', capitalizeWords(text))}
+                  autoCapitalize="words"
                   mode="outlined"
                   style={[styles.input, styles.halfInput]}
                   left={<TextInput.Icon icon="account-outline" />}
@@ -433,7 +450,8 @@ export default function WizardStep2({
                   ref={materialRef}
                   label="Material"
                   value={(formData as any).material || ''}
-                  onChangeText={(text) => updateField('material', text)}
+                  onChangeText={(text) => updateField('material', capitalizeWords(text))}
+                  autoCapitalize="words"
                   mode="outlined"
                   style={[styles.input, styles.halfInput]}
                   left={<TextInput.Icon icon="layers-outline" />}
@@ -450,7 +468,8 @@ export default function WizardStep2({
                   ref={colorRef}
                   label="Cor"
                   value={formData.color || ''}
-                  onChangeText={(text) => updateField('color', text)}
+                  onChangeText={(text) => updateField('color', capitalizeWords(text))}
+                  autoCapitalize="words"
                   mode="outlined"
                   style={[styles.input, styles.halfInput]}
                   left={<TextInput.Icon icon="palette" />}
@@ -478,7 +497,8 @@ export default function WizardStep2({
                 ref={descRef}
                 label="Descrição"
                 value={formData.description || ''}
-                onChangeText={(text) => updateField('description', text)}
+                onChangeText={(text) => updateField('description', capitalizeWords(text))}
+                autoCapitalize="words"
                 mode="outlined"
                 style={styles.input}
                 multiline

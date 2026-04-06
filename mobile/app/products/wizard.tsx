@@ -25,6 +25,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useCategories } from '@/hooks';
+import useBackToList from '@/hooks/useBackToList';
 import { useProductWizard } from '@/hooks/useProductWizard';
 import type { IdentifyMethod } from '@/types/wizard';
 import WizardStepper from '@/components/products/WizardStepper';
@@ -36,6 +37,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 export default function ProductWizardScreen() {
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/products');
   const brandingColors = useBrandingColors();
   const params = useLocalSearchParams<{
     method?: string;
@@ -251,9 +253,9 @@ export default function ProductWizardScreen() {
     if (state.isDirty) {
       setShowExitDialog(true);
     } else {
-      router.back();
+      goBack();
     }
-  }, [state.currentStep, state.isDirty, wizard, router]);
+  }, [state.currentStep, state.isDirty, wizard, goBack]);
 
   const handleStepPress = useCallback((targetStep: 'identify' | 'confirm' | 'entry' | 'complete') => {
     if (targetStep === state.currentStep) {
@@ -312,7 +314,7 @@ export default function ProductWizardScreen() {
   const confirmExit = () => {
     setShowExitDialog(false);
     wizard.resetWizard();
-    router.back();
+    goBack();
   };
 
   const getHeaderTitle = () => {
@@ -358,16 +360,18 @@ export default function ProductWizardScreen() {
           style={styles.headerGradient}
         >
           <View style={styles.headerTop}>
-            <TouchableOpacity
-              onPress={handleBack}
-              style={styles.backButton}
-            >
-              <Ionicons name="arrow-back" size={24} color="#fff" />
-            </TouchableOpacity>
+            {state.currentStep !== 'complete' && (
+              <TouchableOpacity
+                onPress={handleBack}
+                style={styles.backButton}
+              >
+                <Ionicons name="arrow-back" size={24} color="#fff" />
+              </TouchableOpacity>
+            )}
 
             <Text style={styles.headerTitle}>{getHeaderTitle()}</Text>
 
-            <View style={styles.headerPlaceholder} />
+            {state.currentStep !== 'complete' && <View style={styles.headerPlaceholder} />}
           </View>
 
           <Text style={styles.headerSubtitle}>{getHeaderSubtitle()}</Text>
@@ -375,11 +379,13 @@ export default function ProductWizardScreen() {
       </View>
 
       {/* Stepper */}
-      <WizardStepper
-        currentStep={state.currentStep}
-        onStepPress={handleStepPress as any}
-        getBlockedReason={getBlockedReason as any}
-      />
+      {state.currentStep !== 'complete' && (
+        <WizardStepper
+          currentStep={state.currentStep}
+          onStepPress={handleStepPress as any}
+          getBlockedReason={getBlockedReason as any}
+        />
+      )}
 
       {/* Content - cada step gerencia seu próprio KeyboardAvoidingView */}
       <Animated.View

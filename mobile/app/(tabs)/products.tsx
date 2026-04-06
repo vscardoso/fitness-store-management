@@ -19,7 +19,7 @@ import { useAuth } from '@/hooks/useAuth';
 import EmptyState from '@/components/ui/EmptyState';
 import ProductGroupCard from '@/components/products/ProductGroupCard';
 import FAB from '@/components/FAB';
-import { getGroupedProducts, getCatalogProductsCount } from '@/services/productService';
+import { getGroupedProducts, getCatalogProductsCount, getIncompleteProductsCount } from '@/services/productService';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useTutorialContext } from '@/components/tutorial';
@@ -174,6 +174,15 @@ export default function ProductsScreen() {
     queryKey: ['catalog-products-count'],
     queryFn: getCatalogProductsCount,
     staleTime: 10 * 60 * 1000, // 10 min — catálogo raramente muda
+  });
+
+  /**
+   * Query para contar produtos incompletos (wizard abandonado sem entrada)
+   */
+  const { data: incompleteCount = 0 } = useQuery({
+    queryKey: ['incomplete-products-count'],
+    queryFn: getIncompleteProductsCount,
+    staleTime: 2 * 60 * 1000, // 2 min
   });
 
   /**
@@ -449,6 +458,24 @@ export default function ProductsScreen() {
           )}
           </View>
         </View>
+
+        {incompleteCount > 0 && (
+          <TouchableOpacity
+            style={styles.incompleteBanner}
+            onPress={() => router.push('/products/incomplete')}
+            activeOpacity={0.8}
+          >
+            <View style={styles.incompleteBannerIcon}>
+              <Ionicons name="warning-outline" size={16} color="#B45309" />
+            </View>
+            <Text style={styles.incompleteBannerText}>
+              {incompleteCount === 1
+                ? '1 produto sem entrada — completar cadastro'
+                : `${incompleteCount} produtos sem entrada — completar cadastro`}
+            </Text>
+            <Ionicons name="chevron-forward" size={16} color="#B45309" />
+          </TouchableOpacity>
+        )}
 
         <FlatList
           data={products}
@@ -743,5 +770,33 @@ const styles = StyleSheet.create({
   loadingMoreText: {
     fontSize: theme.fontSize.sm,
     color: Colors.light.textSecondary,
+  },
+  incompleteBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    marginHorizontal: theme.spacing.md,
+    marginBottom: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: 10,
+    backgroundColor: '#FEF3C7',
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: '#FCD34D',
+  },
+  incompleteBannerIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: '#FDE68A',
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexShrink: 0,
+  },
+  incompleteBannerText: {
+    flex: 1,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700',
+    color: '#92400E',
   },
 });

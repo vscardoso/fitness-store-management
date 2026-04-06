@@ -19,6 +19,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
+import useBackToList from '@/hooks/useBackToList';
 import { Colors, theme } from '@/constants/Colors';
 import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';
@@ -33,6 +34,7 @@ import { UserRole, type TeamMember } from '@/types';
 
 export default function TeamScreen() {
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/more');
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
@@ -205,7 +207,7 @@ export default function TeamScreen() {
           <View style={styles.headerContent}>
             <View style={styles.headerTop}>
               <TouchableOpacity
-                onPress={() => router.back()}
+                onPress={goBack}
                 style={styles.backButton}
               >
                 <Ionicons name="arrow-back" size={24} color="#fff" />

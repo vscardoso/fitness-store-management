@@ -292,7 +292,7 @@ export default async function HomePage() {
                 href={waUrl("Olá! Vim pelo site e não encontrei o que procuro. Poderia me ajudar? 😊")}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-3 bg-white font-bold text-lg px-10 py-4 rounded-2xl transition-all hover:scale-105 hover:shadow-[0_0_40px_rgba(255,255,255,0.15)]"
+                className="inline-flex items-center gap-3 bg-white font-bold text-lg px-10 py-4 rounded-2xl transition-all hover:-translate-y-1 hover:shadow-[0_0_40px_rgba(255,255,255,0.15)]"
                 style={{ color: "#ff1a6c" }}
               >
                 <svg viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6" style={{ color: "#25D366" }}>

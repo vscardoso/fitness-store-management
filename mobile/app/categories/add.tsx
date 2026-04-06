@@ -30,6 +30,7 @@ import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
 
 export default function AddCategoryScreen() {
   const router = useRouter();
+  const goBack = () => router.back();
   const brandingColors = useBrandingColors();
   const createMutation = useCreateCategory();
   const { categories } = useCategories();

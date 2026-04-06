@@ -434,26 +434,118 @@ const cardStyle = {
 
 ### Padrões de Botões
 
+> ⚠️ **NUNCA usar `<Button>` do react-native-paper para ações principais.** O padrão do projeto é `TouchableOpacity + LinearGradient` para primário e `TouchableOpacity` outlined para secundário/destrutivo.
+
+#### Grupo de botões no final da página (padrão canônico)
+
+Botões ficam **dentro do ScrollView**, no final do conteúdo — nunca em barra fixa separada.
+
 ```typescript
-// Botão primário (ação principal)
-<Button
-  mode="contained"
-  onPress={handleAction}
-  loading={isLoading}
-  disabled={isLoading}
-  icon="icon-name"
-  style={{ borderRadius: 12 }}
-  contentStyle={{ paddingVertical: 8 }}
->
-  Texto da Ação
-</Button>
+// Container
+<View style={styles.actions}>
+  {/* Botão secundário (ex: Fotos, Cancelar) */}
+  <TouchableOpacity
+    style={[styles.actionButton, styles.secondaryActionButton]}
+    onPress={handleSecondary}
+    activeOpacity={0.75}
+  >
+    <Ionicons name="images-outline" size={18} color={brandingColors.primary} />
+    <Text style={[styles.secondaryActionButtonText, { color: brandingColors.primary }]}>Fotos</Text>
+  </TouchableOpacity>
 
-// Botão secundário (ação alternativa)
-<Button mode="outlined" ...>
+  {/* Botão destrutivo (ex: Excluir) */}
+  <TouchableOpacity
+    style={[styles.actionButton, styles.dangerActionButton]}
+    onPress={handleDelete}
+    activeOpacity={0.75}
+  >
+    <Ionicons name="trash-outline" size={18} color={Colors.light.error} />
+    <Text style={styles.dangerActionButtonText}>Excluir</Text>
+  </TouchableOpacity>
 
-// Botão destrutivo (deletar/cancelar)
-<Button mode="outlined" textColor={Colors.light.error} ...>
+  {/* Botão primário (ex: Editar, Salvar) */}
+  <TouchableOpacity
+    style={[styles.actionButton, styles.primaryActionButton]}
+    onPress={handlePrimary}
+    activeOpacity={0.8}
+  >
+    <LinearGradient
+      colors={brandingColors.gradient}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 0 }}
+      style={styles.primaryActionButtonGradient}
+    >
+      <Ionicons name="pencil-outline" size={18} color="#fff" />
+      <Text style={styles.primaryActionButtonText}>Editar</Text>
+    </LinearGradient>
+  </TouchableOpacity>
+</View>
 ```
+
+```typescript
+// Estilos obrigatórios (copiar direto)
+actions: {
+  flexDirection: 'row',
+  gap: theme.spacing.sm,
+  marginTop: theme.spacing.lg,
+  paddingBottom: theme.spacing.md,
+},
+actionButton: {
+  flex: 1,
+  borderRadius: theme.borderRadius.lg,
+  minHeight: 52,
+  overflow: 'hidden',
+},
+primaryActionButton: {
+  ...theme.shadows.sm,
+},
+primaryActionButtonGradient: {
+  minHeight: 52,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+  paddingHorizontal: theme.spacing.md,
+},
+primaryActionButtonText: {
+  fontSize: theme.fontSize.base,
+  color: '#fff',
+  fontWeight: '700',
+},
+secondaryActionButton: {
+  borderWidth: 1.5,
+  borderColor: Colors.light.border,
+  backgroundColor: Colors.light.card,
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+},
+secondaryActionButtonText: {
+  fontSize: theme.fontSize.base,
+  fontWeight: '700',
+},
+dangerActionButton: {
+  borderWidth: 1.5,
+  borderColor: Colors.light.error + '50',
+  backgroundColor: Colors.light.error + '08',
+  flexDirection: 'row',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: 8,
+},
+dangerActionButtonText: {
+  fontSize: theme.fontSize.base,
+  fontWeight: '700',
+  color: Colors.light.error,
+},
+```
+
+**Regras:**
+- Ordem: secundário → destrutivo → primário (destaque à direita)
+- Botões condicionais (ex: Fotos só se `hasVariants`) → omitir do JSX, `flex` ajusta automaticamente
+- `minHeight: 52` obrigatório em todos
+- Primário sempre com `LinearGradient` + `brandingColors.gradient`
 
 ### Padrões de FAB (Floating Action Button)
 

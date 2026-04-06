@@ -12,9 +12,11 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
+
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { useRouter } from 'expo-router';
+import useBackToList from '@/hooks/useBackToList';
 import { useCreateCustomer } from '@/hooks';
 import { searchCep } from '@/services/cepService';
 import { phoneMask, cpfMask, cepMask, dateMask, isValidDate } from '@/utils/masks';
@@ -24,10 +26,10 @@ import type { CustomerCreate } from '@/types';
 
 export default function AddCustomerScreen() {
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/customers');
   const createMutation = useCreateCustomer();
   const brandingColors = useBrandingColors();
 
-  // Estados do formulário
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -40,7 +42,6 @@ export default function AddCustomerScreen() {
   const [state, setState] = useState('');
   const [zipCode, setZipCode] = useState('');
 
-  // Estados de validação e UI
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loadingCep, setLoadingCep] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
@@ -48,15 +49,11 @@ export default function AddCustomerScreen() {
   const [errorMessage, setErrorMessage] = useState('');
   const [showCepDialog, setShowCepDialog] = useState(false);
 
-  /**
-   * Buscar CEP automaticamente
-   */
   const handleCepChange = async (text: string) => {
     const masked = cepMask(text);
     setZipCode(masked);
-    setErrors({ ...errors, zipCode: '' });
+    setErrors((prev) => ({ ...prev, zipCode: '' }));
 
-    // Busca automática quando CEP estiver completo
     const cleanCep = masked.replace(/\D/g, '');
     if (cleanCep.length === 8) {
       setLoadingCep(true);
@@ -74,57 +71,51 @@ export default function AddCustomerScreen() {
     }
   };
 
-  /**
-   * Validar formulário
-   */
   const validateForm = (): boolean => {
     const newErrors: Record<string, string> = {};
 
     if (!fullName.trim()) {
-      newErrors.fullName = 'Nome completo é obrigatório';
+      newErrors.fullName = 'Nome completo e obrigatorio';
     }
-
     if (!phone.trim()) {
-      newErrors.phone = 'Telefone é obrigatório';
+      newErrors.phone = 'Telefone e obrigatorio';
     } else if (phone.replace(/\D/g, '').length < 10) {
-      newErrors.phone = 'Telefone inválido';
+      newErrors.phone = 'Telefone invalido';
     }
-
     if (email && !email.includes('@')) {
-      newErrors.email = 'Email inválido';
+      newErrors.email = 'Email invalido';
     }
-
     if (cpf && cpf.replace(/\D/g, '').length !== 11) {
-      newErrors.cpf = 'CPF inválido';
+      newErrors.cpf = 'CPF invalido';
     }
-
     if (birthDate && !isValidDate(birthDate)) {
-      newErrors.birthDate = 'Data inválida (DD/MM/AAAA)';
+      newErrors.birthDate = 'Data invalida (DD/MM/AAAA)';
     }
-
     if (zipCode && zipCode.replace(/\D/g, '').length !== 8) {
-      newErrors.zipCode = 'CEP inválido';
+      newErrors.zipCode = 'CEP invalido';
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  const formatDateToISO = (date: string): string => {
+    const parts = date.split('/');
+    if (parts.length !== 3) return '';
+    const [day, month, year] = parts;
+    return `${year}-${month}-${day}`;
+  };
 
-
-  /**
-   * Submeter formulário
-   */
   const handleSubmit = () => {
     if (!validateForm()) {
-      setErrorMessage('Preencha todos os campos obrigatórios corretamente');
+      setErrorMessage('Preencha todos os campos obrigatorios corretamente');
       setShowErrorDialog(true);
       return;
     }
 
     const customerData: CustomerCreate = {
       full_name: fullName.trim(),
-      phone: phone.replace(/\D/g, ''), // Remove máscara
+      phone: phone.replace(/\D/g, ''),
       email: email.trim() || undefined,
       document_number: cpf ? cpf.replace(/\D/g, '') : undefined,
       birth_date: birthDate ? formatDateToISO(birthDate) : undefined,
@@ -137,23 +128,13 @@ export default function AddCustomerScreen() {
     };
 
     createMutation.mutate(customerData, {
-      onSuccess: () => {
-        setShowSuccessDialog(true);
-      },
+      onSuccess: () => setShowSuccessDialog(true),
       onError: (error: any) => {
-        const message = error?.response?.data?.detail || error.message || 'Erro ao cadastrar cliente';
+        const message = error?.response?.data?.detail || error?.message || 'Erro ao cadastrar cliente';
         setErrorMessage(message);
         setShowErrorDialog(true);
       },
     });
-  };
-
-  /**
-   * Converter DD/MM/AAAA para YYYY-MM-DD
-   */
-  const formatDateToISO = (date: string): string => {
-    const [day, month, year] = date.split('/');
-    return `${year}-${month}-${day}`;
   };
 
   return (
@@ -162,236 +143,241 @@ export default function AddCustomerScreen() {
         title="Novo Cliente"
         subtitle="Cadastre os dados de contato"
         showBackButton
-        onBack={() => router.push('/(tabs)/customers')}
+        onBack={goBack}
       />
 
-      <KeyboardAvoidingView
-        style={styles.content}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
+      <KeyboardAvoidingView style={styles.content} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
         >
-        {/* Informações básicas */}
-        <View style={styles.card}>
-          <View style={styles.cardInner}>
-            <View style={styles.cardHeader}>
-              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
-                <Ionicons name="person-outline" size={20} color={brandingColors.primary} />
+          <View style={styles.card}>
+            <View style={styles.cardInner}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
+                  <Ionicons name="person-outline" size={20} color={brandingColors.primary} />
+                </View>
+                <Text style={styles.cardTitle}>Informacoes Basicas</Text>
               </View>
-              <Text style={styles.cardTitle}>Informações Básicas</Text>
-            </View>
 
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Nome Completo <Text style={styles.required}>*</Text></Text>
-            <TextInput
-              style={[styles.nativeInput, !!errors.fullName && styles.inputError]}
-              value={fullName}
-              onChangeText={(text) => { setFullName(text); setErrors({ ...errors, fullName: '' }); }}
-              placeholder="Nome completo do cliente"
-              placeholderTextColor={Colors.light.textTertiary}
-              autoCapitalize="words"
-            />
-            {errors.fullName ? <Text style={styles.fieldError}>{errors.fullName}</Text> : null}
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Telefone <Text style={styles.required}>*</Text></Text>
-            <TextInput
-              style={[styles.nativeInput, !!errors.phone && styles.inputError]}
-              value={phone}
-              onChangeText={(text) => { setPhone(phoneMask(text)); setErrors({ ...errors, phone: '' }); }}
-              placeholder="(00) 00000-0000"
-              placeholderTextColor={Colors.light.textTertiary}
-              keyboardType="phone-pad"
-            />
-            {errors.phone ? <Text style={styles.fieldError}>{errors.phone}</Text> : null}
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={styles.fieldLabel}>Email</Text>
-            <TextInput
-              style={[styles.nativeInput, !!errors.email && styles.inputError]}
-              value={email}
-              onChangeText={(text) => { setEmail(text); setErrors({ ...errors, email: '' }); }}
-              placeholder="email@exemplo.com"
-              placeholderTextColor={Colors.light.textTertiary}
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            {errors.email ? <Text style={styles.fieldError}>{errors.email}</Text> : null}
-          </View>
-          </View>
-        </View>
-
-        {/* Documentos */}
-        <View style={styles.card}>
-          <View style={styles.cardInner}>
-            <View style={styles.cardHeader}>
-              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
-                <Ionicons name="card-outline" size={20} color={brandingColors.primary} />
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Nome Completo <Text style={styles.required}>*</Text></Text>
+                <TextInput
+                  style={[styles.input, !!errors.fullName && styles.inputError]}
+                  value={fullName}
+                  onChangeText={(text) => {
+                    setFullName(text);
+                    setErrors((prev) => ({ ...prev, fullName: '' }));
+                  }}
+                  placeholder="Nome completo do cliente"
+                  placeholderTextColor={Colors.light.textTertiary}
+                  autoCapitalize="words"
+                />
+                {errors.fullName ? <Text style={styles.fieldError}>{errors.fullName}</Text> : null}
               </View>
-              <Text style={styles.cardTitle}>Documentos</Text>
-            </View>
 
-          <TextInput
-            label="CPF"
-            value={cpf}
-            onChangeText={(text) => {
-              setCpf(cpfMask(text));
-              setErrors({ ...errors, cpf: '' });
-            }}
-            mode="outlined"
-            error={!!errors.cpf}
-            style={styles.input}
-            keyboardType="numeric"
-            placeholder="000.000.000-00"
-          />
-          {errors.cpf ? (
-            <HelperText type="error">{errors.cpf}</HelperText>
-          ) : null}
-
-          <TextInput
-            label="Data de Nascimento"
-            value={birthDate}
-            onChangeText={(text) => {
-              setBirthDate(dateMask(text));
-              setErrors({ ...errors, birthDate: '' });
-            }}
-            mode="outlined"
-            error={!!errors.birthDate}
-            style={styles.input}
-            keyboardType="numeric"
-            placeholder="DD/MM/AAAA"
-          />
-          {errors.birthDate ? (
-            <HelperText type="error">{errors.birthDate}</HelperText>
-          ) : null}
-          </View>
-        </View>
-
-        {/* Endereço */}
-        <View style={styles.card}>
-          <View style={styles.cardInner}>
-            <View style={styles.cardHeader}>
-              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
-                <Ionicons name="location-outline" size={20} color={brandingColors.primary} />
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Telefone <Text style={styles.required}>*</Text></Text>
+                <TextInput
+                  style={[styles.input, !!errors.phone && styles.inputError]}
+                  value={phone}
+                  onChangeText={(text) => {
+                    setPhone(phoneMask(text));
+                    setErrors((prev) => ({ ...prev, phone: '' }));
+                  }}
+                  placeholder="(00) 00000-0000"
+                  placeholderTextColor={Colors.light.textTertiary}
+                  keyboardType="phone-pad"
+                />
+                {errors.phone ? <Text style={styles.fieldError}>{errors.phone}</Text> : null}
               </View>
-              <Text style={styles.cardTitle}>Endereço (Opcional)</Text>
-            </View>
 
-          <TextInput
-            label="CEP"
-            value={zipCode}
-            onChangeText={handleCepChange}
-            mode="outlined"
-            error={!!errors.zipCode}
-            style={styles.input}
-            keyboardType="numeric"
-            placeholder="00000-000"
-            right={loadingCep ? <TextInput.Icon icon={() => <ActivityIndicator size={20} />} /> : undefined}
-          />
-          {errors.zipCode ? (
-            <HelperText type="error">{errors.zipCode}</HelperText>
-          ) : null}
-
-          <TextInput
-            label="Endereço"
-            value={address}
-            onChangeText={setAddress}
-            mode="outlined"
-            style={styles.input}
-            placeholder="Rua, Avenida"
-          />
-
-          <TextInput
-            label="Número"
-            value={addressNumber}
-            onChangeText={setAddressNumber}
-            mode="outlined"
-            style={styles.input}
-            keyboardType="numeric"
-            placeholder="123"
-          />
-
-          <TextInput
-            label="Bairro"
-            value={neighborhood}
-            onChangeText={setNeighborhood}
-            mode="outlined"
-            style={styles.input}
-            placeholder="Nome do bairro"
-          />
-
-          <View style={styles.row}>
-            <View style={styles.inputHalf}>
-              <TextInput
-                label="Cidade"
-                value={city}
-                onChangeText={setCity}
-                mode="outlined"
-                style={styles.input}
-              />
-            </View>
-            <View style={styles.inputHalf}>
-              <TextInput
-                label="Estado"
-                value={state}
-                onChangeText={(text) => setState(text.toUpperCase())}
-                mode="outlined"
-                style={styles.input}
-                maxLength={2}
-                placeholder="UF"
-                autoCapitalize="characters"
-              />
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Email</Text>
+                <TextInput
+                  style={[styles.input, !!errors.email && styles.inputError]}
+                  value={email}
+                  onChangeText={(text) => {
+                    setEmail(text);
+                    setErrors((prev) => ({ ...prev, email: '' }));
+                  }}
+                  placeholder="email@exemplo.com"
+                  placeholderTextColor={Colors.light.textTertiary}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+                {errors.email ? <Text style={styles.fieldError}>{errors.email}</Text> : null}
+              </View>
             </View>
           </View>
-          </View>
-        </View>
 
-        {/* Botões de ação */}
-        <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.btnSecondary, createMutation.isPending && { opacity: 0.5 }]}
-            onPress={() => router.push('/(tabs)/customers')}
-            disabled={createMutation.isPending}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.btnSecondaryText}>Cancelar</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.btnPrimary, createMutation.isPending && { opacity: 0.65 }]}
-            onPress={handleSubmit}
-            disabled={createMutation.isPending}
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={brandingColors.gradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.btnGradient}
+          <View style={styles.card}>
+            <View style={styles.cardInner}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
+                  <Ionicons name="card-outline" size={20} color={brandingColors.primary} />
+                </View>
+                <Text style={styles.cardTitle}>Documentos</Text>
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>CPF</Text>
+                <TextInput
+                  style={[styles.input, !!errors.cpf && styles.inputError]}
+                  value={cpf}
+                  onChangeText={(text) => {
+                    setCpf(cpfMask(text));
+                    setErrors((prev) => ({ ...prev, cpf: '' }));
+                  }}
+                  placeholder="000.000.000-00"
+                  placeholderTextColor={Colors.light.textTertiary}
+                  keyboardType="numeric"
+                />
+                {errors.cpf ? <Text style={styles.fieldError}>{errors.cpf}</Text> : null}
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Data de Nascimento</Text>
+                <TextInput
+                  style={[styles.input, !!errors.birthDate && styles.inputError]}
+                  value={birthDate}
+                  onChangeText={(text) => {
+                    setBirthDate(dateMask(text));
+                    setErrors((prev) => ({ ...prev, birthDate: '' }));
+                  }}
+                  placeholder="DD/MM/AAAA"
+                  placeholderTextColor={Colors.light.textTertiary}
+                  keyboardType="numeric"
+                />
+                {errors.birthDate ? <Text style={styles.fieldError}>{errors.birthDate}</Text> : null}
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.card}>
+            <View style={styles.cardInner}>
+              <View style={styles.cardHeader}>
+                <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
+                  <Ionicons name="location-outline" size={20} color={brandingColors.primary} />
+                </View>
+                <Text style={styles.cardTitle}>Endereco (Opcional)</Text>
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>CEP</Text>
+                <View style={styles.inputWithAddon}>
+                  <TextInput
+                    style={[styles.input, styles.inputFlex, !!errors.zipCode && styles.inputError]}
+                    value={zipCode}
+                    onChangeText={handleCepChange}
+                    placeholder="00000-000"
+                    placeholderTextColor={Colors.light.textTertiary}
+                    keyboardType="numeric"
+                  />
+                  {loadingCep && <ActivityIndicator size="small" color={brandingColors.primary} style={styles.cepSpinner} />}
+                </View>
+                {errors.zipCode ? <Text style={styles.fieldError}>{errors.zipCode}</Text> : null}
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Endereco</Text>
+                <TextInput
+                  style={styles.input}
+                  value={address}
+                  onChangeText={setAddress}
+                  placeholder="Rua, Avenida..."
+                  placeholderTextColor={Colors.light.textTertiary}
+                />
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Numero</Text>
+                <TextInput
+                  style={styles.input}
+                  value={addressNumber}
+                  onChangeText={setAddressNumber}
+                  placeholder="123"
+                  placeholderTextColor={Colors.light.textTertiary}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.fieldGroup}>
+                <Text style={styles.fieldLabel}>Bairro</Text>
+                <TextInput
+                  style={styles.input}
+                  value={neighborhood}
+                  onChangeText={setNeighborhood}
+                  placeholder="Nome do bairro"
+                  placeholderTextColor={Colors.light.textTertiary}
+                />
+              </View>
+
+              <View style={styles.row}>
+                <View style={styles.fieldGroupHalf}>
+                  <Text style={styles.fieldLabel}>Cidade</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={city}
+                    onChangeText={setCity}
+                    placeholder="Cidade"
+                    placeholderTextColor={Colors.light.textTertiary}
+                  />
+                </View>
+
+                <View style={styles.fieldGroupHalf}>
+                  <Text style={styles.fieldLabel}>Estado</Text>
+                  <TextInput
+                    style={styles.input}
+                    value={state}
+                    onChangeText={(text) => setState(text.toUpperCase())}
+                    placeholder="UF"
+                    placeholderTextColor={Colors.light.textTertiary}
+                    maxLength={2}
+                    autoCapitalize="characters"
+                  />
+                </View>
+              </View>
+            </View>
+          </View>
+
+          <View style={styles.actions}>
+            <TouchableOpacity
+              style={[styles.btnSecondary, createMutation.isPending && { opacity: 0.5 }]}
+              onPress={goBack}
+              disabled={createMutation.isPending}
+              activeOpacity={0.7}
             >
-              {createMutation.isPending ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <>
-                  <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
-                  <Text style={styles.btnPrimaryText}>Salvar Cliente</Text>
-                </>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
-        </View>
+              <Text style={styles.btnSecondaryText}>Cancelar</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.btnPrimary, createMutation.isPending && { opacity: 0.65 }]}
+              onPress={handleSubmit}
+              disabled={createMutation.isPending}
+              activeOpacity={0.8}
+            >
+              <LinearGradient colors={brandingColors.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.btnGradient}>
+                {createMutation.isPending ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+                    <Text style={styles.btnPrimaryText}>Salvar Cliente</Text>
+                  </>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* Dialog CEP não encontrado */}
       <ConfirmDialog
         visible={showCepDialog}
-        title="CEP não encontrado"
-        message="O CEP informado não foi localizado. Preencha o endereço manualmente."
+        title="CEP nao encontrado"
+        message="O CEP informado nao foi localizado. Preencha o endereco manualmente."
         confirmText="OK"
         onConfirm={() => setShowCepDialog(false)}
         onCancel={() => setShowCepDialog(false)}
@@ -399,7 +385,6 @@ export default function AddCustomerScreen() {
         icon="location-outline"
       />
 
-      {/* Dialog de Sucesso */}
       <ConfirmDialog
         visible={showSuccessDialog}
         title="Sucesso!"
@@ -407,17 +392,16 @@ export default function AddCustomerScreen() {
         confirmText="OK"
         onConfirm={() => {
           setShowSuccessDialog(false);
-          router.push('/(tabs)/customers');
+          goBack();
         }}
         onCancel={() => {
           setShowSuccessDialog(false);
-          router.push('/(tabs)/customers');
+          goBack();
         }}
         type="success"
         icon="checkmark-circle"
       />
 
-      {/* Dialog de Erro */}
       <ConfirmDialog
         visible={showErrorDialog}
         title="Erro"
@@ -439,7 +423,6 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    backgroundColor: Colors.light.backgroundSecondary,
   },
   scrollView: {
     flex: 1,
@@ -449,7 +432,7 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.xl,
   },
   card: {
-    marginBottom: 16,
+    marginBottom: theme.spacing.md,
     borderRadius: theme.borderRadius.xl,
     backgroundColor: Colors.light.card,
     borderWidth: 1,
@@ -462,8 +445,8 @@ const styles = StyleSheet.create({
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-    paddingBottom: 12,
+    marginBottom: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
     borderBottomWidth: 1,
     borderBottomColor: Colors.light.border,
   },
@@ -473,36 +456,67 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     justifyContent: 'center',
     alignItems: 'center',
-    marginRight: 12,
+    marginRight: theme.spacing.sm,
   },
   cardTitle: {
-    fontSize: 16,
+    fontSize: theme.fontSize.base,
     fontWeight: '600',
     color: Colors.light.text,
   },
-  section: {
-    marginBottom: theme.spacing.lg,
-  },
-  sectionTitle: {
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.semibold,
+  fieldGroup: {
     marginBottom: theme.spacing.sm,
+  },
+  fieldGroupHalf: {
+    flex: 1,
+    marginBottom: theme.spacing.sm,
+  },
+  fieldLabel: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+    marginBottom: 6,
+  },
+  required: {
+    color: VALUE_COLORS.negative,
+    fontWeight: '700',
+  },
+  fieldError: {
+    fontSize: theme.fontSize.xs,
+    color: VALUE_COLORS.negative,
+    marginTop: 4,
   },
   input: {
-    marginBottom: theme.spacing.sm,
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    paddingHorizontal: theme.spacing.md,
+    height: 48,
+    fontSize: theme.fontSize.base,
+    color: Colors.light.text,
+  },
+  inputError: {
+    borderColor: VALUE_COLORS.negative,
+  },
+  inputWithAddon: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  inputFlex: {
+    flex: 1,
+  },
+  cepSpinner: {
+    flexShrink: 0,
   },
   row: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
   },
-  inputHalf: {
-    flex: 1,
-  },
   actions: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
-    marginTop: theme.spacing.lg,
+    marginTop: theme.spacing.sm,
   },
   btnSecondary: {
     flex: 1,

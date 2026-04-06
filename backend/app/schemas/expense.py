@@ -96,6 +96,7 @@ class MonthlyResultResponse(BaseModel):
     cmv: Decimal                # Custo das mercadorias vendidas (FIFO)
     gross_profit: Decimal       # Receita − CMV
     gross_margin_pct: Decimal   # % margem bruta
+    trip_costs: Decimal         # Custos de viagem do mês (combustível, hospedagem etc.)
     total_expenses: Decimal     # Soma das despesas operacionais
     net_profit: Decimal         # Lucro líquido = gross_profit − expenses
     net_margin_pct: Decimal     # % lucro líquido sobre receita

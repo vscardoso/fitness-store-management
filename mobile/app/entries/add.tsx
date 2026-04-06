@@ -43,8 +43,9 @@ import Animated, {
 import PageHeader from '@/components/layout/PageHeader';
 import { useTrips } from '@/hooks/useTrips';
 import { useProducts } from '@/hooks';
-import { createStockEntry, createStockEntryWithNewProduct, createStockEntryWithNewProductVariants, checkEntryCode } from '@/services/stockEntryService';
+import { createStockEntry, createStockEntryWithNewProduct, createStockEntryWithNewProductVariants, checkEntryCode, getStockEntryById } from '@/services/stockEntryService';
 import { getCatalogProducts, activateCatalogProduct } from '@/services/catalogService';
+import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { formatCurrency } from '@/utils/format';
 import { cnpjMask, phoneMask } from '@/utils/masks';
 import { Colors, theme } from '@/constants/Colors';
@@ -133,6 +134,7 @@ export default function AddStockEntryScreen() {
     fromWizard?: string;
     wizardMode?: string; // 'atomic' | 'atomic-variants'
     wizardProductData?: string; // ✨ Novo: dados do produto não-criado (para modo atômico)
+    wizardImageUri?: string; // URI da imagem capturada no wizard (scan/galeria)
     wizardProductId?: string;
     wizardProductName?: string;
     wizardAtomicVariantsData?: string; // ✨ Novo: dados produto+variantes para modo atomic-variants
@@ -164,6 +166,8 @@ export default function AddStockEntryScreen() {
         brand: raw.product_brand,
         color: raw.product_color,
         size: raw.product_size,
+        gender: raw.product_gender,
+        material: raw.product_material,
         category_id: raw.product_category_id,
         cost_price: raw.product_cost_price,
         price: raw.product_price,
@@ -252,6 +256,43 @@ export default function AddStockEntryScreen() {
   ) => {
     setFeedbackDialog({ visible: true, title, message, type });
   };
+
+  const uploadWizardImageAfterAtomicCreate = useCallback(async (createdEntryId?: number) => {
+    if (!createdEntryId || !params.wizardImageUri) return;
+
+    let decodedImageUri = '';
+    try {
+      decodedImageUri = decodeURIComponent(params.wizardImageUri);
+    } catch {
+      decodedImageUri = params.wizardImageUri;
+    }
+
+    if (!decodedImageUri) return;
+
+    try {
+      const entryDetails = await getStockEntryById(createdEntryId);
+      const firstItemWithProduct = entryDetails.entry_items?.find((item) => !!item.product_id);
+      const productId = firstItemWithProduct?.product_id;
+
+      if (!productId) {
+        logInfo('Entries/Add', 'Upload de imagem ignorado: product_id não encontrado na entrada', {
+          entryId: createdEntryId,
+        });
+        return;
+      }
+
+      await uploadProductImageWithFallback(productId, decodedImageUri);
+      logInfo('Entries/Add', 'Imagem do wizard persistida com sucesso', {
+        entryId: createdEntryId,
+        productId,
+      });
+    } catch (error) {
+      logError('Entries/Add', 'Falha ao persistir imagem do wizard após criação atômica', {
+        entryId: createdEntryId,
+        error,
+      });
+    }
+  }, [params.wizardImageUri]);
 
   // Queries
   const { data: trips = [], refetch: refetchTrips } = useTrips({ status: undefined, limit: 100 });
@@ -473,6 +514,15 @@ export default function AddStockEntryScreen() {
           id: productData.id || 0, // Modo atômico usa id temporário
           name: productData.name || productData.product_name || '',
           sku: productData.sku || productData.product_sku || `CAT-${productData.id}`,
+          barcode: productData.barcode || productData.product_barcode,
+          description: productData.description || productData.product_description,
+          brand: productData.brand || productData.product_brand,
+          color: productData.color || productData.product_color,
+          size: productData.size || productData.product_size,
+          gender: productData.gender || productData.product_gender,
+          material: productData.material || productData.product_material,
+          image_url: productData.image_url,
+          category_id: productData.category_id || productData.product_category_id,
           cost_price: price,
           price: productData.price || productData.product_price || 0,
           is_active: true,
@@ -675,7 +725,8 @@ export default function AddStockEntryScreen() {
         quantity
       );
     },
-    onSuccess: (createdEntry) => {
+    onSuccess: async (createdEntry) => {
+      await uploadWizardImageAfterAtomicCreate(createdEntry.id);
       invalidateAndShowSuccess(createdEntry);
     },
     onError: (error: any) => {
@@ -739,7 +790,8 @@ export default function AddStockEntryScreen() {
         }
       );
     },
-    onSuccess: (createdEntry) => {
+    onSuccess: async (createdEntry) => {
+      await uploadWizardImageAfterAtomicCreate(createdEntry.id);
       invalidateAndShowSuccess(createdEntry);
     },
     onError: (error: any) => {
@@ -944,6 +996,10 @@ export default function AddStockEntryScreen() {
       if (item.unit_cost < 0) {
         newErrors[`item_${index}_cost`] = 'Custo inválido';
       }
+      if (item.unit_cost === 0) {
+        const name = item.product?.name || `Item ${index + 1}`;
+        newErrors[`item_${index}_cost`] = `Custo de "${name}" está zerado. Informe o custo unitário.`;
+      }
     });
 
     setErrors(newErrors);
@@ -1016,6 +1072,7 @@ export default function AddStockEntryScreen() {
             if (!item.product?.is_catalog) return item;
 
             const catalogId = item.product_id;
+            if (catalogId === undefined) return item;
             let activated = activationCache.get(catalogId);
 
             if (!activated) {
@@ -1218,6 +1275,11 @@ export default function AddStockEntryScreen() {
                   dense
                   error={!!errors[`item_${index}_cost`]}
                 />
+                {errors[`item_${index}_cost`] && (
+                  <HelperText type="error" visible>
+                    {errors[`item_${index}_cost`]}
+                  </HelperText>
+                )}
               </View>
             </View>
             <View style={styles.itemRow}>
@@ -1291,7 +1353,7 @@ export default function AddStockEntryScreen() {
               goToWizardStep('entry');
               return;
             }
-            router.push('/(tabs)/entries');
+            router.replace('/(tabs)/entries');
           }}
         />
       </Animated.View>
@@ -1821,7 +1883,7 @@ export default function AddStockEntryScreen() {
         <View style={styles.actions}>
           <Button
             mode="outlined"
-            onPress={() => isFromWizard ? router.back() : router.push('/(tabs)/entries')}
+            onPress={() => isFromWizard ? router.back() : router.replace('/(tabs)/entries')}
             disabled={createMutation.isPending || createAtomicMutation.isPending || createAtomicVariantsMutation.isPending}
             textColor={brandingColors.primary}
             style={[styles.actionButton, { borderColor: `${brandingColors.primary}55` }]}
@@ -1892,6 +1954,7 @@ export default function AddStockEntryScreen() {
             pathname: '/trips/add',
             params: {
               from: 'entries',
+              ...(params.wizardImageUri && { wizardImageUri: params.wizardImageUri }),
               // Preservar produto pré-selecionado (novo fluxo com dados completos)
               ...(params.preselectedProductData && {
                 preselectedProductData: params.preselectedProductData,
@@ -1982,11 +2045,11 @@ export default function AddStockEntryScreen() {
         cancelText=""
         onConfirm={() => {
           setShowSuccessDialog(false);
-          router.push('/(tabs)/entries');
+          router.replace('/(tabs)/entries');
         }}
         onCancel={() => {
           setShowSuccessDialog(false);
-          router.push('/(tabs)/entries');
+          router.replace('/(tabs)/entries');
         }}
         icon="checkmark-circle"
       />

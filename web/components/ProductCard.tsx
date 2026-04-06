@@ -67,7 +67,7 @@ export default function ProductCard({ product }: Props) {
           <div className="flex items-center justify-between">
             <span className="price text-base">{fmt(price)}</span>
             {product.brand && (
-              <span className="text-white/30 text-xs">{product.brand}</span>
+              <span className="text-white/50 text-xs">{product.brand}</span>
             )}
           </div>
         </div>

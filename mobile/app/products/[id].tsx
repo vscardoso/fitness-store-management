@@ -7,8 +7,10 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
+  Image,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
 import useBackToList from '@/hooks/useBackToList';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +22,7 @@ import { getProductById, deleteProduct } from '@/services/productService';
 import { getProductStock } from '@/services/inventoryService';
 import { getProductVariants, formatVariantLabel } from '@/services/productVariantService';
 import { formatCurrency, formatDate } from '@/utils/format';
+import { getImageUrl } from '@/constants/Config';
 import { Colors, theme } from '@/constants/Colors';
 import { getEntryTypeLabel, getEntryTypeColor, getEntryTypeIcon } from '@/constants/entryTypes';
 import { useTutorialContext } from '@/components/tutorial';
@@ -149,8 +152,8 @@ export default function ProductDetailsScreen() {
       setDialog({
         visible: true,
         type: 'danger',
-        title: 'Erro',
-        message: error.message || 'Erro ao deletar produto',
+        title: 'Não foi possível excluir',
+        message: error.response?.data?.detail || error.message || 'Erro ao deletar produto',
         confirmText: 'OK',
         cancelText: '',
         onConfirm: () => setDialog({ ...dialog, visible: false }),
@@ -162,12 +165,17 @@ export default function ProductDetailsScreen() {
    * Confirmar deleção
    */
   const handleDelete = () => {
+    const stock = inventory?.quantity ?? 0;
+    const hasStock = stock > 0;
+
     setDialog({
       visible: true,
-      type: 'danger',
-      title: 'Confirmar exclusão',
-      message: `Tem certeza que deseja deletar "${product?.name}"?`,
-      confirmText: 'Deletar',
+      type: hasStock ? 'warning' : 'danger',
+      title: hasStock ? 'Excluir produto com estoque?' : 'Confirmar exclusão',
+      message: hasStock
+        ? `"${product?.name}" possui ${stock} unidade${stock !== 1 ? 's' : ''} em estoque sem vendas.\n\nO estoque será zerado e o produto excluído. Esta ação não pode ser desfeita.`
+        : `Tem certeza que deseja excluir "${product?.name}"?`,
+      confirmText: hasStock ? 'Sim, excluir e zerar estoque' : 'Excluir',
       cancelText: 'Cancelar',
       onConfirm: () => {
         setDialog({ ...dialog, visible: false });
@@ -207,6 +215,7 @@ export default function ProductDetailsScreen() {
   }
 
   // Variant-aware derived values
+  const hasSales = product.has_sales ?? false;
   const hasVariants = (variants ?? []).length > 0;
   const variantStockSum = (variants ?? []).reduce((sum, v) => sum + (v.current_stock ?? 0), 0);
   // inventory.quantity é a fonte autoritativa (atualizada por vendas e entradas FIFO).
@@ -244,9 +253,6 @@ export default function ProductDetailsScreen() {
         onBack={goBack}
         rightActions={[
           { icon: 'help-circle-outline', onPress: () => startTutorial('product-details') },
-          ...(hasVariants ? [{ icon: 'images' as any, onPress: () => router.push(`/products/photos/${productId}` as any) }] : []),
-          { icon: 'pencil', onPress: () => router.push(`/products/edit/${productId}` as any) },
-          { icon: 'trash', onPress: handleDelete },
         ]}
       />
 
@@ -298,6 +304,60 @@ export default function ProductDetailsScreen() {
                   ? `${formatCurrency(minVariantPrice)} – ${formatCurrency(maxVariantPrice)}`
                   : formatCurrency(hasVariants ? minVariantPrice : product.price)}
               </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <View style={styles.cardInner}>
+            <View style={styles.cardHeader}>
+              <View style={styles.cardHeaderIcon}>
+                <Ionicons name="image-outline" size={20} color={Colors.light.primary} />
+              </View>
+              <Text style={styles.cardTitle}>Foto Vinculada</Text>
+            </View>
+
+            {product.image_url ? (
+              <Image source={{ uri: getImageUrl(product.image_url) }} style={styles.productPhotoPreview} />
+            ) : (
+              <View style={styles.productPhotoPlaceholder}>
+                <Ionicons name="image-outline" size={24} color={Colors.light.textTertiary} />
+                <Text style={styles.productPhotoPlaceholderText}>Sem foto principal vinculada</Text>
+              </View>
+            )}
+
+            <View style={styles.actionList}>
+              <TouchableOpacity
+                style={styles.actionCard}
+                onPress={() => router.push(`/products/edit/${productId}` as any)}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.actionCardIcon, { backgroundColor: brandingColors.primary + '16' }]}>
+                  <Ionicons name="create-outline" size={18} color={brandingColors.primary} />
+                </View>
+                <View style={styles.actionCardContent}>
+                  <Text style={styles.actionCardTitle}>Editar foto</Text>
+                  <Text style={styles.actionCardSub}>Trocar ou adicionar foto do produto</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
+              </TouchableOpacity>
+
+              {hasVariants && (
+                <TouchableOpacity
+                  style={styles.actionCard}
+                  onPress={() => router.push(`/products/photos/${productId}` as any)}
+                  activeOpacity={0.75}
+                >
+                  <View style={[styles.actionCardIcon, { backgroundColor: Colors.light.info + '16' }]}>
+                    <Ionicons name="images-outline" size={18} color={Colors.light.info} />
+                  </View>
+                  <View style={styles.actionCardContent}>
+                    <Text style={styles.actionCardTitle}>Fotos das variações</Text>
+                    <Text style={styles.actionCardSub}>Gerenciar foto de cada variação</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         </View>
@@ -655,7 +715,46 @@ export default function ProductDetailsScreen() {
           </Card.Content>
         </Card>
 
-        <View style={{ height: 32 }} />
+        {/* Botões de ação */}
+        <View style={styles.actions}>
+          {hasVariants && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.secondaryActionButton]}
+              onPress={() => router.push(`/products/photos/${productId}` as any)}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="images-outline" size={18} color={brandingColors.primary} />
+              <Text style={[styles.secondaryActionButtonText, { color: brandingColors.primary }]}>Fotos</Text>
+            </TouchableOpacity>
+          )}
+          {!hasSales && (
+            <TouchableOpacity
+              style={[styles.actionButton, styles.dangerActionButton]}
+              onPress={handleDelete}
+              activeOpacity={0.75}
+            >
+              <Ionicons name="trash-outline" size={18} color={Colors.light.error} />
+              <Text style={styles.dangerActionButtonText}>Excluir</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity
+            style={[styles.actionButton, styles.primaryActionButton]}
+            onPress={() => router.push(`/products/edit/${productId}` as any)}
+            activeOpacity={0.8}
+          >
+            <LinearGradient
+              colors={brandingColors.gradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.primaryActionButtonGradient}
+            >
+              <Ionicons name="pencil-outline" size={18} color="#fff" />
+              <Text style={styles.primaryActionButtonText}>Editar</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </View>
+
+        <View style={{ height: theme.spacing.md }} />
       </ScrollView>
 
       {/* Confirm Dialog */}
@@ -715,6 +814,32 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     marginBottom: 3,
   },
+  productPhotoPreview: {
+    width: '100%',
+    height: 220,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  productPhotoPlaceholder: {
+    width: '100%',
+    minHeight: 120,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: Colors.light.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: theme.spacing.lg,
+  },
+  productPhotoPlaceholderText: {
+    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+  },
   quickValue: { fontSize: 15, fontWeight: '800', color: Colors.light.text },
   quickSub: { fontSize: 10, color: Colors.light.textTertiary, marginTop: 2 },
 
@@ -724,6 +849,9 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     elevation: 2,
     backgroundColor: Colors.light.card,
+  },
+  cardInner: {
+    padding: theme.spacing.md,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -904,6 +1032,63 @@ const styles = StyleSheet.create({
     marginTop: 1,
     fontSize: 12,
     color: Colors.light.textSecondary,
+  },
+
+  // ── Botões de Ação (final da página) ──
+  actions: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    marginTop: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+  },
+  actionButton: {
+    flex: 1,
+    borderRadius: theme.borderRadius.lg,
+    minHeight: 52,
+    overflow: 'hidden',
+  },
+  primaryActionButton: {
+    ...theme.shadows.sm,
+  },
+  primaryActionButtonGradient: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: theme.spacing.md,
+  },
+  primaryActionButtonText: {
+    fontSize: theme.fontSize.base,
+    color: '#fff',
+    fontWeight: '700',
+  },
+  secondaryActionButton: {
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  secondaryActionButtonText: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '700',
+  },
+  dangerActionButton: {
+    borderWidth: 1.5,
+    borderColor: Colors.light.error + '50',
+    backgroundColor: Colors.light.error + '08',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  dangerActionButtonText: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '700',
+    color: Colors.light.error,
   },
 
   // ── Entradas de Estoque ──

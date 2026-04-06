@@ -301,10 +301,31 @@ class ProductService:
         Raises:
             ValueError: Se produto não encontrado ou SKU duplicado
         """
+        from sqlalchemy import text as _text
+
         product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
         if not product:
             raise ValueError("Produto não encontrado")
-        
+
+        # Bloquear desativação se produto possui vendas não canceladas/estornadas
+        if product_data.is_active is False and product.is_active:
+            sales_row = await self.db.execute(
+                _text(
+                    "SELECT COUNT(*) FROM sale_items si "
+                    "LEFT JOIN product_variants pv ON si.variant_id = pv.id "
+                    "JOIN sales s ON s.id = si.sale_id "
+                    "WHERE si.tenant_id = :tid AND si.is_active = true "
+                    "AND UPPER(s.status) NOT IN ('CANCELLED', 'REFUNDED')"
+                    "AND (si.product_id = :pid OR pv.product_id = :pid)"
+                ),
+                {"pid": product_id, "tid": tenant_id},
+            )
+            if int(sales_row.scalar() or 0) > 0:
+                raise ValueError(
+                    "Não é possível desativar este produto pois ele possui vendas registradas. "
+                    "Estorne todas as vendas antes de desativar."
+                )
+
         # Verificar SKU único se estiver sendo alterado
         # Usa exists_by_sku com exclude_id=product_id para excluir as próprias variantes do produto.
         # A comparação product_data.sku != product.sku é insuficiente para produtos com múltiplas
@@ -542,29 +563,46 @@ class ProductService:
     async def delete_product(self, product_id: int, *, tenant_id: int) -> bool:
         """
         Deleta um produto (soft delete).
-        
+
+        Regras:
+        - Produto com vendas → bloqueado sempre (histórico financeiro / rastreabilidade)
+        - Produto sem vendas mas com estoque → permitido; entry_items são soft-deleted e
+          inventory é zerado antes da exclusão
+        - Produto sem estoque e sem vendas → exclusão direta
+
         IMPORTANTE: Limpa SKU e barcode das variantes para evitar conflitos futuros.
-        
-        Args:
-            product_id: ID do produto
-            
-        Returns:
-            bool: True se deletado com sucesso
-            
-        Raises:
-            ValueError: Se produto não encontrado ou possui estoque
         """
         from sqlalchemy import select, update
         from app.models.product_variant import ProductVariant
-        
+        from sqlalchemy import text as _text
+
         product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
         if not product:
             raise ValueError("Produto não encontrado")
-        
-        # Verificar se há estoque — usa entry_items como fonte da verdade (FIFO real)
-        # A coluna inventory.quantity pode estar desincronizada quando entry_items são
-        # removidos manualmente. Recalculamos do FIFO e sincronizamos antes de bloquear.
-        from sqlalchemy import text as _text
+
+        # ── 1. Verificar vendas (bloqueio absoluto) ─────────────────────────
+        # Checar SaleItems via variant_id (novo fluxo) e product_id (legado)
+        # Ignorar vendas canceladas ou totalmente estornadas
+        sales_row = await self.db.execute(
+            _text(
+                "SELECT COUNT(*) FROM sale_items si "
+                "LEFT JOIN product_variants pv ON si.variant_id = pv.id "
+                "JOIN sales s ON s.id = si.sale_id "
+                "WHERE si.tenant_id = :tid AND si.is_active = true "
+                "AND UPPER(s.status) NOT IN ('CANCELLED', 'REFUNDED')"
+                "AND (si.product_id = :pid OR pv.product_id = :pid)"
+            ),
+            {"pid": product_id, "tid": tenant_id},
+        )
+        sales_count: int = int(sales_row.scalar() or 0)
+
+        if sales_count > 0:
+            raise ValueError(
+                f"Não é possível excluir este produto pois ele possui "
+                f"{sales_count} venda{'s' if sales_count > 1 else ''} registrada{'s' if sales_count > 1 else ''}."
+            )
+
+        # ── 2. Calcular estoque FIFO real ────────────────────────────────────
         fifo_sum_row = await self.db.execute(
             _text(
                 "SELECT COALESCE(SUM(ei.quantity_remaining), 0) "
@@ -575,7 +613,6 @@ class ProductService:
         )
         fifo_total: int = int(fifo_sum_row.scalar() or 0)
 
-        # Também somar via variantes (para produtos com variant_id nos entry_items)
         fifo_variant_row = await self.db.execute(
             _text(
                 "SELECT COALESCE(SUM(ei.quantity_remaining), 0) "
@@ -590,18 +627,33 @@ class ProductService:
 
         inventory = await self.inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
 
+        # ── 3. Se há estoque (sem vendas): limpar entry_items + inventory ────
         if real_stock > 0:
-            raise ValueError(
-                f"Não é possível deletar produto com estoque "
-                f"(quantidade atual: {real_stock})"
+            logger.info(
+                f"Produto {product_id}: estoque FIFO={real_stock} sem vendas. "
+                f"Soft-deleting entry_items antes da exclusão."
+            )
+            # Soft-delete entry_items diretos (product_id)
+            await self.db.execute(
+                _text(
+                    "UPDATE entry_items SET is_active = false, quantity_remaining = 0 "
+                    "WHERE product_id = :pid AND tenant_id = :tid AND is_active = true"
+                ),
+                {"pid": product_id, "tid": tenant_id},
+            )
+            # Soft-delete entry_items via variante (subquery compatível com SQLite e PostgreSQL)
+            await self.db.execute(
+                _text(
+                    "UPDATE entry_items SET is_active = false, quantity_remaining = 0 "
+                    "WHERE variant_id IN ("
+                    "  SELECT id FROM product_variants WHERE product_id = :pid"
+                    ") AND tenant_id = :tid AND is_active = true"
+                ),
+                {"pid": product_id, "tid": tenant_id},
             )
 
-        # Se inventory estava desincronizado (entry_items zerados mas inventory > 0), corrigir
+        # Zerar inventory (real_stock > 0 ou desincronizado)
         if inventory and inventory.quantity > 0:
-            logger.warning(
-                f"Produto {product_id}: inventory.quantity={inventory.quantity} mas FIFO real=0. "
-                f"Sincronizando para 0 antes da deleção."
-            )
             await self.db.execute(
                 _text(
                     "UPDATE inventory SET quantity = 0 WHERE product_id = :pid AND tenant_id = :tid"

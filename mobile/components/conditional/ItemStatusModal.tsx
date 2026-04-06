@@ -11,8 +11,7 @@ import React, { useState, useMemo } from 'react';
 import { StyleSheet, View, Text, Animated } from 'react-native';
 import { TextInput, IconButton, Divider } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
-import CustomModal from '@/components/ui/CustomModal';
-import ModalActions from '@/components/ui/ModalActions';
+import BottomSheet from '@/components/ui/BottomSheet';
 import { Colors } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 
@@ -81,11 +80,16 @@ export default function ItemStatusModal({
   };
 
   return (
-    <CustomModal
+    <BottomSheet
       visible={visible}
       onDismiss={handleDismiss}
       title={config.title}
       subtitle={config.subtitle}
+      icon={config.icon}
+      actions={[
+        { label: 'Cancelar', onPress: handleDismiss, variant: 'secondary' },
+        { label: 'Confirmar', onPress: handleConfirm, icon: 'checkmark-circle-outline', loading, disabled: !isValid },
+      ]}
     >
       {/* Header Visual */}
       <View style={[styles.headerIcon, { backgroundColor: config.iconBg }]}>
@@ -195,16 +199,7 @@ export default function ItemStatusModal({
         />
       </View>
 
-      <ModalActions
-        onCancel={handleDismiss}
-        onConfirm={handleConfirm}
-        confirmText="Confirmar"
-        cancelText="Cancelar"
-        confirmColor={config.confirmColor}
-        loading={loading}
-        disabled={!isValid}
-      />
-    </CustomModal>
+    </BottomSheet>
   );
 }
 

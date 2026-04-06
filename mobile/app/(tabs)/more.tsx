@@ -215,7 +215,7 @@ export default function MoreScreen() {
               <MenuItem icon="people-outline" title="Gerenciar Equipe" subtitle="Usuários e permissões da loja" onPress={() => router.push('/team')} iconColor="#8B5CF6" iconBg="#EDE9FE" />
             )}
             {user?.role === UserRole.ADMIN && (
-              <MenuItem icon="cash-outline" title="Descontos de Pagamento" subtitle="Configure descontos por forma de pagamento" onPress={() => router.push('/(tabs)/payment-discounts')} iconColor="#10B981" iconBg="#D1FAE5" />
+              <MenuItem icon="cash-outline" title="Descontos de Pagamento" subtitle="Configure descontos por forma de pagamento" onPress={() => router.push('/settings/payment-discounts')} iconColor="#10B981" iconBg="#D1FAE5" />
             )}
             <MenuItem icon="person-circle-outline" title="Meu Perfil" subtitle="Dados pessoais e preferências" onPress={() => showDev('Meu Perfil')} iconColor={Colors.light.primary} iconBg={Colors.light.primaryLight} />
             <MenuItem icon="notifications-outline" title="Notificações" subtitle="Alertas e lembretes" onPress={() => showDev('Notificações')} iconColor="#F97316" iconBg="#FFEDD5" />

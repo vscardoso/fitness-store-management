@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.expense import Expense, ExpenseCategory
 from app.models.sale import Sale, SaleItem, SaleStatus
+from app.models.trip import Trip
 from app.repositories.expense import ExpenseCategoryRepository, ExpenseRepository
 from app.schemas.expense import (
     ExpenseCategoryCreate,
@@ -230,7 +231,20 @@ class ExpenseService:
         cmv_result = await self.db.execute(cmv_stmt)
         cmv = Decimal(str(cmv_result.scalar() or 0))
 
-        # 3. Despesas operacionais
+        # 3. Custos de viagem do mês (soma de travel_cost_total das viagens com trip_date no período)
+        trip_costs_stmt = select(
+            func.coalesce(func.sum(Trip.travel_cost_total), 0)
+        ).where(
+            Trip.is_active == True,
+            Trip.trip_date >= first_day,
+            Trip.trip_date <= last_day,
+        )
+        if tenant_id is not None:
+            trip_costs_stmt = trip_costs_stmt.where(Trip.tenant_id == tenant_id)
+        trip_costs_result = await self.db.execute(trip_costs_stmt)
+        trip_costs = Decimal(str(trip_costs_result.scalar() or 0))
+
+        # 4. Despesas operacionais
         total_expenses = await _exp_repo.sum_by_period(
             self.db,
             start_date=first_day,
@@ -244,7 +258,7 @@ class ExpenseService:
             tenant_id=tenant_id,
         )
 
-        # 4. Cálculos
+        # 5. Cálculos
         gross_profit = revenue - cmv
         gross_margin_pct = (gross_profit / revenue * 100).quantize(Decimal("0.01")) if revenue > 0 else Decimal(0)
         net_profit = gross_profit - total_expenses
@@ -263,6 +277,7 @@ class ExpenseService:
             cmv=cmv,
             gross_profit=gross_profit,
             gross_margin_pct=gross_margin_pct,
+            trip_costs=trip_costs,
             total_expenses=total_expenses,
             net_profit=net_profit,
             net_margin_pct=net_margin_pct,

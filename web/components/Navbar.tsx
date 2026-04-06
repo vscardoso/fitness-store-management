@@ -89,9 +89,10 @@ export default function Navbar() {
 
         {/* Mobile menu button */}
         <button
-          className="md:hidden text-white/70 hover:text-white"
+          className="md:hidden text-white/70 hover:text-white cursor-pointer"
           onClick={() => setOpen(!open)}
           aria-label="Menu"
+          aria-expanded={open}
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-6 h-6">
             {open

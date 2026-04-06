@@ -8,9 +8,11 @@ import PageHeader from '@/components/layout/PageHeader';
 import { Colors, theme, PRESET_THEMES } from '@/constants/Colors';
 import { useBrandingStore } from '@/store/brandingStore';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import useBackToList from '@/hooks/useBackToList';
 
 export default function BrandingScreen() {
   const router = useRouter();
+  const { goBack } = useBackToList('/(tabs)/more');
   const { branding, applyPreset, uploadLogoToServer, saveToServer, fetchFromServer, setBranding } = useBrandingStore();
 
   const [name, setName] = useState(branding.name);
@@ -88,7 +90,7 @@ export default function BrandingScreen() {
         title="Identidade da Loja"
         subtitle="Personalize cores e logo"
         showBackButton
-        onBack={() => router.back()}
+        onBack={goBack}
       />
       <ScrollView contentContainerStyle={styles.content}>
 
@@ -193,8 +195,8 @@ export default function BrandingScreen() {
         confirmText="Ok"
         cancelText=""
         icon="checkmark-circle"
-        onConfirm={() => { setSuccessVisible(false); router.back(); }}
-        onCancel={() => { setSuccessVisible(false); router.back(); }}
+        onConfirm={() => { setSuccessVisible(false); goBack(); }}
+        onCancel={() => { setSuccessVisible(false); goBack(); }}
       />
     </View>
   );

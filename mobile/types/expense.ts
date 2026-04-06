@@ -51,6 +51,7 @@ export interface MonthlyResult {
   cmv: number;
   gross_profit: number;
   gross_margin_pct: number;
+  trip_costs: number;
   total_expenses: number;
   net_profit: number;
   net_margin_pct: number;

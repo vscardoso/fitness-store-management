@@ -22,6 +22,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import { getGroupedProducts } from '@/services/productService';
 import { createLook } from '@/services/lookService';
 import { Colors, theme } from '@/constants/Colors';
+import { getImageUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
 import type { ProductGrouped, ProductVariant } from '@/types';
 
@@ -245,7 +246,7 @@ function ProductSelectCard({
           <View style={styles.iconContainer}>
             {product.image_url ? (
               <Image
-                source={{ uri: product.image_url }}
+                source={{ uri: getImageUrl(product.image_url) }}
                 style={styles.productImage}
                 resizeMode="cover"
               />
