@@ -237,3 +237,679 @@
    Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
  [21:32:37] [mobile] [API] POST /stock-entries/entry-items/174/correct - 400
    Data: {"status": 400, "detail": "Não é possível remover 17 unidade(s): apenas 12 disponível(is) (já foram vendidas 3).", "code": "ERR_BAD_REQUEST"}
+ [21:40:17] [mobile] [Wizard] goToNewEntry - usando endpoint atômico
+   Data: {"productName": "Bermuda Moletom", "sku": "PUMA-BERMUD-PRE-M-001", "quantity": 1, "atomic": true}
+ [21:40:18] [mobile] [Entries/Add] Produto parseado
+ [21:40:18] [mobile] [Entries/Add] Modo atômico ativo - produto será criado junto com entrada
+   Data: {"productName": "Bermuda Moletom", "quantity": 1}
+ [21:52:13] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:52:13] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:52:13] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:52:13] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:52:13] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:52:13] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:52:13] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:52:13] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:52:13] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:52:13] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:52:13] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Refresh token inválido.", "code": "ERR_BAD_REQUEST"}
+ [21:52:47] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Tênis Samba OG", "brand": "Adidas", "color": "Branco", "size": null, "category_id": 6, "duplicates_count": 0, "duplicates": []}
+ [21:53:04] [mobile] [Wizard] goToNewEntry - usando endpoint atômico
+   Data: {"productName": "Tênis Samba OG", "sku": "ADID-TENISS-BRA-40-001", "quantity": 1, "atomic": true}
+ [21:53:04] [mobile] [Entries/Add] Produto parseado
+ [21:53:04] [mobile] [Entries/Add] Modo atômico ativo - produto será criado junto com entrada
+   Data: {"productName": "Tênis Samba OG", "quantity": 1}
+ [21:53:42] [mobile] [Entries/Add] Imagem do wizard persistida com sucesso
+   Data: {"entryId": 76, "productId": 453}
+ [22:07:50] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:07:50] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:07:50] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:07:50] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:07:50] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:07:50] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:07:50] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:07:50] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:07:50] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:07:50] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:08:48] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Canelado Manga Longa", "brand": null, "color": "Verde", "size": null, "category_id": 1, "duplicates_count": 0, "duplicates": []}
+ [22:09:14] [mobile] [Wizard] goToNewEntry - usando endpoint atômico
+   Data: {"productName": "Conjunto Canelado Manga Longa", "sku": "WA-CONJUN-VER-G-001", "quantity": 5, "atomic": true}
+ [22:09:14] [mobile] [Entries/Add] Produto parseado
+ [22:09:14] [mobile] [Entries/Add] Modo atômico ativo - produto será criado junto com entrada
+   Data: {"productName": "Conjunto Canelado Manga Longa", "quantity": 5}
+ [22:12:31] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Canelado Manga Longa", "brand": null, "color": "Verde Claro", "size": null, "category_id": 5, "duplicates_count": 0, "duplicates": []}
+ [22:23:14] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:14] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:14] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:14] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:14] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:15] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:15] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:15] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:15] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:15] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:15] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:15] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:15] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:15] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:15] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:15] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:15] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:15] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:15] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:23:15] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:55:51] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:55:51] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:55:51] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:55:51] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:55:51] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:55:51] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:55:51] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:55:51] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:55:51] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:55:51] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:55:51] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Sessão expirada por inatividade (60 min). Faça login novamente.", "code": "ERR_BAD_REQUEST"}
+ [15:10:17] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Legging", "variantsCount": 6}
+ [15:10:33] [mobile] [Wizard] goToExistingEntryWithVariants - produto criado para entrada existente
+   Data: {"productId": 456, "productName": "Legging"}
+ [15:13:30] [mobile] [Wizard] goToNewEntry - usando endpoint atômico
+   Data: {"productName": "Teste Produtos 23", "sku": "NIKE-TESTEP-PRE-M-001", "quantity": 5, "atomic": true}
+ [15:13:30] [mobile] [Entries/Add] Produto parseado
+ [15:13:30] [mobile] [Entries/Add] Modo atômico ativo - produto será criado junto com entrada
+   Data: {"productName": "Teste Produtos 23", "quantity": 5}
+ [15:22:08] [mobile] [API] GET /customers/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:38:27] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:38:27] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Refresh token inválido.", "code": "ERR_BAD_REQUEST"}
+ [15:38:28] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:41:17] [mobile] [API] POST /conditional-shipments/ - 500
+   Data: {"status": 500, "detail": "Erro ao criar envio condicional: (sqlite3.OperationalError) no such column: entry_items.supplier_id\n[SQL: SELECT entry_items.entry_id, entry_items.variant_id, entry_items.product_id, entry_items.quantity_received, entry_items.quantity_remaining, entry_items.unit_cost, entry_items.notes, entry_items.supplier_id, entry_items.id, entry_items.created_at, entry_items.updated_at, entry_items.is_active, entry_items.tenant_id \nFROM entry_items JOIN stock_entries ON entry_items.entry_id = stock_entries.id \nWHERE entry_items.variant_id = ? AND entry_items.quantity_remaining > ? AND entry_items.is_active = 1 AND stock_entries.is_active = 1 AND entry_items.tenant_id = ? ORDER BY stock_entries.entry_date ASC, entry_items.created_at ASC]\n[parameters: (813, 0, 5)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [15:56:45] [mobile] [API] GET /conditional-shipments/3 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:12:20] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:12:20] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:12:20] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:12:20] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:12:20] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:12:20] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:12:20] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:12:20] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:12:20] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:12:20] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:30:58] [mobile] [API] GET /conditional-shipments/4 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:48:59] [mobile] [API] GET /conditional-shipments/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:48:59] [mobile] [API] GET /conditional-shipments/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:48:59] [mobile] [API] GET /conditional-shipments/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:48:59] [mobile] [API] GET /conditional-shipments/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:48:59] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Sessão expirada por inatividade (60 min). Faça login novamente.", "code": "ERR_BAD_REQUEST"}
+ [22:49:00] [mobile] [API] GET /conditional-shipments/3 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:49:00] [mobile] [API] GET /conditional-shipments/4 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [22:49:52] [mobile] [API] PUT /conditional-shipments/1/process-return - 400
+   Data: {"status": 400, "detail": "Este envio já foi finalizado e não pode ser modificado.", "code": "ERR_BAD_REQUEST"}
+ [09:08:28] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:28] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:28] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:28] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:28] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:28] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:28] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:28] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:29] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:29] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:08:29] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Sessão expirada por inatividade (60 min). Faça login novamente.", "code": "ERR_BAD_REQUEST"}
+ [09:27:21] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:27:21] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:27:21] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:27:21] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:27:21] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:27:21] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:27:21] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:27:21] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:27:21] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:27:21] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:27:21] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:27:22] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:28:17] [mobile] [API] GET /conditional-shipments/ - 500
+   Data: {"status": 500, "detail": "Erro ao listar envios: (sqlite3.OperationalError) no such column: conditional_shipment_items.quantity_damaged\n[SQL: SELECT conditional_shipment_items.shipment_id AS conditional_shipment_items_shipment_id, conditional_shipment_items.product_id AS conditional_shipment_items_product_id, conditional_shipment_items.variant_id AS conditional_shipment_items_variant_id, conditional_shipment_items.quantity_sent AS conditional_shipment_items_quantity_sent, conditional_shipment_items.quantity_kept AS conditional_shipment_items_quantity_kept, conditional_shipment_items.quantity_returned AS conditional_shipment_items_quantity_returned, conditional_shipment_items.quantity_damaged AS conditional_shipment_items_quantity_damaged, conditional_shipment_items.quantity_lost AS conditional_shipment_items_quantity_lost, conditional_shipment_items.status AS conditional_shipment_items_status, conditional_shipment_items.unit_price AS conditional_shipment_items_unit_price, conditional_shipment_items.notes AS conditional_shipment_items_notes, conditional_shipment_items.fifo_sources AS conditional_shipment_items_fifo_sources, conditional_shipment_items.id AS conditional_shipment_items_id, conditional_shipment_items.created_at AS conditional_shipment_items_created_at, conditional_shipment_items.updated_at AS conditional_shipment_items_updated_at, conditional_shipment_items.is_active AS conditional_shipment_items_is_active, conditional_shipment_items.tenant_id AS conditional_shipment_items_tenant_id \nFROM conditional_shipment_items \nWHERE conditional_shipment_items.shipment_id IN (?, ?, ?, ?)]\n[parameters: (1, 2, 4, 3)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [09:28:17] [mobile] [API] GET /conditional-shipments/ - 500
+   Data: {"status": 500, "detail": "Erro ao listar envios: (sqlite3.OperationalError) no such column: conditional_shipment_items.quantity_damaged\n[SQL: SELECT conditional_shipment_items.shipment_id AS conditional_shipment_items_shipment_id, conditional_shipment_items.product_id AS conditional_shipment_items_product_id, conditional_shipment_items.variant_id AS conditional_shipment_items_variant_id, conditional_shipment_items.quantity_sent AS conditional_shipment_items_quantity_sent, conditional_shipment_items.quantity_kept AS conditional_shipment_items_quantity_kept, conditional_shipment_items.quantity_returned AS conditional_shipment_items_quantity_returned, conditional_shipment_items.quantity_damaged AS conditional_shipment_items_quantity_damaged, conditional_shipment_items.quantity_lost AS conditional_shipment_items_quantity_lost, conditional_shipment_items.status AS conditional_shipment_items_status, conditional_shipment_items.unit_price AS conditional_shipment_items_unit_price, conditional_shipment_items.notes AS conditional_shipment_items_notes, conditional_shipment_items.fifo_sources AS conditional_shipment_items_fifo_sources, conditional_shipment_items.id AS conditional_shipment_items_id, conditional_shipment_items.created_at AS conditional_shipment_items_created_at, conditional_shipment_items.updated_at AS conditional_shipment_items_updated_at, conditional_shipment_items.is_active AS conditional_shipment_items_is_active, conditional_shipment_items.tenant_id AS conditional_shipment_items_tenant_id \nFROM conditional_shipment_items \nWHERE conditional_shipment_items.shipment_id IN (?, ?, ?, ?)]\n[parameters: (1, 2, 4, 3)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [09:28:18] [mobile] [API] GET /conditional-shipments/ - 500
+   Data: {"status": 500, "detail": "Erro ao listar envios: (sqlite3.OperationalError) no such column: conditional_shipment_items.quantity_damaged\n[SQL: SELECT conditional_shipment_items.shipment_id AS conditional_shipment_items_shipment_id, conditional_shipment_items.product_id AS conditional_shipment_items_product_id, conditional_shipment_items.variant_id AS conditional_shipment_items_variant_id, conditional_shipment_items.quantity_sent AS conditional_shipment_items_quantity_sent, conditional_shipment_items.quantity_kept AS conditional_shipment_items_quantity_kept, conditional_shipment_items.quantity_returned AS conditional_shipment_items_quantity_returned, conditional_shipment_items.quantity_damaged AS conditional_shipment_items_quantity_damaged, conditional_shipment_items.quantity_lost AS conditional_shipment_items_quantity_lost, conditional_shipment_items.status AS conditional_shipment_items_status, conditional_shipment_items.unit_price AS conditional_shipment_items_unit_price, conditional_shipment_items.notes AS conditional_shipment_items_notes, conditional_shipment_items.fifo_sources AS conditional_shipment_items_fifo_sources, conditional_shipment_items.id AS conditional_shipment_items_id, conditional_shipment_items.created_at AS conditional_shipment_items_created_at, conditional_shipment_items.updated_at AS conditional_shipment_items_updated_at, conditional_shipment_items.is_active AS conditional_shipment_items_is_active, conditional_shipment_items.tenant_id AS conditional_shipment_items_tenant_id \nFROM conditional_shipment_items \nWHERE conditional_shipment_items.shipment_id IN (?, ?, ?, ?)]\n[parameters: (1, 2, 4, 3)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [09:28:18] [mobile] [API] GET /conditional-shipments/ - 500
+   Data: {"status": 500, "detail": "Erro ao listar envios: (sqlite3.OperationalError) no such column: conditional_shipment_items.quantity_damaged\n[SQL: SELECT conditional_shipment_items.shipment_id AS conditional_shipment_items_shipment_id, conditional_shipment_items.product_id AS conditional_shipment_items_product_id, conditional_shipment_items.variant_id AS conditional_shipment_items_variant_id, conditional_shipment_items.quantity_sent AS conditional_shipment_items_quantity_sent, conditional_shipment_items.quantity_kept AS conditional_shipment_items_quantity_kept, conditional_shipment_items.quantity_returned AS conditional_shipment_items_quantity_returned, conditional_shipment_items.quantity_damaged AS conditional_shipment_items_quantity_damaged, conditional_shipment_items.quantity_lost AS conditional_shipment_items_quantity_lost, conditional_shipment_items.status AS conditional_shipment_items_status, conditional_shipment_items.unit_price AS conditional_shipment_items_unit_price, conditional_shipment_items.notes AS conditional_shipment_items_notes, conditional_shipment_items.fifo_sources AS conditional_shipment_items_fifo_sources, conditional_shipment_items.id AS conditional_shipment_items_id, conditional_shipment_items.created_at AS conditional_shipment_items_created_at, conditional_shipment_items.updated_at AS conditional_shipment_items_updated_at, conditional_shipment_items.is_active AS conditional_shipment_items_is_active, conditional_shipment_items.tenant_id AS conditional_shipment_items_tenant_id \nFROM conditional_shipment_items \nWHERE conditional_shipment_items.shipment_id IN (?, ?, ?, ?)]\n[parameters: (1, 2, 4, 3)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [09:42:57] [mobile] [API] GET /conditional-shipments/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:58:17] [mobile] [API] GET /expenses/stock-losses - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:21:08] [mobile] [API] GET /conditional-shipments/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:21:08] [mobile] [API] GET /conditional-shipments/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:30:08] [mobile] [API] PUT /conditional-shipments/2/process-return - 400
+   Data: {"status": 400, "detail": "Status atual 'OVERDUE' não permite processamento de devolução.", "code": "ERR_BAD_REQUEST"}
+ [14:13:38] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:13:38] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:13:39] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:13:39] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:13:39] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:13:39] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:13:39] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:13:39] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:13:39] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:13:39] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:13:39] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Sessão expirada por inatividade (60 min). Faça login novamente.", "code": "ERR_BAD_REQUEST"}
+ [14:13:53] [mobile] [API] POST /auth/login - 401
+   Data: {"status": 401, "detail": "Email ou senha incorretos", "code": "ERR_BAD_REQUEST"}
+ [14:14:05] [mobile] [API] POST /auth/login - 401
+   Data: {"status": 401, "detail": "Email ou senha incorretos", "code": "ERR_BAD_REQUEST"}
+ [14:31:45] [mobile] [API] GET /inventory/product/455 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:31:45] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Refresh token inválido.", "code": "ERR_BAD_REQUEST"}
+ [14:31:45] [mobile] [API] GET /products/455 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:31:45] [mobile] [API] GET /categories/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:31:45] [mobile] [API] GET /product-variants/product/455 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:31:46] [mobile] [API] GET /products/455 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:31:46] [mobile] [API] GET /categories/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:31:46] [mobile] [API] GET /product-variants/product/455 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:11:37] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:11:37] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:11:37] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:11:37] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:11:37] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:11:37] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:11:37] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:11:37] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:11:37] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:11:37] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:11:37] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Refresh token inválido.", "code": "ERR_BAD_REQUEST"}
+ [15:31:35] [mobile] [API] GET /categories/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:31:35] [mobile] [API] GET /products/456 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:31:35] [mobile] [API] GET /inventory/product/456 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:31:35] [mobile] [API] GET /product-variants/product/456 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:36:58] [mobile] [API] PATCH /products/455 - 405
+   Data: {"status": 405, "detail": "Method Not Allowed", "code": "ERR_BAD_REQUEST"}
+ [15:46:38] [mobile] [API] PATCH /product-variants/812 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:46:39] [mobile] [API] PATCH /products/455 - 405
+   Data: {"status": 405, "detail": "Method Not Allowed", "code": "ERR_BAD_REQUEST"}
+ [15:46:44] [mobile] [API] PATCH /products/455 - 405
+   Data: {"status": 405, "detail": "Method Not Allowed", "code": "ERR_BAD_REQUEST"}
+ [16:04:27] [mobile] [API] DELETE /products/455/media/4 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:20:56] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:20:56] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:20:56] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:20:56] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:20:56] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:20:56] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:20:56] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:20:56] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:20:56] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:20:56] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:53:00] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:53:00] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:53:00] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:53:00] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:53:00] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:53:00] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:53:00] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:53:00] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:53:00] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:53:00] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:53:00] [mobile] [API] POST /auth/refresh - 500
+   Data: {"status": 500, "detail": "Erro ao renovar token: (sqlite3.OperationalError) no such table: refresh_tokens\n[SQL: SELECT refresh_tokens.id, refresh_tokens.token_hash, refresh_tokens.user_id, refresh_tokens.tenant_id, refresh_tokens.created_at, refresh_tokens.last_used_at, refresh_tokens.expires_at, refresh_tokens.revoked \nFROM refresh_tokens \nWHERE refresh_tokens.token_hash = ?]\n[parameters: ('b0cc8c58067dc86b3c3fd09a8f27d49d323deb0379994dcd0c26d2b451d63ca1',)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [16:53:15] [mobile] [API] POST /auth/login - 500
+   Data: {"status": 500, "detail": "Erro ao criar sessão: (sqlite3.OperationalError) no such table: refresh_tokens\n[SQL: DELETE FROM refresh_tokens WHERE refresh_tokens.user_id = ? AND (refresh_tokens.expires_at < ? OR refresh_tokens.revoked = 1)]\n[parameters: (7, '2026-04-07 19:53:15.100190')]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [16:53:45] [mobile] [API] POST /auth/login - 500
+   Data: {"status": 500, "detail": "Erro ao criar sessão: (sqlite3.OperationalError) no such table: refresh_tokens\n[SQL: DELETE FROM refresh_tokens WHERE refresh_tokens.user_id = ? AND (refresh_tokens.expires_at < ? OR refresh_tokens.revoked = 1)]\n[parameters: (7, '2026-04-07 19:53:45.568359')]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [21:07:04] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:07:04] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:07:04] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:07:04] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:07:04] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:07:04] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:07:04] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:07:04] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:07:04] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:07:04] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [21:10:10] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Teste", "variantsCount": 5}
+ [21:10:31] [mobile] [Wizard] goToNewEntryWithVariants - modo atômico
+   Data: {"productName": "Teste", "variantsCount": 5, "totalQty": 26}
+ [11:32:55] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [11:32:55] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [11:32:55] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [11:32:55] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [11:32:55] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [11:32:55] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [11:32:55] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [11:32:55] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [11:32:55] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [11:32:55] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [11:32:55] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Refresh token inválido.", "code": "ERR_BAD_REQUEST"}
+ [16:25:08] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:25:08] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:25:08] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:25:08] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:25:08] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:25:08] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:25:08] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:25:08] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:25:08] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:25:08] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:32:50] [mobile] [API] POST /pdv/pix/22 - 400
+   Data: {"status": 400, "detail": "Erro ao gerar PIX no Mercado Pago: {\"cause\":[{\"code\":7,\"data\":\"09-04-2026T19:32:49UTC;e59dcf07-3269-4ea2-8797-d124ebad3aea\",\"description\":\"Unauthorized use of live credentials\"}],\"error\":\"unauthorized\",\"message\":\"Unauthorized use of live credentials\",\"status\":401}", "code": "ERR_BAD_REQUEST"}
+ [16:35:08] [mobile] [API] POST /pdv/pix/22 - 400
+   Data: {"status": 400, "detail": "Erro ao gerar PIX no Mercado Pago: {\"message\":\"Unauthorized use of live credentials\",\"error\":\"unauthorized\",\"status\":401,\"cause\":[{\"code\":7,\"description\":\"Unauthorized use of live credentials\",\"data\":\"09-04-2026T19:35:07UTC;a9ff7774-de5a-4fd6-a9a4-b10685beb42f\"}]}", "code": "ERR_BAD_REQUEST"}
+ [16:35:17] [mobile] [API] POST /pdv/pix/22 - 400
+   Data: {"status": 400, "detail": "Erro ao gerar PIX no Mercado Pago: {\"message\":\"Unauthorized use of live credentials\",\"error\":\"unauthorized\",\"status\":401,\"cause\":[{\"code\":7,\"description\":\"Unauthorized use of live credentials\",\"data\":\"09-04-2026T19:35:15UTC;c9ae9176-5b18-420c-b512-512d17bbf615\"}]}", "code": "ERR_BAD_REQUEST"}
+ [16:36:06] [mobile] [API] POST /pdv/pix/22 - 400
+   Data: {"status": 400, "detail": "Erro ao gerar PIX no Mercado Pago: {\"message\":\"Unauthorized use of live credentials\",\"error\":\"unauthorized\",\"status\":401,\"cause\":[{\"code\":7,\"description\":\"Unauthorized use of live credentials\",\"data\":\"09-04-2026T19:36:05UTC;4b9a9238-88cf-4dd4-94c8-33e7a6706c16\"}]}", "code": "ERR_BAD_REQUEST"}
+ [16:36:19] [mobile] [API] POST /pdv/pix/22 - 400
+   Data: {"status": 400, "detail": "Erro ao gerar PIX no Mercado Pago: {\"message\":\"Unauthorized use of live credentials\",\"error\":\"unauthorized\",\"status\":401,\"cause\":[{\"code\":7,\"description\":\"Unauthorized use of live credentials\",\"data\":\"09-04-2026T19:36:18UTC;e583fdcc-0158-41ef-af75-5b8732f6c5d3\"}]}", "code": "ERR_BAD_REQUEST"}
+ [17:18:32] [mobile] [API] POST /pdv/pix/start - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:21:24] [mobile] [API] POST /pdv/pix/start - 400
+   Data: {"status": 400, "detail": "Erro ao gerar PIX no Mercado Pago: {\"cause\":[{\"code\":7,\"data\":\"09-04-2026T20:21:22UTC;a45b71d7-6d15-4c83-afee-344c0b86f87c\",\"description\":\"Unauthorized use of live credentials\"}],\"error\":\"unauthorized\",\"message\":\"Unauthorized use of live credentials\",\"status\":401}", "code": "ERR_BAD_REQUEST"}
+ [17:30:23] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:23] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:23] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:23] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:23] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:23] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:23] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:23] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:23] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:23] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:31:04] [mobile] [API] POST /pdv/pix/start - 400
+   Data: {"status": 400, "detail": "Mercado Pago rejeitou as credenciais: uso de credencial LIVE em contexto TEST. Use um access token TEST-... para sandbox e conta/comprador de teste, ou execute tudo em produção com credenciais LIVE e conta real. No sandbox PIX, defina também um pagador de teste válido (payer_email ou MP_TEST_PAYER_EMAIL).", "code": "ERR_BAD_REQUEST"}
+ [17:34:04] [mobile] [API] POST /pdv/pix/start - 400
+   Data: {"status": 400, "detail": "Mercado Pago rejeitou as credenciais: uso de credencial LIVE em contexto TEST. Use um access token TEST-... para sandbox e conta/comprador de teste, ou execute tudo em produção com credenciais LIVE e conta real. No sandbox PIX, defina também um pagador de teste válido (payer_email ou MP_TEST_PAYER_EMAIL).", "code": "ERR_BAD_REQUEST"}
+ [14:32:18] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:32:18] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:32:18] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:32:18] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:32:18] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:32:18] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:32:18] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:32:18] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:32:18] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:32:18] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:32:19] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Sessão expirada por inatividade (60 min). Faça login novamente.", "code": "ERR_BAD_REQUEST"}
+ [15:02:17] [mobile] [API] POST /pdv/pix/start - 400
+   Data: {"status": 400, "detail": "(sqlite3.OperationalError) no such column: pix_transactions.provider\n[SQL: SELECT pix_transactions.provider, pix_transactions.payment_id, pix_transactions.sale_id, pix_transactions.amount_expected, pix_transactions.amount_paid, pix_transactions.status, pix_transactions.mp_external_reference, pix_transactions.payer_email, pix_transactions.expires_at, pix_transactions.confirmed_at, pix_transactions.confirmed_by, pix_transactions.id, pix_transactions.created_at, pix_transactions.updated_at, pix_transactions.is_active, pix_transactions.tenant_id \nFROM pix_transactions \nWHERE pix_transactions.sale_id = ? AND pix_transactions.status = ? AND pix_transactions.tenant_id = ?]\n[parameters: (26, 'pending', 5)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_REQUEST"}
+ [15:03:15] [mobile] [API] POST /pdv/pix/start - 400
+   Data: {"status": 400, "detail": "(sqlite3.OperationalError) no such column: pix_transactions.provider\n[SQL: SELECT pix_transactions.provider, pix_transactions.payment_id, pix_transactions.sale_id, pix_transactions.amount_expected, pix_transactions.amount_paid, pix_transactions.status, pix_transactions.mp_external_reference, pix_transactions.payer_email, pix_transactions.expires_at, pix_transactions.confirmed_at, pix_transactions.confirmed_by, pix_transactions.id, pix_transactions.created_at, pix_transactions.updated_at, pix_transactions.is_active, pix_transactions.tenant_id \nFROM pix_transactions \nWHERE pix_transactions.sale_id = ? AND pix_transactions.status = ? AND pix_transactions.tenant_id = ?]\n[parameters: (27, 'pending', 5)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_REQUEST"}
+ [15:04:07] [mobile] [API] POST /sales/ - 422
+   Data: {"status": 422, "detail": "[{\"type\":\"enum\",\"loc\":[\"body\",\"payment_method\"],\"msg\":\"Input should be 'cash', 'credit_card', 'debit_card', 'pix', 'bank_transfer', 'installments' or 'loyalty_points'\",\"input\":\"TERMINAL\",\"ctx\":{\"expected\":\"'cash', 'credit_card', 'debit_card', 'pix', 'bank_transfer', 'installments' or 'loyalty_points'\"},\"url\":\"https://errors.pydantic.dev/2.12/v/enum\"},{\"type\":\"enum\",\"loc\":[\"body\",\"payments\",0,\"payment_method\"],\"msg\":\"Input should be 'cash', 'credit_card', 'debit_card', 'pix', 'bank_transfer', 'installments' or 'loyalty_points'\",\"input\":\"TERMINAL\",\"ctx\":{\"expected\":\"'cash', 'credit_card', 'debit_card', 'pix', 'bank_transfer', 'installments' or 'loyalty_points'\"},\"url\":\"https://errors.pydantic.dev/2.12/v/enum\"}]", "code": "ERR_BAD_REQUEST"}
+ [15:07:36] [mobile] [API] POST /pdv/pix/start - 400
+   Data: {"status": 400, "detail": "Mercado Pago rejeitou as credenciais: uso de credencial LIVE em contexto TEST. Use as credenciais de teste (sandbox) da sua aplicação no Mercado Pago (token de integração de teste), ou execute tudo em produção com credenciais LIVE e conta real. No sandbox PIX, defina também um pagador de teste válido (payer_email ou MP_TEST_PAYER_EMAIL).", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:36] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Refresh token inválido.", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/incomplete/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/catalog/count - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:40] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:03:41] [mobile] [API] GET /products/grouped - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
