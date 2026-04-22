@@ -423,7 +423,7 @@ class PDVService:
                 "FROM sales s "
                 "LEFT JOIN customers c ON c.id = s.customer_id "
                 "WHERE s.tenant_id = :tid "
-                "  AND UPPER(s.status::text) = 'PENDING' "
+                "  AND UPPER(CAST(s.status AS TEXT)) = 'PENDING' "
                 "  AND s.is_active = true "
                 "ORDER BY s.created_at DESC"
             ),
