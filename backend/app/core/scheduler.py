@@ -60,6 +60,21 @@ async def send_overdue_alert_job():
         logger.error(f"Error in overdue alert job: {e}", exc_info=True)
 
 
+async def auto_cancel_stale_terminal_sales_job():
+    """
+    Job: Auto-cancela vendas PENDING de terminal (maquininha) com mais de 30 minutos.
+    Roda a cada 5 minutos.
+    """
+    try:
+        async with async_session_maker() as db:
+            service = PDVService()
+            count = await service.auto_cancel_stale_pending_sales(db, timeout_minutes=30)
+            if count:
+                logger.info(f"Auto-cancel terminal job: {count} vendas canceladas")
+    except Exception as e:
+        logger.error(f"Error in auto-cancel terminal job: {e}", exc_info=True)
+
+
 async def expire_pix_transactions_job():
     """
     Job: Expira transações PIX pendentes cujo QR Code já venceu.
@@ -146,8 +161,17 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # Job 7: Auto-cancelar vendas PENDING de terminal após 30 minutos
+    scheduler.add_job(
+        auto_cancel_stale_terminal_sales_job,
+        trigger=IntervalTrigger(minutes=5),
+        id="auto_cancel_stale_terminal_sales",
+        name="Auto-cancelar maquininha PENDING > 30min",
+        replace_existing=True,
+    )
+
     scheduler.start()
-    logger.info("Background scheduler started with 6 jobs")
+    logger.info("Background scheduler started with 7 jobs")
     logger.info("   - SLA check (before deadline): every 1 minute")
     logger.info("   - Pending reminder: every 2 hours")
     logger.info("   - Overdue alert (SENT): every 4 hours")

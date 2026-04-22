@@ -469,14 +469,41 @@ class PDVService:
         )
         sale = result.scalar_one_or_none()
         if not sale:
-            return "mercadopago"
+            return "manual"
 
         # Se tem payment_reference que começa com "manual_", é manual
         ref = sale.payment_reference or ""
-        if ref.startswith("manual_"):
+        if ref.startswith("manual_") or not ref:
             return "manual"
 
-        return "mercadopago"  # fallback
+        # Se tem payment_reference de MP (numérico longo), usa mercadopago
+        if ref.isdigit() and len(ref) > 8:
+            return "mercadopago"
+
+        return "manual"  # fallback seguro: cancela localmente
+
+    async def auto_cancel_stale_pending_sales(self, db: AsyncSession, timeout_minutes: int = 30) -> int:
+        """Auto-cancela vendas PENDING de terminal (não-PIX) mais antigas que timeout_minutes."""
+        from datetime import datetime, timezone, timedelta
+        from sqlalchemy import text as _text
+
+        cutoff = datetime.now(timezone.utc) - timedelta(minutes=timeout_minutes)
+        # Cancela apenas vendas de maquininha (não PIX) — PIX tem seu próprio expirador
+        result = await db.execute(
+            _text(
+                "UPDATE sales SET status = 'CANCELLED', updated_at = CURRENT_TIMESTAMP "
+                "WHERE UPPER(CAST(status AS TEXT)) = 'PENDING' "
+                "  AND UPPER(CAST(payment_method AS TEXT)) != 'PIX' "
+                "  AND is_active = 1 "
+                "  AND created_at < :cutoff"
+            ),
+            {"cutoff": cutoff.strftime("%Y-%m-%d %H:%M:%S")},
+        )
+        await db.commit()
+        count = result.rowcount or 0
+        if count:
+            logger.info(f"Auto-cancel: {count} vendas PENDING de terminal canceladas (timeout {timeout_minutes}min)")
+        return count
 
     async def _get_pix_provider(self, db: AsyncSession, payment_id: str, tenant_id: int) -> str:
         """Detecta provider pelo PixTransaction."""
