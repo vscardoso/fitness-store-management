@@ -151,11 +151,11 @@ export default function BottomSheet({
       </TouchableWithoutFeedback>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.kavContainer}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
-        <View style={[styles.sheet, { paddingBottom: insets.bottom }]}> 
+        <View style={[styles.sheet, { paddingBottom: insets.bottom }]}>
 
           {/* Header com gradiente — cobre os cantos arredondados do sheet */}
           <LinearGradient
@@ -197,7 +197,6 @@ export default function BottomSheet({
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
-            automaticallyAdjustKeyboardInsets
           >
             {children}
           </ScrollView>
