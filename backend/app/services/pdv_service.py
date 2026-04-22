@@ -424,7 +424,7 @@ class PDVService:
                 "LEFT JOIN customers c ON c.id = s.customer_id "
                 "WHERE s.tenant_id = :tid "
                 "  AND UPPER(CAST(s.status AS TEXT)) = 'PENDING' "
-                "  AND s.is_active = true "
+                "  AND s.is_active = 1 "
                 "ORDER BY s.created_at DESC"
             ),
             {"tid": tenant_id},
@@ -433,7 +433,18 @@ class PDVService:
         output = []
         for row in rows.mappings():
             created = row["created_at"]
-            if created.tzinfo is None:
+            # SQLite retorna string; PostgreSQL retorna datetime
+            if isinstance(created, str):
+                from datetime import datetime as _dt
+                for fmt in ("%Y-%m-%d %H:%M:%S.%f", "%Y-%m-%d %H:%M:%S"):
+                    try:
+                        created = _dt.strptime(created, fmt).replace(tzinfo=timezone.utc)
+                        break
+                    except ValueError:
+                        continue
+                else:
+                    created = now
+            elif created.tzinfo is None:
                 created = created.replace(tzinfo=timezone.utc)
             minutes_ago = int((now - created).total_seconds() / 60)
             output.append({
