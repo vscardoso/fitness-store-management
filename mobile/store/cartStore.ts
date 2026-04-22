@@ -24,6 +24,9 @@ export interface CartItem extends SaleItem {
   product: Product;
 }
 
+/** Duração máxima do carrinho persistido: 8 horas */
+const CART_TTL_MS = 8 * 60 * 60 * 1000;
+
 /**
  * Interface do Cart Store
  */
@@ -34,6 +37,8 @@ interface CartState {
   discount: number;
   customer_id?: number;
   notes?: string;
+  /** Timestamp ISO da primeira adição ao carrinho (para TTL) */
+  persisted_at?: string;
 
   // Computed
   subtotal: number;
@@ -78,6 +83,7 @@ export const useCartStore = create<CartState>()(
       discount: 0,
       customer_id: undefined,
       notes: undefined,
+      persisted_at: undefined,
       subtotal: 0,
       total: 0,
       itemCount: 0,
@@ -117,7 +123,10 @@ export const useCartStore = create<CartState>()(
             unit_price: product.price,
             discount: 0,
           };
-          set({ items: [...items, newItem] });
+          set({
+            items: [...items, newItem],
+            persisted_at: get().persisted_at ?? new Date().toISOString(),
+          });
         }
 
         get().calculateTotals();
@@ -169,7 +178,10 @@ export const useCartStore = create<CartState>()(
             unit_price: variant.price,
             discount: 0,
           };
-          set({ items: [...items, newItem] });
+          set({
+            items: [...items, newItem],
+            persisted_at: get().persisted_at ?? new Date().toISOString(),
+          });
         }
 
         get().calculateTotals();
@@ -288,6 +300,7 @@ export const useCartStore = create<CartState>()(
           discount: 0,
           customer_id: undefined,
           notes: undefined,
+          persisted_at: undefined,
           subtotal: 0,
           total: 0,
           itemCount: 0,
@@ -343,11 +356,42 @@ export const useCartStore = create<CartState>()(
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
         items: state.items,
-        payments: state.payments,
+        // payments NÃO persiste — são específicos da sessão (evita pagamentos fantasma)
         discount: state.discount,
         customer_id: state.customer_id,
         notes: state.notes,
+        persisted_at: state.persisted_at,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+
+        // Fix 2: carrinho expirado (TTL 8h) → limpar tudo
+        if (state.persisted_at) {
+          const age = Date.now() - new Date(state.persisted_at).getTime();
+          if (age > CART_TTL_MS) {
+            state.items = [];
+            state.payments = [];
+            state.discount = 0;
+            state.customer_id = undefined;
+            state.notes = undefined;
+            state.persisted_at = undefined;
+          }
+        }
+
+        // Fix 2: recalcular totais após rehydration (evita total zerado)
+        const items = state.items ?? [];
+        const globalDiscount = state.discount ?? 0;
+        const subtotal = items.reduce(
+          (sum, item) => sum + item.unit_price * item.quantity - item.discount,
+          0,
+        );
+        state.subtotal = subtotal;
+        state.total = Math.max(0, subtotal - globalDiscount);
+        state.itemCount = items.reduce((sum, item) => sum + item.quantity, 0);
+        state.totalPaid = 0;   // payments não persistem
+        state.remaining = state.total;
+        state.payments = [];   // garantia extra
+      },
     }
   )
 );
