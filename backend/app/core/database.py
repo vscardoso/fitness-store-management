@@ -8,12 +8,15 @@ Driver de produção: asyncpg com Python ssl.SSLContext.
 Driver de dev/testes: aiosqlite (SQLite).
 
 Alembic (migrations): usa psycopg2 síncrono — veja alembic/env.py.
+  Startup: alembic upgrade head é executado automaticamente (não-test).
+  Fallback: create_all garante tabelas novas ainda sem migration.
 """
 
 import asyncio
 import logging
 import os
 import ssl
+from pathlib import Path
 from typing import AsyncGenerator
 
 from sqlalchemy import text
@@ -26,6 +29,10 @@ from sqlalchemy.pool import NullPool, StaticPool
 
 from app.core.config import settings
 from app.models.base import BaseModel
+
+# Importar todos os modelos para garantir que estejam no metadata do create_all
+import app.models.refresh_token  # noqa: F401 — estende Base diretamente
+import app.models.audit_log       # noqa: F401 — estende Base diretamente
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +93,7 @@ elif _is_sqlite and settings.ENVIRONMENT == "test":
     ASYNC_DATABASE_URL = database_url.replace("sqlite:///", "sqlite+aiosqlite:///")
     engine = create_async_engine(
         ASYNC_DATABASE_URL,
-        echo=settings.DEBUG,
+        echo=False,  # SQLite test: sem spam de PRAGMA no output
         poolclass=StaticPool,
         connect_args={"check_same_thread": False},
     )
@@ -100,7 +107,7 @@ else:
         ASYNC_DATABASE_URL = database_url
     engine = create_async_engine(
         ASYNC_DATABASE_URL,
-        echo=settings.DEBUG,
+        echo=False,  # SQLite dev: sem spam de PRAGMA no output
         connect_args={"check_same_thread": False},
     )
 
@@ -127,18 +134,54 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
-async def init_db() -> None:
-    """Verifica conectividade com o banco (com retry).
+def _run_alembic_upgrade() -> None:
+    """Executa 'alembic upgrade head' sincronamente (chamado via asyncio.to_thread).
 
-    SQLite dev  → cria tabelas automaticamente via create_all.
-    PostgreSQL  → apenas verifica conexão com SELECT 1.
-                  Schema é gerenciado pelo Alembic (entrypoint.sh).
+    Aplica todas as migrations pendentes na cadeia, incluindo retroativas.
+    Roda em thread para não bloquear o event loop.
     """
+    import logging as _logging
+    from alembic.config import Config as AlembicConfig
+    from alembic import command as alembic_command
+
+    # Silenciar logs verbosos do alembic durante startup
+    _logging.getLogger("alembic.runtime.migration").setLevel(_logging.WARNING)
+    _logging.getLogger("alembic.env").setLevel(_logging.WARNING)
+
+    # backend/alembic.ini — 3 dirs acima de backend/app/core/database.py
+    alembic_ini = Path(__file__).parent.parent.parent / "alembic.ini"
+    if not alembic_ini.exists():
+        logger.warning("alembic.ini não encontrado em %s — pulando auto-migrate", alembic_ini)
+        return
+
+    cfg = AlembicConfig(str(alembic_ini))
+    alembic_command.upgrade(cfg, "head")
+    logger.info("Alembic: migrations aplicadas com sucesso")
+
+
+async def init_db() -> None:
+    """Aplica migrations e verifica conectividade com o banco.
+
+    Estratégia:
+      1. alembic upgrade head  — aplica migrations pendentes (não-test)
+      2. create_all (checkfirst) — cria tabelas de modelos novos sem migration
+      3. Falha com retry        — aguarda banco ficar disponível (PostgreSQL)
+    """
+    # ── Passo 1: executar migrations alembic (dev + prod, nunca em tests) ──
+    if settings.ENVIRONMENT != "test":
+        try:
+            await asyncio.to_thread(_run_alembic_upgrade)
+        except Exception as exc:
+            # Não mata o servidor; create_all abaixo serve de fallback
+            logger.warning("Alembic upgrade head falhou: %s — continuando com create_all", exc)
+
+    # ── Passo 2: create_all como rede de segurança + verificar conectividade ──
     max_retries = 5
     for attempt in range(1, max_retries + 1):
         try:
             async with engine.connect() as conn:
                 if _is_sqlite:
+                    # Cria tabelas que ainda não existem (novos modelos sem migration)
                     await conn.run_sync(BaseModel.metadata.create_all)
                     await conn.commit()
                 else:

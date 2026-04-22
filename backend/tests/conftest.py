@@ -46,7 +46,7 @@ async def test_engine():
     from app.models.store import Store
     from app.models.subscription import Subscription
     from app.core.security import get_password_hash
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
     
     async_session_maker_temp = sessionmaker(
         engine,
@@ -72,8 +72,8 @@ async def test_engine():
             plan="PRO",
             status="active",
             is_trial=False,
-            current_period_start=datetime.utcnow(),
-            current_period_end=datetime.utcnow() + timedelta(days=365),
+            current_period_start=datetime.now(timezone.utc),
+            current_period_end=datetime.now(timezone.utc) + timedelta(days=365),
             max_products=999999,
             max_users=5,
             feature_advanced_reports=True,

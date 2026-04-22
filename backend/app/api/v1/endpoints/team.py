@@ -12,6 +12,7 @@ from app.core.security import get_password_hash
 from app.api.deps import get_current_user, require_role
 from app.models.user import User, UserRole
 from app.repositories.user_repository import UserRepository
+from app.services.audit_service import AuditService
 from app.schemas.user import (
     TeamMemberCreate,
     TeamMemberUpdate,
@@ -226,6 +227,7 @@ async def change_member_role(
             detail="Membro da equipe não encontrado"
         )
 
+    old_role = user.role
     updated = await repo.update_in_tenant(
         user_id,
         current_user.tenant_id,
@@ -233,7 +235,11 @@ async def change_member_role(
     )
     await db.commit()
     await db.refresh(updated)
-
+    await AuditService.log(db, "USER_ROLE_CHANGED",
+        tenant_id=current_user.tenant_id, user_id=current_user.id, user_email=current_user.email,
+        entity="user", entity_id=user_id,
+        detail={"old_role": str(old_role), "new_role": str(role_data.role), "target_email": user.email},
+    )
     return _user_to_response(updated)
 
 
@@ -271,7 +277,11 @@ async def reset_member_password(
         {"hashed_password": hashed}
     )
     await db.commit()
-
+    await AuditService.log(db, "PASSWORD_RESET",
+        tenant_id=current_user.tenant_id, user_id=current_user.id, user_email=current_user.email,
+        entity="user", entity_id=user_id,
+        detail={"target_email": user.email, "reset_by": current_user.email},
+    )
     return {"message": "Senha alterada com sucesso"}
 
 

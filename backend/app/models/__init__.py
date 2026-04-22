@@ -24,6 +24,10 @@ from .product_tag import ProductTag
 from .expense import Expense, ExpenseCategory
 from .supplier import Supplier
 from .supplier_product import SupplierProduct
+from .audit_log import AuditLog
+from .product_media import ProductMedia
+from .pdv_terminal import PDVTerminal
+from .pix_transaction import PixTransaction
 
 __all__ = [
     # Base
@@ -103,4 +107,16 @@ __all__ = [
     # Supplier
     "Supplier",
     "SupplierProduct",
+
+    # Audit
+    "AuditLog",
+
+    # Product Media (galeria)
+    "ProductMedia",
+
+    # PDV Terminal
+    "PDVTerminal",
+
+    # PIX Transactions (auditoria + idempotência)
+    "PixTransaction",
 ]

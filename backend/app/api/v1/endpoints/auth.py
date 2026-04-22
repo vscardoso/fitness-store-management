@@ -21,6 +21,8 @@ from app.services.signup_service import SignupService
 from app.api.deps import get_current_active_user
 from app.models.user import User
 from app.models.store import Store
+from app.services.audit_service import AuditService
+from fastapi import Request
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
 logger = logging.getLogger(__name__)
@@ -75,6 +77,7 @@ async def register(
 )
 async def login(
     credentials: UserLogin,
+    request: Request,
     db: AsyncSession = Depends(get_db)
 ):
     """
@@ -107,6 +110,11 @@ async def login(
     )
 
     if not user:
+        await AuditService.log(db, "LOGIN_FAILED",
+            user_email=credentials.email,
+            ip_address=request.client.host if request.client else None,
+            detail={"reason": "wrong_credentials"},
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Email ou senha incorretos",
@@ -128,6 +136,13 @@ async def login(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao criar sessão: {str(e)}"
         )
+
+    await AuditService.log(db, "LOGIN_SUCCESS",
+        tenant_id=user.tenant_id,
+        user_id=user.id,
+        user_email=user.email,
+        ip_address=request.client.host if request.client else None,
+    )
 
     return {
         "access_token": access_token,

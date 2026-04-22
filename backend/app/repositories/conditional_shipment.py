@@ -289,6 +289,8 @@ class ConditionalShipmentItemRepository:
         item_id: int,
         quantity_kept: int,
         quantity_returned: int,
+        quantity_damaged: int,
+        quantity_lost: int,
         status: str,
         notes: Optional[str] = None,
     ) -> Optional[ConditionalShipmentItem]:
@@ -317,12 +319,12 @@ class ConditionalShipmentItemRepository:
         
         item.quantity_kept = quantity_kept
         item.quantity_returned = quantity_returned
+        item.quantity_damaged = quantity_damaged
+        item.quantity_lost = quantity_lost
         item.status = status
-        if notes:
+        if notes is not None:
             item.notes = notes
-        
-        await db.commit()
-        await db.refresh(item)
+
         return item
     
     async def get_by_shipment(

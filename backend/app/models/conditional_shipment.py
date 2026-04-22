@@ -124,6 +124,8 @@ class ConditionalShipmentItem(BaseModel):
     quantity_sent = Column(Integer, nullable=False)  # Quantidade enviada
     quantity_kept = Column(Integer, default=0, nullable=False)  # Cliente ficou com
     quantity_returned = Column(Integer, default=0, nullable=False)  # Cliente devolveu
+    quantity_damaged = Column(Integer, default=0, nullable=False)  # Cliente devolveu danificado
+    quantity_lost = Column(Integer, default=0, nullable=False)  # Item perdido/extraviado
 
     # Status: SENT, KEPT, RETURNED, DAMAGED, LOST
     status = Column(String(20), default="SENT", nullable=False)
@@ -142,7 +144,7 @@ class ConditionalShipmentItem(BaseModel):
     @property
     def quantity_pending(self) -> int:
         """Quantidade ainda não processada (nem devolvida nem mantida)"""
-        return self.quantity_sent - self.quantity_kept - self.quantity_returned
+        return self.quantity_sent - self.quantity_kept - self.quantity_returned - self.quantity_damaged - self.quantity_lost
     
     @property
     def total_value(self) -> float:

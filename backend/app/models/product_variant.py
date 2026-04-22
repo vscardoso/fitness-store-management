@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from .sale import SaleItem
     from .sale_return import ReturnItem
     from .entry_item import EntryItem
+    from .product_media import ProductMedia
 
 
 class ProductVariant(BaseModel):
@@ -117,7 +118,15 @@ class ProductVariant(BaseModel):
         "ReturnItem",
         back_populates="variant"
     )
-    
+
+    media: Mapped[List["ProductMedia"]] = relationship(
+        "ProductMedia",
+        back_populates="variant",
+        cascade="all, delete-orphan",
+        foreign_keys="ProductMedia.variant_id",
+        order_by="ProductMedia.position, ProductMedia.id",
+    )
+
     def __repr__(self) -> str:
         sku_display = self.sku or "CATALOG"
         return f"<ProductVariant(id={self.id}, sku='{sku_display}', size='{self.size}', color='{self.color}')>"

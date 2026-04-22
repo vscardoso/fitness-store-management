@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import async_session_maker
 from app.services.conditional_notification_service import ConditionalNotificationService
 from app.tasks.wishlist_notifier import run_wishlist_notifier
+from app.services.pdv_service import PDVService
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +58,21 @@ async def send_overdue_alert_job():
             logger.info(f"Overdue alert sent: {result}")
     except Exception as e:
         logger.error(f"Error in overdue alert job: {e}", exc_info=True)
+
+
+async def expire_pix_transactions_job():
+    """
+    Job: Expira transações PIX pendentes cujo QR Code já venceu.
+    Roda a cada 5 minutos.
+    """
+    try:
+        async with async_session_maker() as db:
+            service = PDVService()
+            count = await service.expire_pending_pix(db)
+            if count:
+                logger.info(f"PIX expiration job: {count} transações expiradas")
+    except Exception as e:
+        logger.error(f"Error in PIX expiration job: {e}", exc_info=True)
 
 
 async def send_missed_departure_alert_job():
@@ -121,8 +137,17 @@ def start_scheduler():
         replace_existing=True,
     )
 
+    # Job 6: Expirar transações PIX vencidas a cada 5 minutos
+    scheduler.add_job(
+        expire_pix_transactions_job,
+        trigger=IntervalTrigger(minutes=5),
+        id="expire_pix_transactions",
+        name="Expirar PIX pendentes vencidos",
+        replace_existing=True,
+    )
+
     scheduler.start()
-    logger.info("Background scheduler started with 4 jobs")
+    logger.info("Background scheduler started with 6 jobs")
     logger.info("   - SLA check (before deadline): every 1 minute")
     logger.info("   - Pending reminder: every 2 hours")
     logger.info("   - Overdue alert (SENT): every 4 hours")

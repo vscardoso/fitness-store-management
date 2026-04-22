@@ -289,13 +289,15 @@ async def get_dashboard_stats(
         Sale.created_at <= today_end,
         Sale.is_active == True,
         SaleItem.is_active == True,
+        Sale.status.in_([SaleStatus.COMPLETED.value, SaleStatus.PARTIALLY_REFUNDED.value]),
     )
     result = await db.execute(cmv_today_query)
     cmv_today = float(result.scalar() or 0.0)
     
     # 7.0.2 Devoluções de vendas feitas HOJE (subtrair das vendas de hoje)
-    # IMPORTANTE: Só subtrair se a venda ORIGINAL foi feita hoje
-    # Devolução de venda de ontem NÃO afeta "vendas de hoje"
+    # IMPORTANTE: Só subtrair se a venda ORIGINAL foi feita hoje E ainda está em total_today.
+    # Vendas com status REFUNDED já foram excluídas do total_today (não são COMPLETED),
+    # portanto NÃO devem ser subtraídas novamente — causaria dupla dedução.
     returns_today_query = select(
         func.coalesce(func.sum(SaleReturn.total_refund), 0).label("returns_today"),
     ).join(Sale, SaleReturn.sale_id == Sale.id).where(
@@ -305,6 +307,8 @@ async def get_dashboard_stats(
         # Filtrar pela data da VENDA, não pela data da devolução
         Sale.created_at >= today_start,
         Sale.created_at <= today_end,
+        # Excluir vendas totalmente estornadas (já fora do total_today)
+        Sale.status == SaleStatus.PARTIALLY_REFUNDED.value,
     )
     result = await db.execute(returns_today_query)
     returns_today = float(result.scalar() or 0.0)
@@ -313,6 +317,8 @@ async def get_dashboard_stats(
     total_sales_today = max(0, total_sales_today - returns_today)
     
     # Custo dos itens devolvidos de vendas feitas hoje (para ajustar CMV)
+    # Mesma regra: só ajustar CMV de vendas PARCIALMENTE devolvidas (PARTIALLY_REFUNDED).
+    # Vendas REFUNDED já foram excluídas do CMV base (query usa COMPLETED + PARTIALLY_REFUNDED).
     returns_cmv_today_query = select(
         func.coalesce(func.sum(ReturnItem.quantity_returned * ReturnItem.unit_cost), 0).label("returns_cmv"),
     ).join(SaleReturn, ReturnItem.return_id == SaleReturn.id).join(Sale, SaleReturn.sale_id == Sale.id).where(
@@ -323,6 +329,8 @@ async def get_dashboard_stats(
         # Filtrar pela data da VENDA, não pela data da devolução
         Sale.created_at >= today_start,
         Sale.created_at <= today_end,
+        # Excluir vendas totalmente estornadas (já fora do CMV base)
+        Sale.status == SaleStatus.PARTIALLY_REFUNDED.value,
     )
     result = await db.execute(returns_cmv_today_query)
     returns_cmv_today = float(result.scalar() or 0.0)
@@ -411,6 +419,7 @@ async def get_dashboard_stats(
         Sale.tenant_id == tenant_id,
         Sale.is_active == True,
         SaleItem.is_active == True,
+        Sale.status.in_([SaleStatus.COMPLETED.value, SaleStatus.PARTIALLY_REFUNDED.value]),
     )
 
     result = await db.execute(cmv_query)
@@ -1037,6 +1046,7 @@ async def get_daily_sales(
             Sale.created_at >= period_start_utc,
             Sale.created_at <= period_end_utc,
             Sale.is_active == True,
+            Sale.status.in_([SaleStatus.COMPLETED.value, SaleStatus.PARTIALLY_REFUNDED.value]),
         )
         .order_by(Sale.created_at.asc())
     )
@@ -1221,16 +1231,16 @@ async def get_top_products(
             Sale.is_active == True,
             SaleItem.is_active == True,
             Product.is_active == True,
+            Sale.status.in_([SaleStatus.COMPLETED.value, SaleStatus.PARTIALLY_REFUNDED.value]),
         )
         .group_by(SaleItem.product_id, Product.name)
-        .order_by(func.sum(SaleItem.quantity * SaleItem.unit_price).desc())
-        .limit(limit)
     )
 
     res = await db.execute(top_q)
     rows = res.fetchall()
 
     # Buscar devoluções do período agrupadas por produto
+    # Baseado na data da devolução, não da venda original
     returns_q = (
         select(
             ReturnItem.product_id,
@@ -1250,10 +1260,10 @@ async def get_top_products(
         )
         .group_by(ReturnItem.product_id)
     )
-    
+
     res = await db.execute(returns_q)
     returns_rows = res.fetchall()
-    
+
     # Criar dict de devoluções por produto
     returns_by_product = {}
     for row in returns_rows:
@@ -1296,6 +1306,10 @@ async def get_top_products(
         p["share_percent"] = round(
             (p["revenue"] / total_revenue * 100) if total_revenue > 0 else 0.0, 1
         )
+
+    # Top por faturamento líquido
+    products.sort(key=lambda x: x["revenue"], reverse=True)
+    products = products[:limit]
 
     return {
         "products": products,

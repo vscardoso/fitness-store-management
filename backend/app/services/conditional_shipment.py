@@ -3,6 +3,7 @@ Service para envios condicionais com regras de negócio.
 """
 from typing import List, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, or_
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -13,6 +14,9 @@ from app.repositories.conditional_shipment import (
 from app.repositories.product_repository import ProductRepository
 from app.repositories.customer_repository import CustomerRepository
 from app.models.conditional_shipment import ConditionalShipment
+from app.models.expense import Expense, ExpenseCategory
+from app.models.product import Product
+from app.models.product_variant import ProductVariant
 from app.models.sale import Sale, SaleItem, SaleStatus, PaymentMethod
 from app.services.fifo_service import FIFOService
 from app.schemas.conditional_shipment import (
@@ -26,6 +30,8 @@ from app.services.notification_scheduler import NotificationScheduler
 
 class ConditionalShipmentService:
     """Service com regras de negócio para envios condicionais"""
+
+    LOSS_EXPENSE_CATEGORY_NAME = "Perdas de Estoque"
     
     def __init__(self):
         self.shipment_repo = ConditionalShipmentRepository()
@@ -134,8 +140,9 @@ class ConditionalShipmentService:
         # Importar enum
         from app.models.enums import ShipmentStatus
 
-        # Validar status
-        if shipment.status != ShipmentStatus.SENT.value:
+        # Validar status: permite processamento para envios enviados e atrasados
+        allowed_processing_statuses = {ShipmentStatus.SENT.value, "OVERDUE"}
+        if shipment.status not in allowed_processing_statuses:
             # User-friendly error messages
             if shipment.status == ShipmentStatus.PENDING.value:
                 raise ValueError(
@@ -153,6 +160,8 @@ class ConditionalShipmentService:
         # 2. Atualizar itens e devolver estoque
         total_kept = 0
         total_returned = 0
+        total_damaged = 0
+        total_lost = 0
         items_for_sale = []
 
         for item_update in return_data.items:
@@ -165,7 +174,12 @@ class ConditionalShipmentService:
                 continue
 
             # Validar quantidades
-            total_processed = item_update.quantity_kept + item_update.quantity_returned
+            total_processed = (
+                item_update.quantity_kept
+                + item_update.quantity_returned
+                + item_update.quantity_damaged
+                + item_update.quantity_lost
+            )
             if total_processed > db_item.quantity_sent:
                 raise ValueError(
                     f"Item {db_item.id}: total processado ({total_processed}) "
@@ -178,6 +192,8 @@ class ConditionalShipmentService:
                 item_id=db_item.id,
                 quantity_kept=item_update.quantity_kept,
                 quantity_returned=item_update.quantity_returned,
+                quantity_damaged=item_update.quantity_damaged,
+                quantity_lost=item_update.quantity_lost,
                 status=item_update.status,
                 notes=item_update.notes,
             )
@@ -199,6 +215,8 @@ class ConditionalShipmentService:
             
             total_kept += item_update.quantity_kept
             total_returned += item_update.quantity_returned
+            total_damaged += item_update.quantity_damaged
+            total_lost += item_update.quantity_lost
             
             # Preparar itens para venda
             if item_update.quantity_kept > 0:
@@ -208,6 +226,16 @@ class ConditionalShipmentService:
                     "quantity": item_update.quantity_kept,
                     "unit_price": db_item.unit_price,
                 })
+
+            if item_update.quantity_lost > 0:
+                await self._create_loss_expense(
+                    db=db,
+                    tenant_id=tenant_id,
+                    shipment=shipment,
+                    db_item=db_item,
+                    quantity_lost=item_update.quantity_lost,
+                    notes=item_update.notes,
+                )
         
         # 3. Determinar novo status baseado no resultado
         total_sent = shipment.total_items_sent
@@ -215,11 +243,11 @@ class ConditionalShipmentService:
         if total_kept == total_sent:
             # Cliente ficou com TUDO → Venda 100%
             new_status = ShipmentStatus.COMPLETED_FULL_SALE.value
-        elif total_kept > 0 and total_returned > 0:
+        elif total_kept > 0:
             # Cliente ficou com ALGUNS e devolveu OUTROS → Venda parcial
             new_status = ShipmentStatus.COMPLETED_PARTIAL_SALE.value
-        elif total_returned == total_sent:
-            # Cliente devolveu TUDO → Não vendeu nada
+        elif total_returned + total_damaged + total_lost == total_sent:
+            # Cliente não comprou nada → devolveu, danificou ou perdeu tudo
             new_status = ShipmentStatus.RETURNED_NO_SALE.value
         else:
             # Fallback (não deveria acontecer)
@@ -253,15 +281,99 @@ class ConditionalShipmentService:
             )
             sale_created = True
 
-        # Se o usuário pediu explicitamente para criar venda mas não há itens comprados, avisar
-        if return_data.create_sale and not items_for_sale:
-            raise ValueError(
-                "Não é possível finalizar venda: nenhum produto foi marcado como comprado. "
-                "Marque pelo menos um produto com 'Quantidade Comprada' > 0."
-            )
-
         await db.refresh(shipment)
         return shipment
+
+    async def _create_loss_expense(
+        self,
+        db: AsyncSession,
+        tenant_id: int,
+        shipment: ConditionalShipment,
+        db_item,
+        quantity_lost: int,
+        notes: str | None,
+    ) -> None:
+        category = await self._get_or_create_loss_category(db)
+        product_name, unit_cost = await self._get_item_loss_cost_context(db, db_item.product_id, db_item.variant_id)
+
+        if unit_cost <= 0:
+            unit_cost = Decimal(str(db_item.unit_price))
+
+        expense_amount = (unit_cost * Decimal(quantity_lost)).quantize(Decimal("0.01"))
+        description = f"Perda de item em envio condicional #{shipment.id} - {product_name}"
+
+        expense_notes_parts = [
+            f"Cliente: {shipment.customer_id}",
+            f"Item do envio: {db_item.id}",
+            f"Quantidade perdida: {quantity_lost}",
+            f"Custo unitário: {unit_cost}",
+        ]
+        if notes:
+            expense_notes_parts.append(f"Observações: {notes}")
+
+        expense = Expense(
+            tenant_id=tenant_id,
+            amount=expense_amount,
+            description=description,
+            expense_date=datetime.utcnow().date(),
+            notes=" | ".join(expense_notes_parts),
+            is_recurring=False,
+            recurrence_day=None,
+            category_id=category.id if category else None,
+        )
+        db.add(expense)
+
+    async def _get_or_create_loss_category(self, db: AsyncSession) -> ExpenseCategory:
+        stmt = select(ExpenseCategory).where(
+            ExpenseCategory.name == self.LOSS_EXPENSE_CATEGORY_NAME,
+            ExpenseCategory.is_active == True,
+            ExpenseCategory.tenant_id.is_(None),
+        )
+        result = await db.execute(stmt)
+        category = result.scalar_one_or_none()
+        if category:
+            return category
+
+        category = ExpenseCategory(
+            tenant_id=None,
+            name=self.LOSS_EXPENSE_CATEGORY_NAME,
+            color="#e74c3c",
+            icon="warning-outline",
+        )
+        db.add(category)
+        await db.flush()
+        return category
+
+    async def _get_item_loss_cost_context(
+        self,
+        db: AsyncSession,
+        product_id: int,
+        variant_id: int | None,
+    ) -> tuple[str, Decimal]:
+        product_result = await db.execute(
+            select(Product.name).where(Product.id == product_id)
+        )
+        product_name = product_result.scalar_one_or_none() or f"Produto #{product_id}"
+
+        if variant_id:
+            variant_result = await db.execute(
+                select(ProductVariant.cost_price).where(ProductVariant.id == variant_id)
+            )
+            variant_cost = variant_result.scalar_one_or_none()
+            if variant_cost is not None:
+                return product_name, Decimal(str(variant_cost))
+
+        fallback_cost_result = await db.execute(
+            select(ProductVariant.cost_price)
+            .where(ProductVariant.product_id == product_id, ProductVariant.is_active == True)
+            .order_by(ProductVariant.id.asc())
+            .limit(1)
+        )
+        fallback_cost = fallback_cost_result.scalar_one_or_none()
+        if fallback_cost is not None:
+            return product_name, Decimal(str(fallback_cost))
+
+        return product_name, Decimal("0.00")
     
     async def _create_sale_from_shipment(
         self,

@@ -89,6 +89,42 @@ class Store(BaseModel):
         comment="Data de expiração do trial"
     )
 
+    # Mercado Pago In-Store
+    mp_user_id: Mapped[Optional[str]] = mapped_column(
+        String(100),
+        nullable=True,
+        comment="ID do usuário no Mercado Pago"
+    )
+    mp_store_id: Mapped[Optional[str]] = mapped_column(
+        String(50),
+        nullable=True,
+        comment="ID da loja criada no MP (/users/{id}/stores)"
+    )
+
+    # MP Connect OAuth — cada lojista conecta sua própria conta MP
+    mp_access_token: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Access token OAuth do lojista no Mercado Pago"
+    )
+    mp_refresh_token: Mapped[Optional[str]] = mapped_column(
+        String(500),
+        nullable=True,
+        comment="Refresh token OAuth do lojista no Mercado Pago"
+    )
+    mp_token_expires_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        comment="Expiração do access token MP OAuth"
+    )
+    pix_provider: Mapped[str] = mapped_column(
+        String(50),
+        default="mock",
+        server_default="mock",
+        nullable=False,
+        comment="Provider PIX ativo para este tenant: mock, mercadopago"
+    )
+
     # Endereço da loja
     zip_code: Mapped[Optional[str]] = mapped_column(
         String(10),

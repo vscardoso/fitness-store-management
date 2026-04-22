@@ -45,6 +45,7 @@ class SaleService:
         seller_id: int,
         *,
         tenant_id: int,
+        keep_pending: bool = False,
     ) -> Sale:
         """
         Cria uma venda completa com validaes e movimentao de estoque.
@@ -265,7 +266,8 @@ class SaleService:
             
             # 10. Finalizar venda
             print(" Finalizando venda...")
-            sale.status = SaleStatus.COMPLETED.value
+            if not keep_pending:
+                sale.status = SaleStatus.COMPLETED.value
             sale.loyalty_points_earned = float(loyalty_points_earned)
             
             await self.db.commit()

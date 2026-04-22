@@ -12,6 +12,7 @@ from app.services.sale_service import SaleService
 from app.repositories.sale_repository import SaleRepository
 from app.api.deps import get_current_active_user, require_role, get_current_tenant_id
 from app.models.user import User, UserRole
+from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/sales", tags=["Vendas"])
 
@@ -105,9 +106,14 @@ async def create_sale(
     try:
         # Criar venda com o usuário atual como vendedor
         sale = await sale_service.create_sale(
-            sale_data, 
+            sale_data,
             seller_id=current_user.id,
             tenant_id=tenant_id,
+        )
+        await AuditService.log(db, "SALE_CREATED",
+            tenant_id=tenant_id, user_id=current_user.id, user_email=current_user.email,
+            entity="sale", entity_id=sale.id,
+            detail={"total": float(sale.total_amount), "items": len(sale_data.items)},
         )
         return sale
         
@@ -468,6 +474,11 @@ async def cancel_sale(
             reason=reason,
             user_id=current_user.id,
             tenant_id=tenant_id,
+        )
+        await AuditService.log(db, "SALE_CANCELLED",
+            tenant_id=tenant_id, user_id=current_user.id, user_email=current_user.email,
+            entity="sale", entity_id=sale_id,
+            detail={"reason": reason},
         )
         return sale
         

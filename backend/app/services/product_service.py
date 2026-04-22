@@ -513,6 +513,8 @@ class ProductService:
                 take = abs(int(delta))
                 # Buscar itens disponíveis FIFO (mais antigos primeiro)
                 from sqlalchemy import join
+                from sqlalchemy import text as _text
+                from sqlalchemy.exc import OperationalError
                 from app.models.stock_entry import StockEntry as SE
 
                 q = (
@@ -529,7 +531,18 @@ class ProductService:
                     )
                     .order_by(SE.entry_date.asc(), EntryItem.created_at.asc())
                 )
-                items = (await self.db.execute(q)).scalars().all()
+                try:
+                    items = (await self.db.execute(q)).scalars().all()
+                except OperationalError as op_err:
+                    # Compatibilidade com SQLite antigo: alguns bancos locais podem estar
+                    # com revision marcada como head, mas sem a coluna supplier_id física.
+                    # Se isso ocorrer, cria a coluna e reexecuta a consulta.
+                    if "no such column: entry_items.supplier_id" not in str(op_err):
+                        raise
+
+                    await self.db.execute(_text("ALTER TABLE entry_items ADD COLUMN supplier_id INTEGER"))
+                    await self.db.commit()
+                    items = (await self.db.execute(q)).scalars().all()
 
                 remaining = take
                 for it in items:

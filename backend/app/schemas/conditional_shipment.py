@@ -32,6 +32,8 @@ class ConditionalShipmentItemUpdate(BaseModel):
     id: int = Field(..., gt=0, description="ID do item")
     quantity_kept: int = Field(0, ge=0, description="Quantidade que cliente ficou")
     quantity_returned: int = Field(0, ge=0, description="Quantidade devolvida")
+    quantity_damaged: int = Field(0, ge=0, description="Quantidade devolvida danificada")
+    quantity_lost: int = Field(0, ge=0, description="Quantidade perdida/extraviada")
     status: str = Field("SENT", description="SENT, KEPT, RETURNED, DAMAGED, LOST")
     notes: Optional[str] = Field(None, max_length=500)
     
@@ -50,10 +52,13 @@ class ConditionalShipmentItemResponse(ConditionalShipmentItemBase):
     shipment_id: int
     quantity_kept: int
     quantity_returned: int
+    quantity_damaged: int
+    quantity_lost: int
     quantity_pending: int  # Calculado
     status: str
     total_value: float  # Calculado
     kept_value: float  # Calculado
+    unit_cost: float | None = None
     created_at: datetime
     updated_at: datetime
     

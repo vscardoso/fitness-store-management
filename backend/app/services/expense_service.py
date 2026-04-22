@@ -32,11 +32,14 @@ DEFAULT_CATEGORIES = [
     {"name": "Fornecedores / Frete",     "color": "#9b59b6", "icon": "car-outline"},
     {"name": "Marketing / Publicidade",  "color": "#1abc9c", "icon": "megaphone-outline"},
     {"name": "Manutenção",               "color": "#95a5a6", "icon": "construct-outline"},
+    {"name": "Perdas de Estoque",        "color": "#e74c3c", "icon": "warning-outline"},
     {"name": "Outros",                   "color": "#7f8c8d", "icon": "ellipsis-horizontal-outline"},
 ]
 
 
 class ExpenseService:
+    STOCK_LOSS_CATEGORY_NAME = "Perdas de Estoque"
+
     def __init__(self, db: AsyncSession):
         self.db = db
 
@@ -116,6 +119,46 @@ class ExpenseService:
     ) -> List[Expense]:
         return await _exp_repo.list_by_period(
             self.db,
+            start_date=start_date,
+            end_date=end_date,
+            category_id=category_id,
+            tenant_id=tenant_id,
+            skip=skip,
+            limit=limit,
+        )
+
+    async def list_stock_losses(
+        self,
+        *,
+        start_date: date,
+        end_date: date,
+        tenant_id: Optional[int] = None,
+        skip: int = 0,
+        limit: int = 100,
+    ) -> List[Expense]:
+        await self.ensure_default_categories(tenant_id)
+
+        category_stmt = (
+            select(ExpenseCategory.id)
+            .where(
+                ExpenseCategory.is_active == True,
+                ExpenseCategory.name == self.STOCK_LOSS_CATEGORY_NAME,
+            )
+            .order_by(ExpenseCategory.tenant_id.is_not(None).desc())
+        )
+        if tenant_id is not None:
+            category_stmt = category_stmt.where(
+                (ExpenseCategory.tenant_id == tenant_id) | (ExpenseCategory.tenant_id.is_(None))
+            )
+        else:
+            category_stmt = category_stmt.where(ExpenseCategory.tenant_id.is_(None))
+
+        category_result = await self.db.execute(category_stmt)
+        category_id = category_result.scalar_one_or_none()
+        if category_id is None:
+            return []
+
+        return await self.list_expenses(
             start_date=start_date,
             end_date=end_date,
             category_id=category_id,

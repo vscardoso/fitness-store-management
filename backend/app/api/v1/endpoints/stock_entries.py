@@ -22,6 +22,7 @@ from app.services.stock_entry_service import StockEntryService
 from app.api.deps import get_current_active_user, require_role, get_current_tenant_id
 from app.models.user import User, UserRole
 from app.models.stock_entry import EntryType
+from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/stock-entries", tags=["Entradas de Estoque"])
 
@@ -1009,11 +1010,15 @@ async def delete_stock_entry(
         result = await service.delete_entry(entry_id, tenant_id=tenant_id)
 
         await db.commit()
+        await AuditService.log(db, "STOCK_ENTRY_DELETED",
+            tenant_id=tenant_id, user_id=current_user.id, user_email=current_user.email,
+            entity="stock_entry", entity_id=entry_id,
+        )
         return result
-    
+
     except ValueError as e:
         error_msg = str(e).lower()
-        
+
         if "não encontrada" in error_msg:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -1281,6 +1286,11 @@ async def correct_entry_item(
             reason=data.reason,
             tenant_id=tenant_id,
             user_id=current_user.id,
+        )
+        await AuditService.log(db, "STOCK_ADJUSTMENT",
+            tenant_id=tenant_id, user_id=current_user.id, user_email=current_user.email,
+            entity="entry_item", entity_id=item_id,
+            detail={"quantity_diff": data.quantity_diff, "reason": data.reason},
         )
         return result
     except ValueError as e:

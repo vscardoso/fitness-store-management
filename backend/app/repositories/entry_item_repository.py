@@ -3,11 +3,11 @@ Repository para operações de EntryItem.
 """
 from typing import Optional, Sequence
 from decimal import Decimal
-from sqlalchemy import select, and_, update as sql_update, case, Float
+from sqlalchemy import select, and_, update as sql_update, case, Float, text
 from sqlalchemy import func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, OperationalError
 
 from app.models.entry_item import EntryItem
 from app.models.product import Product
@@ -20,6 +20,19 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
     
     def __init__(self):
         super().__init__(EntryItem)
+
+    async def _execute_fifo_query_with_sqlite_compat(self, db: AsyncSession, query):
+        """Executa query FIFO com fallback para SQLite legado sem supplier_id."""
+        try:
+            return await db.execute(query)
+        except OperationalError as op_err:
+            if "no such column: entry_items.supplier_id" not in str(op_err):
+                raise
+
+            # Hotfix para bases locais desatualizadas: cria coluna ausente e reexecuta.
+            await db.execute(text("ALTER TABLE entry_items ADD COLUMN supplier_id INTEGER"))
+            await db.commit()
+            return await db.execute(query)
     
     async def create(self, db: AsyncSession, data: dict) -> EntryItem:
         """
@@ -104,7 +117,7 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
             .order_by(EntryItem.id)
         )
         
-        result = await db.execute(query)
+        result = await self._execute_fifo_query_with_sqlite_compat(db, query)
         return result.scalars().all()
     
     async def get_by_product(
@@ -139,7 +152,7 @@ class EntryItemRepository(BaseRepository[EntryItem, dict, dict]):
             .order_by(EntryItem.created_at.desc())
         )
 
-        result = await db.execute(query)
+        result = await self._execute_fifo_query_with_sqlite_compat(db, query)
         return result.scalars().all()
     
     async def get_available_for_product(

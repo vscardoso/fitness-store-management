@@ -20,6 +20,7 @@ from app.services.conditional_notification_service import ConditionalNotificatio
 from app.repositories.conditional_shipment import ConditionalShipmentRepository
 from app.api.deps import get_current_active_user, get_current_tenant_id
 from app.models.user import User
+from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/conditional-shipments", tags=["Envios Condicionais"])
 
@@ -37,9 +38,12 @@ def _build_item_dict(item_data: dict) -> dict:
         "quantity_sent": db_item.quantity_sent,
         "quantity_kept": db_item.quantity_kept,
         "quantity_returned": db_item.quantity_returned,
+        "quantity_damaged": db_item.quantity_damaged,
+        "quantity_lost": db_item.quantity_lost,
         "quantity_pending": db_item.quantity_pending,
         "status": db_item.status,
         "unit_price": db_item.unit_price,
+        "unit_cost": variant.cost_price if variant and variant.cost_price is not None else (product.cost_price if product and product.cost_price is not None else None),
         "notes": db_item.notes,
         "total_value": db_item.total_value,
         "kept_value": db_item.kept_value,
@@ -381,15 +385,16 @@ async def mark_as_sent(
         )
 
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao marcar envio como enviado: {str(e)}"
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao marcar envio como enviado: {str(e)}")
+    finally:
+        if 'shipment' in locals():
+            await AuditService.log(db, "CONDITIONAL_SENT",
+                tenant_id=tenant_id, user_id=current_user.id, user_email=current_user.email,
+                entity="conditional_shipment", entity_id=shipment_id,
+                detail={"carrier": sent_data.carrier, "tracking": sent_data.tracking_code},
+            )
 
 
 @router.put(
@@ -474,14 +479,17 @@ async def process_return(
         )
 
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao processar devolução: {str(e)}"
+        )
+    else:
+        await AuditService.log(db, "CONDITIONAL_RETURN_PROCESSED",
+            tenant_id=tenant_id, user_id=current_user.id, user_email=current_user.email,
+            entity="conditional_shipment", entity_id=shipment_id,
+            detail={"status": shipment.status, "items": len(return_data.items)},
         )
 
 
@@ -626,7 +634,11 @@ async def cancel_conditional_shipment(
         await service.cancel_shipment(
             db, shipment_id, tenant_id, current_user.id, reason
         )
-        
+        await AuditService.log(db, "CONDITIONAL_CANCELLED",
+            tenant_id=tenant_id, user_id=current_user.id, user_email=current_user.email,
+            entity="conditional_shipment", entity_id=shipment_id,
+            detail={"reason": reason},
+        )
         return {"message": f"Envio #{shipment_id} cancelado com sucesso"}
     
     except ValueError as e:

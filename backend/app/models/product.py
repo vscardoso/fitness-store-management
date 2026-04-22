@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from .sale import SaleItem
     from .sale_return import ReturnItem
     from .product_variant import ProductVariant
+    from .product_media import ProductMedia
 
 
 class Product(BaseModel):
@@ -110,6 +111,15 @@ class Product(BaseModel):
         back_populates="product",
         cascade="all, delete-orphan",
         order_by="ProductVariant.size, ProductVariant.color"
+    )
+
+    # Galeria de mídia do produto
+    media: Mapped[List["ProductMedia"]] = relationship(
+        "ProductMedia",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        foreign_keys="ProductMedia.product_id",
+        order_by="ProductMedia.position, ProductMedia.id",
     )
 
     # Relacionamentos legados (mantidos para compatibilidade durante migração)

@@ -134,6 +134,32 @@ async def list_expenses(
     )
 
 
+@router.get("/stock-losses", response_model=List[ExpenseResponse])
+async def list_stock_losses(
+    start_date: Optional[date] = Query(None, description="Data inicial (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="Data final (YYYY-MM-DD)"),
+    skip: int = Query(0, ge=0),
+    limit: int = Query(100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: Optional[int] = Depends(get_current_tenant_id),
+):
+    today = today_brazil()
+    if start_date is None:
+        start_date = date(today.year, today.month, 1)
+    if end_date is None:
+        end_date = today
+
+    svc = ExpenseService(db)
+    return await svc.list_stock_losses(
+        start_date=start_date,
+        end_date=end_date,
+        tenant_id=tenant_id,
+        skip=skip,
+        limit=limit,
+    )
+
+
 @router.post("", response_model=ExpenseResponse, status_code=status.HTTP_201_CREATED)
 async def create_expense(
     data: ExpenseCreate,

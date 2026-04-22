@@ -15,9 +15,9 @@ from app.schemas.user import UserCreate
 logger = logging.getLogger(__name__)
 
 # Regras de sessao
-ACCESS_TOKEN_MINUTES = 15       # access_token curto; renovado via refresh durante uso ativo
+ACCESS_TOKEN_MINUTES = 60       # access_token valido por 60 min
 SESSION_MAX_HOURS = 0           # 0 desativa expiracao absoluta (expira por inatividade)
-INACTIVITY_HOURS = 1            # inatividade: 1h sem usar o refresh_token
+INACTIVITY_HOURS = 12           # inatividade: 12h sem usar o refresh_token
 
 
 class AuthService:

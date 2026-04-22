@@ -234,10 +234,13 @@ class ConditionalNotificationService:
                 total = len(shipments)
 
                 # Preparar lista de clientes para o body
+                from app.repositories.customer_repository import CustomerRepository
+                customer_repo = CustomerRepository(db)
                 customer_names = []
                 for shipment in shipments[:3]:  # Mostrar até 3 clientes
-                    if hasattr(shipment, 'customer') and shipment.customer:
-                        customer_names.append(shipment.customer.full_name)
+                    customer = await customer_repo.get(db, shipment.customer_id, tenant_id=tenant_id)
+                    if customer:
+                        customer_names.append(customer.full_name)
 
                 body_text = f"Total: {total} envio(s) aguardando processamento"
                 if customer_names:
