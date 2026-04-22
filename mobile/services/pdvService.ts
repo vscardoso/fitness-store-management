@@ -237,6 +237,15 @@ export function subscribePixStatus(
 
 // ── Compat aliases ───────────────────────────────────────────────────────────
 
+// ── Pagamentos Pendentes ──────────────────────────────────────────────────────
+
+export async function getPendingSales(): Promise<import('@/types/pdv').PendingSale[]> {
+  const { data } = await api.get(`${BASE}/pending-sales`, {
+    headers: { 'X-Skip-Loading': 'true' },
+  });
+  return data;
+}
+
 /** @deprecated Use setupTerminal */
 export const setupTerminalMP = setupTerminal;
 /** @deprecated Use listDevices */

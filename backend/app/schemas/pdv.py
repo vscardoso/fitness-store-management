@@ -230,6 +230,19 @@ class PixRefundResponse(BaseModel):
     message: str
 
 
+# ── Pagamentos Pendentes ───────────────────────────────────────────────────────
+
+class PendingSaleResponse(BaseModel):
+    id: int
+    sale_number: str
+    total_amount: float
+    payment_method: str
+    payment_reference: Optional[str] = None
+    customer_name: Optional[str] = None
+    created_at: datetime
+    minutes_ago: int
+
+
 # ── Terminal Start (cria venda PENDING + envia para terminal atomicamente) ────
 
 class TerminalStartRequest(BaseModel):

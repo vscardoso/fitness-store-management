@@ -197,6 +197,29 @@ export default function MoreScreen() {
           </View>
         </View>
 
+        {/* PDV — Pagamentos */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>PDV</Text>
+          <View style={styles.menuCard}>
+            <MenuItem
+              icon="time-outline"
+              title="Pagamentos Pendentes"
+              subtitle="PIX e maquininha aguardando confirmação"
+              onPress={() => router.push('/(tabs)/pdv/' as any)}
+              iconColor="#E4851A"
+              iconBg="#FEF0E0"
+            />
+            <MenuItem
+              icon="hardware-chip-outline"
+              title="Terminais"
+              subtitle="Gerenciar maquininhas"
+              onPress={() => router.push('/(tabs)/pdv/terminals' as any)}
+              iconColor="#003DA5"
+              iconBg="#E0E9FF"
+            />
+          </View>
+        </View>
+
         {/* Viagens - Apenas ADMIN/MANAGER */}
         {(user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER) && (
           <View style={styles.section}>

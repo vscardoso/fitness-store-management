@@ -42,6 +42,7 @@ from app.schemas.pdv import (
     PixRefundResponse,
     TerminalStartRequest,
     TerminalStartResponse,
+    PendingSaleResponse,
 )
 
 router = APIRouter(prefix="/pdv", tags=["PDV"])
@@ -411,3 +412,14 @@ async def mp_webhook(
 
     await _service.process_webhook(db, payload, provider="mercadopago")
     return {"status": "ok"}
+
+
+# ── Pagamentos Pendentes ──────────────────────────────────────────────────────
+
+@router.get("/pending-sales", response_model=List[PendingSaleResponse])
+async def list_pending_sales(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Lista vendas com status PENDING (PIX ou terminal aguardando confirmação)."""
+    return await _service.get_pending_sales(db, current_user.tenant_id)

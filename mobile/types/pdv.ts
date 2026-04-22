@@ -205,3 +205,14 @@ export interface ActivatePDVResponse {
   operating_mode: string;
   message: string;
 }
+
+export interface PendingSale {
+  id: number;
+  sale_number: string;
+  total_amount: number;
+  payment_method: string;
+  payment_reference: string | null;
+  customer_name: string | null;
+  created_at: string;
+  minutes_ago: number;
+}

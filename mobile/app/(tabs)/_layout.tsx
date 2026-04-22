@@ -174,6 +174,7 @@ export default function TabsLayout() {
       <Tabs.Screen name="stock-losses" options={{ href: null }} />
 
       {/* PDV: rotas de checkout e gestão, ocultas do tab bar */}
+      <Tabs.Screen name="pdv/index" options={{ href: null }} />
       <Tabs.Screen name="pdv/pix-checkout" options={{ href: null }} />
       <Tabs.Screen name="pdv/terminal-checkout" options={{ href: null }} />
       <Tabs.Screen name="pdv/terminals" options={{ href: null }} />
