@@ -27,6 +27,26 @@ class PDVTerminalCreate(BaseModel):
     )
 
 
+class TerminalCredentialsUpdate(BaseModel):
+    """Atualiza credenciais de integração cloud do terminal (por provider)."""
+    # Stone Connect (Pagar.me)
+    sk_key: Optional[str] = Field(None, description="Secret key Pagar.me do lojista (Stone)")
+    device_serial_number: Optional[str] = Field(None, description="Número de série da maquininha Stone (etiqueta S/N)")
+    stonecode: Optional[str] = Field(None, description="Código do estabelecimento Stone (opcional)")
+    # Cielo LIO
+    merchant_id: Optional[str] = Field(None, description="Merchant-Id do estabelecimento na Cielo")
+    # Mercado Pago
+    mp_access_token: Optional[str] = Field(None, description="Access Token do lojista no Mercado Pago")
+    mp_terminal_id: Optional[str] = Field(None, description="ID da maquininha MP (device_id)")
+
+
+class TerminalCredentialsResponse(BaseModel):
+    terminal_id: int
+    provider: str
+    configured: bool
+    message: str
+
+
 class PDVTerminalResponse(BaseModel):
     id: int
     name: str

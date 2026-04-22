@@ -19,7 +19,14 @@ def _get_terminal_class(provider: str) -> Type[BaseTerminalProvider]:
     if provider == "mercadopago":
         from .mercadopago import MercadoPagoTerminalProvider
         return MercadoPagoTerminalProvider
+    elif provider == "stone":
+        from .stone import StoneConnectProvider
+        return StoneConnectProvider
+    elif provider == "cielo":
+        from .cielo import CieloLIOProvider
+        return CieloLIOProvider
     else:
+        # rede, getnet, pagseguro, sumup, manual — confirmação manual pelo operador
         from .manual import ManualTerminalProvider
         return ManualTerminalProvider
 

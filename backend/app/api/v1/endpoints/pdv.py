@@ -43,6 +43,8 @@ from app.schemas.pdv import (
     TerminalStartRequest,
     TerminalStartResponse,
     PendingSaleResponse,
+    TerminalCredentialsUpdate,
+    TerminalCredentialsResponse,
 )
 
 router = APIRouter(prefix="/pdv", tags=["PDV"])
@@ -130,6 +132,69 @@ async def delete_terminal(
     if not terminal or terminal.tenant_id != current_user.tenant_id:
         raise HTTPException(status_code=404, detail="Terminal não encontrado.")
     await _repo.delete(db, terminal_id)
+
+
+@router.put("/terminals/{terminal_id}/credentials", response_model=TerminalCredentialsResponse)
+async def update_terminal_credentials(
+    terminal_id: int,
+    payload: TerminalCredentialsUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Salva credenciais de integração cloud no terminal (Stone sk_key, Cielo merchant_id, etc.).
+    Após salvar, executa setup automático para validar e marcar como configurado.
+    """
+    from sqlalchemy import select, update as sql_update
+    from app.models.pdv_terminal import PDVTerminal
+
+    result = await db.execute(
+        select(PDVTerminal).where(
+            PDVTerminal.id == terminal_id,
+            PDVTerminal.tenant_id == current_user.tenant_id,
+            PDVTerminal.is_active == True,
+        )
+    )
+    terminal = result.scalar_one_or_none()
+    if not terminal:
+        raise HTTPException(status_code=404, detail="Terminal não encontrado.")
+
+    # Mescla credenciais novas com provider_config existente
+    cfg = dict(terminal.provider_config or {})
+    data = payload.model_dump(exclude_none=True)
+
+    field_map = {
+        "stone": ["sk_key", "device_serial_number", "stonecode"],
+        "cielo": ["merchant_id"],
+        "mercadopago": ["mp_access_token", "mp_terminal_id"],
+    }
+    allowed = field_map.get(terminal.provider, list(data.keys()))
+    for field in allowed:
+        if field in data:
+            cfg[field] = data[field]
+
+    await db.execute(
+        sql_update(PDVTerminal)
+        .where(PDVTerminal.id == terminal_id)
+        .values(provider_config=cfg)
+    )
+    await db.commit()
+
+    # Re-executa setup para validar e marcar is_configured
+    try:
+        setup_result = await _service.setup_terminal(db, terminal_id, current_user.tenant_id)
+        configured = setup_result.get("configured", False)
+        message = setup_result.get("message", "Credenciais salvas.")
+    except ValueError as e:
+        configured = False
+        message = str(e)
+
+    return TerminalCredentialsResponse(
+        terminal_id=terminal_id,
+        provider=terminal.provider,
+        configured=configured,
+        message=message,
+    )
 
 
 # ── Dispositivos físicos do provider ─────────────────────────────────────────
@@ -411,6 +476,79 @@ async def mp_webhook(
         payload = {}
 
     await _service.process_webhook(db, payload, provider="mercadopago")
+    return {"status": "ok"}
+
+
+# ── Webhooks Stone ───────────────────────────────────────────────────────────
+
+@router.post("/webhooks/stone", status_code=200)
+async def stone_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Recebe webhooks da Stone/Pagar.me (charge.paid, charge.refunded).
+    Após charge.paid, fecha o pedido e confirma a venda.
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        return {"status": "ok"}
+
+    event_type = payload.get("type", "")
+    if event_type == "charge.paid":
+        from sqlalchemy import select as _select, update as _update
+        from app.models.sale import Sale, SaleStatus
+        charge = payload.get("data", {})
+        metadata = charge.get("metadata", {})
+        sale_id = metadata.get("sale_id")
+        if sale_id:
+            await db.execute(
+                _update(Sale).where(Sale.id == int(sale_id)).values(status=SaleStatus.COMPLETED)
+            )
+            await db.commit()
+
+            from app.core.payment_events import signal_payment
+            signal_payment(str(sale_id), {"status": "approved", "paid": True})
+
+    return {"status": "ok"}
+
+
+# ── Webhooks Cielo ────────────────────────────────────────────────────────────
+
+@router.post("/webhooks/cielo", status_code=200)
+async def cielo_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Recebe webhooks da Cielo LIO (status change).
+    Confirma venda quando status = PAID.
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        return {"status": "ok"}
+
+    order_status = payload.get("status", "")
+    order_id = payload.get("id") or payload.get("orderId")
+
+    if order_status in ("PAID", "CLOSED") and order_id:
+        from sqlalchemy import select as _select, update as _update
+        from app.models.sale import Sale, SaleStatus
+        result = await db.execute(
+            _select(Sale).where(Sale.payment_reference == str(order_id))
+        )
+        sale = result.scalar_one_or_none()
+        if sale and sale.status != SaleStatus.COMPLETED:
+            await db.execute(
+                _update(Sale).where(Sale.id == sale.id).values(status=SaleStatus.COMPLETED)
+            )
+            await db.commit()
+
+            from app.core.payment_events import signal_payment
+            signal_payment(str(sale.id), {"status": "approved", "paid": True})
+
     return {"status": "ok"}
 
 

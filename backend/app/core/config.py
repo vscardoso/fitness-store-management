@@ -113,6 +113,15 @@ class Settings(BaseSettings):
     MP_TEST_PAYER_EMAIL: str = ""
     APP_URL: str = "https://localhost:8000"  # URL pública do backend (para webhooks)
 
+    # Stone Connect (via Pagar.me API v5)
+    # Credenciais de parceiro do SaaS — sk_key de cada lojista fica em PDVTerminal.provider_config
+    STONE_SERVICE_REFERER_NAME: str = ""  # Identificador do parceiro Stone (obter no Partner Hub)
+
+    # Cielo LIO (Order Manager API v1)
+    # Client-Id e Access-Token são do app SaaS (fixos); merchant_id fica em PDVTerminal.provider_config
+    CIELO_CLIENT_ID: str = ""
+    CIELO_ACCESS_TOKEN: str = ""
+
     # MP Connect OAuth (para multi-tenant — cada loja conecta sua própria conta)
     MP_CLIENT_ID: str = ""
     MP_CLIENT_SECRET: str = ""
