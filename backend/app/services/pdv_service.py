@@ -419,7 +419,7 @@ class PDVService:
         rows = await db.execute(
             _text(
                 "SELECT s.id, s.sale_number, s.total_amount, s.payment_method, "
-                "       s.payment_reference, s.created_at, c.name AS customer_name "
+                "       s.payment_reference, s.created_at, c.full_name AS customer_name "
                 "FROM sales s "
                 "LEFT JOIN customers c ON c.id = s.customer_id "
                 "WHERE s.tenant_id = :tid "
