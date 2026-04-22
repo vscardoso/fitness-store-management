@@ -27,7 +27,6 @@ import { getProductById } from '@/services/productService';
 import { formatVariantLabel, getProductVariants } from '@/services/productVariantService';
 import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
-import ProductQRCode from '@/components/products/ProductQRCode';
 import ProductLabel, { LabelData } from '@/components/labels/ProductLabel';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -44,7 +43,9 @@ interface LabelFormat {
   label: string;
   perSheet: number;
   description: string;
-  size: 'large' | 'medium' | 'small';
+  widthMm: number;
+  heightMm: number;
+  cols: number;
 }
 
 interface FormatMetrics {
@@ -53,22 +54,24 @@ interface FormatMetrics {
   utilization: number;
 }
 
+// Formatos baseados em folhas PIMACO padrão A4
 const LABEL_FORMATS: LabelFormat[] = [
-  { id: 'f10', label: '10/fl', perSheet: 10, description: '2x5 Grande', size: 'large' },
-  { id: 'f14', label: '14/fl', perSheet: 14, description: '2x7 Medio', size: 'medium' },
-  { id: 'f21', label: '21/fl', perSheet: 21, description: '3x7 Medio', size: 'medium' },
-  { id: 'f33', label: '33/fl', perSheet: 33, description: '3x11 Pequeno', size: 'small' },
-  { id: 'f65', label: '65/fl', perSheet: 65, description: '5x13 Mini', size: 'small' },
+  { id: 'f10', label: '10/fl', perSheet: 10, description: '2×5 · 99×57mm',  widthMm: 99.1, heightMm: 57.0, cols: 2 },
+  { id: 'f14', label: '14/fl', perSheet: 14, description: '2×7 · 99×38mm',  widthMm: 99.1, heightMm: 38.1, cols: 2 },
+  { id: 'f21', label: '21/fl', perSheet: 21, description: '3×7 · 64×38mm',  widthMm: 63.5, heightMm: 38.1, cols: 3 },
+  { id: 'f33', label: '33/fl', perSheet: 33, description: '3×11 · 64×30mm', widthMm: 63.5, heightMm: 29.6, cols: 3 },
+  { id: 'f65', label: '65/fl', perSheet: 65, description: '5×13 · 38×21mm', widthMm: 38.1, heightMm: 21.2, cols: 5 },
 ];
+
+// Escala de preview: 3px por mm → qualidade suficiente para captura via ViewShot
+const PREVIEW_SCALE = 3;
 
 export default function ProductQRCodeScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/products');
   const brandingColors = useBrandingColors();
-  const qrCaptureRef = React.useRef<ViewShot | null>(null) as React.RefObject<ViewShot>;
   const labelCaptureRef = React.useRef<ViewShot | null>(null) as React.RefObject<ViewShot>;
-  const [mode, setMode] = React.useState<'qr' | 'label'>('qr');
   const [formatId, setFormatId] = React.useState('f14');
   const [autoBestFormat, setAutoBestFormat] = React.useState(true);
   const [showPrice, setShowPrice] = React.useState(true);
@@ -168,29 +171,6 @@ export default function ProductQRCodeScreen() {
     () => LABEL_FORMATS.find((format) => format.id === formatId) || LABEL_FORMATS[1],
     [formatId]
   );
-
-  const qrPayload = React.useMemo(() => {
-    if (!product) return undefined;
-    if (!selectedVariant) {
-      return {
-        id: product.id,
-        sku: product.sku,
-        name: product.name,
-        price: product.price,
-      };
-    }
-
-    const label = formatVariantLabel(selectedVariant);
-    return {
-      id: product.id,
-      variantId: selectedVariant.id,
-      sku: selectedVariant.sku,
-      name: `${product.name} - ${label}`,
-      price: selectedVariant.price,
-      color: selectedVariant.color,
-      size: selectedVariant.size,
-    };
-  }, [product, selectedVariant]);
 
   const labelData: LabelData | undefined = React.useMemo(() => {
     if (!product) return undefined;
@@ -343,7 +323,7 @@ export default function ProductQRCodeScreen() {
     );
   };
 
-  const buildPrintHtml = (base64: string, title: string) => {
+  const buildPrintHtml = (base64: string, title: string, gridWidthMm: number, gridHeightMm: number) => {
     const safeTitle = title.replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     return `
@@ -351,17 +331,17 @@ export default function ProductQRCodeScreen() {
         <head>
           <meta name="viewport" content="width=device-width, initial-scale=1.0" />
           <style>
-            body { margin: 0; padding: 10px; background: #ffffff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; }
-            .wrap { width: 100%; max-width: 420px; margin: 0 auto; }
-            .title { font-size: 12px; font-weight: 700; color: #334155; margin: 0 0 8px 0; }
-            img { width: 100%; height: auto; display: block; border-radius: 8px; }
+            @page { margin: 0; size: auto; }
+            body { margin: 0; padding: 0; background: #ffffff; }
+            img {
+              display: block;
+              width: ${gridWidthMm.toFixed(1)}mm;
+              height: ${gridHeightMm.toFixed(1)}mm;
+            }
           </style>
         </head>
         <body>
-          <div class="wrap">
-            <p class="title">${safeTitle}</p>
-            <img src="data:image/png;base64,${base64}" alt="${safeTitle}" />
-          </div>
+          <img src="data:image/png;base64,${base64}" alt="${safeTitle}" />
         </body>
       </html>
     `;
@@ -369,11 +349,6 @@ export default function ProductQRCodeScreen() {
 
   const handleShare = async () => {
     if (!product) return;
-
-    if (mode === 'qr') {
-      await handleShareTextInfo();
-      return;
-    }
 
     try {
       const uri = await captureCardUri(
@@ -404,29 +379,28 @@ export default function ProductQRCodeScreen() {
 
     setIsPrinting(true);
     try {
-      const usingLabelMode = mode === 'label';
       const uri = await captureCardUri(
-        usingLabelMode ? labelCaptureRef : qrCaptureRef,
-        usingLabelMode
-          ? 'Preview da etiqueta indisponivel no momento.'
-          : 'Preview do QR indisponivel no momento.'
+        labelCaptureRef,
+        'Preview da etiqueta indisponivel no momento.'
       );
       const base64 = await LegacyFileSystem.readAsStringAsync(uri, {
         encoding: base64Encoding as any,
       });
 
-      const printTitle = usingLabelMode
-        ? hasVariants && labelItems.length > 1
+      const printTitle =
+        hasVariants && labelItems.length > 1
           ? `Etiquetas - ${product.name} - ${labelItems.length} variacoes - ${selectedFormat.label}`
           : selectedVariant
             ? `Etiqueta - ${product.name} - ${formatVariantLabel(selectedVariant)} - ${selectedFormat.label}`
-            : `Etiqueta - ${product.name} - ${selectedFormat.label}`
-        : selectedVariant
-          ? `QR - ${product.name} - ${formatVariantLabel(selectedVariant)}`
-          : `QR - ${product.name}`;
+            : `Etiqueta - ${product.name} - ${selectedFormat.label}`;
+
+      // Dimensões físicas exatas do grid para impressão precisa
+      const rows = Math.ceil(Math.max(labelItems.length, 1) / selectedFormat.cols);
+      const gridWidthMm = selectedFormat.cols * selectedFormat.widthMm;
+      const gridHeightMm = rows * selectedFormat.heightMm;
 
       await Print.printAsync({
-        html: buildPrintHtml(base64, printTitle),
+        html: buildPrintHtml(base64, printTitle, gridWidthMm, gridHeightMm),
       });
     } catch (printError) {
       if (isPrintCancelledError(printError)) {
@@ -436,16 +410,14 @@ export default function ProductQRCodeScreen() {
 
       try {
         const uri = await captureCardUri(
-          mode === 'label' ? labelCaptureRef : qrCaptureRef,
-          mode === 'label'
-            ? 'Preview da etiqueta indisponivel no momento.'
-            : 'Preview do QR indisponivel no momento.'
+          labelCaptureRef,
+          'Preview da etiqueta indisponivel no momento.'
         );
         const isAvailable = await Sharing.isAvailableAsync();
         if (isAvailable) {
           await Sharing.shareAsync(uri, {
             mimeType: 'image/png',
-            dialogTitle: mode === 'label' ? 'Etiqueta' : 'QR Code',
+            dialogTitle: 'Etiqueta',
           });
         } else {
           Alert.alert('Erro', 'Nao foi possivel abrir a impressao nem compartilhar.');
@@ -462,13 +434,13 @@ export default function ProductQRCodeScreen() {
     <View style={styles.container}>
       <Animated.View style={headerAnimStyle}>
         <PageHeader
-          title="Identificação"
+          title="Etiqueta"
           subtitle={
             product
               ? hasVariants
                 ? `${product.name} · ${activeVariants.length} variação${activeVariants.length !== 1 ? 'ões' : ''}`
                 : product.name
-              : 'QR e etiqueta da mesma variação'
+              : 'Gerar etiquetas do produto'
           }
           showBackButton
           onBack={goBack}
@@ -484,8 +456,8 @@ export default function ProductQRCodeScreen() {
           {isLoading && (
             <View style={styles.stateCard}>
               <ActivityIndicator size="small" color={brandingColors.primary} />
-              <Text style={styles.stateTitle}>Carregando QR Code...</Text>
-              <Text style={styles.stateSubtitle}>Buscando dados do produto para gerar o código.</Text>
+              <Text style={styles.stateTitle}>Carregando etiqueta...</Text>
+              <Text style={styles.stateSubtitle}>Buscando dados do produto.</Text>
             </View>
           )}
 
@@ -504,16 +476,13 @@ export default function ProductQRCodeScreen() {
                   <View style={styles.variantsHeader}>
                     <Ionicons name="layers-outline" size={18} color={brandingColors.primary} />
                     <Text style={styles.variantsTitle}>
-                      {mode === 'qr' ? 'Selecionar variação (QR)' : 'Selecionar variações (Etiquetas)'}
+                      Selecionar variações
                     </Text>
                   </View>
 
                   <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.variantsList}>
                     {activeVariants.map((variant) => {
-                      const selected =
-                        mode === 'qr'
-                          ? variant.id === selectedVariant?.id
-                          : selectedLabelVariantIds.includes(variant.id);
+                      const selected = selectedLabelVariantIds.includes(variant.id);
                       return (
                         <TouchableOpacity
                           key={variant.id}
@@ -524,13 +493,7 @@ export default function ProductQRCodeScreen() {
                               backgroundColor: brandingColors.primary + '12',
                             },
                           ]}
-                          onPress={() => {
-                            if (mode === 'qr') {
-                              setSelectedVariantId(variant.id);
-                              return;
-                            }
-                            toggleLabelVariant(variant.id);
-                          }}
+                          onPress={() => toggleLabelVariant(variant.id)}
                           activeOpacity={0.75}
                         >
                           <Text style={[styles.variantChipTitle, selected && { color: brandingColors.primary }]} numberOfLines={1}>
@@ -542,78 +505,24 @@ export default function ProductQRCodeScreen() {
                     })}
                   </ScrollView>
 
-                  {mode === 'label' && (
-                    <View style={styles.variantActionsRow}>
-                      <TouchableOpacity
-                        style={styles.variantActionButton}
-                        onPress={selectAllLabelVariants}
-                        activeOpacity={0.75}
-                      >
-                        <Ionicons name="checkmark-done-outline" size={14} color={brandingColors.primary} />
-                        <Text style={[styles.variantActionText, { color: brandingColors.primary }]}>Selecionar todas</Text>
-                      </TouchableOpacity>
+                  <View style={styles.variantActionsRow}>
+                    <TouchableOpacity
+                      style={styles.variantActionButton}
+                      onPress={selectAllLabelVariants}
+                      activeOpacity={0.75}
+                    >
+                      <Ionicons name="checkmark-done-outline" size={14} color={brandingColors.primary} />
+                      <Text style={[styles.variantActionText, { color: brandingColors.primary }]}>Selecionar todas</Text>
+                    </TouchableOpacity>
 
-                      <Text style={styles.variantActionSummary}>
-                        {selectedLabelVariantIds.length} de {activeVariants.length} selecionadas
-                      </Text>
-                    </View>
-                  )}
+                    <Text style={styles.variantActionSummary}>
+                      {selectedLabelVariantIds.length} de {activeVariants.length} selecionadas
+                    </Text>
+                  </View>
                 </View>
               )}
 
-              <View style={styles.modeCard}>
-                <View style={styles.modeSwitch}>
-                  <TouchableOpacity
-                    style={[
-                      styles.modeButton,
-                      mode === 'qr' && {
-                        backgroundColor: brandingColors.primary,
-                        borderColor: brandingColors.primary,
-                      },
-                    ]}
-                    onPress={() => setMode('qr')}
-                    activeOpacity={0.75}
-                  >
-                    <Ionicons name="qr-code-outline" size={16} color={mode === 'qr' ? '#fff' : Colors.light.textSecondary} />
-                    <Text style={[styles.modeButtonText, mode === 'qr' && styles.modeButtonTextActive]}>QR Code</Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={[
-                      styles.modeButton,
-                      mode === 'label' && {
-                        backgroundColor: brandingColors.primary,
-                        borderColor: brandingColors.primary,
-                      },
-                    ]}
-                    onPress={() => setMode('label')}
-                    activeOpacity={0.75}
-                  >
-                    <Ionicons name="pricetag-outline" size={16} color={mode === 'label' ? '#fff' : Colors.light.textSecondary} />
-                    <Text style={[styles.modeButtonText, mode === 'label' && styles.modeButtonTextActive]}>Etiqueta</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {mode === 'qr' && (
-                <View style={styles.qrCard}>
-                  <ViewShot
-                    ref={qrCaptureRef}
-                    options={{ format: 'png', quality: 1 }}
-                    style={styles.qrShot}
-                  >
-                    <ProductQRCode
-                      product={product}
-                      payload={qrPayload}
-                      size={240}
-                      includePrice
-                      showLabel
-                    />
-                  </ViewShot>
-                </View>
-              )}
-
-              {mode === 'label' && labelData && (
+              {labelData && (
                 <>
                   <View style={styles.labelOptionsCard}>
                     <Text style={styles.labelOptionsTitle}>Configuração da Etiqueta</Text>
@@ -751,7 +660,8 @@ export default function ProductQRCodeScreen() {
                           <ProductLabel
                             key={`${item.variantId ?? 'base'}-${index}`}
                             data={item}
-                            size={selectedFormat.size}
+                            widthPx={Math.round(selectedFormat.widthMm * PREVIEW_SCALE)}
+                            heightPx={Math.round(selectedFormat.heightMm * PREVIEW_SCALE)}
                             showPrice={showPrice}
                             showSku={showSku}
                           />
@@ -763,39 +673,18 @@ export default function ProductQRCodeScreen() {
               )}
 
               <View style={styles.infoCard}>
-                <Text style={styles.infoTitle}>
-                  {mode === 'label' ? 'Conteúdo da etiqueta' : 'Dados codificados'}
-                </Text>
+                <Text style={styles.infoTitle}>Conteúdo da etiqueta</Text>
                 <Text style={styles.infoRow} numberOfLines={1}>ID: {product.id}</Text>
-                {mode === 'label' ? (
-                  <>
-                    <Text style={styles.infoRow} numberOfLines={1}>Formato: {selectedFormat.label} · {selectedFormat.description}</Text>
-                    {hasVariants ? (
-                      <Text style={styles.infoRow} numberOfLines={1}>
-                        Variações selecionadas: {labelItems.length}
-                      </Text>
-                    ) : selectedVariant ? (
-                      <Text style={styles.infoRow} numberOfLines={2}>
-                        Variação: {formatVariantLabel(selectedVariant)}
-                      </Text>
-                    ) : null}
-                  </>
+                <Text style={styles.infoRow} numberOfLines={1}>Formato: {selectedFormat.label} · {selectedFormat.description}</Text>
+                {hasVariants ? (
+                  <Text style={styles.infoRow} numberOfLines={1}>
+                    Variações selecionadas: {labelItems.length}
+                  </Text>
                 ) : selectedVariant ? (
-                  <>
-                    <Text style={styles.infoRow} numberOfLines={1}>Variação: {selectedVariant.id}</Text>
-                    <Text style={styles.infoRow} numberOfLines={1}>SKU: {selectedVariant.sku || '-'}</Text>
-                    <Text style={styles.infoRow} numberOfLines={2}>Atributos: {formatVariantLabel(selectedVariant)}</Text>
-                    <Text style={styles.infoRow} numberOfLines={1}>Preço: R$ {selectedVariant.price}</Text>
-                    {selectedVariant.current_stock != null ? (
-                      <Text style={styles.infoRow} numberOfLines={1}>Estoque: {selectedVariant.current_stock}</Text>
-                    ) : null}
-                  </>
-                ) : (
-                  <>
-                    <Text style={styles.infoRow} numberOfLines={1}>SKU: {product.sku || '-'}</Text>
-                    <Text style={styles.infoRow} numberOfLines={2}>Nome: {product.name}</Text>
-                  </>
-                )}
+                  <Text style={styles.infoRow} numberOfLines={2}>
+                    Variação: {formatVariantLabel(selectedVariant)}
+                  </Text>
+                ) : null}
               </View>
 
               <View style={styles.actions}>
@@ -806,16 +695,14 @@ export default function ProductQRCodeScreen() {
                 >
                   <View style={[styles.primaryActionGradient, { backgroundColor: brandingColors.primary }]}> 
                     <Ionicons
-                      name={mode === 'label' ? 'download-outline' : 'share-social-outline'}
+                      name="download-outline"
                       size={18}
                       color="#fff"
                     />
                     <Text style={styles.primaryActionText}>
-                      {mode === 'label'
-                        ? hasVariants && labelItems.length > 1
-                          ? 'Exportar Etiquetas'
-                          : 'Exportar Etiqueta'
-                        : 'Compartilhar Dados'}
+                      {hasVariants && labelItems.length > 1
+                        ? 'Exportar Etiquetas'
+                        : 'Exportar Etiqueta'}
                     </Text>
                   </View>
                 </TouchableOpacity>
@@ -830,11 +717,9 @@ export default function ProductQRCodeScreen() {
                   <Text style={styles.secondaryActionText}>
                     {isPrinting
                       ? 'Imprimindo...'
-                      : mode === 'label'
-                        ? hasVariants && labelItems.length > 1
-                          ? 'Imprimir Etiquetas'
-                          : 'Imprimir Etiqueta'
-                        : 'Imprimir QR Code'}
+                      : hasVariants && labelItems.length > 1
+                        ? 'Imprimir Etiquetas'
+                        : 'Imprimir Etiqueta'}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -855,20 +740,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: theme.spacing.lg,
     paddingBottom: theme.spacing.xxl,
-  },
-  qrCard: {
-    width: '100%',
-    alignItems: 'center',
-    backgroundColor: Colors.light.card,
-    borderRadius: theme.borderRadius.xl,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    padding: theme.spacing.lg,
-    ...theme.shadows.sm,
-  },
-  qrShot: {
-    backgroundColor: '#fff',
-    borderRadius: theme.borderRadius.lg,
   },
   variantsCard: {
     width: '100%',
@@ -916,33 +787,6 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
     fontFamily: 'monospace',
-  },
-  modeCard: {
-    width: '100%',
-  },
-  modeSwitch: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  modeButton: {
-    flex: 1,
-    minHeight: 46,
-    borderRadius: theme.borderRadius.lg,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-    backgroundColor: Colors.light.card,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.xs,
-  },
-  modeButtonText: {
-    fontSize: theme.fontSize.sm,
-    color: Colors.light.textSecondary,
-    fontWeight: theme.fontWeight.semibold,
-  },
-  modeButtonTextActive: {
-    color: '#fff',
   },
   actions: {
     width: '100%',
@@ -1208,7 +1052,6 @@ const styles = StyleSheet.create({
   labelGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: theme.spacing.xs,
+    justifyContent: 'flex-start',
   },
 });

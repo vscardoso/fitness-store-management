@@ -151,6 +151,7 @@ export default function MoreScreen() {
               <Text style={styles.quickActionTitle}>Nova Entrada</Text>
               <Text style={styles.quickActionSubtitle}>Registrar compra</Text>
             </TouchableOpacity>
+
           </View>
         </View>
 
@@ -172,6 +173,7 @@ export default function MoreScreen() {
           <Text style={styles.sectionTitle}>Financeiro</Text>
           <View style={styles.menuCard}>
             <MenuItem icon="receipt-outline" title="Despesas" subtitle="Registrar e gerenciar despesas operacionais" onPress={() => router.push('/(tabs)/expenses')} iconColor={Colors.light.error} iconBg="#FFEBEE" />
+            <MenuItem icon="warning-outline" title="Prejuízos" subtitle="Perdas de estoque lançadas em módulo separado" onPress={() => router.push('/(tabs)/stock-losses')} iconColor="#B91C1C" iconBg="#FEE2E2" />
             <MenuItem icon="stats-chart-outline" title="Resultado do Mês (P&L)" subtitle="Receita − CMV − Despesas = Lucro Líquido" onPress={() => router.push('/(tabs)/expenses/resultado')} iconColor="#7C3AED" iconBg="#EDE9FE" />
           </View>
         </View>

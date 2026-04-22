@@ -5,7 +5,7 @@
  * de um produto (cor × tamanho). Fotos podem ser adicionadas
  * agora ou mais tarde.
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -36,10 +36,16 @@ import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import useBackToList from '@/hooks/useBackToList';
 import { getProductById } from '@/services/productService';
-import { getProductVariants, updateVariant } from '@/services/productVariantService';
-import { uploadVariantImageWithFallback } from '@/services/uploadService';
+import { getProductVariants } from '@/services/productVariantService';
 import { getImageUrl } from '@/constants/Config';
+import {
+  getProductMedia,
+  uploadProductMediaWithFallback,
+  setProductMediaAsCover,
+  deleteProductMedia,
+} from '@/services/productMediaService';
 import type { ProductVariant } from '@/types/productVariant';
+import type { ProductMedia } from '@/types/productMedia';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -126,11 +132,21 @@ export default function VariantPhotosScreen() {
   const queryClient = useQueryClient();
   const brandingColors = useBrandingColors();
 
-  // Foto local por variante (uri temporária antes de confirmar)
   const [uploading, setUploading] = useState<Record<number, boolean>>({});
   const [localPhotos, setLocalPhotos] = useState<Record<number, string>>({});
+  const [deletedMediaIds, setDeletedMediaIds] = useState<Set<number>>(new Set());
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
-  const [applyingToAll, setApplyingToAll] = useState(false);
+  const [settingCover, setSettingCover] = useState<number | null>(null);
+  const [deletingMedia, setDeletingMedia] = useState<number | null>(null);
+
+  // ── Dialogs ──
+  const [permissionDialog, setPermissionDialog] = useState(false);
+  const [uploadErrorDialog, setUploadErrorDialog] = useState({ visible: false, message: '' });
+  const [coverErrorDialog, setCoverErrorDialog] = useState(false);
+  const [deleteErrorDialog, setDeleteErrorDialog] = useState(false);
+  const [setCoverConfirmDialog, setSetCoverConfirmDialog] = useState<{ visible: boolean; variant: ProductVariant | null }>({ visible: false, variant: null });
+  const [photoActionMenuDialog, setPhotoActionMenuDialog] = useState<{ visible: boolean; variant: ProductVariant | null; isVariantCover: boolean }>({ visible: false, variant: null, isVariantCover: false });
+  const [deletePhotoConfirmDialog, setDeletePhotoConfirmDialog] = useState<{ visible: boolean; variant: ProductVariant | null }>({ visible: false, variant: null });
 
   // ── Animação de entrada ──
   const headerOpacity = useSharedValue(0);
@@ -175,9 +191,34 @@ export default function VariantPhotosScreen() {
     enabled: !!productId,
   });
 
+  const { data: allMedia = [] } = useQuery({
+    queryKey: ['product-media', productId],
+    queryFn: () => getProductMedia(productId),
+    enabled: !!productId,
+  });
+
+  // Mapa variantId → mídia capa (is_cover=true ou primeira), excluindo itens deletados localmente
+  const variantCoverMap = useMemo(() => {
+    const map = new Map<number, ProductMedia>();
+    for (const m of allMedia) {
+      if (m.variant_id == null) continue;
+      if (deletedMediaIds.has(m.id)) continue;
+      const current = map.get(m.variant_id);
+      if (!current || m.is_cover) map.set(m.variant_id, m);
+    }
+    return map;
+  }, [allMedia, deletedMediaIds]);
+
+  // Mídia de nível produto (sem variação)
+  const productCoverMedia = useMemo(
+    () => allMedia.find((m) => m.variant_id == null && m.is_cover) ?? allMedia.find((m) => m.variant_id == null) ?? null,
+    [allMedia],
+  );
+
   const activeVariants = variants.filter((v) => v.is_active);
+  const hasVariants = activeVariants.length > 0;
   const totalWithPhoto = activeVariants.filter(
-    (v) => localPhotos[v.id] || v.image_url
+    (v) => localPhotos[v.id] || variantCoverMap.has(v.id)
   ).length;
   const groups = groupByColor(activeVariants);
   const sortedGroups = [...groups.entries()]
@@ -189,50 +230,60 @@ export default function VariantPhotosScreen() {
   const cardSize = Math.max(128, Math.min(176, Math.floor(availableWidth / 2)));
   const pendingCount = Math.max(0, activeVariants.length - totalWithPhoto);
 
-  // Foto principal do produto como fallback
-  const productImageUrl = getImageUrl(product?.image_url) ?? null;
-  // Variantes que NÃO têm foto própria mas o produto tem foto
-  const variantsWithoutPhoto = activeVariants.filter(
-    (v) => !localPhotos[v.id] && !v.image_url
-  );
-  const canApplyProductPhoto =
-    !!productImageUrl && variantsWithoutPhoto.length > 0;
+  const productImageUrl = getImageUrl(productCoverMedia?.url ?? product?.image_url) ?? null;
 
-  const applyProductPhotoToAll = useCallback(async () => {
-    if (!product?.image_url || variantsWithoutPhoto.length === 0) return;
-    setApplyingToAll(true);
-    try {
-      await Promise.all(
-        variantsWithoutPhoto.map((v) =>
-          updateVariant(v.id, { image_url: product.image_url } as any)
-        )
-      );
-      queryClient.invalidateQueries({ queryKey: ['product-variants', productId] });
-    } catch (err: any) {
-      Alert.alert('Erro', 'Não foi possível aplicar a foto a todas as variações.');
-    } finally {
-      setApplyingToAll(false);
-    }
-  }, [product?.image_url, variantsWithoutPhoto, productId, queryClient]);
+  const [uploadingProduct, setUploadingProduct] = useState(false);
 
-  const applySingleProductPhoto = useCallback(async (variant: ProductVariant) => {
-    if (!product?.image_url) return;
-    setUploading((prev) => ({ ...prev, [variant.id]: true }));
-    try {
-      await updateVariant(variant.id, { image_url: product.image_url } as any);
-      queryClient.invalidateQueries({ queryKey: ['product-variants', productId] });
-    } catch (err: any) {
-      Alert.alert('Erro', 'Não foi possível aplicar a foto.');
-    } finally {
-      setUploading((prev) => ({ ...prev, [variant.id]: false }));
+  const pickAndUploadProduct = useCallback(async () => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permissão necessária', 'Permita o acesso à galeria para adicionar fotos.');
+      return;
     }
-  }, [product?.image_url, productId, queryClient]);
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.85,
+    });
+    if (result.canceled || !result.assets[0]) return;
+    setUploadingProduct(true);
+    try {
+      await uploadProductMediaWithFallback(productId, result.assets[0].uri);
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['product-media', productId] }),
+        queryClient.refetchQueries({ queryKey: ['product', productId] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+      ]);
+    } catch (err: any) {
+      Alert.alert('Erro no upload', err?.response?.data?.detail ?? 'Não foi possível salvar a foto.');
+    } finally {
+      setUploadingProduct(false);
+    }
+  }, [productId, queryClient]);
+
+  const deleteProductLevelPhoto = useCallback(async () => {
+    if (!productCoverMedia) return;
+    setDeletingMedia(-1);
+    try {
+      await deleteProductMedia(productId, productCoverMedia.id);
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['product-media', productId] }),
+        queryClient.refetchQueries({ queryKey: ['product', productId] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+      ]);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível excluir a foto.');
+    } finally {
+      setDeletingMedia(null);
+    }
+  }, [productId, productCoverMedia, queryClient]);
 
   const pickAndUpload = useCallback(
     async (variant: ProductVariant) => {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Permissão necessária', 'Permita o acesso à galeria para adicionar fotos.');
+        setPermissionDialog(true);
         return;
       }
 
@@ -250,15 +301,17 @@ export default function VariantPhotosScreen() {
       setUploading((prev) => ({ ...prev, [variant.id]: true }));
 
       try {
-        await uploadVariantImageWithFallback(variant.id, uri);
-        queryClient.invalidateQueries({ queryKey: ['product-variants', productId] });
+        await uploadProductMediaWithFallback(productId, uri, variant.id);
+        setLocalPhotos((prev) => { const n = { ...prev }; delete n[variant.id]; return n; });
+        await Promise.all([
+          queryClient.refetchQueries({ queryKey: ['product-media', productId] }),
+          queryClient.refetchQueries({ queryKey: ['product-variants', productId] }),
+          queryClient.refetchQueries({ queryKey: ['product', productId] }),
+          queryClient.invalidateQueries({ queryKey: ['products'] }),
+        ]);
       } catch (err: any) {
-        Alert.alert('Erro no upload', err?.response?.data?.detail ?? 'Não foi possível salvar a foto.');
-        setLocalPhotos((prev) => {
-          const next = { ...prev };
-          delete next[variant.id];
-          return next;
-        });
+        setUploadErrorDialog({ visible: true, message: err?.response?.data?.detail ?? 'Não foi possível salvar a foto.' });
+        setLocalPhotos((prev) => { const n = { ...prev }; delete n[variant.id]; return n; });
       } finally {
         setUploading((prev) => ({ ...prev, [variant.id]: false }));
       }
@@ -266,10 +319,74 @@ export default function VariantPhotosScreen() {
     [productId, queryClient]
   );
 
-  const isInherited = (v: ProductVariant) =>
-    !localPhotos[v.id] && !v.image_url && !!productImageUrl;
-  const photoForVariant = (v: ProductVariant) =>
-    getImageUrl(localPhotos[v.id] ?? v.image_url) ?? productImageUrl;
+  const photoForVariant = (v: ProductVariant) => {
+    if (localPhotos[v.id]) return localPhotos[v.id];
+    const m = variantCoverMap.get(v.id);
+    return m ? getImageUrl(m.url) : null;
+  };
+
+  const isCover = (v: ProductVariant) => {
+    const m = variantCoverMap.get(v.id);
+    return !!m && m.is_cover;
+  };
+
+  const handleSetAsCover = useCallback(async (variant: ProductVariant) => {
+    const media = variantCoverMap.get(variant.id);
+    if (!media) return;
+    setSettingCover(variant.id);
+
+    // Atualização otimista: marca a nova capa imediatamente no cache
+    const previous = queryClient.getQueryData<ProductMedia[]>(['product-media', productId]);
+    queryClient.setQueryData<ProductMedia[]>(['product-media', productId], (old) =>
+      (old ?? []).map((m) => ({
+        ...m,
+        is_cover: m.variant_id === media.variant_id ? m.id === media.id : m.is_cover,
+      }))
+    );
+
+    try {
+      await setProductMediaAsCover(productId, media.id);
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['product-media', productId] }),
+        queryClient.refetchQueries({ queryKey: ['product-variants', productId] }),
+        queryClient.refetchQueries({ queryKey: ['product', productId] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+      ]);
+    } catch {
+      // Rollback em caso de erro
+      queryClient.setQueryData(['product-media', productId], previous);
+      setCoverErrorDialog(true);
+    } finally {
+      setSettingCover(null);
+    }
+  }, [productId, variantCoverMap, queryClient]);
+
+  const handleDeletePhoto = useCallback(async (variant: ProductVariant) => {
+    const media = variantCoverMap.get(variant.id);
+    if (!media) return;
+
+    // Remove imediatamente da UI via estado local (garantido)
+    setDeletedMediaIds((prev) => new Set([...prev, media.id]));
+    setDeletingMedia(variant.id);
+
+    try {
+      await deleteProductMedia(productId, media.id);
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ['product-media', productId] }),
+        queryClient.refetchQueries({ queryKey: ['product-variants', productId] }),
+        queryClient.refetchQueries({ queryKey: ['product', productId] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+      ]);
+      // Limpa o ID local após o servidor confirmar (allMedia já foi atualizado)
+      setDeletedMediaIds((prev) => { const s = new Set(prev); s.delete(media.id); return s; });
+    } catch {
+      // Rollback: restaura a foto na UI
+      setDeletedMediaIds((prev) => { const s = new Set(prev); s.delete(media.id); return s; });
+      setDeleteErrorDialog(true);
+    } finally {
+      setDeletingMedia(null);
+    }
+  }, [productId, variantCoverMap, queryClient]);
 
   if (isLoading || isLoadingProduct) {
     return (
@@ -286,27 +403,27 @@ export default function VariantPhotosScreen() {
       {/* ── Header animado ────────────────────────────────────────── */}
       <Animated.View style={headerAnimStyle}>
         <PageHeader
-          title="Fotos das Variações"
+          title={hasVariants ? 'Fotos das Variações' : 'Foto do Produto'}
           subtitle={product?.name || 'Produto'}
           showBackButton
           onBack={goBack}
         />
-        {/* Barra de progresso */}
-        <View style={styles.progressBarContainer}>
-          <View style={styles.progressBarWrap}>
-            <View
-              style={[
-                styles.progressBar,
-                {
-                  width: activeVariants.length > 0
-                    ? `${(totalWithPhoto / activeVariants.length) * 100}%`
-                    : '0%',
-                  backgroundColor: brandingColors.primary,
-                } as any,
-              ]}
-            />
+        {/* Barra de progresso — só com variações */}
+        {hasVariants && (
+          <View style={styles.progressBarContainer}>
+            <View style={styles.progressBarWrap}>
+              <View
+                style={[
+                  styles.progressBar,
+                  {
+                    width: `${(totalWithPhoto / activeVariants.length) * 100}%`,
+                    backgroundColor: brandingColors.primary,
+                  } as any,
+                ]}
+              />
+            </View>
           </View>
-        </View>
+        )}
       </Animated.View>
 
       {/* ── Conteúdo animado ──────────────────────────────────────── */}
@@ -333,55 +450,43 @@ export default function VariantPhotosScreen() {
             </View>
           </View>
 
-          <View style={styles.productStatsRow}>
-            <View style={styles.productStatChip}>
-              <Text style={styles.productStatValue}>{activeVariants.length}</Text>
-              <Text style={styles.productStatLabel}>variações</Text>
+          {hasVariants ? (
+            <View style={styles.productStatsRow}>
+              <View style={styles.productStatChip}>
+                <Text style={styles.productStatValue}>{activeVariants.length}</Text>
+                <Text style={styles.productStatLabel}>variações</Text>
+              </View>
+              <View style={styles.productStatChip}>
+                <Text style={[styles.productStatValue, { color: brandingColors.primary }]}>{totalWithPhoto}</Text>
+                <Text style={styles.productStatLabel}>com foto</Text>
+              </View>
+              <View style={styles.productStatChip}>
+                <Text style={styles.productStatValue}>{activeVariants.length - totalWithPhoto}</Text>
+                <Text style={styles.productStatLabel}>pendentes</Text>
+              </View>
             </View>
-            <View style={styles.productStatChip}>
-              <Text style={[styles.productStatValue, { color: brandingColors.primary }]}>{totalWithPhoto}</Text>
-              <Text style={styles.productStatLabel}>com foto</Text>
+          ) : (
+            <View style={styles.productStatsRow}>
+              <View style={styles.productStatChip}>
+                <Text style={[styles.productStatValue, { color: productImageUrl ? brandingColors.primary : Colors.light.textSecondary }]}>
+                  {productImageUrl ? '1' : '0'}
+                </Text>
+                <Text style={styles.productStatLabel}>foto</Text>
+              </View>
+              <View style={styles.productStatChip}>
+                <Text style={styles.productStatValue}>—</Text>
+                <Text style={styles.productStatLabel}>variações</Text>
+              </View>
             </View>
-            <View style={styles.productStatChip}>
-              <Text style={styles.productStatValue}>{activeVariants.length - totalWithPhoto}</Text>
-              <Text style={styles.productStatLabel}>pendentes</Text>
-            </View>
-          </View>
+          )}
         </View>
-
-        {/* ── Banner informativo ─────────────────────────────────────── */}
-        {/* ── Banner "aplicar foto do produto" ────────────────────────── */}
-        {canApplyProductPhoto && (
-          <View style={styles.inheritBanner}>
-            <Image
-              source={{ uri: productImageUrl! }}
-              style={styles.inheritBannerThumb}
-            />
-            <View style={styles.inheritBannerText}>
-              <Text style={styles.inheritBannerTitle}>Foto do produto disponível</Text>
-              <Text style={styles.inheritBannerSub}>
-                {variantsWithoutPhoto.length} variação(ões) sem foto própria
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={[styles.inheritBannerBtn, { backgroundColor: brandingColors.primary }]}
-              onPress={applyProductPhotoToAll}
-              disabled={applyingToAll}
-              activeOpacity={0.8}
-            >
-              {applyingToAll ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Text style={styles.inheritBannerBtnText}>Aplicar a todas</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        )}
 
         <View style={styles.infoBanner}>
           <Ionicons name="information-circle" size={18} color={Colors.light.info} />
           <Text style={styles.infoText}>
-            Toque em cada card para adicionar ou trocar a foto da variação.
+            {hasVariants
+              ? 'Toque para adicionar foto • Segure para definir como capa do produto.'
+              : 'Toque para adicionar foto • Segure para excluir.'}
           </Text>
         </View>
 
@@ -409,33 +514,45 @@ export default function VariantPhotosScreen() {
                 {colorVariants.map((variant) => {
                   const photo = photoForVariant(variant);
                   const isUploading = uploading[variant.id];
+                  const isVariantCover = isCover(variant);
+                  const isSettingThisCover = settingCover === variant.id;
+                  const isDeletingThis = deletingMedia === variant.id;
 
                   return (
                     <TouchableOpacity
                       key={variant.id}
                       style={[styles.variantCard, { width: cardSize }]}
                       onPress={() => pickAndUpload(variant)}
+                      onLongPress={() => {
+                        if (!photo) return;
+                        if (!isVariantCover) {
+                          setPhotoActionMenuDialog({ visible: true, variant, isVariantCover });
+                        } else {
+                          setDeletePhotoConfirmDialog({ visible: true, variant });
+                        }
+                      }}
                       activeOpacity={0.75}
-                      disabled={isUploading}
+                      disabled={isUploading || isSettingThisCover || isDeletingThis}
                       accessibilityLabel={`Selecionar foto da variação ${variant.size || variant.sku}`}
                     >
                       {/* Foto ou placeholder */}
                       {photo ? (
                         <View style={[styles.photoWrap, { width: cardSize, height: cardSize }]}>
                           <Image source={{ uri: photo }} style={styles.photo} />
-                          {isUploading && (
+                          {(isUploading || isSettingThisCover || isDeletingThis) && (
                             <View style={styles.uploadingOverlay}>
                               <ActivityIndicator color="#fff" size="small" />
                             </View>
                           )}
-                          {/* Badge herdada do produto */}
-                          {!isUploading && isInherited(variant) && (
-                            <View style={styles.inheritedBadge}>
-                              <Text style={styles.inheritedBadgeText}>do produto</Text>
+                          {/* Badge CAPA */}
+                          {!isUploading && !isSettingThisCover && isVariantCover && (
+                            <View style={[styles.coverBadge, { backgroundColor: brandingColors.primary }]}>
+                              <Ionicons name="star" size={8} color="#fff" />
+                              <Text style={styles.coverBadgeText}>CAPA</Text>
                             </View>
                           )}
-                          {/* Badge de trocar (só para fotos próprias) */}
-                          {!isUploading && !isInherited(variant) && (
+                          {/* Badge câmera */}
+                          {!isUploading && !isSettingThisCover && !isDeletingThis && !isVariantCover && (
                             <View style={styles.changeBadge}>
                               <Ionicons name="camera" size={12} color="#fff" />
                             </View>
@@ -453,16 +570,6 @@ export default function VariantPhotosScreen() {
                                 color={Colors.light.textTertiary}
                               />
                               <Text style={styles.placeholderText}>Adicionar</Text>
-                              {productImageUrl && (
-                                <TouchableOpacity
-                                  style={[styles.useProductPhotoBtn, { backgroundColor: brandingColors.primary + '18', borderColor: brandingColors.primary + '40' }]}
-                                  onPress={(e) => { e.stopPropagation?.(); applySingleProductPhoto(variant); }}
-                                  activeOpacity={0.8}
-                                  hitSlop={4}
-                                >
-                                  <Text style={[styles.useProductPhotoBtnText, { color: brandingColors.primary }]}>Usar do produto</Text>
-                                </TouchableOpacity>
-                              )}
                             </>
                           )}
                         </View>
@@ -498,18 +605,65 @@ export default function VariantPhotosScreen() {
           );
         })}
 
-        {activeVariants.length === 0 && (
-          <View style={styles.emptyState}>
-            <Ionicons name="layers-outline" size={56} color={Colors.light.textTertiary} />
-            <Text style={styles.emptyTitle}>Nenhuma variação ativa</Text>
-            <Text style={styles.emptySubtitle}>Adicione variações ao produto primeiro</Text>
+        {/* ── Produto sem variações: gerenciador de foto de produto ── */}
+        {!hasVariants && (
+          <View style={styles.colorGroup}>
+            <View style={styles.colorGroupHeader}>
+              <Ionicons name="image-outline" size={16} color={brandingColors.primary} />
+              <Text style={styles.colorGroupName}>Foto do produto</Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.variantCard, { width: cardSize, alignSelf: 'center' }]}
+              onPress={pickAndUploadProduct}
+              onLongPress={() => {
+                if (!productImageUrl) return;
+                Alert.alert('Foto do produto', '', [
+                  { text: 'Cancelar', style: 'cancel' },
+                  { text: 'Excluir foto', style: 'destructive', onPress: deleteProductLevelPhoto },
+                ]);
+              }}
+              disabled={uploadingProduct || deletingMedia === -1}
+              activeOpacity={0.75}
+            >
+              {productImageUrl ? (
+                <View style={[styles.photoWrap, { width: cardSize, height: cardSize }]}>
+                  <Image source={{ uri: productImageUrl }} style={styles.photo} />
+                  {(uploadingProduct || deletingMedia === -1) && (
+                    <View style={styles.uploadingOverlay}>
+                      <ActivityIndicator color="#fff" size="small" />
+                    </View>
+                  )}
+                  {!uploadingProduct && deletingMedia !== -1 && (
+                    <View style={styles.changeBadge}>
+                      <Ionicons name="camera" size={12} color="#fff" />
+                    </View>
+                  )}
+                </View>
+              ) : (
+                <View style={[styles.photoWrap, styles.photoPlaceholder, { borderColor: Colors.light.border, width: cardSize, height: cardSize }]}>
+                  {uploadingProduct ? (
+                    <ActivityIndicator color={brandingColors.primary} />
+                  ) : (
+                    <>
+                      <Ionicons name="camera-outline" size={28} color={Colors.light.textTertiary} />
+                      <Text style={styles.placeholderText}>Adicionar</Text>
+                    </>
+                  )}
+                </View>
+              )}
+              <View style={styles.variantLabel}>
+                <Text style={[styles.variantSku, { textAlign: 'center' }]}>
+                  {productImageUrl ? 'Toque para trocar • Segure para excluir' : 'Toque para adicionar'}
+                </Text>
+              </View>
+            </TouchableOpacity>
           </View>
         )}
 
         {/* Botão de conclusão */}
         <TouchableOpacity
           style={styles.doneBtn}
-          onPress={() => setShowSuccessDialog(true)}
+          onPress={goBack}
           activeOpacity={0.8}
         >
           <LinearGradient
@@ -520,34 +674,102 @@ export default function VariantPhotosScreen() {
           >
             <Ionicons name="checkmark-circle-outline" size={20} color="#fff" />
             <Text style={styles.doneBtnText}>
-              {totalWithPhoto === activeVariants.length
-                ? 'Concluído'
-                : `Concluir (${pendingCount} sem foto)`}
+              {!hasVariants
+                ? (productImageUrl ? 'Concluído' : 'Concluir sem foto')
+                : totalWithPhoto === activeVariants.length
+                  ? 'Concluído'
+                  : `Concluir (${pendingCount} sem foto)`}
             </Text>
           </LinearGradient>
         </TouchableOpacity>
       </ScrollView>
     </Animated.View>
 
+    {/* Permissão de galeria */}
     <ConfirmDialog
-      visible={showSuccessDialog}
-      title="Sucesso!"
-      message={
-        pendingCount === 0
-          ? 'Fotos das variações finalizadas com sucesso.'
-          : `Processo finalizado. ${pendingCount} variação(ões) ainda está(ão) sem foto e você pode completar depois.`
-      }
+      visible={permissionDialog}
+      title="Permissão necessária"
+      message="Permita o acesso à galeria para adicionar fotos às variações."
+      confirmText="Entendi"
+      onConfirm={() => setPermissionDialog(false)}
+      onCancel={() => setPermissionDialog(false)}
+      type="info"
+      icon="images-outline"
+    />
+
+    {/* Erro de upload */}
+    <ConfirmDialog
+      visible={uploadErrorDialog.visible}
+      title="Erro no upload"
+      message={uploadErrorDialog.message}
       confirmText="OK"
+      onConfirm={() => setUploadErrorDialog({ visible: false, message: '' })}
+      onCancel={() => setUploadErrorDialog({ visible: false, message: '' })}
+      type="danger"
+      icon="cloud-upload-outline"
+    />
+
+    {/* Erro ao definir capa */}
+    <ConfirmDialog
+      visible={coverErrorDialog}
+      title="Erro"
+      message="Não foi possível definir esta variação como capa do produto."
+      confirmText="OK"
+      onConfirm={() => setCoverErrorDialog(false)}
+      onCancel={() => setCoverErrorDialog(false)}
+      type="danger"
+      icon="star-outline"
+    />
+
+    {/* Erro ao excluir foto */}
+    <ConfirmDialog
+      visible={deleteErrorDialog}
+      title="Erro"
+      message="Não foi possível excluir a foto desta variação."
+      confirmText="OK"
+      onConfirm={() => setDeleteErrorDialog(false)}
+      onCancel={() => setDeleteErrorDialog(false)}
+      type="danger"
+      icon="trash-outline"
+    />
+
+
+    {/* Menu de ações da foto (long press) */}
+    <ConfirmDialog
+      visible={photoActionMenuDialog.visible}
+      title={product?.name ?? 'Foto da variação'}
+      message="O que deseja fazer com esta foto?"
+      confirmText="Definir como capa"
+      cancelText="Excluir foto"
       onConfirm={() => {
-        setShowSuccessDialog(false);
-        goBack();
+        const v = photoActionMenuDialog.variant;
+        setPhotoActionMenuDialog({ visible: false, variant: null, isVariantCover: false });
+        if (v) handleSetAsCover(v);
       }}
       onCancel={() => {
-        setShowSuccessDialog(false);
-        goBack();
+        const v = photoActionMenuDialog.variant;
+        setPhotoActionMenuDialog({ visible: false, variant: null, isVariantCover: false });
+        if (v) setDeletePhotoConfirmDialog({ visible: true, variant: v });
       }}
-      type="success"
-      icon="checkmark-circle"
+      type="info"
+      icon="images"
+    />
+
+    {/* Confirmação de exclusão de foto */}
+    <ConfirmDialog
+      visible={deletePhotoConfirmDialog.visible}
+      title="Excluir foto?"
+      message="A foto desta variação será removida permanentemente."
+      confirmText="Excluir"
+      cancelText="Cancelar"
+      onConfirm={() => {
+        const v = deletePhotoConfirmDialog.variant;
+        setDeletePhotoConfirmDialog({ visible: false, variant: null });
+        if (v) handleDeletePhoto(v);
+      }}
+      onCancel={() => setDeletePhotoConfirmDialog({ visible: false, variant: null })}
+      type="danger"
+      icon="trash-outline"
     />
     </View>
   );
@@ -645,6 +867,24 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
   },
 
+  coverBadge: {
+    position: 'absolute',
+    bottom: 4,
+    left: 4,
+    right: 4,
+    borderRadius: 4,
+    paddingVertical: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+  },
+  coverBadgeText: {
+    color: '#fff',
+    fontSize: 8,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
   // Info banner
   infoBanner: {
     flexDirection: 'row',

@@ -26,7 +26,7 @@ import FAB from '@/components/FAB';
 import PageHeader from '@/components/layout/PageHeader';
 import { getCustomers } from '@/services/customerService';
 import { formatPhone } from '@/utils/format';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { Customer } from '@/types';
 
@@ -176,17 +176,33 @@ export default function CustomersScreen() {
         ) : (
           <>
             {/* Stats */}
-            <View style={styles.statsContainer}>
-              {([
-                { label: 'Ativos',   value: activeCount   },
-                { label: 'Inativos', value: inactiveCount },
-                { label: 'Total',    value: totalCount    },
-              ] as const).map(({ label, value }) => (
-                <View key={label} style={styles.statCard}>
-                  <Text style={styles.statLabel}>{label}</Text>
-                  <Text style={styles.statValue}>{value}</Text>
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryHeader}>
+                <View style={[styles.summaryIcon, { backgroundColor: brandingColors.primary + '15' }]}>
+                  <Ionicons name="people-outline" size={16} color={brandingColors.primary} />
                 </View>
-              ))}
+                <Text style={styles.summaryTitle}>Resumo de Clientes</Text>
+              </View>
+
+              <View style={styles.statsContainer}>
+                {([
+                  { label: 'Ativos',   value: activeCount, color: VALUE_COLORS.positive },
+                  { label: 'Inativos', value: inactiveCount, color: VALUE_COLORS.warning },
+                  { label: 'Total',    value: totalCount, color: Colors.light.text },
+                ] as const).map(({ label, value, color }) => (
+                  <View key={label} style={styles.statCard}>
+                    <Text style={styles.statLabel}>{label}</Text>
+                    <Text style={[styles.statValue, { color }]}>{value}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.moduleBadge}>
+                <Ionicons name="funnel-outline" size={13} color={Colors.light.textSecondary} />
+                <Text style={styles.moduleBadgeText}>
+                  Filtro ativo: {statusFilter === 'all' ? 'todos' : statusFilter === 'active' ? 'ativos' : 'inativos'}
+                </Text>
+              </View>
             </View>
 
             {/* Busca */}
@@ -299,13 +315,43 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
   },
 
+  summaryCard: {
+    marginHorizontal: theme.spacing.md,
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.xs,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    ...theme.shadows.sm,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+  },
+  summaryIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryTitle: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+
   // ── Stats ──
   statsContainer: {
     flexDirection: 'row',
     paddingHorizontal: theme.spacing.md,
     gap: theme.spacing.sm,
     marginTop: theme.spacing.sm,
-    marginBottom: theme.spacing.xs,
+    marginBottom: theme.spacing.sm,
   },
   statCard: {
     flex: 1,
@@ -327,9 +373,28 @@ const styles = StyleSheet.create({
   },
   statValue: {
     fontSize: theme.fontSize.xl,
-    fontWeight: '700',
+    fontWeight: '800',
     color: Colors.light.text,
     letterSpacing: -0.5,
+  },
+  moduleBadge: {
+    marginHorizontal: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.backgroundSecondary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  moduleBadgeText: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+    fontWeight: '600',
   },
 
   // ── Busca ──

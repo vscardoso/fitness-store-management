@@ -5,7 +5,7 @@
 
 import { useEffect } from 'react';
 import { LogBox } from 'react-native';
-import { Slot, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 
 LogBox.ignoreLogs([
   'expo-notifications',
@@ -112,7 +112,12 @@ export default function RootLayout() {
             <ErrorProvider>
               <TutorialProvider>
                 <StatusBar style="auto" />
-                <Slot />
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    gestureEnabled: true,
+                  }}
+                />
 
                 {/* Global Loading Overlay */}
                 <LoadingOverlay />

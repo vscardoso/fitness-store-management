@@ -170,8 +170,15 @@ export default function TabsLayout() {
       {/* Despesas: oculto do tab bar mas mantém rotas acessíveis */}
       <Tabs.Screen name="expenses" options={{ href: null }} />
 
-      {/* Fornecedores: oculto do tab bar mas mantém rotas acessíveis */}
-      <Tabs.Screen name="suppliers" options={{ href: null }} />
+      {/* Prejuízos: módulo financeiro separado, oculto do tab bar */}
+      <Tabs.Screen name="stock-losses" options={{ href: null }} />
+
+      {/* PDV: rotas de checkout e gestão, ocultas do tab bar */}
+      <Tabs.Screen name="pdv/pix-checkout" options={{ href: null }} />
+      <Tabs.Screen name="pdv/terminal-checkout" options={{ href: null }} />
+      <Tabs.Screen name="pdv/terminals" options={{ href: null }} />
+
+
     </Tabs>
   );
 }

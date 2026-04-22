@@ -212,24 +212,31 @@ export default function SalesListScreen() {
       {/* ── Conteúdo animado ── */}
       <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
 
-        {/* ── Métricas rápidas ── */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Período</Text>
-            <Text style={styles.statValue}>{salesCount}</Text>
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryHeader}>
+            <View style={styles.summaryTitleWrap}>
+              <View style={styles.summaryIcon}>
+                <Ionicons name="trending-up-outline" size={16} color={VALUE_COLORS.positive} />
+              </View>
+              <Text style={styles.summaryLabel}>Receita no período</Text>
+            </View>
+            <PeriodFilter
+              value={selectedPeriod}
+              onChange={(value) => { setSelectedPeriod(value); setSkip(0); }}
+              compact
+            />
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Concluídas</Text>
-            <Text style={[styles.statValue, { color: VALUE_COLORS.positive }]}>{completedCount}</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>Receita</Text>
-            <Text
-              style={[styles.statValue, { color: VALUE_COLORS.positive, fontSize: theme.fontSize.sm }]}
-              numberOfLines={1}
-            >
-              {formatCurrency(totalRevenue)}
+
+          <View style={styles.summaryBody}>
+            <Text style={styles.summaryValue}>{formatCurrency(totalRevenue)}</Text>
+            <Text style={styles.summaryMeta}>
+              {salesCount} {salesCount === 1 ? 'venda' : 'vendas'} • {completedCount} concluídas
             </Text>
+          </View>
+
+          <View style={styles.moduleBadge}>
+            <Ionicons name="calendar-outline" size={14} color={Colors.light.textSecondary} />
+            <Text style={styles.moduleBadgeText}>Filtro de período aplicado na listagem</Text>
           </View>
         </View>
 
@@ -253,15 +260,6 @@ export default function SalesListScreen() {
               <Ionicons name="close-circle" size={18} color={Colors.light.textTertiary} />
             </TouchableOpacity>
           )}
-        </View>
-
-        {/* ── Filtro de período ── */}
-        <View style={styles.periodRow}>
-          <PeriodFilter
-            value={selectedPeriod}
-            onChange={(value) => { setSelectedPeriod(value); setSkip(0); }}
-            compact
-          />
         </View>
 
         <FlatList
@@ -311,38 +309,76 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
   },
 
-  // ── Métricas rápidas ──
-  statsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: theme.spacing.md,
-    gap: theme.spacing.sm,
+  summaryCard: {
+    marginHorizontal: theme.spacing.md,
     marginTop: theme.spacing.sm,
     marginBottom: theme.spacing.xs,
-  },
-  statCard: {
-    flex: 1,
     backgroundColor: Colors.light.card,
-    borderRadius: theme.borderRadius.lg,
-    paddingVertical: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.xs,
-    alignItems: 'center',
+    borderRadius: theme.borderRadius.xl,
     borderWidth: 1,
     borderColor: Colors.light.border,
+    padding: theme.spacing.md,
     ...theme.shadows.sm,
   },
-  statLabel: {
-    fontSize: theme.fontSize.xxs,
-    fontWeight: '600',
-    color: Colors.light.textTertiary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: theme.spacing.xs,
+  summaryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
   },
-  statValue: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: '700',
-    color: Colors.light.text,
+  summaryTitleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    flex: 1,
+  },
+  summaryIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: VALUE_COLORS.positive + '15',
+  },
+  summaryLabel: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
+    fontWeight: '600',
+  },
+  summaryBody: {
+    marginTop: theme.spacing.md,
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: theme.spacing.sm,
+  },
+  summaryValue: {
+    fontSize: theme.fontSize.xxxl,
+    fontWeight: '800',
     letterSpacing: -0.5,
+    color: VALUE_COLORS.positive,
+  },
+  summaryMeta: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
+    fontWeight: '500',
+  },
+  moduleBadge: {
+    marginTop: theme.spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: theme.borderRadius.sm,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
+  moduleBadgeText: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+    fontWeight: '600',
   },
 
   // ── Busca ──
@@ -364,12 +400,6 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: Colors.light.text,
     paddingVertical: 0,
-  },
-
-  // ── Período ──
-  periodRow: {
-    paddingHorizontal: theme.spacing.md,
-    paddingBottom: theme.spacing.sm,
   },
 
   // ── Lista ──
@@ -435,7 +465,7 @@ const styles = StyleSheet.create({
   },
   amount: {
     fontSize: 22,
-    fontWeight: '800',
+    fontWeight: '700',
     letterSpacing: -0.5,
   },
   cardBottom: {
@@ -454,6 +484,12 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xs,
     color: Colors.light.textSecondary,
     flexShrink: 1,
+  },
+
+  amount: {
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
 });
 

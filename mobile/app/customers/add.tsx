@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -9,10 +9,11 @@ import {
   Text,
   TextInput,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -48,6 +49,35 @@ export default function AddCustomerScreen() {
   const [showErrorDialog, setShowErrorDialog] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [showCepDialog, setShowCepDialog] = useState(false);
+  const headerAnim = useMemo(() => new Animated.Value(0), []);
+  const contentAnim = useMemo(() => new Animated.Value(0), []);
+
+  useFocusEffect(
+    useMemo(
+      () => () => {
+        headerAnim.setValue(0);
+        contentAnim.setValue(0);
+
+        Animated.spring(headerAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          damping: 14,
+          stiffness: 120,
+          mass: 0.9,
+        }).start();
+
+        Animated.spring(contentAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          damping: 16,
+          stiffness: 110,
+          mass: 1,
+          delay: 140,
+        }).start();
+      },
+      [contentAnim, headerAnim]
+    )
+  );
 
   const handleCepChange = async (text: string) => {
     const masked = cepMask(text);
@@ -139,20 +169,34 @@ export default function AddCustomerScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader
-        title="Novo Cliente"
-        subtitle="Cadastre os dados de contato"
-        showBackButton
-        onBack={goBack}
-      />
+      <Animated.View
+        style={{
+          opacity: headerAnim,
+          transform: [{ scale: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }],
+        }}
+      >
+        <PageHeader
+          title="Novo Cliente"
+          subtitle="Cadastre os dados de contato"
+          showBackButton
+          onBack={goBack}
+        />
+      </Animated.View>
 
-      <KeyboardAvoidingView style={styles.content} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
+      <Animated.View
+        style={{
+          flex: 1,
+          opacity: contentAnim,
+          transform: [{ translateY: contentAnim.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
+        }}
+      >
+        <KeyboardAvoidingView style={styles.content} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
           <View style={styles.card}>
             <View style={styles.cardInner}>
               <View style={styles.cardHeader}>
@@ -349,7 +393,9 @@ export default function AddCustomerScreen() {
               onPress={goBack}
               disabled={createMutation.isPending}
               activeOpacity={0.7}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
+              <Ionicons name="close-outline" size={18} color={Colors.light.textSecondary} />
               <Text style={styles.btnSecondaryText}>Cancelar</Text>
             </TouchableOpacity>
 
@@ -358,6 +404,7 @@ export default function AddCustomerScreen() {
               onPress={handleSubmit}
               disabled={createMutation.isPending}
               activeOpacity={0.8}
+              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
               <LinearGradient colors={brandingColors.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.btnGradient}>
                 {createMutation.isPending ? (
@@ -371,8 +418,9 @@ export default function AddCustomerScreen() {
               </LinearGradient>
             </TouchableOpacity>
           </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </Animated.View>
 
       <ConfirmDialog
         visible={showCepDialog}
@@ -429,7 +477,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
+    paddingBottom: theme.spacing.xxl,
   },
   card: {
     marginBottom: theme.spacing.md,
@@ -453,7 +501,7 @@ const styles = StyleSheet.create({
   cardHeaderIcon: {
     width: 32,
     height: 32,
-    borderRadius: 8,
+    borderRadius: theme.borderRadius.md,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: theme.spacing.sm,
@@ -474,6 +522,8 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xs,
     fontWeight: '600',
     color: Colors.light.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
     marginBottom: 6,
   },
   required: {
@@ -524,8 +574,11 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.xl,
     borderWidth: 1.5,
     borderColor: Colors.light.border,
-    justifyContent: 'center',
+    backgroundColor: Colors.light.card,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
   },
   btnSecondaryText: {
     fontSize: theme.fontSize.base,

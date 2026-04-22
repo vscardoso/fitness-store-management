@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+﻿import { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,22 +8,18 @@ import {
   TouchableOpacity,
   StatusBar,
   Image,
-} from 'react-native';
-import {
-  TextInput,
-  Button,
-  HelperText,
+  Animated,
   Text,
   ActivityIndicator,
-} from 'react-native-paper';
+  TextInput,
+} from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as ImagePicker from 'expo-image-picker';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
-import useBackToList from '@/hooks/useBackToList';
 import { getImageUrl } from '@/constants/Config';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -39,15 +35,20 @@ import { formatPriceInput, formatPriceDisplay, formatMoneyDisplay } from '@/util
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { goBack } = useBackToList('/(tabs)/products');
   const brandingColors = useBrandingColors();
   const queryClient = useQueryClient();
   const { categories, isLoading: loadingCategories } = useCategories();
   const updateMutation = useUpdateProduct();
+  const headerAnim = useMemo(() => new Animated.Value(0), []);
+  const contentAnim = useMemo(() => new Animated.Value(0), []);
 
   // Validar ID do produto
   const productId = id ? parseInt(id as string) : NaN;
   const isValidId = !isNaN(productId) && productId > 0;
+
+  const handleBack = () => {
+    router.replace('/(tabs)/products' as any);
+  };
 
   // Estados do formulário
   const [name, setName] = useState('');
@@ -72,6 +73,33 @@ export default function EditProductScreen() {
   const [originalCostPrice, setOriginalCostPrice] = useState<number | null>(null);
   // Estoque
   const [currentStock, setCurrentStock] = useState<number>(0);
+
+  useFocusEffect(
+    useMemo(
+      () => () => {
+        headerAnim.setValue(0);
+        contentAnim.setValue(0);
+
+        Animated.spring(headerAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          damping: 14,
+          stiffness: 120,
+          mass: 0.9,
+        }).start();
+
+        Animated.spring(contentAnim, {
+          toValue: 1,
+          useNativeDriver: true,
+          damping: 16,
+          stiffness: 110,
+          mass: 1,
+          delay: 140,
+        }).start();
+      },
+      [contentAnim, headerAnim]
+    )
+  );
 
   /**
    * Query: Buscar produto
@@ -140,10 +168,6 @@ export default function EditProductScreen() {
    */
   useEffect(() => {
     if (product) {
-      console.log('📦 Produto carregado:', product);
-      console.log('📋 Category ID:', product.category_id);
-      console.log('📋 Category:', product.category);
-      
       setName(product.name || '');
       setSku(product.sku || '');
 
@@ -155,9 +179,7 @@ export default function EditProductScreen() {
       // Garantir que category_id seja um número válido
       if (product.category_id !== null && product.category_id !== undefined) {
         setCategoryId(product.category_id);
-        console.log('✅ Category ID setado:', product.category_id);
       } else {
-        console.warn('⚠️ Category ID inválido ou ausente:', product.category_id);
         setCategoryId(undefined);
       }
       
@@ -183,23 +205,12 @@ export default function EditProductScreen() {
       // Armazenar custo original (converter para number se vier string)
       const originalCost = product.cost_price != null ? Number(product.cost_price) : null;
       setOriginalCostPrice(isNaN(originalCost as number) ? null : originalCost);
-      
-      console.log('📦 Produto carregado - Custo original:', product.cost_price);
-      
-      // Buscar estoque
-      (async () => {
-        try {
-          const inv = await getProductStock(productId);
-          setCurrentStock(inv.quantity || 0);
-        } catch (e) {
-          console.error('Erro ao buscar dados:', e);
-        }
-      })();
     }
   }, [product]);
 
   // Produto tem variantes configuradas?
   const hasVariants = (variants ?? []).length > 0;
+  const hasMultipleVariants = (variants ?? []).length > 1;
 
   /**
    * Validar campos obrigatórios
@@ -332,15 +343,12 @@ export default function EditProductScreen() {
    * Confirmar mudança de custo e salvar
    */
   const handleConfirmCostChange = () => {
-    console.log('✅ Usuário confirmou mudança de custo');
     setShowCostChangeDialog(false);
     if (pendingProductData) {
-      console.log('📤 Enviando atualização:', pendingProductData);
       updateMutation.mutate(
         { id: productId, data: pendingProductData },
         {
           onSuccess: () => {
-            console.log('✅ updateProduct sucesso (custo mudou)');
             setShowSuccessDialog(true);
           },
           onError: (error: any) => {
@@ -357,7 +365,6 @@ export default function EditProductScreen() {
    * Cancelar mudança de custo
    */
   const handleCancelCostChange = () => {
-    console.log('❌ Usuário cancelou mudança de custo');
     setShowCostChangeDialog(false);
     setPendingProductData(null);
   };
@@ -409,7 +416,7 @@ export default function EditProductScreen() {
   if (loadingProduct) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
+        <ActivityIndicator size="large" color={brandingColors.primary} />
         <Text style={styles.loadingText}>Carregando produto...</Text>
       </View>
     );
@@ -425,166 +432,176 @@ export default function EditProductScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader
-        title={product?.name || 'Editar Produto'}
-        subtitle={
-          (() => {
-            const varCount = variants?.length ?? 0;
-            if (varCount > 1) {
-              return [product?.brand, `${varCount} variações`].filter(Boolean).join(' • ') || undefined;
-            }
-            const parts = [product?.brand, product?.color, product?.size].filter(Boolean);
-            return parts.length > 0 ? parts.join(' • ') : undefined;
-          })()
-        }
-        showBackButton
-        onBack={goBack}
-      />
+      <Animated.View
+        style={{
+          opacity: headerAnim,
+          transform: [{ scale: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }],
+        }}
+      >
+        <PageHeader
+          title={product?.name || 'Editar Produto'}
+          subtitle={
+            (() => {
+              const varCount = variants?.length ?? 0;
+              if (varCount > 1) {
+                return [product?.brand, `${varCount} variações`].filter(Boolean).join(' • ') || undefined;
+              }
+              const parts = [product?.brand, product?.color, product?.size].filter(Boolean);
+              return parts.length > 0 ? parts.join(' • ') : undefined;
+            })()
+          }
+          showBackButton
+          onBack={handleBack}
+        />
+      </Animated.View>
 
+      <Animated.View
+        style={{
+          flex: 1,
+          opacity: contentAnim,
+          transform: [{ translateY: contentAnim.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
+        }}
+      >
       <KeyboardAvoidingView
         style={styles.keyboardView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
           style={styles.scrollView}
           contentContainerStyle={styles.content}
           keyboardShouldPersistTaps="handled"
-          automaticallyAdjustKeyboardInsets={true}
+          automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         >
         {/* Informações Básicas */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Ionicons name="information-circle-outline" size={20} color={Colors.light.primary} />
+            <Ionicons name="information-circle-outline" size={20} color={brandingColors.primary} />
             <Text style={styles.cardTitle}>Informações Básicas</Text>
           </View>
           <View style={styles.cardContent}>
+            <Text style={styles.inputLabel}>Nome do Produto *</Text>
             <TextInput
-              label="Nome do Produto *"
               value={name}
               onChangeText={(text) => {
                 setName(text);
                 setErrors({ ...errors, name: '' });
               }}
-              mode="outlined"
-              error={!!errors.name}
-              style={styles.input}
+              style={[styles.input, errors.name ? styles.inputError : null]}
               placeholder="Ex: Legging Fitness Preta"
+              placeholderTextColor={Colors.light.textTertiary}
             />
             {errors.name ? (
-              <HelperText type="error">{errors.name}</HelperText>
+              <Text style={styles.errorHelperText}>{errors.name}</Text>
             ) : null}
 
             {/* SKU só fica no nível do produto quando NÃO há variantes */}
             {!hasVariants && (
               <>
+                <Text style={styles.inputLabel}>SKU (CÓDIGO) *</Text>
                 <TextInput
-                  label="SKU (Código) *"
                   value={sku}
                   onChangeText={(text) => {
                     setSku(text);
                     setErrors({ ...errors, sku: '' });
                   }}
-                  mode="outlined"
-                  error={!!errors.sku}
-                  style={styles.input}
+                  style={[styles.input, errors.sku ? styles.inputError : null]}
                   placeholder="Ex: LEG-FIT-001"
                   autoCapitalize="characters"
+                  placeholderTextColor={Colors.light.textTertiary}
                 />
                 {errors.sku ? (
-                  <HelperText type="error">{errors.sku}</HelperText>
+                  <Text style={styles.errorHelperText}>{errors.sku}</Text>
                 ) : null}
               </>
             )}
 
+            <Text style={styles.inputLabel}>Marca</Text>
             <TextInput
-              label="Marca"
               value={brand}
               onChangeText={setBrand}
-              mode="outlined"
               style={styles.input}
               placeholder="Ex: Nike, Adidas, Under Armour"
+              placeholderTextColor={Colors.light.textTertiary}
             />
 
             {/* Cor e Tamanho só no produto quando NÃO há variantes (cada variante tem os seus) */}
             {!hasVariants && (
               <View style={styles.rowInputs}>
-                <TextInput
-                  label="Cor"
-                  value={color}
-                  onChangeText={setColor}
-                  mode="outlined"
-                  style={[styles.input, styles.inputHalf]}
-                  placeholder="Ex: Preto, Rosa, Azul"
-                />
+                <View style={styles.inputHalf}>
+                  <Text style={styles.inputLabel}>Cor</Text>
+                  <TextInput
+                    value={color}
+                    onChangeText={setColor}
+                    style={styles.input}
+                    placeholder="Ex: Preto, Rosa, Azul"
+                    placeholderTextColor={Colors.light.textTertiary}
+                  />
+                </View>
 
-                <TextInput
-                  label="Tamanho"
-                  value={size}
-                  onChangeText={setSize}
-                  mode="outlined"
-                  style={[styles.input, styles.inputHalf]}
-                  placeholder="PP, P, M, G, GG"
-                />
+                <View style={styles.inputHalf}>
+                  <Text style={styles.inputLabel}>Tamanho</Text>
+                  <TextInput
+                    value={size}
+                    onChangeText={setSize}
+                    style={styles.input}
+                    placeholder="PP, P, M, G, GG"
+                    placeholderTextColor={Colors.light.textTertiary}
+                  />
+                </View>
               </View>
             )}
 
+            <Text style={styles.inputLabel}>Descrição</Text>
             <TextInput
-              label="Descrição"
               value={description}
               onChangeText={setDescription}
-              mode="outlined"
-              style={styles.input}
+              style={[styles.input, styles.inputMultiline]}
               placeholder="Descrição detalhada do produto"
               multiline
-              numberOfLines={3}
+              numberOfLines={4}
+              textAlignVertical="top"
+              placeholderTextColor={Colors.light.textTertiary}
             />
           </View>
         </View>
 
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Ionicons name="image-outline" size={20} color={Colors.light.primary} />
-            <Text style={styles.cardTitle}>Foto Vinculada ao Produto</Text>
+            <Ionicons name="images-outline" size={20} color={brandingColors.primary} />
+            <Text style={styles.cardTitle}>Galeria de Fotos</Text>
           </View>
           <View style={styles.cardContent}>
+            {/* Preview da foto capa */}
             {product.image_url ? (
               <Image source={{ uri: getImageUrl(product.image_url) }} style={styles.productPhotoPreview} />
             ) : (
               <View style={styles.productPhotoPlaceholder}>
-                <Ionicons name="image-outline" size={28} color={Colors.light.textTertiary} />
-                <Text style={styles.productPhotoPlaceholderText}>Nenhuma foto vinculada</Text>
+                <Ionicons name="images-outline" size={28} color={Colors.light.textTertiary} />
+                <Text style={styles.productPhotoPlaceholderText}>Nenhuma foto adicionada</Text>
               </View>
             )}
 
+            {/* Botão gerenciar galeria */}
             <TouchableOpacity
               style={styles.productPhotoButton}
-              onPress={handlePickProductPhoto}
-              disabled={uploadProductPhotoMutation.isPending}
+              onPress={() => router.push(`/products/photos/${productId}` as any)}
               activeOpacity={0.8}
             >
               <LinearGradient
-                colors={uploadProductPhotoMutation.isPending ? ['#9CA3AF', '#9CA3AF'] : brandingColors.gradient}
+                colors={brandingColors.gradient}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 0 }}
                 style={styles.productPhotoButtonGradient}
               >
-                {uploadProductPhotoMutation.isPending ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <Ionicons name="images-outline" size={18} color="#fff" />
-                )}
+                <Ionicons name="images-outline" size={18} color="#fff" />
                 <Text style={styles.productPhotoButtonText}>
-                  {uploadProductPhotoMutation.isPending
-                    ? 'Salvando foto...'
-                    : product.image_url
-                      ? 'Editar foto'
-                      : 'Adicionar foto'}
+                  Gerenciar Galeria
                 </Text>
               </LinearGradient>
             </TouchableOpacity>
 
             <Text style={styles.productPhotoHint}>
-              Esta imagem fica vinculada ao produto e aparece nas telas que exibem a foto principal.
+              Adicione múltiplas fotos, defina a capa e gerencie fotos por variação na tela de galeria.
             </Text>
           </View>
         </View>
@@ -592,22 +609,16 @@ export default function EditProductScreen() {
         {/* Categoria */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Ionicons name="list-outline" size={20} color={Colors.light.primary} />
+            <Ionicons name="list-outline" size={20} color={brandingColors.primary} />
             <Text style={styles.cardTitle}>Categoria *</Text>
           </View>
           <View style={styles.cardContent}>
             {loadingCategories ? (
-              <HelperText type="info">Carregando categorias...</HelperText>
+              <Text style={styles.infoHelperText}>Carregando categorias...</Text>
             ) : categories.length === 0 ? (
-              <HelperText type="error">Nenhuma categoria disponível. Cadastre categorias primeiro.</HelperText>
+              <Text style={styles.errorHelperText}>Nenhuma categoria disponível. Cadastre categorias primeiro.</Text>
             ) : (
               <>
-                {console.log('🔍 Renderizando select:', {
-                  categoryId,
-                  productCategory: product?.category,
-                  categoriesLength: categories.length,
-                  foundInList: categories.find(c => c.id === categoryId)?.name
-                })}
                 <TouchableOpacity
                   onPress={() => setMenuVisible(true)}
                   style={[
@@ -639,7 +650,7 @@ export default function EditProductScreen() {
                   </View>
                 </TouchableOpacity>
                 {errors.categoryId ? (
-                  <HelperText type="error">{errors.categoryId}</HelperText>
+                  <Text style={styles.errorHelperText}>{errors.categoryId}</Text>
                 ) : null}
               </>
             )}
@@ -652,7 +663,7 @@ export default function EditProductScreen() {
         {!hasVariants && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <Ionicons name="pricetags-outline" size={20} color={Colors.light.primary} />
+              <Ionicons name="pricetags-outline" size={20} color={brandingColors.primary} />
               <Text style={styles.cardTitle}>Preços</Text>
               <View style={styles.stockBadge}>
                 <Ionicons name="cube" size={14} color={Colors.light.text} />
@@ -667,21 +678,22 @@ export default function EditProductScreen() {
                     <Ionicons name="cart-outline" size={18} color={Colors.light.warning} />
                     <Text style={styles.priceCardLabel}>Custo</Text>
                   </View>
-                  <TextInput
-                    label="Preço de Custo *"
-                    value={formatPriceDisplay(costPrice)}
-                    onChangeText={(text) => {
-                      setCostPrice(formatPriceInput(text));
-                      setErrors({ ...errors, costPrice: '' });
-                    }}
-                    mode="outlined"
-                    error={!!errors.costPrice}
-                    style={styles.priceInput}
-                    keyboardType="numeric"
-                    left={<TextInput.Affix text="R$" />}
-                    dense
-                  />
-                  {errors.costPrice && <HelperText type="error" style={{ marginTop: 4 }}>{errors.costPrice}</HelperText>}
+                  <Text style={styles.inputLabel}>Preço de Custo *</Text>
+                  <View style={[styles.currencyInputWrapper, errors.costPrice ? styles.inputError : null]}>
+                    <Text style={styles.currencyPrefix}>R$</Text>
+                    <TextInput
+                      value={formatPriceDisplay(costPrice)}
+                      onChangeText={(text) => {
+                        setCostPrice(formatPriceInput(text));
+                        setErrors({ ...errors, costPrice: '' });
+                      }}
+                      style={styles.currencyInput}
+                      keyboardType="numeric"
+                      placeholder="0,00"
+                      placeholderTextColor={Colors.light.textTertiary}
+                    />
+                  </View>
+                  {errors.costPrice ? <Text style={styles.errorHelperText}>{errors.costPrice}</Text> : null}
                 </View>
 
                 <View style={[styles.priceCard, errors.salePrice && { borderColor: Colors.light.error, borderWidth: 1.5 }]}>
@@ -689,21 +701,22 @@ export default function EditProductScreen() {
                     <Ionicons name="pricetag" size={18} color={Colors.light.success} />
                     <Text style={styles.priceCardLabel}>Venda</Text>
                   </View>
-                  <TextInput
-                    label="Preço de Venda *"
-                    value={formatPriceDisplay(salePrice)}
-                    onChangeText={(text) => {
-                      setSalePrice(formatPriceInput(text));
-                      setErrors({ ...errors, salePrice: '' });
-                    }}
-                    mode="outlined"
-                    error={!!errors.salePrice}
-                    style={styles.priceInput}
-                    keyboardType="numeric"
-                    left={<TextInput.Affix text="R$" />}
-                    dense
-                  />
-                  {errors.salePrice && <HelperText type="error" style={{ marginTop: 4 }}>{errors.salePrice}</HelperText>}
+                  <Text style={styles.inputLabel}>Preço de Venda *</Text>
+                  <View style={[styles.currencyInputWrapper, errors.salePrice ? styles.inputError : null]}>
+                    <Text style={styles.currencyPrefix}>R$</Text>
+                    <TextInput
+                      value={formatPriceDisplay(salePrice)}
+                      onChangeText={(text) => {
+                        setSalePrice(formatPriceInput(text));
+                        setErrors({ ...errors, salePrice: '' });
+                      }}
+                      style={styles.currencyInput}
+                      keyboardType="numeric"
+                      placeholder="0,00"
+                      placeholderTextColor={Colors.light.textTertiary}
+                    />
+                  </View>
+                  {errors.salePrice ? <Text style={styles.errorHelperText}>{errors.salePrice}</Text> : null}
                 </View>
               </View>
           </View>
@@ -714,7 +727,7 @@ export default function EditProductScreen() {
         {hasVariants && (
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <Ionicons name="layers-outline" size={20} color={Colors.light.primary} />
+              <Ionicons name="layers-outline" size={20} color={brandingColors.primary} />
               <Text style={styles.cardTitle}>Variações</Text>
               <View style={styles.stockBadge}>
                 <Ionicons name="cube" size={14} color={Colors.light.text} />
@@ -783,45 +796,53 @@ export default function EditProductScreen() {
 
                     {/* Campos de edição */}
                     <View style={styles.variantFields}>
+                      <Text style={styles.inputLabel}>SKU</Text>
                       <TextInput
-                        label="SKU"
                         value={edit.sku}
                         onChangeText={text => setVariantEdits(prev => ({
                           ...prev,
                           [variant.id]: { ...prev[variant.id], sku: text },
                         }))}
-                        mode="outlined"
                         style={styles.variantInput}
                         autoCapitalize="characters"
-                        dense
+                        placeholder="SKU da variação"
+                        placeholderTextColor={Colors.light.textTertiary}
                       />
                       <View style={styles.variantPriceRow}>
-                        <TextInput
-                          label="Custo"
-                          value={formatPriceDisplay(edit.cost_price)}
-                          onChangeText={text => setVariantEdits(prev => ({
-                            ...prev,
-                            [variant.id]: { ...prev[variant.id], cost_price: formatPriceInput(text) },
-                          }))}
-                          mode="outlined"
-                          style={[styles.variantInput, styles.variantInputHalf]}
-                          keyboardType="numeric"
-                          left={<TextInput.Affix text="R$" />}
-                          dense
-                        />
-                        <TextInput
-                          label="Preço de Venda"
-                          value={formatPriceDisplay(edit.price)}
-                          onChangeText={text => setVariantEdits(prev => ({
-                            ...prev,
-                            [variant.id]: { ...prev[variant.id], price: formatPriceInput(text) },
-                          }))}
-                          mode="outlined"
-                          style={[styles.variantInput, styles.variantInputHalf]}
-                          keyboardType="numeric"
-                          left={<TextInput.Affix text="R$" />}
-                          dense
-                        />
+                        <View style={styles.variantInputHalf}>
+                          <Text style={styles.inputLabel}>Custo</Text>
+                          <View style={styles.currencyInputWrapper}>
+                            <Text style={styles.currencyPrefix}>R$</Text>
+                            <TextInput
+                              value={formatPriceDisplay(edit.cost_price)}
+                              onChangeText={text => setVariantEdits(prev => ({
+                                ...prev,
+                                [variant.id]: { ...prev[variant.id], cost_price: formatPriceInput(text) },
+                              }))}
+                              style={styles.currencyInput}
+                              keyboardType="numeric"
+                              placeholder="0,00"
+                              placeholderTextColor={Colors.light.textTertiary}
+                            />
+                          </View>
+                        </View>
+                        <View style={styles.variantInputHalf}>
+                          <Text style={styles.inputLabel}>Preço de Venda</Text>
+                          <View style={styles.currencyInputWrapper}>
+                            <Text style={styles.currencyPrefix}>R$</Text>
+                            <TextInput
+                              value={formatPriceDisplay(edit.price)}
+                              onChangeText={text => setVariantEdits(prev => ({
+                                ...prev,
+                                [variant.id]: { ...prev[variant.id], price: formatPriceInput(text) },
+                              }))}
+                              style={styles.currencyInput}
+                              keyboardType="numeric"
+                              placeholder="0,00"
+                              placeholderTextColor={Colors.light.textTertiary}
+                            />
+                          </View>
+                        </View>
                       </View>
                     </View>
                   </View>
@@ -832,7 +853,7 @@ export default function EditProductScreen() {
           </View>
         )}
         {/* Botão Gerenciar Fotos (visível quando há variações) */}
-        {hasVariants && (
+        {hasMultipleVariants && (
           <TouchableOpacity
             style={styles.photosButton}
             onPress={() => router.push(`/products/photos/${product!.id}`)}
@@ -859,7 +880,7 @@ export default function EditProductScreen() {
         <View style={styles.actions}>
           <TouchableOpacity
             style={[styles.actionButton, styles.cancelActionButton]}
-            onPress={goBack}
+            onPress={handleBack}
             disabled={updateMutation.isPending}
             activeOpacity={0.75}
           >
@@ -874,7 +895,7 @@ export default function EditProductScreen() {
             activeOpacity={0.8}
           >
             <LinearGradient
-              colors={updateMutation.isPending ? ['#9CA3AF', '#9CA3AF'] : brandingColors.gradient}
+              colors={updateMutation.isPending ? [Colors.light.textTertiary, Colors.light.textTertiary] : brandingColors.gradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
               style={styles.saveActionButtonGradient}
@@ -892,6 +913,7 @@ export default function EditProductScreen() {
         </View>
         </ScrollView>
       </KeyboardAvoidingView>
+      </Animated.View>
 
       {/* Dialog de Sucesso */}
       <ConfirmDialog
@@ -965,34 +987,30 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   loadingText: {
     marginTop: 12,
-    color: '#666',
+    color: Colors.light.textSecondary,
   },
   keyboardView: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   scrollView: {
     flex: 1,
   },
   content: {
     padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
+    paddingBottom: theme.spacing.xxl,
   },
   card: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
     marginBottom: theme.spacing.md,
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
+    ...theme.shadows.sm,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.06)',
+    borderColor: Colors.light.border,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -1000,7 +1018,7 @@ const styles = StyleSheet.create({
     gap: 8,
     padding: theme.spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: Colors.light.border,
   },
   cardTitle: {
     fontSize: 16,
@@ -1021,8 +1039,64 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.sm,
   },
   input: {
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: theme.borderRadius.xl,
+    paddingHorizontal: theme.spacing.md,
+    fontSize: theme.fontSize.base,
+    color: Colors.light.text,
     marginBottom: theme.spacing.sm,
-    backgroundColor: Colors.light.background,
+    backgroundColor: Colors.light.card,
+  },
+  inputMultiline: {
+    minHeight: 104,
+    paddingTop: theme.spacing.sm,
+  },
+  inputLabel: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    color: Colors.light.textTertiary,
+    marginBottom: theme.spacing.xs,
+  },
+  inputError: {
+    borderColor: Colors.light.error,
+    borderWidth: 1.5,
+  },
+  errorHelperText: {
+    marginTop: 4,
+    marginBottom: 8,
+    color: Colors.light.error,
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+  },
+  infoHelperText: {
+    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.sm,
+  },
+  currencyInputWrapper: {
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: theme.borderRadius.xl,
+    backgroundColor: Colors.light.card,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: theme.spacing.md,
+  },
+  currencyPrefix: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '700',
+    color: Colors.light.textSecondary,
+    marginRight: 8,
+  },
+  currencyInput: {
+    flex: 1,
+    fontSize: theme.fontSize.base,
+    color: Colors.light.text,
+    paddingVertical: 0,
   },
   rowInputs: {
     flexDirection: 'row',
@@ -1037,7 +1111,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: Colors.light.border,
     borderRadius: 12,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     marginBottom: 8,
   },
   categoryButtonError: {
@@ -1065,12 +1139,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#e8f5e9',
+    backgroundColor: Colors.light.success + '14',
     padding: 16,
     borderRadius: 12,
     marginTop: 8,
     borderLeftWidth: 4,
-    borderLeftColor: '#2e7d32',
+    borderLeftColor: Colors.light.success,
   },
   marginRow: {
     flexDirection: 'row',
@@ -1078,20 +1152,20 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   marginLabel: {
-    color: '#2e7d32',
+    color: Colors.light.success,
     fontWeight: '600',
     fontSize: 14,
   },
   marginValue: {
     fontWeight: '800',
-    color: '#1b5e20',
+    color: Colors.light.success,
     fontSize: 20,
   },
   warningBox: {
     flexDirection: 'row',
     gap: 12,
     padding: 16,
-    backgroundColor: '#fff3e0',
+    backgroundColor: Colors.light.warning + '12',
     borderRadius: 12,
     borderLeftWidth: 4,
     borderLeftColor: Colors.light.warning,
@@ -1101,7 +1175,7 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: 14,
     lineHeight: 20,
-    color: '#666',
+    color: Colors.light.textSecondary,
   },
   infoRow: {
     flexDirection: 'row',
@@ -1109,7 +1183,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: 8,
     marginBottom: 16,
   },
@@ -1178,7 +1252,7 @@ const styles = StyleSheet.create({
   },
   errorMessage: {
     fontSize: 14,
-    color: '#666',
+    color: Colors.light.textSecondary,
     textAlign: 'center',
     marginTop: 8,
     marginHorizontal: 32,
@@ -1225,7 +1299,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     paddingVertical: 16,
     paddingHorizontal: 12,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: Colors.light.backgroundSecondary,
     borderRadius: 12,
     marginBottom: 16,
     gap: 12,
@@ -1237,7 +1311,7 @@ const styles = StyleSheet.create({
   },
   stockSummaryLabel: {
     fontSize: 12,
-    color: '#666',
+    color: Colors.light.textSecondary,
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -1248,10 +1322,10 @@ const styles = StyleSheet.create({
     color: Colors.light.primary,
   },
   entryItem: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
+    borderColor: Colors.light.border,
     marginBottom: 12,
     overflow: 'hidden',
   },
@@ -1260,9 +1334,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 12,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: Colors.light.backgroundSecondary,
     borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    borderBottomColor: Colors.light.border,
   },
   entryItemHeaderLeft: {
     flexDirection: 'row',
@@ -1283,7 +1357,7 @@ const styles = StyleSheet.create({
   entryTypeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#fff',
+    color: Colors.light.card,
     textTransform: 'uppercase',
   },
   entryItemContent: {
@@ -1298,7 +1372,7 @@ const styles = StyleSheet.create({
   },
   entryItemLabel: {
     fontSize: 13,
-    color: '#666',
+    color: Colors.light.textSecondary,
     fontWeight: '600',
     flex: 1,
   },
@@ -1319,7 +1393,7 @@ const styles = StyleSheet.create({
     color: Colors.light.primary,
   },
   entryItemValueDisabled: {
-    color: '#999',
+    color: Colors.light.textTertiary,
   },
   soldText: {
     fontSize: 11,
@@ -1331,7 +1405,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#f0f0f0',
+    backgroundColor: Colors.light.backgroundSecondary,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1341,7 +1415,7 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     height: 8,
-    backgroundColor: '#e0e0e0',
+    backgroundColor: Colors.light.border,
     borderRadius: 4,
     overflow: 'hidden',
   },
@@ -1351,7 +1425,7 @@ const styles = StyleSheet.create({
   },
   progressText: {
     fontSize: 11,
-    color: '#666',
+    color: Colors.light.textSecondary,
     fontWeight: '600',
     textAlign: 'right',
   },
@@ -1364,12 +1438,12 @@ const styles = StyleSheet.create({
   emptyEntriesText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#666',
+    color: Colors.light.textSecondary,
     marginTop: 8,
   },
   emptyEntriesSubtext: {
     fontSize: 13,
-    color: '#999',
+    color: Colors.light.textTertiary,
     textAlign: 'center',
     marginHorizontal: 32,
   },
@@ -1379,7 +1453,7 @@ const styles = StyleSheet.create({
   },
   dialogInput: {
     marginTop: 12,
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
   },
 
   // ── Novo Layout Moderno ──
@@ -1428,7 +1502,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   priceInput: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     marginBottom: 0,
   },
 
@@ -1480,13 +1554,13 @@ const styles = StyleSheet.create({
 
   // Cards de entrada FIFO
   fifoEntryCard: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     borderRadius: 12,
     borderWidth: 1,
     borderColor: Colors.light.border,
     overflow: 'hidden',
     elevation: 1,
-    shadowColor: '#000',
+    shadowColor: Colors.light.text,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -1700,14 +1774,14 @@ const styles = StyleSheet.create({
 
   // Cards de variantes modernos
   variantCard: {
-    backgroundColor: '#fff',
+    backgroundColor: Colors.light.card,
     borderRadius: 14,
     padding: 16,
     marginBottom: 14,
     borderWidth: 1.5,
     borderColor: Colors.light.border,
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: Colors.light.text,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 4,
@@ -1760,7 +1834,14 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   variantInput: {
-    backgroundColor: Colors.light.background,
+    minHeight: 52,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: theme.borderRadius.xl,
+    paddingHorizontal: theme.spacing.md,
+    fontSize: theme.fontSize.base,
+    color: Colors.light.text,
+    backgroundColor: Colors.light.card,
     marginBottom: 0,
   },
   variantPriceRow: {

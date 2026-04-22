@@ -10,21 +10,22 @@ import {
   RefreshControl,
   ActivityIndicator,
   Image,
-  Text as RNText,
+  Text,
 } from 'react-native';
-import { Text, Card } from 'react-native-paper';
 import { useFocusEffect } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import { getDemandReport } from '@/services/wishlistService';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
 import { getImageUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
+import { useBrandingColors } from '@/store/brandingStore';
 import type { DemandItem } from '@/types/look';
 
 export default function DemandScreen() {
+  const brandingColors = useBrandingColors();
   const {
     data: items = [],
     isLoading,
@@ -39,10 +40,11 @@ export default function DemandScreen() {
   useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
   const totalRevenue = items.reduce((acc, i) => acc + i.potential_revenue, 0);
+  const totalWaiting = items.reduce((acc, i) => acc + i.waiting_count, 0);
 
   const renderItem = ({ item }: { item: DemandItem }) => (
-    <Card style={styles.card}>
-      <Card.Content style={styles.cardContent}>
+    <View style={styles.card}>
+      <View style={styles.cardContent}>
         <View style={styles.iconContainer}>
           {item.product_image_url ? (
             <Image
@@ -51,7 +53,7 @@ export default function DemandScreen() {
               resizeMode="cover"
             />
           ) : (
-            <Ionicons name="cube" size={28} color={Colors.light.primary} />
+            <Ionicons name="cube" size={28} color={brandingColors.primary} />
           )}
         </View>
 
@@ -62,17 +64,17 @@ export default function DemandScreen() {
           {item.variant_description && (
             <Text style={styles.variantText}>{item.variant_description}</Text>
           )}
-          <Text style={styles.revenueText}>
+          <Text style={styles.revenueText} numberOfLines={1}>
             Potencial: {formatCurrency(item.potential_revenue)}
           </Text>
         </View>
 
-        <View style={styles.waitingBadge}>
-          <Ionicons name="people" size={12} color="#fff" />
-          <RNText style={styles.waitingText}>{item.waiting_count}</RNText>
+        <View style={[styles.waitingBadge, { backgroundColor: brandingColors.primary + '15' }]}>
+          <Ionicons name="people" size={12} color={brandingColors.primary} />
+          <Text style={[styles.waitingText, { color: brandingColors.primary }]}>{item.waiting_count}</Text>
         </View>
-      </Card.Content>
-    </Card>
+      </View>
+    </View>
   );
 
   if (isLoading) {
@@ -107,24 +109,34 @@ export default function DemandScreen() {
       />
 
       {items.length > 0 && (
-        <Card style={styles.summaryCard}>
-          <Card.Content style={styles.summaryContent}>
-            <View>
-              <Text style={styles.summaryLabel}>Receita Potencial</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(totalRevenue)}</Text>
+        <View style={styles.summaryCard}>
+          <View style={styles.summaryHeader}>
+            <View style={[styles.summaryIcon, { backgroundColor: brandingColors.primary + '15' }]}>
+              <Ionicons name="trending-up-outline" size={16} color={brandingColors.primary} />
             </View>
-            <View>
+            <Text style={styles.summaryTitle}>Resumo da Demanda</Text>
+          </View>
+
+          <View style={styles.summaryContent}>
+            <View style={styles.summaryColumn}>
+              <Text style={styles.summaryLabel}>Receita Potencial</Text>
+              <Text style={[styles.summaryValue, { color: VALUE_COLORS.positive }]}>{formatCurrency(totalRevenue)}</Text>
+            </View>
+            <View style={styles.summaryColumn}>
               <Text style={styles.summaryLabel}>Produtos</Text>
               <Text style={styles.summaryValue}>{items.length}</Text>
             </View>
-            <View>
+            <View style={styles.summaryColumn}>
               <Text style={styles.summaryLabel}>Clientes</Text>
-              <Text style={styles.summaryValue}>
-                {items.reduce((acc, i) => acc + i.waiting_count, 0)}
-              </Text>
+              <Text style={styles.summaryValue}>{totalWaiting}</Text>
             </View>
-          </Card.Content>
-        </Card>
+          </View>
+
+          <View style={styles.moduleBadge}>
+            <Ionicons name="sparkles-outline" size={13} color={Colors.light.textSecondary} />
+            <Text style={styles.moduleBadgeText}>Ordenado por maior demanda potencial</Text>
+          </View>
+        </View>
       )}
 
       <FlatList
@@ -169,25 +181,75 @@ const styles = StyleSheet.create({
   summaryCard: {
     marginHorizontal: 16,
     marginBottom: 12,
-    borderRadius: theme.borderRadius.lg,
-    elevation: 2,
-    backgroundColor: `${Colors.light.primary}08`,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    ...theme.shadows.sm,
+  },
+  summaryHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+  },
+  summaryIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: theme.borderRadius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  summaryTitle: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
+    color: Colors.light.text,
   },
   summaryContent: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    gap: theme.spacing.sm,
+  },
+  summaryColumn: {
+    flex: 1,
+    minWidth: 0,
   },
   summaryLabel: {
     fontSize: 11,
     color: Colors.light.textSecondary,
-    textAlign: 'center',
+    textAlign: 'left',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   summaryValue: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.light.primary,
-    textAlign: 'center',
+    marginTop: 2,
+    fontSize: theme.fontSize.lg,
+    fontWeight: '800',
+    color: Colors.light.text,
+    letterSpacing: -0.4,
+  },
+  moduleBadge: {
+    marginHorizontal: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    marginTop: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.backgroundSecondary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  moduleBadgeText: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+    fontWeight: '600',
   },
   listHeader: {
     fontSize: 12,
@@ -199,13 +261,16 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingTop: 4,
-    paddingBottom: 40,
+    paddingBottom: theme.spacing.xxl,
   },
   card: {
     marginHorizontal: 16,
     marginBottom: 8,
-    borderRadius: theme.borderRadius.lg,
-    elevation: 1,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    ...theme.shadows.sm,
   },
   cardContent: {
     flexDirection: 'row',
@@ -241,21 +306,21 @@ const styles = StyleSheet.create({
   },
   revenueText: {
     fontSize: 12,
-    color: Colors.light.primary,
+    color: VALUE_COLORS.positive,
     fontWeight: '600',
     marginTop: 4,
   },
   waitingBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.primary,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 16,
     gap: 4,
   },
   waitingText: {
-    color: '#fff',
     fontWeight: '700',
     fontSize: 14,
   },

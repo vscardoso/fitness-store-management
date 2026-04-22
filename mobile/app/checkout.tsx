@@ -16,6 +16,8 @@ import { useCart } from '@/hooks/useCart';
 import { useCreateSale } from '@/hooks';
 import { getCustomerById } from '@/services/customerService';
 import { getPaymentDiscounts, type PaymentDiscount } from '@/services/paymentDiscountService';
+import { pixStart, listTerminals, createOrder, terminalStart } from '@/services/pdvService';
+import type { PDVTerminal } from '@/types/pdv';
 import { getProductById } from '@/services/productService';
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
@@ -35,11 +37,12 @@ import type { Customer } from '@/types';
 /**
  * Métodos de pagamento disponíveis
  */
-const paymentMethods: { value: PaymentMethod | 'MIXED'; label: string; icon: string }[] = [
+const paymentMethods: { value: PaymentMethod | 'MIXED' | 'TERMINAL'; label: string; icon: string }[] = [
   { value: PaymentMethod.PIX, label: 'PIX', icon: 'qr-code-outline' },
   { value: PaymentMethod.DEBIT_CARD, label: 'Débito', icon: 'card-outline' },
   { value: PaymentMethod.CREDIT_CARD, label: 'Crédito', icon: 'card-outline' },
   { value: PaymentMethod.CASH, label: 'Dinheiro', icon: 'cash-outline' },
+  { value: 'TERMINAL' as any, label: 'Maquininha', icon: 'card-outline' },
   { value: 'MIXED', label: '2 Métodos', icon: 'swap-horizontal-outline' },
 ];
 
@@ -63,6 +66,12 @@ export default function CheckoutScreen() {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [installments, setInstallments] = useState(1);
   const [pendingCreditCard, setPendingCreditCard] = useState(false);
+  const [pendingTerminal, setPendingTerminal] = useState(false);
+  const [terminalPaymentType, setTerminalPaymentType] = useState<'credit_card' | 'debit_card'>('credit_card');
+  const [terminalInstallments, setTerminalInstallments] = useState(1);
+  const [selectedTerminal, setSelectedTerminal] = useState<PDVTerminal | null>(null);
+  const [terminals, setTerminals] = useState<PDVTerminal[]>([]);
+  const [loadingTerminals, setLoadingTerminals] = useState(false);
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [loading, setLoading] = useState(false);
   const [loadingCustomer, setLoadingCustomer] = useState(false);
@@ -144,6 +153,21 @@ export default function CheckoutScreen() {
   });
 
   /**
+   * Carregar terminais PDV disponíveis
+   */
+  const loadTerminals = async () => {
+    setLoadingTerminals(true);
+    try {
+      const list = await listTerminals();
+      setTerminals(list.filter((t: PDVTerminal) => t.is_active && t.is_configured));
+    } catch {
+      // silencioso
+    } finally {
+      setLoadingTerminals(false);
+    }
+  };
+
+  /**
    * Limpar pagamentos sempre que a tela ganhar foco
    * Isso garante que cada entrada no checkout inicia com estado limpo de pagamentos
    */
@@ -159,6 +183,10 @@ export default function CheckoutScreen() {
       setInstallments(1);
       setIsMixedMode(false);
       setPendingCreditCard(false);
+      setPendingTerminal(false);
+      setSelectedTerminal(null);
+      setTerminalInstallments(1);
+      setTerminalPaymentType('credit_card');
     }, [])
   );
 
@@ -480,16 +508,24 @@ export default function CheckoutScreen() {
     try {
       const stockChecks = await Promise.all(
         cart.items.map(async (item) => {
-          const latestProduct = await getProductById(item.product_id, skipLoading());
-          const latestVariant = item.variant_id
-            ? (latestProduct as any).variants?.find((variant: any) => variant?.id === item.variant_id)
-            : undefined;
-          const availableStock = item.variant_id
-            ? Number(latestVariant?.current_stock ?? 0)
-            : Number(latestProduct.current_stock ?? 0);
           const itemLabel = item.variant_label
             ? `${item.product.name} (${item.variant_label})`
             : item.product.name;
+
+          let latestProduct: any;
+          try {
+            latestProduct = await getProductById(item.product_id, skipLoading());
+          } catch (error: any) {
+            const detail = error?.response?.data?.detail || error?.message || 'Falha ao consultar produto.';
+            throw new Error(`Não foi possível validar estoque de ${itemLabel}. ${detail}`);
+          }
+
+          const latestVariant = item.variant_id
+            ? latestProduct?.variants?.find((variant: any) => variant?.id === item.variant_id)
+            : undefined;
+          const availableStock = item.variant_id
+            ? Number(latestVariant?.current_stock ?? 0)
+            : Number(latestProduct?.current_stock ?? 0);
 
           return {
             item,
@@ -557,10 +593,114 @@ export default function CheckoutScreen() {
         saleData.customer_id = cart.customer_id;
       }
 
-      // Criar venda usando mutation hook
       // Calcular troco antes de limpar o carrinho
       const change = Math.max(0, cart.totalPaid - finalTotal);
 
+      const isPixOnly =
+        cart.payments.length === 1 &&
+        cart.payments[0].method === PaymentMethod.PIX;
+
+      // PIX: criar venda como PENDING + gerar QR Code atomicamente (sem race condition)
+      if (isPixOnly) {
+        try {
+          setLoading(true);
+          const result = await pixStart({
+            ...saleData,
+            items: saleData.items.map((i: any) => ({ ...i, discount_amount: i.discount_amount ?? 0 })),
+          });
+          haptics.success();
+          queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+          queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
+          queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
+          queryClient.invalidateQueries({ queryKey: ['products'] });
+          queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+          cart.clear();
+          router.replace({
+            pathname: '/(tabs)/pdv/pix-checkout',
+            params: {
+              sale_id: String(result.sale_id),
+              amount: String(result.total_amount),
+              sale_number: result.sale_number,
+              payment_id: result.payment_id,
+              qr_code: result.qr_code,
+              qr_code_base64: result.qr_code_base64,
+              expires_at: result.expires_at ?? '',
+            },
+          });
+        } catch (error: any) {
+          haptics.error();
+          const detail: string = error.response?.data?.detail || error.message || '';
+          const isStockError = detail.toLowerCase().includes('estoque insuficiente');
+          setDialog({
+            visible: true,
+            type: 'danger',
+            title: isStockError ? 'Estoque insuficiente' : 'Erro ao gerar PIX',
+            message: detail || 'Erro ao processar venda PIX. Tente novamente.',
+            confirmText: isStockError ? 'Voltar ao carrinho' : 'OK',
+            cancelText: isStockError ? 'Fechar' : '',
+            onConfirm: () => {
+              setDialog({ ...dialog, visible: false });
+              if (isStockError) router.back();
+            },
+          });
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
+      const isTerminalPayment = !!selectedTerminal && (
+        cart.payments.length === 1 &&
+        (cart.payments[0].method === PaymentMethod.CREDIT_CARD || cart.payments[0].method === PaymentMethod.DEBIT_CARD)
+      ) && !isMixedMode;
+
+      if (isTerminalPayment && selectedTerminal) {
+        try {
+          setLoading(true);
+          const result = await terminalStart({
+            ...saleData,
+            terminal_id: selectedTerminal.id,
+            payment_type: terminalPaymentType,
+            installments: terminalInstallments,
+            items: saleData.items.map((i: any) => ({ ...i, discount_amount: i.discount_amount ?? 0 })),
+          });
+          haptics.success();
+          queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+          queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
+          queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
+          queryClient.invalidateQueries({ queryKey: ['products'] });
+          queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+          cart.clear();
+          router.replace({
+            pathname: '/(tabs)/pdv/terminal-checkout',
+            params: {
+              sale_id: String(result.sale_id),
+              amount: String(result.total_amount),
+              sale_number: result.sale_number,
+              terminal_name: `${result.terminal_name} (${result.provider})`,
+              payment_type: terminalPaymentType,
+              installments: String(terminalInstallments),
+            },
+          });
+        } catch (err: any) {
+          haptics.error();
+          const detail = err?.response?.data?.detail || err?.message || 'Erro ao enviar para maquininha.';
+          setDialog({
+            visible: true,
+            type: 'danger',
+            title: 'Erro na maquininha',
+            message: detail,
+            confirmText: 'OK',
+            cancelText: '',
+            onConfirm: () => setDialog({ ...dialog, visible: false }),
+          });
+        } finally {
+          setLoading(false);
+        }
+        return;
+      }
+
+      // Demais métodos de pagamento: fluxo normal
       createSaleMutation.mutate(saleData, {
         onSuccess: (sale) => {
           haptics.success();
@@ -614,8 +754,19 @@ export default function CheckoutScreen() {
       });
 
     } catch (error: any) {
-      // Error handling agora é feito no callback onError da mutation
       console.error('Erro inesperado:', error);
+      haptics.error();
+
+      const message = error?.message || 'Erro ao validar estoque antes da venda. Tente novamente.';
+      setDialog({
+        visible: true,
+        type: 'danger',
+        title: 'Erro ao validar venda',
+        message,
+        confirmText: 'OK',
+        cancelText: '',
+        onConfirm: () => setDialog({ ...dialog, visible: false }),
+      });
     } finally {
       setLoading(false);
     }
@@ -741,6 +892,19 @@ export default function CheckoutScreen() {
                           return;
                         }
 
+                        // Maquininha: mostrar seletor de terminal
+                        if (method.value === 'TERMINAL') {
+                          if (cart.payments.length > 0) cart.clearPayments();
+                          setPendingTerminal(true);
+                          setPendingCreditCard(false);
+                          setTerminalPaymentType('credit_card');
+                          setTerminalInstallments(1);
+                          setSelectedTerminal(null);
+                          loadTerminals();
+                          haptics.selection();
+                          return;
+                        }
+
                         const paymentMethod = method.value as PaymentMethod;
 
                         // Cartão de crédito: mostrar seletor de parcelas antes de confirmar
@@ -749,12 +913,14 @@ export default function CheckoutScreen() {
                           setSelectedMethod(paymentMethod);
                           setInstallments(1);
                           setPendingCreditCard(true);
+                          setPendingTerminal(false);
                           haptics.selection();
                           return;
                         }
 
-                        // Outros métodos: fechar picker de crédito se aberto
+                        // Outros métodos: fechar pickers se abertos
                         setPendingCreditCard(false);
+                        setPendingTerminal(false);
                         const totalWithDiscount = calculateTotalWithDiscount(paymentMethod);
 
                         if (cart.payments.length > 0 && !isSelected) {
@@ -779,6 +945,20 @@ export default function CheckoutScreen() {
                     </TouchableOpacity>
                   );
                 })}
+
+                {cart.payments.length === 0 && !pendingCreditCard && (
+                  <TouchableOpacity
+                    style={[styles.paymentMethodChip, styles.mixedModeButton]}
+                    onPress={() => {
+                      setIsMixedMode(true);
+                      setSelectedMethod(null);
+                      haptics.selection();
+                    }}
+                  >
+                    <Ionicons name="swap-horizontal-outline" size={16} color={Colors.light.primary} />
+                    <Text style={styles.mixedModeButtonText}>Usar 2 métodos</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
 
@@ -829,6 +1009,111 @@ export default function CheckoutScreen() {
               </View>
             )}
 
+            {/* Sub-UI da maquininha */}
+            {pendingTerminal && !isMixedMode && (
+              <View style={styles.installmentPicker}>
+                {/* Header */}
+                <View style={styles.installmentPickerHeader}>
+                  <View style={styles.installmentPickerIconWrap}>
+                    <Ionicons name="card-outline" size={14} color={Colors.light.primary} />
+                  </View>
+                  <View style={styles.installmentPickerHeaderText}>
+                    <Text style={styles.installmentPickerLabel}>Pagamento na maquininha</Text>
+                    <Text style={styles.installmentPickerHint}>Selecione o tipo e o terminal</Text>
+                  </View>
+                </View>
+
+                {/* Tipo: Crédito | Débito */}
+                <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+                  {(['credit_card', 'debit_card'] as const).map((type) => (
+                    <TouchableOpacity
+                      key={type}
+                      style={[styles.installmentChip, terminalPaymentType === type && styles.installmentChipActive, { flex: 1, alignItems: 'center' }]}
+                      onPress={() => { setTerminalPaymentType(type); if (type === 'debit_card') setTerminalInstallments(1); haptics.selection(); }}
+                    >
+                      <Text style={[styles.installmentChipText, terminalPaymentType === type && styles.installmentChipTextActive]}>
+                        {type === 'credit_card' ? 'Crédito' : 'Débito'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {/* Parcelas (apenas crédito) */}
+                {terminalPaymentType === 'credit_card' && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.installmentScroll}>
+                    <View style={styles.installmentChipsRow}>
+                      {installmentOptions.map((opt) => (
+                        <TouchableOpacity
+                          key={opt.value}
+                          style={[styles.installmentChip, terminalInstallments === opt.value && styles.installmentChipActive]}
+                          onPress={() => { setTerminalInstallments(opt.value); haptics.selection(); }}
+                        >
+                          <Text style={[styles.installmentChipText, terminalInstallments === opt.value && styles.installmentChipTextActive]}>
+                            {opt.label}
+                          </Text>
+                          {opt.value > 1 && (
+                            <Text style={[styles.installmentChipSub, terminalInstallments === opt.value && styles.installmentChipSubActive]}>
+                              {formatCurrency(finalTotal / opt.value)}
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+                )}
+
+                {/* Selecionar terminal */}
+                <Text style={[styles.installmentPickerHint, { marginTop: 12, marginBottom: 8 }]}>Terminal</Text>
+                {loadingTerminals ? (
+                  <ActivityIndicator size="small" color={Colors.light.primary} />
+                ) : terminals.length === 0 ? (
+                  <View style={{ padding: 12, backgroundColor: Colors.light.backgroundSecondary, borderRadius: 8 }}>
+                    <Text style={{ color: Colors.light.textSecondary, fontSize: 13, textAlign: 'center' }}>
+                      Nenhum terminal configurado.{' '}
+                      <Text style={{ color: Colors.light.primary }} onPress={() => router.push('/(tabs)/pdv/terminals' as any)}>
+                        Adicionar terminal
+                      </Text>
+                    </Text>
+                  </View>
+                ) : (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      {terminals.map((t) => (
+                        <TouchableOpacity
+                          key={t.id}
+                          style={[styles.installmentChip, selectedTerminal?.id === t.id && styles.installmentChipActive]}
+                          onPress={() => { setSelectedTerminal(t); haptics.selection(); }}
+                        >
+                          <Ionicons name="card-outline" size={12} color={selectedTerminal?.id === t.id ? Colors.light.primary : Colors.light.textSecondary} />
+                          <Text style={[styles.installmentChipText, selectedTerminal?.id === t.id && styles.installmentChipTextActive]}>
+                            {t.name}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+                )}
+
+                {/* Confirmar seleção */}
+                <AppButton
+                  variant="primary"
+                  size="md"
+                  fullWidth
+                  icon="checkmark-circle-outline"
+                  label={selectedTerminal ? `Usar ${selectedTerminal.name}` : 'Selecione um terminal'}
+                  disabled={!selectedTerminal}
+                  onPress={() => {
+                    if (!selectedTerminal) return;
+                    const method = terminalPaymentType === 'credit_card' ? PaymentMethod.CREDIT_CARD : PaymentMethod.DEBIT_CARD;
+                    cart.addPayment(method, finalTotal, terminalInstallments);
+                    setPendingTerminal(false);
+                    haptics.success();
+                  }}
+                  style={{ marginTop: 12 }}
+                />
+              </View>
+            )}
+
             {/* Resumo do crédito após confirmar */}
             {!isMixedMode && !pendingCreditCard && cart.payments.length > 0 && cart.payments[0].method === PaymentMethod.CREDIT_CARD && (
               <View style={styles.creditSummary}>
@@ -847,21 +1132,6 @@ export default function CheckoutScreen() {
                   <Text style={styles.creditSummaryChange}>Alterar</Text>
                 </TouchableOpacity>
               </View>
-            )}
-
-            {/* Botão para modo misto */}
-            {!isMixedMode && cart.payments.length === 0 && !pendingCreditCard && (
-              <TouchableOpacity
-                style={styles.mixedModeButton}
-                onPress={() => {
-                  setIsMixedMode(true);
-                  setSelectedMethod(null);
-                  haptics.selection();
-                }}
-              >
-                <Ionicons name="swap-horizontal-outline" size={16} color={Colors.light.primary} />
-                <Text style={styles.mixedModeButtonText}>Usar 2 métodos de pagamento</Text>
-              </TouchableOpacity>
             )}
 
               {/* Modo misto: mostrar inputs para digitar valores */}
@@ -1280,11 +1550,12 @@ const styles = StyleSheet.create({
   },
   paymentMethodsContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 8,
     marginBottom: 12,
   },
   paymentMethodChip: {
-    flex: 1,
+    width: '31.5%',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

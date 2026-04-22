@@ -6,10 +6,18 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
+  Text,
+  TextInput,
 } from 'react-native';
-import { Searchbar, Text, Card, Button } from 'react-native-paper';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSpring,
+  Easing,
+} from 'react-native-reanimated';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import PageHeader from '@/components/layout/PageHeader';
 import { useTutorialContext } from '@/components/tutorial';
@@ -29,7 +37,8 @@ import {
   getDeadlineColor,
 } from '@/types/conditional';
 import { formatCurrency } from '@/utils/format';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 type FilterType = 'all' | 'pending' | 'overdue';
 
@@ -43,6 +52,7 @@ interface SummaryStripProps {
 }
 
 function SummaryStrip({ counts }: SummaryStripProps) {
+  const brandingColors = useBrandingColors();
   const pendingColor = counts.pending > 0 ? Colors.light.warning : Colors.light.textTertiary;
   const overdueColor = counts.overdue > 0 ? Colors.light.error : Colors.light.textTertiary;
 
@@ -50,8 +60,8 @@ function SummaryStrip({ counts }: SummaryStripProps) {
     <View style={styles.summaryStrip}>
       <View style={styles.summaryItem}>
         <View style={styles.summaryTopRow}>
-          <Ionicons name="cube-outline" size={16} color={Colors.light.primary} />
-          <Text style={[styles.summaryValue, { color: Colors.light.primary }]}>{counts.sent}</Text>
+          <Ionicons name="cube-outline" size={16} color={brandingColors.primary} />
+          <Text style={[styles.summaryValue, { color: brandingColors.primary }]}>{counts.sent}</Text>
         </View>
         <Text style={styles.summaryLabel}>enviados</Text>
       </View>
@@ -83,8 +93,16 @@ export default function ConditionalShipmentsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { startTutorial } = useTutorialContext();
+  const brandingColors = useBrandingColors();
+  const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
+
+  // ── Animação de entrada ──
+  const headerOpacity  = useSharedValue(0);
+  const headerScale    = useSharedValue(0.94);
+  const contentOpacity = useSharedValue(0);
+  const contentTransY  = useSharedValue(24);
 
   // Query baseada no filtro ativo
   const getQueryFn = () => {
@@ -115,9 +133,37 @@ export default function ConditionalShipmentsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (user) refetch();
-    }, [user, refetch])
+      if (user) {
+        // Evita loop de refetch por dependência instável e mantém dados atualizados ao focar.
+        queryClient.invalidateQueries({ queryKey: ['conditional-shipments'] });
+        queryClient.invalidateQueries({ queryKey: ['conditional-shipments-summary'] });
+      }
+
+      // Animação de entrada
+      headerOpacity.value  = 0;
+      headerScale.value    = 0.94;
+      contentOpacity.value = 0;
+      contentTransY.value  = 24;
+
+      headerOpacity.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.quad) });
+      headerScale.value   = withSpring(1, { damping: 16, stiffness: 200 });
+      const timer = setTimeout(() => {
+        contentOpacity.value = withTiming(1, { duration: 340 });
+        contentTransY.value  = withSpring(0, { damping: 18, stiffness: 200 });
+      }, 140);
+      return () => clearTimeout(timer);
+    }, [user, queryClient])
   );
+
+  const headerAnimStyle  = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+
+  const contentAnimStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTransY.value }],
+  }));
 
   const filteredShipments = useMemo(() => {
     const base = shipments || [];
@@ -153,13 +199,16 @@ export default function ConditionalShipmentsScreen() {
       .join('')
       .toUpperCase();
 
+    // Cor do valor baseada no status
+    const valueColor = isFinished ? VALUE_COLORS.positive : VALUE_COLORS.neutral;
+
     return (
       <TouchableOpacity
         onPress={() => router.push(`/(tabs)/conditional/${item.id}`)}
         activeOpacity={0.7}
       >
-        <Card style={[styles.card, item.is_overdue && styles.cardOverdue]}>
-          <Card.Content style={styles.cardContent}>
+        <View style={[styles.card, item.is_overdue && styles.cardOverdue]}>
+          <View style={styles.cardContent}>
             {/* Left: avatar circle */}
             <View style={[styles.avatarCircle, { backgroundColor: statusColor + '18' }]}>
               <Text style={[styles.avatarInitials, { color: statusColor }]}>{initials}</Text>
@@ -195,11 +244,13 @@ export default function ConditionalShipmentsScreen() {
 
             {/* Right: value + chevron */}
             <View style={styles.cardRight}>
-              <Text style={styles.cardValue}>{formatCurrency(item.total_value_sent)}</Text>
+              <Text style={[styles.cardValue, { color: valueColor }]}>
+                {formatCurrency(item.total_value_sent)}
+              </Text>
               <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
             </View>
-          </Card.Content>
-        </Card>
+          </View>
+        </View>
       </TouchableOpacity>
     );
   };
@@ -208,94 +259,122 @@ export default function ConditionalShipmentsScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader
-        title="Condicionais"
-        subtitle={`${shipmentCount} ${shipmentCount === 1 ? 'envio' : 'envios'}`}
-        rightActions={[
-          { icon: 'help-circle-outline', onPress: () => startTutorial('conditionals') },
-        ]}
-      />
+      <Animated.View style={headerAnimStyle}>
+        <PageHeader
+          title="Condicionais"
+          subtitle={`${shipmentCount} ${shipmentCount === 1 ? 'envio' : 'envios'}`}
+          rightActions={[
+            { icon: 'help-circle-outline', onPress: () => startTutorial('conditionals') },
+          ]}
+        />
+      </Animated.View>
 
-      {/* KPI strip */}
-      {!isLoading && (
-        <SummaryStrip counts={counts} />
-      )}
+      <Animated.View style={contentAnimStyle}>
+        {/* KPI strip */}
+        {!isLoading && (
+          <SummaryStrip counts={counts} />
+        )}
 
-      {/* Search */}
-      <Searchbar
-        placeholder="Buscar por cliente..."
-        onChangeText={setSearchQuery}
-        value={searchQuery}
-        style={styles.searchbar}
-      />
-
-      {/* Filter buttons */}
-      <View style={styles.filtersContainer}>
-        <View style={styles.filtersRow}>
-          <Button
-            mode="contained-tonal"
-            onPress={() => setFilterType('all')}
-            style={[styles.filterButton, filterType === 'all' && styles.filterButtonActive]}
-            labelStyle={styles.filterButtonLabel}
-            contentStyle={styles.filterButtonContent}
-          >
-            <View style={styles.filterButtonInner}>
-              <Ionicons
-                name={filterType === 'all' ? 'list' : 'list-outline'}
-                size={15}
-                color={filterType === 'all' ? Colors.light.primary : Colors.light.textSecondary}
-              />
-              <Text style={[styles.filterButtonText, filterType === 'all' && styles.filterButtonTextActive]}>
-                Todos
-              </Text>
-            </View>
-          </Button>
-          <Button
-            mode="contained-tonal"
-            onPress={() => setFilterType('pending')}
-            style={[styles.filterButton, filterType === 'pending' && styles.filterButtonActive]}
-            labelStyle={styles.filterButtonLabel}
-            contentStyle={styles.filterButtonContent}
-          >
-            <View style={styles.filterButtonInner}>
-              <Ionicons
-                name={filterType === 'pending' ? 'time' : 'time-outline'}
-                size={15}
-                color={filterType === 'pending' ? Colors.light.primary : Colors.light.textSecondary}
-              />
-              <Text style={[styles.filterButtonText, filterType === 'pending' && styles.filterButtonTextActive]}>
-                Pendentes
-              </Text>
-            </View>
-          </Button>
-          <Button
-            mode="contained-tonal"
-            onPress={() => setFilterType('overdue')}
-            style={[
-              styles.filterButton,
-              filterType === 'overdue' && styles.filterButtonActiveDanger,
-            ]}
-            labelStyle={styles.filterButtonLabel}
-            contentStyle={styles.filterButtonContent}
-          >
-            <View style={styles.filterButtonInner}>
-              <Ionicons
-                name="alert-circle"
-                size={15}
-                color={filterType === 'overdue' ? Colors.light.error : Colors.light.textSecondary}
-              />
-              <Text style={[styles.filterButtonText, filterType === 'overdue' && styles.filterButtonTextDanger]}>
-                Atrasados
-              </Text>
-            </View>
-          </Button>
+        {/* Search */}
+        <View style={styles.searchbarRow}>
+          <Ionicons name="search-outline" size={18} color={Colors.light.textTertiary} style={{ flexShrink: 0 }} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Buscar por cliente..."
+            placeholderTextColor={Colors.light.textTertiary}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            autoCorrect={false}
+            returnKeyType="search"
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Ionicons name="close-circle" size={18} color={Colors.light.textTertiary} />
+            </TouchableOpacity>
+          )}
         </View>
-      </View>
+
+        {/* Filter buttons */}
+        <View style={styles.filtersContainer}>
+          <View style={styles.filtersRow}>
+            <TouchableOpacity
+              onPress={() => setFilterType('all')}
+              style={[
+                styles.filterButton,
+                filterType === 'all' && { ...styles.filterButtonActive, borderColor: brandingColors.primary },
+              ]}
+              activeOpacity={0.75}
+            >
+              <View style={styles.filterButtonInner}>
+                <Ionicons
+                  name={filterType === 'all' ? 'list' : 'list-outline'}
+                  size={15}
+                  color={filterType === 'all' ? brandingColors.primary : Colors.light.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.filterButtonText,
+                    filterType === 'all' && { ...styles.filterButtonTextActive, color: brandingColors.primary },
+                  ]}
+                >
+                  Todos
+                </Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setFilterType('pending')}
+              style={[
+                styles.filterButton,
+                filterType === 'pending' && { ...styles.filterButtonActive, borderColor: brandingColors.primary },
+              ]}
+              activeOpacity={0.75}
+            >
+              <View style={styles.filterButtonInner}>
+                <Ionicons
+                  name={filterType === 'pending' ? 'time' : 'time-outline'}
+                  size={15}
+                  color={filterType === 'pending' ? brandingColors.primary : Colors.light.textSecondary}
+                />
+                <Text
+                  style={[
+                    styles.filterButtonText,
+                    filterType === 'pending' && { ...styles.filterButtonTextActive, color: brandingColors.primary },
+                  ]}
+                >
+                  Pendentes
+                </Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setFilterType('overdue')}
+              style={[
+                styles.filterButton,
+                filterType === 'overdue' && styles.filterButtonActiveDanger,
+              ]}
+              activeOpacity={0.75}
+            >
+              <View style={styles.filterButtonInner}>
+                <Ionicons
+                  name="alert-circle"
+                  size={15}
+                  color={filterType === 'overdue' ? Colors.light.error : Colors.light.textSecondary}
+                />
+                <Text style={[styles.filterButtonText, filterType === 'overdue' && styles.filterButtonTextDanger]}>
+                  Atrasados
+                </Text>
+              </View>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Animated.View>
 
       {/* Content */}
       {isLoading ? (
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={brandingColors.primary} />
           <Text style={styles.loadingText}>Carregando envios...</Text>
         </View>
       ) : isError ? (
@@ -324,11 +403,14 @@ export default function ConditionalShipmentsScreen() {
           renderItem={renderShipmentCard}
           keyExtractor={item => item.id.toString()}
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl
-              refreshing={isRefetching}
-              onRefresh={refetch}
-              colors={[Colors.light.primary]}
+              refreshing={isRefetching && !isLoading}
+              onRefresh={() => {
+                void refetch();
+              }}
+              colors={[brandingColors.primary]}
             />
           }
         />
@@ -342,7 +424,7 @@ export default function ConditionalShipmentsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.backgroundSecondary,
+    backgroundColor: Colors.light.background,
   },
 
   // ── KPI strip ────────────────────────────────────────────────
@@ -397,16 +479,30 @@ const styles = StyleSheet.create({
   },
 
   // ── Search & Filters ─────────────────────────────────────────
-  searchbar: {
+  searchbarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginHorizontal: theme.spacing.md,
     marginTop: theme.spacing.md,
     marginBottom: 8,
-    elevation: 2,
     backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.lg,
+    paddingHorizontal: theme.spacing.sm,
+    height: 46,
+    gap: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.text,
+    paddingVertical: 0,
   },
   filtersContainer: {
     paddingHorizontal: theme.spacing.md,
-    paddingVertical: 12,
+    paddingVertical: 10,
     marginBottom: 0,
   },
   filtersRow: {
@@ -420,6 +516,12 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.card,
     borderWidth: 1,
     borderColor: Colors.light.border,
+    minHeight: 42,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+    ...theme.shadows.sm,
   },
   filterButtonActive: {
     backgroundColor: Colors.light.primary + '15',
@@ -428,15 +530,6 @@ const styles = StyleSheet.create({
   filterButtonActiveDanger: {
     backgroundColor: Colors.light.error + '12',
     borderColor: Colors.light.error,
-  },
-  filterButtonLabel: {
-    marginVertical: 0,
-    marginHorizontal: 0,
-  },
-  filterButtonContent: {
-    paddingHorizontal: 8,
-    paddingVertical: 10,
-    height: 'auto',
   },
   filterButtonInner: {
     flexDirection: 'row',
@@ -468,8 +561,14 @@ const styles = StyleSheet.create({
   card: {
     marginBottom: 10,
     borderRadius: theme.borderRadius.lg,
-    elevation: 1,
     backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   cardOverdue: {
     borderLeftWidth: 3,
@@ -546,7 +645,6 @@ const styles = StyleSheet.create({
   cardValue: {
     fontSize: 15,
     fontWeight: '700',
-    color: Colors.light.text,
   },
 
   // ── States ────────────────────────────────────────────────

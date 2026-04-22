@@ -5,31 +5,26 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
-} from 'react-native';
-import {
+  Animated,
   Text,
-  Button,
-  TextInput,
-  Card,
-  Divider,
   ActivityIndicator,
-  IconButton,
-} from 'react-native-paper';
-import { useRouter } from 'expo-router';
+  TextInput as RNTextInput,
+} from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Colors, theme } from '@/constants/Colors';
 import PageHeader from '@/components/layout/PageHeader';
+import { useBrandingColors } from '@/store/brandingStore';
 import { createShipment } from '@/services/conditionalService';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import DateTimeInput from '@/components/ui/DateTimeInput';
 import ProductSelectionModal from '@/components/sale/ProductSelectionModal';
-import { CreateShipmentDTO, CreateShipmentItemDTO } from '@/types/conditional';
+import { CreateShipmentDTO } from '@/types/conditional';
 import { getCustomers } from '@/services/customerService';
 import { searchCep } from '@/services/cepService';
 import type { ProductGrouped, ProductVariant } from '@/types';
-
-const PAGE_SIZE = 20;
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -66,11 +61,11 @@ const calculateDeadline = (departure: Date, returnDate: Date): { days: number; h
 export default function CreateConditionalShipmentScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const brandingColors = useBrandingColors();
 
   const [step, setStep] = useState<Step>(1);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
-  const [deadlineDays, setDeadlineDays] = useState('7');
   const [notes, setNotes] = useState('');
   const [showProductModal, setShowProductModal] = useState(false);
   
@@ -87,11 +82,46 @@ export default function CreateConditionalShipmentScreen() {
   const [state, setState] = useState('');
   const [zipCode, setZipCode] = useState('');
   const [loadingCep, setLoadingCep] = useState(false);
+  const headerAnim = React.useRef(new Animated.Value(0)).current;
+  const contentAnim = React.useRef(new Animated.Value(0)).current;
 
   // Invalidar cache de produtos ao entrar na tela
   React.useEffect(() => {
     queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
   }, []);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      headerAnim.setValue(0);
+      contentAnim.setValue(0);
+
+      Animated.spring(headerAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        damping: 14,
+        stiffness: 120,
+        mass: 0.9,
+      }).start();
+
+      Animated.spring(contentAnim, {
+        toValue: 1,
+        useNativeDriver: true,
+        damping: 16,
+        stiffness: 110,
+        mass: 1,
+        delay: 140,
+      }).start();
+    }, [contentAnim, headerAnim])
+  );
+
+  // Preencher data/hora de ida ao entrar no Step 3.
+  React.useEffect(() => {
+    if (step !== 3 || departureDateTime) return;
+
+    const now = new Date();
+    now.setSeconds(0, 0);
+    setDepartureDateTime(now);
+  }, [step, departureDateTime]);
 
   // Estados para dialogs
   const [dialogConfig, setDialogConfig] = useState<{
@@ -118,7 +148,7 @@ export default function CreateConditionalShipmentScreen() {
         visible: true,
         title: 'Sucesso',
         message: 'Envio condicional criado com sucesso!',
-        type: 'info',
+        type: 'success',
         onConfirm: () => {
           setDialogConfig({ ...dialogConfig, visible: false });
           router.back();
@@ -351,27 +381,108 @@ export default function CreateConditionalShipmentScreen() {
     (sum, p) => sum + p.price * p.quantity_sent,
     0
   );
+  const selectedItemsCount = selectedProducts.reduce((sum, p) => sum + p.quantity_sent, 0);
+  const calculatedDays = departureDateTime && returnDateTime
+    ? Math.ceil((returnDateTime.getTime() - departureDateTime.getTime()) / (1000 * 60 * 60 * 24))
+    : 0;
 
   return (
     <View style={styles.container}>
-      <PageHeader
-        title="Novo Envio"
-        subtitle={`Passo ${step} de 4`}
-        showBackButton
-        onBack={() => step > 1 ? handleBack() : router.back()}
-      />
+      <Animated.View
+        style={{
+          opacity: headerAnim,
+          transform: [{ scale: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }],
+        }}
+      >
+        <PageHeader
+          title="Novo Envio"
+          subtitle={`Passo ${step} de 4`}
+          showBackButton
+          onBack={() => step > 1 ? handleBack() : router.back()}
+        />
+      </Animated.View>
+
+      <Animated.View
+        style={{
+          opacity: contentAnim,
+          transform: [{ translateY: contentAnim.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
+        }}
+      >
+      <View style={styles.summaryHero}>
+        <View style={styles.summaryHeroRow}>
+          <View style={styles.summaryHeroCell}>
+            <Text style={styles.summaryHeroLabel}>Cliente</Text>
+            <Text style={styles.summaryHeroValue} numberOfLines={1}>{selectedCustomer ? selectedCustomer.full_name : 'Não selecionado'}</Text>
+          </View>
+          <View style={styles.summaryHeroDivider} />
+          <View style={styles.summaryHeroCellSmall}>
+            <Text style={styles.summaryHeroLabel}>Itens</Text>
+            <Text style={styles.summaryHeroValue}>{selectedItemsCount}</Text>
+          </View>
+          <View style={styles.summaryHeroDivider} />
+          <View style={styles.summaryHeroCellSmall}>
+            <Text style={styles.summaryHeroLabel}>Total</Text>
+            <Text style={styles.summaryHeroValue}>R$ {totalValue.toFixed(2)}</Text>
+          </View>
+        </View>
+        <View style={styles.summaryHeroBadge}>
+          <Ionicons name="time-outline" size={13} color={Colors.light.textSecondary} />
+          <Text style={styles.summaryHeroBadgeText}>
+            {calculatedDays > 0 ? `Prazo estimado: ${calculatedDays} dias` : 'Defina ida e devolução para calcular o prazo'}
+          </Text>
+        </View>
+      </View>
+      </Animated.View>
 
       {/* Progress Bar */}
       <View style={styles.progressBar}>
-        {[1, 2, 3, 4].map((s) => (
-          <View
-            key={s}
-            style={[
-              styles.progressStep,
-              step >= s && styles.progressStepActive,
-            ]}
-          />
-        ))}
+        <View style={styles.progressFlowRow}>
+          {[
+            { id: 1, label: '1 Cliente' },
+            { id: 2, label: '2 Produtos' },
+            { id: 3, label: '3 Envio' },
+            { id: 4, label: '4 Revisão' },
+          ].map((progressStep) => {
+            const isCompleted = step > progressStep.id;
+            const isCurrent = step === progressStep.id;
+            const canGoToStep = progressStep.id <= step;
+
+            return (
+              <TouchableOpacity
+                key={progressStep.id}
+                activeOpacity={canGoToStep ? 0.75 : 1}
+                disabled={!canGoToStep}
+                onPress={() => {
+                  if (canGoToStep) {
+                    setStep(progressStep.id as Step);
+                  }
+                }}
+                style={[
+                  styles.progressPill,
+                  isCompleted && {
+                    backgroundColor: `${brandingColors.primary}1A`,
+                    borderColor: `${brandingColors.primary}40`,
+                  },
+                  isCurrent && {
+                    backgroundColor: brandingColors.primary,
+                    borderColor: brandingColors.primary,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.progressPillText,
+                    isCompleted && { color: brandingColors.primary },
+                    isCurrent && styles.progressPillTextCurrent,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {progressStep.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
       </View>
 
       {/* Step 1: Selecionar Cliente */}
@@ -401,33 +512,34 @@ export default function CreateConditionalShipmentScreen() {
                     onPress={() => setSelectedCustomerId(customer.id)}
                     activeOpacity={0.7}
                   >
-                    <Card
+                    <View
                       style={[
                         styles.customerCard,
                         isSelected && styles.customerCardSelected,
+                        isSelected && {
+                          borderColor: brandingColors.primary,
+                          backgroundColor: Colors.light.card,
+                        },
                       ]}
                     >
-                      <Card.Content style={styles.customerContent}>
+                      <View style={styles.customerContent}>
                         {/* Avatar circle */}
                         <View style={[
                           styles.customerAvatar,
                           { backgroundColor: isSelected
-                            ? Colors.light.primary + '20'
+                            ? `${brandingColors.primary}16`
                             : Colors.light.backgroundSecondary
                           }
                         ]}>
                           <Text style={[
                             styles.customerAvatarInitials,
-                            { color: isSelected ? Colors.light.primary : Colors.light.textSecondary }
+                            { color: isSelected ? brandingColors.primary : Colors.light.textSecondary }
                           ]}>
                             {initials}
                           </Text>
                         </View>
                         <View style={styles.customerDetails}>
-                          <Text style={[
-                            styles.customerName,
-                            isSelected && { color: Colors.light.primary }
-                          ]}>
+                          <Text style={styles.customerName}>
                             {customer.full_name}
                           </Text>
                           {customer.phone && (
@@ -443,11 +555,11 @@ export default function CreateConditionalShipmentScreen() {
                         </View>
                         {isSelected && (
                           <View style={styles.customerCheckBadge}>
-                            <Ionicons name="checkmark-circle" size={28} color={Colors.light.primary} />
+                            <Ionicons name="checkmark-circle" size={28} color={brandingColors.primary} />
                           </View>
                         )}
-                      </Card.Content>
-                    </Card>
+                      </View>
+                    </View>
                   </TouchableOpacity>
                   );
                 })}
@@ -469,8 +581,8 @@ export default function CreateConditionalShipmentScreen() {
 
           {/* Produtos Selecionados */}
           {selectedProducts.length > 0 && (
-            <Card style={styles.selectedProductsCard}>
-              <Card.Content>
+            <View style={styles.selectedProductsCard}>
+              <View style={styles.selectedProductsCardContent}>
                 <Text style={styles.sectionTitle}>
                   Produtos Selecionados ({selectedProducts.length})
                 </Text>
@@ -495,40 +607,52 @@ export default function CreateConditionalShipmentScreen() {
                         </Text>
                       </View>
                       <View style={styles.quantityControls}>
-                        <IconButton
-                          icon="minus"
-                          size={16}
+                        <TouchableOpacity
+                          style={[styles.qtyBtn, { backgroundColor: Colors.light.error }]}
                           onPress={() => handleQuantityChange(product.product_id, product.variant_id, -1)}
-                        />
+                          activeOpacity={0.75}
+                        >
+                          <Ionicons name="remove" size={14} color="#fff" />
+                        </TouchableOpacity>
                         <Text style={styles.quantityText}>{product.quantity_sent}</Text>
-                        <IconButton
-                          icon="plus"
-                          size={16}
+                        <TouchableOpacity
+                          style={[styles.qtyBtn, { backgroundColor: brandingColors.primary }]}
                           onPress={() => handleQuantityChange(product.product_id, product.variant_id, 1)}
-                        />
-                        <IconButton
-                          icon="delete"
-                          size={20}
-                          iconColor={Colors.light.error}
+                          activeOpacity={0.75}
+                        >
+                          <Ionicons name="add" size={14} color="#fff" />
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={styles.qtyBtnDelete}
                           onPress={() => handleRemoveProduct(product.product_id, product.variant_id)}
-                        />
+                          activeOpacity={0.75}
+                        >
+                          <Ionicons name="trash-outline" size={14} color={Colors.light.error} />
+                        </TouchableOpacity>
                       </View>
                     </View>
                   ))}
                 </ScrollView>
-              </Card.Content>
-            </Card>
+              </View>
+            </View>
           )}
 
           {/* Botão para adicionar produtos via modal */}
-          <Button
-            mode="contained"
-            icon="plus"
+          <TouchableOpacity
             onPress={() => setShowProductModal(true)}
             style={styles.addProductButton}
+            activeOpacity={0.8}
           >
-            Adicionar Produto
-          </Button>
+            <LinearGradient
+              colors={brandingColors.gradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.primaryActionButtonGradient}
+            >
+              <Ionicons name="add" size={18} color="#fff" />
+              <Text style={styles.primaryActionButtonText}>Adicionar Produto</Text>
+            </LinearGradient>
+          </TouchableOpacity>
 
           {selectedProducts.length === 0 && (
             <View style={styles.emptyState}>
@@ -558,85 +682,101 @@ export default function CreateConditionalShipmentScreen() {
               Defina o prazo e endereço de entrega
             </Text>
 
-            <Card style={styles.formCard}>
-              <Card.Content>
+            <View style={styles.formCard}>
+              <View style={styles.formCardContent}>
                 <Text style={styles.formSectionTitle}>Endereço de Entrega</Text>
                 
                 <View style={styles.cepContainer}>
-                  <TextInput
-                    label="CEP *"
-                    value={zipCode}
-                    onChangeText={handleCepChange}
-                    mode="outlined"
-                    keyboardType="number-pad"
-                    style={[styles.input, styles.cepInput]}
-                    placeholder="00000-000"
-                    maxLength={9}
-                    right={
-                      <TextInput.Icon
-                        icon={loadingCep ? 'loading' : 'magnify'}
-                        onPress={handleSearchCep}
-                        disabled={loadingCep}
-                      />
-                    }
-                  />
+                  <Text style={styles.nativeLabel}>CEP *</Text>
+                  <View style={styles.cepFieldRow}>
+                    <RNTextInput
+                      value={zipCode}
+                      onChangeText={handleCepChange}
+                      keyboardType="number-pad"
+                      style={[styles.nativeInput, styles.cepInputNative]}
+                      placeholder="00000-000"
+                      placeholderTextColor={Colors.light.textTertiary}
+                      maxLength={9}
+                    />
+                    <TouchableOpacity
+                      style={styles.cepSearchButton}
+                      onPress={handleSearchCep}
+                      activeOpacity={0.75}
+                      disabled={loadingCep}
+                    >
+                      {loadingCep ? (
+                        <ActivityIndicator size={16} color={brandingColors.primary} />
+                      ) : (
+                        <Ionicons name="search-outline" size={16} color={brandingColors.primary} />
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 </View>
 
-                <TextInput
-                  label="Rua/Logradouro *"
+                <Text style={styles.nativeLabel}>Rua/Logradouro *</Text>
+                <RNTextInput
                   value={street}
                   onChangeText={setStreet}
-                  mode="outlined"
-                  style={styles.input}
+                  style={styles.nativeInput}
                   placeholder="Nome da rua"
+                  placeholderTextColor={Colors.light.textTertiary}
                 />
 
                 <View style={styles.row}>
-                  <TextInput
-                    label="Número *"
-                    value={number}
-                    onChangeText={setNumber}
-                    mode="outlined"
-                    style={[styles.input, styles.inputSmall]}
-                    placeholder="123"
-                  />
-                  <TextInput
-                    label="Complemento"
-                    value={complement}
-                    onChangeText={setComplement}
-                    mode="outlined"
-                    style={[styles.input, styles.inputLarge]}
-                    placeholder="Apto, bloco..."
-                  />
+                  <View style={styles.inputSmall}>
+                    <Text style={styles.nativeLabel}>Número *</Text>
+                    <RNTextInput
+                      value={number}
+                      onChangeText={setNumber}
+                      style={styles.nativeInput}
+                      placeholder="123"
+                      placeholderTextColor={Colors.light.textTertiary}
+                    />
+                  </View>
+                  <View style={styles.inputLarge}>
+                    <Text style={styles.nativeLabel}>Complemento</Text>
+                    <RNTextInput
+                      value={complement}
+                      onChangeText={setComplement}
+                      style={styles.nativeInput}
+                      placeholder="Apto, bloco..."
+                      placeholderTextColor={Colors.light.textTertiary}
+                    />
+                  </View>
                 </View>
 
-                <TextInput
-                  label="Bairro *"
+                <Text style={styles.nativeLabel}>Bairro *</Text>
+                <RNTextInput
                   value={neighborhood}
                   onChangeText={setNeighborhood}
-                  mode="outlined"
-                  style={styles.input}
+                  style={styles.nativeInput}
                   placeholder="Nome do bairro"
+                  placeholderTextColor={Colors.light.textTertiary}
                 />
 
                 <View style={styles.row}>
-                  <TextInput
-                    label="Cidade *"
-                    value={city}
-                    onChangeText={setCity}
-                    mode="outlined"
-                    style={[styles.input, styles.inputLarge]}
-                    placeholder="Cidade"
-                  />
-                  <TextInput
-                    label="Estado *"
-                    value={state}
-                    onChangeText={setState}
-                    mode="outlined"
-                    style={[styles.input, styles.inputSmall]}
-                    placeholder="UF"
-                    maxLength={2}
-                  />
+                  <View style={styles.inputLarge}>
+                    <Text style={styles.nativeLabel}>Cidade *</Text>
+                    <RNTextInput
+                      value={city}
+                      onChangeText={setCity}
+                      style={styles.nativeInput}
+                      placeholder="Cidade"
+                      placeholderTextColor={Colors.light.textTertiary}
+                    />
+                  </View>
+                  <View style={styles.inputSmall}>
+                    <Text style={styles.nativeLabel}>Estado *</Text>
+                    <RNTextInput
+                      value={state}
+                      onChangeText={setState}
+                      style={styles.nativeInput}
+                      placeholder="UF"
+                      placeholderTextColor={Colors.light.textTertiary}
+                      maxLength={2}
+                      autoCapitalize="characters"
+                    />
+                  </View>
                 </View>
 
                 <Text style={styles.formSectionTitle}>Configurações do Envio</Text>
@@ -647,6 +787,7 @@ export default function CreateConditionalShipmentScreen() {
                   onChange={setDepartureDateTime}
                   mode="datetime"
                   minimumDate={new Date()}
+                  modern
                 />
 
                 <DateTimeInput
@@ -655,12 +796,13 @@ export default function CreateConditionalShipmentScreen() {
                   onChange={setReturnDateTime}
                   mode="datetime"
                   minimumDate={departureDateTime || new Date()}
+                  modern
                 />
 
                 {/* Indicador de prazo calculado */}
                 {departureDateTime && returnDateTime && (
-                  <Card style={{ marginBottom: 16, backgroundColor: '#E3F2FD' }}>
-                    <Card.Content style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <View style={styles.calculatedDeadlineCard}>
+                    <View style={styles.calculatedDeadlineContent}>
                       <Ionicons name="time-outline" size={24} color={Colors.light.primary} />
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 12, color: Colors.light.textSecondary, fontWeight: '600' }}>
@@ -673,22 +815,23 @@ export default function CreateConditionalShipmentScreen() {
                           Baseado nas datas de ida e volta
                         </Text>
                       </View>
-                    </Card.Content>
-                  </Card>
+                    </View>
+                  </View>
                 )}
 
-                <TextInput
-                  label="Observações (opcional)"
+                <Text style={styles.nativeLabel}>Observações (opcional)</Text>
+                <RNTextInput
                   value={notes}
                   onChangeText={setNotes}
-                  mode="outlined"
                   multiline
                   numberOfLines={3}
-                  style={styles.input}
+                  style={[styles.nativeInput, styles.nativeTextArea]}
                   placeholder="Informações adicionais..."
+                  placeholderTextColor={Colors.light.textTertiary}
+                  textAlignVertical="top"
                 />
-              </Card.Content>
-            </Card>
+              </View>
+            </View>
           </View>
         </ScrollView>
       )}
@@ -703,8 +846,8 @@ export default function CreateConditionalShipmentScreen() {
             </Text>
 
             {/* Cliente */}
-            <Card style={styles.reviewCard}>
-              <Card.Content>
+            <View style={styles.reviewCard}>
+              <View style={styles.reviewCardContent}>
                 <Text style={styles.reviewLabel}>Cliente</Text>
                 <Text style={styles.reviewValue}>
                   {selectedCustomer?.full_name}
@@ -714,12 +857,12 @@ export default function CreateConditionalShipmentScreen() {
                     {selectedCustomer.phone}
                   </Text>
                 )}
-              </Card.Content>
-            </Card>
+              </View>
+            </View>
 
             {/* Produtos */}
-            <Card style={styles.reviewCard}>
-              <Card.Content>
+            <View style={styles.reviewCard}>
+              <View style={styles.reviewCardContent}>
                 <Text style={styles.reviewLabel}>
                   Produtos ({selectedProducts.length})
                 </Text>
@@ -740,29 +883,29 @@ export default function CreateConditionalShipmentScreen() {
                     </Text>
                   </View>
                 ))}
-                <Divider style={{ marginVertical: 12 }} />
+                <View style={styles.reviewDivider} />
                 <View style={styles.reviewTotal}>
                   <Text style={styles.reviewTotalLabel}>Valor Total</Text>
                   <Text style={styles.reviewTotalValue}>
                     R$ {totalValue.toFixed(2)}
                   </Text>
                 </View>
-              </Card.Content>
-            </Card>
+              </View>
+            </View>
 
             {/* Endereço de Entrega */}
-            <Card style={styles.reviewCard}>
-              <Card.Content>
+            <View style={styles.reviewCard}>
+              <View style={styles.reviewCardContent}>
                 <Text style={styles.reviewLabel}>Endereço de Entrega</Text>
                 <Text style={styles.reviewValue}>{street}, {number}{complement ? `, ${complement}` : ''}</Text>
                 <Text style={styles.reviewValue}>{neighborhood} - {city}/{state}</Text>
                 <Text style={styles.reviewValue}>CEP: {zipCode}</Text>
-              </Card.Content>
-            </Card>
+              </View>
+            </View>
 
             {/* Configurações */}
-            <Card style={styles.reviewCard}>
-              <Card.Content>
+            <View style={styles.reviewCard}>
+              <View style={styles.reviewCardContent}>
                 <Text style={styles.reviewLabel}>Datas e Prazos</Text>
                 {departureDateTime && (
                   <Text style={styles.reviewValue}>
@@ -775,16 +918,16 @@ export default function CreateConditionalShipmentScreen() {
                   </Text>
                 )}
                 {departureDateTime && returnDateTime && (
-                  <View style={{ marginTop: 12, padding: 12, backgroundColor: '#E3F2FD', borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                  <View style={styles.reviewDeadlineBadge}>
                     <Ionicons name="time" size={20} color={Colors.light.primary} />
-                    <Text style={{ fontSize: 14, fontWeight: '700', color: Colors.light.primary }}>
+                    <Text style={styles.reviewDeadlineText}>
                       Prazo: {Math.ceil((returnDateTime.getTime() - departureDateTime.getTime()) / (1000 * 60 * 60 * 24))} dias
                     </Text>
                   </View>
                 )}
                 {notes && <Text style={styles.reviewSubvalue}>Obs: {notes}</Text>}
-              </Card.Content>
-            </Card>
+              </View>
+            </View>
           </View>
         </ScrollView>
       )}
@@ -792,33 +935,53 @@ export default function CreateConditionalShipmentScreen() {
       {/* Footer com botões */}
       <View style={styles.footer}>
         {step > 1 && (
-          <Button
-            mode="outlined"
+          <TouchableOpacity
             onPress={handleBack}
-            style={styles.footerButton}
+            style={[styles.footerButton, styles.secondaryActionButton]}
             disabled={createMutation.isPending}
+            activeOpacity={0.75}
           >
-            Voltar
-          </Button>
+            <Ionicons name="arrow-back-outline" size={18} color={brandingColors.primary} />
+            <Text style={[styles.secondaryActionButtonText, { color: brandingColors.primary }]}>Voltar</Text>
+          </TouchableOpacity>
         )}
         {step < 4 ? (
-          <Button
-            mode="contained"
+          <TouchableOpacity
             onPress={handleNext}
-            style={[styles.footerButton, step === 1 && { flex: 1 }]}
+            style={[styles.footerButton, styles.primaryActionButton, step === 1 && { flex: 1 }]}
+            activeOpacity={0.8}
           >
-            Próximo
-          </Button>
+            <LinearGradient
+              colors={brandingColors.gradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.primaryActionButtonGradient}
+            >
+              <Ionicons name="arrow-forward-outline" size={18} color="#fff" />
+              <Text style={styles.primaryActionButtonText}>Próximo</Text>
+            </LinearGradient>
+          </TouchableOpacity>
         ) : (
-          <Button
-            mode="contained"
+          <TouchableOpacity
             onPress={handleSubmit}
-            style={styles.footerButton}
-            loading={createMutation.isPending}
+            style={[styles.footerButton, styles.primaryActionButton]}
             disabled={createMutation.isPending}
+            activeOpacity={0.8}
           >
-            Criar Envio
-          </Button>
+            <LinearGradient
+              colors={brandingColors.gradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={styles.primaryActionButtonGradient}
+            >
+              {createMutation.isPending ? (
+                <ActivityIndicator size={18} color="#fff" />
+              ) : (
+                <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+              )}
+              <Text style={styles.primaryActionButtonText}>Criar Envio</Text>
+            </LinearGradient>
+          </TouchableOpacity>
         )}
       </View>
 
@@ -838,6 +1001,8 @@ export default function CreateConditionalShipmentScreen() {
         }}
         onCancel={() => setDialogConfig({ ...dialogConfig, visible: false })}
       />
+
+      
     </View>
   );
 }
@@ -845,30 +1010,108 @@ export default function CreateConditionalShipmentScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.light.backgroundSecondary,
+    backgroundColor: Colors.light.background,
   },
   progressBar: {
-    flexDirection: 'row',
     paddingHorizontal: 20,
-    paddingTop: 16,
-    marginBottom: 20,
-    gap: 8,
+    paddingTop: theme.spacing.xs,
+    marginBottom: theme.spacing.md,
   },
-  progressStep: {
+  summaryHero: {
+    marginHorizontal: theme.spacing.md,
+    marginTop: theme.spacing.sm,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    ...theme.shadows.sm,
+  },
+  summaryHeroRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  summaryHeroCell: {
     flex: 1,
-    height: 4,
-    backgroundColor: Colors.light.border,
-    borderRadius: 2,
+    minWidth: 0,
   },
-  progressStepActive: {
-    backgroundColor: Colors.light.primary,
+  summaryHeroCellSmall: {
+    minWidth: 64,
+    alignItems: 'flex-start',
+  },
+  summaryHeroDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: Colors.light.border,
+  },
+  summaryHeroLabel: {
+    fontSize: theme.fontSize.xs,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    color: Colors.light.textSecondary,
+    fontWeight: '600',
+  },
+  summaryHeroValue: {
+    marginTop: 2,
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.text,
+    fontWeight: '700',
+  },
+  summaryHeroBadge: {
+    marginTop: theme.spacing.sm,
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: theme.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.backgroundSecondary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  summaryHeroBadgeText: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+    fontWeight: '600',
+  },
+  progressFlowRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    gap: theme.spacing.xs,
+  },
+  progressPill: {
+    flex: 1,
+    minHeight: 34,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.light.background,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: theme.borderRadius.full,
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: 6,
+  },
+  progressPillText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+  },
+  progressPillTextCurrent: {
+    color: '#fff',
+    fontWeight: '700',
   },
   content: {
     flex: 1,
     paddingHorizontal: 20,
   },
   step2Content: {
-    paddingHorizontal: 12,
+    paddingHorizontal: 20,
   },
   stepHeader: {
     marginBottom: 8,
@@ -888,19 +1131,19 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   customerCard: {
-    borderRadius: 14,
-    borderWidth: 2,
-    borderColor: 'transparent',
-    elevation: 1,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    ...theme.shadows.sm,
   },
   customerCardSelected: {
-    borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primary + '06',
+    borderWidth: 1.5,
   },
   customerContent: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 4,
+    padding: theme.spacing.md,
     gap: 12,
   },
   customerAvatar: {
@@ -944,8 +1187,15 @@ const styles = StyleSheet.create({
   },
   selectedProductsCard: {
     marginBottom: 16,
-    borderRadius: 12,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    ...theme.shadows.sm,
     maxHeight: 200,
+  },
+  selectedProductsCardContent: {
+    padding: theme.spacing.md,
   },
   selectedProductsScroll: {
     maxHeight: 150,
@@ -987,11 +1237,30 @@ const styles = StyleSheet.create({
   addProductButton: {
     marginTop: 8,
     marginBottom: 16,
+    borderRadius: theme.borderRadius.lg,
+    overflow: 'hidden',
   },
   quantityControls: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: theme.spacing.xs,
+  },
+  qtyBtn: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  qtyBtnDelete: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.light.error + '40',
+    backgroundColor: Colors.light.error + '10',
   },
   quantityText: {
     fontSize: 14,
@@ -1122,7 +1391,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
   },
   formCard: {
-    borderRadius: 12,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    ...theme.shadows.sm,
+  },
+  formCardContent: {
+    padding: theme.spacing.md,
   },
   formSectionTitle: {
     fontSize: 16,
@@ -1134,8 +1410,50 @@ const styles = StyleSheet.create({
   input: {
     marginBottom: 16,
   },
+  nativeLabel: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '600',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: Colors.light.textTertiary,
+    marginBottom: 6,
+  },
+  nativeInput: {
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    paddingHorizontal: theme.spacing.md,
+    minHeight: 52,
+    fontSize: theme.fontSize.base,
+    color: Colors.light.text,
+    marginBottom: 16,
+  },
+  nativeTextArea: {
+    minHeight: 92,
+    paddingTop: theme.spacing.sm,
+  },
   cepContainer: {
     marginBottom: 16,
+  },
+  cepFieldRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  cepInputNative: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  cepSearchButton: {
+    width: 44,
+    height: 44,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.backgroundSecondary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   cepInput: {
     marginBottom: 0,
@@ -1143,7 +1461,7 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     gap: 12,
-    marginBottom: 16,
+    marginBottom: 4,
   },
   inputSmall: {
     flex: 1,
@@ -1153,9 +1471,29 @@ const styles = StyleSheet.create({
     flex: 2,
     marginBottom: 0,
   },
+  calculatedDeadlineCard: {
+    marginBottom: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: Colors.light.primary + '12',
+    borderWidth: 1,
+    borderColor: Colors.light.primary + '24',
+  },
+  calculatedDeadlineContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    padding: theme.spacing.sm,
+  },
   reviewCard: {
-    borderRadius: 12,
+    borderRadius: theme.borderRadius.xl,
     marginBottom: 16,
+    backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    ...theme.shadows.sm,
+  },
+  reviewCardContent: {
+    padding: theme.spacing.md,
   },
   reviewLabel: {
     fontSize: 12,
@@ -1189,6 +1527,11 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.light.text,
   },
+  reviewDivider: {
+    marginVertical: theme.spacing.sm,
+    height: 1,
+    backgroundColor: Colors.light.border,
+  },
   reviewTotal: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1204,6 +1547,20 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: Colors.light.primary,
   },
+  reviewDeadlineBadge: {
+    marginTop: theme.spacing.sm,
+    padding: theme.spacing.sm,
+    borderRadius: theme.borderRadius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    backgroundColor: Colors.light.primary + '14',
+  },
+  reviewDeadlineText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
+    color: Colors.light.primary,
+  },
   footer: {
     flexDirection: 'row',
     padding: 20,
@@ -1214,5 +1571,37 @@ const styles = StyleSheet.create({
   },
   footerButton: {
     flex: 1,
+    borderRadius: theme.borderRadius.lg,
+    minHeight: 52,
+    overflow: 'hidden',
+  },
+  primaryActionButton: {
+    ...theme.shadows.sm,
+  },
+  primaryActionButtonGradient: {
+    minHeight: 52,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: theme.spacing.md,
+  },
+  primaryActionButtonText: {
+    fontSize: theme.fontSize.base,
+    color: '#fff',
+    fontWeight: '700',
+  },
+  secondaryActionButton: {
+    borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  secondaryActionButtonText: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '700',
   },
 });

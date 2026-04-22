@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,12 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Image,
+  Modal,
+  StatusBar,
+  Pressable,
 } from 'react-native';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import useBackToList from '@/hooks/useBackToList';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { Card } from 'react-native-paper';
@@ -33,7 +35,7 @@ import { VALUE_COLORS } from '@/constants/Colors';
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const { goBack } = useBackToList('/(tabs)/products');
+  const goBack = () => router.replace('/(tabs)/products' as any);
   const brandingColors = useBrandingColors();
   const queryClient = useQueryClient();
   const { startTutorial } = useTutorialContext();
@@ -113,6 +115,24 @@ export default function ProductDetailsScreen() {
   });
 
   /**
+   * Query: Mídia do produto (galeria)
+   */
+  const { data: productMedia = [], refetch: refetchMedia } = useQuery({
+    queryKey: ['product-media', productId],
+    queryFn: () => import('@/services/productMediaService').then(m => m.getProductMedia(productId)),
+    enabled: isValidId,
+  });
+
+  // Foto a exibir: capa da galeria (product-level) ou product.image_url como fallback
+  const displayImageUrl = (() => {
+    const cover = productMedia.find(m => m.variant_id == null && m.is_cover)
+      ?? productMedia.find(m => m.variant_id == null)
+      ?? productMedia.find(m => m.is_cover)
+      ?? productMedia[0];
+    return cover?.url ?? product?.image_url ?? null;
+  })();
+
+  /**
    * Query: Fornecedores do produto
    */
   const { data: productSuppliers = [] } = useProductSuppliers(productId);
@@ -121,6 +141,16 @@ export default function ProductDetailsScreen() {
    * Estado de refresh
    */
   const [refreshing, setRefreshing] = useState(false);
+  const [showPhotoModal, setShowPhotoModal] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      refetchProduct();
+      refetchInventory();
+      refetchVariants();
+      refetchMedia();
+    }, [refetchInventory, refetchProduct, refetchVariants])
+  );
 
   /**
    * Função de refresh
@@ -223,12 +253,17 @@ export default function ProductDetailsScreen() {
 
   // Variant-aware derived values
   const hasSales = product.has_sales ?? false;
-  const hasVariants = (variants ?? []).length > 0;
-  const variantStockSum = (variants ?? []).reduce((sum, v) => sum + (v.current_stock ?? 0), 0);
-  // inventory.quantity é a fonte autoritativa (atualizada por vendas e entradas FIFO).
-  // Fallback para soma de variantes apenas se inventory ainda não carregou.
-  const currentStock = inventory?.quantity ?? variantStockSum;
-  const variantPrices = hasVariants ? (variants ?? []).map(v => v.price) : [];
+  const activeVariants = (variants ?? []).filter((v) => v.is_active);
+  const displayVariants = activeVariants.length > 0 ? activeVariants : (variants ?? []);
+  const totalVariantsCount = (variants ?? []).length;
+  const hasVariants = displayVariants.length > 0;
+  const hasSingleVariant = totalVariantsCount === 1;
+  const hasMultipleVariants = totalVariantsCount > 1;
+  const variantStockSum = displayVariants.reduce((sum, v) => sum + (v.current_stock ?? 0), 0);
+  // Para produtos com variações ativas, a UI deve refletir o mesmo critério da lista (soma das ativas).
+  // Para produto sem variações, mantém inventory.quantity como fonte principal.
+  const currentStock = hasVariants ? variantStockSum : (inventory?.quantity ?? 0);
+  const variantPrices = hasVariants ? displayVariants.map(v => v.price) : [];
   const minVariantPrice = variantPrices.length > 0 ? Math.min(...variantPrices) : product.price;
   const maxVariantPrice = variantPrices.length > 0 ? Math.max(...variantPrices) : product.price;
   const hasPriceRange = minVariantPrice !== maxVariantPrice;
@@ -248,7 +283,7 @@ export default function ProductDetailsScreen() {
         title={product.name}
         subtitle={
           (() => {
-            const varCount = variants?.length ?? 0;
+            const varCount = displayVariants.length;
             if (varCount > 1) {
               return [product.brand, `${varCount} variações`].filter(Boolean).join(' • ') || undefined;
             }
@@ -324,8 +359,10 @@ export default function ProductDetailsScreen() {
               <Text style={styles.cardTitle}>Foto Vinculada</Text>
             </View>
 
-            {product.image_url ? (
-              <Image source={{ uri: getImageUrl(product.image_url) }} style={styles.productPhotoPreview} />
+            {displayImageUrl ? (
+              <TouchableOpacity onPress={() => setShowPhotoModal(true)} activeOpacity={0.85}>
+                <Image source={{ uri: getImageUrl(displayImageUrl) }} style={styles.productPhotoPreview} />
+              </TouchableOpacity>
             ) : (
               <View style={styles.productPhotoPlaceholder}>
                 <Ionicons name="image-outline" size={24} color={Colors.light.textTertiary} />
@@ -336,35 +373,22 @@ export default function ProductDetailsScreen() {
             <View style={styles.actionList}>
               <TouchableOpacity
                 style={styles.actionCard}
-                onPress={() => router.push(`/products/edit/${productId}` as any)}
+                onPress={() => router.push(`/products/photos/${productId}` as any)}
                 activeOpacity={0.75}
               >
                 <View style={[styles.actionCardIcon, { backgroundColor: brandingColors.primary + '16' }]}>
-                  <Ionicons name="create-outline" size={18} color={brandingColors.primary} />
+                  <Ionicons name="images-outline" size={18} color={brandingColors.primary} />
                 </View>
                 <View style={styles.actionCardContent}>
-                  <Text style={styles.actionCardTitle}>Editar foto</Text>
-                  <Text style={styles.actionCardSub}>Trocar ou adicionar foto do produto</Text>
+                  <Text style={styles.actionCardTitle}>
+                    {hasVariants ? 'Fotos das variações' : 'Gerenciar foto'}
+                  </Text>
+                  <Text style={styles.actionCardSub}>
+                    {hasVariants ? 'Gerenciar foto de cada variação' : 'Adicionar ou trocar foto do produto'}
+                  </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
               </TouchableOpacity>
-
-              {hasVariants && (
-                <TouchableOpacity
-                  style={styles.actionCard}
-                  onPress={() => router.push(`/products/photos/${productId}` as any)}
-                  activeOpacity={0.75}
-                >
-                  <View style={[styles.actionCardIcon, { backgroundColor: Colors.light.info + '16' }]}>
-                    <Ionicons name="images-outline" size={18} color={Colors.light.info} />
-                  </View>
-                  <View style={styles.actionCardContent}>
-                    <Text style={styles.actionCardTitle}>Fotos das variações</Text>
-                    <Text style={styles.actionCardSub}>Gerenciar foto de cada variação</Text>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
-                </TouchableOpacity>
-              )}
             </View>
           </View>
         </View>
@@ -375,21 +399,21 @@ export default function ProductDetailsScreen() {
             <View style={styles.cardInner}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderIcon}>
-                  <Ionicons name="layers-outline" size={20} color={Colors.light.primary} />
+                  <Ionicons name="layers-outline" size={20} color={Colors.light.warning} />
                 </View>
                 <Text style={styles.cardTitle}>Variações</Text>
                 <View style={styles.countBadge}>
-                  <Text style={styles.countBadgeText}>{variants?.length}</Text>
+                  <Text style={styles.countBadgeText}>{displayVariants.length}</Text>
                 </View>
               </View>
 
               <View style={styles.variantGrid}>
-                {[...(variants ?? [])].sort((a, b) => a.id - b.id).map((variant) => {
+                {[...displayVariants].sort((a, b) => a.id - b.id).map((variant) => {
                   const vStock = variant.current_stock ?? 0;
                   // Se nenhuma variante tem estoque próprio mas o produto tem estoque,
                   // o estoque foi registrado no nível do produto (entry_items sem variant_id).
                   // Nesse caso: 1 variante → mostra o total; N variantes → mostra '—'.
-                  const variantCount = (variants ?? []).length;
+                  const variantCount = displayVariants.length;
                   const effectiveStock = variantStockSum > 0
                     ? vStock
                     : variantCount === 1
@@ -456,7 +480,7 @@ export default function ProductDetailsScreen() {
           <View style={styles.cardInner}>
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderIcon}>
-                <Ionicons name="clipboard-outline" size={20} color={Colors.light.primary} />
+                <Ionicons name="clipboard-outline" size={20} color={Colors.light.textSecondary} />
               </View>
               <Text style={styles.cardTitle}>Produto</Text>
             </View>
@@ -514,25 +538,25 @@ export default function ProductDetailsScreen() {
               <View style={styles.pricingRow}>
                 {product.cost_price != null && product.cost_price > 0 && (
                   <View style={styles.pricingTile}>
-                    <Ionicons name="trending-down" size={22} color={Colors.light.warning} style={{ marginBottom: 6 }} />
+                    <Ionicons name="trending-down" size={22} color={brandingColors.primary} style={{ marginBottom: 6 }} />
                     <Text style={styles.pricingLabel}>Custo</Text>
-                    <Text style={[styles.pricingValue, { color: Colors.light.warning }]}>
+                    <Text style={[styles.pricingValue, { color: Colors.light.text }]}>
                       {formatCurrency(product.cost_price)}
                     </Text>
                   </View>
                 )}
                 <View style={styles.pricingTile}>
-                  <Ionicons name="pricetag" size={22} color={Colors.light.primary} style={{ marginBottom: 6 }} />
+                  <Ionicons name="pricetag" size={22} color={brandingColors.primary} style={{ marginBottom: 6 }} />
                   <Text style={styles.pricingLabel}>Venda</Text>
-                  <Text style={[styles.pricingValue, { color: Colors.light.primary }]}>
+                  <Text style={[styles.pricingValue, { color: Colors.light.text }]}>
                     {formatCurrency(product.price)}
                   </Text>
                 </View>
                 {product.cost_price != null && product.cost_price > 0 && (
                   <View style={styles.pricingTile}>
-                    <Ionicons name="trending-up" size={22} color={Colors.light.success} style={{ marginBottom: 6 }} />
+                    <Ionicons name="trending-up" size={22} color={brandingColors.primary} style={{ marginBottom: 6 }} />
                     <Text style={styles.pricingLabel}>Margem</Text>
-                    <Text style={[styles.pricingValue, { color: Colors.light.success }]}>
+                    <Text style={[styles.pricingValue, { color: Colors.light.text }]}>
                       {(((product.price - product.cost_price) / product.price) * 100).toFixed(0)}%
                     </Text>
                   </View>
@@ -558,7 +582,7 @@ export default function ProductDetailsScreen() {
                 {/* Header */}
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderIcon}>
-                    <Ionicons name="archive-outline" size={20} color={Colors.light.primary} />
+                    <Ionicons name="archive-outline" size={20} color={Colors.light.textSecondary} />
                   </View>
                   <Text style={styles.cardTitle}>Histórico de Entradas</Text>
                   <View style={styles.countBadge}>
@@ -801,12 +825,12 @@ export default function ProductDetailsScreen() {
                 onPress={() => router.push(`/products/qrcode/${productId}` as any)}
                 activeOpacity={0.75}
               >
-                <View style={[styles.actionCardIcon, { backgroundColor: Colors.light.info + '16' }]}>
-                  <Ionicons name="qr-code-outline" size={18} color={Colors.light.info} />
+                <View style={[styles.actionCardIcon, { backgroundColor: brandingColors.primary + '16' }]}>
+                  <Ionicons name="pricetag-outline" size={18} color={brandingColors.primary} />
                 </View>
                 <View style={styles.actionCardContent}>
-                  <Text style={styles.actionCardTitle}>Identificação</Text>
-                  <Text style={styles.actionCardSub}>QR e etiqueta na mesma tela</Text>
+                  <Text style={styles.actionCardTitle}>Etiqueta</Text>
+                  <Text style={styles.actionCardSub}>Gerar e imprimir etiqueta</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
               </TouchableOpacity>
@@ -816,8 +840,8 @@ export default function ProductDetailsScreen() {
                 onPress={() => router.push('/products/label' as any)}
                 activeOpacity={0.75}
               >
-                <View style={[styles.actionCardIcon, { backgroundColor: Colors.light.success + '16' }]}>
-                  <Ionicons name="albums-outline" size={18} color={Colors.light.success} />
+                <View style={[styles.actionCardIcon, { backgroundColor: brandingColors.primary + '16' }]}>
+                  <Ionicons name="albums-outline" size={18} color={brandingColors.primary} />
                 </View>
                 <View style={styles.actionCardContent}>
                   <Text style={styles.actionCardTitle}>Estudio</Text>
@@ -853,7 +877,12 @@ export default function ProductDetailsScreen() {
           )}
           <TouchableOpacity
             style={[styles.actionButton, styles.primaryActionButton]}
-            onPress={() => router.push(`/products/edit/${productId}` as any)}
+            onPress={() =>
+              router.push({
+                pathname: '/products/edit/[id]',
+                params: { id: String(productId), from: `/products/${productId}` },
+              } as any)
+            }
             activeOpacity={0.8}
           >
             <LinearGradient
@@ -882,6 +911,33 @@ export default function ProductDetailsScreen() {
         onConfirm={dialog.onConfirm}
         onCancel={() => setDialog({ ...dialog, visible: false })}
       />
+
+      {/* ── Modal de foto em tela cheia ── */}
+      <Modal
+        visible={showPhotoModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPhotoModal(false)}
+        statusBarTranslucent
+      >
+        <StatusBar barStyle="light-content" backgroundColor="rgba(0,0,0,0.95)" />
+        <Pressable
+          style={styles.photoModalBg}
+          onPress={() => setShowPhotoModal(false)}
+        >
+          <Image
+            source={{ uri: getImageUrl(displayImageUrl ?? undefined) }}
+            style={styles.photoModalImage}
+            resizeMode="contain"
+          />
+          <Pressable
+            style={styles.photoModalClose}
+            onPress={() => setShowPhotoModal(false)}
+          >
+            <Ionicons name="close" size={24} color="#fff" />
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -953,6 +1009,27 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
+  },
+  photoModalBg: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  photoModalImage: {
+    width: '100%',
+    height: '100%',
+  },
+  photoModalClose: {
+    position: 'absolute',
+    top: 52,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   quickValue: { fontSize: 15, fontWeight: '800', color: Colors.light.text },
   quickSub: { fontSize: 10, color: Colors.light.textTertiary, marginTop: 2 },
