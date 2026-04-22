@@ -477,10 +477,10 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.textTertiary,
     flexShrink: 0,
   },
-  variantLabel: {
   variantRowDisabled: {
     opacity: 0.45,
   },
+  variantLabel: {
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
     color: Colors.light.text,

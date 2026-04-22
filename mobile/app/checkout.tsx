@@ -829,6 +829,11 @@ export default function CheckoutScreen() {
                       <Text style={styles.cartItemName} numberOfLines={1}>
                         {item.product.name}
                       </Text>
+                      {item.variant_label ? (
+                        <Text style={styles.cartItemVariant} numberOfLines={1}>
+                          {item.variant_label}
+                        </Text>
+                      ) : null}
                       <Text style={styles.cartItemQty}>
                         {item.quantity}x {formatCurrency(item.unit_price)}
                       </Text>
@@ -1449,6 +1454,11 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.sm,
     color: Colors.light.text,
     fontWeight: '500',
+  },
+  cartItemVariant: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+    marginTop: 1,
   },
   sectionHeader: {
     flexDirection: 'row',
