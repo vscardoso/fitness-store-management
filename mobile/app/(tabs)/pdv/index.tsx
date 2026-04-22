@@ -5,6 +5,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View,
   Text,
@@ -156,6 +157,8 @@ export default function PendingSalesScreen() {
     queryFn: getPendingSales,
     refetchInterval: 30_000,
   });
+
+  useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
   const cancelMutation = useMutation({
     mutationFn: (saleId: number) => cancelOrder(saleId),
