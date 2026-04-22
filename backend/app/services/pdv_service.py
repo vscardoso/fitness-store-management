@@ -414,34 +414,36 @@ class PDVService:
     async def get_pending_sales(self, db: AsyncSession, tenant_id: int) -> list:
         """Lista vendas PENDING do tenant — PIX e terminal aguardando confirmação."""
         from datetime import datetime, timezone
-        from sqlalchemy.orm import selectinload
+        from sqlalchemy import text as _text
 
-        result = await db.execute(
-            select(Sale)
-            .where(
-                Sale.tenant_id == tenant_id,
-                Sale.status == SaleStatus.PENDING,
-                Sale.is_active == True,
-            )
-            .options(selectinload(Sale.customer))
-            .order_by(Sale.created_at.desc())
+        rows = await db.execute(
+            _text(
+                "SELECT s.id, s.sale_number, s.total_amount, s.payment_method, "
+                "       s.payment_reference, s.created_at, c.name AS customer_name "
+                "FROM sales s "
+                "LEFT JOIN customers c ON c.id = s.customer_id "
+                "WHERE s.tenant_id = :tid "
+                "  AND UPPER(s.status::text) = 'PENDING' "
+                "  AND s.is_active = true "
+                "ORDER BY s.created_at DESC"
+            ),
+            {"tid": tenant_id},
         )
-        sales = result.scalars().all()
         now = datetime.now(timezone.utc)
         output = []
-        for s in sales:
-            created = s.created_at
+        for row in rows.mappings():
+            created = row["created_at"]
             if created.tzinfo is None:
                 created = created.replace(tzinfo=timezone.utc)
             minutes_ago = int((now - created).total_seconds() / 60)
             output.append({
-                "id": s.id,
-                "sale_number": s.sale_number,
-                "total_amount": float(s.total_amount),
-                "payment_method": s.payment_method.value if hasattr(s.payment_method, "value") else str(s.payment_method),
-                "payment_reference": s.payment_reference,
-                "customer_name": s.customer.name if s.customer else None,
-                "created_at": s.created_at,
+                "id": row["id"],
+                "sale_number": row["sale_number"],
+                "total_amount": float(row["total_amount"]),
+                "payment_method": str(row["payment_method"]),
+                "payment_reference": row["payment_reference"],
+                "customer_name": row["customer_name"],
+                "created_at": created,
                 "minutes_ago": minutes_ago,
             })
         return output
