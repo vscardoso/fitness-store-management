@@ -359,6 +359,24 @@ class ProductService:
         if "sale_price" in update_dict and "price" not in variant_update:
             variant_update["price"] = update_dict["sale_price"]
 
+        # Bloquear alteração de preço de venda se produto já possui vendas
+        if "price" in variant_update or "sale_price" in update_dict:
+            sales_row = await self.db.execute(
+                _text(
+                    "SELECT COUNT(*) FROM sale_items si "
+                    "LEFT JOIN product_variants pv ON si.variant_id = pv.id "
+                    "JOIN sales s ON s.id = si.sale_id "
+                    "WHERE si.tenant_id = :tid AND si.is_active = true "
+                    "AND UPPER(s.status) NOT IN ('CANCELLED', 'REFUNDED') "
+                    "AND (si.product_id = :pid OR pv.product_id = :pid)"
+                ),
+                {"pid": product_id, "tid": tenant_id},
+            )
+            if int(sales_row.scalar() or 0) > 0:
+                raise ValueError(
+                    "Não é possível alterar o preço de venda de um produto que já possui vendas registradas."
+                )
+
         # Sincronizar base_price no produto pai quando price muda (campo de referência)
         if "price" in variant_update:
             product_update["base_price"] = variant_update["price"]
@@ -909,11 +927,29 @@ class ProductService:
         """
         if new_price <= 0:
             raise ValueError("Preço deve ser maior que zero")
-        
+
         product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
         if not product:
             raise ValueError("Produto não encontrado")
-        
+
+        # Bloquear alteração de preço se produto já possui vendas
+        from sqlalchemy import text as _text
+        sales_row = await self.db.execute(
+            _text(
+                "SELECT COUNT(*) FROM sale_items si "
+                "LEFT JOIN product_variants pv ON si.variant_id = pv.id "
+                "JOIN sales s ON s.id = si.sale_id "
+                "WHERE si.tenant_id = :tid AND si.is_active = true "
+                "AND UPPER(s.status) NOT IN ('CANCELLED', 'REFUNDED') "
+                "AND (si.product_id = :pid OR pv.product_id = :pid)"
+            ),
+            {"pid": product_id, "tid": tenant_id},
+        )
+        if int(sales_row.scalar() or 0) > 0:
+            raise ValueError(
+                "Não é possível alterar o preço de venda de um produto que já possui vendas registradas."
+            )
+
         # price e cost_price estão na ProductVariant, não no Product
         from sqlalchemy import select as _sel
         from app.models.product_variant import ProductVariant

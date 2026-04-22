@@ -211,6 +211,7 @@ export default function EditProductScreen() {
   // Produto tem variantes configuradas?
   const hasVariants = (variants ?? []).length > 0;
   const hasMultipleVariants = (variants ?? []).length > 1;
+  const hasSales = product?.has_sales ?? false;
 
   /**
    * Validar campos obrigatórios
@@ -700,23 +701,30 @@ export default function EditProductScreen() {
                   <View style={styles.priceCardHeader}>
                     <Ionicons name="pricetag" size={18} color={Colors.light.success} />
                     <Text style={styles.priceCardLabel}>Venda</Text>
+                    {hasSales && (
+                      <Ionicons name="lock-closed" size={14} color={Colors.light.textSecondary} style={{ marginLeft: 4 }} />
+                    )}
                   </View>
                   <Text style={styles.inputLabel}>Preço de Venda *</Text>
-                  <View style={[styles.currencyInputWrapper, errors.salePrice ? styles.inputError : null]}>
+                  <View style={[styles.currencyInputWrapper, errors.salePrice ? styles.inputError : null, hasSales && { backgroundColor: Colors.light.backgroundSecondary }]}>
                     <Text style={styles.currencyPrefix}>R$</Text>
                     <TextInput
                       value={formatPriceDisplay(salePrice)}
                       onChangeText={(text) => {
+                        if (hasSales) return;
                         setSalePrice(formatPriceInput(text));
                         setErrors({ ...errors, salePrice: '' });
                       }}
-                      style={styles.currencyInput}
+                      style={[styles.currencyInput, hasSales && { color: Colors.light.textSecondary }]}
                       keyboardType="numeric"
                       placeholder="0,00"
                       placeholderTextColor={Colors.light.textTertiary}
+                      editable={!hasSales}
                     />
                   </View>
-                  {errors.salePrice ? <Text style={styles.errorHelperText}>{errors.salePrice}</Text> : null}
+                  {hasSales
+                    ? <Text style={styles.lockedHelperText}>Bloqueado — produto com vendas registradas</Text>
+                    : errors.salePrice ? <Text style={styles.errorHelperText}>{errors.salePrice}</Text> : null}
                 </View>
               </View>
           </View>
@@ -827,19 +835,26 @@ export default function EditProductScreen() {
                           </View>
                         </View>
                         <View style={styles.variantInputHalf}>
-                          <Text style={styles.inputLabel}>Preço de Venda</Text>
-                          <View style={styles.currencyInputWrapper}>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                            <Text style={styles.inputLabel}>Preço de Venda</Text>
+                            {hasSales && <Ionicons name="lock-closed" size={11} color={Colors.light.textSecondary} />}
+                          </View>
+                          <View style={[styles.currencyInputWrapper, hasSales && { backgroundColor: Colors.light.backgroundSecondary }]}>
                             <Text style={styles.currencyPrefix}>R$</Text>
                             <TextInput
                               value={formatPriceDisplay(edit.price)}
-                              onChangeText={text => setVariantEdits(prev => ({
-                                ...prev,
-                                [variant.id]: { ...prev[variant.id], price: formatPriceInput(text) },
-                              }))}
-                              style={styles.currencyInput}
+                              onChangeText={text => {
+                                if (hasSales) return;
+                                setVariantEdits(prev => ({
+                                  ...prev,
+                                  [variant.id]: { ...prev[variant.id], price: formatPriceInput(text) },
+                                }));
+                              }}
+                              style={[styles.currencyInput, hasSales && { color: Colors.light.textSecondary }]}
                               keyboardType="numeric"
                               placeholder="0,00"
                               placeholderTextColor={Colors.light.textTertiary}
+                              editable={!hasSales}
                             />
                           </View>
                         </View>
@@ -1064,6 +1079,12 @@ const styles = StyleSheet.create({
   inputError: {
     borderColor: Colors.light.error,
     borderWidth: 1.5,
+  },
+  lockedHelperText: {
+    marginTop: 4,
+    color: Colors.light.textSecondary,
+    fontSize: theme.fontSize.xs,
+    fontStyle: 'italic',
   },
   errorHelperText: {
     marginTop: 4,
