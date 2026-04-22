@@ -37,28 +37,26 @@ web/
 │   ├── squads/            # Squads criados
 │   └── core/              # Engine do OpenSquad
 ├── .claude/
-│   └── skills/
-│       └── ui-ux-pro-max/ # Skill de UI/UX
 └── package.json
 ```
 
 ## Ferramentas Disponíveis
 
-### 1. UI UX Pro Max Skill (`.claude/skills/ui-ux-pro-max/`)
+### 1. UI UX Pro Max Skill (`../.agents/skills/ui-ux-pro-max/`)
 
 Skill de inteligência de design. Ativa automaticamente ao pedir qualquer coisa de UI/UX.
 
 **Para gerar o design system do projeto:**
 ```bash
-python3 .claude/skills/ui-ux-pro-max/scripts/search.py "fitness store ecommerce landing" --design-system --persist -p "FitnessStore"
+python3 ../.agents/skills/ui-ux-pro-max/scripts/search.py "fitness store ecommerce landing" --design-system --persist -p "FitnessStore"
 ```
 
 **Busca por domínio:**
 ```bash
-python3 .claude/skills/ui-ux-pro-max/scripts/search.py "fitness activewear" --domain color
-python3 .claude/skills/ui-ux-pro-max/scripts/search.py "hero cta social-proof" --domain landing
-python3 .claude/skills/ui-ux-pro-max/scripts/search.py "bold modern sporty" --domain typography
-python3 .claude/skills/ui-ux-pro-max/scripts/search.py "bundle performance" --stack nextjs
+python3 ../.agents/skills/ui-ux-pro-max/scripts/search.py "fitness activewear" --domain color
+python3 ../.agents/skills/ui-ux-pro-max/scripts/search.py "hero cta social-proof" --domain landing
+python3 ../.agents/skills/ui-ux-pro-max/scripts/search.py "bold modern sporty" --domain typography
+python3 ../.agents/skills/ui-ux-pro-max/scripts/search.py "bundle performance" --stack nextjs
 ```
 
 ### 2. OpenSquad (`_opensquad/`)

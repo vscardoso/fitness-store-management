@@ -5,7 +5,7 @@ from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from jose import JWTError, jwt
+from jose import JWTError, ExpiredSignatureError, jwt
 from typing import List
 
 from app.core.database import get_db
@@ -64,8 +64,11 @@ async def get_current_user(
         if user_id is None:
             raise credentials_exception
 
+    except ExpiredSignatureError:
+        logger.info("JWT expirado")
+        raise credentials_exception
     except JWTError as e:
-        logger.error(f"JWT decode error: {e}")
+        logger.warning(f"JWT inválido: {e}")
         raise credentials_exception
     except Exception as e:
         logger.error(f"Error in get_current_user (token processing): {e}", exc_info=True)
@@ -139,7 +142,7 @@ def require_role(allowed_roles: List[UserRole]):
         if current_user.role not in allowed_roles:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail=f"Permissão negada. Roles permitidas: {[role.value for role in allowed_roles]}"
+                detail=f"Permissão negada. Roles permitidas: {[role.value if hasattr(role, 'value') else role for role in allowed_roles]}"
             )
         return current_user
     

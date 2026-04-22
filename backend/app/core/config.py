@@ -103,6 +103,21 @@ class Settings(BaseSettings):
     AI_SCAN_ENABLED: bool = True
     AI_DEFAULT_MARKUP: float = 100.0  # 100% markup padrão
 
+    # PDV — provider de PIX (agnóstico)
+    # Valores: "mock" (dev local, sem credenciais), "mercadopago", "bradesco" (futuro), etc.
+    PIX_PROVIDER: str = "mock"
+
+    # Mercado Pago (apenas quando PIX_PROVIDER=mercadopago)
+    MP_ACCESS_TOKEN: str = ""
+    MP_WEBHOOK_SECRET: str = ""
+    MP_TEST_PAYER_EMAIL: str = ""
+    APP_URL: str = "https://localhost:8000"  # URL pública do backend (para webhooks)
+
+    # MP Connect OAuth (para multi-tenant — cada loja conecta sua própria conta)
+    MP_CLIENT_ID: str = ""
+    MP_CLIENT_SECRET: str = ""
+    FRONTEND_URL: str = "exp://localhost:8081"  # deep link do app mobile
+
 
 # Singleton instance
 settings = Settings()

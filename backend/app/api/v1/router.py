@@ -21,8 +21,12 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     auth,
+    audit,
+    mp_connect,
+    pdv,
     products,
     products_grouped,
+    product_media,
     sales,
     inventory,
     customers,
@@ -72,6 +76,12 @@ api_router.include_router(
 api_router.include_router(
     products.router,
     tags=["Produtos"]
+)
+
+# Galeria de mídia de produtos
+api_router.include_router(
+    product_media.router,
+    tags=["Galeria de Produtos"]
 )
 
 # Variantes de produtos (tamanhos/cores)
@@ -189,3 +199,12 @@ api_router.include_router(store.router, tags=["Loja"])
 # Catálogo de Fornecedores
 api_router.include_router(suppliers.router)
 api_router.include_router(suppliers.product_supplier_router)
+
+# Audit Log
+api_router.include_router(audit.router)
+
+# PDV — Mercado Pago In-Store (terminais, pagamento QR, webhooks)
+api_router.include_router(pdv.router)
+
+# MP Connect OAuth — conecta conta MP do lojista (multi-tenant)
+api_router.include_router(mp_connect.router)
