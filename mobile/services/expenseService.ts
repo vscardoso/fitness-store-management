@@ -35,6 +35,11 @@ export async function getExpenses(params?: ListExpensesParams): Promise<Expense[
   return data;
 }
 
+export async function getStockLosses(params?: Omit<ListExpensesParams, 'category_id'>): Promise<Expense[]> {
+  const { data } = await api.get('/expenses/stock-losses', { params });
+  return data;
+}
+
 export async function getExpense(id: number): Promise<Expense> {
   const { data } = await api.get(`/expenses/${id}`);
   return data;

@@ -57,6 +57,14 @@ export default {
         {
           cameraPermission: "Permitir $(PRODUCT_NAME) acessar sua câmera para escanear códigos de barras"
         }
+      ],
+      [
+        "expo-notifications",
+        {
+          icon: "./assets/icon.png",
+          color: "#ffffff",
+          sounds: []
+        }
       ]
     ],
 

@@ -11,7 +11,7 @@
  *  - Handle indicador de arraste no topo
  */
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   Modal,
   View,
@@ -22,6 +22,7 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Animated,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
@@ -51,6 +52,60 @@ interface BottomSheetProps {
   children: React.ReactNode;
   /** Fechar ao tocar no backdrop (padrão: true) */
   dismissOnBackdrop?: boolean;
+}
+
+function ActionLoading({ color }: { color: string }) {
+  const progress = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: 1100,
+        useNativeDriver: true,
+      })
+    );
+
+    loop.start();
+    return () => loop.stop();
+  }, [progress]);
+
+  return (
+    <View style={styles.loadingWrap}>
+      <ActivityIndicator size="small" color={color} />
+      <Text style={[styles.loadingText, { color }]}>Processando</Text>
+      <View style={styles.loadingDotsRow}>
+        {[0, 1, 2].map((index) => {
+          const delay = index * 0.2;
+          const opacity = progress.interpolate({
+            inputRange: [delay, Math.min(delay + 0.25, 1), Math.min(delay + 0.5, 1), 1],
+            outputRange: [0.35, 1, 0.35, 0.35],
+            extrapolate: 'clamp',
+          });
+
+          const translateY = progress.interpolate({
+            inputRange: [delay, Math.min(delay + 0.25, 1), Math.min(delay + 0.5, 1), 1],
+            outputRange: [0, -2, 0, 0],
+            extrapolate: 'clamp',
+          });
+
+          return (
+            <Animated.View
+              key={index}
+              style={[
+                styles.loadingDot,
+                {
+                  backgroundColor: color,
+                  opacity,
+                  transform: [{ translateY }],
+                },
+              ]}
+            />
+          );
+        })}
+      </View>
+    </View>
+  );
 }
 
 export default function BottomSheet({
@@ -96,11 +151,11 @@ export default function BottomSheet({
       </TouchableWithoutFeedback>
 
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'padding'}
         style={styles.kavContainer}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
       >
-        <View style={[styles.sheet, { paddingBottom: insets.bottom }]}>
+        <View style={[styles.sheet, { paddingBottom: insets.bottom }]}> 
 
           {/* Header com gradiente — cobre os cantos arredondados do sheet */}
           <LinearGradient
@@ -142,6 +197,7 @@ export default function BottomSheet({
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets
           >
             {children}
           </ScrollView>
@@ -164,7 +220,22 @@ export default function BottomSheet({
                   ]}
                 >
                   {action.loading ? (
-                    <ActivityIndicator size="small" color="#fff" />
+                    action.variant === 'secondary' ? (
+                      <ActionLoading color={brandingColors.primary} />
+                    ) : (
+                      <LinearGradient
+                        colors={[
+                          'rgba(255,255,255,0.08)',
+                          'rgba(255,255,255,0.18)',
+                          'rgba(255,255,255,0.08)',
+                        ]}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={styles.loadingGradientSurface}
+                      >
+                        <ActionLoading color="#fff" />
+                      </LinearGradient>
+                    )
                   ) : (
                     <>
                       {action.icon && (
@@ -327,5 +398,35 @@ const styles = StyleSheet.create({
   },
   actionTextDanger: {
     color: '#fff',
+  },
+  loadingWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  loadingText: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  loadingDotsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+  },
+  loadingDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  loadingGradientSurface: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: theme.borderRadius.xl,
   },
 });

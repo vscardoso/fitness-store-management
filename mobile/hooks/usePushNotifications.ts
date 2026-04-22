@@ -5,7 +5,9 @@
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { useRouter } from 'expo-router';
 import { useNotificationStore } from '../store/notificationStore';
 import { createNotification } from '../types/notification';
 import { notificationService } from '../services/notificationService';
@@ -23,42 +25,42 @@ Notifications.setNotificationHandler({
 });
 
 export function usePushNotifications() {
-  const { setPushToken, addNotification, config } = useNotificationStore();
+  const { setPushToken, addNotification, config, pushToken } = useNotificationStore();
   const { token: authToken } = useAuthStore();
+  const router = useRouter();
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
 
+  // Effect 1: obter token do dispositivo (só uma vez)
   useEffect(() => {
-    // Registrar para push notifications
     registerForPushNotificationsAsync()
-      .then(async (token) => {
+      .then((token) => {
         if (token) {
           setPushToken(token);
-          console.log('📱 Push token registrado localmente:', token);
-
-          // Registrar no backend se autenticado
-          if (authToken) {
-            try {
-              await notificationService.registerToken(token, Platform.OS);
-              console.log('✅ Token registrado no backend');
-            } catch (error) {
-              console.error('❌ Erro ao registrar token no backend:', error);
-            }
-          }
+          console.log('📱 Push token obtido:', token);
         } else {
-          console.log('📱 Push token não disponível (modo desenvolvimento sem projectId)');
+          console.log('📱 Push token não disponível');
         }
       })
       .catch((error) => {
-        console.error('❌ Erro ao registrar push notifications:', error);
-        // App continues without push token
+        console.error('❌ Erro ao obter push token:', error);
       });
+  }, []);
 
-    // Listener: notificação recebida enquanto app está aberto (foreground)
+  // Effect 2: registrar token no backend quando auth estiver pronto
+  useEffect(() => {
+    if (authToken && pushToken) {
+      notificationService.registerToken(pushToken, Platform.OS)
+        .then(() => console.log('✅ Token registrado no backend'))
+        .catch((error) => console.error('❌ Erro ao registrar token no backend:', error));
+    }
+  }, [authToken, pushToken]);
+
+  // Effect 3: listeners de notificação
+  useEffect(() => {
     notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
       console.log('🔔 Notificação recebida (foreground):', notification);
 
-      // Criar notificação in-app
       const { title, body, data } = notification.request.content;
       const notif = createNotification(
         (data?.type as any) || 'info',
@@ -74,29 +76,19 @@ export function usePushNotifications() {
       addNotification(notif);
     });
 
-    // Listener: usuário tocou na notificação
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
       console.log('👆 Notificação tocada:', response);
-
-      const { notification } = response;
-      const { data } = notification.request.content;
-
-      // Navegação será tratada pelo NotificationBanner se houver route em data
+      const { data } = response.notification.request.content;
       if (data?.route) {
-        console.log('🔀 Navegando para:', data.route);
-        // A navegação será feita pelo banner ou você pode implementar aqui
+        router.push(data.route as any);
       }
     });
 
     return () => {
-      if (notificationListener.current) {
-        notificationListener.current.remove();
-      }
-      if (responseListener.current) {
-        responseListener.current.remove();
-      }
+      notificationListener.current?.remove();
+      responseListener.current?.remove();
     };
-  }, [authToken]);
+  }, []);
 
   return {
     // Enviar notificação local (teste)
@@ -160,7 +152,8 @@ async function registerForPushNotificationsAsync(): Promise<string | undefined> 
 
     // Obter token (com tratamento de erro para desenvolvimento)
     try {
-      token = (await Notifications.getExpoPushTokenAsync()).data;
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+      token = (await Notifications.getExpoPushTokenAsync({ projectId })).data;
     } catch (error: any) {
       // Gracefully handle ANY error related to projectId or push tokens
       // Common errors: E_NO_PROJECT_ID, "No 'projectId' found", etc.

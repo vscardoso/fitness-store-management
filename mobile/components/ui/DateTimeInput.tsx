@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, Platform, Modal, TouchableOpacity } from 'react-native';
 import { TextInput, HelperText, Button } from 'react-native-paper';
+import { Text } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 
 interface DateTimeInputProps {
@@ -13,6 +15,7 @@ interface DateTimeInputProps {
   maximumDate?: Date;
   mode?: 'date' | 'time' | 'datetime';
   disabled?: boolean;
+  modern?: boolean;
 }
 
 export default function DateTimeInput({
@@ -24,6 +27,7 @@ export default function DateTimeInput({
   maximumDate,
   mode = 'datetime',
   disabled = false,
+  modern = false,
 }: DateTimeInputProps) {
   const [isPickerVisible, setPickerVisible] = useState(false);
   const [tempDate, setTempDate] = useState<Date | undefined>(value);
@@ -160,17 +164,45 @@ export default function DateTimeInput({
 
   return (
     <View style={styles.container}>
-      <TextInput
-        label={label}
-        value={formatDateTime(value)}
-        onFocus={handlePress}
-        editable={false}
-        mode="outlined"
-        error={!!error}
-        disabled={disabled}
-        right={<TextInput.Icon icon="calendar" onPress={handlePress} />}
-        style={styles.input}
-      />
+      {modern ? (
+        <TouchableOpacity
+          onPress={handlePress}
+          activeOpacity={0.8}
+          disabled={disabled}
+          style={[
+            styles.modernInput,
+            disabled && styles.modernInputDisabled,
+            !!error && styles.modernInputError,
+          ]}
+        >
+          <View style={styles.modernIconWrap}>
+            <Ionicons
+              name={mode === 'time' ? 'time-outline' : 'calendar-outline'}
+              size={18}
+              color={Colors.light.primary}
+            />
+          </View>
+          <View style={styles.modernTextWrap}>
+            <Text style={styles.modernLabel}>{label}</Text>
+            <Text style={[styles.modernValue, !value && styles.modernValuePlaceholder]}>
+              {value ? formatDateTime(value) : 'Selecionar'}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color={Colors.light.textTertiary} />
+        </TouchableOpacity>
+      ) : (
+        <TextInput
+          label={label}
+          value={formatDateTime(value)}
+          onFocus={handlePress}
+          editable={false}
+          mode="outlined"
+          error={!!error}
+          disabled={disabled}
+          right={<TextInput.Icon icon="calendar" onPress={handlePress} />}
+          style={styles.input}
+        />
+      )}
       {error && (
         <HelperText type="error" visible={!!error}>
           {error}
@@ -188,6 +220,50 @@ const styles = StyleSheet.create({
   },
   input: {
     backgroundColor: Colors.light.card,
+  },
+  modernInput: {
+    backgroundColor: Colors.light.card,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: 14,
+    minHeight: 56,
+    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  modernInputDisabled: {
+    opacity: 0.5,
+  },
+  modernInputError: {
+    borderColor: Colors.light.error,
+  },
+  modernIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: Colors.light.primary + '14',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modernTextWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  modernLabel: {
+    fontSize: 11,
+    color: Colors.light.textSecondary,
+    fontWeight: '600',
+    marginBottom: 1,
+  },
+  modernValue: {
+    fontSize: 15,
+    color: Colors.light.text,
+    fontWeight: '600',
+  },
+  modernValuePlaceholder: {
+    color: Colors.light.textTertiary,
+    fontWeight: '500',
   },
   // iOS Modal styles
   modalOverlay: {

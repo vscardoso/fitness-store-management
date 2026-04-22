@@ -90,9 +90,7 @@ export default function ProductSelectionModal({
 
   const renderProduct = ({ item }: { item: ProductGrouped }) => {
     const isSelected = selectedProduct?.id === item.id;
-    const visibleVariants = item.variants.filter(
-      (v) => !hasStock || (v.current_stock ?? 0) > 0
-    );
+    const visibleVariants = item.variants;
 
     return (
       <View style={styles.productCard}>
@@ -135,11 +133,16 @@ export default function ProductSelectionModal({
         {isSelected && visibleVariants.length > 0 && (
           <View style={styles.variantsWrap}>
             {visibleVariants.map((variant) => (
+              // Keep all variants visible; when stock is required, disable selection for empty variants.
+              (() => {
+                const isOutOfStock = hasStock && (variant.current_stock ?? 0) <= 0;
+                return (
               <TouchableOpacity
                 key={`${item.id}-${variant.id}`}
-                onPress={() => handleVariantPress(item, variant)}
+                onPress={() => !isOutOfStock && handleVariantPress(item, variant)}
                 activeOpacity={0.75}
-                style={styles.variantRow}
+                disabled={isOutOfStock}
+                style={[styles.variantRow, isOutOfStock && styles.variantRowDisabled]}
               >
                 <View style={styles.variantLeft}>
                   <View style={styles.variantDot} />
@@ -156,13 +159,15 @@ export default function ProductSelectionModal({
                   <Text style={[styles.variantPrice, { color: brandingColors.primary }]}>
                     {formatCurrency(variant.price)}
                   </Text>
-                  <View style={[styles.stockPill, { backgroundColor: Colors.light.success + '18' }]}>
-                    <Text style={[styles.stockPillText, { color: Colors.light.success }]}>
+                  <View style={[styles.stockPill, { backgroundColor: isOutOfStock ? Colors.light.error + '18' : Colors.light.success + '18' }]}>
+                    <Text style={[styles.stockPillText, { color: isOutOfStock ? Colors.light.error : Colors.light.success }]}>
                       {variant.current_stock}
                     </Text>
                   </View>
                 </View>
               </TouchableOpacity>
+                );
+              })()
             ))}
           </View>
         )}
@@ -473,6 +478,9 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   variantLabel: {
+  variantRowDisabled: {
+    opacity: 0.45,
+  },
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
     color: Colors.light.text,

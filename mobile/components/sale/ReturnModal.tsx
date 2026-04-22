@@ -3,33 +3,29 @@
  * Permite devolver itens de uma venda (parcial ou total)
  */
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
-  ScrollView,
-  TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
 import {
   Text,
-  Modal,
-  Portal,
   Button,
   TextInput,
   IconButton,
-  Divider,
+  Portal,
 } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { formatCurrency } from '@/utils/format';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { haptics } from '@/utils/haptics';
+import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import {
   checkReturnEligibility,
   processReturn,
-  ReturnableItem,
   ReturnEligibility,
   ReturnItemRequest,
 } from '@/services/returnService';
@@ -71,6 +67,8 @@ export default function ReturnModal({
     onConfirm: () => {},
   });
 
+  const closeDialog = () => setDialog(prev => ({ ...prev, visible: false }));
+
   // Carregar elegibilidade ao abrir
   useEffect(() => {
     if (visible) {
@@ -104,7 +102,7 @@ export default function ReturnModal({
         message: error.response?.data?.detail || error.message || 'Erro ao verificar elegibilidade',
         confirmText: 'OK',
         cancelText: '',
-        onConfirm: () => setDialog({ ...dialog, visible: false }),
+        onConfirm: closeDialog,
       });
     } finally {
       setLoading(false);
@@ -162,44 +160,25 @@ export default function ReturnModal({
   const totalItems = eligibility?.items.length || 0;
   const isAllSelected = selectedCount === totalItems && totalItems > 0;
 
-  const handleProcessReturn = async () => {
+  const handleProcessReturn = () => {
     if (!eligibility) return;
-    
-    // Validar se há itens selecionados
+
     if (selectedItems.size === 0) {
       haptics.warning();
-      setDialog({
-        visible: true,
-        type: 'warning',
-        title: 'Nenhum item selecionado',
-        message: 'Selecione pelo menos um item para devolver.',
-        confirmText: 'OK',
-        cancelText: '',
-        onConfirm: () => setDialog({ ...dialog, visible: false }),
-      });
+      setDialog({ visible: true, type: 'warning', title: 'Nenhum item selecionado', message: 'Selecione pelo menos um item para devolver.', confirmText: 'OK', cancelText: '', onConfirm: closeDialog });
       return;
     }
-    
-    // Validar motivo
+
     if (reason.trim().length < 3) {
       haptics.warning();
-      setDialog({
-        visible: true,
-        type: 'warning',
-        title: 'Motivo obrigatório',
-        message: 'Informe o motivo da devolução (mínimo 3 caracteres).',
-        confirmText: 'OK',
-        cancelText: '',
-        onConfirm: () => setDialog({ ...dialog, visible: false }),
-      });
+      setDialog({ visible: true, type: 'warning', title: 'Motivo obrigatório', message: 'Informe o motivo da devolução (mínimo 3 caracteres).', confirmText: 'OK', cancelText: '', onConfirm: closeDialog });
       return;
     }
-    
-    // Confirmar devolução
+
     const isFullReturn = eligibility.items.every(
       item => selectedItems.get(item.sale_item_id) === item.quantity_available_for_return
     );
-    
+
     haptics.warning();
     setDialog({
       visible: true,
@@ -208,7 +187,7 @@ export default function ReturnModal({
       message: `Deseja processar a devolução de ${isFullReturn ? 'todos os itens' : `${selectedCount} item(ns)`}?\n\nO reembolso será processado e o estoque será atualizado.`,
       confirmText: 'Confirmar Devolução',
       cancelText: 'Cancelar',
-      onConfirm: () => executeReturn(),
+      onConfirm: executeReturn,
     });
   };
 
@@ -244,11 +223,7 @@ export default function ReturnModal({
         message: `A devolução de ${formatCurrency(totalRefund)} foi processada com sucesso.\n\nO estoque foi atualizado automaticamente.`,
         confirmText: 'OK',
         cancelText: '',
-        onConfirm: () => {
-          setDialog({ ...dialog, visible: false });
-          onSuccess();
-          onDismiss();
-        },
+        onConfirm: () => { closeDialog(); onSuccess(); onDismiss(); },
       });
     } catch (error: any) {
       haptics.error();
@@ -259,7 +234,7 @@ export default function ReturnModal({
         message: error.response?.data?.detail || error.message || 'Erro ao processar devolução. Tente novamente.',
         confirmText: 'OK',
         cancelText: '',
-        onConfirm: () => setDialog({ ...dialog, visible: false }),
+        onConfirm: closeDialog,
       });
     } finally {
       setProcessing(false);
@@ -274,57 +249,70 @@ export default function ReturnModal({
   const isExpired = eligibility && eligibility.days_since_sale >= eligibility.max_return_days;
 
   return (
-    <Portal>
-      <Modal
+    <>
+      <BottomSheet
         visible={visible}
         onDismiss={onDismiss}
-        contentContainerStyle={styles.modalContainer}
+        title="Devolução"
+        subtitle={saleNumber}
+        icon="return-up-back-outline"
+        dismissOnBackdrop={!processing}
+        actions={
+          eligibility?.is_eligible
+            ? [
+                {
+                  label: 'Cancelar',
+                  onPress: onDismiss,
+                  variant: 'secondary',
+                  disabled: processing,
+                },
+                {
+                  label: 'Processar Devolução',
+                  onPress: handleProcessReturn,
+                  variant: 'danger',
+                  loading: processing,
+                  disabled: processing || selectedItems.size === 0,
+                },
+              ]
+            : [{ label: 'Fechar', onPress: onDismiss, variant: 'secondary' }]
+        }
       >
-        {/* Header padrão do sistema */}
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text variant="titleLarge" style={styles.title}>
-              Devolução
-            </Text>
-            <Text variant="bodyMedium" style={styles.subtitle}>
-              {saleNumber}
-            </Text>
-          </View>
-        </View>
-
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={brandingColors.primary} />
-            <Text style={styles.loadingText}>Verificando elegibilidade...</Text>
-          </View>
-        ) : !eligibility?.is_eligible ? (
-          <View style={styles.notEligibleContainer}>
-            <Ionicons name="close-circle-outline" size={64} color={Colors.light.error} />
-            <Text style={styles.notEligibleTitle}>Devolução não permitida</Text>
-            <Text style={styles.notEligibleReason}>{eligibility?.reason}</Text>
-            <Button
-              mode="outlined"
-              onPress={onDismiss}
-              style={styles.closeButton}
-            >
-              Fechar
-            </Button>
-          </View>
-        ) : (
-          <>
-            {/* Info Banner - Prazo */}
-            <View style={[styles.infoBanner, { backgroundColor: brandingColors.primary + '12' }, isExpired && styles.infoBannerError, isUrgent && !isExpired && styles.infoBannerWarning]}>
+        <Portal.Host>
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={brandingColors.primary} />
+              <Text style={styles.loadingText}>Verificando elegibilidade...</Text>
+            </View>
+          ) : !eligibility?.is_eligible ? (
+            <View style={styles.notEligibleContainer}>
+              <Ionicons name="close-circle-outline" size={64} color={Colors.light.error} />
+              <Text style={styles.notEligibleTitle}>Devolução não permitida</Text>
+              <Text style={styles.notEligibleReason}>{eligibility?.reason}</Text>
+            </View>
+          ) : (
+            <View>
+            <View style={[
+              styles.infoBanner,
+              { backgroundColor: brandingColors.primary + '12' },
+              isExpired && styles.infoBannerError,
+              isUrgent && !isExpired && styles.infoBannerWarning,
+            ]}>
               <Ionicons
-                name={isExpired ? "close-circle" : isUrgent ? "alert-circle" : "information-circle"}
+                name={isExpired ? 'close-circle' : isUrgent ? 'alert-circle' : 'information-circle'}
                 size={20}
                 color={isExpired ? Colors.light.error : isUrgent ? Colors.light.warning : brandingColors.primary}
               />
               <View style={styles.infoBannerText}>
-                <Text style={[styles.infoBannerTitle, { color: brandingColors.primary }, isExpired && styles.infoBannerTitleError, isUrgent && !isExpired && styles.infoBannerTitleWarning]}>
-                  {isExpired 
-                    ? 'Prazo expirado' 
-                    : daysRemaining === 0 
-                      ? 'Último dia!' 
+                <Text style={[
+                  styles.infoBannerTitle,
+                  { color: brandingColors.primary },
+                  isExpired && styles.infoBannerTitleError,
+                  isUrgent && !isExpired && styles.infoBannerTitleWarning,
+                ]}>
+                  {isExpired
+                    ? 'Prazo expirado'
+                    : daysRemaining === 0
+                      ? 'Último dia!'
                       : `${daysRemaining} dias restantes`}
                 </Text>
                 <Text style={styles.infoBannerSubtext}>
@@ -333,193 +321,138 @@ export default function ReturnModal({
               </View>
             </View>
 
-            <ScrollView style={styles.scrollContent} showsVerticalScrollIndicator={false}>
-              {/* Ações Rápidas */}
-              <View style={styles.quickActions}>
-                <Button
-                  mode="outlined"
-                  onPress={handleSelectAll}
-                  disabled={isAllSelected}
-                  compact
-                  icon="check-all"
-                  style={styles.quickActionButton}
-                >
-                  Selecionar todos
-                </Button>
-                <Button
-                  mode="outlined"
-                  onPress={handleClearSelection}
-                  disabled={selectedCount === 0}
-                  compact
-                  icon="close"
-                  style={styles.quickActionButton}
-                >
-                  Limpar
-                </Button>
-              </View>
-
-              {/* Itens */}
-              <Text style={styles.sectionTitle}>Itens para Devolução</Text>
-              
-              {eligibility.items.map((item) => {
-                const selectedQuantity = selectedItems.get(item.sale_item_id) || 0;
-                const isSelected = selectedQuantity > 0;
-                
-                return (
-                  <View
-                    key={item.sale_item_id}
-                    style={[styles.itemCard, isSelected && { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary + '10' }]}
-                  >
-                    <View style={styles.itemHeader}>
-                      <View style={styles.itemInfo}>
-                        <Text style={styles.itemName}>{item.product_name}</Text>
-                        <Text style={styles.itemPrice}>{formatCurrency(item.unit_price)} cada</Text>
-                      </View>
-                      <View style={styles.itemQuantityInfo}>
-                        <Text style={[styles.itemQuantityLabel, { color: brandingColors.primary }]}>Disponível: {item.quantity_available_for_return}</Text>
-                      </View>
-                    </View>
-                    
-                    <View style={styles.quantityControl}>
-                      <IconButton
-                        icon="minus"
-                        size={20}
-                        mode="contained"
-                        containerColor={Colors.light.error}
-                        iconColor="#fff"
-                        onPress={() => handleQuantityChange(
-                          item.sale_item_id,
-                          selectedQuantity - 1,
-                          item.quantity_available_for_return
-                        )}
-                        disabled={selectedQuantity === 0}
-                      />
-                      <Text style={styles.quantity}>{selectedQuantity}</Text>
-                      <IconButton
-                        icon="plus"
-                        size={20}
-                        mode="contained"
-                        containerColor={brandingColors.primary}
-                        iconColor="#fff"
-                        onPress={() => handleQuantityChange(
-                          item.sale_item_id,
-                          selectedQuantity + 1,
-                          item.quantity_available_for_return
-                        )}
-                        disabled={selectedQuantity >= item.quantity_available_for_return}
-                      />
-                    </View>
-                    
-                    {selectedQuantity > 0 && (
-                      <Text style={styles.itemRefund}>
-                        Reembolso: {formatCurrency((selectedQuantity / item.quantity_available_for_return) * item.max_refund_amount)}
-                      </Text>
-                    )}
-                  </View>
-                );
-              })}
-
-              {/* Motivo */}
-              <Text style={styles.sectionTitle}>Motivo da Devolução</Text>
-              <TextInput
-                mode="outlined"
-                placeholder="Ex: Produto com defeito, cliente desistiu..."
-                value={reason}
-                onChangeText={setReason}
-                multiline
-                numberOfLines={3}
-                style={styles.reasonInput}
-                maxLength={500}
-              />
-
-              {/* Resumo */}
-              {totalRefund > 0 && (
-                <View style={[styles.summaryCard, { borderColor: brandingColors.primary }]}>
-                  <Text style={styles.summaryTitle}>Resumo da Devolução</Text>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Itens selecionados</Text>
-                    <Text style={styles.summaryValue}>{selectedCount}</Text>
-                  </View>
-                  <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Total do Reembolso</Text>
-                    <Text style={[styles.summaryValue, styles.summaryTotal, { color: brandingColors.primary }]}>
-                      {formatCurrency(totalRefund)}
-                    </Text>
-                  </View>
-                </View>
-              )}
-            </ScrollView>
-
-            {/* Footer */}
-            <View style={styles.footer}>
+            {/* Ações Rápidas */}
+            <View style={styles.quickActions}>
               <Button
                 mode="outlined"
-                onPress={onDismiss}
-                style={styles.cancelButton}
+                onPress={handleSelectAll}
+                disabled={isAllSelected}
+                compact
+                icon="check-all"
+                style={styles.quickActionButton}
               >
-                Cancelar
+                Selecionar todos
               </Button>
               <Button
-                mode="contained"
-                onPress={handleProcessReturn}
-                loading={processing}
-                disabled={processing || selectedItems.size === 0}
-                style={styles.confirmButton}
-                buttonColor={Colors.light.error}
+                mode="outlined"
+                onPress={handleClearSelection}
+                disabled={selectedCount === 0}
+                compact
+                icon="close"
+                style={styles.quickActionButton}
               >
-                Processar Devolução
+                Limpar
               </Button>
             </View>
-          </>
-        )}
-      </Modal>
 
-      {/* Confirm Dialog */}
-      <ConfirmDialog
-        visible={dialog.visible}
-        type={dialog.type}
-        title={dialog.title}
-        message={dialog.message}
-        confirmText={dialog.confirmText}
-        cancelText={dialog.cancelText}
-        onConfirm={dialog.onConfirm}
-        onCancel={() => setDialog({ ...dialog, visible: false })}
-      />
-    </Portal>
+            {/* Itens */}
+            <Text style={styles.sectionTitle}>Itens para Devolução</Text>
+
+            {eligibility.items.map((item) => {
+              const selectedQuantity = selectedItems.get(item.sale_item_id) || 0;
+              const isSelected = selectedQuantity > 0;
+
+              return (
+                <View
+                  key={item.sale_item_id}
+                  style={[
+                    styles.itemCard,
+                    isSelected && { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary + '10' },
+                  ]}
+                >
+                  <View style={styles.itemHeader}>
+                    <View style={styles.itemInfo}>
+                      <Text style={styles.itemName}>{item.product_name}</Text>
+                      <Text style={styles.itemPrice}>{formatCurrency(item.unit_price)} cada</Text>
+                    </View>
+                    <View style={styles.itemQuantityInfo}>
+                      <Text style={[styles.itemQuantityLabel, { color: brandingColors.primary }]}>
+                        Disponível: {item.quantity_available_for_return}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.quantityControl}>
+                    <IconButton
+                      icon="minus"
+                      size={20}
+                      mode="contained"
+                      containerColor={Colors.light.error}
+                      iconColor="#fff"
+                      onPress={() => handleQuantityChange(item.sale_item_id, selectedQuantity - 1, item.quantity_available_for_return)}
+                      disabled={selectedQuantity === 0}
+                    />
+                    <Text style={styles.quantity}>{selectedQuantity}</Text>
+                    <IconButton
+                      icon="plus"
+                      size={20}
+                      mode="contained"
+                      containerColor={brandingColors.primary}
+                      iconColor="#fff"
+                      onPress={() => handleQuantityChange(item.sale_item_id, selectedQuantity + 1, item.quantity_available_for_return)}
+                      disabled={selectedQuantity >= item.quantity_available_for_return}
+                    />
+                  </View>
+
+                  {selectedQuantity > 0 && (
+                    <Text style={styles.itemRefund}>
+                      Reembolso: {formatCurrency((selectedQuantity / item.quantity_available_for_return) * item.max_refund_amount)}
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+
+            {/* Motivo */}
+            <Text style={styles.sectionTitle}>Motivo da Devolução</Text>
+            <TextInput
+              mode="outlined"
+              placeholder="Ex: Produto com defeito, cliente desistiu..."
+              value={reason}
+              onChangeText={setReason}
+              multiline
+              numberOfLines={3}
+              style={styles.reasonInput}
+              maxLength={500}
+            />
+
+            {/* Resumo */}
+            {totalRefund > 0 && (
+              <View style={[styles.summaryCard, { borderColor: brandingColors.primary }]}>
+                <Text style={styles.summaryTitle}>Resumo da Devolução</Text>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Itens selecionados</Text>
+                  <Text style={styles.summaryValue}>{selectedCount}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Total do Reembolso</Text>
+                  <Text style={[styles.summaryValue, styles.summaryTotal, { color: brandingColors.primary }]}>
+                    {formatCurrency(totalRefund)}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            </View>
+          )}
+
+          <ConfirmDialog
+            visible={dialog.visible}
+            type={dialog.type}
+            title={dialog.title}
+            message={dialog.message}
+            confirmText={dialog.confirmText}
+            cancelText={dialog.cancelText}
+            onConfirm={dialog.onConfirm}
+            onCancel={closeDialog}
+          />
+        </Portal.Host>
+      </BottomSheet>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  modalContainer: {
-    backgroundColor: Colors.light.background,
-    margin: 16,
-    borderRadius: 16,
-    maxHeight: '90%',
-    overflow: 'hidden',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
-  },
-  headerText: {
-    flex: 1,
-  },
-  title: {
-    fontWeight: '700',
-    color: Colors.light.text,
-  },
-  subtitle: {
-    marginTop: 2,
-    color: Colors.light.textSecondary,
-  },
-  closeButton: {
-    margin: 0,
-    minWidth: 120,
-  },
   loadingContainer: {
     padding: 40,
     alignItems: 'center',
@@ -547,15 +480,14 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 24,
   },
-  
+
   // Info Banner
   infoBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     padding: 12,
-    marginHorizontal: 16,
-    marginTop: 12,
+    marginBottom: 12,
     borderRadius: 8,
   },
   infoBannerWarning: {
@@ -582,23 +514,17 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
     marginTop: 2,
   },
-  
+
   // Quick Actions
   quickActions: {
     flexDirection: 'row',
     gap: 8,
-    paddingHorizontal: 16,
     paddingVertical: 12,
   },
   quickActionButton: {
     flex: 1,
   },
-  
-  // Scroll Content
-  scrollContent: {
-    padding: 16,
-    maxHeight: 400,
-  },
+
   sectionTitle: {
     fontSize: 16,
     fontWeight: '600',
@@ -606,7 +532,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginTop: 8,
   },
-  
+
   // Item Card
   itemCard: {
     backgroundColor: Colors.light.card,
@@ -616,7 +542,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.light.border,
   },
-  itemCardSelected: {},
   itemHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -662,12 +587,12 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 8,
   },
-  
+
   // Reason Input
   reasonInput: {
     marginBottom: 16,
   },
-  
+
   // Summary Card
   summaryCard: {
     backgroundColor: Colors.light.card,
@@ -698,21 +623,5 @@ const styles = StyleSheet.create({
   },
   summaryTotal: {
     fontSize: 18,
-  },
-  
-  // Footer
-  footer: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderTopWidth: 1,
-    borderTopColor: Colors.light.border,
-  },
-  cancelButton: {
-    flex: 1,
-  },
-  confirmButton: {
-    flex: 1,
   },
 });

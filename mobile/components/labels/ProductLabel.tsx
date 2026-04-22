@@ -1,16 +1,14 @@
 /**
- * ProductLabel - Etiqueta de produto com QR Code e logo da loja
+ * ProductLabel - Etiqueta de produto com QR Code e logo no centro
  *
- * Gera uma etiqueta impressa com:
- * - Logo da loja (quando configurado)
- * - QR Code do produto (SKU, ID, variante)
- * - Nome, Preço, SKU, Variação
- *
- * Pode ser exportada como imagem via ViewShot.
+ * Recebe widthPx/heightPx que espelham exatamente as dimensões físicas
+ * do formato escolhido (mm × PREVIEW_SCALE). O ViewShot captura o grid
+ * completo e buildPrintHtml define width/height em mm no HTML para que
+ * a impressora respeite as dimensões físicas reais.
  */
 
 import React from 'react';
-import { View, StyleSheet, Image } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
 import QRCode from 'react-native-qrcode-svg';
 import { Colors, theme } from '@/constants/Colors';
@@ -28,30 +26,36 @@ export interface LabelData {
 
 interface ProductLabelProps {
   data: LabelData;
-  size?: 'small' | 'medium' | 'large';
+  /** Largura em px = widthMm × PREVIEW_SCALE */
+  widthPx: number;
+  /** Altura em px = heightMm × PREVIEW_SCALE */
+  heightPx: number;
   showPrice?: boolean;
   showSku?: boolean;
   showLogo?: boolean;
 }
-
-const SIZES = {
-  small:  { width: 150, qrSize: 52,  nameFontSize: 9,  priceFontSize: 12, skuFontSize: 8,  logoSize: 14, padding: 6  },
-  medium: { width: 200, qrSize: 72,  nameFontSize: 11, priceFontSize: 15, skuFontSize: 9,  logoSize: 18, padding: 10 },
-  large:  { width: 280, qrSize: 104, nameFontSize: 13, priceFontSize: 19, skuFontSize: 11, logoSize: 24, padding: 14 },
-};
 
 const formatPrice = (price: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(price);
 
 export default function ProductLabel({
   data,
-  size = 'medium',
+  widthPx,
+  heightPx,
   showPrice = true,
   showSku = true,
   showLogo = true,
 }: ProductLabelProps) {
   const { branding } = useBrandingStore();
-  const dim = SIZES[size];
+
+  // Tamanhos derivados proporcionalmente das dimensões físicas
+  const padding     = Math.max(3, Math.round(Math.min(widthPx, heightPx) * 0.05));
+  const innerH      = heightPx - padding * 2;
+  const qrSize      = Math.round(innerH * 0.58);
+  const logoSize    = Math.round(qrSize * 0.18);
+  const nameFontSize  = Math.min(Math.round(innerH * 0.11), 14);
+  const priceFontSize = Math.min(Math.round(innerH * 0.15), 18);
+  const skuFontSize   = Math.min(Math.round(innerH * 0.08), 10);
 
   const qrData = JSON.stringify({
     sku: data.sku,
@@ -63,57 +67,46 @@ export default function ProductLabel({
   const variantLine = [data.color, data.size].filter(Boolean).join(' / ');
 
   return (
-    <View style={[styles.container, { width: dim.width }]}>
-      <View style={[styles.label, { padding: dim.padding, borderColor: branding.primaryColor + '40' }]}>
-
-        {/* Header: logo + nome da loja */}
-        {showLogo && (
-          <View style={styles.header}>
-            {branding.logoUri ? (
-              <Image
-                source={{ uri: branding.logoUri }}
-                style={[styles.logo, { width: dim.logoSize, height: dim.logoSize, borderRadius: dim.logoSize / 2 }]}
-              />
-            ) : null}
-            <Text style={[styles.storeName, { fontSize: dim.skuFontSize, color: branding.primaryColor }]}
-              numberOfLines={1}>
-              {branding.name}
-            </Text>
-          </View>
-        )}
-
-        {/* QR Code */}
+    <View style={[styles.container, { width: widthPx, height: heightPx }]}>
+      <View style={[
+        styles.label,
+        { padding, borderColor: branding.primaryColor + '40' },
+      ]}>
+        {/* QR Code com logo embutida no centro */}
         <View style={styles.qrWrapper}>
           <QRCode
             value={qrData}
-            size={dim.qrSize}
+            size={qrSize}
             backgroundColor="white"
             color={Colors.light.text}
+            logo={showLogo && branding.logoUri ? { uri: branding.logoUri } : undefined}
+            logoSize={logoSize}
+            logoBackgroundColor="#fff"
+            logoBorderRadius={Math.round(logoSize / 4)}
           />
         </View>
 
         {/* Info */}
         <View style={styles.info}>
-          <Text style={[styles.name, { fontSize: dim.nameFontSize }]} numberOfLines={2}>
+          <Text style={[styles.name, { fontSize: nameFontSize }]} numberOfLines={2}>
             {data.name}
           </Text>
           {variantLine.length > 0 && (
-            <Text style={[styles.variant, { fontSize: dim.skuFontSize }]}>
+            <Text style={[styles.variant, { fontSize: skuFontSize }]}>
               {variantLine}
             </Text>
           )}
           {showPrice && (
-            <Text style={[styles.price, { fontSize: dim.priceFontSize, color: branding.primaryColor }]}>
+            <Text style={[styles.price, { fontSize: priceFontSize, color: branding.primaryColor }]}>
               {formatPrice(data.price)}
             </Text>
           )}
           {showSku && (
-            <Text style={[styles.sku, { fontSize: dim.skuFontSize - 1 }]}>
+            <Text style={[styles.sku, { fontSize: Math.max(skuFontSize - 1, 6) }]}>
               {data.sku}
             </Text>
           )}
         </View>
-
       </View>
     </View>
   );
@@ -122,39 +115,26 @@ export default function ProductLabel({
 const styles = StyleSheet.create({
   container: {
     backgroundColor: '#fff',
-    padding: 4,
+    overflow: 'hidden',
   },
   label: {
+    flex: 1,
     borderWidth: 1,
     borderStyle: 'dashed',
     borderRadius: theme.borderRadius.sm,
     alignItems: 'center',
-    gap: 6,
-  },
-  header: {
-    flexDirection: 'column',
-    alignItems: 'center',
     justifyContent: 'center',
     gap: 3,
-    alignSelf: 'center',
-    width: '100%',
-  },
-  logo: {
-    resizeMode: 'cover',
-  },
-  storeName: {
-    fontWeight: theme.fontWeight.bold,
-    textAlign: 'center',
-    width: '100%',
   },
   qrWrapper: {
     backgroundColor: '#fff',
-    padding: 2,
+    padding: 1,
   },
   info: {
     alignItems: 'center',
     width: '100%',
-    gap: 2,
+    gap: 1,
+    paddingHorizontal: 2,
   },
   name: {
     fontWeight: theme.fontWeight.semibold,
@@ -171,6 +151,6 @@ const styles = StyleSheet.create({
   sku: {
     fontFamily: 'monospace',
     color: Colors.light.textSecondary,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
 });

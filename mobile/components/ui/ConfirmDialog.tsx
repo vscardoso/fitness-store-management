@@ -10,7 +10,6 @@ import { View, StyleSheet, ScrollView, Animated } from 'react-native';
 import { Portal, Modal, Text, Button, Surface, IconButton } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, theme } from '@/constants/Colors';
-import { useBrandingColors } from '@/store/brandingStore';
 
 export interface ConfirmDialogProps {
   visible: boolean;
@@ -39,8 +38,6 @@ export default function ConfirmDialog({
   icon,
   loading = false,
 }: ConfirmDialogProps) {
-  const brandingColors = useBrandingColors();
-
   const getTypeConfig = () => {
     switch (type) {
       case 'danger':
@@ -59,10 +56,10 @@ export default function ConfirmDialog({
         };
       case 'info':
         return {
-          color: brandingColors.primary,
-          backgroundColor: brandingColors.primary + '18',
+          color: Colors.light.info,
+          backgroundColor: Colors.light.info + '18',
           icon: icon || 'information-circle',
-          confirmButtonColor: brandingColors.primary,
+          confirmButtonColor: Colors.light.info,
         };
       case 'success':
         return {
@@ -139,6 +136,7 @@ export default function ConfirmDialog({
                 mode="outlined"
                 onPress={onCancel}
                 style={styles.cancelButton}
+                textColor={Colors.light.textSecondary}
                 disabled={loading}
               >
                 {cancelText}
@@ -151,6 +149,7 @@ export default function ConfirmDialog({
                 cancelText && cancelText.trim() !== '' ? styles.confirmButton : styles.confirmButtonFull,
                 { backgroundColor: config.confirmButtonColor }
               ]}
+              textColor="#fff"
               loading={loading}
               disabled={loading}
             >
@@ -251,6 +250,8 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 12,
     borderWidth: 1.5,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
   },
   confirmButton: {
     flex: 1,

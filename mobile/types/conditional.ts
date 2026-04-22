@@ -5,6 +5,7 @@
 export type ShipmentStatus =
   | 'PENDING'                    // Aguardando envio
   | 'SENT'                       // Enviado, aguardando retorno
+  | 'OVERDUE'                    // Enviado, prazo vencido (legado/compat)
   | 'RETURNED_NO_SALE'           // Devolveu tudo, não vendeu nada
   | 'COMPLETED_PARTIAL_SALE'     // Vendeu alguns, devolveu outros
   | 'COMPLETED_FULL_SALE';       // Vendeu tudo
@@ -26,9 +27,12 @@ export interface ConditionalShipmentItem {
   quantity_sent: number;
   quantity_kept: number;
   quantity_returned: number;
+  quantity_damaged: number;
+  quantity_lost: number;
   quantity_pending: number;  // Calculado: sent - kept - returned
   status: ShipmentItemStatus;
   unit_price: number;
+  unit_cost?: number | null;
   notes?: string;
   total_value: number;  // Calculado: sent * price
   kept_value: number;   // Calculado: kept * price
@@ -151,6 +155,8 @@ export interface ProcessReturnItemDTO {
   id: number;  // ID do item
   quantity_kept: number;
   quantity_returned: number;
+  quantity_damaged: number;
+  quantity_lost: number;
   status: ShipmentItemStatus;
   notes?: string;
 }
@@ -179,20 +185,22 @@ export interface ShipmentFilters {
 export const SHIPMENT_STATUS_COLORS: Record<ShipmentStatus, string> = {
   PENDING: '#9E9E9E',                // Cinza - Aguardando
   SENT: '#2196F3',                   // Azul - Em trânsito
+  OVERDUE: '#F44336',                // Vermelho - Atrasado
   RETURNED_NO_SALE: '#F44336',       // Vermelho - Sem venda
   COMPLETED_PARTIAL_SALE: '#FF9800', // Laranja - Venda parcial
   COMPLETED_FULL_SALE: '#4CAF50',    // Verde - Venda total
 };
 
 /**
- * Ícones para status (MaterialCommunityIcons - usado pelo react-native-paper)
+ * Ícones para status (Ionicons)
  */
 export const SHIPMENT_STATUS_ICONS: Record<ShipmentStatus, string> = {
   PENDING: 'clock-outline',
-  SENT: 'package-variant',
-  RETURNED_NO_SALE: 'keyboard-return',
-  COMPLETED_PARTIAL_SALE: 'check-circle',
-  COMPLETED_FULL_SALE: 'check-all',
+  SENT: 'cube-outline',
+  OVERDUE: 'alert-circle-outline',
+  RETURNED_NO_SALE: 'return-up-back-outline',
+  COMPLETED_PARTIAL_SALE: 'checkmark-circle-outline',
+  COMPLETED_FULL_SALE: 'checkmark-done-outline',
 };
 
 /**
@@ -201,6 +209,7 @@ export const SHIPMENT_STATUS_ICONS: Record<ShipmentStatus, string> = {
 export const SHIPMENT_STATUS_LABELS: Record<ShipmentStatus, string> = {
   PENDING: 'Pendente',
   SENT: 'Enviado',
+  OVERDUE: 'Atrasado',
   RETURNED_NO_SALE: 'Sem Venda',
   COMPLETED_PARTIAL_SALE: 'Venda Parcial',
   COMPLETED_FULL_SALE: 'Venda Total',
