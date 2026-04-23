@@ -51,12 +51,21 @@ class PublicLook(BaseModel):
 # ── Helper ───────────────────────────────────────────────────────────────────
 
 async def _get_default_tenant(db: AsyncSession) -> int:
+    # 1) Loja marcada como padrão
     row = (await db.execute(
         text("SELECT id FROM stores WHERE is_default = true AND is_active = true LIMIT 1")
     )).fetchone()
-    if not row:
-        raise HTTPException(status_code=503, detail="Loja não configurada")
-    return row[0]
+    if row:
+        return row[0]
+
+    # 2) Fallback: primeira loja ativa (menor id)
+    row = (await db.execute(
+        text("SELECT id FROM stores WHERE is_active = true ORDER BY id LIMIT 1")
+    )).fetchone()
+    if row:
+        return row[0]
+
+    raise HTTPException(status_code=503, detail="Loja não configurada")
 
 
 # ── Produtos ─────────────────────────────────────────────────────────────────
