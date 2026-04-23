@@ -8,18 +8,6 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  // Redirecionar www → sem www (URL canônica)
-  async redirects() {
-    return [
-      {
-        source: "/:path*",
-        has: [{ type: "host", value: "www.wamodafitness.com.br" }],
-        destination: "https://wamodafitness.com.br/:path*",
-        permanent: true,
-      },
-    ];
-  },
-
   // Headers de segurança e SEO
   async headers() {
     return [
