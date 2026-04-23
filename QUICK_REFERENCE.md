@@ -21,11 +21,11 @@
 ### 3. Cole no Chat e Aguarde
 
 Claude vai:
-1. ✅ Ler AGENT_ORCHESTRATION.md
-2. ✅ Identificar camadas afetadas
-3. ✅ Chamar agentes na ordem correta
-4. ✅ Validar cada etapa
-5. ✅ Reportar status completo
+1. ✅ Ler CLAUDE.md (arquitetura e padrões do projeto)
+2. ✅ Identificar camadas afetadas (backend / mobile / web)
+3. ✅ Executar diretamente com ferramentas (Read, Edit, Write, Bash)
+4. ✅ Seguir a ordem: Model → Schema → Migration → Service → Endpoint → Types → Service → Screen
+5. ✅ Reportar status completo ao final
 
 ---
 
@@ -379,21 +379,20 @@ Colors.light = {
 ### Padrões de Header
 
 ```typescript
-// Header com gradiente (PADRÃO)
-<LinearGradient
-  colors={[Colors.light.primary, Colors.light.secondary]}
-  start={{ x: 0, y: 0 }}
-  end={{ x: 1, y: 1 }}
-  style={{
-    paddingTop: 50,              // StatusBar + espaço
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  }}
->
-  {/* Conteúdo */}
-</LinearGradient>
+// ✅ PADRÃO ATUAL — usar sempre PageHeader
+import PageHeader from '@/components/layout/PageHeader';
+
+<PageHeader
+  title="Título"
+  subtitle="Subtítulo opcional"
+  showBackButton        // omitir em tabs raiz
+  onBack={() => router.back()}
+  rightAction={<TouchableOpacity onPress={...}><Ionicons .../></TouchableOpacity>}
+/>
+// PageHeader já usa useBrandingColors() internamente — NÃO passar cores manuais
+
+// ❌ LEGADO — não usar mais
+// <LinearGradient colors={[Colors.light.primary, Colors.light.secondary]} ...>
 ```
 
 ### Padrões de Cards
@@ -415,21 +414,28 @@ const cardStyle = {
 ### Padrões de Formulários
 
 ```typescript
-// TextInput padrão (react-native-paper)
+// ✅ PADRÃO ATUAL — TextInput nativo
+import { TextInput } from 'react-native';
+
 <TextInput
-  label="Nome do Campo *"
+  style={{
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    paddingHorizontal: theme.spacing.md,
+    height: 52,
+    fontSize: theme.fontSize.base,
+    color: Colors.light.text,
+  }}
+  placeholder="Nome do campo"
+  placeholderTextColor={Colors.light.textTertiary}
   value={value}
   onChangeText={setValue}
-  mode="outlined"                    // SEMPRE outlined
-  style={{
-    marginBottom: 12,
-    backgroundColor: Colors.light.card
-  }}
-  left={<TextInput.Icon icon="icon-name" />}  // Ícone opcional
 />
 
-// Campos obrigatórios: Label + " *"
-// Validação: Alert.alert('Erro', 'Mensagem clara')
+// ❌ LEGADO — não usar mais
+// <TextInput mode="outlined" label="..." /> do react-native-paper
 ```
 
 ### Padrões de Botões
@@ -603,24 +609,29 @@ import FAB from '@/components/FAB';
 ### Padrões de Feedback
 
 ```typescript
-// Loading global (automático via api interceptor)
-// NÃO precisa fazer nada, já é automático
+// Loading global — automático via interceptor em api.ts
+// Desabilitar: { headers: { 'X-Skip-Loading': 'true' } }
+// Mensagem custom: { headers: { 'X-Loading-Message': 'Salvando...' } }
 
-// Mensagem de sucesso
-Alert.alert('Sucesso', 'Ação realizada com sucesso');
+// ✅ Confirmações e erros — usar ConfirmDialog (não Alert)
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
-// Mensagem de erro
-Alert.alert('Erro', error.response?.data?.detail || 'Erro ao realizar ação');
+const [dialog, setDialog] = useState({ visible: false, ... });
 
-// Confirmação antes de ação destrutiva
-Alert.alert(
-  'Confirmar Ação',
-  'Tem certeza que deseja fazer isso?',
-  [
-    { text: 'Cancelar', style: 'cancel' },
-    { text: 'Confirmar', style: 'destructive', onPress: handleAction },
-  ]
-);
+<ConfirmDialog
+  visible={dialog.visible}
+  type="danger"           // 'danger' | 'warning' | 'info' | 'success'
+  title="Confirmar"
+  message="Tem certeza?"
+  confirmText="Confirmar"
+  cancelText="Cancelar"
+  onConfirm={() => { handleAction(); setDialog(d => ({ ...d, visible: false })); }}
+  onCancel={() => setDialog(d => ({ ...d, visible: false }))}
+/>
+
+// Haptics para feedback tátil
+import { haptics } from '@/utils/haptics';
+haptics.success(); haptics.error(); haptics.warning(); haptics.light();
 ```
 
 ### Padrões de Navegação
@@ -820,15 +831,15 @@ Adicionar campo
 - Corrigir bug/inconsistência? → **FIX-INCONSISTENCY**
 - Melhorar código sem mudar feature? → **REFACTOR**
 
-### "Claude não chamou os agentes corretos"
-**Solução:** Force a ordem:
+### "Claude não seguiu a ordem correta"
+**Solução:** Force a ordem explicitamente:
 ```bash
 🔄 FULL-STACK NEW-FEATURE: [descrição]
 
-Ordem de execução:
-1. Backend Agent: criar models, schemas, endpoints
-2. Frontend Agent: criar telas, services, types
-3. UX Agent: revisar e ajustar interface
+Ordem obrigatória:
+1. Backend: model → schema → migration (python migrate.py) → service → endpoint
+2. Mobile: types → service → component → screen → invalidateQueries
+3. Web (se aplicável): types → service → page/component
 ```
 
 ---
@@ -898,13 +909,18 @@ Se abrir uma nova sessão do Claude Code, comece com:
 ```markdown
 📚 **CONTEXTO DO PROJETO**
 
-Este projeto usa sistema de orquestração de agentes documentado em:
-- AGENT_ORCHESTRATION.md (processo completo)
+Stack: FastAPI (Python 3.11) + React Native/Expo + Next.js (web)
+Domínio web: wamodafitness.com.br (Vercel)
+Backend: Render (PostgreSQL)
+
+Documentação em:
+- CLAUDE.md (arquitetura, padrões obrigatórios)
 - QUICK_REFERENCE.md (comandos rápidos)
 
-Ao ver comando `🔄 FULL-STACK`, siga o protocolo definido nesses arquivos.
+Ao ver comando `🔄 FULL-STACK`, execute diretamente seguindo:
+Backend → Mobile → Web (quando aplicável)
 
-Agora vou passar minha demanda:
+Minha demanda:
 [cole seu comando aqui]
 ```
 
