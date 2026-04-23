@@ -127,10 +127,14 @@ export default function CheckoutScreen() {
     return null;
   }, [cart.payments, isMixedMode, availableDiscount, paymentDiscounts]);
 
-  /**
-   * Voltar para tela de vendas
-   * Nota: A limpeza de estado é feita automaticamente pelo useFocusEffect
-   */
+  const invalidateProductQueries = () => {
+    queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+    queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
+    queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
+    queryClient.invalidateQueries({ queryKey: ['products'] });
+    queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+  };
+
   const handleGoBack = () => {
     goBack();
   };
@@ -195,18 +199,7 @@ export default function CheckoutScreen() {
    */
   useEffect(() => {
     if (!cart.hasItems()) {
-      setDialog({
-        visible: true,
-        type: 'warning',
-        title: 'Carrinho vazio',
-        message: 'Adicione produtos antes de finalizar a venda.',
-        confirmText: 'OK',
-        cancelText: '',
-        onConfirm: () => {
-          setDialog({ ...dialog, visible: false });
-          router.replace('/(tabs)/sale');
-        },
-      });
+      router.replace('/(tabs)/sale');
     }
   }, [cart.items]);
 
@@ -235,62 +228,57 @@ export default function CheckoutScreen() {
   }, []);
 
   /**
-   * Fix: revalidar preços e status dos produtos ao abrir o checkout.
+   * Revalidar preços e status dos produtos ao abrir o checkout.
    * - Produto desativado → removido do carrinho com aviso
-   * - Preço alterado → unit_price atualizado com aviso
+   * - Preço alterado → aviso (item permanece no carrinho com preço original)
    */
   useEffect(() => {
     if (cart.items.length === 0) return;
     let cancelled = false;
 
+    const snapshot = [...cart.items];
+
     (async () => {
-      const warnings: string[] = [];
-
-      for (const item of cart.items) {
-        try {
-          const latest = await getProductById(item.product_id, skipLoading());
-          if (cancelled) return;
-
-          if (!latest || !latest.is_active) {
-            cart.removeItem(item.cart_key);
-            warnings.push(`"${item.product.name}" foi removido (produto inativo).`);
-            continue;
-          }
-
-          const currentVariant = item.variant_id
-            ? latest.variants?.find((v: any) => v.id === item.variant_id)
-            : null;
-          const currentPrice = currentVariant
-            ? Number(currentVariant.price)
-            : Number(latest.price ?? latest.sale_price);
-
-          if (
-            currentPrice > 0 &&
-            Math.abs(currentPrice - item.unit_price) > 0.001
-          ) {
-            cart.updateQuantity(item.cart_key, item.quantity); // força recalc
-            // Atualizar preço diretamente no item
-            cart.removeItem(item.cart_key);
-            if (item.variant_id && currentVariant) {
-              // re-add com preço novo
-              const updatedItem = {
-                ...item,
-                unit_price: currentPrice,
-                product: { ...item.product, price: currentPrice },
-              };
-              // usar updateQuantity via patch manual no store não é viável sem action dedicada
-              // então informamos apenas via warning — o preço correto será usado na próxima adição
+      const results = await Promise.all(
+        snapshot.map(async (item) => {
+          try {
+            const latest = await getProductById(item.product_id, skipLoading());
+            if (!latest || !latest.is_active) {
+              return { type: 'removed' as const, item };
             }
-            warnings.push(
-              `"${item.product.name}"${item.variant_label ? ` (${item.variant_label})` : ''}: preço atualizado de ${formatCurrency(item.unit_price)} para ${formatCurrency(currentPrice)}.`,
-            );
+            const currentVariant = item.variant_id
+              ? latest.variants?.find((v: any) => v.id === item.variant_id)
+              : null;
+            const currentPrice = currentVariant
+              ? Number(currentVariant.price)
+              : Number(latest.price ?? latest.sale_price);
+            if (currentPrice > 0 && Math.abs(currentPrice - item.unit_price) > 0.001) {
+              return { type: 'price_changed' as const, item, currentPrice };
+            }
+            return null;
+          } catch {
+            return null;
           }
-        } catch {
-          // silencioso — não bloquear checkout por erro de rede
+        })
+      );
+
+      if (cancelled) return;
+
+      const warnings: string[] = [];
+      for (const result of results) {
+        if (!result) continue;
+        if (result.type === 'removed') {
+          cart.removeItem(result.item.cart_key);
+          warnings.push(`"${result.item.product.name}" foi removido (produto inativo).`);
+        } else if (result.type === 'price_changed') {
+          const { item, currentPrice } = result;
+          warnings.push(
+            `"${item.product.name}"${item.variant_label ? ` (${item.variant_label})` : ''}: preço atualizado de ${formatCurrency(item.unit_price)} para ${formatCurrency(currentPrice)}.`,
+          );
         }
       }
 
-      if (!cancelled && warnings.length > 0) {
+      if (warnings.length > 0) {
         setDialog({
           visible: true,
           type: 'warning',
@@ -681,11 +669,7 @@ export default function CheckoutScreen() {
             items: saleData.items.map((i: any) => ({ ...i, discount_amount: i.discount_amount ?? 0 })),
           });
           haptics.success();
-          queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
-          queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
-          queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
-          queryClient.invalidateQueries({ queryKey: ['products'] });
-          queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+          invalidateProductQueries();
           cart.clear();
           router.replace({
             pathname: '/(tabs)/pdv/pix-checkout',
@@ -737,11 +721,7 @@ export default function CheckoutScreen() {
             items: saleData.items.map((i: any) => ({ ...i, discount_amount: i.discount_amount ?? 0 })),
           });
           haptics.success();
-          queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
-          queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
-          queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
-          queryClient.invalidateQueries({ queryKey: ['products'] });
-          queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+          invalidateProductQueries();
           cart.clear();
           router.replace({
             pathname: '/(tabs)/pdv/terminal-checkout',
@@ -777,12 +757,7 @@ export default function CheckoutScreen() {
         onSuccess: (sale) => {
           haptics.success();
 
-          // Sincronizar listagens de produto/estoque usadas no PDV e inventário
-          queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
-          queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
-          queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
-          queryClient.invalidateQueries({ queryKey: ['products'] });
-          queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+          invalidateProductQueries();
 
           // Limpar carrinho
           cart.clear();

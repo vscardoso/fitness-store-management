@@ -3,7 +3,6 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  Share,
   Alert,
   Text,
   TouchableOpacity,
@@ -281,25 +280,6 @@ export default function ProductQRCodeScreen() {
 
   const selectAllLabelVariants = () => {
     setSelectedLabelVariantIds(activeVariants.map((variant) => variant.id));
-  };
-
-  const handleShareTextInfo = async () => {
-    if (!product) return;
-
-    const shareName = selectedVariant
-      ? `${product.name} - ${formatVariantLabel(selectedVariant)}`
-      : product.name;
-    const shareSku = selectedVariant?.sku || product.sku || '-';
-    const sharePrice = selectedVariant?.price ?? product.price;
-
-    try {
-      await Share.share({
-        message: `${shareName}\nSKU: ${shareSku}\nPreço: R$ ${sharePrice}`,
-        title: shareName,
-      });
-    } catch {
-      Alert.alert('Erro', 'Não foi possível compartilhar.');
-    }
   };
 
   const captureCardUri = async (ref: React.RefObject<ViewShot>, unavailableMessage: string) => {

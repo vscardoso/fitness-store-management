@@ -463,11 +463,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.3,
   },
-  amount: {
-    fontSize: 22,
-    fontWeight: '700',
-    letterSpacing: -0.5,
-  },
   cardBottom: {
     flexDirection: 'row',
     justifyContent: 'space-between',

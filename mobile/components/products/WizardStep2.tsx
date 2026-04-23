@@ -28,6 +28,7 @@ import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
 import { getActiveProducts } from '@/services/productService';
 import { generateSKU, generateVariantSKU } from '@/utils/skuGenerator';
 import { capitalizeWords } from '@/utils/format';
+import { formatPriceInput } from '@/utils/priceFormatter';
 
 interface WizardStep2Props {
   wizard: UseProductWizardReturn;
@@ -65,7 +66,6 @@ export default function WizardStep2({
 
   // Local state para edição inline
   const [formData, setFormData] = useState(state.productData);
-  const [markup, setMarkup] = useState<number | null>(null);
 
   // Estados locais para preços (strings durante edição)
   const [costPriceStr, setCostPriceStr] = useState(
@@ -148,36 +148,17 @@ export default function WizardStep2({
   }, [state.hasVariants, formData.sku, state.variantColors, state.variantSizes, state.colorSizes]);
 
 
-  // Calcular markup automaticamente
-  useEffect(() => {
+  // Markup derivado diretamente dos preços (sem estado redundante)
+  const markup = useMemo(() => {
     const cost = parseFloat(costPriceStr) || 0;
     const price = parseFloat(salePriceStr) || 0;
     if (cost > 0 && price > cost) {
-      const calculatedMarkup = ((price - cost) / cost) * 100;
-      setMarkup(calculatedMarkup);
-    } else {
-      setMarkup(null);
+      return ((price - cost) / cost) * 100;
     }
+    return null;
   }, [costPriceStr, salePriceStr]);
 
   const selectedCategory = categories.find(c => c.id === formData.category_id);
-
-  /**
-   * Formatar entrada de preço com centavos
-   * Remove tudo exceto números e converte em decimal
-   */
-  const formatPriceInput = (text: string): string => {
-    // Remove tudo exceto números
-    const numbers = text.replace(/[^0-9]/g, '');
-
-    if (numbers.length === 0) return '';
-
-    // Converte para número com centavos
-    const value = parseInt(numbers) / 100;
-
-    // Formata com 2 casas decimais
-    return value.toFixed(2);
-  };
 
   const updateField = (field: string, value: any) => {
     setFormData({ ...formData, [field]: value });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -45,7 +45,6 @@ export default function ProductSelectionModal({
     data: products,
     isLoading,
     isError,
-    refetch,
   } = useQuery({
     queryKey: ['grouped-products-modal', hasStock],
     queryFn: () => getGroupedProducts({ limit: 500, has_stock: hasStock }),
@@ -57,27 +56,19 @@ export default function ProductSelectionModal({
     if (visible) {
       setSearchQuery('');
       setSelectedProduct(null);
-      refetch();
     }
-  }, [visible, refetch]);
+  }, [visible]);
 
   // Filter products by search query (client-side filtering)
-  const filteredProducts = products?.filter((product: ProductGrouped) => {
-    // Em fluxos de venda/condicional com hasStock=true, nunca listar produto zerado
-    if (hasStock && (product.total_stock ?? 0) <= 0) {
-      return false;
-    }
-
-    if (!searchQuery.trim()) {
-      return true;
-    }
-
+  const filteredProducts = useMemo(() => products?.filter((product: ProductGrouped) => {
+    if (hasStock && (product.total_stock ?? 0) <= 0) return false;
+    if (!searchQuery.trim()) return true;
     const search = searchQuery.toLowerCase();
     return (
       product.name.toLowerCase().includes(search) ||
       product.brand?.toLowerCase().includes(search)
     );
-  });
+  }), [products, searchQuery, hasStock]);
 
   const handleProductPress = (product: ProductGrouped) => {
     setSelectedProduct(prev => prev?.id === product.id ? null : product);
@@ -132,43 +123,40 @@ export default function ProductSelectionModal({
         {/* Variantes expandidas */}
         {isSelected && visibleVariants.length > 0 && (
           <View style={styles.variantsWrap}>
-            {visibleVariants.map((variant) => (
-              // Keep all variants visible; when stock is required, disable selection for empty variants.
-              (() => {
-                const isOutOfStock = hasStock && (variant.current_stock ?? 0) <= 0;
-                return (
-              <TouchableOpacity
-                key={`${item.id}-${variant.id}`}
-                onPress={() => !isOutOfStock && handleVariantPress(item, variant)}
-                activeOpacity={0.75}
-                disabled={isOutOfStock}
-                style={[styles.variantRow, isOutOfStock && styles.variantRowDisabled]}
-              >
-                <View style={styles.variantLeft}>
-                  <View style={styles.variantDot} />
-                  <View>
-                    <Text style={styles.variantLabel}>
-                      {[variant.size, variant.color].filter(Boolean).join(' · ') || 'Único'}
-                    </Text>
-                    {variant.sku ? (
-                      <Text style={styles.variantSku}>SKU: {variant.sku}</Text>
-                    ) : null}
+            {visibleVariants.map((variant) => {
+              const isOutOfStock = hasStock && (variant.current_stock ?? 0) <= 0;
+              return (
+                <TouchableOpacity
+                  key={`${item.id}-${variant.id}`}
+                  onPress={() => !isOutOfStock && handleVariantPress(item, variant)}
+                  activeOpacity={0.75}
+                  disabled={isOutOfStock}
+                  style={[styles.variantRow, isOutOfStock && styles.variantRowDisabled]}
+                >
+                  <View style={styles.variantLeft}>
+                    <View style={styles.variantDot} />
+                    <View>
+                      <Text style={styles.variantLabel}>
+                        {[variant.size, variant.color].filter(Boolean).join(' · ') || 'Único'}
+                      </Text>
+                      {variant.sku ? (
+                        <Text style={styles.variantSku}>SKU: {variant.sku}</Text>
+                      ) : null}
+                    </View>
                   </View>
-                </View>
-                <View style={styles.variantRight}>
-                  <Text style={[styles.variantPrice, { color: brandingColors.primary }]}>
-                    {formatCurrency(variant.price)}
-                  </Text>
-                  <View style={[styles.stockPill, { backgroundColor: isOutOfStock ? Colors.light.error + '18' : Colors.light.success + '18' }]}>
-                    <Text style={[styles.stockPillText, { color: isOutOfStock ? Colors.light.error : Colors.light.success }]}>
-                      {variant.current_stock}
+                  <View style={styles.variantRight}>
+                    <Text style={[styles.variantPrice, { color: brandingColors.primary }]}>
+                      {formatCurrency(variant.price)}
                     </Text>
+                    <View style={[styles.stockPill, { backgroundColor: isOutOfStock ? Colors.light.error + '18' : Colors.light.success + '18' }]}>
+                      <Text style={[styles.stockPillText, { color: isOutOfStock ? Colors.light.error : Colors.light.success }]}>
+                        {variant.current_stock}
+                      </Text>
+                    </View>
                   </View>
-                </View>
-              </TouchableOpacity>
-                );
-              })()
-            ))}
+                </TouchableOpacity>
+              );
+            })}
           </View>
         )}
       </View>

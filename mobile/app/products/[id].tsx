@@ -16,7 +16,6 @@ import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { Card } from 'react-native-paper';
 import PageHeader from '@/components/layout/PageHeader';
 import InfoRow from '@/components/ui/InfoRow';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -50,24 +49,6 @@ export default function ProductDetailsScreen() {
       router.replace('/(tabs)/products');
     }
   }, [id, isValidId]);
-
-  // Estados do modal de estoque - REMOVIDOS (agora usa sistema FIFO com Entradas)
-
-  const toBRNumber = (n: number) => {
-    try {
-      return new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-    } catch (e) {
-      return n.toFixed(2).replace('.', ',');
-    }
-  };
-
-  const maskCurrencyBR = (text: string) => {
-    const digits = (text || '').replace(/\D/g, '');
-    if (!digits) return '';
-    const number = parseInt(digits, 10);
-    const value = (number / 100);
-    return toBRNumber(value);
-  };
 
   // Estado para controlar diálogos de confirmação
   const [dialog, setDialog] = useState<{
@@ -149,7 +130,7 @@ export default function ProductDetailsScreen() {
       refetchInventory();
       refetchVariants();
       refetchMedia();
-    }, [refetchInventory, refetchProduct, refetchVariants])
+    }, [refetchInventory, refetchProduct, refetchVariants, refetchMedia])
   );
 
   /**
@@ -157,15 +138,10 @@ export default function ProductDetailsScreen() {
    */
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refetchProduct(), refetchInventory(), refetchVariants()]);
+    await Promise.all([refetchProduct(), refetchInventory(), refetchVariants(), refetchMedia()]);
     setRefreshing(false);
   };
 
-  // Mutation de movimentação de estoque REMOVIDA - agora usa sistema FIFO com Entradas
-
-  /**
-   * Mutation: Deletar produto
-   */
   const deleteMutation = useMutation({
     mutationFn: () => deleteProduct(productId),
     onSuccess: () => {
@@ -220,8 +196,6 @@ export default function ProductDetailsScreen() {
       },
     });
   };
-
-  // Funções de movimentação de estoque REMOVIDAS - agora usa sistema FIFO com Entradas
 
   // Verificar ID inválido
   if (!isValidId) {
@@ -787,7 +761,7 @@ export default function ProductDetailsScreen() {
                             styles.supplierMetricValue,
                             { color: isCheapest ? VALUE_COLORS.positive : VALUE_COLORS.neutral },
                           ]}>
-                            {new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(ps.last_unit_cost)}
+                            {formatCurrency(ps.last_unit_cost)}
                           </Text>
                         </View>
                         <View style={styles.supplierMetricCol}>
@@ -810,8 +784,8 @@ export default function ProductDetailsScreen() {
         })()}
 
         {/* ── ETIQUETAS & QR CODE ── */}
-        <Card style={styles.card}>
-          <Card.Content>
+        <View style={styles.card}>
+          <View style={styles.cardInner}>
             <View style={styles.cardHeader}>
               <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
                 <Ionicons name="print-outline" size={20} color={brandingColors.primary} />
@@ -850,8 +824,8 @@ export default function ProductDetailsScreen() {
                 <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
               </TouchableOpacity>
             </View>
-          </Card.Content>
-        </Card>
+          </View>
+        </View>
 
         {/* Botões de ação */}
         <View style={styles.actions}>

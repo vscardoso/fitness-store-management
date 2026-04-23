@@ -232,6 +232,16 @@ export default function VariantPhotosScreen() {
 
   const productImageUrl = getImageUrl(productCoverMedia?.url ?? product?.image_url) ?? null;
 
+  // Helper para invalidar todas as queries de produto após mutações de mídia
+  const invalidateProductQueries = useCallback(async () => {
+    await Promise.all([
+      queryClient.refetchQueries({ queryKey: ['product-media', productId] }),
+      queryClient.refetchQueries({ queryKey: ['product-variants', productId] }),
+      queryClient.refetchQueries({ queryKey: ['product', productId] }),
+      queryClient.invalidateQueries({ queryKey: ['products'] }),
+    ]);
+  }, [productId, queryClient]);
+
   const [uploadingProduct, setUploadingProduct] = useState(false);
 
   const pickAndUploadProduct = useCallback(async () => {
@@ -250,34 +260,26 @@ export default function VariantPhotosScreen() {
     setUploadingProduct(true);
     try {
       await uploadProductMediaWithFallback(productId, result.assets[0].uri);
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ['product-media', productId] }),
-        queryClient.refetchQueries({ queryKey: ['product', productId] }),
-        queryClient.invalidateQueries({ queryKey: ['products'] }),
-      ]);
+      await invalidateProductQueries();
     } catch (err: any) {
       Alert.alert('Erro no upload', err?.response?.data?.detail ?? 'Não foi possível salvar a foto.');
     } finally {
       setUploadingProduct(false);
     }
-  }, [productId, queryClient]);
+  }, [productId, invalidateProductQueries]);
 
   const deleteProductLevelPhoto = useCallback(async () => {
     if (!productCoverMedia) return;
     setDeletingMedia(-1);
     try {
       await deleteProductMedia(productId, productCoverMedia.id);
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ['product-media', productId] }),
-        queryClient.refetchQueries({ queryKey: ['product', productId] }),
-        queryClient.invalidateQueries({ queryKey: ['products'] }),
-      ]);
+      await invalidateProductQueries();
     } catch {
       Alert.alert('Erro', 'Não foi possível excluir a foto.');
     } finally {
       setDeletingMedia(null);
     }
-  }, [productId, productCoverMedia, queryClient]);
+  }, [productId, productCoverMedia, invalidateProductQueries]);
 
   const pickAndUpload = useCallback(
     async (variant: ProductVariant) => {
@@ -303,12 +305,7 @@ export default function VariantPhotosScreen() {
       try {
         await uploadProductMediaWithFallback(productId, uri, variant.id);
         setLocalPhotos((prev) => { const n = { ...prev }; delete n[variant.id]; return n; });
-        await Promise.all([
-          queryClient.refetchQueries({ queryKey: ['product-media', productId] }),
-          queryClient.refetchQueries({ queryKey: ['product-variants', productId] }),
-          queryClient.refetchQueries({ queryKey: ['product', productId] }),
-          queryClient.invalidateQueries({ queryKey: ['products'] }),
-        ]);
+        await invalidateProductQueries();
       } catch (err: any) {
         setUploadErrorDialog({ visible: true, message: err?.response?.data?.detail ?? 'Não foi possível salvar a foto.' });
         setLocalPhotos((prev) => { const n = { ...prev }; delete n[variant.id]; return n; });
@@ -316,7 +313,7 @@ export default function VariantPhotosScreen() {
         setUploading((prev) => ({ ...prev, [variant.id]: false }));
       }
     },
-    [productId, queryClient]
+    [productId, invalidateProductQueries]
   );
 
   const photoForVariant = (v: ProductVariant) => {
@@ -346,12 +343,7 @@ export default function VariantPhotosScreen() {
 
     try {
       await setProductMediaAsCover(productId, media.id);
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ['product-media', productId] }),
-        queryClient.refetchQueries({ queryKey: ['product-variants', productId] }),
-        queryClient.refetchQueries({ queryKey: ['product', productId] }),
-        queryClient.invalidateQueries({ queryKey: ['products'] }),
-      ]);
+      await invalidateProductQueries();
     } catch {
       // Rollback em caso de erro
       queryClient.setQueryData(['product-media', productId], previous);
@@ -359,7 +351,7 @@ export default function VariantPhotosScreen() {
     } finally {
       setSettingCover(null);
     }
-  }, [productId, variantCoverMap, queryClient]);
+  }, [productId, variantCoverMap, queryClient, invalidateProductQueries]);
 
   const handleDeletePhoto = useCallback(async (variant: ProductVariant) => {
     const media = variantCoverMap.get(variant.id);
@@ -371,12 +363,7 @@ export default function VariantPhotosScreen() {
 
     try {
       await deleteProductMedia(productId, media.id);
-      await Promise.all([
-        queryClient.refetchQueries({ queryKey: ['product-media', productId] }),
-        queryClient.refetchQueries({ queryKey: ['product-variants', productId] }),
-        queryClient.refetchQueries({ queryKey: ['product', productId] }),
-        queryClient.invalidateQueries({ queryKey: ['products'] }),
-      ]);
+      await invalidateProductQueries();
       // Limpa o ID local após o servidor confirmar (allMedia já foi atualizado)
       setDeletedMediaIds((prev) => { const s = new Set(prev); s.delete(media.id); return s; });
     } catch {
@@ -386,7 +373,7 @@ export default function VariantPhotosScreen() {
     } finally {
       setDeletingMedia(null);
     }
-  }, [productId, variantCoverMap, queryClient]);
+  }, [productId, variantCoverMap, invalidateProductQueries]);
 
   if (isLoading || isLoadingProduct) {
     return (

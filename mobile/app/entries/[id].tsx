@@ -215,8 +215,11 @@ export default function StockEntryDetailsScreen() {
     mutationFn: ({ itemId, diff, reason }: { itemId: number; diff: number; reason: string }) =>
       correctEntryItem(itemId, diff, reason),
     onSuccess: async (result: any) => {
-      setCorrectionInlineError('');
       setShowCorrectionDialog(false);
+      setCorrectionItem(null);
+      setCorrectionDiff('');
+      setCorrectionReason('');
+      setCorrectionInlineError('');
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ['stock-entry', entryId] }),
         queryClient.invalidateQueries({ queryKey: ['stock-entries'] }),
@@ -248,6 +251,15 @@ export default function StockEntryDetailsScreen() {
     const current = parseInt(correctionDiff, 10);
     const safeCurrent = Number.isNaN(current) ? 0 : current;
     setCorrectionDiff(String(safeCurrent + delta));
+  };
+
+  const closeCorrectionDialog = () => {
+    if (correctionMutation.isPending) return;
+    setShowCorrectionDialog(false);
+    setCorrectionItem(null);
+    setCorrectionDiff('');
+    setCorrectionReason('');
+    setCorrectionInlineError('');
   };
 
   /**
@@ -773,10 +785,8 @@ export default function StockEntryDetailsScreen() {
         {/* Modal de Correção Auditada */}
         <BottomSheet
           visible={showCorrectionDialog}
-          onDismiss={() => {
-            setCorrectionInlineError('');
-            setShowCorrectionDialog(false);
-          }}
+          onDismiss={closeCorrectionDialog}
+          dismissOnBackdrop={!correctionMutation.isPending}
           title="Corrigir Item"
           subtitle={correctionItem
             ? `${correctionItem.product_name} • Vendidas: ${correctionItem.quantity_sold} • Disponíveis: ${correctionItem.quantity_remaining}`
@@ -785,11 +795,9 @@ export default function StockEntryDetailsScreen() {
           actions={[
             {
               label: 'Cancelar',
-              onPress: () => {
-                setCorrectionInlineError('');
-                setShowCorrectionDialog(false);
-              },
+              onPress: closeCorrectionDialog,
               variant: 'secondary',
+              disabled: correctionMutation.isPending,
             },
             { label: 'Aplicar', onPress: handleConfirmCorrection, icon: 'checkmark-circle-outline', loading: correctionMutation.isPending },
           ]}

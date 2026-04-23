@@ -185,34 +185,33 @@ export default function ProductsScreen() {
     staleTime: 2 * 60 * 1000, // 2 min
   });
 
-  /**
-   * Navegar para detalhes do produto agrupado
-   * Abre modal com todas as variantes
-   */
   const handleProductPress = (product: ProductGrouped) => {
     router.push(`/products/${product.id}`);
   };
 
-  /**
-   * Navegar para adicionar produto - usa novo wizard unificado
-   */
-  const handleAddProduct = () => {
-    router.push('/products/wizard');
-  };
+  const renderFilterPills = () => (
+    <>
+      {showLowStock && (
+        <View style={[styles.filterPill, { backgroundColor: Colors.light.warning + '14', borderColor: Colors.light.warning + '2A' }]}>
+          <Ionicons name="warning-outline" size={12} color={Colors.light.warning} />
+          <Text style={[styles.filterPillText, { color: Colors.light.warning }]}>Estoque baixo</Text>
+        </View>
+      )}
+      {showOnlyWithStock && (
+        <View style={[styles.filterPill, { backgroundColor: brandingColors.primary + '12', borderColor: brandingColors.primary + '24' }]}>
+          <Ionicons name="cube-outline" size={12} color={brandingColors.primary} />
+          <Text style={[styles.filterPillText, { color: brandingColors.primary }]}>Com estoque</Text>
+        </View>
+      )}
+      {!!searchQuery.trim() && (
+        <View style={styles.filterPill}>
+          <Ionicons name="search-outline" size={12} color={Colors.light.textSecondary} />
+          <Text style={styles.filterPillText} numberOfLines={1}>Busca ativa</Text>
+        </View>
+      )}
+    </>
+  );
 
-  /**
-   * Função para obter saudação baseada no horário
-   */
-  const getGreeting = () => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Bom dia';
-    if (hour < 18) return 'Boa tarde';
-    return 'Boa noite';
-  };
-
-  /**
-   * Renderizar item da lista
-   */
   const renderProduct = ({ item }: { item: ProductGrouped }) => {
     // Se item for null ou undefined, renderizar espaço vazio
     if (!item || !item.id) {
@@ -253,9 +252,6 @@ export default function ProductsScreen() {
     };
   }, [searchQuery, showLowStock, showOnlyWithStock]);
 
-  /**
-   * Renderizar loading
-   */
   if (isLoading && !isRefetching) {
     return (
       <View style={styles.container}>
@@ -276,9 +272,6 @@ export default function ProductsScreen() {
     );
   }
 
-  /**
-   * Renderizar erro
-   */
   if (isError) {
     return (
       <View style={styles.container}>
@@ -436,24 +429,7 @@ export default function ProductsScreen() {
 
           {hasActiveFilter && (
             <View style={styles.filterSummaryRow}>
-              {showLowStock && (
-                <View style={[styles.filterPill, { backgroundColor: Colors.light.warning + '14', borderColor: Colors.light.warning + '2A' }]}>
-                  <Ionicons name="warning-outline" size={12} color={Colors.light.warning} />
-                  <Text style={[styles.filterPillText, { color: Colors.light.warning }]}>Estoque baixo</Text>
-                </View>
-              )}
-              {showOnlyWithStock && (
-                <View style={[styles.filterPill, { backgroundColor: brandingColors.primary + '12', borderColor: brandingColors.primary + '24' }]}>
-                  <Ionicons name="cube-outline" size={12} color={brandingColors.primary} />
-                  <Text style={[styles.filterPillText, { color: brandingColors.primary }]}>Com estoque</Text>
-                </View>
-              )}
-              {!!searchQuery.trim() && (
-                <View style={styles.filterPill}>
-                  <Ionicons name="search-outline" size={12} color={Colors.light.textSecondary} />
-                  <Text style={styles.filterPillText} numberOfLines={1}>Busca ativa</Text>
-                </View>
-              )}
+              {renderFilterPills()}
             </View>
           )}
           </View>
@@ -516,24 +492,7 @@ export default function ProductsScreen() {
                 <View style={styles.emptyFilterSummary}>
                   <Text style={styles.emptyFilterSummaryLabel}>Filtros ativos</Text>
                   <View style={styles.emptyFilterSummaryRow}>
-                    {showLowStock && (
-                      <View style={[styles.filterPill, { backgroundColor: Colors.light.warning + '14', borderColor: Colors.light.warning + '2A' }]}>
-                        <Ionicons name="warning-outline" size={12} color={Colors.light.warning} />
-                        <Text style={[styles.filterPillText, { color: Colors.light.warning }]}>Estoque baixo</Text>
-                      </View>
-                    )}
-                    {showOnlyWithStock && (
-                      <View style={[styles.filterPill, { backgroundColor: brandingColors.primary + '12', borderColor: brandingColors.primary + '24' }]}>
-                        <Ionicons name="cube-outline" size={12} color={brandingColors.primary} />
-                        <Text style={[styles.filterPillText, { color: brandingColors.primary }]}>Com estoque</Text>
-                      </View>
-                    )}
-                    {!!searchQuery.trim() && (
-                      <View style={styles.filterPill}>
-                        <Ionicons name="search-outline" size={12} color={Colors.light.textSecondary} />
-                        <Text style={styles.filterPillText}>Busca ativa</Text>
-                      </View>
-                    )}
+                    {renderFilterPills()}
                   </View>
                 </View>
               )}

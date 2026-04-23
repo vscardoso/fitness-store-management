@@ -104,9 +104,18 @@ export default function EditProductScreen() {
   /**
    * Query: Buscar produto
    */
-  const { data: product, isLoading: loadingProduct, refetch } = useQuery({
+  const { data: product, isLoading: loadingProduct } = useQuery({
     queryKey: ['product', productId],
     queryFn: () => getProductById(productId),
+    enabled: isValidId,
+  });
+
+  /**
+   * Query: Buscar estoque (substitui IIFE async dentro de useEffect)
+   */
+  const { data: inventoryData } = useQuery({
+    queryKey: ['inventory', productId],
+    queryFn: () => getProductStock(productId),
     enabled: isValidId,
   });
 
@@ -114,7 +123,6 @@ export default function EditProductScreen() {
     mutationFn: (imageUri: string) => uploadProductImageWithFallback(productId, imageUri),
     onSuccess: async () => {
       await Promise.all([
-        refetch(),
         queryClient.invalidateQueries({ queryKey: ['product', productId] }),
         queryClient.invalidateQueries({ queryKey: ['products'] }),
         queryClient.invalidateQueries({ queryKey: ['grouped-products'] }),
@@ -190,15 +198,6 @@ export default function EditProductScreen() {
         return num.toFixed(2);
       };
 
-      // Buscar estoque
-      (async () => {
-        try {
-          const inv = await getProductStock(productId);
-          setCurrentStock(inv.quantity || 0);
-        } catch (e) {
-          console.error('Erro ao buscar dados:', e);
-        }
-      })();
       setCostPrice(safeToFixed(product.cost_price));
       setSalePrice(safeToFixed(product.price));
       
@@ -207,6 +206,13 @@ export default function EditProductScreen() {
       setOriginalCostPrice(isNaN(originalCost as number) ? null : originalCost);
     }
   }, [product]);
+
+  // Sincronizar estoque a partir da query reativa
+  useEffect(() => {
+    if (inventoryData) {
+      setCurrentStock(inventoryData.quantity || 0);
+    }
+  }, [inventoryData]);
 
   // Produto tem variantes configuradas?
   const hasVariants = (variants ?? []).length > 0;

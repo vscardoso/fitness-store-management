@@ -17,11 +17,19 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import Animated, {
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
+import { useBrandingColors } from '@/store/brandingStore';
 import {
   getPendingSales,
   cancelOrder,
@@ -55,6 +63,7 @@ function PendingCard({
   onOpenQR,
   confirming,
   cancelling,
+  brandingColors,
 }: {
   sale: PendingSale;
   onConfirm: (s: PendingSale) => void;
@@ -62,19 +71,21 @@ function PendingCard({
   onOpenQR: (s: PendingSale) => void;
   confirming: boolean;
   cancelling: boolean;
+  brandingColors: { primary: string; secondary: string; accent: string; gradient: [string, string] };
 }) {
   const pix = isPix(sale);
+  const methodColor = pix ? C.success : C.info;
 
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
-        <View style={[styles.methodBadge, pix ? styles.pixBadge : styles.terminalBadge]}>
+        <View style={[styles.methodBadge, { backgroundColor: methodColor + '18' }]}>
           <Ionicons
             name={pix ? 'qr-code-outline' : 'card-outline'}
             size={14}
-            color={pix ? '#009B02' : '#003DA5'}
+            color={methodColor}
           />
-          <Text style={[styles.methodText, pix ? styles.pixText : styles.terminalText]}>
+          <Text style={[styles.methodText, { color: methodColor }]}>
             {pix ? 'PIX' : 'Maquininha'}
           </Text>
         </View>
@@ -92,7 +103,7 @@ function PendingCard({
       <View style={styles.actions}>
         {pix ? (
           <TouchableOpacity
-            style={[styles.btn, styles.btnPrimary]}
+            style={[styles.btn, styles.btnPrimary, { backgroundColor: brandingColors.primary }]}
             onPress={() => { haptics.medium(); onOpenQR(sale); }}
             disabled={confirming || cancelling}
             activeOpacity={0.8}
@@ -102,7 +113,7 @@ function PendingCard({
           </TouchableOpacity>
         ) : (
           <TouchableOpacity
-            style={[styles.btn, styles.btnPrimary, confirming && styles.btnDisabled]}
+            style={[styles.btn, styles.btnPrimary, { backgroundColor: brandingColors.primary }, confirming && styles.btnDisabled]}
             onPress={() => { haptics.medium(); onConfirm(sale); }}
             disabled={confirming || cancelling}
             activeOpacity={0.8}
@@ -147,6 +158,12 @@ function EmptyPending() {
 export default function PendingSalesScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const brandingColors = useBrandingColors();
+
+  const headerOpacity = useSharedValue(0);
+  const headerScale = useSharedValue(0.94);
+  const contentOpacity = useSharedValue(0);
+  const contentTranslateY = useSharedValue(24);
 
   const [cancelTarget, setCancelTarget] = useState<PendingSale | null>(null);
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
@@ -158,7 +175,29 @@ export default function PendingSalesScreen() {
     refetchInterval: 30_000,
   });
 
-  useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
+  useFocusEffect(useCallback(() => {
+    refetch();
+    headerOpacity.value = 0;
+    headerScale.value = 0.94;
+    contentOpacity.value = 0;
+    contentTranslateY.value = 24;
+
+    headerOpacity.value = withTiming(1, { duration: 360, easing: Easing.out(Easing.quad) });
+    headerScale.value = withSpring(1, { damping: 16, stiffness: 200 });
+
+    contentOpacity.value = withTiming(1, { duration: 320, easing: Easing.out(Easing.quad) });
+    contentTranslateY.value = withSpring(0, { damping: 18, stiffness: 200 });
+  }, [refetch, contentOpacity, contentTranslateY, headerOpacity, headerScale]));
+
+  const headerAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: headerOpacity.value,
+    transform: [{ scale: headerScale.value }],
+  }));
+
+  const contentAnimatedStyle = useAnimatedStyle(() => ({
+    opacity: contentOpacity.value,
+    transform: [{ translateY: contentTranslateY.value }],
+  }));
 
   const cancelMutation = useMutation({
     mutationFn: (saleId: number) => cancelOrder(saleId),
@@ -216,37 +255,43 @@ export default function PendingSalesScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader
-        title="Pagamentos Pendentes"
-        subtitle={sales.length > 0 ? `${sales.length} aguardando` : undefined}
-        showBackButton
-        rightActions={[
-          {
-            icon: 'settings-outline',
-            onPress: () => router.push('/(tabs)/pdv/terminals' as any),
-          },
-        ]}
-      />
+      <Animated.View style={headerAnimatedStyle}>
+        <PageHeader
+          title="Pagamentos Pendentes"
+          subtitle={sales.length > 0 ? `${sales.length} aguardando` : undefined}
+          showBackButton
+          rightActions={[
+            {
+              icon: 'settings-outline',
+              onPress: () => router.push('/(tabs)/pdv/terminals' as any),
+            },
+          ]}
+        />
+      </Animated.View>
 
-      <FlatList
-        data={sales}
-        keyExtractor={(item) => String(item.id)}
-        contentContainerStyle={[styles.list, sales.length === 0 && styles.listEmpty]}
-        ListEmptyComponent={isLoading ? null : <EmptyPending />}
-        refreshControl={
-          <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={C.primary} />
-        }
-        renderItem={({ item }) => (
-          <PendingCard
-            sale={item}
-            onConfirm={handleConfirm}
-            onCancel={handleCancel}
-            onOpenQR={handleOpenQR}
-            confirming={confirmingId === item.id}
-            cancelling={cancelMutation.isPending && cancelTarget?.id === item.id}
-          />
-        )}
-      />
+      <Animated.View style={[styles.listWrapper, contentAnimatedStyle]}>
+        <FlatList
+          data={sales}
+          keyExtractor={(item) => String(item.id)}
+          contentContainerStyle={[styles.list, sales.length === 0 && styles.listEmpty]}
+          ListEmptyComponent={isLoading ? null : <EmptyPending />}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={isRefetching} onRefresh={refetch} tintColor={brandingColors.primary} />
+          }
+          renderItem={({ item }) => (
+            <PendingCard
+              sale={item}
+              onConfirm={handleConfirm}
+              onCancel={handleCancel}
+              onOpenQR={handleOpenQR}
+              confirming={confirmingId === item.id}
+              cancelling={cancelMutation.isPending && cancelTarget?.id === item.id}
+              brandingColors={brandingColors}
+            />
+          )}
+        />
+      </Animated.View>
 
       <ConfirmDialog
         visible={!!cancelTarget}
@@ -269,11 +314,16 @@ export default function PendingSalesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: C.background,
+    backgroundColor: C.backgroundSecondary,
+  },
+  listWrapper: {
+    flex: 1,
   },
   list: {
-    padding: 16,
-    gap: 12,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
+    gap: theme.spacing.sm,
   },
   listEmpty: {
     flex: 1,
@@ -281,12 +331,13 @@ const styles = StyleSheet.create({
 
   // Card
   card: {
-    backgroundColor: C.surface,
-    borderRadius: theme.roundness * 2,
-    padding: 16,
-    gap: 12,
+    backgroundColor: C.card,
+    borderRadius: theme.borderRadius.xl,
+    padding: theme.spacing.md,
+    gap: theme.spacing.sm,
     borderWidth: 1,
     borderColor: C.border,
+    ...theme.shadows.sm,
   },
   cardHeader: {
     flexDirection: 'row',
@@ -301,21 +352,9 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 99,
   },
-  pixBadge: {
-    backgroundColor: '#E0F5E0',
-  },
-  terminalBadge: {
-    backgroundColor: '#E0E9FF',
-  },
   methodText: {
     fontSize: 12,
     fontWeight: '600',
-  },
-  pixText: {
-    color: '#009B02',
-  },
-  terminalText: {
-    color: '#003DA5',
   },
   timeText: {
     fontSize: 12,
@@ -351,14 +390,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
+    minHeight: 44,
     paddingVertical: 10,
-    borderRadius: theme.roundness,
+    borderRadius: theme.borderRadius.lg,
   },
   btnPrimary: {
     backgroundColor: C.primary,
   },
   btnDanger: {
-    backgroundColor: C.surface,
+    backgroundColor: C.card,
     borderWidth: 1,
     borderColor: C.error,
   },
