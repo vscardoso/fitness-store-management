@@ -96,7 +96,7 @@ export default function ProductsSection({ products, categories }: Props) {
           </div>
         ) : (
           /* Product grid */
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 md:gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 md:gap-3">
             {filtered.map((p) => (
               <ProductCard key={p.id} product={p} />
             ))}

@@ -66,7 +66,8 @@ export default async function HomePage() {
         </div>
 
         <div className="relative max-w-7xl mx-auto px-5 sm:px-8 w-full pt-32 pb-20">
-          <div className="max-w-3xl">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+          <div className="">
             {/* Label */}
             <div
               className="inline-flex items-center gap-2 mb-8 px-4 py-1.5 rounded-full text-sm font-medium glass"
@@ -150,6 +151,51 @@ export default async function HomePage() {
                 </div>
               ))}
             </div>
+          </div>
+
+          {/* Coluna direita — produto em destaque */}
+          {productList[0]?.image_url ? (
+            <div className="hidden lg:flex items-center justify-center relative">
+              {/* Glow atrás da imagem */}
+              <div
+                className="absolute inset-0 rounded-3xl blur-[80px] opacity-20"
+                style={{ background: "var(--pink)" }}
+              />
+              <div className="relative w-full max-w-sm aspect-[3/4] rounded-3xl overflow-hidden shadow-2xl"
+                style={{ border: "1px solid rgba(255,26,108,0.15)" }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={productList[0].image_url}
+                  alt={productList[0].name}
+                  className="w-full h-full object-cover"
+                />
+                {/* Overlay com nome + CTA */}
+                <div
+                  className="absolute bottom-0 left-0 right-0 p-6"
+                  style={{ background: "linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%)" }}
+                >
+                  <p className="text-white/50 text-xs uppercase tracking-widest mb-1">
+                    {productList[0].category?.name ?? "Destaque"}
+                  </p>
+                  <p className="text-white font-bold text-lg leading-tight line-clamp-2 mb-3">
+                    {productList[0].name}
+                  </p>
+                  <a
+                    href={`/produtos/${productList[0].id}`}
+                    className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-full"
+                    style={{ background: "rgba(255,26,108,0.9)", color: "#fff" }}
+                  >
+                    Ver produto
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-4 h-4">
+                      <path d="M9 18l6-6-6-6" strokeWidth="2" strokeLinecap="round"/>
+                    </svg>
+                  </a>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="hidden lg:block" />
+          )}
           </div>
         </div>
 
