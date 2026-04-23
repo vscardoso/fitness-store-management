@@ -85,7 +85,11 @@ async def list_public_products(
         SELECT
             p.id,
             p.name,
-            COALESCE(p.sale_price, p.price, 0)  AS sale_price,
+            COALESCE(
+                (SELECT MIN(pv.price) FROM product_variants pv
+                 WHERE pv.product_id = p.id AND pv.is_active = true),
+                p.base_price, 0
+            )                                    AS sale_price,
             p.image_url,
             p.category_id,
             c.name                               AS category_name,
@@ -151,7 +155,11 @@ async def get_public_product(
     row = (await db.execute(text("""
         SELECT
             p.id, p.name,
-            COALESCE(p.sale_price, p.price, 0) AS sale_price,
+            COALESCE(
+                (SELECT MIN(pv.price) FROM product_variants pv
+                 WHERE pv.product_id = p.id AND pv.is_active = true),
+                p.base_price, 0
+            ) AS sale_price,
             p.image_url, p.category_id, c.name,
             COALESCE((
                 SELECT SUM(inv.quantity)
