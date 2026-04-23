@@ -19,7 +19,8 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-// ── Products ─────────────────────────────────────────────────────────────────
+// ── Public Catalog (sem autenticação) ────────────────────────────────────────
+// Usa /public/* — expõe apenas campos seguros, sem custo ou quantidade
 
 export async function getProducts(params?: {
   search?: string;
@@ -34,27 +35,27 @@ export async function getProducts(params?: {
   query.set("limit", String(params?.limit ?? 50));
 
   const qs = query.toString();
-  return fetchApi<ProductListItem[]>(`/products${qs ? `?${qs}` : ""}`);
+  return fetchApi<ProductListItem[]>(`/public/products${qs ? `?${qs}` : ""}`);
 }
 
 export async function getProduct(id: number): Promise<Product> {
-  return fetchApi<Product>(`/products/${id}`);
+  return fetchApi<Product>(`/public/products/${id}`);
 }
 
-export async function getFeaturedProducts(limit = 8): Promise<ProductListItem[]> {
-  return fetchApi<ProductListItem[]>(`/products?limit=${limit}&skip=0`);
+export async function getFeaturedProducts(limit = 24): Promise<ProductListItem[]> {
+  return fetchApi<ProductListItem[]>(`/public/products?limit=${limit}`);
 }
 
 // ── Categories ───────────────────────────────────────────────────────────────
 
 export async function getCategories(): Promise<Category[]> {
-  return fetchApi<Category[]>("/categories");
+  return fetchApi<Category[]>("/public/categories");
 }
 
 // ── Looks ────────────────────────────────────────────────────────────────────
 
 export async function getLooks(limit = 20): Promise<LookListItem[]> {
-  return fetchApi<LookListItem[]>(`/looks?limit=${limit}`);
+  return fetchApi<LookListItem[]>(`/public/looks?limit=${limit}`);
 }
 
 export async function getLook(id: number): Promise<Look> {

@@ -20,6 +20,7 @@ Uso:
 from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
+    public_catalog,
     auth,
     audit,
     mp_connect,
@@ -59,6 +60,9 @@ api_router = APIRouter(prefix="/api/v1")
 # ============================================================================
 # INCLUIR TODOS OS ROUTERS DE ENDPOINTS
 # ============================================================================
+
+# Catálogo público — sem autenticação (site wamodafitness.com.br)
+api_router.include_router(public_catalog.router)
 
 # Autenticação e autorização
 api_router.include_router(
