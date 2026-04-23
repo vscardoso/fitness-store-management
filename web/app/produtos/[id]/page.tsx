@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getProduct } from "@/services/api";
+import AddToCartButton from "@/components/AddToCartButton";
 
 export const revalidate = 60;
 
@@ -38,7 +39,6 @@ export default async function ProductPage({ params }: Props) {
   const colors     = Array.from(new Set(product.variants?.map((v) => v.color).filter((c): c is string => Boolean(c)) ?? []));
   const installment = price >= 30 ? fmt(price / 3) : null;
 
-  const waMsg    = `Olá! Vi o produto *${product.name}* no catálogo e tenho interesse. Poderia me ajudar?`;
   const waCondit = `Olá! Quero fazer um condicional do produto *${product.name}*. Posso receber em casa para experimentar?`;
 
   return (
@@ -94,7 +94,7 @@ export default async function ProductPage({ params }: Props) {
                     : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }
                   }
                 >
-                  {inStock ? `Em estoque${product.current_stock ? ` · ${product.current_stock} un.` : ""}` : "Esgotado"}
+                  {inStock ? "Em estoque" : "Esgotado"}
                 </span>
               </div>
             </div>
@@ -122,24 +122,12 @@ export default async function ProductPage({ params }: Props) {
               )}
             </div>
 
-            {/* Trust signals — inspirado na Vista Euforia */}
+            {/* Trust signals */}
             <div className="grid grid-cols-3 gap-2 mb-8 p-4 rounded-2xl" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
               {[
-                {
-                  icon: "M13 2L3 14h9l-1 8 10-12h-9l1-8z",
-                  title: "Frete Grátis",
-                  sub: "acima de R$200",
-                },
-                {
-                  icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
-                  title: "1ª Troca",
-                  sub: "fácil e grátis",
-                },
-                {
-                  icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z",
-                  title: "Pagamento",
-                  sub: "seguro e flexível",
-                },
+                { icon: "M13 2L3 14h9l-1 8 10-12h-9l1-8z", title: "Frete Grátis", sub: "acima de R$200" },
+                { icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15", title: "1ª Troca", sub: "fácil e grátis" },
+                { icon: "M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z", title: "Pagamento", sub: "seguro e flexível" },
               ].map(({ icon, title, sub }) => (
                 <div key={title} className="flex flex-col items-center text-center gap-1.5 py-1">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-5 h-5" style={{ color: "var(--pink-light)" }}>
@@ -157,11 +145,8 @@ export default async function ProductPage({ params }: Props) {
                 <p className="text-white/40 text-xs uppercase tracking-widest mb-3">Tamanhos disponíveis</p>
                 <div className="flex flex-wrap gap-2">
                   {sizes.map((s) => (
-                    <span
-                      key={s}
-                      className="px-4 py-2 rounded-lg text-sm font-medium text-white/70 transition-all"
-                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)" }}
-                    >
+                    <span key={s} className="px-4 py-2 rounded-lg text-sm font-medium text-white/70 transition-all"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)" }}>
                       {s}
                     </span>
                   ))}
@@ -175,11 +160,8 @@ export default async function ProductPage({ params }: Props) {
                 <p className="text-white/40 text-xs uppercase tracking-widest mb-3">Cores</p>
                 <div className="flex flex-wrap gap-2">
                   {colors.map((c) => (
-                    <span
-                      key={c}
-                      className="px-4 py-2 rounded-lg text-sm font-medium text-white/70"
-                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)" }}
-                    >
+                    <span key={c} className="px-4 py-2 rounded-lg text-sm font-medium text-white/70"
+                      style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.12)" }}>
                       {c}
                     </span>
                   ))}
@@ -205,19 +187,24 @@ export default async function ProductPage({ params }: Props) {
 
             {/* CTAs */}
             <div className="mt-auto space-y-3">
+              {/* Primário: adicionar ao carrinho */}
+              <AddToCartButton product={{ id: product.id, name: product.name, price, image_url: product.image_url ?? undefined }} />
+
+              {/* Secundário: WhatsApp direto */}
               <a
-                href={wa(waMsg)}
+                href={wa(`Olá! Vi o produto *${product.name}* no catálogo e tenho interesse. Poderia me ajudar?`)}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-3 font-bold text-white text-base py-4 rounded-2xl transition-all hover:-translate-y-0.5"
-                style={{ background: "#25D366", boxShadow: "0 0 24px rgba(37,211,102,0.3)" }}
+                className="w-full flex items-center justify-center gap-2 font-semibold text-sm py-3.5 rounded-2xl transition-all hover:-translate-y-0.5"
+                style={{ background: "rgba(37,211,102,0.1)", border: "1px solid rgba(37,211,102,0.25)", color: "#4ade80" }}
               >
-                <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5">
+                <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
                   <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
                 </svg>
-                Pedir via WhatsApp
+                Pedir direto no WhatsApp
               </a>
 
+              {/* Condicional */}
               <a
                 href={wa(waCondit)}
                 target="_blank"
