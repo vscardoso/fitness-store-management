@@ -12,7 +12,8 @@ LogBox.ignoreLogs([
   'Due to changes in Androids permission requirements',
 ]);
 import { StatusBar } from 'expo-status-bar';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider, QueryCache, MutationCache } from '@tanstack/react-query';
+import { showApiError } from '@/utils/apiError';
 import { PaperProvider, MD3LightTheme, Snackbar } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -39,13 +40,29 @@ import { setForceLogoutCallback, setInvalidateQueriesCallback } from '@/services
 //   enabled: SENTRY_CONFIG.ENABLED,
 // });
 
-// Criar QueryClient
+// Criar QueryClient com tratamento centralizado de erros
 const queryClient = new QueryClient({
+  queryCache: new QueryCache({
+    onError: (error, query) => {
+      // Só mostra erro global se a query não tem dados em cache (evita toast em background refresh)
+      if (query.state.data === undefined) {
+        showApiError(error);
+      }
+    },
+  }),
+  mutationCache: new MutationCache({
+    onError: (error, _variables, _context, mutation) => {
+      // Só mostra erro global se a mutation não tem um onError próprio
+      if (!mutation.options.onError) {
+        showApiError(error);
+      }
+    },
+  }),
   defaultOptions: {
     queries: {
       retry: 1,
       refetchOnWindowFocus: false,
-      staleTime: 5 * 60 * 1000, // 5 minutos
+      staleTime: 5 * 60 * 1000,
     },
   },
 });

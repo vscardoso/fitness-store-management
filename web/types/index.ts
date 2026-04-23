@@ -38,6 +38,7 @@ export interface Product {
   variants?: ProductVariant[];
   variant_count?: number;
   base_price?: number;
+  media?: string[];
   created_at: string;
   updated_at: string;
 }

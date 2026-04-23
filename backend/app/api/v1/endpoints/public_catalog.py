@@ -39,6 +39,7 @@ class PublicProductDetail(PublicProduct):
     gender: Optional[str] = None
     material: Optional[str] = None
     colors: List[str] = []
+    media: List[str] = []
 
 class PublicLook(BaseModel):
     id: int
@@ -221,6 +222,14 @@ async def get_public_product(
     if not row:
         raise HTTPException(status_code=404, detail="Produto não encontrado")
 
+    # Buscar galeria de mídia (compatível com SQLite e PostgreSQL)
+    media_rows = (await db.execute(text("""
+        SELECT url FROM product_media
+        WHERE product_id = :pid AND is_active = true
+        ORDER BY is_cover DESC, position ASC
+    """), {"pid": row[0]})).fetchall()
+    media_urls = [r[0] for r in media_rows]
+
     return PublicProductDetail(
         id=row[0], name=row[1], sale_price=float(row[2]),
         image_url=row[3],
@@ -230,6 +239,7 @@ async def get_public_product(
         sizes=list(row[8] or []),
         colors=list(row[9] or []),
         description=row[10], brand=row[11], gender=row[12], material=row[13],
+        media=media_urls,
     )
 
 

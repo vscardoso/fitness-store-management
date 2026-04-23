@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
-import Image from "next/image";
 import Link from "next/link";
 import type { Metadata } from "next";
 import { getProduct } from "@/services/api";
 import AddToCartButton from "@/components/AddToCartButton";
+import ProductGallery from "@/components/ProductGallery";
 
 export const revalidate = 60;
 
@@ -69,44 +69,24 @@ export default async function ProductPage({ params }: Props) {
       <div className="max-w-7xl mx-auto px-5 sm:px-8 py-6 pb-20">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr] gap-10 lg:gap-16">
 
-          {/* ── Imagem portrait 3:4 ── */}
+          {/* ── Galeria de fotos ── */}
           <div className="relative">
-            <div
-              className="relative overflow-hidden rounded-2xl"
-              style={{ aspectRatio: "3/4", background: "linear-gradient(135deg, #13131f, #1e1e30)" }}
-            >
-              {product.image_url ? (
-                <Image
-                  src={product.image_url}
-                  alt={product.name}
-                  fill
-                  className="object-cover"
-                  sizes="(max-width: 1024px) 100vw, 50vw"
-                  priority
-                />
-              ) : (
-                <div className="w-full h-full flex flex-col items-center justify-center gap-3">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" className="w-16 h-16 text-white/10">
-                    <rect x="3" y="3" width="18" height="18" rx="2" strokeWidth="1"/>
-                    <circle cx="8.5" cy="8.5" r="1.5" strokeWidth="1"/>
-                    <path d="M21 15l-5-5L5 21" strokeWidth="1"/>
-                  </svg>
-                  <p className="text-white/20 text-sm">Foto em breve</p>
-                </div>
-              )}
-
-              {/* Badge estoque */}
-              <div className="absolute top-4 left-4">
-                <span
-                  className="text-xs font-semibold px-3 py-1.5 rounded-full"
-                  style={inStock
-                    ? { background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)", color: "#4ade80" }
-                    : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }
-                  }
-                >
-                  {inStock ? "Em estoque" : "Esgotado"}
-                </span>
-              </div>
+            <ProductGallery
+              images={product.media ?? []}
+              productName={product.name}
+              fallbackImage={product.image_url ?? undefined}
+            />
+            {/* Badge estoque */}
+            <div className="absolute top-4 left-4 z-10">
+              <span
+                className="text-xs font-semibold px-3 py-1.5 rounded-full"
+                style={inStock
+                  ? { background: "rgba(34,197,94,0.15)", border: "1px solid rgba(34,197,94,0.3)", color: "#4ade80" }
+                  : { background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }
+                }
+              >
+                {inStock ? "Em estoque" : "Esgotado"}
+              </span>
             </div>
           </div>
 

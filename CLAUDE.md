@@ -67,10 +67,11 @@ cd mobile && .\expo-dev.ps1
 - Botões com `position: absolute` devem ser evitados — usar scroll ou sticky footer adequado
 
 
-## Skills disponíveis
+## Slash commands do projeto (`.claude/commands/`)
 
-- **wa-billing**: Especialista em faturamento — assinaturas, Mercado Pago, Stripe, relatórios financeiros (MRR, DRE, churn). Localização: `.agents/skills/wa-billing/SKILL.md`
-- **pdv-generic**: Especialista no módulo PDV genérico — maquininha física, providers (Cielo/Stone/Rede/etc.), confirmação manual, gestão de terminais, fluxo de checkout. Localização: `.agents/skills/pdv-generic/SKILL.md`
-
-## Skills path
-`.agents/skills/`
+- `/backend` — Modo backend expert: arquitetura 3 camadas, FIFO, multi-tenant, migrations
+- `/mobile` — Modo mobile expert: Expo Router, React Query, Zustand, UI conventions
+- `/web` — Modo web expert: Next.js 14, Tailwind, endpoints públicos, carrinho WhatsApp
+- `/pdv` — Especialista PDV: TEF, Stone/Cielo, PIX, terminals, fluxo de checkout
+- `/billing` — Especialista faturamento: assinaturas, Mercado Pago, MRR, DRE, churn
+- `/fullstack` — Orquestração multi-camada: ADD-FIELD, NEW-FEATURE, MODIFY-FLOW, FIX, REFACTOR

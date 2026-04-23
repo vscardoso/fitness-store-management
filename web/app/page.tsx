@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getFeaturedProducts, getLooks, getCategories } from "@/services/api";
 import LookCard from "@/components/LookCard";
 import ProductsSection from "@/components/sections/ProductsSection";
+import CategoriesSection from "@/components/sections/CategoriesSection";
 
 export const revalidate = 60;
 
@@ -209,7 +210,12 @@ export default async function HomePage() {
       </section>
 
       {/* ══════════════════════════════════════════════════════
-          2. CATEGORIAS + 3. PRODUTOS — Hybrid section
+          2. CATEGORIAS — Grid visual
+      ══════════════════════════════════════════════════════ */}
+      <CategoriesSection categories={fallbackCategories} />
+
+      {/* ══════════════════════════════════════════════════════
+          3. PRODUTOS — Grid com filtro
       ══════════════════════════════════════════════════════ */}
       <ProductsSection products={productList} categories={fallbackCategories} />
 
