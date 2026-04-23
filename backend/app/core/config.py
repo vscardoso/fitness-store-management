@@ -46,22 +46,35 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     
     # CORS
-    CORS_ORIGINS: List[str] = ["http://localhost:3000"]
+    # Mantido como str para evitar que pydantic-settings v2 tente parsear JSON
+    # antes do validador rodar (causaria SettingsError em qualquer formato não-JSON)
+    CORS_ORIGINS: str = '["http://localhost:3000"]'
     CORS_ALLOW_CREDENTIALS: bool = True
-    CORS_ALLOW_METHODS: List[str] = ["*"]
-    CORS_ALLOW_HEADERS: List[str] = ["*"]
-    
-    @field_validator("CORS_ORIGINS", mode="before")
-    @classmethod
-    def parse_cors_origins(cls, v):
-        """Parse CORS_ORIGINS from JSON string or list."""
-        if isinstance(v, str):
-            import json
-            try:
-                return json.loads(v)
-            except json.JSONDecodeError:
-                return [origin.strip() for origin in v.split(",")]
-        return v
+    CORS_ALLOW_METHODS: str = '["*"]'
+    CORS_ALLOW_HEADERS: str = '["*"]'
+
+    @property
+    def cors_origins(self) -> List[str]:
+        return self._parse_str_list(self.CORS_ORIGINS)
+
+    @property
+    def cors_allow_methods(self) -> List[str]:
+        return self._parse_str_list(self.CORS_ALLOW_METHODS)
+
+    @property
+    def cors_allow_headers(self) -> List[str]:
+        return self._parse_str_list(self.CORS_ALLOW_HEADERS)
+
+    @staticmethod
+    def _parse_str_list(v: str) -> List[str]:
+        import json
+        try:
+            result = json.loads(v)
+            if isinstance(result, list):
+                return [str(i) for i in result]
+            return [str(result)]
+        except (json.JSONDecodeError, ValueError):
+            return [o.strip() for o in v.split(",") if o.strip()]
     
     # Redis
     REDIS_HOST: str = "localhost"
