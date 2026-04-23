@@ -95,7 +95,9 @@ async def list_public_products(
             c.name                               AS category_name,
             COALESCE((
                 SELECT SUM(inv.quantity)
-                FROM inventory inv WHERE inv.product_id = p.id
+                FROM inventory inv
+                JOIN product_variants pv ON pv.id = inv.variant_id
+                WHERE pv.product_id = p.id AND pv.is_active = true
             ), 0) > 0                            AS in_stock,
             (
                 SELECT COUNT(*) FROM product_variants pv
