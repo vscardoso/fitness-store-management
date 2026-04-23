@@ -913,3 +913,95 @@
    Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
  [16:03:41] [mobile] [API] GET /products/grouped - 401
    Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:04:57] [mobile] [API] POST /stock-entries/entry-items/183/correct - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:05:47] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:05:48] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:05:49] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:05:51] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:06:21] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:06:22] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:06:52] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:06:53] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:07:23] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:07:24] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:07:37] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:07:38] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:07:48] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:07:49] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:08:43] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:08:44] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:11:15] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "(sqlite3.OperationalError) unrecognized token: \":\"\n[SQL: SELECT s.id, s.sale_number, s.total_amount, s.payment_method,        s.payment_reference, s.created_at, c.name AS customer_name FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.tenant_id = ?   AND UPPER(s.status::text) = 'PENDING'   AND s.is_active = true ORDER BY s.created_at DESC]\n[parameters: (5,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [17:11:16] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "(sqlite3.OperationalError) unrecognized token: \":\"\n[SQL: SELECT s.id, s.sale_number, s.total_amount, s.payment_method,        s.payment_reference, s.created_at, c.name AS customer_name FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.tenant_id = ?   AND UPPER(s.status::text) = 'PENDING'   AND s.is_active = true ORDER BY s.created_at DESC]\n[parameters: (5,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [17:11:17] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "(sqlite3.OperationalError) unrecognized token: \":\"\n[SQL: SELECT s.id, s.sale_number, s.total_amount, s.payment_method,        s.payment_reference, s.created_at, c.name AS customer_name FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.tenant_id = ?   AND UPPER(s.status::text) = 'PENDING'   AND s.is_active = true ORDER BY s.created_at DESC]\n[parameters: (5,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [17:11:18] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "(sqlite3.OperationalError) unrecognized token: \":\"\n[SQL: SELECT s.id, s.sale_number, s.total_amount, s.payment_method,        s.payment_reference, s.created_at, c.name AS customer_name FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.tenant_id = ?   AND UPPER(s.status::text) = 'PENDING'   AND s.is_active = true ORDER BY s.created_at DESC]\n[parameters: (5,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [17:11:32] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "(sqlite3.OperationalError) unrecognized token: \":\"\n[SQL: SELECT s.id, s.sale_number, s.total_amount, s.payment_method,        s.payment_reference, s.created_at, c.name AS customer_name FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.tenant_id = ?   AND UPPER(s.status::text) = 'PENDING'   AND s.is_active = true ORDER BY s.created_at DESC]\n[parameters: (5,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [17:11:33] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "(sqlite3.OperationalError) unrecognized token: \":\"\n[SQL: SELECT s.id, s.sale_number, s.total_amount, s.payment_method,        s.payment_reference, s.created_at, c.name AS customer_name FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.tenant_id = ?   AND UPPER(s.status::text) = 'PENDING'   AND s.is_active = true ORDER BY s.created_at DESC]\n[parameters: (5,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [17:12:03] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "(sqlite3.OperationalError) unrecognized token: \":\"\n[SQL: SELECT s.id, s.sale_number, s.total_amount, s.payment_method,        s.payment_reference, s.created_at, c.name AS customer_name FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.tenant_id = ?   AND UPPER(s.status::text) = 'PENDING'   AND s.is_active = true ORDER BY s.created_at DESC]\n[parameters: (5,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [17:12:04] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "(sqlite3.OperationalError) unrecognized token: \":\"\n[SQL: SELECT s.id, s.sale_number, s.total_amount, s.payment_method,        s.payment_reference, s.created_at, c.name AS customer_name FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.tenant_id = ?   AND UPPER(s.status::text) = 'PENDING'   AND s.is_active = true ORDER BY s.created_at DESC]\n[parameters: (5,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [17:13:24] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "(sqlite3.OperationalError) no such column: c.name\n[SQL: SELECT s.id, s.sale_number, s.total_amount, s.payment_method,        s.payment_reference, s.created_at, c.name AS customer_name FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.tenant_id = ?   AND UPPER(CAST(s.status AS TEXT)) = 'PENDING'   AND s.is_active = true ORDER BY s.created_at DESC]\n[parameters: (5,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [17:13:25] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "(sqlite3.OperationalError) no such column: c.name\n[SQL: SELECT s.id, s.sale_number, s.total_amount, s.payment_method,        s.payment_reference, s.created_at, c.name AS customer_name FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.tenant_id = ?   AND UPPER(CAST(s.status AS TEXT)) = 'PENDING'   AND s.is_active = true ORDER BY s.created_at DESC]\n[parameters: (5,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [17:13:36] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "(sqlite3.OperationalError) no such column: c.name\n[SQL: SELECT s.id, s.sale_number, s.total_amount, s.payment_method,        s.payment_reference, s.created_at, c.name AS customer_name FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.tenant_id = ?   AND UPPER(CAST(s.status AS TEXT)) = 'PENDING'   AND s.is_active = true ORDER BY s.created_at DESC]\n[parameters: (5,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [17:13:37] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "(sqlite3.OperationalError) no such column: c.name\n[SQL: SELECT s.id, s.sale_number, s.total_amount, s.payment_method,        s.payment_reference, s.created_at, c.name AS customer_name FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.tenant_id = ?   AND UPPER(CAST(s.status AS TEXT)) = 'PENDING'   AND s.is_active = true ORDER BY s.created_at DESC]\n[parameters: (5,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [17:15:41] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "(sqlite3.OperationalError) no such column: c.name\n[SQL: SELECT s.id, s.sale_number, s.total_amount, s.payment_method,        s.payment_reference, s.created_at, c.name AS customer_name FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.tenant_id = ?   AND UPPER(CAST(s.status AS TEXT)) = 'PENDING'   AND s.is_active = true ORDER BY s.created_at DESC]\n[parameters: (5,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [17:15:42] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "(sqlite3.OperationalError) no such column: c.name\n[SQL: SELECT s.id, s.sale_number, s.total_amount, s.payment_method,        s.payment_reference, s.created_at, c.name AS customer_name FROM sales s LEFT JOIN customers c ON c.id = s.customer_id WHERE s.tenant_id = ?   AND UPPER(CAST(s.status AS TEXT)) = 'PENDING'   AND s.is_active = true ORDER BY s.created_at DESC]\n[parameters: (5,)]\n(Background on this error at: https://sqlalche.me/e/20/e3q8)", "code": "ERR_BAD_RESPONSE"}
+ [17:20:08] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:20:09] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:20:10] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:20:11] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:20:31] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:20:32] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:21:17] [mobile] [API] GET /pdv/pending-sales - 500
+   Data: {"status": 500, "detail": "Erro interno do servidor", "code": "ERR_BAD_RESPONSE"}
+ [17:29:57] [mobile] [API] POST /pdv/orders/29/cancel - 400
+   Data: {"status": 400, "detail": "Order MP não encontrada para esta venda.", "code": "ERR_BAD_REQUEST"}
+ [17:29:58] [mobile] [API] POST /pdv/orders/29/cancel - 400
+   Data: {"status": 400, "detail": "Order MP não encontrada para esta venda.", "code": "ERR_BAD_REQUEST"}
+ [17:30:34] [mobile] [API] POST /pdv/orders/29/cancel - 400
+   Data: {"status": 400, "detail": "Order MP não encontrada para esta venda.", "code": "ERR_BAD_REQUEST"}
+ [18:05:19] [mobile] [API] GET /pdv/pending-sales - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [18:09:11] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Top e Legging Fitness Alo", "brand": "Alo", "color": "Preto", "size": null, "category_id": null, "duplicates_count": 0, "duplicates": []}
+ [18:09:31] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Conjunto Top e Legging Fitness Alo", "variantsCount": 6}
+ [18:09:38] [mobile] [Wizard] goToNewEntryWithVariants - modo atômico
+   Data: {"productName": "Conjunto Top e Legging Fitness Alo", "variantsCount": 6, "totalQty": 30}
+ [18:10:04] [mobile] [Entries/Add] Imagem do wizard persistida com sucesso
+   Data: {"entryId": 78, "productId": 458}

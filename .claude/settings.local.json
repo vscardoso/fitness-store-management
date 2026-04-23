@@ -146,7 +146,20 @@
       "Bash(git checkout:*)",
       "Bash(ls -t mobile/app/\\\\\\(tabs\\\\\\)/pdv/)",
       "Bash(ls -t mobile/app/\\\\\\(tabs\\\\\\)/stock-losses/)",
-      "Bash(cat mobile/app/\\\\\\(tabs\\\\\\)/pdv/terminal-checkout.tsx)"
+      "Bash(cat mobile/app/\\\\\\(tabs\\\\\\)/pdv/terminal-checkout.tsx)",
+      "Bash(xargs -0 grep -l grouped)",
+      "WebFetch(domain:connect-stone.stone.com.br)",
+      "WebFetch(domain:connect-v2.stone.com.br)",
+      "WebFetch(domain:developercielo.github.io)",
+      "WebFetch(domain:www.mercadopago.com.ar)",
+      "WebFetch(domain:www.mercadopago.com.mx)",
+      "Bash(cat mobile/app/\\\\\\(tabs\\\\\\)/sale.tsx)",
+      "Bash(wc -l mobile/app/\\\\\\(tabs\\\\\\)/sale.tsx)",
+      "Bash(find C:UsersVictorDesktopfitness-store-managementwebskillsui-ux-pro-max -type f -name *.md -o -type f -name *.txt -o -type f -name *.js)",
+      "Bash(find C:UsersVictorDesktopfitness-store-management -name search.py -path *ui-ux*)",
+      "Bash(find C:UsersVictorDesktopfitness-store-management -path *agents/skills/ui-ux* -type f)",
+      "WebFetch(domain:vistaeuforia.com.br)",
+      "Bash(find C:UsersVictorDesktopfitness-store-managementweb -name types* -not -path */node_modules/*)"
     ],
     "deny": [],
     "ask": []
