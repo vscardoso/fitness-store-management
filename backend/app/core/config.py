@@ -1,5 +1,6 @@
 """Application configuration using Pydantic Settings."""
 
+import json
 from typing import List, Optional
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -67,7 +68,6 @@ class Settings(BaseSettings):
 
     @staticmethod
     def _parse_str_list(v: str) -> List[str]:
-        import json
         try:
             result = json.loads(v)
             if isinstance(result, list):
