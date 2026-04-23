@@ -6,7 +6,7 @@ Expõe apenas dados seguros para o site público (wamodafitness.com.br):
 
 Nunca expõe: custo, quantidade em estoque, SKU, dados internos.
 """
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from typing import List, Optional
@@ -50,15 +50,42 @@ class PublicLook(BaseModel):
 
 # ── Helper ───────────────────────────────────────────────────────────────────
 
-async def _get_default_tenant(db: AsyncSession) -> int:
-    # 1) Loja marcada como padrão
+async def _resolve_tenant(db: AsyncSession, request: Request, store: Optional[str] = None) -> int:
+    """
+    Resolve o tenant público por ordem de prioridade:
+    1. Store.domain = host header (domínio próprio configurado)
+    2. ?store=slug (query param — subdomínio SaaS ou integração)
+    3. Store.is_default = true (fallback / desenvolvimento)
+    4. Primeira loja ativa (último recurso)
+    """
+    host = request.headers.get("host", "").split(":")[0]  # remove porta
+
+    # 1) Domínio próprio
+    if host:
+        row = (await db.execute(
+            text("SELECT id FROM stores WHERE domain = :h AND is_active = true LIMIT 1"),
+            {"h": host}
+        )).fetchone()
+        if row:
+            return row[0]
+
+    # 2) Query param ?store=slug
+    if store:
+        row = (await db.execute(
+            text("SELECT id FROM stores WHERE slug = :s AND is_active = true LIMIT 1"),
+            {"s": store}
+        )).fetchone()
+        if row:
+            return row[0]
+
+    # 3) Loja padrão
     row = (await db.execute(
         text("SELECT id FROM stores WHERE is_default = true AND is_active = true LIMIT 1")
     )).fetchone()
     if row:
         return row[0]
 
-    # 2) Fallback: primeira loja ativa (menor id)
+    # 4) Primeira loja ativa
     row = (await db.execute(
         text("SELECT id FROM stores WHERE is_active = true ORDER BY id LIMIT 1")
     )).fetchone()
@@ -72,14 +99,16 @@ async def _get_default_tenant(db: AsyncSession) -> int:
 
 @router.get("/products", response_model=List[PublicProduct])
 async def list_public_products(
+    request: Request,
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=100),
     category_id: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
+    store: Optional[str] = Query(None, description="Slug da loja"),
     db: AsyncSession = Depends(get_db),
 ):
     """Lista produtos públicos da loja. Não expõe custo nem quantidade."""
-    tenant_id = await _get_default_tenant(db)
+    tenant_id = await _resolve_tenant(db, request, store)
 
     q = """
         SELECT
@@ -149,10 +178,12 @@ async def list_public_products(
 @router.get("/products/{product_id}", response_model=PublicProductDetail)
 async def get_public_product(
     product_id: int,
+    request: Request,
+    store: Optional[str] = Query(None, description="Slug da loja"),
     db: AsyncSession = Depends(get_db),
 ):
     """Detalhe de produto público. Não expõe custo nem quantidade."""
-    tenant_id = await _get_default_tenant(db)
+    tenant_id = await _resolve_tenant(db, request, store)
 
     row = (await db.execute(text("""
         SELECT
@@ -165,7 +196,9 @@ async def get_public_product(
             p.image_url, p.category_id, c.name,
             COALESCE((
                 SELECT SUM(inv.quantity)
-                FROM inventory inv WHERE inv.product_id = p.id
+                FROM inventory inv
+                JOIN product_variants pv ON pv.id = inv.variant_id
+                WHERE pv.product_id = p.id AND pv.is_active = true
             ), 0) > 0 AS in_stock,
             (SELECT COUNT(*) FROM product_variants pv
              WHERE pv.product_id = p.id AND pv.is_active = true) AS variant_count,
@@ -203,9 +236,13 @@ async def get_public_product(
 # ── Categorias ────────────────────────────────────────────────────────────────
 
 @router.get("/categories", response_model=List[PublicCategory])
-async def list_public_categories(db: AsyncSession = Depends(get_db)):
+async def list_public_categories(
+    request: Request,
+    store: Optional[str] = Query(None, description="Slug da loja"),
+    db: AsyncSession = Depends(get_db),
+):
     """Categorias com pelo menos 1 produto ativo na loja."""
-    tenant_id = await _get_default_tenant(db)
+    tenant_id = await _resolve_tenant(db, request, store)
 
     rows = (await db.execute(text("""
         SELECT DISTINCT c.id, c.name
@@ -222,11 +259,13 @@ async def list_public_categories(db: AsyncSession = Depends(get_db)):
 
 @router.get("/looks", response_model=List[PublicLook])
 async def list_public_looks(
+    request: Request,
     limit: int = Query(20, ge=1, le=50),
+    store: Optional[str] = Query(None, description="Slug da loja"),
     db: AsyncSession = Depends(get_db),
 ):
     """Looks públicos da loja (is_public=true apenas)."""
-    tenant_id = await _get_default_tenant(db)
+    tenant_id = await _resolve_tenant(db, request, store)
 
     rows = (await db.execute(text("""
         SELECT l.id, l.name, l.description,
