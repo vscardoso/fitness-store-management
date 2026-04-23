@@ -39,7 +39,17 @@ export default async function ProductPage({ params }: Props) {
   const colors     = Array.from(new Set(product.variants?.map((v) => v.color).filter((c): c is string => Boolean(c)) ?? []));
   const installment = price >= 30 ? fmt(price / 3) : null;
 
-  const waCondit = `Olá! Quero fazer um condicional do produto *${product.name}*. Posso receber em casa para experimentar?`;
+  const waDetails: string[] = [];
+  if (sizes.length > 0) waDetails.push(`Tamanhos: ${sizes.join(", ")}`);
+  if (colors.length > 0) waDetails.push(`Cores: ${colors.join(", ")}`);
+
+  const waMsg = [
+    `Olá! Tenho interesse no produto *${product.name}* (${fmt(price)}).`,
+    waDetails.length > 0 ? `\n${waDetails.join("\n")}` : "",
+    `\nQual tamanho e cor você deseja? Tem disponível?`,
+  ].join("");
+
+  const waCondit = `Olá! Quero fazer um condicional do produto *${product.name}* (${fmt(price)}).${waDetails.length > 0 ? `\n${waDetails.join("\n")}` : ""}\n\nPosso receber em casa para experimentar antes de decidir?`;
 
   return (
     <div style={{ background: "#0d0d18" }}>
