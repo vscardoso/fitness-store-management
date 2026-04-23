@@ -19,23 +19,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # Remover tabela refresh_tokens (substituída por outro mecanismo)
-    try:
-        op.drop_index('ix_refresh_tokens_last_used_at', table_name='refresh_tokens')
-        op.drop_index('ix_refresh_tokens_token_hash', table_name='refresh_tokens')
-        op.drop_index('ix_refresh_tokens_user_id', table_name='refresh_tokens')
-        op.drop_table('refresh_tokens')
-    except Exception:
-        pass
+    from sqlalchemy import text
+    bind = op.get_bind()
 
-    # Criar índice supplier_id em entry_items (se não existir)
-    try:
-        op.create_index(op.f('ix_entry_items_supplier_id'), 'entry_items', ['supplier_id'], unique=False)
-    except Exception:
-        pass
+    # Remover tabela refresh_tokens — IF EXISTS é idempotente no PostgreSQL
+    # (try/except não funciona: DDL abortado deixa toda a transação em estado de erro)
+    bind.execute(text("DROP INDEX IF EXISTS ix_refresh_tokens_last_used_at"))
+    bind.execute(text("DROP INDEX IF EXISTS ix_refresh_tokens_token_hash"))
+    bind.execute(text("DROP INDEX IF EXISTS ix_refresh_tokens_user_id"))
+    bind.execute(text("DROP TABLE IF EXISTS refresh_tokens"))
 
-    # SQLite não suporta ADD FOREIGN KEY / DROP CONSTRAINT / ALTER COLUMN nullable
-    # Essas operações são puladas em ambiente SQLite
+    # Índice supplier_id em entry_items — IF NOT EXISTS evita DuplicateObject
+    bind.execute(text("CREATE INDEX IF NOT EXISTS ix_entry_items_supplier_id ON entry_items (supplier_id)"))
 
 
 def downgrade() -> None:
