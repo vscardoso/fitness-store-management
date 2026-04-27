@@ -16,7 +16,7 @@
 let MODE = 'local' as 'local' | 'tunnel';
 
 // IP do PC na rede WiFi — atualizado por .\use_local.ps1 ou manualmente via ipconfig
-let LOCAL_IP = '192.168.100.158';
+let LOCAL_IP = '192.168.24.5';
 
 // URL do tunnel — atualizada AUTOMATICAMENTE por .\start_tunnel.ps1 a cada execução
 let TUNNEL_URL = 'https://good-mammals-tap.loca.lt';

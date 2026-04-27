@@ -159,7 +159,10 @@
       "Bash(find C:UsersVictorDesktopfitness-store-management -name search.py -path *ui-ux*)",
       "Bash(find C:UsersVictorDesktopfitness-store-management -path *agents/skills/ui-ux* -type f)",
       "WebFetch(domain:vistaeuforia.com.br)",
-      "Bash(find C:UsersVictorDesktopfitness-store-managementweb -name types* -not -path */node_modules/*)"
+      "Bash(find C:UsersVictorDesktopfitness-store-managementweb -name types* -not -path */node_modules/*)",
+      "Bash(npm --version)",
+      "Bash(./venv/Scripts/alembic.exe stamp *)",
+      "Bash(./venv/Scripts/alembic heads *)"
     ],
     "deny": [],
     "ask": []

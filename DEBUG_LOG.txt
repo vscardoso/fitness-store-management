@@ -1005,3 +1005,31 @@
    Data: {"productName": "Conjunto Top e Legging Fitness Alo", "variantsCount": 6, "totalQty": 30}
  [18:10:04] [mobile] [Entries/Add] Imagem do wizard persistida com sucesso
    Data: {"entryId": 78, "productId": 458}
+ [14:22:07] [mobile] [API] POST /auth/login - 401
+   Data: {"status": 401, "detail": "Email ou senha incorretos", "code": "ERR_BAD_REQUEST"}
+ [14:22:14] [mobile] [API] POST /auth/login - 401
+   Data: {"status": 401, "detail": "Email ou senha incorretos", "code": "ERR_BAD_REQUEST"}
+ [17:12:50] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:12:50] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:12:51] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:12:51] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:12:51] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:12:51] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:12:51] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:12:51] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:12:51] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:12:51] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Refresh token inválido.", "code": "ERR_BAD_REQUEST"}
+ [17:12:51] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:14:14] [mobile] [API] POST /auth/login - 401
+   Data: {"status": 401, "detail": "Email ou senha incorretos", "code": "ERR_BAD_REQUEST"}

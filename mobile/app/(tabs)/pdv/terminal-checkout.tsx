@@ -46,6 +46,10 @@ export default function TerminalCheckoutScreen() {
   const numInstallments = parseInt(installments ?? '1', 10);
   const isCredit = payment_type === 'credit_card';
 
+  // Detecta se o provider usa integração cloud (cobrança enviada automaticamente ao terminal)
+  const providerFromName = terminal_name?.match(/\((\w+)\)$/)?.[1]?.toLowerCase() ?? '';
+  const isCloudProvider = ['cielo', 'stone'].includes(providerFromName);
+
   const [confirming, setConfirming] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -159,7 +163,9 @@ export default function TerminalCheckoutScreen() {
 
           {/* Instrução */}
           <Text style={styles.instruction}>
-            Cobre o valor na maquininha e confirme abaixo quando o pagamento for aprovado.
+            {isCloudProvider
+              ? 'A cobrança foi enviada para a maquininha. Aguarde o cliente pagar e confirme abaixo.'
+              : 'Cobre o valor na maquininha e confirme abaixo quando o pagamento for aprovado.'}
           </Text>
         </View>
       </ScrollView>

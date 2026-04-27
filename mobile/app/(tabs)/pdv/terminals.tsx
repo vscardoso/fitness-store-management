@@ -16,7 +16,7 @@ import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Colors, theme } from '@/constants/Colors';
 import { haptics } from '@/utils/haptics';
-import { listTerminals, createTerminal, setupTerminal, deleteTerminal } from '@/services/pdvService';
+import { listTerminals, createTerminal, setupTerminal, saveTerminalCredentials, deleteTerminal } from '@/services/pdvService';
 import type { PDVTerminal, PDVTerminalCreate, PaymentProvider } from '@/types/pdv';
 
 const C = Colors.light;
@@ -35,6 +35,33 @@ const PROVIDER_LABELS: Record<string, { label: string; color: string; bg: string
 const PROVIDER_ORDER: PaymentProvider[] = [
   'cielo', 'stone', 'rede', 'getnet', 'pagseguro', 'sumup', 'manual', 'mercadopago',
 ];
+
+type CredentialField = { key: string; label: string; placeholder: string; hint?: string };
+
+const PROVIDER_CREDENTIALS: Partial<Record<PaymentProvider, CredentialField[]>> = {
+  cielo: [
+    {
+      key: 'merchant_id',
+      label: 'Merchant ID (EC)',
+      placeholder: 'Ex: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx',
+      hint: 'Número do estabelecimento (EC) no portal Cielo.',
+    },
+  ],
+  stone: [
+    {
+      key: 'stonecode',
+      label: 'Stone Code',
+      placeholder: 'Ex: 123456789',
+      hint: 'Código Stone do estabelecimento.',
+    },
+    {
+      key: 'sk_key',
+      label: 'Chave Secreta (SK)',
+      placeholder: 'sk_live_...',
+      hint: 'Chave secreta Stone para autenticação.',
+    },
+  ],
+};
 
 function ProviderBadge({ provider }: { provider: string }) {
   const meta = PROVIDER_LABELS[provider] ?? { label: provider, color: C.textSecondary, bg: C.border };
@@ -111,6 +138,7 @@ export default function TerminalsScreen() {
   const [name, setName] = useState('');
   const [externalId, setExternalId] = useState('');
   const [provider, setProvider] = useState<PaymentProvider>('cielo');
+  const [credentials, setCredentials] = useState<Record<string, string>>({});
 
   const { data: terminals = [], isLoading } = useQuery({
     queryKey: ['pdv-terminals'],
@@ -118,15 +146,28 @@ export default function TerminalsScreen() {
   });
 
   const createMutation = useMutation({
-    mutationFn: (payload: PDVTerminalCreate) => createTerminal(payload),
-    onSuccess: async (terminal) => {
+    mutationFn: async (payload: PDVTerminalCreate) => {
+      const terminal = await createTerminal(payload);
+      const fields = PROVIDER_CREDENTIALS[payload.provider ?? 'manual'];
+      if (fields) {
+        const creds: Record<string, string> = {};
+        for (const f of fields) {
+          if (credentials[f.key]?.trim()) creds[f.key] = credentials[f.key].trim();
+        }
+        if (Object.keys(creds).length > 0) {
+          // Salvar credenciais já chama setup internamente no backend
+          await saveTerminalCredentials(terminal.id, creds);
+          return terminal;
+        }
+      }
+      // Providers sem credenciais (manual, rede, getnet, etc.) → setup marca is_configured
+      await setupTerminal(terminal.id).catch(() => {});
+      return terminal;
+    },
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pdv-terminals'] });
       setSheetVisible(false);
       resetForm();
-
-      setupTerminal(terminal.id).catch(() => {
-        // setup em background — falhas silenciosas, o usuário pode tentar novamente depois
-      });
     },
   });
 
@@ -142,6 +183,7 @@ export default function TerminalsScreen() {
     setName('');
     setExternalId('');
     setProvider('cielo');
+    setCredentials({});
   }
 
   function handleOpenSheet() {
@@ -244,6 +286,7 @@ export default function TerminalsScreen() {
                   onPress={() => {
                     haptics.light();
                     setProvider(p);
+                    setCredentials({});
                   }}
                   activeOpacity={0.7}
                 >
@@ -259,6 +302,25 @@ export default function TerminalsScreen() {
               );
             })}
           </View>
+
+          {/* Campos de credenciais — condicionais por provider */}
+          {PROVIDER_CREDENTIALS[provider]?.map((field) => (
+            <View key={field.key} style={styles.field}>
+              <Text style={styles.label}>{field.label}</Text>
+              <TextInput
+                style={styles.input}
+                placeholder={field.placeholder}
+                placeholderTextColor={C.textSecondary}
+                value={credentials[field.key] ?? ''}
+                onChangeText={(v) => setCredentials((prev) => ({ ...prev, [field.key]: v }))}
+                autoCapitalize="none"
+                autoCorrect={false}
+              />
+              {field.hint ? (
+                <Text style={styles.fieldHint}>{field.hint}</Text>
+              ) : null}
+            </View>
+          ))}
         </View>
       </BottomSheet>
 
@@ -385,6 +447,11 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: C.text,
     backgroundColor: C.background,
+  },
+  fieldHint: {
+    fontSize: 11,
+    color: C.textSecondary,
+    marginTop: 3,
   },
 
   // Provider chips grid

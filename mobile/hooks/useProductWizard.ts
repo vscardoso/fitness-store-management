@@ -11,6 +11,7 @@
 
 import { useState, useCallback } from 'react';
 import * as ImagePicker from 'expo-image-picker';
+import { requestCameraPermissionFriendly, requestGalleryPermissionFriendly } from '@/utils/permissions';
 import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -198,47 +199,32 @@ export function useProductWizard() {
 
   const requestCameraPermission = useCallback(async (): Promise<boolean> => {
     try {
-      const result = await ImagePicker.requestCameraPermissionsAsync();
-      if (result.status !== 'granted') {
-        showDialog(
-          'Permissao Necessaria',
-          'Para usar a camera, precisamos de acesso a ela.',
-          'warning'
-        );
-        return false;
-      }
-      return true;
+      return await requestCameraPermissionFriendly();
     } catch (err) {
       console.error('Error requesting camera permission:', err);
       return false;
     }
-  }, [showDialog]);
+  }, []);
 
   const requestGalleryPermission = useCallback(async (): Promise<boolean> => {
     try {
-      const result = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (result.status !== 'granted') {
-        showDialog(
-          'Permissao Necessaria',
-          'Para acessar a galeria, precisamos de permissao.',
-          'warning'
-        );
-        return false;
-      }
-      return true;
+      return await requestGalleryPermissionFriendly();
     } catch (err) {
       console.error('Error requesting gallery permission:', err);
       return false;
     }
-  }, [showDialog]);
+  }, []);
 
   // Mantém para compatibilidade
   const requestPermission = useCallback(async (): Promise<boolean> => {
     const camera = await requestCameraPermission();
+    if (!camera) {
+      setHasPermission(false);
+      return false;
+    }
     const gallery = await requestGalleryPermission();
-    const granted = camera && gallery;
-    setHasPermission(granted);
-    return granted;
+    setHasPermission(gallery);
+    return gallery;
   }, [requestCameraPermission, requestGalleryPermission]);
 
   // ============================================

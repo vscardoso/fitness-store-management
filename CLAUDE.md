@@ -75,3 +75,4 @@ cd mobile && .\expo-dev.ps1
 - `/pdv` — Especialista PDV: TEF, Stone/Cielo, PIX, terminals, fluxo de checkout
 - `/billing` — Especialista faturamento: assinaturas, Mercado Pago, MRR, DRE, churn
 - `/fullstack` — Orquestração multi-camada: ADD-FIELD, NEW-FEATURE, MODIFY-FLOW, FIX, REFACTOR
+- `/quick-reference` — Referência rápida: tipos, prompts UI-UPGRADE prontos, tokens, checklist

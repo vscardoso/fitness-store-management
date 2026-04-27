@@ -167,12 +167,17 @@ async def init_db() -> None:
       2. create_all (checkfirst) — cria tabelas de modelos novos sem migration
       3. Falha com retry        — aguarda banco ficar disponível (PostgreSQL)
     """
-    # ── Passo 1: executar migrations alembic (dev + prod, nunca em tests) ──
-    if settings.ENVIRONMENT != "test":
+    # ── Passo 1: executar migrations alembic (prod/postgres apenas) ──
+    # SQLite dev: create_all abaixo garante o schema sem precisar de alembic
+    if settings.ENVIRONMENT != "test" and not _is_sqlite:
         try:
-            await asyncio.to_thread(_run_alembic_upgrade)
+            await asyncio.wait_for(
+                asyncio.to_thread(_run_alembic_upgrade),
+                timeout=30,
+            )
+        except asyncio.TimeoutError:
+            logger.warning("Alembic upgrade head excedeu 30s — continuando com create_all")
         except Exception as exc:
-            # Não mata o servidor; create_all abaixo serve de fallback
             logger.warning("Alembic upgrade head falhou: %s — continuando com create_all", exc)
 
     # ── Passo 2: create_all como rede de segurança + verificar conectividade ──

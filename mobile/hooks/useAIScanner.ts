@@ -6,6 +6,7 @@
 import { useState, useCallback } from 'react';
 import { Alert, Platform } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
+import { requestCameraPermissionFriendly, requestGalleryPermissionFriendly } from '@/utils/permissions';
 import { useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
@@ -58,28 +59,18 @@ export function useAIScanner(): UseAIScannerReturn {
   const [showSimilarModal, setShowSimilarModal] = useState(false);
 
   /**
-   * Solicita permissões de câmera e galeria
+   * Solicita permissões de câmera e galeria (com short-circuit)
    */
   const requestPermission = useCallback(async (): Promise<boolean> => {
     try {
-      // Permissão de câmera
-      const cameraResult = await ImagePicker.requestCameraPermissionsAsync();
-
-      // Permissão de galeria
-      const libraryResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-      const granted = cameraResult.status === 'granted' && libraryResult.status === 'granted';
-      setHasPermission(granted);
-
-      if (!granted) {
-        Alert.alert(
-          'Permissão Necessária',
-          'Para usar o scanner de IA, precisamos de acesso à câmera e galeria.',
-          [{ text: 'OK' }]
-        );
+      const camera = await requestCameraPermissionFriendly();
+      if (!camera) {
+        setHasPermission(false);
+        return false;
       }
-
-      return granted;
+      const gallery = await requestGalleryPermissionFriendly();
+      setHasPermission(gallery);
+      return gallery;
     } catch (err) {
       console.error('Error requesting permissions:', err);
       return false;
@@ -127,11 +118,9 @@ export function useAIScanner(): UseAIScannerReturn {
    * Tira foto com a câmera
    */
   const takePhoto = useCallback(async () => {
-    // Verificar permissão
-    if (!hasPermission) {
-      const granted = await requestPermission();
-      if (!granted) return;
-    }
+    // Só pede permissão de câmera
+    const granted = await requestCameraPermissionFriendly();
+    if (!granted) return;
 
     try {
       const result = await ImagePicker.launchCameraAsync({
@@ -150,17 +139,15 @@ export function useAIScanner(): UseAIScannerReturn {
       console.error('Error taking photo:', err);
       Alert.alert('Erro', 'Não foi possível tirar a foto');
     }
-  }, [hasPermission, requestPermission, analyzeImage]);
+  }, [analyzeImage]);
 
   /**
    * Seleciona imagem da galeria
    */
   const pickFromGallery = useCallback(async () => {
-    // Verificar permissão
-    if (!hasPermission) {
-      const granted = await requestPermission();
-      if (!granted) return;
-    }
+    // Só pede permissão de galeria
+    const granted = await requestGalleryPermissionFriendly();
+    if (!granted) return;
 
     try {
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -179,7 +166,7 @@ export function useAIScanner(): UseAIScannerReturn {
       console.error('Error picking image:', err);
       Alert.alert('Erro', 'Não foi possível selecionar a imagem');
     }
-  }, [hasPermission, requestPermission, analyzeImage]);
+  }, [analyzeImage]);
 
   /**
    * Confirma e cria o produto

@@ -55,6 +55,31 @@ export async function setupTerminal(terminalId: number): Promise<MPPOSSetupRespo
   return data;
 }
 
+export interface TerminalCredentials {
+  merchant_id?: string;
+  sk_key?: string;
+  device_serial_number?: string;
+  stonecode?: string;
+  mp_access_token?: string;
+  mp_terminal_id?: string;
+  [key: string]: string | undefined;
+}
+
+export interface TerminalCredentialsResponse {
+  terminal_id: number;
+  provider: string;
+  configured: boolean;
+  message: string;
+}
+
+export async function saveTerminalCredentials(
+  terminalId: number,
+  credentials: TerminalCredentials,
+): Promise<TerminalCredentialsResponse> {
+  const { data } = await api.put(`${BASE}/terminals/${terminalId}/credentials`, credentials);
+  return data;
+}
+
 export async function deleteTerminal(terminalId: number): Promise<void> {
   await api.delete(`${BASE}/terminals/${terminalId}`);
 }
