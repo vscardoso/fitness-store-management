@@ -4,7 +4,7 @@
  * Após criar o produto, oferece opções:
  * - Nova Entrada (cria entrada nova com produto)
  * - Entrada Existente (vincula a entrada já criada) - só aparece se houver entradas
- * - Manter no Catálogo (produto aguarda reposição)
+ * - Criar sem estoque (produto fica com badge "Sem estoque" até receber entrada)
  */
 
 import React, { useState, useEffect, useMemo } from 'react';

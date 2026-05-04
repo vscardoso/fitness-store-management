@@ -328,17 +328,6 @@ export default function ProductsScreen() {
           <View style={styles.actionsContainer}>
             <View style={styles.actionsRow}>
             <TouchableOpacity
-              style={styles.actionButton}
-              onPress={() => router.push('/catalog')}
-              activeOpacity={0.72}
-            >
-              <View style={[styles.actionIconWrap, { backgroundColor: brandingColors.primary + '12' }]}>
-                <Ionicons name="storefront-outline" size={14} color={brandingColors.primary} />
-              </View>
-              <Text style={styles.buttonText}>Catálogo</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
               style={[
                 styles.actionButton,
                 showLowStock && {
@@ -643,24 +632,6 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'center',
     gap: theme.spacing.xs,
-  },
-  catalogButton: {
-    borderRadius: theme.borderRadius.xl,
-    overflow: 'hidden',
-    width: '100%',
-  },
-  catalogButtonGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: theme.spacing.sm,
-    paddingVertical: 14,
-    paddingHorizontal: theme.spacing.lg,
-  },
-  catalogButtonText: {
-    color: '#fff',
-    fontSize: theme.fontSize.base - 1,
-    fontWeight: '700',
   },
   loadingMore: {
     flexDirection: 'row',
