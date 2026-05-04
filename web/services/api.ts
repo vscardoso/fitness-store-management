@@ -46,6 +46,11 @@ export async function getFeaturedProducts(limit = 24): Promise<ProductListItem[]
   return fetchApi<ProductListItem[]>(`/public/products?limit=${limit}`);
 }
 
+export async function getRelatedProducts(categoryId: number, excludeId: number, limit = 5): Promise<ProductListItem[]> {
+  const all = await fetchApi<ProductListItem[]>(`/public/products?category_id=${categoryId}&limit=${limit + 1}`);
+  return all.filter((p) => p.id !== excludeId).slice(0, limit);
+}
+
 // ── Categories ───────────────────────────────────────────────────────────────
 
 export async function getCategories(): Promise<Category[]> {

@@ -18,13 +18,14 @@ import {
   TouchableOpacity,
   Vibration,
   Dimensions,
-  Alert,
+  Linking,
 } from 'react-native';
 import { Text, Button, Card, ActivityIndicator } from 'react-native-paper';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, theme } from '@/constants/Colors';
 import { getProductById, getProductBySku } from '@/services/productService';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { Product } from '@/types';
 
 interface QRCodeScannerProps {
@@ -51,6 +52,7 @@ export default function QRCodeScanner({
   getCartQuantity,
 }: QRCodeScannerProps) {
   const [permission, requestPermission] = useCameraPermissions();
+  const [blockedDialogVisible, setBlockedDialogVisible] = useState(false);
   const [scanned, setScanned] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [scannedProduct, setScannedProduct] = useState<Product | null>(null);
@@ -173,21 +175,40 @@ export default function QRCodeScanner({
   }
 
   if (!permission.granted) {
+    const bloqueada = !permission.canAskAgain;
     return (
       <View style={styles.container}>
         <View style={styles.permissionContainer}>
           <Ionicons name="camera-outline" size={64} color={Colors.light.textSecondary} />
           <Text style={styles.permissionTitle}>Acesso à Câmera</Text>
           <Text style={styles.permissionText}>
-            Precisamos de acesso à câmera para escanear as etiquetas dos produtos.
+            {bloqueada
+              ? 'O acesso à câmera foi bloqueado. Habilite nas configurações do celular.'
+              : 'Precisamos de acesso à câmera para escanear as etiquetas dos produtos.'}
           </Text>
-          <Button mode="contained" onPress={requestPermission} style={styles.permissionButton}>
-            Permitir Acesso
+          <Button
+            mode="contained"
+            onPress={bloqueada ? () => setBlockedDialogVisible(true) : requestPermission}
+            style={styles.permissionButton}
+          >
+            {bloqueada ? 'Abrir Configurações' : 'Permitir Acesso'}
           </Button>
           <Button mode="text" onPress={onClose}>
             Cancelar
           </Button>
         </View>
+
+        <ConfirmDialog
+          visible={blockedDialogVisible}
+          type="warning"
+          icon="camera"
+          title="Câmera bloqueada"
+          message="O acesso à câmera foi negado. Para escanear etiquetas, abra as Configurações do celular e permita o acesso."
+          confirmText="Abrir Configurações"
+          cancelText="Agora não"
+          onConfirm={() => { setBlockedDialogVisible(false); Linking.openSettings(); }}
+          onCancel={() => setBlockedDialogVisible(false)}
+        />
       </View>
     );
   }

@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";
-import { getProduct } from "@/services/api";
+import { getProduct, getRelatedProducts } from "@/services/api";
 import AddToCartButton from "@/components/AddToCartButton";
 import ProductGallery from "@/components/ProductGallery";
+import ProductCard from "@/components/ProductCard";
 
 export const revalidate = 60;
 
@@ -32,6 +33,10 @@ export default async function ProductPage({ params }: Props) {
   try { product = await getProduct(Number(id)); }
   catch { notFound(); }
   if (!product) notFound();
+
+  const related = product.category_id
+    ? await getRelatedProducts(product.category_id, product.id, 4).catch(() => [])
+    : [];
 
   const price      = product.sale_price ?? product.price ?? 0;
   const inStock    = (product.current_stock ?? 0) > 0;
@@ -215,6 +220,26 @@ export default async function ProductPage({ params }: Props) {
           </div>
         </div>
       </div>
+
+      {/* ── Você também vai amar ── */}
+      {related.length > 0 && (
+        <section className="pb-24">
+          <div
+            className="max-w-7xl mx-auto px-5 sm:px-8 pt-10 pb-2"
+            style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}
+          >
+            <p className="section-label mb-2">da mesma categoria</p>
+            <h2 className="text-2xl md:text-3xl font-black text-white mb-8">
+              Você também vai amar
+            </h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {related.map((p) => (
+                <ProductCard key={p.id} product={p} />
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

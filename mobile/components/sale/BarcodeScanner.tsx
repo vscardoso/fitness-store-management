@@ -6,17 +6,14 @@
  */
 
 import { useState, useRef, useEffect } from 'react';
-import {
-  View,
-  StyleSheet,
-  Alert,
-} from 'react-native';
+import { View, StyleSheet, Linking } from 'react-native';
 import { Modal, Portal, Button, Text, ActivityIndicator } from 'react-native-paper';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
 import { haptics } from '@/utils/haptics';
 import { getProductByBarcode } from '@/services/productService';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { Product } from '@/types';
 
 interface BarcodeScannerProps {
@@ -33,6 +30,7 @@ export default function BarcodeScanner({
   const [permission, requestPermission] = useCameraPermissions();
   const [isScanning, setIsScanning] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [blockedDialogVisible, setBlockedDialogVisible] = useState(false);
   const lastScannedRef = useRef<string | null>(null);
 
   /**
@@ -115,6 +113,7 @@ export default function BarcodeScanner({
 
     // Permissão negada
     if (!permission.granted) {
+      const bloqueada = !permission.canAskAgain;
       return (
         <View style={styles.centerContent}>
           <Ionicons name="camera-outline" size={64} color={Colors.light.textSecondary} />
@@ -122,15 +121,17 @@ export default function BarcodeScanner({
             Câmera não disponível
           </Text>
           <Text style={styles.errorDescription}>
-            Permita o acesso à câmera para usar o scanner de código de barras.
+            {bloqueada
+              ? 'O acesso à câmera foi bloqueado. Habilite nas configurações do celular.'
+              : 'Permita o acesso à câmera para usar o scanner de código de barras.'}
           </Text>
           <Button
             mode="contained"
-            onPress={requestPermission}
+            onPress={bloqueada ? () => setBlockedDialogVisible(true) : requestPermission}
             style={styles.button}
             icon="camera"
           >
-            Permitir Câmera
+            {bloqueada ? 'Abrir Configurações' : 'Permitir Câmera'}
           </Button>
           <Button
             mode="outlined"
@@ -218,6 +219,18 @@ export default function BarcodeScanner({
       >
         {renderContent()}
       </Modal>
+
+      <ConfirmDialog
+        visible={blockedDialogVisible}
+        type="warning"
+        icon="camera"
+        title="Câmera bloqueada"
+        message="O acesso à câmera foi negado. Para escanear códigos de barras, abra as Configurações do celular e permita o acesso."
+        confirmText="Abrir Configurações"
+        cancelText="Agora não"
+        onConfirm={() => { setBlockedDialogVisible(false); Linking.openSettings(); }}
+        onCancel={() => setBlockedDialogVisible(false)}
+      />
     </Portal>
   );
 }

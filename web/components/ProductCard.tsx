@@ -15,10 +15,16 @@ const fmt = (n: number) =>
 const waUrl = (msg: string) =>
   `https://wa.me/${WA_NUM}?text=${encodeURIComponent(msg)}`;
 
+function isNew(createdAt?: string): boolean {
+  if (!createdAt) return false;
+  return Date.now() - new Date(createdAt).getTime() < 30 * 24 * 60 * 60 * 1000;
+}
+
 export default function ProductCard({ product }: Props) {
   const { addItem } = useCart();
   const price       = product.sale_price ?? product.price ?? 0;
-  const inStock     = (product.current_stock ?? 0) > 0;
+  const inStock     = product.in_stock ?? (product.current_stock ?? 0) > 0;
+  const isNewProduct = isNew(product.created_at);
   const sizes       = Array.from(new Set(
     product.variants?.map((v) => v.size).filter((s): s is string => Boolean(s)) ?? []
   ));
@@ -56,6 +62,18 @@ export default function ProductCard({ product }: Props) {
             <span className="text-[10px] font-bold px-2 py-1 rounded-md text-white"
               style={{ background: "rgba(0,0,0,0.65)", backdropFilter: "blur(4px)", border: "1px solid rgba(255,255,255,0.08)" }}>
               Esgotado
+            </span>
+          </div>
+        )}
+
+        {/* Badge NOVO */}
+        {isNewProduct && inStock && (
+          <div className="absolute top-2.5 left-2.5">
+            <span
+              className="text-[10px] font-bold px-2 py-1 rounded-md text-white"
+              style={{ background: "linear-gradient(135deg, #ff1a6c, #ff4f96)", boxShadow: "0 0 8px rgba(255,26,108,0.4)" }}
+            >
+              NOVO
             </span>
           </div>
         )}

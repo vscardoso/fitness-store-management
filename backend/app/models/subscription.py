@@ -58,9 +58,6 @@ class Subscription(BaseModel):
     cancelled_at = Column(DateTime, nullable=True)
     cancelled_reason = Column(String(255), nullable=True)
     
-    # Relationships
-    tenant = relationship("Tenant", back_populates="subscription")
-    
     def __repr__(self):
         return f"<Subscription(tenant_id={self.tenant_id}, plan={self.plan}, status={self.status})>"
     

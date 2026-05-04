@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from typing import List, Optional
 from pydantic import BaseModel
+from datetime import datetime
 
 from app.core.database import get_db
 
@@ -32,6 +33,7 @@ class PublicProduct(BaseModel):
     in_stock: bool
     variant_count: int
     sizes: List[str]
+    created_at: Optional[datetime] = None
 
 class PublicProductDetail(PublicProduct):
     description: Optional[str] = None
@@ -139,7 +141,8 @@ async def list_public_products(
                 WHERE pv2.product_id = p.id AND pv2.is_active = true
                   AND pv2.size IS NOT NULL
                 ORDER BY pv2.size
-            )                                    AS sizes
+            )                                    AS sizes,
+            p.created_at
         FROM products p
         LEFT JOIN categories c ON c.id = p.category_id
         WHERE p.tenant_id  = :tid
@@ -171,6 +174,7 @@ async def list_public_products(
             in_stock=bool(r[6]),
             variant_count=int(r[7] or 0),
             sizes=list(r[8] or []),
+            created_at=r[9],
         )
         for r in rows
     ]

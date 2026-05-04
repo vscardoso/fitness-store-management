@@ -59,6 +59,8 @@ export interface ProductListItem {
   color?: string;
   size?: string;
   is_active: boolean;
+  in_stock?: boolean;
+  created_at?: string;
 }
 
 // ── Look Types ───────────────────────────────────────────────────────────────
