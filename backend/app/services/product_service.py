@@ -129,9 +129,10 @@ class ProductService:
                 "Isso garante rastreabilidade completa do inventário."
             )
         
-        # Produto sempre criado como is_catalog=False.
-        # is_catalog é um campo legado — não é mais usado para controlar visibilidade.
-        product_dict["is_catalog"] = False
+        # is_catalog: controlado pelo usuário. Default=True (publicado no catálogo).
+        # False = produto interno/rascunho, não aparece no catálogo web.
+        if "is_catalog" not in product_dict:
+            product_dict["is_catalog"] = True
 
         # REGRA FIFO STRICT: Produtos NÃO podem ser criados sem estoque.
         #
@@ -1034,8 +1035,10 @@ class ProductService:
                 Product.is_active == True,
             )
         )
+        # Admin vê todos os produtos do tenant (catálogo + internos).
+        # include_catalog=False filtra apenas publicados (is_catalog=True).
         if not include_catalog:
-            stmt = stmt.where(Product.is_catalog == False)
+            stmt = stmt.where(Product.is_catalog == True)
 
         result = await self.db.execute(stmt)
         products = list(result.scalars().all())

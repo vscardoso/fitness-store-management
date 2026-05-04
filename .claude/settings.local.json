@@ -162,7 +162,17 @@
       "Bash(find C:UsersVictorDesktopfitness-store-managementweb -name types* -not -path */node_modules/*)",
       "Bash(npm --version)",
       "Bash(./venv/Scripts/alembic.exe stamp *)",
-      "Bash(./venv/Scripts/alembic heads *)"
+      "Bash(./venv/Scripts/alembic heads *)",
+      "PowerShell(dir \"C:\\\\Dev\\\\fitness-store-management\\\\mobile\\\\\" | Where-Object { -not $_.PSIsContainer } | Select-Object -ExpandProperty Name)",
+      "PowerShell($s = Get-Content \"C:\\\\Dev\\\\fitness-store-management\\\\.claude\\\\settings.json\" -Raw | ConvertFrom-Json; $s.hooks)",
+      "PowerShell($s = Get-Content \"C:\\\\Dev\\\\fitness-store-management\\\\.claude\\\\settings.local.json\" -Raw | ConvertFrom-Json; $s.hooks | ConvertTo-Json -Depth 5)",
+      "PowerShell(Get-Process *])",
+      "PowerShell(Get-Process *)",
+      "Bash(npm i *)",
+      "PowerShell(cd C:\\\\Dev\\\\fitness-store-management\\\\mobile; npx tsc --noEmit 2>&1 | Select-String -Pattern \"error TS\" | Where-Object { $_ -match \"productWizard|incomplete|WizardStep1|wizard\\\\.tsx|products\\\\.tsx\" } | Select-Object -First 20)",
+      "PowerShell(cd C:\\\\Dev\\\\fitness-store-management\\\\mobile; npx tsc --noEmit 2>&1 | Select-String -Pattern \"error TS\" | Where-Object { $_ -match \"productWizard|incomplete|WizardStep1|wizard\\\\.tsx|products\\\\.tsx|productService\" } | Select-Object -First 20)",
+      "Skill(update-config)",
+      "Bash"
     ],
     "deny": [],
     "ask": []

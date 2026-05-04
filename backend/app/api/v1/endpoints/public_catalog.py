@@ -147,7 +147,7 @@ async def list_public_products(
         LEFT JOIN categories c ON c.id = p.category_id
         WHERE p.tenant_id  = :tid
           AND p.is_active  = true
-          AND p.is_catalog = false
+          AND p.is_catalog = true
     """
     params: dict = {"tid": tenant_id}
 
@@ -220,7 +220,7 @@ async def get_public_product(
             p.description, p.brand, p.gender, p.material
         FROM products p
         LEFT JOIN categories c ON c.id = p.category_id
-        WHERE p.id = :pid AND p.tenant_id = :tid AND p.is_active = true AND p.is_catalog = false
+        WHERE p.id = :pid AND p.tenant_id = :tid AND p.is_active = true AND p.is_catalog = true
     """), {"pid": product_id, "tid": tenant_id})).fetchone()
 
     if not row:
@@ -262,7 +262,7 @@ async def list_public_categories(
         SELECT DISTINCT c.id, c.name
         FROM categories c
         JOIN products p ON p.category_id = c.id
-        WHERE p.tenant_id = :tid AND p.is_active = true AND p.is_catalog = false
+        WHERE p.tenant_id = :tid AND p.is_active = true AND p.is_catalog = true
         ORDER BY c.name
     """), {"tid": tenant_id})).fetchall()
 

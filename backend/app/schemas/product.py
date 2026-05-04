@@ -27,7 +27,7 @@ class ProductBase(BaseModel):
     material: Optional[str] = Field(None, max_length=100)
     is_digital: bool = False
     is_activewear: bool = False
-    is_catalog: bool = False
+    is_catalog: bool = Field(True, description="Se o produto está publicado no catálogo público da loja")
     image_url: Optional[str] = Field(None, max_length=500, description="URL ou path da imagem do produto")
 
 

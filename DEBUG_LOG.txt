@@ -1033,3 +1033,25 @@
    Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
  [17:14:14] [mobile] [API] POST /auth/login - 401
    Data: {"status": 401, "detail": "Email ou senha incorretos", "code": "ERR_BAD_REQUEST"}
+ [16:15:55] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:15:55] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:15:55] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:15:55] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:15:55] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:15:55] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:15:55] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:15:55] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:15:55] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:15:55] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:15:55] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Sessão expirada por inatividade (60 min). Faça login novamente.", "code": "ERR_BAD_REQUEST"}

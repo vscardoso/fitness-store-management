@@ -479,11 +479,8 @@ export function useProductWizard() {
         price: state.productData.price!,
         initial_stock: 0, // Sempre 0 - estoque via entrada FIFO
         min_stock: 5,
-        // Produto criado pelo wizard começa como CATÁLOGO (is_catalog=true).
-        // O backend vira is_catalog=false automaticamente quando uma entrada
-        // de estoque é criada com este produto (create_entry / add_item_to_entry).
-        // Isso impede produtos órfãos: se a entrada falhar, o produto fica
-        // no catálogo e não aparece como ativo sem estoque.
+        // is_catalog=true = publicado no catálogo da loja (visível para clientes).
+        // Produto sem estoque aparece com badge "Sem estoque" — nunca some do catálogo.
         is_catalog: true,
       };
 
@@ -1020,7 +1017,7 @@ export function useProductWizard() {
           material: product.material,
           category_id: product.category_id,
           base_price: product.price,
-          is_catalog: true, // Catálogo: ativado quando a entrada for vinculada
+          is_catalog: true,
           variants: variantsList,
         });
 
@@ -1201,12 +1198,8 @@ export function useProductWizard() {
       return;
     }
 
-    // Produto simples: atualizar is_catalog se necessário (silencioso — não mostrar loading)
-    if (state.createdProduct?.id && state.createdProduct.id > 0) {
-      updateProduct(state.createdProduct.id, { is_catalog: true } as any, skipLoading()).catch(err => {
-        logWarn('Wizard', 'Falha ao restaurar is_catalog=True no skipEntry', err);
-      });
-    }
+    // Produto sem entrada: já foi criado com is_catalog=true (publicado, badge "Sem estoque").
+    // Nenhuma ação adicional necessária.
 
     setState(prev => ({
       ...prev,

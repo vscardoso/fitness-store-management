@@ -84,8 +84,8 @@ class Product(BaseModel):
 
     is_catalog: Mapped[bool] = mapped_column(
         Boolean,
-        default=False,
-        comment="Whether this is a catalog template (true) or active product (false)"
+        default=True,
+        comment="Whether this product is published in the store's public catalog (true=visible to customers)"
     )
 
     image_url: Mapped[str | None] = mapped_column(
