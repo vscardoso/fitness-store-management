@@ -2,6 +2,7 @@
  * Configuracoes do ambiente e API
  * Centralize todas as configs do app aqui
  */
+import Constants from 'expo-constants';
 
 // ============================================================================
 // CONFIGURACAO DE REDE
@@ -12,19 +13,25 @@
 //   Redes difer. → rode: .\start_tunnel.ps1 (atualiza TUNNEL_URL automaticamente)
 // ============================================================================
 
-// let MODE = 'local' as 'local' | 'tunnel';
 let MODE = 'local' as 'local' | 'tunnel';
 
-// IP do PC na rede WiFi — atualizado por .\use_local.ps1 ou manualmente via ipconfig
-let LOCAL_IP = '192.168.0.4';
+// Fallback manual — só usado se auto-detecção falhar
+let LOCAL_IP_FALLBACK = '192.168.0.2';
 
 // URL do tunnel — atualizada AUTOMATICAMENTE por .\start_tunnel.ps1 a cada execução
 let TUNNEL_URL = 'https://good-mammals-tap.loca.lt';
 
-// Monta a URL com base no modo
-const LOCAL_API_URL = MODE === 'tunnel' && TUNNEL_URL
-  ? `${TUNNEL_URL}/api/v1`
-  : `http://${LOCAL_IP}:8000/api/v1`;
+// Auto-detecta o IP da máquina de desenvolvimento via Metro bundler (hostUri = "192.168.x.x:8081")
+function getLocalApiUrl(): string {
+  if (MODE === 'tunnel' && TUNNEL_URL) {
+    return `${TUNNEL_URL}/api/v1`;
+  }
+  const hostUri = Constants.expoConfig?.hostUri; // ex: "192.168.0.2:8081"
+  const host = hostUri ? hostUri.split(':')[0] : LOCAL_IP_FALLBACK;
+  return `http://${host}:8000/api/v1`;
+}
+
+const LOCAL_API_URL = getLocalApiUrl();
 
 // Producao (Render.com)
 const PRODUCTION_URL = process.env.EXPO_PUBLIC_API_URL || 'https://fitness-backend-x1qn.onrender.com/api/v1';
