@@ -77,13 +77,6 @@ class ProductUpdate(BaseModel):
         return self
 
 
-class ActivateProductRequest(BaseModel):
-    """Schema for activating a catalog product."""
-    custom_price: Optional[Decimal] = Field(None, gt=0, description="Preço personalizado (opcional)")
-    entry_id: Optional[int] = Field(None, description="ID da entrada de estoque (obrigatório para rastreabilidade)")
-    quantity: Optional[int] = Field(None, gt=0, description="Quantidade inicial do produto")
-
-
 class ProductEntryItem(BaseModel):
     """Schema resumido de um entry item para exibição no produto."""
     entry_item_id: int

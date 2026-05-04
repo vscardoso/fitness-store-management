@@ -16,7 +16,7 @@ import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { scanProductImage } from '@/services/aiService';
-import { createProduct, getProductById, getCatalogProducts, updateProduct } from '@/services/productService';
+import { createProduct, getProductById, updateProduct } from '@/services/productService';
 import { skipLoading } from '@/utils/apiHelpers';
 import { createProductWithVariants } from '@/services/productVariantService';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
@@ -59,8 +59,6 @@ export interface UseProductWizardReturn {
   pickFromGallery: () => Promise<void>;
   retakePhoto: () => void;
   setManualData: (data: Partial<ProductCreate>) => void;
-  selectCatalogProduct: (product: Product) => void;
-
   // Step 2 - Confirmar
   updateProductData: (data: Partial<ProductCreate>) => void;
   setIsEditing: (editing: boolean) => void;
@@ -100,7 +98,6 @@ const INITIAL_STATE: WizardState = {
   scanResult: null,
   isAnalyzing: false,
   analyzeError: null,
-  selectedCatalogProduct: null,
   productData: {},
   duplicates: [],
   isEditing: false,
@@ -159,8 +156,6 @@ export function useProductWizard() {
     queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
     queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
     queryClient.invalidateQueries({ queryKey: ['active-products'] });
-    queryClient.invalidateQueries({ queryKey: ['catalog-products-count'] });
-    queryClient.invalidateQueries({ queryKey: ['incomplete-products-count'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
 
     if (productId && productId > 0) {
@@ -413,31 +408,6 @@ export function useProductWizard() {
     }));
   }, []);
 
-  const selectCatalogProduct = useCallback((product: Product) => {
-    // Pré-preenche productData com os dados do produto do catálogo
-    // O produto será criado como is_catalog=false (cópia da loja) no Step 2
-    // IMPORTANTE: NÃO copiar o SKU do catálogo - será gerado automaticamente no Step 2
-    setState(prev => ({
-      ...prev,
-      selectedCatalogProduct: product,
-      duplicates: [],
-      productData: {
-        name: product.name,
-        sku: undefined, // NÃO copiar SKU - será gerado automaticamente no Step 2
-        barcode: product.barcode || undefined,
-        description: product.description || undefined,
-        brand: product.brand || undefined,
-        color: product.color || undefined,
-        size: product.size || undefined,
-        gender: product.gender ? capitalizeWords(product.gender) : undefined,
-        material: product.material || undefined,
-        category_id: product.category_id || undefined,
-        cost_price: product.cost_price || undefined,
-        price: product.price || 0,
-      },
-      isDirty: true,
-    }));
-  }, []);
 
   // ============================================
   // STEP 2 - CONFIRMAR
@@ -1196,7 +1166,7 @@ export function useProductWizard() {
         is_catalog: true,
         variants: variantsList,
       }).then(async (created) => {
-        let createdWithImage = created;
+        let createdWithImage: any = created;
         if (state.capturedImage) {
           try {
             createdWithImage = await uploadProductImageWithFallback(created.id, state.capturedImage);
@@ -1264,9 +1234,6 @@ export function useProductWizard() {
         if (state.identifyMethod === 'manual') {
           return !!state.productData.name && !!state.productData.category_id;
         }
-        if (state.identifyMethod === 'catalog') {
-          return !!state.selectedCatalogProduct;
-        }
         return false;
 
       case 'confirm':
@@ -1302,7 +1269,6 @@ export function useProductWizard() {
     pickFromGallery,
     retakePhoto,
     setManualData,
-    selectCatalogProduct,
 
     // Step 2 - Confirmar
     updateProductData,

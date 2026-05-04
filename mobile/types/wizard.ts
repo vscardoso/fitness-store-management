@@ -11,7 +11,7 @@ import type { Product, ProductCreate, ProductScanResult, DuplicateMatch, StockEn
 
 export type WizardStep = 'identify' | 'confirm' | 'entry' | 'complete';
 
-export type IdentifyMethod = 'scanner' | 'manual' | 'catalog';
+export type IdentifyMethod = 'scanner' | 'manual';
 
 export type EntryChoice = 'new' | 'existing' | 'skip';
 
@@ -51,8 +51,6 @@ export interface WizardState {
   scanResult: ProductScanResult | null;
   isAnalyzing: boolean;
   analyzeError: string | null;
-  selectedCatalogProduct: Product | null;
-
   // Step 2 - Confirm
   productData: Partial<ProductCreate>;
   duplicates: DuplicateMatch[];
@@ -101,7 +99,6 @@ export interface WizardActions {
   setScanResult: (result: ProductScanResult | null) => void;
   setIsAnalyzing: (analyzing: boolean) => void;
   setAnalyzeError: (error: string | null) => void;
-  selectCatalogProduct: (product: Product | null) => void;
 
   // Step 2 - Confirm
   updateProductData: (data: Partial<ProductCreate>) => void;
@@ -190,7 +187,6 @@ export const INITIAL_WIZARD_STATE: WizardState = {
   scanResult: null,
   isAnalyzing: false,
   analyzeError: null,
-  selectedCatalogProduct: null,
   productData: {},
   duplicates: [],
   isEditing: false,

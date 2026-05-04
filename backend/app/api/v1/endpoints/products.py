@@ -12,7 +12,6 @@ from app.schemas.product import (
     ProductResponse,
     ProductCreate,
     ProductUpdate,
-    ActivateProductRequest,
     ProductStatusResponse,
     ProductQuantityAdjustRequest,
     ProductQuantityAdjustResponse,
@@ -73,67 +72,38 @@ async def build_product_response(
     if product.category_id:
         category_data = await get_category_data(db, product.category_id)
 
-    # min_stock_threshold vem da tabela inventory (configuração do lojista)
-    # current_stock calculado via FIFO após construir variants_list
-    min_stock_threshold = None
-    if not product.is_catalog:
-        inv_result = await db.execute(
-            text("SELECT min_stock FROM inventory WHERE product_id = :pid AND tenant_id = :tid LIMIT 1"),
-            {"pid": product.id, "tid": tenant_id}
-        )
-        inv_row = inv_result.fetchone()
-        min_stock_threshold = inv_row[0] if inv_row else None
-    
+    # min_stock_threshold vem da tabela inventory
+    inv_result = await db.execute(
+        text("SELECT min_stock FROM inventory WHERE product_id = :pid AND tenant_id = :tid LIMIT 1"),
+        {"pid": product.id, "tid": tenant_id}
+    )
+    inv_row = inv_result.fetchone()
+    min_stock_threshold = inv_row[0] if inv_row else None
+
     # Garantir que created_at e updated_at não sejam None
     created_at = product.created_at or datetime.utcnow()
     updated_at = product.updated_at or datetime.utcnow()
-    
-    # Para produtos de catálogo: buscar variantes SEM filtro de tenant
-    # Para produtos normais: filtrar por tenant
-    if product.is_catalog:
-        variant_query = text("""
-            SELECT sku, price, cost_price, color, size 
-            FROM product_variants 
-            WHERE product_id = :pid AND is_active = true
-            LIMIT 1
-        """)
-        variant_params = {"pid": product.id}
-        
-        # Buscar TODAS as variantes do catálogo com estoque calculado por variante
-        all_variants_query = text("""
-            SELECT 
-                pv.id, pv.sku, pv.size, pv.color, pv.price, pv.cost_price, pv.is_active,
-                COALESCE(SUM(CASE WHEN se.is_active = true THEN ei.quantity_remaining ELSE 0 END), 0) as current_stock
-            FROM product_variants pv
-            LEFT JOIN entry_items ei ON ei.variant_id = pv.id AND ei.is_active = true
-            LEFT JOIN stock_entries se ON se.id = ei.entry_id
-            WHERE pv.product_id = :pid AND pv.is_active = true
-            GROUP BY pv.id
-            ORDER BY pv.size, pv.color
-        """)
-        all_variants_result = await db.execute(all_variants_query, {"pid": product.id})
-    else:
-        variant_query = text("""
-            SELECT sku, price, cost_price, color, size 
-            FROM product_variants 
-            WHERE product_id = :pid AND tenant_id = :tid AND is_active = true
-            LIMIT 1
-        """)
-        variant_params = {"pid": product.id, "tid": tenant_id}
-        
-        # Buscar TODAS as variantes do produto ativo com estoque calculado por variante
-        all_variants_query = text("""
-            SELECT 
-                pv.id, pv.sku, pv.size, pv.color, pv.price, pv.cost_price, pv.is_active,
-                COALESCE(SUM(CASE WHEN se.is_active = true THEN ei.quantity_remaining ELSE 0 END), 0) as current_stock
-            FROM product_variants pv
-            LEFT JOIN entry_items ei ON ei.variant_id = pv.id AND ei.is_active = true
-            LEFT JOIN stock_entries se ON se.id = ei.entry_id
-            WHERE pv.product_id = :pid AND pv.tenant_id = :tid AND pv.is_active = true
-            GROUP BY pv.id
-            ORDER BY pv.size, pv.color
-        """)
-        all_variants_result = await db.execute(all_variants_query, {"pid": product.id, "tid": tenant_id})
+
+    variant_query = text("""
+        SELECT sku, price, cost_price, color, size
+        FROM product_variants
+        WHERE product_id = :pid AND tenant_id = :tid AND is_active = true
+        LIMIT 1
+    """)
+    variant_params = {"pid": product.id, "tid": tenant_id}
+
+    all_variants_query = text("""
+        SELECT
+            pv.id, pv.sku, pv.size, pv.color, pv.price, pv.cost_price, pv.is_active,
+            COALESCE(SUM(CASE WHEN se.is_active = true THEN ei.quantity_remaining ELSE 0 END), 0) as current_stock
+        FROM product_variants pv
+        LEFT JOIN entry_items ei ON ei.variant_id = pv.id AND ei.is_active = true
+        LEFT JOIN stock_entries se ON se.id = ei.entry_id
+        WHERE pv.product_id = :pid AND pv.tenant_id = :tid AND pv.is_active = true
+        GROUP BY pv.id
+        ORDER BY pv.size, pv.color
+    """)
+    all_variants_result = await db.execute(all_variants_query, {"pid": product.id, "tid": tenant_id})
     
     variant_result = await db.execute(variant_query, variant_params)
     variant_row = variant_result.fetchone()
@@ -296,17 +266,9 @@ async def list_products(
         else:
             products = await product_repo.get_multi(db, skip=skip, limit=limit, tenant_id=tenant_id)
 
-        # Buscar IDs de produtos com EntryItems ativos (não órfãos)
-        products_with_entries_ids = await entry_item_repo.get_products_with_entries(db, tenant_id)
-
-        # Filtrar não-catálogo, não órfãos e construir responses
+        # Construir responses — mostrar todos os produtos do tenant (incluindo sem estoque)
         responses = []
         for product in products:
-            if product.is_catalog:
-                continue
-            # Excluir produtos órfãos (sem EntryItems ativos)
-            if product.id not in products_with_entries_ids:
-                continue
             resp = await build_product_response(product, db, inventory_repo, tenant_id)
             responses.append(resp)
         return responses
@@ -454,362 +416,8 @@ async def list_active_products(
         )
 
 
-@router.get(
-    "/incomplete/count",
-    response_model=dict,
-    summary="Contar produtos incompletos (sem entrada)",
-    description="Produtos criados pelo wizard mas abandonados antes de vincular uma entrada de estoque"
-)
-async def count_incomplete_products(
-    tenant_id: int = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Conta produtos is_catalog=true do tenant atual (criados pelo wizard e não vinculados a nenhuma entrada).
-    Exclui os produtos do catálogo global (tenant de referência).
-    """
-    from sqlalchemy import func, and_, select as sa_select
-    try:
-        min_catalog_tenant = sa_select(func.min(Product.tenant_id)).where(
-            and_(Product.is_catalog == True, Product.is_active == True)
-        ).scalar_subquery()
-
-        result = await db.execute(
-            sa_select(func.count()).where(
-                and_(
-                    Product.is_catalog == True,
-                    Product.is_active == True,
-                    Product.tenant_id == tenant_id,
-                    Product.tenant_id != min_catalog_tenant,
-                )
-            )
-        )
-        count = result.scalar() or 0
-        return {"count": count}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao contar produtos incompletos: {str(e)}"
-        )
 
 
-@router.get(
-    "/incomplete",
-    response_model=List[dict],
-    summary="Listar produtos incompletos (sem entrada)",
-    description="Produtos criados pelo wizard mas abandonados antes de vincular uma entrada de estoque"
-)
-async def list_incomplete_products(
-    tenant_id: int = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Lista produtos is_catalog=true do tenant atual, excluindo o catálogo global.
-    Retorna campos mínimos para exibição no banner/tela de produtos incompletos.
-    """
-    from sqlalchemy import func, and_, select as sa_select
-    from app.models.product_variant import ProductVariant
-
-    try:
-        min_catalog_tenant = sa_select(func.min(Product.tenant_id)).where(
-            and_(Product.is_catalog == True, Product.is_active == True)
-        ).scalar_subquery()
-
-        # Subquery: primeiro SKU de cada produto (variante mais antiga)
-        first_sku = (
-            sa_select(ProductVariant.sku)
-            .where(ProductVariant.product_id == Product.id)
-            .order_by(ProductVariant.id)
-            .limit(1)
-            .correlate(Product)
-            .scalar_subquery()
-        )
-
-        stmt = (
-            sa_select(
-                Product.id,
-                Product.name,
-                first_sku.label("sku"),
-                Product.brand,
-                Product.image_url,
-                Product.created_at,
-                Product.category_id,
-                Product.base_price,
-                Product.gender,
-                Product.material,
-                Product.is_digital,
-                Product.is_activewear,
-                Product.description,
-                Category.name.label("category_name"),
-            )
-            .outerjoin(Category, Category.id == Product.category_id)
-            .where(
-                and_(
-                    Product.is_catalog == True,
-                    Product.is_active == True,
-                    Product.tenant_id == tenant_id,
-                    Product.tenant_id != min_catalog_tenant,
-                )
-            )
-            .order_by(Product.created_at.desc())
-        )
-
-        rows = (await db.execute(stmt)).fetchall()
-        return [
-            {
-                "id": r.id,
-                "name": r.name,
-                "sku": r.sku,
-                "brand": r.brand,
-                "image_url": r.image_url,
-                "created_at": r.created_at.isoformat() if r.created_at else None,
-                "category_id": r.category_id,
-                "base_price": float(r.base_price) if r.base_price else None,
-                "gender": r.gender,
-                "material": r.material,
-                "is_digital": r.is_digital,
-                "is_activewear": r.is_activewear,
-                "description": r.description,
-                "category_name": r.category_name,
-                "is_catalog": True,
-                "is_active": True,
-                "current_stock": 0,
-            }
-            for r in rows
-        ]
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao listar produtos incompletos: {str(e)}"
-        )
-
-
-@router.delete(
-    "/incomplete/all",
-    response_model=dict,
-    summary="Excluir todos os produtos incompletos",
-    description="Soft-delete em todos os rascunhos sem entrada de estoque do tenant"
-)
-async def delete_all_incomplete_products(
-    tenant_id: int = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    from sqlalchemy import func, and_, select as sa_select, update as sa_update
-
-    try:
-        min_catalog_tenant = sa_select(func.min(Product.tenant_id)).where(
-            and_(Product.is_catalog == True, Product.is_active == True)
-        ).scalar_subquery()
-
-        # IDs dos produtos incompletos do tenant
-        ids_stmt = sa_select(Product.id).where(
-            and_(
-                Product.is_catalog == True,
-                Product.is_active == True,
-                Product.tenant_id == tenant_id,
-                Product.tenant_id != min_catalog_tenant,
-            )
-        )
-        result = await db.execute(ids_stmt)
-        ids = [r[0] for r in result.fetchall()]
-
-        if not ids:
-            return {"deleted": 0}
-
-        await db.execute(
-            sa_update(Product)
-            .where(Product.id.in_(ids))
-            .values(is_active=False)
-        )
-        await db.commit()
-        return {"deleted": len(ids)}
-    except Exception as e:
-        await db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao excluir produtos incompletos: {str(e)}"
-        )
-
-
-@router.get(
-    "/catalog/count",
-    response_model=dict,
-    summary="Contar produtos do catálogo",
-    description="Retorna o total de produtos disponíveis no catálogo (leve, sem N+1 queries)"
-)
-async def count_catalog_products(
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Retorna apenas o total de produtos do catálogo.
-    Endpoint leve para exibir contagem sem carregar todos os produtos.
-    """
-    from sqlalchemy import func, and_, select as sa_select
-    try:
-        # Subquery para pegar o menor tenant_id do catálogo (tenant de referência)
-        min_tenant_sub = sa_select(func.min(Product.tenant_id)).where(
-            and_(Product.is_catalog == True, Product.is_active == True)
-        ).scalar_subquery()
-
-        result = await db.execute(
-            select(func.count()).where(
-                and_(
-                    Product.is_catalog == True,
-                    Product.is_active == True,
-                    Product.tenant_id == min_tenant_sub
-                )
-            )
-        )
-        count = result.scalar() or 0
-        return {"count": count}
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao contar catálogo: {str(e)}"
-        )
-
-
-@router.get(
-    "/catalog",
-    response_model=List[ProductResponse],
-    summary="Listar produtos do catálogo",
-    description="Lista os produtos templates que podem ser ativados na loja"
-)
-async def list_catalog_products(
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=1000),
-    category_id: Optional[int] = Query(None, description="Filtrar por categoria"),
-    search: Optional[str] = Query(None, description="Buscar por nome ou marca"),
-    tenant_id: int = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Lista produtos do CATÁLOGO (templates/sugestões).
-
-    Estes são os 115 produtos padrão criados no signup.
-    O usuário pode "ativar" produtos do catálogo para adicionar à sua loja.
-
-    Produtos do catálogo têm is_catalog=true e não aparecem na listagem normal.
-    """
-    from datetime import datetime
-    
-    try:
-        # Usar SQL direto para evitar problemas com ORM/async
-        # Catálogo é GLOBAL - usa apenas os produtos do tenant de referência (menor tenant_id)
-        # para evitar que cópias de catálogo de outros tenants apareçam duplicadas
-        base_query = """
-            SELECT id, name, description, category_id, brand, gender, material,
-                   is_digital, is_activewear, is_catalog, is_active, image_url,
-                   base_price, created_at, updated_at
-            FROM products 
-            WHERE is_catalog = true AND is_active = true
-              AND tenant_id = (SELECT MIN(tenant_id) FROM products WHERE is_catalog = true AND is_active = true)
-        """
-        params = {}
-        
-        if category_id is not None:
-            base_query += " AND category_id = :category_id"
-            params["category_id"] = category_id
-        
-        if search:
-            base_query += " AND (name ILIKE :search OR brand ILIKE :search)"
-            params["search"] = f"%{search}%"
-        
-        base_query += " ORDER BY name LIMIT :limit OFFSET :skip"
-        params["limit"] = limit
-        params["skip"] = skip
-        
-        result = await db.execute(text(base_query), params)
-        products = result.fetchall()
-        
-        responses = []
-        for p in products:
-            product_id = p[0]
-            
-            # Buscar variante principal
-            variant_result = await db.execute(text("""
-                SELECT sku, price, cost_price, color, size 
-                FROM product_variants 
-                WHERE product_id = :pid AND is_active = true
-                LIMIT 1
-            """), {"pid": product_id})
-            variant = variant_result.fetchone()
-            
-            # Buscar todas as variantes
-            all_variants_result = await db.execute(text("""
-                SELECT id, sku, size, color, price, cost_price, is_active
-                FROM product_variants 
-                WHERE product_id = :pid AND is_active = true
-                ORDER BY size, color
-            """), {"pid": product_id})
-            all_variants = all_variants_result.fetchall()
-            
-            # Categoria
-            category_data = await get_category_data(db, p[3]) if p[3] else None
-            
-            # Garantir timestamps
-            created_at = p[13] or datetime.utcnow()
-            updated_at = p[14] or datetime.utcnow()
-            
-            # Catálogo NÃO tem SKU - SKU só é gerado ao ativar o produto
-            # Usar placeholder para satisfazer o schema (str obrigatório)
-            sku_display = f"CAT-{product_id}"
-            if variant and variant[0]:
-                sku_display = f"TEMPLATE-{variant[0]}"
-            
-            responses.append({
-                "id": product_id,
-                "name": p[1],
-                "description": p[2],
-                "sku": sku_display,  # Catálogo não tem SKU
-                "price": float(variant[1]) if variant and variant[1] else (float(p[12]) if p[12] else 99.90),
-                "cost_price": float(variant[2]) if variant and variant[2] else None,
-                "category_id": p[3],
-                "category": category_data,
-                "brand": p[4],
-                "color": variant[3] if variant else None,
-                "size": variant[4] if variant else None,
-                "gender": p[5],
-                "material": p[6],
-                "is_digital": p[7] or False,
-                "is_activewear": p[8] or True,
-                "is_catalog": True,
-                "is_active": True,
-                "image_url": p[11],
-                "created_at": created_at,
-                "updated_at": updated_at,
-                "current_stock": 0,
-                "min_stock_threshold": None,
-                "entry_items": [],
-                "variants": [
-                    {
-                        "id": v[0],
-                        "sku": v[1] if v[1] else None,  # Catálogo não tem SKU
-                        "size": v[2],
-                        "color": v[3],
-                        "price": float(v[4]) if v[4] else 0.0,
-                        "cost_price": float(v[5]) if v[5] else None,
-                        "is_active": v[6],
-                    }
-                    for v in all_variants
-                ],
-                "variant_count": len(all_variants),
-                "base_price": float(p[12]) if p[12] else None,
-            })
-        
-        return responses
-
-    except Exception as e:
-        import traceback
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao listar catálogo: {str(e)}\n{traceback.format_exc()}"
-        )
 
 
 @router.get(
@@ -1546,80 +1154,6 @@ async def delete_product(
         )
 
 
-# ============================================================================
-# CATÁLOGO DE PRODUTOS - ATIVAÇÃO
-# ============================================================================
-
-@router.post(
-    "/catalog/{product_id}/activate",
-    response_model=ProductResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Ativar produto do catálogo",
-    description="Copia um produto do catálogo para a loja do usuário"
-)
-async def activate_catalog_product(
-    product_id: int,
-    request: ActivateProductRequest,
-    tenant_id: int = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    """
-    Ativa um produto do catálogo, criando uma cópia para a loja.
-
-    Fluxo:
-    1. Busca produto do catálogo (is_catalog=true)
-    2. Cria CÓPIA com is_catalog=false
-    3. Gera SKU único para a loja
-    4. Usa preço customizado ou mantém o sugerido
-
-    O produto ativado:
-    - Aparece em /products/active
-    - Pode ter estoque adicionado
-    - Pode ser editado/deletado normalmente
-
-    Args:
-        product_id: ID do produto no catálogo
-        request: Opcionalmente um preço customizado
-
-    Returns:
-        Produto ativado (cópia)
-    """
-    try:
-        service = ProductService(db)
-
-        # Ativar produto
-        activated_product = await service.activate_catalog_product(
-            catalog_product_id=product_id,
-            tenant_id=tenant_id,
-            user_id=current_user.id,
-            custom_price=float(request.custom_price) if request.custom_price else None,
-            entry_id=request.entry_id,
-            quantity=request.quantity
-        )
-
-        inventory_repo = InventoryRepository(db)
-        return await build_product_response(activated_product, db, inventory_repo, tenant_id)
-
-    except ValueError as e:
-        error_msg = str(e).lower()
-
-        if "não encontrado" in error_msg or "not found" in error_msg:
-            status_code = status.HTTP_404_NOT_FOUND
-        elif "não é um template" in error_msg or "não é catálogo" in error_msg:
-            status_code = status.HTTP_400_BAD_REQUEST
-        else:
-            status_code = status.HTTP_400_BAD_REQUEST
-
-        raise HTTPException(
-            status_code=status_code,
-            detail=str(e)
-        )
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao ativar produto: {str(e)}"
-        )
 
 
 # ============================================================================

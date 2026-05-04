@@ -19,7 +19,7 @@ import { useAuth } from '@/hooks/useAuth';
 import EmptyState from '@/components/ui/EmptyState';
 import ProductGroupCard from '@/components/products/ProductGroupCard';
 import FAB from '@/components/FAB';
-import { getGroupedProducts, getCatalogProductsCount, getIncompleteProductsCount } from '@/services/productService';
+import { getGroupedProducts } from '@/services/productService';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useTutorialContext } from '@/components/tutorial';
@@ -166,24 +166,6 @@ export default function ProductsScreen() {
 
     return filtered;
   }, [data, searchQuery, showOnlyWithStock, showLowStock]);
-
-  /**
-   * Query para contar produtos de catálogo — usa endpoint leve (1 query SQL)
-   */
-  const { data: catalogCount = 0 } = useQuery({
-    queryKey: ['catalog-products-count'],
-    queryFn: getCatalogProductsCount,
-    staleTime: 10 * 60 * 1000, // 10 min — catálogo raramente muda
-  });
-
-  /**
-   * Query para contar produtos incompletos (wizard abandonado sem entrada)
-   */
-  const { data: incompleteCount = 0 } = useQuery({
-    queryKey: ['incomplete-products-count'],
-    queryFn: getIncompleteProductsCount,
-    staleTime: 2 * 60 * 1000, // 2 min
-  });
 
   const handleProductPress = (product: ProductGrouped) => {
     router.push(`/products/${product.id}`);
@@ -435,24 +417,6 @@ export default function ProductsScreen() {
           </View>
         </View>
 
-        {incompleteCount > 0 && (
-          <TouchableOpacity
-            style={styles.incompleteBanner}
-            onPress={() => router.push('/products/incomplete')}
-            activeOpacity={0.8}
-          >
-            <View style={styles.incompleteBannerIcon}>
-              <Ionicons name="warning-outline" size={16} color="#B45309" />
-            </View>
-            <Text style={styles.incompleteBannerText}>
-              {incompleteCount === 1
-                ? '1 produto sem entrada — completar cadastro'
-                : `${incompleteCount} produtos sem entrada — completar cadastro`}
-            </Text>
-            <Ionicons name="chevron-forward" size={16} color="#B45309" />
-          </TouchableOpacity>
-        )}
-
         <FlatList
           data={products}
           renderItem={renderProduct}
@@ -497,27 +461,6 @@ export default function ProductsScreen() {
                 </View>
               )}
 
-              {!searchQuery && !showOnlyWithStock && !showLowStock && (
-                <View style={styles.emptyActions}>
-                  <TouchableOpacity
-                    style={styles.catalogButton}
-                    onPress={() => router.push('/catalog')}
-                    activeOpacity={0.8}
-                  >
-                    <LinearGradient
-                      colors={brandingColors.gradient}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 0 }}
-                      style={styles.catalogButtonGradient}
-                    >
-                      <Ionicons name="storefront-outline" size={18} color="#fff" />
-                      <Text style={styles.catalogButtonText}>
-                        Explorar Catálogo ({catalogCount > 0 ? `${catalogCount} produtos` : '...'})
-                      </Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                </View>
-              )}
             </View>
           }
         />

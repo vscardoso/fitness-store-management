@@ -99,6 +99,19 @@ class InventoryService:
             await self.db.commit()
             await self.db.refresh(current)
 
+        # Auto-sync is_catalog: True = sem estoque, False = com estoque
+        from sqlalchemy import select as _sel
+        from app.models.product import Product as _Product
+        _prod_stmt = _sel(_Product).where(_Product.id == product_id)
+        if tenant_id is not None:
+            _prod_stmt = _prod_stmt.where(_Product.tenant_id == tenant_id)
+        _prod = (await self.db.execute(_prod_stmt)).scalar_one_or_none()
+        if _prod is not None:
+            _new_is_catalog = (fifo_sum == 0)
+            if _prod.is_catalog != _new_is_catalog:
+                _prod.is_catalog = _new_is_catalog
+                await self.db.commit()
+
         return {
             'product_id': product_id,
             'tenant_id': tenant_id,

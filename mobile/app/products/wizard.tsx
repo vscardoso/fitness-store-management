@@ -50,8 +50,6 @@ export default function ProductWizardScreen() {
     createdEntryQuantity?: string;
     createdEntrySupplier?: string;
     createdProductData?: string; // Dados do produto para restaurar
-    // Params do catálogo
-    catalogProductData?: string; // Dados do produto selecionado do catálogo
     restoreStep?: string;
     restoreProductData?: string;
   }>();
@@ -117,17 +115,6 @@ export default function ProductWizardScreen() {
     if (params.method === 'scanner' && !state.identifyMethod) {
       wizard.selectMethod('scanner');
     }
-    
-    // Se veio com method=catalog, processar dados do catálogo
-    if (params.method === 'catalog' && params.catalogProductData && !state.identifyMethod) {
-      try {
-        const catalogProduct = JSON.parse(params.catalogProductData);
-        wizard.selectMethod('catalog');
-        wizard.selectCatalogProduct(catalogProduct as any);
-      } catch (e) {
-        console.error('Erro ao parsear catalogProductData:', e);
-      }
-    }
 
     // Se veio com prefillData (scanner editManually), pular Step 1 e ir direto ao Step 2
     if (params.prefillData && !state.identifyMethod) {
@@ -142,7 +129,7 @@ export default function ProductWizardScreen() {
         wizard.selectMethod('manual');
       }
     }
-  }, [params.method, params.catalogProductData, params.prefillData]);
+  }, [params.method, params.prefillData]);
 
   // Restaurar etapa ao voltar da tela de entrada (mantendo fluxo no wizard)
   useEffect(() => {
@@ -439,7 +426,7 @@ export default function ProductWizardScreen() {
       <ConfirmDialog
         visible={showSkipEntryDialog}
         title="Cancelar vinculação?"
-        message="O produto ficará no catálogo sem estoque vinculado. Você poderá vinculá-lo a uma entrada mais tarde."
+        message="O produto ficará sem estoque vinculado. Você poderá vincular a uma entrada de estoque mais tarde."
         type="warning"
         confirmText="Sim, cancelar"
         cancelText="Não, continuar"
