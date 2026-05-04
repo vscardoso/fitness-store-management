@@ -129,10 +129,9 @@ class ProductService:
                 "Isso garante rastreabilidade completa do inventário."
             )
         
-        # Produto sempre começa sem estoque (is_catalog=True).
-        # rebuild_product_from_fifo() seta is_catalog=False automaticamente quando estoque > 0.
-        product_dict["is_catalog"] = True
-        logger.info(f"Produto criado sem estoque — is_catalog=True até entrada ser registrada")
+        # Produto sempre criado como is_catalog=False.
+        # is_catalog é um campo legado — não é mais usado para controlar visibilidade.
+        product_dict["is_catalog"] = False
 
         # REGRA FIFO STRICT: Produtos NÃO podem ser criados sem estoque.
         #
@@ -997,13 +996,12 @@ class ProductService:
         if not products_with_entries:
             return []
 
-        # Buscar produtos filtrando por IDs com EntryItems
+        # Buscar produtos com EntryItems (apenas produtos com estoque para PDV)
         stmt = select(Product).where(
             and_(
                 Product.tenant_id == tenant_id,
-                Product.is_catalog == False,  # Apenas produtos ativos (não catálogo)
                 Product.is_active == True,
-                Product.id.in_(products_with_entries)  # FIFO STRICT: apenas com EntryItems
+                Product.id.in_(products_with_entries)
             )
         ).options(
             selectinload(Product.category),

@@ -223,7 +223,6 @@ async def list_products(
             # 2. Buscar produtos diretamente pelos IDs (não precisa paginar muito, são poucos)
             stmt = select(Product).where(
                 Product.id.in_(products_with_stock_ids),
-                Product.is_catalog == False,
                 Product.is_active == True,
                 Product.tenant_id == tenant_id
             )
@@ -385,13 +384,8 @@ async def list_active_products(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Lista produtos ATIVOS da loja (is_catalog=false).
-
-    Estes são produtos que o lojista:
-    - Ativou do catálogo, OU
-    - Criou manualmente
-
-    Produtos do catálogo (is_catalog=true) NÃO aparecem aqui.
+    Lista produtos da loja que possuem estoque vinculado (EntryItems).
+    Usado no PDV — apenas produtos com rastreabilidade FIFO aparecem aqui.
     """
     try:
         service = ProductService(db)
