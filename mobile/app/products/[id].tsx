@@ -7,6 +7,7 @@ import {
   RefreshControl,
   ActivityIndicator,
   TouchableOpacity,
+  Switch,
   Image,
   Modal,
   StatusBar,
@@ -19,7 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import PageHeader from '@/components/layout/PageHeader';
 import InfoRow from '@/components/ui/InfoRow';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { getProductById, deleteProduct } from '@/services/productService';
+import { getProductById, deleteProduct, updateProduct } from '@/services/productService';
 import { getProductStock } from '@/services/inventoryService';
 import { getProductVariants, formatVariantLabel } from '@/services/productVariantService';
 import { formatCurrency, formatDate } from '@/utils/format';
@@ -171,6 +172,16 @@ export default function ProductDetailsScreen() {
         cancelText: '',
         onConfirm: () => setDialog({ ...dialog, visible: false }),
       });
+    },
+  });
+
+  const toggleCatalogMutation = useMutation({
+    mutationFn: (newValue: boolean) =>
+      updateProduct(productId, { is_catalog: newValue } as any),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['product', productId] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
     },
   });
 
@@ -490,6 +501,35 @@ export default function ProductDetailsScreen() {
                 layout="vertical"
               />
             </View>
+
+            {/* Toggle publicar no catálogo */}
+            <View style={styles.catalogToggleRow}>
+              <View style={styles.catalogToggleInfo}>
+                <Ionicons
+                  name={product.is_catalog ? 'storefront' : 'storefront-outline'}
+                  size={16}
+                  color={product.is_catalog ? brandingColors.primary : Colors.light.textTertiary}
+                />
+                <View>
+                  <Text style={styles.catalogToggleLabel}>
+                    {product.is_catalog ? 'Publicado no catálogo' : 'Não publicado'}
+                  </Text>
+                  <Text style={styles.catalogToggleSub}>
+                    {product.is_catalog
+                      ? 'Visível para clientes no site'
+                      : 'Interno — não aparece no site'}
+                  </Text>
+                </View>
+              </View>
+              <Switch
+                value={!!product.is_catalog}
+                onValueChange={(v) => toggleCatalogMutation.mutate(v)}
+                trackColor={{ false: Colors.light.border, true: brandingColors.primary + '60' }}
+                thumbColor={product.is_catalog ? brandingColors.primary : Colors.light.textTertiary}
+                disabled={toggleCatalogMutation.isPending}
+              />
+            </View>
+
             {product.description && (
               <View style={styles.descriptionBox}>
                 <Ionicons name="document-text-outline" size={14} color={Colors.light.textSecondary} />
@@ -849,6 +889,29 @@ export default function ProductDetailsScreen() {
               <Text style={styles.dangerActionButtonText}>Excluir</Text>
             </TouchableOpacity>
           )}
+          <TouchableOpacity
+            style={[styles.actionButton, styles.secondaryActionButton]}
+            onPress={() =>
+              router.push({
+                pathname: '/entries/add',
+                params: {
+                  preselectedProductId: String(productId),
+                  preselectedProductData: JSON.stringify({
+                    id: productId,
+                    name: product.name,
+                    sku: product.sku,
+                    price: product.price,
+                    cost_price: product.cost_price,
+                    image_url: product.image_url,
+                  }),
+                },
+              } as any)
+            }
+            activeOpacity={0.75}
+          >
+            <Ionicons name="add-circle-outline" size={18} color={brandingColors.primary} />
+            <Text style={[styles.secondaryActionButtonText, { color: brandingColors.primary }]}>+ Entrada</Text>
+          </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionButton, styles.primaryActionButton]}
             onPress={() =>
@@ -1434,4 +1497,31 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   inactiveBadgeText: { fontSize: 10, fontWeight: '600', color: Colors.light.textSecondary },
+
+  // ── Catalog toggle ──
+  catalogToggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: theme.spacing.md,
+    marginTop: theme.spacing.sm,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+  },
+  catalogToggleInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    flex: 1,
+  },
+  catalogToggleLabel: {
+    fontSize: theme.fontSize.sm,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
+  catalogToggleSub: {
+    fontSize: theme.fontSize.xxs,
+    color: Colors.light.textTertiary,
+    marginTop: 1,
+  },
 });
