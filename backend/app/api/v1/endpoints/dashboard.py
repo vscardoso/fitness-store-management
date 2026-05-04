@@ -3,6 +3,7 @@ Dashboard API endpoints.
 
 Fornece estatísticas e métricas para o dashboard do app mobile.
 """
+import time as _time
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func, case, Integer, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,6 +12,21 @@ from decimal import Decimal
 from datetime import date, timedelta
 from enum import Enum
 from zoneinfo import ZoneInfo
+
+# Cache TTL em memória por tenant (60 segundos)
+_dashboard_cache: dict[str, tuple[float, Any]] = {}
+_CACHE_TTL = 60
+
+
+def _cache_get(key: str) -> Optional[Any]:
+    entry = _dashboard_cache.get(key)
+    if entry and (_time.monotonic() - entry[0]) < _CACHE_TTL:
+        return entry[1]
+    return None
+
+
+def _cache_set(key: str, value: Any) -> None:
+    _dashboard_cache[key] = (_time.monotonic(), value)
 
 from app.core.database import get_db
 from app.core.timezone import today_brazil, get_day_range_utc, get_period_range_utc
@@ -114,6 +130,9 @@ async def get_dashboard_stats(
     - Total de clientes
     - Vendas do dia
     """
+    _ck = f"stats:{tenant_id}"
+    if (_cv := _cache_get(_ck)) is not None:
+        return _cv
 
     # 1. Estatísticas de Estoque (baseadas em Entry Items)
     # Valor investido = soma de (quantity_remaining * unit_cost) de todos entry_items
@@ -186,7 +205,6 @@ async def get_dashboard_stats(
             StockEntry.is_active == True,
             EntryItem.quantity_remaining > 0,
             Product.is_active == True,
-            Product.is_catalog == False,
             Product.tenant_id == tenant_id,
         )
     )
@@ -209,7 +227,6 @@ async def get_dashboard_stats(
             StockEntry.is_active == True,
             EntryItem.quantity_remaining > 0,
             Product.is_active == True,
-            Product.is_catalog == False,
             Product.tenant_id == tenant_id,
         )
         .distinct()
@@ -223,7 +240,6 @@ async def get_dashboard_stats(
     products_registered_query = select(func.count(Product.id)).where(
         Product.tenant_id == tenant_id,
         Product.is_active == True,
-        Product.is_catalog == False,
     )
     result = await db.execute(products_registered_query)
     total_products_registered = result.scalar() or 0
@@ -444,7 +460,7 @@ async def get_dashboard_stats(
     realized_margin_percent = (realized_profit / total_sales_all * 100) if total_sales_all > 0 else 0.0
 
     # Retornar todas as estatísticas
-    return {
+    _result = {
         "stock": {
             "invested_value": invested_value,
             "potential_revenue": potential_revenue,
@@ -481,6 +497,8 @@ async def get_dashboard_stats(
             "note": "Valores calculados com base em EntryItems para rastreabilidade completa",
         },
     }
+    _cache_set(_ck, _result)
+    return _result
 
 
 @router.get("/inventory/valuation", response_model=Dict[str, Any])
@@ -497,6 +515,10 @@ async def get_inventory_valuation(
     - potential_margin: retail - cost
     - by_category: lista com custo/venda/margem por categoria
     """
+    _ck = f"inventory_valuation:{tenant_id}"
+    if (_cv := _cache_get(_ck)) is not None:
+        return _cv
+
     from app.models.stock_entry import StockEntry
     from app.models.product_variant import ProductVariant
 
@@ -532,7 +554,6 @@ async def get_inventory_valuation(
             EntryItem.quantity_remaining > 0,
             StockEntry.is_active == True,
             Product.is_active == True,
-            Product.is_catalog == False,
             Product.tenant_id == tenant_id,
         )
     )
@@ -558,7 +579,6 @@ async def get_inventory_valuation(
             EntryItem.quantity_remaining > 0,
             StockEntry.is_active == True,
             Product.is_active == True,
-            Product.is_catalog == False,
             Product.tenant_id == tenant_id,
             Category.is_active == True,
         )
@@ -579,12 +599,14 @@ async def get_inventory_valuation(
             "potential_margin": r - c,
         })
 
-    return {
+    _result = {
         "cost_value": cost_value,
         "retail_value": retail_value,
         "potential_margin": retail_value - cost_value,
         "by_category": by_category,
     }
+    _cache_set(_ck, _result)
+    return _result
 
 
 @router.get("/inventory/health", response_model=Dict[str, Any])
@@ -596,6 +618,10 @@ async def get_inventory_health(
     """
     Saúde do estoque: cobertura em dias, baixo estoque, aging e giro (proxy).
     """
+    _ck = f"inventory_health:{tenant_id}"
+    if (_cv := _cache_get(_ck)) is not None:
+        return _cv
+
     from datetime import date, timedelta
     from app.models.stock_entry import StockEntry
 
@@ -780,7 +806,7 @@ async def get_inventory_health(
         score -= 20
     score = max(0.0, min(100.0, score))
 
-    return {
+    _result = {
         "coverage_days": coverage_days,
         "low_stock_count": low_stock_count,
         "aging": aging_percent,
@@ -791,6 +817,8 @@ async def get_inventory_health(
             "to": str(today),
         },
     }
+    _cache_set(_ck, _result)
+    return _result
 
 
 @router.get("/sales/monthly", response_model=Dict[str, Any])
@@ -823,6 +851,10 @@ async def get_monthly_sales_stats(
     - cmv: custo das mercadorias vendidas
     - comparison: comparação com período anterior
     """
+    _ck = f"sales_monthly:{tenant_id}:{period}"
+    if (_cv := _cache_get(_ck)) is not None:
+        return _cv
+
     start_date, end_date = get_period_dates(period)
     prev_start, prev_end = get_previous_period_dates(start_date, end_date)
 
@@ -974,7 +1006,7 @@ async def get_monthly_sales_stats(
         PeriodFilter.THIS_YEAR: "Este Ano",
     }
 
-    return {
+    _result = {
         # Dados do período atual
         "total": total,
         "count": count,
@@ -1013,6 +1045,8 @@ async def get_monthly_sales_stats(
             "to": str(prev_end),
         },
     }
+    _cache_set(_ck, _result)
+    return _result
 
 
 @router.get("/sales/daily", response_model=Dict[str, Any])
@@ -1030,6 +1064,10 @@ async def get_daily_sales(
     - totals: soma do período
     - best_day: dia com maior venda
     """
+    _ck = f"sales_daily:{tenant_id}:{days}"
+    if (_cv := _cache_get(_ck)) is not None:
+        return _cv
+
     today = today_brazil()
     start_date = today - timedelta(days=days - 1)
 
@@ -1172,7 +1210,7 @@ async def get_daily_sales(
     # Melhor dia
     best_day = max(daily_data, key=lambda x: x["total"]) if daily_data else None
 
-    return {
+    _result = {
         "daily": daily_data,
         "totals": {
             "total": round(total_sum, 2),
@@ -1188,6 +1226,8 @@ async def get_daily_sales(
             "to": today.isoformat(),
         },
     }
+    _cache_set(_ck, _result)
+    return _result
 
 
 @router.get("/top-products", response_model=Dict[str, Any])
@@ -1209,6 +1249,10 @@ async def get_top_products(
     **Retorno:**
     - products: lista com id, nome, quantidade, receita, lucro, margem
     """
+    _ck = f"top_products:{tenant_id}:{period}:{limit}"
+    if (_cv := _cache_get(_ck)) is not None:
+        return _cv
+
     start_date, end_date = get_period_dates(period)
     period_start_utc, period_end_utc = get_period_range_utc(start_date, end_date)
 
@@ -1311,7 +1355,7 @@ async def get_top_products(
     products.sort(key=lambda x: x["revenue"], reverse=True)
     products = products[:limit]
 
-    return {
+    _result = {
         "products": products,
         "period": {
             "filter": period.value,
@@ -1319,6 +1363,8 @@ async def get_top_products(
             "to": str(end_date),
         },
     }
+    _cache_set(_ck, _result)
+    return _result
 
 
 @router.get("/fifo-performance", response_model=Dict[str, Any])
@@ -1335,6 +1381,9 @@ async def get_fifo_performance(
     - negative_roi_entries: lista das entradas com ROI negativo
     - avg_roi: ROI médio de todas as entradas
     """
+    _ck = f"fifo_perf:{tenant_id}"
+    if (_cv := _cache_get(_ck)) is not None:
+        return _cv
     from app.models.stock_entry import StockEntry
 
     # 1. Sell-through global
@@ -1466,7 +1515,7 @@ async def get_fifo_performance(
     # Ordenar por ROI (mais negativo primeiro)
     negative_roi_entries.sort(key=lambda x: x["roi"])
 
-    return {
+    _result = {
         "sell_through": {
             "rate": sell_through_rate,
             "total_received": total_received,
@@ -1476,9 +1525,11 @@ async def get_fifo_performance(
         "roi": {
             "avg_roi": avg_roi,
             "negative_count": len(negative_roi_entries),
-            "negative_entries": negative_roi_entries[:5],  # top 5 piores
+            "negative_entries": negative_roi_entries[:5],
         },
     }
+    _cache_set(_ck, _result)
+    return _result
 
 
 @router.get("/sales/yoy", response_model=Dict[str, Any])
@@ -1495,6 +1546,10 @@ async def get_yoy_comparison(
     - totals: soma anual atual vs anterior
     - change_percent: variação % total
     """
+    _ck = f"sales_yoy:{tenant_id}"
+    if (_cv := _cache_get(_ck)) is not None:
+        return _cv
+
     today = today_brazil()
     current_year = today.year
     prev_year = current_year - 1
@@ -1692,7 +1747,7 @@ async def get_yoy_comparison(
         1
     )
 
-    return {
+    _result = {
         "months": months,
         "totals": {
             "current_year": current_year,
@@ -1704,6 +1759,8 @@ async def get_yoy_comparison(
             "total_change_percent": total_change,
         },
     }
+    _cache_set(_ck, _result)
+    return _result
 
 
 @router.get("/purchases", response_model=Dict[str, Any])
@@ -1726,6 +1783,10 @@ async def get_period_purchases(
     - by_type: distribuicao por tipo de entrada (trip, online, local)
     - comparison: comparacao com periodo anterior
     """
+    _ck = f"purchases:{tenant_id}:{period}"
+    if (_cv := _cache_get(_ck)) is not None:
+        return _cv
+
     start_date, end_date = get_period_dates(period)
     prev_start, prev_end = get_previous_period_dates(start_date, end_date)
 
@@ -1823,7 +1884,7 @@ async def get_period_purchases(
         PeriodFilter.THIS_YEAR: "Este Ano",
     }
 
-    return {
+    _result = {
         # Dados do periodo atual
         "total_invested": total_invested,
         "entries_count": entries_count,
@@ -1850,3 +1911,5 @@ async def get_period_purchases(
             "to": str(end_date),
         },
     }
+    _cache_set(_ck, _result)
+    return _result
