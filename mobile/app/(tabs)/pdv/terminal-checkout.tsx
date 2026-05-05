@@ -1,16 +1,18 @@
 /**
  * Terminal Checkout — PDV
  * Tela de checkout via maquininha genérica (Cielo, Stone, Rede, etc.).
- * O operador cobra o valor fisicamente e confirma manualmente no app.
+ * Providers cloud (Cielo, Stone): auto-confirma via SSE quando webhook chega.
+ * Providers manuais: operador confirma manualmente.
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -22,6 +24,8 @@ import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
 import { confirmManualPayment, cancelOrder } from '@/services/pdvService';
+import { getAccessToken } from '@/services/storage';
+import { API_CONFIG } from '@/constants/Config';
 import { useCart } from '@/hooks/useCart';
 
 const C = Colors.light;
@@ -53,6 +57,71 @@ export default function TerminalCheckoutScreen() {
   const [confirming, setConfirming] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [autoConfirmed, setAutoConfirmed] = useState(false);
+  const confirmedRef = useRef(false);
+
+  // SSE: escuta eventos do backend para auto-confirmar quando provider cloud aprovar
+  useEffect(() => {
+    if (!isCloudProvider || confirmedRef.current) return;
+
+    let abortController: AbortController | null = new AbortController();
+
+    (async () => {
+      try {
+        const token = await getAccessToken();
+        const url = `${API_CONFIG.BASE_URL}/pdv/orders/${saleId}/events`;
+        const response = await fetch(url, {
+          headers: {
+            Accept: 'text/event-stream',
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          signal: abortController?.signal,
+        });
+
+        if (!response.body) return;
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.paid === true && !confirmedRef.current) {
+                confirmedRef.current = true;
+                setAutoConfirmed(true);
+                haptics.success();
+                queryClient.invalidateQueries({ queryKey: ['sales'] });
+                queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+                queryClient.invalidateQueries({ queryKey: ['products'] });
+                queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+                cart.clear();
+                router.replace({
+                  pathname: '/checkout/success',
+                  params: { sale_number: sale_number ?? '' },
+                });
+              }
+            } catch { /* linha malformada */ }
+          }
+        }
+      } catch (err: any) {
+        if (err?.name !== 'AbortError') {
+          console.warn('[Terminal SSE] erro:', err?.message);
+        }
+      }
+    })();
+
+    return () => {
+      abortController?.abort();
+      abortController = null;
+    };
+  }, [isCloudProvider, saleId]);
 
   // ── Confirmação do pagamento ──────────────────────────────────────────────
 
@@ -162,26 +231,46 @@ export default function TerminalCheckoutScreen() {
           {paymentBadge()}
 
           {/* Instrução */}
-          <Text style={styles.instruction}>
-            {isCloudProvider
-              ? 'A cobrança foi enviada para a maquininha. Aguarde o cliente pagar e confirme abaixo.'
-              : 'Cobre o valor na maquininha e confirme abaixo quando o pagamento for aprovado.'}
-          </Text>
+          {isCloudProvider ? (
+            <View style={styles.cloudWaitRow}>
+              <ActivityIndicator size="small" color={C.primary} />
+              <Text style={styles.instruction}>
+                Cobrança enviada. Aguardando o cliente pagar na maquininha...
+              </Text>
+            </View>
+          ) : (
+            <Text style={styles.instruction}>
+              Cobre o valor na maquininha e confirme abaixo quando o pagamento for aprovado.
+            </Text>
+          )}
         </View>
       </ScrollView>
 
       {/* Footer sticky */}
       <View style={styles.footer}>
-        <AppButton
-          variant="primary"
-          size="lg"
-          fullWidth
-          label="Confirmar Pagamento"
-          icon="checkmark-circle-outline"
-          onPress={handleConfirm}
-          loading={confirming}
-          disabled={confirming || cancelling}
-        />
+        {isCloudProvider ? (
+          <AppButton
+            variant="outlined"
+            size="md"
+            fullWidth
+            label="Confirmar manualmente"
+            icon="checkmark-circle-outline"
+            onPress={handleConfirm}
+            loading={confirming}
+            disabled={confirming || cancelling || autoConfirmed}
+          />
+        ) : (
+          <AppButton
+            variant="primary"
+            size="lg"
+            fullWidth
+            label="Confirmar Pagamento"
+            icon="checkmark-circle-outline"
+            onPress={handleConfirm}
+            loading={confirming}
+            disabled={confirming || cancelling}
+          />
+        )}
         <AppButton
           variant="danger-outline"
           size="md"
@@ -281,12 +370,19 @@ const styles = StyleSheet.create({
 
   // ── Instrução ────────────────────────────────────────────────────────────
 
+  cloudWaitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
+  },
+
   instruction: {
+    flex: 1,
     fontSize: theme.fontSize.base,
     color: C.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
-    paddingHorizontal: theme.spacing.sm,
   },
 
   // ── Footer ───────────────────────────────────────────────────────────────

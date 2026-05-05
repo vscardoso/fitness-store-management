@@ -15,19 +15,34 @@ import Constants from 'expo-constants';
 
 let MODE = 'local' as 'local' | 'tunnel';
 
-// Fallback manual — só usado se auto-detecção falhar
-let LOCAL_IP_FALLBACK = '192.168.0.2';
+// Fallback manual — atualizar se auto-detecção falhar
+let LOCAL_IP_FALLBACK = '192.168.100.174';
 
 // URL do tunnel — atualizada AUTOMATICAMENTE por .\start_tunnel.ps1 a cada execução
 let TUNNEL_URL = 'https://good-mammals-tap.loca.lt';
 
-// Auto-detecta o IP da máquina de desenvolvimento via Metro bundler (hostUri = "192.168.x.x:8081")
+// Auto-detecta o IP via Metro bundler, tentando múltiplas fontes do Expo SDK
+function detectMetroHost(): string | null {
+  // Expo SDK 49+ (expoConfig.hostUri)
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) return hostUri.split(':')[0];
+
+  // Expo SDK 46-48 (manifest2)
+  const debuggerHost2 = (Constants as any).manifest2?.extra?.expoGo?.debuggerHost;
+  if (debuggerHost2) return debuggerHost2.split(':')[0];
+
+  // Expo SDK < 46 (manifest)
+  const debuggerHost = (Constants as any).manifest?.debuggerHost;
+  if (debuggerHost) return debuggerHost.split(':')[0];
+
+  return null;
+}
+
 function getLocalApiUrl(): string {
   if (MODE === 'tunnel' && TUNNEL_URL) {
     return `${TUNNEL_URL}/api/v1`;
   }
-  const hostUri = Constants.expoConfig?.hostUri; // ex: "192.168.0.2:8081"
-  const host = hostUri ? hostUri.split(':')[0] : LOCAL_IP_FALLBACK;
+  const host = detectMetroHost() ?? LOCAL_IP_FALLBACK;
   return `http://${host}:8000/api/v1`;
 }
 

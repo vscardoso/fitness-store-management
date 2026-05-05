@@ -32,6 +32,68 @@ _DEFAULT_PIX_PROVIDER = settings.PIX_PROVIDER
 logger = logging.getLogger(__name__)
 
 
+# ── Helpers: PIX genérico (padrão BACEN, sem provedor externo) ────────────────
+
+def _crc16_ccitt(data: str) -> str:
+    """CRC-16/CCITT-FALSE para validação do payload PIX."""
+    crc = 0xFFFF
+    for char in data:
+        crc ^= ord(char) << 8
+        for _ in range(8):
+            if crc & 0x8000:
+                crc = (crc << 1) ^ 0x1021
+            else:
+                crc <<= 1
+            crc &= 0xFFFF
+    return f"{crc:04X}"
+
+
+def _emv(tag: str, value: str) -> str:
+    return f"{tag}{len(value):02d}{value}"
+
+
+def _generate_pix_payload(
+    pix_key: str, amount: float, merchant_name: str,
+    merchant_city: str, txid: str = "***",
+) -> str:
+    """Gera payload PIX estático com valor (EMV QRCPS-MPM v1.0)."""
+    merchant_account = _emv("00", "BR.GOV.BCB.PIX") + _emv("01", pix_key)
+    payload = (
+        _emv("00", "01") +
+        _emv("26", merchant_account) +
+        _emv("52", "0000") +
+        _emv("53", "986") +
+        _emv("54", f"{amount:.2f}") +
+        _emv("58", "BR") +
+        _emv("59", merchant_name[:25]) +
+        _emv("60", merchant_city[:15]) +
+        _emv("62", _emv("05", txid[:25])) +
+        "6304"
+    )
+    return payload + _crc16_ccitt(payload)
+
+
+def _generate_pix_qr_image(pix_payload: str) -> str:
+    """Gera imagem QR Code como base64 PNG."""
+    try:
+        import qrcode  # type: ignore
+        import io, base64
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10, border=4,
+        )
+        qr.add_data(pix_payload)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return base64.b64encode(buf.getvalue()).decode()
+    except Exception as exc:
+        logger.warning("qrcode library not available: %s", exc)
+        return ""
+
+
 class PDVService:
     """Orquestrador PDV — roteia para o provider correto."""
 
@@ -199,8 +261,21 @@ class PDVService:
         payload: dict, payer_email: Optional[str] = None,
         provider: Optional[str] = None,
     ) -> dict:
-        provider = provider or _DEFAULT_PIX_PROVIDER
-        """Cria venda PENDING + gera QR Code PIX atomicamente."""
+        """Cria venda PENDING + gera QR Code PIX atomicamente.
+        Rota automaticamente para PIX genérico se a loja tiver pix_key configurada.
+        """
+        from app.models.store import Store as StoreModel
+
+        # Auto-rotear para genérico se loja tem chave PIX própria
+        if provider is None or provider == "auto":
+            result = await db.execute(
+                select(StoreModel).where(StoreModel.id == tenant_id)
+            )
+            store = result.scalar_one_or_none()
+            if store and store.pix_key:
+                return await self.create_generic_pix_start(db, tenant_id, seller_id, payload)
+            provider = provider or _DEFAULT_PIX_PROVIDER
+
         from app.schemas.sale import SaleCreate, SaleItemCreate, PaymentCreate
         from app.models.sale import PaymentMethod as PaymentMethodEnum
         from app.services.sale_service import SaleService
@@ -237,7 +312,83 @@ class PDVService:
             "sale_id": sale.id,
             "sale_number": sale.sale_number,
             "total_amount": float(sale.total_amount),
+            "is_generic": False,
             **{k: pix[k] for k in ("payment_id", "qr_code", "qr_code_base64", "expires_at", "status", "message")},
+        }
+
+    async def create_generic_pix_start(
+        self, db: AsyncSession, tenant_id: int, seller_id: int,
+        payload: dict,
+    ) -> dict:
+        """Cria venda PENDING + QR Code PIX genérico a partir da chave PIX da loja (sem API externa)."""
+        from app.models.store import Store as StoreModel
+        from app.models.pix_transaction import PixTransaction as PixTx
+        from app.schemas.sale import SaleCreate, SaleItemCreate, PaymentCreate
+        from app.models.sale import PaymentMethod as PaymentMethodEnum
+        from app.services.sale_service import SaleService
+        from datetime import datetime, timezone
+
+        result = await db.execute(
+            select(StoreModel).where(StoreModel.id == tenant_id)
+        )
+        store = result.scalar_one_or_none()
+        if not store or not store.pix_key:
+            raise ValueError("Chave PIX não configurada. Acesse Configurações → PIX e informe sua chave.")
+
+        items = [SaleItemCreate(**i) for i in payload.get("items", [])]
+        payments = [PaymentCreate(**p) for p in payload.get("payments", [])]
+        sale_data = SaleCreate(
+            customer_id=payload.get("customer_id"),
+            payment_method=PaymentMethodEnum.PIX,
+            items=items,
+            payments=payments,
+            discount_amount=payload.get("discount_amount", 0),
+            tax_amount=payload.get("tax_amount", 0),
+            notes=payload.get("notes"),
+        )
+
+        sale_svc = SaleService(db)
+        sale = await sale_svc.create_sale(
+            sale_data, seller_id, tenant_id=tenant_id, keep_pending=True
+        )
+
+        merchant_name = (store.name or "LOJA").upper()
+        merchant_city = (store.city or "BRASIL").upper()
+        txid = f"VENDA{sale.id}"
+
+        pix_payload = _generate_pix_payload(
+            pix_key=store.pix_key,
+            amount=float(sale.total_amount),
+            merchant_name=merchant_name,
+            merchant_city=merchant_city,
+            txid=txid,
+        )
+        qr_base64 = _generate_pix_qr_image(pix_payload)
+
+        payment_id = f"generic_{sale.id}_{int(datetime.now(timezone.utc).timestamp())}"
+        pix_tx = PixTx(
+            provider="generic",
+            payment_id=payment_id,
+            sale_id=sale.id,
+            tenant_id=tenant_id,
+            amount_expected=sale.total_amount,
+            status="pending",
+            mp_external_reference=f"sale_{sale.id}_tenant_{tenant_id}",
+        )
+        db.add(pix_tx)
+        await db.commit()
+
+        return {
+            "sale_id": sale.id,
+            "sale_number": sale.sale_number,
+            "total_amount": float(sale.total_amount),
+            "payment_id": payment_id,
+            "qr_code": pix_payload,
+            "qr_code_base64": qr_base64,
+            "expires_at": None,
+            "status": "pending",
+            "message": "QR Code PIX gerado. Confirme o recebimento após o pagamento.",
+            "is_generic": True,
         }
 
     # ── Expiração de PIX (scheduler) ──────────────────────────────────────────

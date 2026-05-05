@@ -681,6 +681,7 @@ export default function CheckoutScreen() {
               qr_code: result.qr_code,
               qr_code_base64: result.qr_code_base64,
               expires_at: result.expires_at ?? '',
+              is_generic: String(result.is_generic ?? false),
             },
           });
         } catch (error: any) {

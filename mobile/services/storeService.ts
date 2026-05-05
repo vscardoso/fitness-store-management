@@ -54,6 +54,27 @@ export const updateBranding = async (payload: StoreBrandingUpdate): Promise<Stor
   };
 };
 
+export interface StorePIXKey {
+  pix_key: string | null;
+  pix_key_type: string | null;
+  has_pix_key: boolean;
+}
+
+export interface StorePIXKeyUpdate {
+  pix_key?: string | null;
+  pix_key_type?: string;
+}
+
+export const getStorePIX = async (): Promise<StorePIXKey> => {
+  const { data } = await api.get<StorePIXKey>('/store/pix');
+  return data;
+};
+
+export const updateStorePIX = async (payload: StorePIXKeyUpdate): Promise<StorePIXKey> => {
+  const { data } = await api.put<StorePIXKey>('/store/pix', payload);
+  return data;
+};
+
 export const uploadLogo = async (uri: string): Promise<{ logo_url: string }> => {
   const filename = uri.split('/').pop() ?? 'logo.jpg';
   const ext = filename.split('.').pop()?.toLowerCase() ?? 'jpg';

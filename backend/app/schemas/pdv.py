@@ -240,6 +240,7 @@ class PixStartResponse(BaseModel):
     expires_at: Optional[str] = None
     status: str
     message: str
+    is_generic: bool = False
 
 
 class PixRefundResponse(BaseModel):

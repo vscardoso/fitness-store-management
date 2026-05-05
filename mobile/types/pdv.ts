@@ -170,6 +170,7 @@ export interface PixStartResponse {
   expires_at: string | null;
   status: string;
   message: string;
+  is_generic?: boolean;
 }
 
 // ── Compat aliases ───────────────────────────────────────────────────────────

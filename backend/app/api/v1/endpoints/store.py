@@ -13,7 +13,7 @@ from app.core.config import settings
 from app.api.deps import get_current_tenant_id, require_role
 from app.models.user import User, UserRole
 from app.models.store import Store
-from app.schemas.store_branding import StoreBrandingResponse, StoreBrandingUpdate, LogoUploadResponse
+from app.schemas.store_branding import StoreBrandingResponse, StoreBrandingUpdate, LogoUploadResponse, StorePIXKeyUpdate, StorePIXKeyResponse
 
 router = APIRouter(prefix="/store", tags=["Loja"])
 
@@ -197,3 +197,49 @@ async def upload_logo(
     await db.commit()
 
     return LogoUploadResponse(logo_url=f"/uploads/{rel_path}")
+
+
+@router.get("/pix", response_model=StorePIXKeyResponse)
+async def get_pix_key(
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role([UserRole.ADMIN])),
+):
+    """Retorna a chave PIX configurada para a loja. Apenas ADMIN."""
+    store = await _get_store(tenant_id, db)
+    return StorePIXKeyResponse(
+        pix_key=store.pix_key,
+        pix_key_type=store.pix_key_type,
+        has_pix_key=bool(store.pix_key),
+    )
+
+
+@router.put("/pix", response_model=StorePIXKeyResponse)
+async def update_pix_key(
+    data: StorePIXKeyUpdate,
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role([UserRole.ADMIN])),
+):
+    """Configura a chave PIX da loja para geração de QR Codes. Apenas ADMIN."""
+    store = await _get_store(tenant_id, db)
+
+    if data.pix_key is not None:
+        store.pix_key = data.pix_key.strip() or None
+    if data.pix_key_type is not None:
+        store.pix_key_type = data.pix_key_type
+
+    # Atualiza provider para 'generic' se chave foi configurada
+    if store.pix_key:
+        store.pix_provider = "generic"
+    elif store.pix_provider == "generic":
+        store.pix_provider = "mock"
+
+    await db.commit()
+    await db.refresh(store)
+
+    return StorePIXKeyResponse(
+        pix_key=store.pix_key,
+        pix_key_type=store.pix_key_type,
+        has_pix_key=bool(store.pix_key),
+    )

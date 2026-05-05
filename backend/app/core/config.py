@@ -109,12 +109,19 @@ class Settings(BaseSettings):
     CLOUDINARY_API_KEY: str = ""
     CLOUDINARY_API_SECRET: str = ""
 
-    # AI Configuration (OpenAI GPT-4o Vision)
+    # AI Configuration — provider: "gemini" | "openai"
+    AI_PROVIDER: str = "gemini"
+    AI_SCAN_ENABLED: bool = True
+    AI_DEFAULT_MARKUP: float = 100.0
+
+    # Google Gemini
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.5-flash"
+
+    # OpenAI (fallback)
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o"
     OPENAI_MAX_TOKENS: int = 2048
-    AI_SCAN_ENABLED: bool = True
-    AI_DEFAULT_MARKUP: float = 100.0  # 100% markup padrão
 
     # PDV — provider de PIX (agnóstico)
     # Valores: "mock" (dev local, sem credenciais), "mercadopago", "bradesco" (futuro), etc.

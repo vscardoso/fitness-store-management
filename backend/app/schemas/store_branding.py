@@ -24,3 +24,16 @@ class StoreBrandingUpdate(BaseModel):
 
 class LogoUploadResponse(BaseModel):
     logo_url: str
+
+
+class StorePIXKeyUpdate(BaseModel):
+    pix_key: Optional[str] = Field(None, max_length=255, description="Chave PIX: CPF, CNPJ, email, telefone (+55...) ou chave aleatória")
+    pix_key_type: Optional[str] = Field(None, description="Tipo: cpf, cnpj, email, phone, random")
+
+
+class StorePIXKeyResponse(BaseModel):
+    pix_key: Optional[str] = None
+    pix_key_type: Optional[str] = None
+    has_pix_key: bool = False
+
+    model_config = {"from_attributes": True}

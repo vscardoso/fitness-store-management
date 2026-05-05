@@ -24,7 +24,7 @@ import AppButton from '@/components/ui/AppButton';
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
-import { generatePixPayment, subscribePixStatus } from '@/services/pdvService';
+import { generatePixPayment, subscribePixStatus, confirmManualPayment } from '@/services/pdvService';
 import type { PixPaymentData } from '@/types/pdv';
 
 const C = Colors.light;
@@ -32,7 +32,7 @@ const C = Colors.light;
 export default function PixCheckoutScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { sale_id, amount, sale_number, payment_id, qr_code, qr_code_base64, expires_at } =
+  const { sale_id, amount, sale_number, payment_id, qr_code, qr_code_base64, expires_at, is_generic } =
     useLocalSearchParams<{
       sale_id: string;
       amount: string;
@@ -41,13 +41,17 @@ export default function PixCheckoutScreen() {
       qr_code?: string;
       qr_code_base64?: string;
       expires_at?: string;
+      is_generic?: string;
     }>();
+
+  const isGeneric = is_generic === 'true';
 
   const [pixData, setPixData] = useState<PixPaymentData | null>(null);
   const [generating, setGenerating] = useState(true);
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
+  const [confirmingManual, setConfirmingManual] = useState(false);
   const confirmedRef = useRef(false);
 
   const saleId = parseInt(sale_id ?? '0', 10);
@@ -104,8 +108,9 @@ export default function PixCheckoutScreen() {
   }, [timeLeft !== null]);
 
   // SSE: recebe confirmação instantânea do servidor (sem polling)
+  // Não usado para PIX genérico (confirmação manual)
   useEffect(() => {
-    if (!pixData?.payment_id || confirmedRef.current) return;
+    if (!pixData?.payment_id || confirmedRef.current || isGeneric) return;
 
     const handleConfirmed = () => {
       if (confirmedRef.current) return;
@@ -152,6 +157,38 @@ export default function PixCheckoutScreen() {
       [
         { text: 'Ficar aqui', style: 'cancel' },
         { text: 'Sair', style: 'destructive', onPress: () => router.back() },
+      ],
+    );
+  };
+
+  const handleManualConfirm = () => {
+    Alert.alert(
+      'Confirmar recebimento',
+      'Confirme apenas após verificar o pagamento PIX no seu banco.',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Confirmar',
+          onPress: async () => {
+            setConfirmingManual(true);
+            try {
+              await confirmManualPayment(saleId);
+              confirmedRef.current = true;
+              haptics.success();
+              queryClient.invalidateQueries({ queryKey: ['sales'] });
+              queryClient.invalidateQueries({ queryKey: ['products'] });
+              queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+              router.replace({
+                pathname: '/checkout/success',
+                params: { sale_number: sale_number ?? '' },
+              });
+            } catch (e: any) {
+              Alert.alert('Erro', e?.response?.data?.detail || 'Erro ao confirmar pagamento.');
+            } finally {
+              setConfirmingManual(false);
+            }
+          },
+        },
       ],
     );
   };
@@ -217,6 +254,13 @@ export default function PixCheckoutScreen() {
                   <Ionicons name="time-outline" size={14} color="#fff" />
                   <Text style={styles.expiredText}>QR Code expirado — gere novamente</Text>
                 </View>
+              ) : isGeneric ? (
+                <View style={styles.waitingRow}>
+                  <Ionicons name="checkmark-circle-outline" size={16} color={C.success} />
+                  <Text style={[styles.waitingText, { color: C.success }]}>
+                    Confirme após o recebimento
+                  </Text>
+                </View>
               ) : (
                 <View style={styles.waitingRow}>
                   <ActivityIndicator size="small" color={C.primary} />
@@ -268,6 +312,17 @@ export default function PixCheckoutScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
+        {isGeneric && (
+          <AppButton
+            label={confirmingManual ? 'Confirmando...' : 'Confirmar recebimento PIX'}
+            onPress={handleManualConfirm}
+            variant="primary"
+            fullWidth
+            loading={confirmingManual}
+            icon="checkmark-circle-outline"
+            style={{ marginBottom: 8 }}
+          />
+        )}
         <AppButton
           label="Cancelar"
           onPress={handleCancel}

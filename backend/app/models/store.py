@@ -122,7 +122,17 @@ class Store(BaseModel):
         default="mock",
         server_default="mock",
         nullable=False,
-        comment="Provider PIX ativo para este tenant: mock, mercadopago"
+        comment="Provider PIX ativo para este tenant: mock, mercadopago, generic"
+    )
+    pix_key: Mapped[Optional[str]] = mapped_column(
+        String(255),
+        nullable=True,
+        comment="Chave PIX do lojista (CPF, CNPJ, email, telefone ou chave aleatória)"
+    )
+    pix_key_type: Mapped[Optional[str]] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="Tipo da chave PIX: cpf, cnpj, email, phone, random"
     )
 
     # Endereço da loja

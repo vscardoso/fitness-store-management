@@ -322,6 +322,38 @@ async def confirm_manual_payment(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 
 
+# ── SSE: eventos de pagamento via terminal (Cielo, Stone, etc.) ──────────────
+
+@router.get("/orders/{sale_id}/events")
+async def terminal_payment_events(
+    sale_id: int,
+    current_user: User = Depends(get_current_user),
+):
+    """SSE: stream de eventos do pagamento via terminal. Timeout: 15 min.
+    Sinalizado pelo webhook do provider (Cielo, Stone) quando pagamento é aprovado."""
+    from app.core.payment_events import get_or_create_event, get_result, cleanup
+
+    key = str(sale_id)
+
+    async def generate():
+        yield f"data: {json.dumps({'status': 'pending', 'paid': False})}\n\n"
+        event = get_or_create_event(key)
+        try:
+            await asyncio.wait_for(event.wait(), timeout=15 * 60)
+            result = get_result(key) or {"status": "timeout", "paid": False}
+        except asyncio.TimeoutError:
+            result = {"status": "timeout", "paid": False}
+        finally:
+            cleanup(key)
+        yield f"data: {json.dumps(result)}\n\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 # ── Terminal Start (atomic sale + terminal dispatch) ─────────────────────────
 
 @router.post("/terminal/start", status_code=201)

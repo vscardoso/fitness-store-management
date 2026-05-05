@@ -67,6 +67,7 @@ class ProductUpdate(BaseModel):
     is_digital: Optional[bool] = None
     is_activewear: Optional[bool] = None
     is_active: Optional[bool] = None
+    is_catalog: Optional[bool] = None
     image_url: Optional[str] = Field(None, max_length=500)
 
     @model_validator(mode="after")

@@ -217,6 +217,16 @@ export default function MoreScreen() {
               iconColor="#003DA5"
               iconBg="#E0E9FF"
             />
+            {user?.role === UserRole.ADMIN && (
+              <MenuItem
+                icon="qr-code-outline"
+                title="Chave PIX"
+                subtitle="QR Code PIX sem integração externa"
+                onPress={() => router.push('/settings/pix-key' as any)}
+                iconColor="#10B981"
+                iconBg="#D1FAE5"
+              />
+            )}
           </View>
         </View>
 
