@@ -24,66 +24,58 @@ jobs:
           sudo apt-get install -y --no-install-recommends postgresql-client
           pg_dump --version
 
-      - name: Gerar nome do arquivo
-        id: filename
-        run: |
-          TIMESTAMP=$(date -u '+%Y-%m-%d_%H-%M')
-          echo "name=backup_${TIMESTAMP}.sql.gz" >> "$GITHUB_OUTPUT"
-          echo "Arquivo: backup_${TIMESTAMP}.sql.gz"
-
-      - name: Executar pg_dump e comprimir
+      - name: Run pg_dump
         env:
           DATABASE_BACKUP_URL: ${{ secrets.DATABASE_BACKUP_URL }}
-          PGPASSWORD: ""
         run: |
-          echo "Iniciando backup: ${{ steps.filename.outputs.name }}"
-          pg_dump \
-            --no-password \
-            --format=plain \
-            --no-owner \
-            --no-acl \
+          pg_dump "${{ secrets.DATABASE_BACKUP_URL }}" \
             --verbose \
-            "$DATABASE_BACKUP_URL" \
-          | gzip -9 > "${{ steps.filename.outputs.name }}"
+            --no-password \
+            2>&1 | tee pg_dump.log | gzip > backup_$(date +%Y-%m-%d_%H-%M).sql.gz
+          echo "Exit code pg_dump: ${PIPESTATUS[0]}"
 
       - name: Verificar integridade do backup
         run: |
-          FILE="${{ steps.filename.outputs.name }}"
+          FILE=$(ls backup_*.sql.gz 2>/dev/null | head -1)
 
-          if [ ! -f "$FILE" ]; then
+          if [ -z "$FILE" ]; then
             echo "ERRO: Arquivo de backup não foi criado."
+            cat pg_dump.log || true
             exit 1
           fi
 
           SIZE=$(stat -c%s "$FILE")
           SIZE_HUMAN=$(du -sh "$FILE" | cut -f1)
 
-          echo "Tamanho do backup: ${SIZE_HUMAN} (${SIZE} bytes)"
+          echo "Arquivo : $FILE"
+          echo "Tamanho : ${SIZE_HUMAN} (${SIZE} bytes)"
 
           if [ "$SIZE" -lt 100 ]; then
-            echo "ERRO: Arquivo suspeito — menor que 100 bytes (${SIZE} bytes). pg_dump falhou?"
+            echo "ERRO: Arquivo suspeito — menor que 100 bytes. pg_dump falhou?"
+            cat pg_dump.log || true
             exit 1
           fi
 
-          # Verifica que o gzip é válido (não corrompido)
           if ! gzip --test "$FILE"; then
             echo "ERRO: Arquivo .gz corrompido."
             exit 1
           fi
 
           echo "Backup OK: ${SIZE_HUMAN}"
+          echo "file=$FILE" >> "$GITHUB_OUTPUT"
+        id: verify
 
       - name: Upload como GitHub Actions Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ steps.filename.outputs.name }}
-          path: ${{ steps.filename.outputs.name }}
+          name: ${{ steps.verify.outputs.file }}
+          path: ${{ steps.verify.outputs.file }}
           retention-days: 30
           if-no-files-found: error
 
       - name: Resumo do backup
         run: |
-          FILE="${{ steps.filename.outputs.name }}"
+          FILE="${{ steps.verify.outputs.file }}"
           SIZE_HUMAN=$(du -sh "$FILE" | cut -f1)
           echo ""
           echo "=================================="
