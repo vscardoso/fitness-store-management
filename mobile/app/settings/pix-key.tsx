@@ -1,12 +1,14 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef, useCallback } from 'react';
 import {
-  View, Text, TextInput, StyleSheet, ScrollView,
-  TouchableOpacity, ActivityIndicator, Alert,
+  View, Text, TextInput, StyleSheet,
+  TouchableOpacity, ActivityIndicator, Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
 import PageHeader from '@/components/layout/PageHeader';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getStorePIX, updateStorePIX } from '@/services/storeService';
@@ -22,6 +24,19 @@ const PIX_TYPES = [
 
 type PIXKeyType = typeof PIX_TYPES[number]['value'];
 
+type DialogState = {
+  visible: boolean;
+  type: 'danger' | 'warning' | 'info' | 'success';
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm?: () => void;
+  onCancel?: () => void;
+};
+
+const DIALOG_HIDDEN: DialogState = { visible: false, type: 'info', title: '', message: '' };
+
 export default function PIXKeyScreen() {
   const router = useRouter();
   const brandingColors = useBrandingColors();
@@ -31,63 +46,117 @@ export default function PIXKeyScreen() {
   const [current, setCurrent] = useState<StorePIXKey | null>(null);
   const [selectedType, setSelectedType] = useState<PIXKeyType>('cpf');
   const [keyValue, setKeyValue] = useState('');
+  const [dialog, setDialog] = useState<DialogState>(DIALOG_HIDDEN);
 
-  useEffect(() => {
-    getStorePIX()
-      .then((data) => {
-        setCurrent(data);
-        if (data.pix_key_type) setSelectedType(data.pix_key_type as PIXKeyType);
-        if (data.pix_key) setKeyValue(data.pix_key);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  // Animações de entrada
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  const contentAnim = useRef(new Animated.Value(0)).current;
+
+  useFocusEffect(
+    useCallback(() => {
+      headerAnim.setValue(0);
+      contentAnim.setValue(0);
+      Animated.parallel([
+        Animated.spring(headerAnim, { toValue: 1, useNativeDriver: true, tension: 120, friction: 8 }),
+        Animated.timing(contentAnim, { toValue: 1, duration: 380, delay: 140, useNativeDriver: true }),
+      ]).start();
+
+      getStorePIX()
+        .then((data) => {
+          setCurrent(data);
+          if (data.pix_key_type) setSelectedType(data.pix_key_type as PIXKeyType);
+          if (data.pix_key) setKeyValue(data.pix_key);
+        })
+        .catch(() => {})
+        .finally(() => setLoading(false));
+    }, [])
+  );
 
   const selectedTypeInfo = PIX_TYPES.find(t => t.value === selectedType)!;
 
   const handleSave = async () => {
     if (!keyValue.trim()) {
-      Alert.alert('Campo obrigatório', 'Informe a chave PIX.');
+      setDialog({
+        visible: true,
+        type: 'warning',
+        title: 'Campo obrigatório',
+        message: 'Informe a chave PIX antes de salvar.',
+        confirmText: 'Entendi',
+        onConfirm: () => setDialog(DIALOG_HIDDEN),
+      });
       return;
     }
     setSaving(true);
     try {
       await updateStorePIX({ pix_key: keyValue.trim(), pix_key_type: selectedType });
-      Alert.alert('Salvo!', 'Chave PIX configurada. Agora o sistema gerará QR Codes automaticamente ao receber pagamentos via PIX.', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      // Atualiza o card de "Chave PIX ativa" sem sair da tela
+      setCurrent({ pix_key: keyValue.trim(), pix_key_type: selectedType, has_pix_key: true });
+      setDialog({
+        visible: true,
+        type: 'success',
+        title: 'Salvo!',
+        message: 'Chave PIX configurada. O sistema gerará QR Codes automaticamente ao receber pagamentos via PIX.',
+        confirmText: 'OK',
+        onConfirm: () => setDialog(DIALOG_HIDDEN),
+      });
     } catch (e: any) {
-      Alert.alert('Erro', e?.response?.data?.detail || 'Não foi possível salvar a chave PIX.');
+      setDialog({
+        visible: true,
+        type: 'danger',
+        title: 'Erro ao salvar',
+        message: e?.response?.data?.detail || 'Não foi possível salvar a chave PIX.',
+        confirmText: 'Fechar',
+        onConfirm: () => setDialog(DIALOG_HIDDEN),
+      });
     } finally {
       setSaving(false);
     }
   };
 
   const handleRemove = () => {
-    Alert.alert('Remover chave PIX', 'Tem certeza? O sistema voltará a usar o modo padrão.', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Remover', style: 'destructive',
-        onPress: async () => {
-          setSaving(true);
-          try {
-            await updateStorePIX({ pix_key: null });
-            setKeyValue('');
-            setCurrent({ pix_key: null, pix_key_type: null, has_pix_key: false });
-          } catch (e: any) {
-            Alert.alert('Erro', e?.response?.data?.detail || 'Erro ao remover chave.');
-          } finally {
-            setSaving(false);
-          }
-        },
+    setDialog({
+      visible: true,
+      type: 'danger',
+      title: 'Remover chave PIX',
+      message: 'Tem certeza? O sistema voltará a usar o modo padrão sem geração de QR Code.',
+      confirmText: 'Remover',
+      cancelText: 'Cancelar',
+      onConfirm: async () => {
+        setDialog(DIALOG_HIDDEN);
+        setSaving(true);
+        try {
+          await updateStorePIX({ pix_key: null });
+          setKeyValue('');
+          setCurrent({ pix_key: null, pix_key_type: null, has_pix_key: false });
+          setDialog({
+            visible: true,
+            type: 'success',
+            title: 'Chave removida',
+            message: 'A chave PIX foi removida. O sistema voltará a usar o modo padrão.',
+            confirmText: 'OK',
+            onConfirm: () => setDialog(DIALOG_HIDDEN),
+          });
+        } catch (e: any) {
+          setDialog({
+            visible: true,
+            type: 'danger',
+            title: 'Erro',
+            message: e?.response?.data?.detail || 'Erro ao remover chave.',
+            confirmText: 'Fechar',
+            onConfirm: () => setDialog(DIALOG_HIDDEN),
+          });
+        } finally {
+          setSaving(false);
+        }
       },
-    ]);
+      onCancel: () => setDialog(DIALOG_HIDDEN),
+    });
   };
 
   if (loading) {
     return (
       <View style={styles.container}>
-        <PageHeader title="Chave PIX" showBackButton onBack={() => router.back()} />
+        <PageHeader title="Chave PIX" subtitle="Pagamentos" showBackButton onBack={() => router.back()} />
         <View style={styles.center}>
           <ActivityIndicator size="large" color={brandingColors.primary} />
         </View>
@@ -97,14 +166,41 @@ export default function PIXKeyScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader title="Chave PIX" showBackButton onBack={() => router.back()} />
+      <Animated.View style={{
+        opacity: headerAnim,
+        transform: [{ scale: headerAnim.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }],
+      }}>
+        <PageHeader
+          title="Chave PIX"
+          subtitle="Configurar pagamento via QR Code"
+          showBackButton
+          onBack={() => router.back()}
+        />
+      </Animated.View>
 
-      <ScrollView
+      <ConfirmDialog
+        visible={dialog.visible}
+        type={dialog.type}
+        title={dialog.title}
+        message={dialog.message}
+        confirmText={dialog.confirmText}
+        cancelText={dialog.cancelText}
+        onConfirm={dialog.onConfirm ?? (() => setDialog(DIALOG_HIDDEN))}
+        onCancel={dialog.onCancel ?? (() => setDialog(DIALOG_HIDDEN))}
+      />
+
+      <Animated.ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        scrollEventThrottle={16}
+        onScroll={undefined}
       >
+        <Animated.View style={{
+          opacity: contentAnim,
+          transform: [{ translateY: contentAnim.interpolate({ inputRange: [0, 1], outputRange: [24, 0] }) }],
+        }}>
         {/* Info banner */}
         <View style={[styles.infoBanner, { backgroundColor: brandingColors.primary + '12', borderColor: brandingColors.primary + '30' }]}>
           <Ionicons name="qr-code-outline" size={22} color={brandingColors.primary} />
@@ -213,7 +309,8 @@ export default function PIXKeyScreen() {
           <Text style={styles.howItem}>{'4. O cliente escaneia e paga'}</Text>
           <Text style={styles.howItem}>{'5. Confirme o recebimento manualmente na tela de pagamento'}</Text>
         </View>
-      </ScrollView>
+        </Animated.View>
+      </Animated.ScrollView>
     </View>
   );
 }

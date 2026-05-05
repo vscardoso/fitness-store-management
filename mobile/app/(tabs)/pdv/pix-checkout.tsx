@@ -59,6 +59,11 @@ export default function PixCheckoutScreen() {
 
   const applyPixData = (data: PixPaymentData) => {
     setPixData(data);
+    // PIX genérico não tem expiração automática — lojista confirma manualmente
+    if (data.is_generic || isGeneric) {
+      setTimeLeft(null);
+      return;
+    }
     if (data.expires_at) {
       const expiresAt = new Date(data.expires_at).getTime();
       setTimeLeft(Math.max(0, Math.floor((expiresAt - Date.now()) / 1000)));
@@ -91,6 +96,7 @@ export default function PixCheckoutScreen() {
         expires_at: expires_at || null,
         status: 'pending',
         message: '',
+        is_generic: isGeneric,
       });
       setGenerating(false);
     } else {
@@ -117,8 +123,12 @@ export default function PixCheckoutScreen() {
       confirmedRef.current = true;
       haptics.success();
       queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['pdv-pending-sales'] });
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
+      queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
+      queryClient.invalidateQueries({ queryKey: ['low-stock'] });
       router.replace({
         pathname: '/checkout/success',
         params: { sale_number: sale_number ?? '' },
@@ -176,8 +186,12 @@ export default function PixCheckoutScreen() {
               confirmedRef.current = true;
               haptics.success();
               queryClient.invalidateQueries({ queryKey: ['sales'] });
+              queryClient.invalidateQueries({ queryKey: ['pdv-pending-sales'] });
               queryClient.invalidateQueries({ queryKey: ['products'] });
               queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+              queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
+              queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
+              queryClient.invalidateQueries({ queryKey: ['low-stock'] });
               router.replace({
                 pathname: '/checkout/success',
                 params: { sale_number: sale_number ?? '' },
@@ -229,6 +243,44 @@ export default function PixCheckoutScreen() {
             <Ionicons name="alert-circle-outline" size={48} color={C.error} />
             <Text style={styles.errorText}>{generateError}</Text>
             <AppButton label="Tentar novamente" onPress={doGenerate} variant="secondary" fullWidth />
+          </View>
+        )}
+
+        {/* Indicador de etapas */}
+        {!generating && !generateError && (
+          <View style={styles.stepsCard}>
+            <View style={styles.stepRow}>
+              <View style={[styles.stepDot, styles.stepDotDone]}>
+                <Ionicons name="checkmark" size={10} color="#fff" />
+              </View>
+              <Text style={[styles.stepText, styles.stepTextDone]}>QR Code gerado</Text>
+            </View>
+            <View style={styles.stepLine} />
+            <View style={styles.stepRow}>
+              {isGeneric ? (
+                <View style={styles.stepDot}><Text style={styles.stepNum}>2</Text></View>
+              ) : (
+                <View style={[styles.stepDot, styles.stepDotActive]}>
+                  <ActivityIndicator size="small" color={C.primary} style={{ transform: [{ scale: 0.55 }] }} />
+                </View>
+              )}
+              <Text style={[styles.stepText, !isGeneric && styles.stepTextActive]}>
+                {isGeneric ? 'Cliente realiza o pagamento' : 'Aguardando pagamento...'}
+              </Text>
+            </View>
+            <View style={styles.stepLine} />
+            <View style={styles.stepRow}>
+              {isGeneric ? (
+                <View style={[styles.stepDot, styles.stepDotActive]}>
+                  <Text style={[styles.stepNum, { color: C.primary }]}>3</Text>
+                </View>
+              ) : (
+                <View style={styles.stepDot}><Text style={styles.stepNum}>3</Text></View>
+              )}
+              <Text style={[styles.stepText, isGeneric && styles.stepTextActive]}>
+                {isGeneric ? 'Confirme o recebimento abaixo' : 'Confirmação automática'}
+              </Text>
+            </View>
           </View>
         )}
 
@@ -489,5 +541,73 @@ const styles = StyleSheet.create({
     backgroundColor: C.background,
     borderTopWidth: 1,
     borderTopColor: C.border,
+  },
+
+  // ── Etapas ──────────────────────────────────────────────────────────────
+
+  stepsCard: {
+    backgroundColor: C.card,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    gap: 0,
+    ...theme.shadows.sm,
+  },
+
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+
+  stepDot: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.backgroundSecondary,
+    borderWidth: 1.5,
+    borderColor: C.border,
+  },
+
+  stepDotDone: {
+    backgroundColor: C.success,
+    borderColor: C.success,
+  },
+
+  stepDotActive: {
+    backgroundColor: `${C.primary}15`,
+    borderColor: C.primary,
+  },
+
+  stepNum: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: C.textSecondary,
+  },
+
+  stepText: {
+    flex: 1,
+    fontSize: theme.fontSize.sm,
+    color: C.textSecondary,
+    lineHeight: 20,
+  },
+
+  stepTextDone: {
+    color: C.success,
+    fontWeight: '600',
+  },
+
+  stepTextActive: {
+    color: C.primary,
+    fontWeight: '600',
+  },
+
+  stepLine: {
+    width: 1.5,
+    height: 10,
+    backgroundColor: C.border,
+    marginLeft: 10,
+    marginVertical: 2,
   },
 });

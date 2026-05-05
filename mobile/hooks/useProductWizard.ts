@@ -17,7 +17,6 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { scanProductImage } from '@/services/aiService';
 import { createProduct, getProductById, updateProduct } from '@/services/productService';
-import { skipLoading } from '@/utils/apiHelpers';
 import { createProductWithVariants } from '@/services/productVariantService';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { logError, logWarn, logInfo } from '@/services/debugLog';
@@ -196,7 +195,7 @@ export function useProductWizard() {
     try {
       return await requestCameraPermissionFriendly();
     } catch (err) {
-      console.error('Error requesting camera permission:', err);
+      logError('Error requesting camera permission:', err);
       return false;
     }
   }, []);
@@ -205,7 +204,7 @@ export function useProductWizard() {
     try {
       return await requestGalleryPermissionFriendly();
     } catch (err) {
-      console.error('Error requesting gallery permission:', err);
+      logError('Error requesting gallery permission:', err);
       return false;
     }
   }, []);
@@ -360,7 +359,7 @@ export function useProductWizard() {
         await analyzeImage(result.assets[0].uri);
       }
     } catch (err) {
-      console.error('Error taking photo:', err);
+      logError('Error taking photo:', err);
       showDialog('Erro', 'Nao foi possivel tirar a foto', 'danger');
     }
   }, [requestCameraPermission, analyzeImage, showDialog]);
@@ -384,7 +383,7 @@ export function useProductWizard() {
         await analyzeImage(result.assets[0].uri);
       }
     } catch (err) {
-      console.error('Error picking image:', err);
+      logError('Error picking image:', err);
       showDialog('Erro', 'Nao foi possivel selecionar a imagem', 'danger');
     }
   }, [requestGalleryPermission, analyzeImage, showDialog]);

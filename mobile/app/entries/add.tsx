@@ -44,7 +44,6 @@ import PageHeader from '@/components/layout/PageHeader';
 import { useTrips } from '@/hooks/useTrips';
 import { useProducts } from '@/hooks';
 import { createStockEntry, createStockEntryWithNewProduct, createStockEntryWithNewProductVariants, checkEntryCode, getStockEntryById } from '@/services/stockEntryService';
-import { getCatalogProducts, activateCatalogProduct } from '@/services/catalogService';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { formatCurrency } from '@/utils/format';
 import { cnpjMask, phoneMask } from '@/utils/masks';
@@ -304,22 +303,7 @@ export default function AddStockEntryScreen() {
   const { data: trips = [], refetch: refetchTrips } = useTrips({ status: undefined, limit: 100 });
   const { data: products = [], isLoading: isLoadingProducts } = useProducts({ limit: 100 });
 
-  // Fetch catalog products for the modal
-  const { data: catalogProducts = [], isLoading: isLoadingCatalog } = useQuery({
-    queryKey: ['catalog-products-for-entry'],
-    queryFn: () => getCatalogProducts({ limit: 200 }),
-  });
-
-  // Combine active products and catalog products for the modal
-  // Mark catalog products with is_catalog flag
-  const allAvailableProducts = [
-    ...products,
-    ...catalogProducts
-      .filter(cp => !products.some(p => p.sku === cp.sku)) // Avoid duplicates
-      .map(cp => ({ ...cp, is_catalog: true } as Product)),
-  ];
-
-  // Flag to show catalog option when no active products
+  const allAvailableProducts = products;
   const showCatalogHint = !isLoadingProducts && products.length === 0;
 
   // Force refetch trips when returning from trip creation
@@ -1065,48 +1049,6 @@ export default function AddStockEntryScreen() {
       return;
     }
 
-    // Modo TRADICIONAL + catálogo: ativar templates no tenant antes de criar entrada.
-    let normalizedItems = items;
-    const catalogItems = items.filter((item) => item.product?.is_catalog);
-
-    if (catalogItems.length > 0) {
-      try {
-        const activationCache = new Map<number, Product>();
-
-        normalizedItems = await Promise.all(
-          items.map(async (item) => {
-            if (!item.product?.is_catalog) return item;
-
-            const catalogId = item.product_id;
-            if (catalogId === undefined) return item;
-            let activated = activationCache.get(catalogId);
-
-            if (!activated) {
-              activated = await activateCatalogProduct(catalogId, item.product.price);
-              activationCache.set(catalogId, activated);
-            }
-
-            return {
-              ...item,
-              product_id: activated.id,
-              product: {
-                ...item.product,
-                ...activated,
-                is_catalog: false,
-              },
-            };
-          })
-        );
-      } catch (error: any) {
-        showFeedbackDialog(
-          'Erro ao ativar produto do catálogo',
-          error?.response?.data?.detail || 'Não foi possível ativar o produto para sua loja.',
-          'danger'
-        );
-        return;
-      }
-    }
-
     // Modo TRADICIONAL: usar endpoint normal
     const entryData: StockEntryCreate = {
       entry_code: entryCode.trim(),
@@ -1119,7 +1061,7 @@ export default function AddStockEntryScreen() {
       invoice_number: invoiceNumber.trim() || undefined,
       payment_method: paymentMethod.trim() || undefined,
       notes: notes.trim() || undefined,
-      items: normalizedItems.map(item => ({
+      items: items.map(item => ({
         product_id: item.product_id,
         variant_id: item.variant_id ?? undefined,
         quantity_received: item.quantity_received,
@@ -1825,7 +1767,7 @@ export default function AddStockEntryScreen() {
                   style={styles.searchInput}
                 />
 
-                {(isLoadingProducts || isLoadingCatalog) ? (
+                {isLoadingProducts ? (
                   <View style={styles.loadingContainer}>
                     <Text style={styles.loadingText}>Carregando produtos...</Text>
                   </View>
@@ -2030,13 +1972,21 @@ export default function AddStockEntryScreen() {
         }
         details={
           isFromWizard
-            ? [
-                `Produto: ${params.wizardProductName || 'N/A'}`,
-                `Entrada: ${createdEntryCode}`,
-                `Variantes: ${items.length} | Total: ${items.reduce((sum, i) => sum + i.quantity_received, 0)} un`,
-                '✅ Produto + Variantes + Estoque criados atomicamente',
-                '✅ Rastreabilidade FIFO ativa',
-              ]
+            ? params.wizardMode === 'atomic-variants'
+              ? [
+                  `Produto: ${params.wizardProductName || 'N/A'}`,
+                  `Entrada: ${createdEntryCode}`,
+                  `Variantes: ${items.length} | Total: ${items.reduce((sum, i) => sum + i.quantity_received, 0)} un`,
+                  '✅ Produto + Variantes + Estoque criados atomicamente',
+                  '✅ Rastreabilidade FIFO ativa',
+                ]
+              : [
+                  `Produto: ${params.wizardProductName || 'N/A'}`,
+                  `Entrada: ${createdEntryCode}`,
+                  `Total: ${items.reduce((sum, i) => sum + i.quantity_received, 0)} un`,
+                  '✅ Produto + Estoque criados',
+                  '✅ Rastreabilidade FIFO ativa',
+                ]
             : isFromAIScanner
             ? [
                 '✅ Produto criado no catálogo',
@@ -2072,11 +2022,51 @@ export default function AddStockEntryScreen() {
               ].filter(Boolean)
         }
         type="success"
-        confirmText="Ver Entradas"
+        confirmText={isFromWizard ? "Ver Resumo" : "Ver Entradas"}
         cancelText=""
         onConfirm={() => {
           setShowSuccessDialog(false);
-          router.replace('/(tabs)/entries');
+          if (isFromWizard && createdEntryId) {
+            const totalQty = items.reduce((sum, i) => sum + i.quantity_received, 0);
+            let productData: string | undefined;
+            if (params.wizardMode === 'atomic-variants' && params.wizardAtomicVariantsData) {
+              try {
+                const ad = JSON.parse(params.wizardAtomicVariantsData);
+                productData = JSON.stringify({
+                  name: ad.product_name,
+                  brand: ad.product_brand,
+                  base_price: ad.base_price,
+                  cost_price: items[0]?.unit_cost,
+                  _hasWizardVariants: true,
+                  variants: items.map(it => ({ color: it.variant_color, size: it.variant_size, price: it.product?.price })),
+                });
+              } catch { /* usa sem productData */ }
+            } else if (params.wizardMode === 'atomic' && params.wizardProductData) {
+              try {
+                const wd = JSON.parse(params.wizardProductData);
+                productData = JSON.stringify({
+                  name: wd.product_name, sku: wd.product_sku, barcode: wd.product_barcode,
+                  brand: wd.product_brand, cost_price: wd.product_cost_price, price: wd.product_price,
+                  description: wd.product_description, category_id: wd.product_category_id,
+                });
+              } catch { /* usa sem productData */ }
+            } else if (params.preselectedProductData) {
+              productData = params.preselectedProductData;
+            }
+            router.replace({
+              pathname: '/products/wizard',
+              params: {
+                returnFromEntry: 'true',
+                createdEntryId: String(createdEntryId),
+                createdEntryCode: createdEntryCode || '',
+                createdEntryQuantity: String(totalQty),
+                createdEntrySupplier: supplierName || '',
+                ...(productData ? { createdProductData: productData } : {}),
+              },
+            } as any);
+          } else {
+            router.replace('/(tabs)/entries');
+          }
         }}
         onCancel={() => {
           setShowSuccessDialog(false);

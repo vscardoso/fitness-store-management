@@ -59,6 +59,7 @@ function isPix(sale: PendingSale): boolean {
 function PendingCard({
   sale,
   onConfirm,
+  onConfirmPix,
   onCancel,
   onOpenQR,
   confirming,
@@ -67,6 +68,7 @@ function PendingCard({
 }: {
   sale: PendingSale;
   onConfirm: (s: PendingSale) => void;
+  onConfirmPix: (s: PendingSale) => void;
   onCancel: (s: PendingSale) => void;
   onOpenQR: (s: PendingSale) => void;
   confirming: boolean;
@@ -74,6 +76,7 @@ function PendingCard({
   brandingColors: { primary: string; secondary: string; accent: string; gradient: [string, string] };
 }) {
   const pix = isPix(sale);
+  const isGenericPix = pix && sale.is_generic;
   const methodColor = pix ? C.success : C.info;
 
   return (
@@ -101,7 +104,30 @@ function PendingCard({
       </View>
 
       <View style={styles.actions}>
-        {pix ? (
+        {isGenericPix ? (
+          <>
+            <TouchableOpacity
+              style={[styles.btn, styles.btnPrimary, { backgroundColor: brandingColors.primary }, confirming && styles.btnDisabled]}
+              onPress={() => { haptics.medium(); onConfirmPix(sale); }}
+              disabled={confirming || cancelling}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="checkmark-circle-outline" size={15} color="#fff" />
+              <Text style={styles.btnPrimaryText}>
+                {confirming ? 'Confirmando…' : 'Confirmar Recebimento'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.btn, styles.btnOutlined]}
+              onPress={() => { haptics.light(); onOpenQR(sale); }}
+              disabled={confirming || cancelling}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="qr-code-outline" size={15} color={brandingColors.primary} />
+              <Text style={[styles.btnOutlinedText, { color: brandingColors.primary }]}>QR</Text>
+            </TouchableOpacity>
+          </>
+        ) : pix ? (
           <TouchableOpacity
             style={[styles.btn, styles.btnPrimary, { backgroundColor: brandingColors.primary }]}
             onPress={() => { haptics.medium(); onOpenQR(sale); }}
@@ -213,6 +239,9 @@ export default function PendingSalesScreen() {
       haptics.success();
       queryClient.invalidateQueries({ queryKey: ['pdv-pending-sales'] });
       queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['low-stock'] });
       setConfirmingId(null);
     },
     onError: () => {
@@ -222,6 +251,11 @@ export default function PendingSalesScreen() {
   });
 
   const handleConfirm = useCallback((sale: PendingSale) => {
+    setConfirmingId(sale.id);
+    confirmMutation.mutate(sale.id);
+  }, [confirmMutation]);
+
+  const handleConfirmPix = useCallback((sale: PendingSale) => {
     setConfirmingId(sale.id);
     confirmMutation.mutate(sale.id);
   }, [confirmMutation]);
@@ -244,6 +278,7 @@ export default function PendingSalesScreen() {
           qr_code: pix.qr_code,
           qr_code_base64: pix.qr_code_base64,
           expires_at: pix.expires_at ?? '',
+          is_generic: String(pix.is_generic ?? sale.is_generic ?? false),
         },
       });
     } catch {
@@ -283,6 +318,7 @@ export default function PendingSalesScreen() {
             <PendingCard
               sale={item}
               onConfirm={handleConfirm}
+              onConfirmPix={handleConfirmPix}
               onCancel={handleCancel}
               onOpenQR={handleOpenQR}
               confirming={confirmingId === item.id}
@@ -401,6 +437,17 @@ const styles = StyleSheet.create({
     backgroundColor: C.card,
     borderWidth: 1,
     borderColor: C.error,
+  },
+  btnOutlined: {
+    backgroundColor: C.card,
+    borderWidth: 1,
+    borderColor: C.border,
+    flex: 0,
+    paddingHorizontal: 14,
+  },
+  btnOutlinedText: {
+    fontSize: 13,
+    fontWeight: '600',
   },
   btnDisabled: {
     opacity: 0.5,

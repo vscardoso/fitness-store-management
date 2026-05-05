@@ -18,7 +18,7 @@ from sqlalchemy import select, update
 from app.core.config import settings
 from app.models.pdv_terminal import PDVTerminal
 from app.models.pix_transaction import PixTransaction
-from app.models.sale import Sale, SaleStatus
+from app.models.sale import Sale, SaleStatus, PaymentMethod as SalePaymentMethod
 from app.repositories.pdv_repository import PDVTerminalRepository
 from app.services.payment_providers.factory import (
     get_terminal_provider,
@@ -232,6 +232,42 @@ class PDVService:
         self, db: AsyncSession, sale_id: int, tenant_id: int,
         payer_email: Optional[str] = None, provider: Optional[str] = None,
     ) -> dict:
+        # Se já existe PixTransaction genérica pendente, regenera QR a partir dos dados da venda
+        existing_generic = await db.execute(
+            select(PixTransaction).where(
+                PixTransaction.sale_id == sale_id,
+                PixTransaction.tenant_id == tenant_id,
+                PixTransaction.provider == "generic",
+                PixTransaction.status == "pending",
+            )
+        )
+        pix_tx = existing_generic.scalar_one_or_none()
+        if pix_tx:
+            from app.models.store import Store as StoreModel
+            sale_res = await db.execute(select(Sale).where(Sale.id == sale_id))
+            sale = sale_res.scalar_one_or_none()
+            store_res = await db.execute(select(StoreModel).where(StoreModel.id == tenant_id))
+            store = store_res.scalar_one_or_none()
+            if sale and store and store.pix_key:
+                pix_payload = _generate_pix_payload(
+                    pix_key=store.pix_key,
+                    amount=float(sale.total_amount),
+                    merchant_name=(store.name or "LOJA").upper(),
+                    merchant_city=(store.city or "BRASIL").upper(),
+                    txid=f"VENDA{sale.id}",
+                )
+                qr_base64 = _generate_pix_qr_image(pix_payload)
+                return {
+                    "sale_id": sale_id,
+                    "payment_id": pix_tx.payment_id,
+                    "qr_code": pix_payload,
+                    "qr_code_base64": qr_base64,
+                    "expires_at": None,
+                    "status": "pending",
+                    "message": "QR Code PIX genérico. Confirme o recebimento após o pagamento.",
+                    "is_generic": True,
+                }
+
         provider = provider or _DEFAULT_PIX_PROVIDER
         pp = get_pix_provider(provider)
         kwargs = {}
@@ -301,11 +337,12 @@ class PDVService:
             pix = await self.create_pix_payment(db, sale.id, tenant_id, payer_email, provider)
         except Exception as exc:
             logger.error("PIX generation failed for sale %s, cancelling: %s", sale.id, exc)
-            await db.execute(
-                update(Sale).where(Sale.id == sale.id)
-                .values(status=SaleStatus.CANCELLED, is_active=False)
-            )
-            await db.commit()
+            try:
+                await sale_svc.cancel_sale(
+                    sale.id, f"Falha ao gerar PIX: {exc}", 0, tenant_id=tenant_id
+                )
+            except Exception as cancel_err:
+                logger.error("Falha ao cancelar venda %s após erro de PIX: %s", sale.id, cancel_err)
             raise ValueError(str(exc)) from exc
 
         return {
@@ -326,7 +363,7 @@ class PDVService:
         from app.schemas.sale import SaleCreate, SaleItemCreate, PaymentCreate
         from app.models.sale import PaymentMethod as PaymentMethodEnum
         from app.services.sale_service import SaleService
-        from datetime import datetime, timezone
+        from datetime import datetime, timezone, timedelta
 
         result = await db.execute(
             select(StoreModel).where(StoreModel.id == tenant_id)
@@ -365,7 +402,10 @@ class PDVService:
         )
         qr_base64 = _generate_pix_qr_image(pix_payload)
 
-        payment_id = f"generic_{sale.id}_{int(datetime.now(timezone.utc).timestamp())}"
+        now_utc = datetime.now(timezone.utc)
+        payment_id = f"generic_{sale.id}_{int(now_utc.timestamp())}"
+        expires_at = now_utc + timedelta(hours=72)  # garante limpeza automática pelo scheduler
+
         pix_tx = PixTx(
             provider="generic",
             payment_id=payment_id,
@@ -374,8 +414,14 @@ class PDVService:
             amount_expected=sale.total_amount,
             status="pending",
             mp_external_reference=f"sale_{sale.id}_tenant_{tenant_id}",
+            expires_at=expires_at,
         )
         db.add(pix_tx)
+        # Registra payment_reference na venda para rastreamento e signal_payment
+        await db.execute(
+            update(Sale).where(Sale.id == sale.id)
+            .values(payment_reference=payment_id)
+        )
         await db.commit()
 
         return {
@@ -385,7 +431,7 @@ class PDVService:
             "payment_id": payment_id,
             "qr_code": pix_payload,
             "qr_code_base64": qr_base64,
-            "expires_at": None,
+            "expires_at": expires_at.isoformat(),
             "status": "pending",
             "message": "QR Code PIX gerado. Confirme o recebimento após o pagamento.",
             "is_generic": True,
@@ -398,6 +444,7 @@ class PDVService:
         from datetime import datetime, timezone
         from app.services.audit_service import AuditService
         from app.core.payment_events import signal_payment
+        from app.services.sale_service import SaleService as SaleSvc
 
         now = datetime.now(timezone.utc)
         expired_res = await db.execute(
@@ -411,20 +458,32 @@ class PDVService:
 
         count = 0
         for pix_tx in expired:
+            # 1. Marca PixTransaction como expirada (commit imediato para idempotência)
             await db.execute(
                 update(PixTransaction).where(PixTransaction.id == pix_tx.id)
                 .values(status="expired")
             )
-            # Cancela venda associada
+            await db.commit()
+
+            # 2. Cancela venda com reversão de estoque via FIFO
             result = await db.execute(select(Sale).where(Sale.id == pix_tx.sale_id))
             sale = result.scalar_one_or_none()
             if sale and sale.status == SaleStatus.PENDING:
-                await db.execute(
-                    update(Sale).where(Sale.id == pix_tx.sale_id)
-                    .values(status=SaleStatus.CANCELLED)
-                )
                 if sale.payment_reference:
                     signal_payment(sale.payment_reference, {"status": "cancelled", "paid": False})
+                try:
+                    sale_svc = SaleSvc(db)
+                    await sale_svc.cancel_sale(
+                        pix_tx.sale_id,
+                        "PIX expirado automaticamente",
+                        0,
+                        tenant_id=pix_tx.tenant_id,
+                    )
+                except Exception as cancel_err:
+                    logger.error(
+                        "Falha ao cancelar venda %s após PIX expirar: %s",
+                        pix_tx.sale_id, cancel_err,
+                    )
 
             await AuditService.log(
                 db, "PIX_EXPIRED",
@@ -432,11 +491,14 @@ class PDVService:
                 detail={"payment_id": pix_tx.payment_id, "sale_id": pix_tx.sale_id,
                         "expired_at": str(pix_tx.expires_at)},
             )
+            try:
+                await db.commit()
+            except Exception:
+                pass
             count += 1
 
         if count:
-            await db.commit()
-            logger.info("PIX expiração: %d transações expiradas", count)
+            logger.info("PIX expiração: %d transações expiradas com estoque revertido", count)
         return count
 
     # ── Terminal Start (atômico) ───────────────────────────────────────────────
@@ -479,13 +541,12 @@ class PDVService:
 
         terminal = await self.repo.get(db, terminal_id)
         if not terminal or terminal.tenant_id != tenant_id:
-            # Cancelar venda se terminal inválido
-            await db.execute(
-                update(Sale)
-                .where(Sale.id == sale.id)
-                .values(status=SaleStatus.CANCELLED, is_active=False)
-            )
-            await db.commit()
+            # Cancela venda revertendo estoque
+            try:
+                _svc = SaleService(db)
+                await _svc.cancel_sale(sale.id, "Terminal não encontrado", 0, tenant_id=tenant_id)
+            except Exception:
+                pass
             raise ValueError("Terminal não encontrado.")
 
         try:
@@ -506,12 +567,17 @@ class PDVService:
             logger.error(
                 "Terminal payment failed for sale %s, cancelling: %s", sale.id, exc
             )
-            await db.execute(
-                update(Sale)
-                .where(Sale.id == sale.id)
-                .values(status=SaleStatus.CANCELLED, is_active=False)
-            )
-            await db.commit()
+            # Cancela venda revertendo estoque via FIFO
+            try:
+                _svc = SaleService(db)
+                await _svc.cancel_sale(
+                    sale.id,
+                    f"Falha ao enviar para terminal: {exc}",
+                    0,
+                    tenant_id=tenant_id,
+                )
+            except Exception as cancel_err:
+                logger.error("Falha ao cancelar venda %s após erro de terminal: %s", sale.id, cancel_err)
             raise ValueError(str(exc)) from exc
 
         return {
@@ -570,9 +636,11 @@ class PDVService:
         rows = await db.execute(
             _text(
                 "SELECT s.id, s.sale_number, s.total_amount, s.payment_method, "
-                "       s.payment_reference, s.created_at, c.full_name AS customer_name "
+                "       s.payment_reference, s.created_at, c.full_name AS customer_name, "
+                "       CASE WHEN pt.provider = 'generic' THEN 1 ELSE 0 END AS is_generic "
                 "FROM sales s "
                 "LEFT JOIN customers c ON c.id = s.customer_id "
+                "LEFT JOIN pix_transactions pt ON pt.sale_id = s.id AND pt.status = 'pending' "
                 "WHERE s.tenant_id = :tid "
                 "  AND UPPER(CAST(s.status AS TEXT)) = 'PENDING' "
                 "  AND s.is_active = 1 "
@@ -607,6 +675,7 @@ class PDVService:
                 "customer_name": row["customer_name"],
                 "created_at": created,
                 "minutes_ago": minutes_ago,
+                "is_generic": bool(row["is_generic"]),
             })
         return output
 
@@ -634,26 +703,46 @@ class PDVService:
         return "manual"  # fallback seguro: cancela localmente
 
     async def auto_cancel_stale_pending_sales(self, db: AsyncSession, timeout_minutes: int = 30) -> int:
-        """Auto-cancela vendas PENDING de terminal (não-PIX) mais antigas que timeout_minutes."""
+        """Auto-cancela vendas PENDING de terminal (não-PIX) mais antigas que timeout_minutes.
+        Reverte estoque via FIFO para cada venda cancelada.
+        """
         from datetime import datetime, timezone, timedelta
-        from sqlalchemy import text as _text
+        from app.services.sale_service import SaleService as SaleSvc
 
         cutoff = datetime.now(timezone.utc) - timedelta(minutes=timeout_minutes)
-        # Cancela apenas vendas de maquininha (não PIX) — PIX tem seu próprio expirador
-        result = await db.execute(
-            _text(
-                "UPDATE sales SET status = 'CANCELLED', updated_at = CURRENT_TIMESTAMP "
-                "WHERE UPPER(CAST(status AS TEXT)) = 'PENDING' "
-                "  AND UPPER(CAST(payment_method AS TEXT)) != 'PIX' "
-                "  AND is_active = 1 "
-                "  AND created_at < :cutoff"
-            ),
-            {"cutoff": cutoff.strftime("%Y-%m-%d %H:%M:%S")},
+
+        # Busca vendas elegíveis (maquininha PENDING antigas — PIX tem expirador próprio)
+        stale_res = await db.execute(
+            select(Sale).where(
+                Sale.status == SaleStatus.PENDING,
+                Sale.payment_method != SalePaymentMethod.PIX,
+                Sale.is_active == True,  # noqa: E712
+                Sale.created_at < cutoff,
+            )
         )
-        await db.commit()
-        count = result.rowcount or 0
+        stale_sales = stale_res.scalars().all()
+        if not stale_sales:
+            return 0
+
+        count = 0
+        sale_svc = SaleSvc(db)
+        for sale in stale_sales:
+            try:
+                await sale_svc.cancel_sale(
+                    sale.id,
+                    f"Auto-cancelamento: terminal aguardando há mais de {timeout_minutes} minutos",
+                    0,
+                    tenant_id=sale.tenant_id,
+                )
+                count += 1
+            except Exception as e:
+                logger.warning("Falha ao auto-cancelar venda %s: %s", sale.id, e)
+
         if count:
-            logger.info(f"Auto-cancel: {count} vendas PENDING de terminal canceladas (timeout {timeout_minutes}min)")
+            logger.info(
+                "Auto-cancel: %d vendas canceladas com estoque revertido (timeout %dmin)",
+                count, timeout_minutes,
+            )
         return count
 
     async def _get_pix_provider(self, db: AsyncSession, payment_id: str, tenant_id: int) -> str:

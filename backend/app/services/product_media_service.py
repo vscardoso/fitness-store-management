@@ -163,7 +163,11 @@ class ProductMediaService:
         variant_id: Optional[int],
         url: Optional[str],
     ) -> None:
-        """Sincroniza a URL da capa com product.image_url ou variant.image_url."""
+        """Sincroniza a URL da capa com product.image_url e variant.image_url.
+
+        Quando uma variação define capa (url != None), também atualiza
+        product.image_url para que a lista de produtos mostre a foto correta.
+        """
         if variant_id is None:
             product.image_url = url
             self.db.add(product)
@@ -175,3 +179,8 @@ class ProductMediaService:
             if variant:
                 variant.image_url = url
                 self.db.add(variant)
+
+            # Capa de variação → propaga para a foto principal do produto
+            if url is not None:
+                product.image_url = url
+                self.db.add(product)

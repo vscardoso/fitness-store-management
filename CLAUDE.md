@@ -76,3 +76,11 @@ cd mobile && .\expo-dev.ps1
 - `/billing` — Especialista faturamento: assinaturas, Mercado Pago, MRR, DRE, churn
 - `/fullstack` — Orquestração multi-camada: ADD-FIELD, NEW-FEATURE, MODIFY-FLOW, FIX, REFACTOR
 - `/quick-reference` — Referência rápida: tipos, prompts UI-UPGRADE prontos, tokens, checklist
+
+
+## Permissões bash
+
+Os seguintes padrões de comando são seguros e podem ser aprovados automaticamente:
+- cd para diretórios do projeto + py_compile
+- cd para diretórios do projeto + pytest
+- cd para diretórios do projeto + alembic

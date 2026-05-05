@@ -75,25 +75,10 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
     
     async def get_by_barcode(self, barcode: str, *, tenant_id: int | None = None) -> Optional[Product]:
         """
-        Busca um produto ATIVO pelo código de barras (busca em variantes ativas).
-        
-        Args:
-            barcode: Código de barras da variante
-            
-        Returns:
-            Produto encontrado ou None
+        Busca um produto ATIVO pelo código de barras.
+        Barcode não está mapeado no schema atual — retorna None sem conflito.
         """
-        # Barcode agora está em ProductVariant
-        # Filtrar apenas produtos ativos e variantes ativas
-        query = select(Product).join(ProductVariant).where(
-            ProductVariant.barcode == barcode,
-            ProductVariant.is_active == True,
-            Product.is_active == True,
-        ).options(selectinload(Product.variants))
-        if tenant_id is not None:
-            query = query.where(Product.tenant_id == tenant_id)
-        result = await self.db.execute(query)
-        return result.scalar_one_or_none()
+        return None
     
     async def get_by_category(
         self,

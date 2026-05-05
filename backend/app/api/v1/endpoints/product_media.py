@@ -106,8 +106,9 @@ async def upload_product_media(
     elif content_type == "image/webp":
         ext = "webp"
 
+    import uuid as _uuid
     scope = f"variant_{variant_id}" if variant_id else f"product_{product_id}"
-    filename = f"{scope}_media"
+    filename = f"{scope}_{_uuid.uuid4().hex[:10]}_media"
 
     storage = get_storage_service()
     file_path = await storage.upload_from_bytes(
@@ -152,8 +153,9 @@ async def upload_product_media_base64(
     ext = "gif" if mime == "image/gif" else "jpg"
     media_type = "gif" if mime == "image/gif" else "photo"
 
+    import uuid as _uuid
     scope = f"variant_{variant_id}" if variant_id else f"product_{product_id}"
-    filename = f"{scope}_media"
+    filename = f"{scope}_{_uuid.uuid4().hex[:10]}_media"
 
     storage = get_storage_service()
     file_path = await storage.upload_from_bytes(raw, folder="product_media", filename=filename, ext=f".{ext}")

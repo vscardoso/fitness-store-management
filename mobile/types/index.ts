@@ -203,6 +203,7 @@ export interface ProductUpdate {
   is_digital?: boolean;
   is_activewear?: boolean;
   is_active?: boolean;
+  is_catalog?: boolean;
   image_url?: string;
 }
 

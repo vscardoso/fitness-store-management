@@ -34,6 +34,7 @@ import WizardStep2 from '@/components/products/WizardStep2';
 import WizardStep3 from '@/components/products/WizardStep3';
 import WizardComplete from '@/components/products/WizardComplete';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { logError } from '@/services/debugLog';
 
 export default function ProductWizardScreen() {
   const router = useRouter();
@@ -124,8 +125,7 @@ export default function ProductWizardScreen() {
         wizard.setManualData(data);
         wizard.goToStep('confirm');
       } catch (e) {
-        console.error('Erro ao parsear prefillData:', e);
-        // Fallback: abrir modo manual normal
+        logError('Erro ao parsear prefillData:', e);
         wizard.selectMethod('manual');
       }
     }
@@ -146,7 +146,7 @@ export default function ProductWizardScreen() {
         try {
           restoreProduct = JSON.parse(params.restoreProductData);
         } catch (e) {
-          console.error('Erro ao parsear restoreProductData:', e);
+          logError('Erro ao parsear restoreProductData:', e);
         }
       }
       restoreFromRoute(step, restoreProduct);
@@ -172,7 +172,7 @@ export default function ProductWizardScreen() {
         try {
           productData = JSON.parse(params.createdProductData);
         } catch (e) {
-          console.error('Erro ao parsear createdProductData:', e);
+          logError('Erro ao parsear createdProductData:', e);
         }
       }
 
@@ -235,14 +235,7 @@ export default function ProductWizardScreen() {
       wizard.goToStep('entry');
       return;
     }
-
-    // Se tem dados não salvos, confirmar saída
-    if (state.isDirty) {
-      setShowExitDialog(true);
-    } else {
-      goBack();
-    }
-  }, [state.currentStep, state.isDirty, wizard, goBack]);
+  }, [state.currentStep, wizard, goBack]);
 
   const handleStepPress = useCallback((targetStep: 'identify' | 'confirm' | 'entry' | 'complete') => {
     if (targetStep === state.currentStep) {

@@ -163,7 +163,9 @@ export default function CheckoutScreen() {
     setLoadingTerminals(true);
     try {
       const list = await listTerminals();
-      setTerminals(list.filter((t: PDVTerminal) => t.is_active && t.is_configured));
+      const active = list.filter((t: PDVTerminal) => t.is_active && t.is_configured);
+      setTerminals(active);
+      if (active.length === 1) setSelectedTerminal(active[0]);
     } catch {
       // silencioso
     } finally {
@@ -191,6 +193,7 @@ export default function CheckoutScreen() {
       setSelectedTerminal(null);
       setTerminalInstallments(1);
       setTerminalPaymentType('credit_card');
+      loadTerminals();
     }, [])
   );
 
@@ -527,6 +530,98 @@ export default function CheckoutScreen() {
   };
 
   /**
+   * Executa PIX após confirmação do operador
+   */
+  const executePixStart = async (saleData: any) => {
+    setLoading(true);
+    try {
+      const result = await pixStart({
+        ...saleData,
+        items: saleData.items.map((i: any) => ({ ...i, discount_amount: i.discount_amount ?? 0 })),
+      });
+      haptics.success();
+      invalidateProductQueries();
+      cart.clear();
+      router.replace({
+        pathname: '/(tabs)/pdv/pix-checkout',
+        params: {
+          sale_id: String(result.sale_id),
+          amount: String(result.total_amount),
+          sale_number: result.sale_number,
+          payment_id: result.payment_id,
+          qr_code: result.qr_code,
+          qr_code_base64: result.qr_code_base64,
+          expires_at: result.expires_at ?? '',
+          is_generic: String(result.is_generic ?? false),
+        },
+      });
+    } catch (error: any) {
+      haptics.error();
+      const detail: string = error.response?.data?.detail || error.message || '';
+      const isStockError = detail.toLowerCase().includes('estoque insuficiente');
+      setDialog({
+        visible: true,
+        type: 'danger',
+        title: isStockError ? 'Estoque insuficiente' : 'Erro ao gerar PIX',
+        message: detail || 'Erro ao processar venda PIX. Tente novamente.',
+        confirmText: isStockError ? 'Voltar ao carrinho' : 'OK',
+        cancelText: isStockError ? 'Fechar' : '',
+        onConfirm: () => {
+          setDialog(d => ({ ...d, visible: false }));
+          if (isStockError) router.back();
+        },
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
+   * Executa envio para maquininha após confirmação do operador
+   */
+  const executeTerminalStart = async (saleData: any) => {
+    if (!selectedTerminal) return;
+    setLoading(true);
+    try {
+      const result = await terminalStart({
+        ...saleData,
+        terminal_id: selectedTerminal.id,
+        payment_type: terminalPaymentType,
+        installments: terminalInstallments,
+        items: saleData.items.map((i: any) => ({ ...i, discount_amount: i.discount_amount ?? 0 })),
+      });
+      haptics.success();
+      invalidateProductQueries();
+      cart.clear();
+      router.replace({
+        pathname: '/(tabs)/pdv/terminal-checkout',
+        params: {
+          sale_id: String(result.sale_id),
+          amount: String(result.total_amount),
+          sale_number: result.sale_number,
+          terminal_name: `${result.terminal_name} (${result.provider})`,
+          payment_type: terminalPaymentType,
+          installments: String(terminalInstallments),
+        },
+      });
+    } catch (err: any) {
+      haptics.error();
+      const detail = err?.response?.data?.detail || err?.message || 'Erro ao enviar para maquininha.';
+      setDialog({
+        visible: true,
+        type: 'danger',
+        title: 'Erro na maquininha',
+        message: detail,
+        confirmText: 'OK',
+        cancelText: '',
+        onConfirm: () => setDialog(d => ({ ...d, visible: false })),
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /**
    * Finalizar venda
    */
   const handleFinalizeSale = async () => {
@@ -660,49 +755,21 @@ export default function CheckoutScreen() {
         cart.payments.length === 1 &&
         cart.payments[0].method === PaymentMethod.PIX;
 
-      // PIX: criar venda como PENDING + gerar QR Code atomicamente (sem race condition)
+      // PIX: confirmar antes de gerar QR Code (ação irreversível — cria venda PENDING)
       if (isPixOnly) {
-        try {
-          setLoading(true);
-          const result = await pixStart({
-            ...saleData,
-            items: saleData.items.map((i: any) => ({ ...i, discount_amount: i.discount_amount ?? 0 })),
-          });
-          haptics.success();
-          invalidateProductQueries();
-          cart.clear();
-          router.replace({
-            pathname: '/(tabs)/pdv/pix-checkout',
-            params: {
-              sale_id: String(result.sale_id),
-              amount: String(result.total_amount),
-              sale_number: result.sale_number,
-              payment_id: result.payment_id,
-              qr_code: result.qr_code,
-              qr_code_base64: result.qr_code_base64,
-              expires_at: result.expires_at ?? '',
-              is_generic: String(result.is_generic ?? false),
-            },
-          });
-        } catch (error: any) {
-          haptics.error();
-          const detail: string = error.response?.data?.detail || error.message || '';
-          const isStockError = detail.toLowerCase().includes('estoque insuficiente');
-          setDialog({
-            visible: true,
-            type: 'danger',
-            title: isStockError ? 'Estoque insuficiente' : 'Erro ao gerar PIX',
-            message: detail || 'Erro ao processar venda PIX. Tente novamente.',
-            confirmText: isStockError ? 'Voltar ao carrinho' : 'OK',
-            cancelText: isStockError ? 'Fechar' : '',
-            onConfirm: () => {
-              setDialog({ ...dialog, visible: false });
-              if (isStockError) router.back();
-            },
-          });
-        } finally {
-          setLoading(false);
-        }
+        setLoading(false);
+        setDialog({
+          visible: true,
+          type: 'info',
+          title: 'Confirmar Pagamento PIX',
+          message: `Será gerado um QR Code para ${formatCurrency(finalTotal)}.\n\nA venda ficará pendente até confirmação do recebimento.`,
+          confirmText: 'Gerar QR Code',
+          cancelText: 'Cancelar',
+          onConfirm: () => {
+            setDialog(d => ({ ...d, visible: false }));
+            executePixStart(saleData);
+          },
+        });
         return;
       }
 
@@ -712,44 +779,24 @@ export default function CheckoutScreen() {
       ) && !isMixedMode;
 
       if (isTerminalPayment && selectedTerminal) {
-        try {
-          setLoading(true);
-          const result = await terminalStart({
-            ...saleData,
-            terminal_id: selectedTerminal.id,
-            payment_type: terminalPaymentType,
-            installments: terminalInstallments,
-            items: saleData.items.map((i: any) => ({ ...i, discount_amount: i.discount_amount ?? 0 })),
-          });
-          haptics.success();
-          invalidateProductQueries();
-          cart.clear();
-          router.replace({
-            pathname: '/(tabs)/pdv/terminal-checkout',
-            params: {
-              sale_id: String(result.sale_id),
-              amount: String(result.total_amount),
-              sale_number: result.sale_number,
-              terminal_name: `${result.terminal_name} (${result.provider})`,
-              payment_type: terminalPaymentType,
-              installments: String(terminalInstallments),
-            },
-          });
-        } catch (err: any) {
-          haptics.error();
-          const detail = err?.response?.data?.detail || err?.message || 'Erro ao enviar para maquininha.';
-          setDialog({
-            visible: true,
-            type: 'danger',
-            title: 'Erro na maquininha',
-            message: detail,
-            confirmText: 'OK',
-            cancelText: '',
-            onConfirm: () => setDialog({ ...dialog, visible: false }),
-          });
-        } finally {
-          setLoading(false);
-        }
+        const payLabel = terminalPaymentType === 'credit_card'
+          ? terminalInstallments > 1
+            ? `Crédito ${terminalInstallments}x de ${formatCurrency(finalTotal / terminalInstallments)}`
+            : 'Crédito à vista'
+          : 'Débito à vista';
+        setLoading(false);
+        setDialog({
+          visible: true,
+          type: 'info',
+          title: 'Enviar para Maquininha',
+          message: `Cobrança de ${formatCurrency(finalTotal)} (${payLabel}) será enviada para "${selectedTerminal.name}".\n\nO cliente precisará pagar na maquininha.`,
+          confirmText: 'Enviar para maquininha',
+          cancelText: 'Cancelar',
+          onConfirm: () => {
+            setDialog(d => ({ ...d, visible: false }));
+            executeTerminalStart(saleData);
+          },
+        });
         return;
       }
 

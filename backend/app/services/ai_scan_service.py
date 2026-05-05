@@ -2,6 +2,7 @@
 Serviço de AI Scan para análise de imagens de produtos.
 Utiliza OpenAI GPT-4o Vision API.
 """
+import asyncio
 import base64
 import json
 import logging
@@ -180,25 +181,52 @@ Esta é uma loja FITNESS com foco principal em **roupas femininas**, mas também
 Responda APENAS com o JSON, sem texto adicional."""
 
     def __init__(self, db: AsyncSession):
-        """
-        Inicializa o serviço.
-
-        Args:
-            db: Sessão assíncrona do banco de dados
-        """
         self.db = db
-        self._client = None
 
-    @property
-    def client(self):
-        """Lazy initialization do cliente OpenAI."""
-        if self._client is None:
-            try:
-                from openai import OpenAI
-                self._client = OpenAI(api_key=settings.OPENAI_API_KEY)
-            except ImportError:
-                raise RuntimeError("openai package not installed. Run: pip install openai")
-        return self._client
+    def _call_gemini(self, image_bytes: bytes, media_type: str, prompt: str) -> str:
+        try:
+            from google import genai
+            from google.genai import types
+        except ImportError:
+            raise RuntimeError("google-genai não instalado. Execute: pip install google-genai")
+
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model=settings.GEMINI_MODEL,
+            contents=[
+                types.Part.from_bytes(data=image_bytes, mime_type=media_type),
+                prompt,
+            ],
+            config=types.GenerateContentConfig(
+                # Limita o raciocínio interno — scan de produto não precisa de deep thinking
+                thinking_config=types.ThinkingConfig(thinking_budget=512),
+            ),
+        )
+        return response.text
+
+    def _call_openai(self, image_bytes: bytes, media_type: str, prompt: str) -> str:
+        try:
+            from openai import OpenAI
+        except ImportError:
+            raise RuntimeError("openai não instalado. Execute: pip install openai")
+
+        client = OpenAI(api_key=settings.OPENAI_API_KEY)
+        image_data = base64.standard_b64encode(image_bytes).decode("utf-8")
+        response = client.chat.completions.create(
+            model=settings.OPENAI_MODEL,
+            max_tokens=settings.OPENAI_MAX_TOKENS,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {
+                        "url": f"data:{media_type};base64,{image_data}",
+                        "detail": "high",
+                    }},
+                ],
+            }],
+        )
+        return response.choices[0].message.content
 
     async def analyze_image(
         self,
@@ -210,90 +238,52 @@ Responda APENAS com o JSON, sem texto adicional."""
         suggest_price: bool = True,
         context: Optional[str] = None,
     ) -> ProductScanResult:
-        """
-        Analisa uma imagem de produto usando Claude Vision.
-
-        Args:
-            image_bytes: Bytes da imagem
-            media_type: MIME type (image/jpeg, image/png, etc.)
-            tenant_id: ID do tenant para buscar categorias e duplicados
-            check_duplicates: Se deve verificar duplicados
-            suggest_price: Se deve sugerir preço
-            context: Contexto adicional opcional
-
-        Returns:
-            ProductScanResult: Resultado da análise
-
-        Raises:
-            ValueError: Se a API key não estiver configurada
-            RuntimeError: Se ocorrer erro na chamada da API
-        """
-        if not settings.OPENAI_API_KEY:
-            raise ValueError("OPENAI_API_KEY não configurada")
-
         if not settings.AI_SCAN_ENABLED:
             raise ValueError("AI Scan está desabilitado")
 
+        provider = settings.AI_PROVIDER.lower()
+
+        if provider == "gemini":
+            if not settings.GEMINI_API_KEY:
+                raise ValueError("GEMINI_API_KEY não configurada em backend/.env")
+        else:
+            if not settings.OPENAI_API_KEY or settings.OPENAI_API_KEY.startswith("your-"):
+                raise ValueError("OPENAI_API_KEY não configurada em backend/.env")
+
         start_time = time.time()
 
-        # Buscar categorias disponíveis
         categories = await self._get_categories()
         categories_text = ", ".join([c.name for c in categories])
-
-        # Montar prompt
         prompt = self._build_prompt(categories_text, context)
 
-        # Codificar imagem em base64
-        image_data = base64.standard_b64encode(image_bytes).decode("utf-8")
-
         try:
-            # Chamada à API OpenAI GPT-4o Vision
-            response = self.client.chat.completions.create(
-                model=settings.OPENAI_MODEL,
-                max_tokens=settings.OPENAI_MAX_TOKENS,
-                messages=[
-                    {
-                        "role": "user",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": prompt,
-                            },
-                            {
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:{media_type};base64,{image_data}",
-                                    "detail": "high"
-                                },
-                            },
-                        ],
-                    }
-                ],
-            )
+            if provider == "gemini":
+                response_text = await asyncio.wait_for(
+                    asyncio.to_thread(self._call_gemini, image_bytes, media_type, prompt),
+                    timeout=55.0,
+                )
+                logger.info(f"Gemini response: {response_text[:500]}...")
+            else:
+                response_text = await asyncio.wait_for(
+                    asyncio.to_thread(self._call_openai, image_bytes, media_type, prompt),
+                    timeout=55.0,
+                )
+                logger.info(f"OpenAI response: {response_text[:500]}...")
 
-            # Extrair resposta
-            response_text = response.choices[0].message.content
-            logger.info(f"OpenAI response: {response_text[:500]}...")
-
-            # Parsear JSON da resposta
             ai_data = self._parse_response(response_text)
-
-            # Enriquecer resultado
             result = await self._enrich_result(
-                ai_data,
-                categories,
-                tenant_id,
-                check_duplicates,
-                suggest_price,
+                ai_data, categories, tenant_id, check_duplicates, suggest_price,
             )
 
             elapsed_ms = int((time.time() - start_time) * 1000)
-            logger.info(f"AI Scan completed in {elapsed_ms}ms")
-
+            logger.info(f"AI Scan ({provider}) completed in {elapsed_ms}ms")
             return result
 
+        except asyncio.TimeoutError:
+            logger.error(f"Timeout calling {provider} API (>55s)")
+            raise RuntimeError("A IA demorou mais de 55s para responder. Tente novamente.")
         except Exception as e:
-            logger.error(f"Error calling OpenAI API: {e}", exc_info=True)
+            logger.error(f"Error calling {provider} API: {e}", exc_info=True)
             raise RuntimeError(f"Erro ao analisar imagem: {str(e)}")
 
     def _build_prompt(self, categories_text: str, context: Optional[str] = None) -> str:
@@ -304,25 +294,26 @@ Responda APENAS com o JSON, sem texto adicional."""
         return prompt
 
     def _parse_response(self, response_text: str) -> Dict[str, Any]:
-        """
-        Parseia a resposta JSON do Claude.
+        # Remove markdown code fences (```json ... ```)
+        text = re.sub(r'```(?:json)?\s*', '', response_text).strip()
 
-        Args:
-            response_text: Texto da resposta
-
-        Returns:
-            Dict com os dados parseados
-        """
-        # Tentar extrair JSON do texto
-        json_match = re.search(r'\{[\s\S]*\}', response_text)
-        if not json_match:
+        # Locate start of JSON value (object or array)
+        json_start = re.search(r'[\[{]', text)
+        if not json_start:
             raise ValueError("Resposta da IA não contém JSON válido")
 
         try:
-            return json.loads(json_match.group())
+            result, _ = json.JSONDecoder().raw_decode(text, json_start.start())
         except json.JSONDecodeError as e:
             logger.error(f"Error parsing JSON: {e}")
             raise ValueError(f"Erro ao parsear resposta da IA: {e}")
+
+        # Se o modelo devolveu uma lista, usa o primeiro item
+        if isinstance(result, list):
+            if not result:
+                raise ValueError("Resposta da IA retornou lista vazia")
+            return result[0]
+        return result
 
     async def _get_categories(self) -> List[Category]:
         """Busca todas as categorias ativas."""
@@ -955,8 +946,16 @@ Responda APENAS com o JSON, sem texto adicional."""
 
     async def check_status(self) -> Dict[str, Any]:
         """Verifica status do serviço de IA."""
+        provider = settings.AI_PROVIDER.lower()
+        if provider == "gemini":
+            model = settings.GEMINI_MODEL
+            has_key = bool(settings.GEMINI_API_KEY)
+        else:
+            model = settings.OPENAI_MODEL
+            has_key = bool(settings.OPENAI_API_KEY)
         return {
             "enabled": settings.AI_SCAN_ENABLED,
-            "model": settings.OPENAI_MODEL,
-            "has_api_key": bool(settings.OPENAI_API_KEY),
+            "provider": provider,
+            "model": model,
+            "has_api_key": has_key,
         }

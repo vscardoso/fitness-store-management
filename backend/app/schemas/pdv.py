@@ -207,6 +207,7 @@ class PixPaymentResponse(BaseModel):
     expires_at: Optional[str] = None
     status: str
     message: str
+    is_generic: bool = False
 
 
 class PixStatusResponse(BaseModel):
@@ -262,6 +263,7 @@ class PendingSaleResponse(BaseModel):
     customer_name: Optional[str] = None
     created_at: datetime
     minutes_ago: int
+    is_generic: bool = False
 
 
 # ── Terminal Start (cria venda PENDING + envia para terminal atomicamente) ────

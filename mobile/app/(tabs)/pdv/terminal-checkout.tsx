@@ -98,8 +98,11 @@ export default function TerminalCheckoutScreen() {
                 setAutoConfirmed(true);
                 haptics.success();
                 queryClient.invalidateQueries({ queryKey: ['sales'] });
-                queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+                queryClient.invalidateQueries({ queryKey: ['pdv-pending-sales'] });
                 queryClient.invalidateQueries({ queryKey: ['products'] });
+                queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+                queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
+                queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
                 queryClient.invalidateQueries({ queryKey: ['low-stock'] });
                 cart.clear();
                 router.replace({
@@ -131,12 +134,12 @@ export default function TerminalCheckoutScreen() {
     try {
       await confirmManualPayment(saleId);
 
-      // Invalida caches relevantes
       queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['pdv-pending-sales'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
       queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
       queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
-      queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['low-stock'] });
 
       cart.clear();
@@ -230,18 +233,53 @@ export default function TerminalCheckoutScreen() {
           {/* Badge de tipo */}
           {paymentBadge()}
 
-          {/* Instrução */}
+          {/* Etapas do pagamento */}
           {isCloudProvider ? (
-            <View style={styles.cloudWaitRow}>
-              <ActivityIndicator size="small" color={C.primary} />
-              <Text style={styles.instruction}>
-                Cobrança enviada. Aguardando o cliente pagar na maquininha...
-              </Text>
+            <View style={styles.stepsContainer}>
+              <View style={styles.stepRow}>
+                <View style={[styles.stepDot, styles.stepDotDone]}>
+                  <Ionicons name="checkmark" size={10} color="#fff" />
+                </View>
+                <Text style={[styles.stepLabel, styles.stepLabelDone]}>Cobrança enviada ao terminal</Text>
+              </View>
+              <View style={styles.stepConnector} />
+              <View style={styles.stepRow}>
+                <View style={[styles.stepDot, styles.stepDotActive]}>
+                  <ActivityIndicator size="small" color={C.primary} style={{ transform: [{ scale: 0.55 }] }} />
+                </View>
+                <Text style={[styles.stepLabel, styles.stepLabelActive]}>Aguardando pagamento do cliente...</Text>
+              </View>
+              <View style={styles.stepConnector} />
+              <View style={styles.stepRow}>
+                <View style={styles.stepDot}>
+                  <Text style={styles.stepNum}>3</Text>
+                </View>
+                <Text style={styles.stepLabel}>Confirmação automática</Text>
+              </View>
             </View>
           ) : (
-            <Text style={styles.instruction}>
-              Cobre o valor na maquininha e confirme abaixo quando o pagamento for aprovado.
-            </Text>
+            <View style={styles.stepsContainer}>
+              <View style={styles.stepRow}>
+                <View style={[styles.stepDot, styles.stepDotNum]}>
+                  <Text style={styles.stepNum}>1</Text>
+                </View>
+                <Text style={styles.stepLabel}>Cobre o valor na maquininha</Text>
+              </View>
+              <View style={styles.stepConnector} />
+              <View style={styles.stepRow}>
+                <View style={[styles.stepDot, styles.stepDotNum]}>
+                  <Text style={styles.stepNum}>2</Text>
+                </View>
+                <Text style={styles.stepLabel}>Aguarde a aprovação no terminal</Text>
+              </View>
+              <View style={styles.stepConnector} />
+              <View style={styles.stepRow}>
+                <View style={[styles.stepDot, styles.stepDotActive]}>
+                  <Text style={[styles.stepNum, { color: C.primary }]}>3</Text>
+                </View>
+                <Text style={[styles.stepLabel, styles.stepLabelActive]}>Confirme abaixo quando aprovado</Text>
+              </View>
+            </View>
           )}
         </View>
       </ScrollView>
@@ -383,6 +421,77 @@ const styles = StyleSheet.create({
     color: C.textSecondary,
     textAlign: 'center',
     lineHeight: 22,
+  },
+
+  // ── Etapas ───────────────────────────────────────────────────────────────
+
+  stepsContainer: {
+    alignSelf: 'stretch',
+    paddingHorizontal: theme.spacing.sm,
+    gap: 0,
+  },
+
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+
+  stepDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: C.backgroundSecondary,
+    borderWidth: 1.5,
+    borderColor: C.border,
+  },
+
+  stepDotDone: {
+    backgroundColor: C.success,
+    borderColor: C.success,
+  },
+
+  stepDotActive: {
+    backgroundColor: `${C.primary}15`,
+    borderColor: C.primary,
+  },
+
+  stepDotNum: {
+    backgroundColor: C.backgroundSecondary,
+    borderColor: C.border,
+  },
+
+  stepNum: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: C.textSecondary,
+  },
+
+  stepLabel: {
+    flex: 1,
+    fontSize: theme.fontSize.sm,
+    color: C.textSecondary,
+    lineHeight: 20,
+  },
+
+  stepLabelDone: {
+    color: C.success,
+    fontWeight: '600',
+  },
+
+  stepLabelActive: {
+    color: C.primary,
+    fontWeight: '600',
+  },
+
+  stepConnector: {
+    width: 1.5,
+    height: 12,
+    backgroundColor: C.border,
+    marginLeft: 11,
+    marginVertical: 2,
   },
 
   // ── Footer ───────────────────────────────────────────────────────────────

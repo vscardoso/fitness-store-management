@@ -43,7 +43,6 @@ from app.models.stock_entry import StockEntry, EntryType
 
 router = APIRouter()
 
-
 class PeriodFilter(str, Enum):
     """Filtros de período predefinidos para o dashboard."""
     THIS_MONTH = "this_month"

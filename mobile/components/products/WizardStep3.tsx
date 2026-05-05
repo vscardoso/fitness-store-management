@@ -26,6 +26,7 @@ import { formatCurrency } from '@/utils/format';
 import { getStockEntries } from '@/services/stockEntryService';
 import type { StockEntry } from '@/types';
 import { useBrandingColors } from '@/store/brandingStore';
+import { logError } from '@/services/debugLog';
 
 interface WizardStep3Props {
   wizard: UseProductWizardReturn;
@@ -100,7 +101,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
         // Considera que existem entradas se houver pelo menos 1
         setHasExistingEntries(entries.length > 0);
       } catch (error) {
-        console.error('Erro ao buscar entradas:', error);
+        logError('Erro ao buscar entradas:', error);
         setHasExistingEntries(false);
       } finally {
         setIsLoadingEntries(false);
@@ -185,9 +186,12 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
   };
 
   const product = state.createdProduct;
-  // No fluxo atômico de variantes, o produto ainda não existe no banco —
-  // ele só é criado quando o usuário confirma a entrada em entries/add.
+  // Fluxo atômico com variantes: produto ainda não existe no banco
   const isAtomicVariants = (product as any)?._atomicVariants === true;
+  // Fluxo atômico simples: produto virtual, ainda não existe no banco
+  const isVirtual = (product as any)?._virtual === true;
+  // Qualquer fluxo em que o produto ainda não foi persistido
+  const isPending = isAtomicVariants || isVirtual;
 
   // Faixa de preço: mostra "min – max" quando há variantes com preços distintos
   const priceDisplay = useMemo(() => {
@@ -219,21 +223,23 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
   return (
     <>
     <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
-      {/* Header — contexto diferente para fluxo atômico vs produto já criado */}
+      {/* Header — contexto diferente para fluxo pendente vs produto já criado */}
       <View style={styles.successContainer}>
         <View style={styles.successIcon}>
           <Ionicons
-            name={isAtomicVariants ? 'cube-outline' : 'checkmark-circle'}
+            name={isPending ? 'cube-outline' : 'checkmark-circle'}
             size={56}
-            color={isAtomicVariants ? brandingColors.primary : Colors.light.success}
+            color={isPending ? brandingColors.primary : Colors.light.success}
           />
         </View>
-        <Text style={[styles.successTitle, isAtomicVariants && { color: brandingColors.primary }]}>
-          {isAtomicVariants ? 'Dados Configurados' : 'Produto Criado!'}
+        <Text style={[styles.successTitle, isPending && { color: brandingColors.primary }]}>
+          {isPending ? 'Dados Configurados' : 'Produto Criado!'}
         </Text>
-        {isAtomicVariants && (
+        {isPending && (
           <Text style={styles.pendingSubtitle}>
-            O produto e suas variações serão criados junto com a entrada de estoque
+            {isAtomicVariants
+              ? 'O produto e suas variações serão criados junto com a entrada de estoque'
+              : 'O produto será criado junto com a entrada de estoque'}
           </Text>
         )}
 
@@ -259,18 +265,18 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
         style={[
           styles.stockWarning,
           {
-            backgroundColor: isAtomicVariants ? visual.secondarySoft : visual.primarySoft,
-            borderColor: isAtomicVariants ? visual.secondaryBorder : visual.primaryBorder,
+            backgroundColor: isPending ? visual.secondarySoft : visual.primarySoft,
+            borderColor: isPending ? visual.secondaryBorder : visual.primaryBorder,
           },
         ]}
       >
         <Ionicons
-          name={isAtomicVariants ? 'information-circle' : 'alert-circle'}
+          name={isPending ? 'information-circle' : 'alert-circle'}
           size={18}
-          color={isAtomicVariants ? brandingColors.secondary : brandingColors.primary}
+          color={isPending ? brandingColors.secondary : brandingColors.primary}
         />
-        <Text style={[styles.stockWarningText, { color: isAtomicVariants ? brandingColors.secondary : brandingColors.primary }]}>
-          {isAtomicVariants
+        <Text style={[styles.stockWarningText, { color: isPending ? brandingColors.secondary : brandingColors.primary }]}>
+          {isPending
             ? 'Produto ainda não foi criado — escolha uma entrada abaixo para concluir o cadastro'
             : 'Estoque atual: 0 unidades — vincule a uma entrada para rastreabilidade FIFO'}
         </Text>

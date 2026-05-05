@@ -14,10 +14,10 @@ import {
   Pressable,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import PageHeader from '@/components/layout/PageHeader';
+import AppButton from '@/components/ui/AppButton';
 import InfoRow from '@/components/ui/InfoRow';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getProductById, deleteProduct, updateProduct } from '@/services/productService';
@@ -105,14 +105,12 @@ export default function ProductDetailsScreen() {
     enabled: isValidId,
   });
 
-  // Foto a exibir: capa da galeria (product-level) ou product.image_url como fallback
-  const displayImageUrl = (() => {
-    const cover = productMedia.find(m => m.variant_id == null && m.is_cover)
-      ?? productMedia.find(m => m.variant_id == null)
-      ?? productMedia.find(m => m.is_cover)
-      ?? productMedia[0];
-    return cover?.url ?? product?.image_url ?? null;
-  })();
+  // Foto a exibir: product.image_url é a fonte de verdade (igual à lista de produtos)
+  const displayImageUrl =
+    product?.image_url
+    ?? productMedia.find(m => m.is_cover)?.url
+    ?? productMedia[0]?.url
+    ?? null;
 
   /**
    * Query: Fornecedores do produto
@@ -177,7 +175,7 @@ export default function ProductDetailsScreen() {
 
   const toggleCatalogMutation = useMutation({
     mutationFn: (newValue: boolean) =>
-      updateProduct(productId, { is_catalog: newValue } as any),
+      updateProduct(productId, { is_catalog: newValue }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['product', productId] });
       queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
@@ -335,13 +333,14 @@ export default function ProductDetailsScreen() {
           </View>
         </View>
 
+        {/* ── FOTO DO PRODUTO ── */}
         <View style={styles.card}>
           <View style={styles.cardInner}>
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderIcon}>
                 <Ionicons name="image-outline" size={20} color={Colors.light.primary} />
               </View>
-              <Text style={styles.cardTitle}>Foto Vinculada</Text>
+              <Text style={styles.cardTitle}>Foto</Text>
             </View>
 
             {displayImageUrl ? (
@@ -351,30 +350,26 @@ export default function ProductDetailsScreen() {
             ) : (
               <View style={styles.productPhotoPlaceholder}>
                 <Ionicons name="image-outline" size={24} color={Colors.light.textTertiary} />
-                <Text style={styles.productPhotoPlaceholderText}>Sem foto principal vinculada</Text>
+                <Text style={styles.productPhotoPlaceholderText}>Sem foto</Text>
               </View>
             )}
 
-            <View style={styles.actionList}>
-              <TouchableOpacity
-                style={styles.actionCard}
-                onPress={() => router.push(`/products/photos/${productId}` as any)}
-                activeOpacity={0.75}
-              >
-                <View style={[styles.actionCardIcon, { backgroundColor: brandingColors.primary + '16' }]}>
-                  <Ionicons name="images-outline" size={18} color={brandingColors.primary} />
-                </View>
-                <View style={styles.actionCardContent}>
-                  <Text style={styles.actionCardTitle}>
-                    {hasVariants ? 'Fotos das variações' : 'Gerenciar foto'}
-                  </Text>
-                  <Text style={styles.actionCardSub}>
-                    {hasVariants ? 'Gerenciar foto de cada variação' : 'Adicionar ou trocar foto do produto'}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
-              </TouchableOpacity>
-            </View>
+            <TouchableOpacity
+              style={[styles.actionCard, { marginTop: theme.spacing.sm }]}
+              onPress={() => router.push(`/products/photos/${productId}` as any)}
+              activeOpacity={0.75}
+            >
+              <View style={[styles.actionCardIcon, { backgroundColor: brandingColors.primary + '16' }]}>
+                <Ionicons name="images-outline" size={18} color={brandingColors.primary} />
+              </View>
+              <View style={styles.actionCardContent}>
+                <Text style={styles.actionCardTitle}>Gerenciar fotos</Text>
+                <Text style={styles.actionCardSub}>
+                  {hasVariants ? 'Uma foto por cor de variação' : 'Adicionar ou trocar a foto'}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -503,7 +498,12 @@ export default function ProductDetailsScreen() {
             </View>
 
             {/* Toggle publicar no catálogo */}
-            <View style={styles.catalogToggleRow}>
+            <TouchableOpacity
+              style={styles.catalogToggleRow}
+              activeOpacity={0.7}
+              disabled={toggleCatalogMutation.isPending}
+              onPress={() => toggleCatalogMutation.mutate(!product.is_catalog)}
+            >
               <View style={styles.catalogToggleInfo}>
                 <Ionicons
                   name={product.is_catalog ? 'storefront' : 'storefront-outline'}
@@ -528,7 +528,7 @@ export default function ProductDetailsScreen() {
                 thumbColor={product.is_catalog ? brandingColors.primary : Colors.light.textTertiary}
                 disabled={toggleCatalogMutation.isPending}
               />
-            </View>
+            </TouchableOpacity>
 
             {product.description && (
               <View style={styles.descriptionBox}>
@@ -869,69 +869,58 @@ export default function ProductDetailsScreen() {
 
         {/* Botões de ação */}
         <View style={styles.actions}>
-          {hasVariants && (
-            <TouchableOpacity
-              style={[styles.actionButton, styles.secondaryActionButton]}
-              onPress={() => router.push(`/products/photos/${productId}` as any)}
-              activeOpacity={0.75}
-            >
-              <Ionicons name="images-outline" size={18} color={brandingColors.primary} />
-              <Text style={[styles.secondaryActionButtonText, { color: brandingColors.primary }]}>Fotos</Text>
-            </TouchableOpacity>
-          )}
-          {!hasSales && (
-            <TouchableOpacity
-              style={[styles.actionButton, styles.dangerActionButton]}
-              onPress={handleDelete}
-              activeOpacity={0.75}
-            >
-              <Ionicons name="trash-outline" size={18} color={Colors.light.error} />
-              <Text style={styles.dangerActionButtonText}>Excluir</Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            style={[styles.actionButton, styles.secondaryActionButton]}
-            onPress={() =>
-              router.push({
-                pathname: '/entries/add',
-                params: {
-                  preselectedProductId: String(productId),
-                  preselectedProductData: JSON.stringify({
-                    id: productId,
-                    name: product.name,
-                    sku: product.sku,
-                    price: product.price,
-                    cost_price: product.cost_price,
-                    image_url: product.image_url,
-                  }),
-                },
-              } as any)
-            }
-            activeOpacity={0.75}
-          >
-            <Ionicons name="add-circle-outline" size={18} color={brandingColors.primary} />
-            <Text style={[styles.secondaryActionButtonText, { color: brandingColors.primary }]}>+ Entrada</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.primaryActionButton]}
+          {/* Linha 1: ações secundárias */}
+          <View style={styles.actionsRow}>
+            <AppButton
+              variant="secondary"
+              size="md"
+              icon="add-circle-outline"
+              label="Entrada"
+              onPress={() =>
+                router.push({
+                  pathname: '/entries/add',
+                  params: {
+                    preselectedProductId: String(productId),
+                    preselectedProductData: JSON.stringify({
+                      id: productId,
+                      name: product.name,
+                      sku: product.sku,
+                      price: product.price,
+                      cost_price: product.cost_price,
+                      image_url: product.image_url,
+                    }),
+                  },
+                } as any)
+              }
+              style={{ flex: 1 }}
+            />
+            {!hasSales && (
+              <AppButton
+                variant="danger-outline"
+                size="md"
+                icon="trash-outline"
+                label="Excluir"
+                onPress={handleDelete}
+                loading={deleteMutation.isPending}
+                style={{ flex: 1 }}
+              />
+            )}
+          </View>
+
+          {/* Linha 2: CTA principal */}
+          <AppButton
+            variant="primary"
+            size="lg"
+            icon="pencil-outline"
+            label="Editar Produto"
             onPress={() =>
               router.push({
                 pathname: '/products/edit/[id]',
                 params: { id: String(productId), from: `/products/${productId}` },
               } as any)
             }
-            activeOpacity={0.8}
-          >
-            <LinearGradient
-              colors={brandingColors.gradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.primaryActionButtonGradient}
-            >
-              <Ionicons name="pencil-outline" size={18} color="#fff" />
-              <Text style={styles.primaryActionButtonText}>Editar</Text>
-            </LinearGradient>
-          </TouchableOpacity>
+            fullWidth
+          />
         </View>
 
         <View style={{ height: theme.spacing.md }} />
@@ -1362,59 +1351,13 @@ const styles = StyleSheet.create({
 
   // ── Botões de Ação (final da página) ──
   actions: {
-    flexDirection: 'row',
     gap: theme.spacing.sm,
     marginTop: theme.spacing.lg,
     paddingBottom: theme.spacing.md,
   },
-  actionButton: {
-    flex: 1,
-    borderRadius: theme.borderRadius.lg,
-    minHeight: 52,
-    overflow: 'hidden',
-  },
-  primaryActionButton: {
-    ...theme.shadows.sm,
-  },
-  primaryActionButtonGradient: {
-    minHeight: 52,
+  actionsRow: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    paddingHorizontal: theme.spacing.md,
-  },
-  primaryActionButtonText: {
-    fontSize: theme.fontSize.base,
-    color: '#fff',
-    fontWeight: '700',
-  },
-  secondaryActionButton: {
-    borderWidth: 1.5,
-    borderColor: Colors.light.border,
-    backgroundColor: Colors.light.card,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  secondaryActionButtonText: {
-    fontSize: theme.fontSize.base,
-    fontWeight: '700',
-  },
-  dangerActionButton: {
-    borderWidth: 1.5,
-    borderColor: Colors.light.error + '50',
-    backgroundColor: Colors.light.error + '08',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-  },
-  dangerActionButtonText: {
-    fontSize: theme.fontSize.base,
-    fontWeight: '700',
-    color: Colors.light.error,
+    gap: theme.spacing.sm,
   },
 
   // ── Entradas de Estoque ──

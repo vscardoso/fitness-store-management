@@ -127,6 +127,7 @@ export interface PixPaymentData {
   expires_at: string | null;
   status: string;
   message: string;
+  is_generic?: boolean;
 }
 
 export interface PixPaymentStatus {
@@ -216,4 +217,5 @@ export interface PendingSale {
   customer_name: string | null;
   created_at: string;
   minutes_ago: number;
+  is_generic: boolean;
 }
