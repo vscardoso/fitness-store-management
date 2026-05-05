@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
-from app.api.deps import get_current_user, get_db
+from app.api.deps import get_current_user, get_db, get_current_tenant_id
 from app.models.user import User
 from app.repositories.pdv_repository import PDVTerminalRepository
 from app.services.pdv_service import PDVService
