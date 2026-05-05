@@ -609,21 +609,27 @@ async def cielo_pix_webhook(
 @router.post("/cielo-pix/register-webhook", status_code=200)
 async def cielo_pix_register_webhook(
     current_user=Depends(get_current_user),
+    tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Registra a URL de callback do webhook PIX Cielo para a chave configurada.
-    Deve ser chamado uma vez após configurar CIELO_PIX_KEY no ambiente.
+    Registra a URL de callback do webhook PIX Cielo para a chave PIX desta loja.
+    A chave é lida de Store.pix_key (configurada em Configurações → Chave PIX).
     URL registrada: {APP_URL}/api/v1/pdv/webhooks/cielo-pix
     """
+    from sqlalchemy import select as _select
+    from app.models.store import Store
     from app.core.config import settings as cfg
     from app.services.payment_providers.cielo_pix import CieloPixProvider
 
-    pix_key = getattr(cfg, "CIELO_PIX_KEY", "")
+    store_res = await db.execute(_select(Store).where(Store.id == tenant_id))
+    store = store_res.scalar_one_or_none()
+    pix_key = (store.pix_key or "").strip() if store else ""
+
     if not pix_key:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="CIELO_PIX_KEY não configurada no servidor.",
+            detail="Chave PIX não configurada. Acesse Configurações → Chave PIX primeiro.",
         )
 
     callback_url = f"{cfg.APP_URL}/api/v1/pdv/webhooks/cielo-pix"

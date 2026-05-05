@@ -211,6 +211,7 @@ async def get_pix_key(
         pix_key=store.pix_key,
         pix_key_type=store.pix_key_type,
         has_pix_key=bool(store.pix_key),
+        pix_provider=store.pix_provider,
     )
 
 
@@ -229,11 +230,19 @@ async def update_pix_key(
     if data.pix_key_type is not None:
         store.pix_key_type = data.pix_key_type
 
-    # Atualiza provider para 'generic' se chave foi configurada
-    if store.pix_key:
-        store.pix_provider = "generic"
-    elif store.pix_provider == "generic":
-        store.pix_provider = "mock"
+    # Provider: usa o enviado pelo cliente se válido, senão auto-detecta
+    VALID_PROVIDERS = {"generic", "cielo_pix", "mercadopago", "mock"}
+    if data.pix_provider and data.pix_provider in VALID_PROVIDERS:
+        store.pix_provider = data.pix_provider
+        # Se removeu a chave, volta para mock independente do provider solicitado
+        if not store.pix_key:
+            store.pix_provider = "mock"
+    else:
+        # Comportamento legado: generic quando há chave, mock quando não há
+        if store.pix_key:
+            store.pix_provider = store.pix_provider if store.pix_provider in ("cielo_pix", "mercadopago") else "generic"
+        else:
+            store.pix_provider = "mock"
 
     await db.commit()
     await db.refresh(store)
@@ -242,4 +251,5 @@ async def update_pix_key(
         pix_key=store.pix_key,
         pix_key_type=store.pix_key_type,
         has_pix_key=bool(store.pix_key),
+        pix_provider=store.pix_provider,
     )

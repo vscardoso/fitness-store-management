@@ -32,6 +32,7 @@ from sqlalchemy import select, update
 from app.core.config import settings
 from app.models.pix_transaction import PixTransaction
 from app.models.sale import Sale, SaleStatus
+from app.models.store import Store
 from .base import BasePixProvider
 
 logger = logging.getLogger(__name__)
@@ -125,11 +126,13 @@ class CieloPixProvider(BasePixProvider):
         if not sale:
             raise ValueError("Venda não encontrada.")
 
-        pix_key = getattr(settings, "CIELO_PIX_KEY", "")
+        store_res = await db.execute(select(Store).where(Store.id == tenant_id))
+        store = store_res.scalar_one_or_none()
+        pix_key = (store.pix_key or "").strip() if store else ""
         if not pix_key:
             raise ValueError(
-                "CIELO_PIX_KEY não configurada. "
-                "Defina sua chave PIX (CPF, CNPJ, e-mail, telefone ou EVP) no backend/.env."
+                "Chave PIX não configurada para esta loja. "
+                "Acesse Configurações → Chave PIX e configure a chave do estabelecimento."
             )
 
         txid = _make_txid(sale_id)

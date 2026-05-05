@@ -29,11 +29,13 @@ class LogoUploadResponse(BaseModel):
 class StorePIXKeyUpdate(BaseModel):
     pix_key: Optional[str] = Field(None, max_length=255, description="Chave PIX: CPF, CNPJ, email, telefone (+55...) ou chave aleatória")
     pix_key_type: Optional[str] = Field(None, description="Tipo: cpf, cnpj, email, phone, random")
+    pix_provider: Optional[str] = Field(None, description="Provider: generic, cielo_pix, mercadopago, mock")
 
 
 class StorePIXKeyResponse(BaseModel):
     pix_key: Optional[str] = None
     pix_key_type: Optional[str] = None
     has_pix_key: bool = False
+    pix_provider: str = "mock"
 
     model_config = {"from_attributes": True}

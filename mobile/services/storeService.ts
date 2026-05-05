@@ -58,12 +58,19 @@ export interface StorePIXKey {
   pix_key: string | null;
   pix_key_type: string | null;
   has_pix_key: boolean;
+  pix_provider: string;
 }
 
 export interface StorePIXKeyUpdate {
   pix_key?: string | null;
   pix_key_type?: string;
+  pix_provider?: string;
 }
+
+export const registerCieloPIXWebhook = async (): Promise<{ message: string; webhookUrl: string }> => {
+  const { data } = await api.post('/pdv/cielo-pix/register-webhook');
+  return data;
+};
 
 export const getStorePIX = async (): Promise<StorePIXKey> => {
   const { data } = await api.get<StorePIXKey>('/store/pix');
