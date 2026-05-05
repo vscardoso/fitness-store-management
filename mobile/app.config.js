@@ -1,6 +1,7 @@
 /**
  * Expo app configuration
  * Este arquivo tem precedência sobre app.json para configurações dinâmicas
+ * EAS Update: canal preview — atualizado automaticamente a cada push na main
  */
 
 export default {
