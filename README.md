@@ -384,8 +384,58 @@ open htmlcov/index.html
 - [ ] Integrações com pagamentos
 - [ ] App para iOS (App Store)
 - [ ] Notificações push
-- [ ] Backup automático
+- [x] Backup automático (GitHub Actions diário)
 - [ ] IA para previsão de demanda
+
+---
+
+## 💾 Backup & Restore
+
+O banco de dados (Neon.tech PostgreSQL) é salvo automaticamente todo dia via GitHub Actions.
+
+### Como funciona
+
+| | |
+|---|---|
+| **Frequência** | Diário às 03:00 UTC |
+| **Ferramenta** | `pg_dump` → `gzip -9` |
+| **Destino** | GitHub Actions Artifacts |
+| **Retenção** | 30 dias por arquivo |
+| **Trigger manual** | `Actions → Database Backup → Run workflow` |
+
+### Onde encontrar os backups
+
+1. Abra o repositório no GitHub
+2. Clique em **Actions** → **Database Backup**
+3. Clique em qualquer execução bem-sucedida
+4. Na seção **Artifacts**, baixe o arquivo `backup_YYYY-MM-DD_HH-MM.sql.gz`
+
+### Configuração inicial (uma vez só)
+
+Adicione o secret no GitHub antes do primeiro backup automático:
+
+1. Vá em **Settings → Secrets and variables → Actions**
+2. Clique em **New repository secret**
+3. Nome: `DATABASE_BACKUP_URL`
+4. Valor: `postgresql://neondb_owner:SENHA@ep-bold-rice-andtd6e0.c-6.us-east-1.aws.neon.tech/neondb?sslmode=require`
+   > Use a URL **sem** `+asyncpg` — o `pg_dump` não usa asyncpg
+
+### Como restaurar um backup
+
+```bash
+# 1. Baixe o arquivo .sql.gz da aba Actions → Artifacts
+
+# 2. Configure a variável de ambiente (ou adicione no .env)
+export DATABASE_BACKUP_URL="postgresql://neondb_owner:SENHA@host/neondb?sslmode=require"
+
+# 3. Execute o script de restore
+chmod +x scripts/restore.sh
+./scripts/restore.sh backup_2026-05-05_03-00.sql.gz
+
+# O script pede confirmação antes de sobrescrever dados
+```
+
+> O script `scripts/restore.sh` lê `DATABASE_BACKUP_URL` do ambiente ou do arquivo `.env` na raiz do projeto.
 
 ---
 

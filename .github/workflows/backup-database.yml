@@ -1,0 +1,98 @@
+name: Database Backup
+
+on:
+  schedule:
+    # Todo dia às 03:00 UTC
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: 'Motivo do backup manual'
+        required: false
+        default: 'Manual trigger'
+
+jobs:
+  backup:
+    name: pg_dump → Artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Instalar postgresql-client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client
+          pg_dump --version
+
+      - name: Gerar nome do arquivo
+        id: filename
+        run: |
+          TIMESTAMP=$(date -u '+%Y-%m-%d_%H-%M')
+          echo "name=backup_${TIMESTAMP}.sql.gz" >> "$GITHUB_OUTPUT"
+          echo "Arquivo: backup_${TIMESTAMP}.sql.gz"
+
+      - name: Executar pg_dump e comprimir
+        env:
+          DATABASE_BACKUP_URL: ${{ secrets.DATABASE_BACKUP_URL }}
+          PGPASSWORD: ""
+        run: |
+          echo "Iniciando backup: ${{ steps.filename.outputs.name }}"
+          pg_dump \
+            --no-password \
+            --format=plain \
+            --no-owner \
+            --no-acl \
+            --verbose \
+            "$DATABASE_BACKUP_URL" \
+          | gzip -9 > "${{ steps.filename.outputs.name }}"
+
+      - name: Verificar integridade do backup
+        run: |
+          FILE="${{ steps.filename.outputs.name }}"
+
+          if [ ! -f "$FILE" ]; then
+            echo "ERRO: Arquivo de backup não foi criado."
+            exit 1
+          fi
+
+          SIZE=$(stat -c%s "$FILE")
+          SIZE_HUMAN=$(du -sh "$FILE" | cut -f1)
+
+          echo "Tamanho do backup: ${SIZE_HUMAN} (${SIZE} bytes)"
+
+          if [ "$SIZE" -lt 100 ]; then
+            echo "ERRO: Arquivo suspeito — menor que 100 bytes (${SIZE} bytes). pg_dump falhou?"
+            exit 1
+          fi
+
+          # Verifica que o gzip é válido (não corrompido)
+          if ! gzip --test "$FILE"; then
+            echo "ERRO: Arquivo .gz corrompido."
+            exit 1
+          fi
+
+          echo "Backup OK: ${SIZE_HUMAN}"
+
+      - name: Upload como GitHub Actions Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.filename.outputs.name }}
+          path: ${{ steps.filename.outputs.name }}
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: Resumo do backup
+        run: |
+          FILE="${{ steps.filename.outputs.name }}"
+          SIZE_HUMAN=$(du -sh "$FILE" | cut -f1)
+          echo ""
+          echo "=================================="
+          echo " Backup concluído com sucesso"
+          echo "=================================="
+          echo " Arquivo : $FILE"
+          echo " Tamanho : $SIZE_HUMAN"
+          echo " Retenção: 30 dias"
+          echo " Hora    : $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "=================================="
+          echo ""
+          echo "Para restaurar: ./scripts/restore.sh $FILE"
