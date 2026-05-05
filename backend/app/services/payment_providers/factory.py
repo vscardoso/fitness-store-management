@@ -38,9 +38,12 @@ def _get_pix_class(provider: str) -> Type[BasePixProvider]:
     if provider == "mercadopago":
         from .mercadopago import MercadoPagoPixProvider
         return MercadoPagoPixProvider
+    if provider == "cielo_pix":
+        from .cielo_pix import CieloPixProvider
+        return CieloPixProvider
     raise ValueError(
         f"Provider PIX '{provider}' não suportado. "
-        f"Disponíveis: mock, mercadopago"
+        f"Disponíveis: mock, mercadopago, cielo_pix"
     )
 
 
@@ -76,6 +79,7 @@ TERMINAL_PROVIDERS: List[str] = [
 PIX_PROVIDERS: List[str] = [
     "mock",
     "mercadopago",
+    "cielo_pix",
 ]
 
 

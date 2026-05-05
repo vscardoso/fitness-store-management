@@ -142,6 +142,13 @@ class Settings(BaseSettings):
     CIELO_CLIENT_ID: str = ""
     CIELO_ACCESS_TOKEN: str = ""
 
+    # Cielo PIX (API DICT cielo-pix/v1)
+    CIELO_PIX_CLIENT_ID: str = ""
+    CIELO_PIX_CLIENT_SECRET: str = ""
+    CIELO_PIX_KEY: str = ""          # Chave PIX do estabelecimento (CPF, CNPJ, email, tel ou EVP)
+    CIELO_PIX_SANDBOX: bool = True   # False = produção (requer mTLS + certificado Cielo)
+    CIELO_PIX_EXPIRACAO_SEGUNDOS: int = 3600  # Validade do QR Code em segundos
+
     # MP Connect OAuth (para multi-tenant — cada loja conecta sua própria conta)
     MP_CLIENT_ID: str = ""
     MP_CLIENT_SECRET: str = ""

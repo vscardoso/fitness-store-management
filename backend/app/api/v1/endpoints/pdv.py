@@ -584,6 +584,57 @@ async def cielo_webhook(
     return {"status": "ok"}
 
 
+# ── Webhooks Cielo PIX ───────────────────────────────────────────────────────
+
+@router.post("/webhooks/cielo-pix", status_code=200)
+async def cielo_pix_webhook(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Recebe notificações de PIX pagos da Cielo.
+    Payload: {"pix": [{"endToEndId", "txid", "valor", "horario"}]}
+    Confirma a venda associada ao txid e dispara SSE para o app.
+    """
+    try:
+        payload = await request.json()
+    except Exception:
+        return {"status": "ok"}
+
+    from app.services.payment_providers.cielo_pix import CieloPixProvider
+    await CieloPixProvider().process_webhook(db, payload)
+    return {"status": "ok"}
+
+
+@router.post("/cielo-pix/register-webhook", status_code=200)
+async def cielo_pix_register_webhook(
+    current_user=Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Registra a URL de callback do webhook PIX Cielo para a chave configurada.
+    Deve ser chamado uma vez após configurar CIELO_PIX_KEY no ambiente.
+    URL registrada: {APP_URL}/api/v1/pdv/webhooks/cielo-pix
+    """
+    from app.core.config import settings as cfg
+    from app.services.payment_providers.cielo_pix import CieloPixProvider
+
+    pix_key = getattr(cfg, "CIELO_PIX_KEY", "")
+    if not pix_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="CIELO_PIX_KEY não configurada no servidor.",
+        )
+
+    callback_url = f"{cfg.APP_URL}/api/v1/pdv/webhooks/cielo-pix"
+    try:
+        result = await CieloPixProvider().register_webhook(pix_key, callback_url)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(e))
+
+    return result
+
+
 # ── Pagamentos Pendentes ──────────────────────────────────────────────────────
 
 @router.get("/pending-sales", response_model=List[PendingSaleResponse])
