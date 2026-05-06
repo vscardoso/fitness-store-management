@@ -1,11 +1,11 @@
 ﻿/**
- * Configuracoes do ambiente e API
+ * Configurações do ambiente e API
  * Centralize todas as configs do app aqui
  */
 import Constants from 'expo-constants';
 
 // ============================================================================
-// CONFIGURACAO DE REDE
+// CONFIGURAÇÃO DE REDE
 // ============================================================================
 // Modo atual: 'local' (mesma rede WiFi) ou 'tunnel' (redes diferentes)
 // Para trocar:
@@ -16,7 +16,7 @@ import Constants from 'expo-constants';
 let MODE = 'local' as 'local' | 'tunnel';
 
 // Fallback manual — atualizar se auto-detecção falhar
-let LOCAL_IP_FALLBACK = '192.168.100.174';
+let LOCAL_IP_FALLBACK = '192.168.0.5';
 
 // URL do tunnel — atualizada AUTOMATICAMENTE por .\start_tunnel.ps1 a cada execução
 let TUNNEL_URL = 'https://good-mammals-tap.loca.lt';
@@ -48,18 +48,18 @@ function getLocalApiUrl(): string {
 
 const LOCAL_API_URL = getLocalApiUrl();
 
-// Producao (Render.com)
+// Produção (Render.com)
 const PRODUCTION_URL = process.env.EXPO_PUBLIC_API_URL || 'https://fitness-backend-x1qn.onrender.com/api/v1';
 
 // ============================================================================
-// SELECAO AUTOMATICA DE AMBIENTE
+// SELEÇÃO AUTOMÁTICA DE AMBIENTE
 // - Desenvolvimento (npx expo start): usa LOCAL_API_URL
-// - Producao (eas update): usa PRODUCTION_URL
+// - Produção (eas update): usa PRODUCTION_URL
 // ============================================================================
 
 export const API_CONFIG = {
   BASE_URL: __DEV__ ? LOCAL_API_URL : PRODUCTION_URL,
-  // BASE_URL: PRODUCTION_URL,  // Forcando Render para testes
+  // BASE_URL: PRODUCTION_URL,  // Forçando Render para testes
   TIMEOUT: 30000, // 30 segundos
 };
 
@@ -81,17 +81,17 @@ export function getImageUrl(url: string | null | undefined): string | undefined 
   return `${BACKEND_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
-// Configuracoes do Sentry (Error Tracking)
+// Configurações do Sentry (Error Tracking)
 export const SENTRY_CONFIG = {
   DSN: 'https://f0a8f44b129143c8689af5af8b20ee82@o4510386072715264.ingest.us.sentry.io/4510386085298176',
-  ENABLED: !__DEV__, // Desabilitado em desenvolvimento, ativado em producao
+  ENABLED: !__DEV__, // Desabilitado em desenvolvimento, ativado em produção
   TRACES_SAMPLE_RATE: 1.0,
 };
 
-// Configuracoes do app
+// Configurações do app
 export const APP_CONFIG = {
   APP_NAME: 'Fitness Store',
-  VERSION: '1.0.0',
+  VERSION: '1.0.1',
 };
 
 // Storage keys
