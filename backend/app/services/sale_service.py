@@ -379,6 +379,9 @@ class SaleService:
                             notes=f"Cancelamento da venda {sale.sale_number}. Motivo: {reason}"
                         )
             
+            # Coleta product_ids enquanto items ainda estão carregados (antes do commit)
+            affected_product_ids = {item.product_id for item in sale.items if item.product_id}
+
             # 2. Reverter pontos de fidelidade
             if sale.customer_id:
                 print(" Revertendo pontos de fidelidade...")
@@ -411,7 +414,6 @@ class SaleService:
 
             # 4. Recalcular inventory table a partir do FIFO para produtos afetados
             inv_sync = InventoryService(self.db)
-            affected_product_ids = {item.product_id for item in sale.items if item.product_id}
             for pid in affected_product_ids:
                 try:
                     delta = await inv_sync.rebuild_product_from_fifo(pid, tenant_id=tenant_id)

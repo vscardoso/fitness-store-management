@@ -597,20 +597,22 @@ class PDVService:
                 installments_cost="seller",
             )
         except Exception as exc:
+            sale_id_for_log = sale.id
+            sale_number_for_log = sale.sale_number
             logger.error(
-                "Terminal payment failed for sale %s, cancelling: %s", sale.id, exc
+                "Terminal payment failed for sale %s, cancelling: %s", sale_id_for_log, exc
             )
             # Cancela venda revertendo estoque via FIFO
             try:
                 _svc = SaleService(db)
                 await _svc.cancel_sale(
-                    sale.id,
+                    sale_id_for_log,
                     f"Falha ao enviar para terminal: {exc}",
                     0,
                     tenant_id=tenant_id,
                 )
             except Exception as cancel_err:
-                logger.error("Falha ao cancelar venda %s após erro de terminal: %s", sale.id, cancel_err)
+                logger.error("Falha ao cancelar venda %s após erro de terminal: %s", sale_id_for_log, cancel_err)
             raise ValueError(str(exc)) from exc
 
         return {
