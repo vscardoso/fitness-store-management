@@ -1,21 +1,31 @@
 /**
- * LoadingOverlay Component
- * Global loading indicator — minimal premium design com branding dinâmico
- * Automatically managed by Axios interceptors
+ * LoadingOverlay — ring spinner moderno com branding dinâmico.
+ * Ring rotativo + glow de gradiente + glass card.
+ * Usa Reanimated para animações nativas suaves (60 fps na UI thread).
  */
 
 import { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Animated } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Text, Portal } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withTiming,
+  withSpring,
+  withSequence,
+  cancelAnimation,
+  Easing,
+  runOnJS,
+} from 'react-native-reanimated';
 import { loadingManager } from '@/services/loadingManager';
 import { useBrandingColors } from '@/store/brandingStore';
 
 interface LoadingOverlayProps {
-  /** Override visibility state (for testing) */
   visible?: boolean;
-  /** Override message (for testing) */
   message?: string;
 }
 
@@ -24,12 +34,15 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [loadingMessage, setLoadingMessage] = useState<string | undefined>();
   const [showTimeout, setShowTimeout] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const pillAnim = useRef(new Animated.Value(0.86)).current;
-  const dot1 = useRef(new Animated.Value(0)).current;
-  const dot2 = useRef(new Animated.Value(0)).current;
-  const dot3 = useRef(new Animated.Value(0)).current;
+  // Shared values Reanimated
+  const rotation    = useSharedValue(0);
+  const cardScale   = useSharedValue(0.9);
+  const cardOpacity = useSharedValue(0);
+  const bgOpacity   = useSharedValue(0);
+  const pulseScale  = useSharedValue(1);
+  const pulseOpacity = useSharedValue(0.6);
 
   useEffect(() => {
     const unsubscribe = loadingManager.subscribe((state) => {
@@ -43,114 +56,147 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
   const shouldShow = visible !== undefined ? visible : isVisible;
   const displayMessage = message !== undefined ? message : loadingMessage;
 
-  // Stagger dots — CYCLE 1400ms, STAGGER 400ms, cada step 280ms
-  // Dot 1: rise(280) + fall(280) + delay(840) = 1400 ✓
-  // Dot 2: delay(400) + rise(280) + fall(280) + delay(440) = 1400 ✓
-  // Dot 3: delay(800) + rise(280) + fall(280) + delay(40) = 1400 ✓
+  // Ring rotation infinita — linear, 800ms por volta
   useEffect(() => {
-    const STEP = 280;
-    const a1 = Animated.loop(
-      Animated.sequence([
-        Animated.timing(dot1, { toValue: 1, duration: STEP, useNativeDriver: true }),
-        Animated.timing(dot1, { toValue: 0, duration: STEP, useNativeDriver: true }),
-        Animated.delay(840),
-      ])
+    rotation.value = withRepeat(
+      withTiming(360, { duration: 800, easing: Easing.linear }),
+      -1,
+      false
     );
-    const a2 = Animated.loop(
-      Animated.sequence([
-        Animated.delay(400),
-        Animated.timing(dot2, { toValue: 1, duration: STEP, useNativeDriver: true }),
-        Animated.timing(dot2, { toValue: 0, duration: STEP, useNativeDriver: true }),
-        Animated.delay(440),
-      ])
-    );
-    const a3 = Animated.loop(
-      Animated.sequence([
-        Animated.delay(800),
-        Animated.timing(dot3, { toValue: 1, duration: STEP, useNativeDriver: true }),
-        Animated.timing(dot3, { toValue: 0, duration: STEP, useNativeDriver: true }),
-        Animated.delay(40),
-      ])
-    );
-    a1.start();
-    a2.start();
-    a3.start();
-    return () => {
-      a1.stop();
-      a2.stop();
-      a3.stop();
-    };
-  }, [dot1, dot2, dot3]);
+    return () => cancelAnimation(rotation);
+  }, [rotation]);
 
-  // Entrada: fade + spring no pill
+  // Pulso suave no dot central
+  useEffect(() => {
+    pulseScale.value = withRepeat(
+      withSequence(
+        withTiming(1.4, { duration: 600, easing: Easing.out(Easing.quad) }),
+        withTiming(1,   { duration: 600, easing: Easing.in(Easing.quad) })
+      ),
+      -1,
+      false
+    );
+    pulseOpacity.value = withRepeat(
+      withSequence(
+        withTiming(1,   { duration: 600 }),
+        withTiming(0.5, { duration: 600 })
+      ),
+      -1,
+      false
+    );
+    return () => {
+      cancelAnimation(pulseScale);
+      cancelAnimation(pulseOpacity);
+    };
+  }, [pulseScale, pulseOpacity]);
+
+  // Mount/unmount com animação de entrada e saída
   useEffect(() => {
     if (shouldShow) {
-      pillAnim.setValue(0.86);
-      Animated.parallel([
-        Animated.timing(fadeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
-        Animated.spring(pillAnim, { toValue: 1, friction: 7, tension: 52, useNativeDriver: true }),
-      ]).start();
+      setMounted(true);
     }
-  }, [shouldShow, fadeAnim, pillAnim]);
+  }, [shouldShow]);
 
-  if (!shouldShow) return null;
+  useEffect(() => {
+    if (!mounted) return;
 
-  const d1Scale = dot1.interpolate({ inputRange: [0, 1], outputRange: [1, 1.7] });
-  const d2Scale = dot2.interpolate({ inputRange: [0, 1], outputRange: [1, 1.7] });
-  const d3Scale = dot3.interpolate({ inputRange: [0, 1], outputRange: [1, 1.7] });
-  const d1Op = dot1.interpolate({ inputRange: [0, 1], outputRange: [0.22, 1] });
-  const d2Op = dot2.interpolate({ inputRange: [0, 1], outputRange: [0.22, 1] });
-  const d3Op = dot3.interpolate({ inputRange: [0, 1], outputRange: [0.22, 1] });
+    if (shouldShow) {
+      // Entrada
+      bgOpacity.value   = withTiming(1, { duration: 220 });
+      cardOpacity.value = withTiming(1, { duration: 260 });
+      cardScale.value   = withSpring(1, { damping: 18, stiffness: 220 });
+    } else {
+      // Saída: fade out, depois desmonta
+      bgOpacity.value   = withTiming(0, { duration: 200 });
+      cardOpacity.value = withTiming(0, { duration: 180 });
+      cardScale.value   = withTiming(0.9, { duration: 180 }, () => {
+        runOnJS(setMounted)(false);
+      });
+    }
+  }, [shouldShow, mounted, bgOpacity, cardOpacity, cardScale]);
+
+  const spinStyle = useAnimatedStyle(() => ({
+    transform: [{ rotate: `${rotation.value}deg` }],
+  }));
+
+  const cardStyle = useAnimatedStyle(() => ({
+    opacity:   cardOpacity.value,
+    transform: [{ scale: cardScale.value }],
+  }));
+
+  const bgStyle = useAnimatedStyle(() => ({
+    opacity: bgOpacity.value,
+  }));
+
+  const dotStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pulseScale.value }],
+    opacity:   pulseOpacity.value,
+  }));
+
+  if (!mounted) return null;
+
+  const [c1, c2] = brandingColors.gradient;
+  const trackColor = `${brandingColors.primary}22`;
 
   return (
     <Portal>
-      <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
-        <BlurView intensity={60} tint="dark" style={StyleSheet.absoluteFillObject} />
+      <Animated.View style={[styles.overlay, bgStyle]}>
+        <BlurView intensity={35} tint="dark" style={StyleSheet.absoluteFillObject} />
         <View style={styles.scrim} />
 
-        <Animated.View style={[styles.pill, { transform: [{ scale: pillAnim }] }]}>
-          {/* 3 stagger dots com cores de branding */}
-          <View style={styles.dotsRow}>
-            <Animated.View
-              style={[
-                styles.dot,
-                {
-                  backgroundColor: brandingColors.primary,
-                  transform: [{ scale: d1Scale }],
-                  opacity: d1Op,
-                },
-              ]}
-            />
-            <Animated.View
-              style={[
-                styles.dot,
-                {
-                  backgroundColor: brandingColors.secondary,
-                  transform: [{ scale: d2Scale }],
-                  opacity: d2Op,
-                },
-              ]}
-            />
-            <Animated.View
-              style={[
-                styles.dot,
-                {
-                  backgroundColor: brandingColors.accent,
-                  transform: [{ scale: d3Scale }],
-                  opacity: d3Op,
-                },
-              ]}
-            />
-          </View>
+        <Animated.View style={[styles.card, cardStyle]}>
 
-          {displayMessage ? (
-            <Text style={styles.message}>{displayMessage}</Text>
-          ) : null}
+          {/* Faixa gradiente no topo */}
+          <LinearGradient
+            colors={[c1, c2]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.gradientStrip}
+          />
+
+          <View style={styles.cardBody}>
+
+            {/* Ring container */}
+            <View style={styles.ringWrap}>
+
+              {/* Glow de fundo (halo) */}
+              <View style={[styles.ringGlow, { backgroundColor: `${brandingColors.primary}14` }]} />
+
+              {/* Track — anel de fundo */}
+              <View style={[styles.track, { borderColor: trackColor }]} />
+
+              {/* Arco giratório — borda superior + direita coloridas */}
+              <Animated.View
+                style={[
+                  styles.arc,
+                  {
+                    borderTopColor:   brandingColors.primary,
+                    borderRightColor: `${brandingColors.primary}60`,
+                  },
+                  spinStyle,
+                ]}
+              />
+
+              {/* Dot central pulsante */}
+              <Animated.View
+                style={[styles.centerDot, { backgroundColor: brandingColors.primary }, dotStyle]}
+              />
+            </View>
+
+            {/* Mensagem */}
+            {displayMessage ? (
+              <Text style={styles.message} numberOfLines={2}>
+                {displayMessage}
+              </Text>
+            ) : null}
+
+          </View>
         </Animated.View>
 
+        {/* Aviso de timeout */}
         {showTimeout && (
           <View style={styles.timeoutRow}>
-            <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.45)" />
+            <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.38)" />
             <Text style={styles.timeoutText}>Operação demorando mais que o esperado</Text>
           </View>
         )}
@@ -158,6 +204,10 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
     </Portal>
   );
 }
+
+const RING = 64;
+const RING_R = RING / 2;
+const BORDER = 3;
 
 const styles = StyleSheet.create({
   overlay: {
@@ -169,52 +219,93 @@ const styles = StyleSheet.create({
   },
   scrim: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.45)',
+    backgroundColor: 'rgba(0, 0, 0, 0.48)',
   },
-  pill: {
-    alignItems: 'center',
-    gap: 18,
-    paddingVertical: 26,
-    paddingHorizontal: 40,
-    borderRadius: 28,
-    backgroundColor: 'rgba(10, 12, 20, 0.7)',
-    borderWidth: 0.5,
+
+  // Card glass
+  card: {
+    width: 168,
+    borderRadius: 24,
+    overflow: 'hidden',
+    backgroundColor: 'rgba(14, 16, 26, 0.76)',
+    borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.1)',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.4,
-    shadowRadius: 22,
-    elevation: 18,
+    shadowOffset: { width: 0, height: 24 },
+    shadowOpacity: 0.5,
+    shadowRadius: 32,
+    elevation: 24,
   },
-  dotsRow: {
-    flexDirection: 'row',
+  gradientStrip: {
+    height: 3,
+    width: '100%',
+  },
+  cardBody: {
     alignItems: 'center',
-    gap: 10,
+    paddingTop: 24,
+    paddingBottom: 26,
+    paddingHorizontal: 20,
+    gap: 16,
   },
-  dot: {
-    width: 10,
-    height: 10,
+
+  // Ring
+  ringWrap: {
+    width: RING,
+    height: RING,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  ringGlow: {
+    position: 'absolute',
+    width: RING + 16,
+    height: RING + 16,
+    borderRadius: (RING + 16) / 2,
+  },
+  track: {
+    position: 'absolute',
+    width: RING,
+    height: RING,
+    borderRadius: RING_R,
+    borderWidth: BORDER,
+  },
+  arc: {
+    position: 'absolute',
+    width: RING,
+    height: RING,
+    borderRadius: RING_R,
+    borderWidth: BORDER,
+    borderColor: 'transparent',
+    borderBottomColor: 'transparent',
+    borderLeftColor: 'transparent',
+  },
+  centerDot: {
+    width: 9,
+    height: 9,
     borderRadius: 5,
   },
+
+  // Texto
   message: {
     fontSize: 13,
-    color: 'rgba(255, 255, 255, 0.58)',
-    letterSpacing: 0.35,
+    color: 'rgba(255, 255, 255, 0.65)',
+    letterSpacing: 0.25,
     textAlign: 'center',
     fontWeight: '500',
-    maxWidth: 220,
-    lineHeight: 18,
+    lineHeight: 19,
+    maxWidth: 128,
   },
+
+  // Timeout
   timeoutRow: {
     position: 'absolute',
-    bottom: 60,
+    bottom: 56,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
   },
   timeoutText: {
     fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.45)',
+    color: 'rgba(255, 255, 255, 0.38)',
     fontWeight: '500',
   },
 });
