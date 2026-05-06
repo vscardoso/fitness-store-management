@@ -355,8 +355,8 @@ const styles = StyleSheet.create({
 
   // Card
   card: {
-    backgroundColor: C.surface,
-    borderRadius: theme.roundness * 2,
+    backgroundColor: C.card,
+    borderRadius: theme.borderRadius.xl,
     padding: 14,
     gap: 6,
     borderWidth: 1,
@@ -441,7 +441,7 @@ const styles = StyleSheet.create({
   input: {
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: theme.roundness,
+    borderRadius: theme.borderRadius.lg,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 15,
@@ -467,7 +467,7 @@ const styles = StyleSheet.create({
     borderRadius: 99,
     borderWidth: 1.5,
     borderColor: C.border,
-    backgroundColor: C.surface,
+    backgroundColor: C.card,
   },
   providerChipText: {
     fontSize: 13,
