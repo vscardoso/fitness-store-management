@@ -242,7 +242,6 @@ export default function LookBuilderScreen() {
           }
         />
       )}
-      </View>
 
       <ConfirmDialog
         visible={dialog.visible}
