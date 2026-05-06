@@ -22,7 +22,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
-import { confirmManualPayment, cancelOrder } from '@/services/pdvService';
+import { confirmManualPayment, cancelOrder, getOrderStatus } from '@/services/pdvService';
 import { getAccessToken } from '@/services/storage';
 import { API_CONFIG } from '@/constants/Config';
 import { useCart } from '@/hooks/useCart';
@@ -59,6 +59,34 @@ export default function TerminalCheckoutScreen() {
   const [autoConfirmed, setAutoConfirmed] = useState(false);
   const [errorDialog, setErrorDialog] = useState<{ visible: boolean; title: string; message: string }>({ visible: false, title: '', message: '' });
   const confirmedRef = useRef(false);
+
+  // Polling fallback: consulta status a cada 5s caso SSE não chegue (sem webhook)
+  useEffect(() => {
+    if (!isCloudProvider || confirmedRef.current) return;
+
+    const interval = setInterval(async () => {
+      if (confirmedRef.current) return;
+      try {
+        const status = await getOrderStatus(saleId);
+        if (status.paid && !confirmedRef.current) {
+          confirmedRef.current = true;
+          setAutoConfirmed(true);
+          haptics.success();
+          queryClient.invalidateQueries({ queryKey: ['sales'] });
+          queryClient.invalidateQueries({ queryKey: ['pdv-pending-sales'] });
+          queryClient.invalidateQueries({ queryKey: ['products'] });
+          queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+          queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
+          queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
+          queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+          cart.clear();
+          router.replace({ pathname: '/checkout/success', params: { sale_number: sale_number ?? '' } });
+        }
+      } catch { /* ignora erros de polling */ }
+    }, 5000);
+
+    return () => clearInterval(interval);
+  }, [isCloudProvider, saleId]);
 
   // SSE: escuta eventos do backend para auto-confirmar quando provider cloud aprovar
   useEffect(() => {

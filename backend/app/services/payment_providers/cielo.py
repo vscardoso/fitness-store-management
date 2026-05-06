@@ -273,6 +273,8 @@ class CieloLIOProvider(BaseTerminalProvider):
             )
             await db.commit()
             logger.info(f"Venda {sale_id} confirmada via polling Cielo")
+            from app.core.payment_events import signal_payment
+            signal_payment(str(sale_id), {"status": "approved", "paid": True})
 
         return {
             "sale_id": sale_id,
