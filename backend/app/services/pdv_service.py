@@ -548,7 +548,9 @@ class PDVService:
         installments = payload.get("installments", 1)
 
         pm = (
-            PaymentMethodEnum.CREDIT_CARD
+            PaymentMethodEnum.PIX
+            if payment_type == "pix"
+            else PaymentMethodEnum.CREDIT_CARD
             if payment_type == "credit_card"
             else PaymentMethodEnum.DEBIT_CARD
         )
@@ -628,6 +630,7 @@ class PDVService:
         """Confirma pagamento manualmente (para providers sem integração cloud)."""
         from app.services.audit_service import AuditService
         from app.core.payment_events import signal_payment
+        from app.core.dashboard_cache import invalidate_dashboard_cache
 
         result = await db.execute(
             select(Sale).where(Sale.id == sale_id, Sale.tenant_id == tenant_id)
@@ -648,11 +651,14 @@ class PDVService:
         )
         await db.commit()
 
+        invalidate_dashboard_cache(tenant_id)
+
         if sale.payment_reference:
             signal_payment(sale.payment_reference, {"status": "approved", "paid": True})
 
         return {
             "sale_id": sale_id,
+            "sale_number": sale.sale_number,
             "status": "completed",
             "message": "Pagamento confirmado manualmente.",
         }
@@ -668,7 +674,13 @@ class PDVService:
             _text(
                 "SELECT s.id, s.sale_number, s.total_amount, s.payment_method, "
                 "       s.payment_reference, s.created_at, c.full_name AS customer_name, "
-                "       CASE WHEN pt.provider = 'generic' THEN 1 ELSE 0 END AS is_generic "
+                "       CASE WHEN pt.provider = 'generic' THEN 1 ELSE 0 END AS is_generic, "
+                "       CASE "
+                "         WHEN UPPER(CAST(s.payment_method AS TEXT)) != 'PIX' THEN 'terminal' "
+                "         WHEN pt.provider = 'generic' THEN 'pix_manual' "
+                "         WHEN pt.id IS NOT NULL THEN 'pix_api' "
+                "         ELSE 'pix_terminal' "
+                "       END AS flow_type "
                 "FROM sales s "
                 "LEFT JOIN customers c ON c.id = s.customer_id "
                 "LEFT JOIN pix_transactions pt ON pt.sale_id = s.id AND pt.status = 'pending' "
@@ -707,6 +719,7 @@ class PDVService:
                 "created_at": created,
                 "minutes_ago": minutes_ago,
                 "is_generic": bool(row["is_generic"]),
+                "flow_type": str(row["flow_type"]),
             })
         return output
 

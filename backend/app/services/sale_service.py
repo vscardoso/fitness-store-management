@@ -269,8 +269,12 @@ class SaleService:
             if not keep_pending:
                 sale.status = SaleStatus.COMPLETED.value
             sale.loyalty_points_earned = float(loyalty_points_earned)
-            
+
             await self.db.commit()
+
+            if not keep_pending:
+                from app.core.dashboard_cache import invalidate_dashboard_cache
+                invalidate_dashboard_cache(tenant_id)
 
             # Rebuild incremental de inventário ANTES do reload final
             # (rebuild pode fazer commit próprio, o que expiraria os objetos se feito depois)

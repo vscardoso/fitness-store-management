@@ -64,7 +64,7 @@ function timeLabel(minutes: number): string {
 }
 
 function isPix(sale: PendingSale): boolean {
-  return sale.payment_method === 'PIX';
+  return sale.payment_method?.toUpperCase() === 'PIX';
 }
 
 // ── Card ─────────────────────────────────────────────────────────────────────
@@ -87,7 +87,14 @@ function PendingCard({
   brandingColors: { primary: string; secondary: string; accent: string; gradient: [string, string] };
 }) {
   const pix = isPix(sale);
+  const isPixApi = sale.flow_type === 'pix_api';
   const methodColor = pix ? C.success : C.info;
+
+  const methodLabel =
+    sale.flow_type === 'pix_terminal' ? 'PIX Maquininha'
+    : sale.flow_type === 'pix_api'    ? 'PIX'
+    : sale.flow_type === 'pix_manual' ? 'PIX Manual'
+    : 'Maquininha';
 
   return (
     <View style={styles.card}>
@@ -99,7 +106,7 @@ function PendingCard({
             color={methodColor}
           />
           <Text style={[styles.methodText, { color: methodColor }]}>
-            {pix ? 'PIX' : 'Maquininha'}
+            {methodLabel}
           </Text>
         </View>
         <Text style={styles.timeText}>{timeLabel(sale.minutes_ago)}</Text>
@@ -114,42 +121,27 @@ function PendingCard({
       </View>
 
       <View style={styles.actions}>
-        {pix ? (
-          // PIX de provider real (Cielo/MP) — confirma após webhook ou ver QR
-          <>
-            <TouchableOpacity
-              style={[styles.btn, styles.btnPrimary, { backgroundColor: brandingColors.primary }, confirming && styles.btnDisabled]}
-              onPress={() => { haptics.medium(); onConfirm(sale); }}
-              disabled={confirming || cancelling}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="checkmark-circle-outline" size={15} color="#fff" />
-              <Text style={styles.btnPrimaryText}>
-                {confirming ? 'Confirmando…' : 'Confirmar Recebimento'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.btn, styles.btnOutlined, cancelling && styles.btnDisabled]}
-              onPress={() => { haptics.light(); onOpenQR(sale); }}
-              disabled={confirming || cancelling}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="qr-code-outline" size={15} color={brandingColors.primary} />
-              <Text style={[styles.btnOutlinedText, { color: brandingColors.primary }]}>QR</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          // Terminal — só confirmar
+        <TouchableOpacity
+          style={[styles.btn, styles.btnPrimary, { backgroundColor: brandingColors.primary }, confirming && styles.btnDisabled]}
+          onPress={() => { haptics.medium(); onConfirm(sale); }}
+          disabled={confirming || cancelling}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="checkmark-circle-outline" size={15} color="#fff" />
+          <Text style={styles.btnPrimaryText}>
+            {confirming ? 'Confirmando…' : 'Confirmar Recebimento'}
+          </Text>
+        </TouchableOpacity>
+
+        {isPixApi && (
           <TouchableOpacity
-            style={[styles.btn, styles.btnPrimary, { backgroundColor: brandingColors.primary }, confirming && styles.btnDisabled]}
-            onPress={() => { haptics.medium(); onConfirm(sale); }}
+            style={[styles.btn, styles.btnOutlined, cancelling && styles.btnDisabled]}
+            onPress={() => { haptics.light(); onOpenQR(sale); }}
             disabled={confirming || cancelling}
             activeOpacity={0.8}
           >
-            <Ionicons name="checkmark-circle-outline" size={15} color="#fff" />
-            <Text style={styles.btnPrimaryText}>
-              {confirming ? 'Confirmando…' : 'Confirmar Pagamento'}
-            </Text>
+            <Ionicons name="qr-code-outline" size={15} color={brandingColors.primary} />
+            <Text style={[styles.btnOutlinedText, { color: brandingColors.primary }]}>QR</Text>
           </TouchableOpacity>
         )}
 
@@ -335,7 +327,7 @@ export default function PendingSalesScreen() {
 
   const confirmMutation = useMutation({
     mutationFn: (saleId: number) => confirmManualPayment(saleId),
-    onSuccess: () => {
+    onSuccess: (data) => {
       haptics.success();
       queryClient.invalidateQueries({ queryKey: ['pdv-pending-sales'] });
       queryClient.invalidateQueries({ queryKey: ['sales'] });
@@ -344,6 +336,10 @@ export default function PendingSalesScreen() {
       queryClient.invalidateQueries({ queryKey: ['low-stock'] });
       setConfirmingId(null);
       setQrModal(m => ({ ...m, visible: false }));
+      router.push({
+        pathname: '/checkout/success',
+        params: { sale_number: data.sale_number ?? '' },
+      });
     },
     onError: () => {
       haptics.error();

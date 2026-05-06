@@ -113,6 +113,7 @@ export interface PDVOrderActionResponse {
 
 export interface ManualConfirmResponse {
   sale_id: number;
+  sale_number: string;
   status: string;
   message: string;
 }
@@ -218,4 +219,5 @@ export interface PendingSale {
   created_at: string;
   minutes_ago: number;
   is_generic: boolean;
+  flow_type: string;
 }

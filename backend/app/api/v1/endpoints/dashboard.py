@@ -3,7 +3,6 @@ Dashboard API endpoints.
 
 Fornece estatísticas e métricas para o dashboard do app mobile.
 """
-import time as _time
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func, case, Integer, and_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,20 +12,7 @@ from datetime import date, timedelta
 from enum import Enum
 from zoneinfo import ZoneInfo
 
-# Cache TTL em memória por tenant (60 segundos)
-_dashboard_cache: dict[str, tuple[float, Any]] = {}
-_CACHE_TTL = 60
-
-
-def _cache_get(key: str) -> Optional[Any]:
-    entry = _dashboard_cache.get(key)
-    if entry and (_time.monotonic() - entry[0]) < _CACHE_TTL:
-        return entry[1]
-    return None
-
-
-def _cache_set(key: str, value: Any) -> None:
-    _dashboard_cache[key] = (_time.monotonic(), value)
+from app.core.dashboard_cache import _cache_get, _cache_set, invalidate_dashboard_cache
 
 from app.core.database import get_db
 from app.core.timezone import today_brazil, get_day_range_utc, get_period_range_utc

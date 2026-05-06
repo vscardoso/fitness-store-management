@@ -188,6 +188,7 @@ class PDVOrderActionResponse(BaseModel):
 
 class ManualConfirmResponse(BaseModel):
     sale_id: int
+    sale_number: str
     status: str
     message: str
 
@@ -273,6 +274,7 @@ class PendingSaleResponse(BaseModel):
     created_at: datetime
     minutes_ago: int
     is_generic: bool = False
+    flow_type: str = "terminal"
 
 
 # ── Terminal Start (cria venda PENDING + envia para terminal atomicamente) ────
