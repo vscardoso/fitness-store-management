@@ -1,4 +1,4 @@
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   View,
   StyleSheet,
@@ -7,7 +7,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useRef, useState, useCallback, useEffect } from 'react';
 import Animated, {
@@ -23,11 +23,13 @@ import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
 import { getSaleById } from '@/services/saleService';
 import { getReturnHistory } from '@/services/returnService';
+import { confirmManualPayment, cancelOrder } from '@/services/pdvService';
 import { formatCurrency, formatDateTime } from '@/utils/format';
 import type { SaleReturn } from '@/services/returnService';
 import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useAuthStore } from '@/store/authStore';
+import { haptics } from '@/utils/haptics';
 import SaleReceipt from '@/components/receipt/SaleReceipt';
 import ReturnModal from '@/components/sale/ReturnModal';
 import AppButton from '@/components/ui/AppButton';
@@ -66,11 +68,17 @@ export default function SaleDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const saleId = Number(id);
   const { goBack } = useBackToList('/(tabs)/sales');
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const receiptRef = useRef<View>(null);
   const { user } = useAuthStore();
   const brandingColors = useBrandingColors();
   const [returnModalVisible, setReturnModalVisible] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const animated = useRef(false);
 
   // ── Animação de entrada ──
@@ -146,6 +154,49 @@ export default function SaleDetailsScreen() {
     }
   };
 
+  const handleConfirmPayment = async () => {
+    haptics.medium();
+    setConfirming(true);
+    try {
+      const result = await confirmManualPayment(saleId);
+      haptics.success();
+      queryClient.invalidateQueries({ queryKey: ['sale', saleId] });
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['pdv-pending-sales'] });
+      queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+      router.replace({
+        pathname: '/checkout/success',
+        params: { sale_number: result.sale_number ?? sale?.sale_number ?? '' },
+      });
+    } catch (err: any) {
+      haptics.error();
+      setActionError(err?.response?.data?.detail ?? err?.message ?? 'Erro ao confirmar pagamento.');
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  const handleCancelSale = async () => {
+    setShowCancelDialog(false);
+    haptics.medium();
+    setCancelling(true);
+    try {
+      await cancelOrder(saleId);
+      haptics.success();
+      queryClient.invalidateQueries({ queryKey: ['sale', saleId] });
+      queryClient.invalidateQueries({ queryKey: ['sales'] });
+      queryClient.invalidateQueries({ queryKey: ['pdv-pending-sales'] });
+      refetch();
+    } catch (err: any) {
+      haptics.error();
+      setActionError(err?.response?.data?.detail ?? err?.message ?? 'Erro ao cancelar venda.');
+    } finally {
+      setCancelling(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <View style={styles.container}>
@@ -209,7 +260,10 @@ export default function SaleDetailsScreen() {
         </PageHeader>
       </Animated.View>
 
-      <Animated.ScrollView contentContainerStyle={styles.scrollContent} style={contentAnimStyle}>
+      <Animated.ScrollView
+        contentContainerStyle={[styles.scrollContent, sale.status === 'pending' && styles.scrollContentPending]}
+        style={contentAnimStyle}
+      >
 
         {/* ── HERO: Total + Formas de pagamento ─────────────────── */}
         <LinearGradient
@@ -500,12 +554,60 @@ export default function SaleDetailsScreen() {
         <SaleReceipt ref={receiptRef} sale={sale} storeName={user?.store_name} />
       </View>
 
+      {/* ── FOOTER STICKY: ações para vendas PENDING ─────────── */}
+      {sale.status === 'pending' && (
+        <View style={styles.pendingFooter}>
+          <AppButton
+            variant="primary"
+            size="lg"
+            fullWidth
+            icon="checkmark-circle-outline"
+            label={confirming ? 'Confirmando...' : 'Confirmar Recebimento'}
+            onPress={handleConfirmPayment}
+            loading={confirming}
+            disabled={confirming || cancelling}
+          />
+          <AppButton
+            variant="danger-outline"
+            size="md"
+            fullWidth
+            icon="close-circle-outline"
+            label={cancelling ? 'Cancelando...' : 'Cancelar Venda'}
+            onPress={() => setShowCancelDialog(true)}
+            loading={cancelling}
+            disabled={confirming || cancelling}
+          />
+        </View>
+      )}
+
       <ReturnModal
         visible={returnModalVisible}
         saleId={saleId}
         saleNumber={sale.sale_number}
         onDismiss={() => setReturnModalVisible(false)}
         onSuccess={handleReturnSuccess}
+      />
+
+      <ConfirmDialog
+        visible={showCancelDialog}
+        type="danger"
+        title="Cancelar Venda"
+        message={`Deseja cancelar a venda #${sale.sale_number}? O estoque será revertido.`}
+        confirmText="Cancelar Venda"
+        cancelText="Manter"
+        loading={cancelling}
+        onConfirm={handleCancelSale}
+        onCancel={() => setShowCancelDialog(false)}
+      />
+
+      <ConfirmDialog
+        visible={!!actionError}
+        type="danger"
+        title="Erro"
+        message={actionError ?? ''}
+        confirmText="OK"
+        onConfirm={() => setActionError(null)}
+        onCancel={() => setActionError(null)}
       />
 
       <ConfirmDialog
@@ -541,6 +643,7 @@ const styles = StyleSheet.create({
   statusText: { fontSize: theme.fontSize.xxs, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.4 },
 
   scrollContent: { padding: theme.spacing.md, paddingBottom: theme.spacing.xxl },
+  scrollContentPending: { paddingBottom: 140 },
 
   // ── Hero ──────────────────────────────────────────────────
   heroCard: {
@@ -651,6 +754,15 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 2,
   },
   personName: { fontSize: theme.fontSize.base - 1, fontWeight: '600', color: Colors.light.text },
+
+  // ── Footer PENDING ────────────────────────────────────────
+  pendingFooter: {
+    padding: theme.spacing.md,
+    gap: theme.spacing.sm,
+    backgroundColor: Colors.light.background,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+  },
 
   // ── Notas ─────────────────────────────────────────────────
   notesCard: {
