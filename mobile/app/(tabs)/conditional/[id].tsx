@@ -1160,7 +1160,7 @@ export default function ConditionalShipmentDetailsScreen() {
               <View style={styles.inlineInfoBox}>
                 <Ionicons name="checkmark-circle-outline" size={18} color={VALUE_COLORS.positive} />
                 <Text style={styles.inlineInfoText}>
-                  Venda parcial ja concluida. Este envio esta finalizado e nao permite novas acoes.
+                  Venda parcial já concluída. Este envio está finalizado e não permite novas ações.
                 </Text>
               </View>
             </View>

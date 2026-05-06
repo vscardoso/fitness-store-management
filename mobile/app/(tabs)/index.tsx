@@ -1012,7 +1012,7 @@ export default function DashboardScreen() {
           );
         })()}
 
-        {/* ========== COMPRAS DO PERIODO ========== */}
+        {/* ========== COMPRAS DO PERÍODO ========== */}
         <TouchableOpacity
           style={styles.purchasesCard}
           activeOpacity={0.8}
@@ -1724,7 +1724,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Card de Compras do Periodo
+  // Card de Compras do Período
   purchasesCard: {
     backgroundColor: '#fff',
     borderRadius: 16,

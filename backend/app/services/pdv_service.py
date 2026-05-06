@@ -437,6 +437,37 @@ class PDVService:
             "is_generic": True,
         }
 
+    async def generate_pix_qr(self, db: AsyncSession, tenant_id: int, amount: float) -> dict:
+        """Gera QR Code PIX sem criar venda. Venda só é criada após confirmação do recebimento."""
+        from app.models.store import Store as StoreModel
+
+        result = await db.execute(select(StoreModel).where(StoreModel.id == tenant_id))
+        store = result.scalar_one_or_none()
+
+        if not store or not store.pix_key:
+            raise ValueError("Chave PIX não configurada. Acesse Configurações → PIX e informe sua chave.")
+
+        merchant_name = (store.name or "LOJA").upper()
+        merchant_city = (store.city or "BRASIL").upper()
+
+        pix_payload = _generate_pix_payload(
+            pix_key=store.pix_key,
+            amount=float(amount),
+            merchant_name=merchant_name,
+            merchant_city=merchant_city,
+            txid="***",
+        )
+        qr_base64 = _generate_pix_qr_image(pix_payload)
+
+        return {
+            "qr_code": pix_payload,
+            "qr_code_base64": qr_base64,
+            "is_generic": True,
+            "payment_id": None,
+            "expires_at": None,
+            "message": "QR Code PIX gerado. Confirme o recebimento após verificar no banco.",
+        }
+
     # ── Expiração de PIX (scheduler) ──────────────────────────────────────────
 
     async def expire_pending_pix(self, db: AsyncSession) -> int:

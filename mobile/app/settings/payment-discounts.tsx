@@ -1,5 +1,5 @@
 ﻿/**
- * Tela de ConfiguraÃ§Ã£o de Descontos por Forma de Pagamento
+ * Tela de Configuração de Descontos por Forma de Pagamento
  * Apenas ADMIN pode acessar e modificar
  */
 
@@ -43,14 +43,14 @@ import { useBrandingColors } from '@/store/brandingStore';
 import useBackToList from '@/hooks/useBackToList';
 
 /**
- * MÃ©todos de pagamento disponÃ­veis
+ * Métodos de pagamento disponíveis
  */
 const PAYMENT_METHODS = [
-  { value: 'pix', label: 'PIX', icon: 'ðŸ’³' },
-  { value: 'cash', label: 'Dinheiro', icon: 'ðŸ’µ' },
-  { value: 'debit_card', label: 'DÃ©bito', icon: 'ðŸ’³' },
-  { value: 'credit_card', label: 'CrÃ©dito', icon: 'ðŸ’³' },
-  { value: 'bank_transfer', label: 'TransferÃªncia', icon: 'ðŸ¦' },
+  { value: 'pix', label: 'PIX', icon: '💳' },
+  { value: 'cash', label: 'Dinheiro', icon: '💵' },
+  { value: 'debit_card', label: 'Débito', icon: '💳' },
+  { value: 'credit_card', label: 'Crédito', icon: '💳' },
+  { value: 'bank_transfer', label: 'Transferência', icon: '🏦' },
 ];
 
 interface DiscountFormData {
@@ -65,7 +65,7 @@ export default function PaymentDiscountsScreen() {
   const queryClient = useQueryClient();
   const brandingColors = useBrandingColors();
 
-  // AnimaÃ§Ãµes de entrada
+  // Animações de entrada
   const headerScale = useRef(new Animated.Value(0.94)).current;
   const headerOpacity = useRef(new Animated.Value(0)).current;
   const contentTranslate = useRef(new Animated.Value(24)).current;
@@ -93,7 +93,7 @@ export default function PaymentDiscountsScreen() {
     queryFn: () => getPaymentDiscounts(false), // Buscar todos (ativos e inativos)
   });
 
-  // Auto-refresh + animaÃ§Ã£o de entrada quando a tela recebe foco
+  // Auto-refresh + animação de entrada quando a tela recebe foco
   useFocusEffect(
     useCallback(() => {
       refetch();
@@ -128,7 +128,7 @@ export default function PaymentDiscountsScreen() {
     },
     onError: (error: any) => {
       haptics.error();
-      setDialogMessage(error.response?.data?.detail || 'NÃ£o foi possÃ­vel criar desconto');
+      setDialogMessage(error.response?.data?.detail || 'Não foi possível criar desconto');
       setShowErrorDialog(true);
     },
   });
@@ -148,7 +148,7 @@ export default function PaymentDiscountsScreen() {
     },
     onError: (error: any) => {
       haptics.error();
-      setDialogMessage(error.response?.data?.detail || 'NÃ£o foi possÃ­vel atualizar desconto');
+      setDialogMessage(error.response?.data?.detail || 'Não foi possível atualizar desconto');
       setShowErrorDialog(true);
     },
   });
@@ -164,13 +164,13 @@ export default function PaymentDiscountsScreen() {
     },
     onError: (error: any) => {
       haptics.error();
-      setDialogMessage(error.response?.data?.detail || 'NÃ£o foi possÃ­vel remover desconto');
+      setDialogMessage(error.response?.data?.detail || 'Não foi possível remover desconto');
       setShowErrorDialog(true);
     },
   });
 
   /**
-   * Resetar formulÃ¡rio
+   * Resetar formulário
    */
   const resetForm = () => {
     setFormData({
@@ -210,7 +210,7 @@ export default function PaymentDiscountsScreen() {
    * Salvar desconto (criar ou atualizar)
    */
   const handleSave = () => {
-    // ValidaÃ§Ãµes
+    // Validações
     const percentage = parseFloat(formData.discount_percentage);
     
     if (isNaN(percentage) || percentage < 0 || percentage > 100) {
@@ -261,14 +261,14 @@ export default function PaymentDiscountsScreen() {
     });
   };
 
-  // Obter label do mÃ©todo de pagamento
+  // Obter label do método de pagamento
   const getMethodLabel = (method: string) => {
     return PAYMENT_METHODS.find(m => m.value === method)?.label || method;
   };
 
-  // Obter Ã­cone do mÃ©todo de pagamento
+  // Obter ícone do método de pagamento
   const getMethodIcon = (method: string) => {
-    return PAYMENT_METHODS.find(m => m.value === method)?.icon || 'ðŸ’³';
+    return PAYMENT_METHODS.find(m => m.value === method)?.icon || '💳';
   };
 
   /**
@@ -360,7 +360,7 @@ export default function PaymentDiscountsScreen() {
         <EmptyState
           icon="alert-circle-outline"
           title="Erro ao carregar descontos"
-          description="Verifique sua conexÃ£o e tente novamente"
+          description="Verifique sua conexão e tente novamente"
         />
       </View>
     );
@@ -381,7 +381,7 @@ export default function PaymentDiscountsScreen() {
       </Animated.View>
 
       <Animated.View style={{ flex: 1, transform: [{ translateY: contentTranslate }], opacity: contentOpacity }}>
-        {/* EstatÃ­sticas */}
+        {/* Estatísticas */}
         <View style={styles.statsContainer}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>ATIVOS</Text>
@@ -442,7 +442,7 @@ export default function PaymentDiscountsScreen() {
             <EmptyState
               icon="pricetags-outline"
               title={statusFilter !== 'all' ? 'Nenhum desconto encontrado' : 'Nenhum desconto configurado'}
-              description={statusFilter !== 'all' ? 'Tente outro filtro' : 'Toque no botÃ£o + para configurar descontos'}
+              description={statusFilter !== 'all' ? 'Tente outro filtro' : 'Toque no botão + para configurar descontos'}
             />
           }
         />
@@ -451,7 +451,7 @@ export default function PaymentDiscountsScreen() {
       {/* FAB */}
       <FAB onPress={handleAddNew} />
 
-      {/* Modal de FormulÃ¡rio */}
+      {/* Modal de Formulário */}
       <Modal
         visible={showFormModal}
         transparent
@@ -532,12 +532,12 @@ export default function PaymentDiscountsScreen() {
                 </View>
               </View>
 
-              {/* DescriÃ§Ã£o */}
-              <Text style={[styles.label, { marginTop: theme.spacing.md }]}>DESCRIÃ‡ÃƒO (OPCIONAL)</Text>
+              {/* Descrição */}
+              <Text style={[styles.label, { marginTop: theme.spacing.md }]}>DESCRIÇÃO (OPCIONAL)</Text>
               <TextInput
                 value={formData.description}
                 onChangeText={(text) => setFormData({ ...formData, description: text })}
-                placeholder="Ex: Desconto Ã  vista"
+                placeholder="Ex: Desconto à vista"
                 placeholderTextColor={Colors.light.textTertiary}
                 style={styles.textArea}
                 multiline
@@ -547,7 +547,7 @@ export default function PaymentDiscountsScreen() {
               <View style={styles.switchRow}>
                 <View>
                   <Text style={styles.switchLabel}>Desconto ativo</Text>
-                  <Text style={styles.switchSubLabel}>DisponÃ­vel no checkout</Text>
+                  <Text style={styles.switchSubLabel}>Disponível no checkout</Text>
                 </View>
                 <Switch
                   value={formData.is_active}
@@ -557,7 +557,7 @@ export default function PaymentDiscountsScreen() {
                 />
               </View>
 
-              {/* BotÃµes */}
+              {/* Botões */}
               <View style={styles.formButtons}>
                 <TouchableOpacity
                   style={styles.cancelButton}
@@ -599,7 +599,7 @@ export default function PaymentDiscountsScreen() {
         </KeyboardAvoidingView>
       </Modal>
 
-      {/* DiÃ¡logos */}
+      {/* Diálogos */}
       <ConfirmDialog
         visible={showSuccessDialog}
         title="Sucesso!"
@@ -624,7 +624,7 @@ export default function PaymentDiscountsScreen() {
       />
       <ConfirmDialog
         visible={showDeleteDialog}
-        title="Confirmar exclusÃ£o"
+        title="Confirmar exclusão"
         message={`Deseja remover o desconto para ${deleteTarget?.method}?`}
         confirmText="Remover"
         cancelText="Cancelar"

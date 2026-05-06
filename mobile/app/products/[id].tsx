@@ -830,7 +830,7 @@ export default function ProductDetailsScreen() {
               <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
                 <Ionicons name="print-outline" size={20} color={brandingColors.primary} />
               </View>
-              <Text style={styles.cardTitle}>Impressao e Codigo</Text>
+              <Text style={styles.cardTitle}>Impressão e Código</Text>
             </View>
 
             <View style={styles.actionList}>
@@ -858,7 +858,7 @@ export default function ProductDetailsScreen() {
                   <Ionicons name="albums-outline" size={18} color={brandingColors.primary} />
                 </View>
                 <View style={styles.actionCardContent}>
-                  <Text style={styles.actionCardTitle}>Estudio</Text>
+                  <Text style={styles.actionCardTitle}>Estúdio</Text>
                   <Text style={styles.actionCardSub}>Criar etiquetas em lote</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
@@ -1313,7 +1313,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 
-  // ── Acoes (Etiqueta, QR, Estudio) ──
+  // ── Ações (Etiqueta, QR, Estúdio) ──
   actionList: {
     gap: 10,
   },

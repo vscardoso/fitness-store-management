@@ -252,6 +252,15 @@ class PixRefundResponse(BaseModel):
     message: str
 
 
+class PixGenerateQRResponse(BaseModel):
+    qr_code: str
+    qr_code_base64: str
+    is_generic: bool = True
+    payment_id: Optional[str] = None
+    expires_at: Optional[str] = None
+    message: str = ""
+
+
 # ── Pagamentos Pendentes ───────────────────────────────────────────────────────
 
 class PendingSaleResponse(BaseModel):

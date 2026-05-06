@@ -14,7 +14,6 @@ import {
   Image,
   StatusBar,
   ActivityIndicator,
-  Alert,
   Text,
   useWindowDimensions,
 } from 'react-native';
@@ -152,6 +151,7 @@ export default function VariantPhotosScreen() {
   const [coverErrorDialog, setCoverErrorDialog] = useState(false);
   const [deleteErrorDialog, setDeleteErrorDialog] = useState(false);
   const [setCoverConfirmDialog, setSetCoverConfirmDialog] = useState<{ visible: boolean; variant: ProductVariant | null }>({ visible: false, variant: null });
+  const [deleteProductPhotoDialog, setDeleteProductPhotoDialog] = useState(false);
   const [photoActionMenuDialog, setPhotoActionMenuDialog] = useState<{ visible: boolean; variant: ProductVariant | null; isVariantCover: boolean }>({ visible: false, variant: null, isVariantCover: false });
   const [deletePhotoConfirmDialog, setDeletePhotoConfirmDialog] = useState<{ visible: boolean; variant: ProductVariant | null }>({ visible: false, variant: null });
 
@@ -269,7 +269,7 @@ export default function VariantPhotosScreen() {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       setOpeningPicker(null);
-      Alert.alert('Permissão necessária', 'Permita o acesso à galeria para adicionar fotos.');
+      setPermissionDialog(true);
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -292,7 +292,7 @@ export default function VariantPhotosScreen() {
       await invalidateProductQueries();
     } catch (err: any) {
       setLocalProductPhotoOverride(undefined);
-      Alert.alert('Erro no upload', err?.response?.data?.detail ?? 'Não foi possível salvar a foto.');
+      setUploadErrorDialog({ visible: true, message: err?.response?.data?.detail ?? 'Não foi possível salvar a foto.' });
     } finally {
       setLocalProductPhotoOverride(undefined);
       setUploadingProduct(false);
@@ -309,7 +309,7 @@ export default function VariantPhotosScreen() {
       await invalidateProductQueries();
     } catch {
       setLocalProductPhotoOverride(snapshot);
-      Alert.alert('Erro', 'Não foi possível excluir a foto.');
+      setDeleteErrorDialog(true);
     } finally {
       setLocalProductPhotoOverride(undefined);
       setDeletingMedia(null);
@@ -525,11 +525,7 @@ export default function VariantPhotosScreen() {
             onPress={pickAndUploadProduct}
             onLongPress={() => {
               if (!productImageUrl) return;
-              Alert.alert('Foto principal', 'O que deseja fazer?', [
-                { text: 'Cancelar', style: 'cancel' },
-                { text: 'Substituir foto', onPress: pickAndUploadProduct },
-                { text: 'Excluir foto', style: 'destructive', onPress: deleteProductLevelPhoto },
-              ]);
+              setDeleteProductPhotoDialog(true);
             }}
             disabled={openingPicker === 'product' || uploadingProduct || deletingMedia === -1}
             activeOpacity={0.75}
@@ -659,10 +655,7 @@ export default function VariantPhotosScreen() {
             onPress={pickAndUploadProduct}
             onLongPress={() => {
               if (!productImageUrl) return;
-              Alert.alert('Foto do produto', '', [
-                { text: 'Cancelar', style: 'cancel' },
-                { text: 'Excluir foto', style: 'destructive', onPress: deleteProductLevelPhoto },
-              ]);
+              setDeleteProductPhotoDialog(true);
             }}
             disabled={openingPicker === 'product' || uploadingProduct || deletingMedia === -1}
             activeOpacity={0.75}
@@ -781,6 +774,19 @@ export default function VariantPhotosScreen() {
       icon="trash-outline"
     />
 
+
+    {/* Confirmar exclusão de foto de produto (long press) */}
+    <ConfirmDialog
+      visible={deleteProductPhotoDialog}
+      title="Excluir foto?"
+      message="A foto principal do produto será removida."
+      confirmText="Excluir"
+      cancelText="Cancelar"
+      onConfirm={() => { setDeleteProductPhotoDialog(false); deleteProductLevelPhoto(); }}
+      onCancel={() => setDeleteProductPhotoDialog(false)}
+      type="danger"
+      icon="trash-outline"
+    />
 
     {/* Menu de ações da foto (long press) */}
     <ConfirmDialog

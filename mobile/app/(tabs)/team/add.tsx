@@ -9,7 +9,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   StatusBar,
@@ -20,10 +19,23 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, theme } from '@/constants/Colors';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { createTeamMember, getRoleLabel } from '@/services/teamService';
 import { UserRole, type TeamMemberCreate } from '@/types';
 import { phoneMask } from '@/utils/masks';
 import { capitalizeWords } from '@/utils/format';
+
+type DialogState = {
+  visible: boolean;
+  type: 'danger' | 'warning' | 'info' | 'success';
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm?: () => void;
+  onCancel?: () => void;
+};
+const DIALOG_HIDDEN: DialogState = { visible: false, type: 'info', title: '', message: '' };
 
 export default function AddTeamMemberScreen() {
   const router = useRouter();
@@ -38,23 +50,24 @@ export default function AddTeamMemberScreen() {
   });
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [dialog, setDialog] = useState<DialogState>(DIALOG_HIDDEN);
 
   // Mutation: Criar membro
   const createMutation = useMutation({
     mutationFn: createTeamMember,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
-      Alert.alert(
-        'Sucesso',
-        `${data.full_name} foi adicionado(a) à equipe!`,
-        [{ text: 'OK', onPress: () => router.back() }]
-      );
+      setDialog({
+        visible: true,
+        type: 'success',
+        title: 'Sucesso',
+        message: `${data.full_name} foi adicionado(a) à equipe!`,
+        confirmText: 'OK',
+        onConfirm: () => { setDialog(DIALOG_HIDDEN); router.back(); },
+      });
     },
     onError: (error: any) => {
-      Alert.alert(
-        'Erro',
-        error.response?.data?.detail || 'Erro ao criar membro da equipe'
-      );
+      setDialog({ visible: true, type: 'danger', title: 'Erro', message: error.response?.data?.detail || 'Erro ao criar membro da equipe', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
     },
   });
 
@@ -62,29 +75,29 @@ export default function AddTeamMemberScreen() {
   const handleSubmit = () => {
     // Validações
     if (!formData.full_name.trim()) {
-      Alert.alert('Erro', 'Informe o nome completo');
+      setDialog({ visible: true, type: 'warning', title: 'Atenção', message: 'Informe o nome completo', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
       return;
     }
     if (!formData.email.trim()) {
-      Alert.alert('Erro', 'Informe o email');
+      setDialog({ visible: true, type: 'warning', title: 'Atenção', message: 'Informe o email', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
       return;
     }
     // Validação de email mais rigorosa
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
-      Alert.alert('Erro', 'Email inválido. Use o formato: exemplo@dominio.com');
+      setDialog({ visible: true, type: 'warning', title: 'Atenção', message: 'Email inválido. Use o formato: exemplo@dominio.com', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
       return;
     }
     if (formData.phone && formData.phone.replace(/\D/g, '').length < 10) {
-      Alert.alert('Erro', 'Telefone inválido. Use o formato: (00) 00000-0000');
+      setDialog({ visible: true, type: 'warning', title: 'Atenção', message: 'Telefone inválido. Use o formato: (00) 00000-0000', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
       return;
     }
     if (!formData.password || formData.password.length < 6) {
-      Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres');
+      setDialog({ visible: true, type: 'warning', title: 'Atenção', message: 'A senha deve ter pelo menos 6 caracteres', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
       return;
     }
     if (formData.password !== confirmPassword) {
-      Alert.alert('Erro', 'As senhas não conferem');
+      setDialog({ visible: true, type: 'warning', title: 'Atenção', message: 'As senhas não conferem', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
       return;
     }
 
@@ -294,6 +307,17 @@ export default function AddTeamMemberScreen() {
         </View>
         </ScrollView>
       </KeyboardAvoidingView>
+
+      <ConfirmDialog
+        visible={dialog.visible}
+        type={dialog.type}
+        title={dialog.title}
+        message={dialog.message}
+        confirmText={dialog.confirmText}
+        cancelText={dialog.cancelText}
+        onConfirm={dialog.onConfirm ?? (() => setDialog(DIALOG_HIDDEN))}
+        onCancel={dialog.onCancel ?? (() => setDialog(DIALOG_HIDDEN))}
+      />
     </View>
   );
 }

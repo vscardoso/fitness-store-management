@@ -12,7 +12,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   StatusBar,
-  Alert,
 } from 'react-native';
 import { Text, TextInput, Button, SegmentedButtons, Card } from 'react-native-paper';
 import { useRouter } from 'expo-router';
@@ -62,29 +61,35 @@ export default function AddTeamMemberScreen() {
   const handleSubmit = () => {
     // Validações
     if (!formData.full_name.trim()) {
-      Alert.alert('Erro', 'Informe o nome completo');
+      setErrorMessage('Informe o nome completo');
+      setShowErrorDialog(true);
       return;
     }
     if (!formData.email.trim()) {
-      Alert.alert('Erro', 'Informe o email');
+      setErrorMessage('Informe o email');
+      setShowErrorDialog(true);
       return;
     }
     // Validação de email mais rigorosa
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(formData.email)) {
-      Alert.alert('Erro', 'Email inválido. Use o formato: exemplo@dominio.com');
+      setErrorMessage('Email inválido. Use o formato: exemplo@dominio.com');
+      setShowErrorDialog(true);
       return;
     }
     if (formData.phone && formData.phone.replace(/\D/g, '').length < 10) {
-      Alert.alert('Erro', 'Telefone inválido. Use o formato: (00) 00000-0000');
+      setErrorMessage('Telefone inválido. Use o formato: (00) 00000-0000');
+      setShowErrorDialog(true);
       return;
     }
     if (!formData.password || formData.password.length < 6) {
-      Alert.alert('Erro', 'A senha deve ter pelo menos 6 caracteres');
+      setErrorMessage('A senha deve ter pelo menos 6 caracteres');
+      setShowErrorDialog(true);
       return;
     }
     if (formData.password !== confirmPassword) {
-      Alert.alert('Erro', 'As senhas não conferem');
+      setErrorMessage('As senhas não conferem');
+      setShowErrorDialog(true);
       return;
     }
 

@@ -11,7 +11,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Alert,
   ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -58,6 +57,7 @@ export default function TerminalCheckoutScreen() {
   const [cancelling, setCancelling] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [autoConfirmed, setAutoConfirmed] = useState(false);
+  const [errorDialog, setErrorDialog] = useState<{ visible: boolean; title: string; message: string }>({ visible: false, title: '', message: '' });
   const confirmedRef = useRef(false);
 
   // SSE: escuta eventos do backend para auto-confirmar quando provider cloud aprovar
@@ -154,7 +154,7 @@ export default function TerminalCheckoutScreen() {
         err?.response?.data?.detail ??
         err?.message ??
         'Erro ao confirmar pagamento. Tente novamente.';
-      Alert.alert('Erro ao confirmar', msg);
+      setErrorDialog({ visible: true, title: 'Erro ao confirmar', message: msg });
     } finally {
       setConfirming(false);
     }
@@ -177,7 +177,7 @@ export default function TerminalCheckoutScreen() {
         err?.response?.data?.detail ??
         err?.message ??
         'Erro ao cancelar venda. Tente novamente.';
-      Alert.alert('Erro ao cancelar', msg);
+      setErrorDialog({ visible: true, title: 'Erro ao cancelar', message: msg });
     } finally {
       setCancelling(false);
     }
@@ -186,6 +186,13 @@ export default function TerminalCheckoutScreen() {
   // ── Badge de tipo de pagamento ────────────────────────────────────────────
 
   const paymentBadge = () => {
+    if (payment_type === 'pix') {
+      return (
+        <View style={[styles.badge, styles.badgePix]}>
+          <Text style={[styles.badgeText, styles.badgePixText]}>PIX na maquininha</Text>
+        </View>
+      );
+    }
     if (isCredit) {
       const installmentValue = totalAmount / numInstallments;
       const label =
@@ -224,7 +231,7 @@ export default function TerminalCheckoutScreen() {
         <View style={styles.card}>
           {/* Ícone da maquininha */}
           <View style={styles.iconWrap}>
-            <Ionicons name="card-outline" size={64} color={C.primary} />
+            <Ionicons name={payment_type === 'pix' ? 'qr-code-outline' : 'card-outline'} size={64} color={C.primary} />
           </View>
 
           {/* Valor em destaque */}
@@ -333,6 +340,17 @@ export default function TerminalCheckoutScreen() {
         onConfirm={handleCancelConfirmed}
         onCancel={() => setShowCancelDialog(false)}
       />
+
+      {/* Diálogo de erro */}
+      <ConfirmDialog
+        visible={errorDialog.visible}
+        type="danger"
+        title={errorDialog.title}
+        message={errorDialog.message}
+        confirmText="OK"
+        onConfirm={() => setErrorDialog({ visible: false, title: '', message: '' })}
+        onCancel={() => setErrorDialog({ visible: false, title: '', message: '' })}
+      />
     </View>
   );
 }
@@ -404,6 +422,14 @@ const styles = StyleSheet.create({
 
   badgeDebitText: {
     color: C.success,
+  },
+
+  badgePix: {
+    backgroundColor: '#10B98118',
+  },
+
+  badgePixText: {
+    color: '#059669',
   },
 
   // ── Instrução ────────────────────────────────────────────────────────────

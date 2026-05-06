@@ -323,7 +323,7 @@ export default function TopProductsScreen() {
 
                 {data.products.some((p) => p.profit_margin > 40) ? (
                   <Text style={styles.insightText}>
-                    {data.products.filter((p) => p.profit_margin > 40).length} produtos estao com margem acima de 40%.
+                    {data.products.filter((p) => p.profit_margin > 40).length} produtos estão com margem acima de 40%.
                   </Text>
                 ) : null}
               </View>
@@ -335,7 +335,7 @@ export default function TopProductsScreen() {
               <Ionicons name="cube-outline" size={28} color={brandingColors.primary} />
             </View>
             <Text style={styles.emptyTitle}>Sem dados</Text>
-            <Text style={styles.emptyText}>Nenhum produto vendido no periodo selecionado.</Text>
+            <Text style={styles.emptyText}>Nenhum produto vendido no período selecionado.</Text>
           </View>
         )}
       </Animated.View>

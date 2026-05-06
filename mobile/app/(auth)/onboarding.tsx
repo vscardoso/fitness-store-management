@@ -34,7 +34,7 @@ const ONBOARDING_COMPLETED_KEY = '@fitness_store:onboarding_completed';
 const INTRO_SLIDES: IntroSlide[] = [
   {
     id: 'store',
-    kicker: 'GESTAO CENTRALIZADA',
+    kicker: 'GESTÃO CENTRALIZADA',
     title: 'Sua operacao em uma unica plataforma',
     description:
       'Produtos, estoque e vendas conectados para voce trabalhar com clareza e velocidade.',
@@ -47,20 +47,20 @@ const INTRO_SLIDES: IntroSlide[] = [
     kicker: 'PDV PROFISSIONAL',
     title: 'Venda rapido, com controle real de estoque',
     description:
-      'Scanner, carrinho inteligente e validacoes em tempo real para atendimento sem erro.',
+      'Scanner, carrinho inteligente e validações em tempo real para atendimento sem erro.',
     icon: 'flash-outline',
     palette: ['#0F3B2E', '#1A6A52'],
-    highlights: ['Escaneamento e busca agil', 'Pagamentos mistos', 'Sincronizacao imediata'],
+    highlights: ['Escaneamento e busca ágil', 'Pagamentos mistos', 'Sincronização imediata'],
   },
   {
     id: 'insights',
-    kicker: 'INTELIGENCIA DE NEGOCIO',
-    title: 'Decida melhor com dados acionaveis',
+    kicker: 'INTELIGÊNCIA DE NEGÓCIO',
+    title: 'Decida melhor com dados acionáveis',
     description:
       'Dashboards e alertas objetivos para antecipar ruptura e aumentar margem.',
     icon: 'stats-chart-outline',
     palette: ['#3B1F1A', '#A14123'],
-    highlights: ['Alertas de estoque baixo', 'Historico de vendas completo', 'Visao diaria de performance'],
+    highlights: ['Alertas de estoque baixo', 'Histórico de vendas completo', 'Visão diária de performance'],
   },
 ];
 

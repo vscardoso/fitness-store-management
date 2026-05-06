@@ -3,14 +3,13 @@
  * Tela de ajuda com lista de tutoriais disponíveis
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -19,6 +18,7 @@ import { useTutorialContext } from '@/contexts/TutorialContext';
 import { TUTORIAL_LIST, TUTORIALS, TUTORIAL_COLORS } from '@/constants/tutorials';
 import { Colors } from '@/constants/Colors';
 import useBackToList from '@/hooks/useBackToList';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 export default function HelpScreen() {
   const router = useRouter();
@@ -29,6 +29,9 @@ export default function HelpScreen() {
     resetAllTutorials,
     isTutorialCompleted,
   } = useTutorialContext();
+
+  const [resetConfirmDialog, setResetConfirmDialog] = useState(false);
+  const [resetSuccessDialog, setResetSuccessDialog] = useState(false);
 
   // Calcular progresso geral
   const totalTutorials = TUTORIAL_LIST.length;
@@ -46,21 +49,7 @@ export default function HelpScreen() {
 
   // Handler para resetar tutoriais
   const handleResetTutorials = () => {
-    Alert.alert(
-      'Resetar Tutoriais',
-      'Isso vai permitir que você veja todos os tutoriais novamente. Deseja continuar?',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Resetar',
-          style: 'destructive',
-          onPress: () => {
-            resetAllTutorials();
-            Alert.alert('Pronto!', 'Todos os tutoriais foram resetados.');
-          },
-        },
-      ]
-    );
+    setResetConfirmDialog(true);
   };
 
   return (
@@ -197,6 +186,33 @@ export default function HelpScreen() {
         {/* Spacing */}
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <ConfirmDialog
+        visible={resetConfirmDialog}
+        type="danger"
+        title="Resetar Tutoriais"
+        message="Isso vai permitir que você veja todos os tutoriais novamente. Deseja continuar?"
+        confirmText="Resetar"
+        cancelText="Cancelar"
+        onConfirm={() => {
+          resetAllTutorials();
+          setResetConfirmDialog(false);
+          setResetSuccessDialog(true);
+        }}
+        onCancel={() => setResetConfirmDialog(false)}
+        icon="refresh-outline"
+      />
+
+      <ConfirmDialog
+        visible={resetSuccessDialog}
+        type="success"
+        title="Pronto!"
+        message="Todos os tutoriais foram resetados."
+        confirmText="OK"
+        onConfirm={() => setResetSuccessDialog(false)}
+        onCancel={() => setResetSuccessDialog(false)}
+        icon="checkmark-circle-outline"
+      />
     </View>
   );
 }

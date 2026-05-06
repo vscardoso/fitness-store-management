@@ -157,7 +157,7 @@ class CieloLIOProvider(BaseTerminalProvider):
         base = self._base_url()
 
         # Passo 1: Criar order
-        order_body = {
+        order_body: dict = {
             "number": order_number,
             "reference": description or f"Venda #{sale_id}",
             "status": "DRAFT",
@@ -170,6 +170,10 @@ class CieloLIOProvider(BaseTerminalProvider):
             }],
             "price": amount_cents,
         }
+
+        # PIX: inclui tipo no corpo da order para o terminal exibir QR Code
+        if payment_type and payment_type.lower() == "pix":
+            order_body["payments"] = [{"payment_type": "PIX"}]
 
         async with httpx.AsyncClient(timeout=30) as client:
             create_resp = await client.post(

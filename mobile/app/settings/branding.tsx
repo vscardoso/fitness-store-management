@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Image, Alert } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { Text, TextInput, Button, ActivityIndicator } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
@@ -20,6 +20,17 @@ export default function BrandingScreen() {
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [successVisible, setSuccessVisible] = useState(false);
+
+  type DialogState = {
+    visible: boolean;
+    type: 'danger' | 'warning' | 'info' | 'success';
+    title: string;
+    message: string;
+    confirmText?: string;
+    onConfirm?: () => void;
+  };
+  const DIALOG_HIDDEN: DialogState = { visible: false, type: 'info', title: '', message: '' };
+  const [errDialog, setErrDialog] = useState<DialogState>(DIALOG_HIDDEN);
 
   useEffect(() => {
     fetchFromServer().catch(() => {});
@@ -46,7 +57,7 @@ export default function BrandingScreen() {
         setUploadingLogo(true);
         await uploadLogoToServer(result.assets[0].uri);
       } catch {
-        Alert.alert('Erro', 'Não foi possível enviar o logo. Tente novamente.');
+        setErrDialog({ visible: true, type: 'danger', title: 'Erro', message: 'Não foi possível enviar o logo. Tente novamente.', confirmText: 'OK', onConfirm: () => setErrDialog(DIALOG_HIDDEN) });
       } finally {
         setUploadingLogo(false);
       }
@@ -55,7 +66,7 @@ export default function BrandingScreen() {
 
   const handleSave = async () => {
     if (!name.trim()) {
-      Alert.alert('Atenção', 'O nome da loja é obrigatório.');
+      setErrDialog({ visible: true, type: 'warning', title: 'Atenção', message: 'O nome da loja é obrigatório.', confirmText: 'OK', onConfirm: () => setErrDialog(DIALOG_HIDDEN) });
       return;
     }
     try {
@@ -76,7 +87,7 @@ export default function BrandingScreen() {
       });
       setSuccessVisible(true);
     } catch {
-      Alert.alert('Erro', 'Não foi possível salvar. Verifique a conexão.');
+      setErrDialog({ visible: true, type: 'danger', title: 'Erro', message: 'Não foi possível salvar. Verifique a conexão.', confirmText: 'OK', onConfirm: () => setErrDialog(DIALOG_HIDDEN) });
     } finally {
       setSaving(false);
     }
@@ -197,6 +208,15 @@ export default function BrandingScreen() {
         icon="checkmark-circle"
         onConfirm={() => { setSuccessVisible(false); goBack(); }}
         onCancel={() => { setSuccessVisible(false); goBack(); }}
+      />
+      <ConfirmDialog
+        visible={errDialog.visible}
+        type={errDialog.type}
+        title={errDialog.title}
+        message={errDialog.message}
+        confirmText={errDialog.confirmText}
+        onConfirm={errDialog.onConfirm ?? (() => setErrDialog(DIALOG_HIDDEN))}
+        onCancel={() => setErrDialog(DIALOG_HIDDEN)}
       />
     </View>
   );

@@ -3,7 +3,6 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  Alert,
   Text,
   TouchableOpacity,
   ActivityIndicator,
@@ -29,6 +28,7 @@ import useBackToList from '@/hooks/useBackToList';
 import ProductLabel, { LabelData } from '@/components/labels/ProductLabel';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { ProductVariant } from '@/types/productVariant';
 
 type LegacyFileSystemWithEncoding = typeof LegacyFileSystem & {
@@ -76,6 +76,7 @@ export default function ProductQRCodeScreen() {
   const [showPrice, setShowPrice] = React.useState(true);
   const [showSku, setShowSku] = React.useState(true);
   const [isPrinting, setIsPrinting] = React.useState(false);
+  const [printError, setPrintError] = React.useState<string | null>(null);
 
   const base64Encoding =
     (LegacyFileSystem as LegacyFileSystemWithEncoding).EncodingType?.Base64 ?? 'base64';
@@ -350,7 +351,7 @@ export default function ProductQRCodeScreen() {
               : `Etiqueta - ${product.name}`,
       });
     } catch {
-      Alert.alert('Erro', 'Não foi possível compartilhar a etiqueta.');
+      setPrintError('Não foi possível compartilhar a etiqueta.');
     }
   };
 
@@ -369,7 +370,7 @@ export default function ProductQRCodeScreen() {
 
       const printTitle =
         hasVariants && labelItems.length > 1
-          ? `Etiquetas - ${product.name} - ${labelItems.length} variacoes - ${selectedFormat.label}`
+          ? `Etiquetas - ${product.name} - ${labelItems.length} variações - ${selectedFormat.label}`
           : selectedVariant
             ? `Etiqueta - ${product.name} - ${formatVariantLabel(selectedVariant)} - ${selectedFormat.label}`
             : `Etiqueta - ${product.name} - ${selectedFormat.label}`;
@@ -400,10 +401,10 @@ export default function ProductQRCodeScreen() {
             dialogTitle: 'Etiqueta',
           });
         } else {
-          Alert.alert('Erro', 'Nao foi possivel abrir a impressao nem compartilhar.');
+          setPrintError('Não foi possível abrir a impressão nem compartilhar.');
         }
       } catch {
-        Alert.alert('Erro', 'Nao foi possivel imprimir.');
+        setPrintError('Não foi possível imprimir.');
       }
     } finally {
       setIsPrinting(false);
@@ -707,6 +708,16 @@ export default function ProductQRCodeScreen() {
           )}
         </ScrollView>
       </Animated.View>
+
+      <ConfirmDialog
+        visible={!!printError}
+        type="danger"
+        title="Erro"
+        message={printError ?? ''}
+        confirmText="OK"
+        onConfirm={() => setPrintError(null)}
+        onCancel={() => setPrintError(null)}
+      />
     </View>
   );
 }

@@ -30,6 +30,7 @@ import { useNotificationStore } from '@/store/notificationStore';
 import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { setForceLogoutCallback, setInvalidateQueriesCallback } from '@/services/api';
+import GlobalConfirmModalHost, { installGlobalAlertOverride } from '@/components/ui/GlobalConfirmModal';
 
 // TEMP: Sentry desabilitado por conflito de versão
 // Sentry.init({
@@ -92,6 +93,11 @@ export default function RootLayout() {
   // Inicializar push notifications
   usePushNotifications();
 
+  // Substitui Alert.alert por modal global para padronizar UX e evitar popup nativo.
+  useEffect(() => {
+    installGlobalAlertOverride();
+  }, []);
+
   // Configurar callbacks no interceptor do Axios
   useEffect(() => {
     // Callback de logout forçado
@@ -114,7 +120,7 @@ export default function RootLayout() {
     loadNotifications();
   }, []);
 
-  // Hidrata branding com token valido caso store local nao esteja sincronizado.
+  // Hidrata branding com token válido caso store local não esteja sincronizado.
   useEffect(() => {
     if (isAuthenticated && !brandingInitialSyncAttempted) {
       fetchBrandingFromServer().catch(() => {});
@@ -161,6 +167,9 @@ export default function RootLayout() {
 
                 {/* Toast global para notificações */}
                 <Toast />
+
+                {/* Intercepta Alert.alert e renderiza modal padronizado */}
+                <GlobalConfirmModalHost />
               </TutorialProvider>
             </ErrorProvider>
           </PaperProvider>

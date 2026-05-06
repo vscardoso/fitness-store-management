@@ -18,6 +18,7 @@ from app.api.deps import get_current_user, get_db, get_current_tenant_id
 from app.models.user import User
 from app.repositories.pdv_repository import PDVTerminalRepository
 from app.services.pdv_service import PDVService
+from pydantic import BaseModel as _BaseModel, Field as _Field
 from app.schemas.pdv import (
     PDVTerminalCreate,
     PDVTerminalResponse,
@@ -40,12 +41,17 @@ from app.schemas.pdv import (
     PixStartRequest,
     PixStartResponse,
     PixRefundResponse,
+    PixGenerateQRResponse,
     TerminalStartRequest,
     TerminalStartResponse,
     PendingSaleResponse,
     TerminalCredentialsUpdate,
     TerminalCredentialsResponse,
 )
+
+
+class _PixGenerateQRRequest(_BaseModel):
+    amount: float = _Field(..., gt=0, description="Valor em reais")
 
 router = APIRouter(prefix="/pdv", tags=["PDV"])
 _repo = PDVTerminalRepository()
@@ -388,6 +394,20 @@ async def pix_start(
             payload.model_dump(exclude={"payer_email"}),
             payer_email=payload.payer_email,
         )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+
+@router.post("/pix/generate-qr", response_model=PixGenerateQRResponse)
+async def generate_pix_qr(
+    payload: _PixGenerateQRRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Gera QR Code PIX sem criar venda. Venda criada apenas após confirmar recebimento."""
+    try:
+        return await _service.generate_pix_qr(db, tenant_id, payload.amount)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
 

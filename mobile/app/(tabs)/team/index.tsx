@@ -10,7 +10,6 @@ import {
   FlatList,
   RefreshControl,
   TouchableOpacity,
-  Alert,
 } from 'react-native';
 import { Text, Card, Searchbar, Chip } from 'react-native-paper';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -18,6 +17,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors, theme } from '@/constants/Colors';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';
 import PageHeader from '@/components/layout/PageHeader';
@@ -30,12 +30,25 @@ import {
 } from '@/services/teamService';
 import { UserRole, type TeamMember } from '@/types';
 
+type DialogState = {
+  visible: boolean;
+  type: 'danger' | 'warning' | 'info' | 'success';
+  title: string;
+  message: string;
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm?: () => void;
+  onCancel?: () => void;
+};
+const DIALOG_HIDDEN: DialogState = { visible: false, type: 'info', title: '', message: '' };
+
 export default function TeamScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [showInactive, setShowInactive] = useState(false);
+  const [dialog, setDialog] = useState<DialogState>(DIALOG_HIDDEN);
 
   // Query: Lista de membros
   const {
@@ -54,10 +67,10 @@ export default function TeamScreen() {
     mutationFn: deactivateTeamMember,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
-      Alert.alert('Sucesso', 'Membro desativado com sucesso');
+      setDialog({ visible: true, type: 'success', title: 'Sucesso', message: 'Membro desativado com sucesso', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
     },
     onError: (error: any) => {
-      Alert.alert('Erro', error.response?.data?.detail || 'Erro ao desativar membro');
+      setDialog({ visible: true, type: 'danger', title: 'Erro', message: error.response?.data?.detail || 'Erro ao desativar membro', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
     },
   });
 
@@ -66,10 +79,10 @@ export default function TeamScreen() {
     mutationFn: activateTeamMember,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['team-members'] });
-      Alert.alert('Sucesso', 'Membro reativado com sucesso');
+      setDialog({ visible: true, type: 'success', title: 'Sucesso', message: 'Membro reativado com sucesso', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
     },
     onError: (error: any) => {
-      Alert.alert('Erro', error.response?.data?.detail || 'Erro ao reativar membro');
+      setDialog({ visible: true, type: 'danger', title: 'Erro', message: error.response?.data?.detail || 'Erro ao reativar membro', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
     },
   });
 
@@ -92,33 +105,30 @@ export default function TeamScreen() {
 
   // Confirmar desativação
   const handleDeactivate = (member: TeamMember) => {
-    Alert.alert(
-      'Desativar Membro',
-      `Tem certeza que deseja desativar ${member.full_name}? Ele não poderá mais acessar o sistema.`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Desativar',
-          style: 'destructive',
-          onPress: () => deactivateMutation.mutate(member.id),
-        },
-      ]
-    );
+    setDialog({
+      visible: true,
+      type: 'danger',
+      title: 'Desativar Membro',
+      message: `Tem certeza que deseja desativar ${member.full_name}? Ele não poderá mais acessar o sistema.`,
+      confirmText: 'Desativar',
+      cancelText: 'Cancelar',
+      onConfirm: () => { setDialog(DIALOG_HIDDEN); deactivateMutation.mutate(member.id); },
+      onCancel: () => setDialog(DIALOG_HIDDEN),
+    });
   };
 
   // Confirmar reativação
   const handleActivate = (member: TeamMember) => {
-    Alert.alert(
-      'Reativar Membro',
-      `Deseja reativar ${member.full_name}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Reativar',
-          onPress: () => activateMutation.mutate(member.id),
-        },
-      ]
-    );
+    setDialog({
+      visible: true,
+      type: 'warning',
+      title: 'Reativar Membro',
+      message: `Deseja reativar ${member.full_name}?`,
+      confirmText: 'Reativar',
+      cancelText: 'Cancelar',
+      onConfirm: () => { setDialog(DIALOG_HIDDEN); activateMutation.mutate(member.id); },
+      onCancel: () => setDialog(DIALOG_HIDDEN),
+    });
   };
 
   // Renderizar card de membro
@@ -253,6 +263,17 @@ export default function TeamScreen() {
 
       {/* FAB: Adicionar membro */}
       <FAB directRoute="/team/add" bottom={90} />
+
+      <ConfirmDialog
+        visible={dialog.visible}
+        type={dialog.type}
+        title={dialog.title}
+        message={dialog.message}
+        confirmText={dialog.confirmText}
+        cancelText={dialog.cancelText}
+        onConfirm={dialog.onConfirm ?? (() => setDialog(DIALOG_HIDDEN))}
+        onCancel={dialog.onCancel ?? (() => setDialog(DIALOG_HIDDEN))}
+      />
     </View>
   );
 }

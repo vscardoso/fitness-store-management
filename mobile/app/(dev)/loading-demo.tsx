@@ -84,7 +84,7 @@ export default function LoadingDemoScreen() {
               Sistema de loading completamente redesenhado com:
             </Text>
             <View style={styles.featureList}>
-              <Text style={styles.feature}>� Spinner com órbitas e partículas flutuantes</Text>
+              <Text style={styles.feature}>🌀 Spinner com órbitas e partículas flutuantes</Text>
               <Text style={styles.feature}>✨ Múltiplas animações simultâneas (órbitas, pulsos, ondas)</Text>
               <Text style={styles.feature}>💫 Partículas animadas aleatoriamente</Text>
               <Text style={styles.feature}>🌊 Ondas expandindo do centro</Text>

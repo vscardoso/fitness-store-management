@@ -3,14 +3,13 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  Alert,
   Text,
   ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
-import { useRef, useState, useCallback } from 'react';
+import { useRef, useState, useCallback, useEffect } from 'react';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -32,6 +31,7 @@ import { useAuthStore } from '@/store/authStore';
 import SaleReceipt from '@/components/receipt/SaleReceipt';
 import ReturnModal from '@/components/sale/ReturnModal';
 import AppButton from '@/components/ui/AppButton';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { SaleWithDetails } from '@/types';
 
 const statusMap: Record<string, { label: string; color: string; solid?: boolean; icon: keyof typeof Ionicons.glyphMap }> = {
@@ -70,6 +70,7 @@ export default function SaleDetailsScreen() {
   const { user } = useAuthStore();
   const brandingColors = useBrandingColors();
   const [returnModalVisible, setReturnModalVisible] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
   const animated = useRef(false);
 
   // ── Animação de entrada ──
@@ -113,6 +114,15 @@ export default function SaleDetailsScreen() {
     transform: [{ translateY: contentTransY.value }],
   }));
 
+  // Dispara animação uma vez quando dados chegam — fora do render para não gerar warning do Reanimated
+  useEffect(() => {
+    if (sale && !animated.current) {
+      animated.current = true;
+      const t = animateIn();
+      return () => clearTimeout(t);
+    }
+  }, [sale, animateIn]);
+
   const handleReturnSuccess = useCallback(() => {
     refetch();
     refetchReturns();
@@ -124,7 +134,7 @@ export default function SaleDetailsScreen() {
       const uri = await captureRef(receiptRef, { format: 'png', quality: 1 });
       const isAvailable = await Sharing.isAvailableAsync();
       if (!isAvailable) {
-        Alert.alert('Erro', 'Compartilhamento não disponível neste dispositivo');
+        setShareError('Compartilhamento não disponível neste dispositivo');
         return;
       }
       await Sharing.shareAsync(uri, {
@@ -132,7 +142,7 @@ export default function SaleDetailsScreen() {
         dialogTitle: `Recibo - ${sale.sale_number}`,
       });
     } catch {
-      Alert.alert('Erro', 'Não foi possível compartilhar o recibo');
+      setShareError('Não foi possível compartilhar o recibo');
     }
   };
 
@@ -180,11 +190,7 @@ export default function SaleDetailsScreen() {
   );
   const isWithinReturnWindow = daysSinceSale < 7;
 
-  // Dispara animação uma vez após dados disponíveis
-  if (!animated.current) {
-    animated.current = true;
-    animateIn();
-  }
+
 
   return (
     <View style={styles.container}>
@@ -500,6 +506,16 @@ export default function SaleDetailsScreen() {
         saleNumber={sale.sale_number}
         onDismiss={() => setReturnModalVisible(false)}
         onSuccess={handleReturnSuccess}
+      />
+
+      <ConfirmDialog
+        visible={!!shareError}
+        type="danger"
+        title="Erro"
+        message={shareError ?? ''}
+        confirmText="OK"
+        onConfirm={() => setShareError(null)}
+        onCancel={() => setShareError(null)}
       />
     </View>
   );

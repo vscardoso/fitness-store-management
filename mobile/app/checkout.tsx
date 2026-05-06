@@ -16,7 +16,7 @@ import { useCart } from '@/hooks/useCart';
 import { useCreateSale } from '@/hooks';
 import { getCustomerById } from '@/services/customerService';
 import { getPaymentDiscounts, type PaymentDiscount } from '@/services/paymentDiscountService';
-import { pixStart, listTerminals, createOrder, terminalStart } from '@/services/pdvService';
+import { pixGenerateQR, listTerminals, createOrder, terminalStart } from '@/services/pdvService';
 import type { PDVTerminal } from '@/types/pdv';
 import { getProductById } from '@/services/productService';
 import { Colors, theme } from '@/constants/Colors';
@@ -67,7 +67,7 @@ export default function CheckoutScreen() {
   const [installments, setInstallments] = useState(1);
   const [pendingCreditCard, setPendingCreditCard] = useState(false);
   const [pendingTerminal, setPendingTerminal] = useState(false);
-  const [terminalPaymentType, setTerminalPaymentType] = useState<'credit_card' | 'debit_card'>('credit_card');
+  const [terminalPaymentType, setTerminalPaymentType] = useState<'credit_card' | 'debit_card' | 'pix'>('credit_card');
   const [terminalInstallments, setTerminalInstallments] = useState(1);
   const [selectedTerminal, setSelectedTerminal] = useState<PDVTerminal | null>(null);
   const [terminals, setTerminals] = useState<PDVTerminal[]>([]);
@@ -530,46 +530,37 @@ export default function CheckoutScreen() {
   };
 
   /**
-   * Executa PIX após confirmação do operador
+   * Gera QR Code PIX sem criar venda.
+   * Venda só é criada após operador confirmar o recebimento em pix-checkout.
    */
-  const executePixStart = async (saleData: any) => {
+  const executePixGenerateQR = async (totalAmount: number) => {
     setLoading(true);
     try {
-      const result = await pixStart({
-        ...saleData,
-        items: saleData.items.map((i: any) => ({ ...i, discount_amount: i.discount_amount ?? 0 })),
-      });
+      const result = await pixGenerateQR(totalAmount);
       haptics.success();
-      invalidateProductQueries();
-      cart.clear();
+      // Não limpa o carrinho aqui — ele é necessário em pix-checkout para criar a venda na confirmação
       router.replace({
         pathname: '/(tabs)/pdv/pix-checkout',
         params: {
-          sale_id: String(result.sale_id),
-          amount: String(result.total_amount),
-          sale_number: result.sale_number,
-          payment_id: result.payment_id,
+          amount: String(totalAmount),
+          payment_id: result.payment_id ?? '',
           qr_code: result.qr_code,
           qr_code_base64: result.qr_code_base64,
           expires_at: result.expires_at ?? '',
-          is_generic: String(result.is_generic ?? false),
+          is_generic: String(result.is_generic ?? true),
         },
       });
     } catch (error: any) {
       haptics.error();
       const detail: string = error.response?.data?.detail || error.message || '';
-      const isStockError = detail.toLowerCase().includes('estoque insuficiente');
       setDialog({
         visible: true,
         type: 'danger',
-        title: isStockError ? 'Estoque insuficiente' : 'Erro ao gerar PIX',
-        message: detail || 'Erro ao processar venda PIX. Tente novamente.',
-        confirmText: isStockError ? 'Voltar ao carrinho' : 'OK',
-        cancelText: isStockError ? 'Fechar' : '',
-        onConfirm: () => {
-          setDialog(d => ({ ...d, visible: false }));
-          if (isStockError) router.back();
-        },
+        title: 'Erro ao gerar PIX',
+        message: detail || 'Erro ao gerar QR Code PIX. Tente novamente.',
+        confirmText: 'OK',
+        cancelText: '',
+        onConfirm: () => setDialog(d => ({ ...d, visible: false })),
       });
     } finally {
       setLoading(false);
@@ -751,9 +742,11 @@ export default function CheckoutScreen() {
       // Calcular troco antes de limpar o carrinho
       const change = Math.max(0, cart.totalPaid - finalTotal);
 
+      // PIX direto: sem maquininha selecionada → QR no app, confirmação manual
       const isPixOnly =
         cart.payments.length === 1 &&
-        cart.payments[0].method === PaymentMethod.PIX;
+        cart.payments[0].method === PaymentMethod.PIX &&
+        !selectedTerminal;
 
       // PIX: confirmar antes de gerar QR Code (ação irreversível — cria venda PENDING)
       if (isPixOnly) {
@@ -762,12 +755,12 @@ export default function CheckoutScreen() {
           visible: true,
           type: 'info',
           title: 'Confirmar Pagamento PIX',
-          message: `Será gerado um QR Code para ${formatCurrency(finalTotal)}.\n\nA venda ficará pendente até confirmação do recebimento.`,
+          message: `Será gerado um QR Code para ${formatCurrency(finalTotal)}.\n\nA venda só será registrada após confirmar o recebimento.`,
           confirmText: 'Gerar QR Code',
           cancelText: 'Cancelar',
           onConfirm: () => {
             setDialog(d => ({ ...d, visible: false }));
-            executePixStart(saleData);
+            executePixGenerateQR(finalTotal);
           },
         });
         return;
@@ -775,7 +768,9 @@ export default function CheckoutScreen() {
 
       const isTerminalPayment = !!selectedTerminal && (
         cart.payments.length === 1 &&
-        (cart.payments[0].method === PaymentMethod.CREDIT_CARD || cart.payments[0].method === PaymentMethod.DEBIT_CARD)
+        (cart.payments[0].method === PaymentMethod.CREDIT_CARD ||
+         cart.payments[0].method === PaymentMethod.DEBIT_CARD ||
+         cart.payments[0].method === PaymentMethod.PIX)
       ) && !isMixedMode;
 
       if (isTerminalPayment && selectedTerminal) {
@@ -783,13 +778,18 @@ export default function CheckoutScreen() {
           ? terminalInstallments > 1
             ? `Crédito ${terminalInstallments}x de ${formatCurrency(finalTotal / terminalInstallments)}`
             : 'Crédito à vista'
-          : 'Débito à vista';
+          : terminalPaymentType === 'debit_card'
+            ? 'Débito à vista'
+            : 'PIX';
+        const pixNote = terminalPaymentType === 'pix'
+          ? '\n\nO QR Code PIX será exibido na maquininha. Aguarde o cliente escanear.'
+          : '\n\nO cliente precisará pagar na maquininha.';
         setLoading(false);
         setDialog({
           visible: true,
           type: 'info',
           title: 'Enviar para Maquininha',
-          message: `Cobrança de ${formatCurrency(finalTotal)} (${payLabel}) será enviada para "${selectedTerminal.name}".\n\nO cliente precisará pagar na maquininha.`,
+          message: `Cobrança de ${formatCurrency(finalTotal)} (${payLabel}) será enviada para "${selectedTerminal.name}".${pixNote}`,
           confirmText: 'Enviar para maquininha',
           cancelText: 'Cancelar',
           onConfirm: () => {
@@ -1123,16 +1123,16 @@ export default function CheckoutScreen() {
                   </View>
                 </View>
 
-                {/* Tipo: Crédito | Débito */}
+                {/* Tipo: Crédito | Débito | PIX */}
                 <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
-                  {(['credit_card', 'debit_card'] as const).map((type) => (
+                  {(['credit_card', 'debit_card', 'pix'] as const).map((type) => (
                     <TouchableOpacity
                       key={type}
                       style={[styles.installmentChip, terminalPaymentType === type && styles.installmentChipActive, { flex: 1, alignItems: 'center' }]}
-                      onPress={() => { setTerminalPaymentType(type); if (type === 'debit_card') setTerminalInstallments(1); haptics.selection(); }}
+                      onPress={() => { setTerminalPaymentType(type); if (type !== 'credit_card') setTerminalInstallments(1); haptics.selection(); }}
                     >
                       <Text style={[styles.installmentChipText, terminalPaymentType === type && styles.installmentChipTextActive]}>
-                        {type === 'credit_card' ? 'Crédito' : 'Débito'}
+                        {type === 'credit_card' ? 'Crédito' : type === 'debit_card' ? 'Débito' : 'PIX'}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -1204,7 +1204,11 @@ export default function CheckoutScreen() {
                   disabled={!selectedTerminal}
                   onPress={() => {
                     if (!selectedTerminal) return;
-                    const method = terminalPaymentType === 'credit_card' ? PaymentMethod.CREDIT_CARD : PaymentMethod.DEBIT_CARD;
+                    const method = terminalPaymentType === 'credit_card'
+                      ? PaymentMethod.CREDIT_CARD
+                      : terminalPaymentType === 'debit_card'
+                        ? PaymentMethod.DEBIT_CARD
+                        : PaymentMethod.PIX;
                     cart.addPayment(method, finalTotal, terminalInstallments);
                     setPendingTerminal(false);
                     haptics.success();

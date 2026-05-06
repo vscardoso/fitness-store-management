@@ -10,7 +10,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Alert, Animated, Easing, Text, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, Animated, Easing, Text, ActivityIndicator } from 'react-native';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -92,7 +92,7 @@ export default function CheckoutSuccessScreen() {
       // Verificar se o compartilhamento está disponível
       const isAvailable = await Sharing.isAvailableAsync();
       if (!isAvailable) {
-        Alert.alert('Erro', 'Compartilhamento não disponível neste dispositivo');
+        setErrorDialog(true);
         return;
       }
 

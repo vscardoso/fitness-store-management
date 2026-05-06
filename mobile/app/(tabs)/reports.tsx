@@ -100,7 +100,7 @@ export default function ReportsScreen() {
       seller: 'Vendedor',
       MANAGER: 'Gerente',
       manager: 'Gerente',
-      EMPLOYEE: 'Funcionario',
+      EMPLOYEE: 'Funcionário',
       CASHIER: 'Caixa',
       cashier: 'Caixa',
     };
@@ -110,8 +110,8 @@ export default function ReportsScreen() {
   const reports: MenuItem[] = [
     {
       id: 'sales',
-      title: 'Relatorio de Vendas',
-      subtitle: 'Analise completa de vendas, lucro e margem',
+      title: 'Relatório de Vendas',
+      subtitle: 'Análise completa de vendas, lucro e margem',
       icon: 'bar-chart-outline',
       iconColor: Colors.light.success,
       iconBg: Colors.light.successLight,
@@ -128,8 +128,8 @@ export default function ReportsScreen() {
     },
     {
       id: 'history',
-      title: 'Historico',
-      subtitle: 'Timeline de vendas e movimentacoes',
+      title: 'Histórico',
+      subtitle: 'Timeline de vendas e movimentações',
       icon: 'time-outline',
       iconColor: brandingColors.primary,
       iconBg: brandingColors.primary + '14',
@@ -137,12 +137,12 @@ export default function ReportsScreen() {
     },
     {
       id: 'inventory-report',
-      title: 'Relatorio de Inventario',
-      subtitle: 'Movimentacoes de estoque',
+      title: 'Relatório de Inventário',
+      subtitle: 'Movimentações de estoque',
       icon: 'file-tray-stacked-outline',
       iconColor: Colors.light.warning,
       iconBg: Colors.light.warning + '14',
-      onPress: () => Alert.alert('Em desenvolvimento', 'Relatorio de inventario sera implementado em breve!'),
+      onPress: () => Alert.alert('Em desenvolvimento', 'Relatório de inventário será implementado em breve!'),
     },
   ];
 
@@ -150,7 +150,7 @@ export default function ReportsScreen() {
     {
       id: 'profile',
       title: 'Meu Perfil',
-      subtitle: 'Dados pessoais e preferencias',
+      subtitle: 'Dados pessoais e preferências',
       icon: 'person-circle-outline',
       iconColor: brandingColors.primary,
       iconBg: brandingColors.primary + '14',
@@ -158,12 +158,12 @@ export default function ReportsScreen() {
     },
     {
       id: 'notifications',
-      title: 'Notificacoes',
+      title: 'Notificações',
       subtitle: 'Alertas e lembretes',
       icon: 'notifications-outline',
       iconColor: Colors.light.warning,
       iconBg: Colors.light.warning + '14',
-      onPress: () => Alert.alert('Em desenvolvimento', 'Configuracoes serao implementadas em breve!'),
+      onPress: () => Alert.alert('Em desenvolvimento', 'Configurações serão implementadas em breve!'),
     },
     {
       id: 'help',
@@ -172,7 +172,7 @@ export default function ReportsScreen() {
       icon: 'help-circle-outline',
       iconColor: Colors.light.info,
       iconBg: Colors.light.infoLight,
-      onPress: () => Alert.alert('Em desenvolvimento', 'Secao de ajuda sera implementada em breve!'),
+      onPress: () => Alert.alert('Em desenvolvimento', 'Seção de ajuda será implementada em breve!'),
     },
   ];
 
@@ -232,7 +232,7 @@ export default function ReportsScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name="analytics-outline" size={16} color={brandingColors.primary} />
-              <Text style={styles.sectionTitle}>Relatorios</Text>
+              <Text style={styles.sectionTitle}>Relatórios</Text>
             </View>
             <View style={styles.sectionCards}>{reports.map(renderMenuCard)}</View>
           </View>
@@ -240,7 +240,7 @@ export default function ReportsScreen() {
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <Ionicons name="settings-outline" size={16} color={brandingColors.primary} />
-              <Text style={styles.sectionTitle}>Configuracoes</Text>
+              <Text style={styles.sectionTitle}>Configurações</Text>
             </View>
             <View style={styles.sectionCards}>{configs.map(renderMenuCard)}</View>
           </View>
@@ -257,7 +257,7 @@ export default function ReportsScreen() {
             </LinearGradient>
           </TouchableOpacity>
 
-          <Text style={styles.version}>Versao 1.0.1 • Fitness Store Management</Text>
+          <Text style={styles.version}>Versão 1.0.1 • Fitness Store Management</Text>
         </ScrollView>
       </Animated.View>
     </View>

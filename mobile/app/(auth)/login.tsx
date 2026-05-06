@@ -27,7 +27,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { FitFlowLogo } from '@/components/branding/FitFlowLogo';
 
 const APP_NAME = 'Store Management';
-const APP_TAGLINE = 'Gestao inteligente para lojas';
+const APP_TAGLINE = 'Gestão inteligente para lojas';
 const APP_PRIMARY = '#667eea';
 const APP_SECONDARY = '#764ba2';
 
@@ -212,7 +212,7 @@ export default function LoginScreen() {
               </View>
             </Animated.View>
 
-            <Text style={styles.version}>Versao 1.0.0 · {APP_NAME}</Text>
+            <Text style={styles.version}>Versão 1.0.0 · {APP_NAME}</Text>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>

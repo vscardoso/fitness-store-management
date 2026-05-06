@@ -422,7 +422,7 @@ export default function ProductLabelScreen() {
       });
     } catch (printError) {
       if (isPrintCancelledError(printError)) {
-        console.log('[ProductLabel] Impressao cancelada pelo usuario.');
+        console.log('[ProductLabel] Impressão cancelada pelo usuário.');
         return;
       }
 
@@ -726,7 +726,7 @@ export default function ProductLabelScreen() {
         type="info"
         icon="print-outline"
         title="Imprimir Etiquetas"
-        message={`${totalLabels} etiqueta${totalLabels !== 1 ? 's' : ''} em ${sheetsNeeded} folha${sheetsNeeded !== 1 ? 's' : ''} (${format.label})\n\nO app vai abrir o seletor nativo de impressao do sistema. Se nao houver servico disponivel, tentaremos compartilhar a imagem automaticamente.`}
+        message={`${totalLabels} etiqueta${totalLabels !== 1 ? 's' : ''} em ${sheetsNeeded} folha${sheetsNeeded !== 1 ? 's' : ''} (${format.label})\n\nO app vai abrir o seletor nativo de impressão do sistema. Se não houver serviço disponível, tentaremos compartilhar a imagem automaticamente.`}
         confirmText="Imprimir"
         cancelText="Cancelar"
         onConfirm={handlePrint}

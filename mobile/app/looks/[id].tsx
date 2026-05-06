@@ -5,7 +5,6 @@ import {
   ScrollView,
   RefreshControl,
   ActivityIndicator,
-  Alert,
   Image,
   TouchableOpacity,
   Modal,
@@ -19,6 +18,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getLook, deleteLook } from '@/services/lookService';
 import { createShipment } from '@/services/conditionalService';
 import { getCustomers } from '@/services/customerService';
@@ -36,6 +36,19 @@ export default function LookDetailScreen() {
 
   const [customerModalVisible, setCustomerModalVisible] = useState(false);
   const [customerSearch, setCustomerSearch] = useState('');
+
+  type DialogState = {
+    visible: boolean;
+    type: 'danger' | 'warning' | 'info' | 'success';
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm?: () => void;
+    onCancel?: () => void;
+  };
+  const DIALOG_HIDDEN: DialogState = { visible: false, type: 'info', title: '', message: '' };
+  const [dialog, setDialog] = useState<DialogState>(DIALOG_HIDDEN);
 
   const {
     data: look,
@@ -86,37 +99,34 @@ export default function LookDetailScreen() {
       router.push(`/(tabs)/conditional/${shipment.id}`);
     },
     onError: () => {
-      Alert.alert('Erro', 'Não foi possível criar o condicional. Tente novamente.');
+      setDialog({ visible: true, type: 'danger', title: 'Erro', message: 'Não foi possível criar o condicional. Tente novamente.', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
     },
   });
 
   const handleDelete = () => {
-    Alert.alert(
-      'Excluir Look',
-      `Deseja excluir o look "${look?.name}"?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Excluir',
-          style: 'destructive',
-          onPress: () => deleteMutation.mutate(),
-        },
-      ]
-    );
+    setDialog({
+      visible: true,
+      type: 'danger',
+      title: 'Excluir Look',
+      message: `Deseja excluir o look "${look?.name}"?`,
+      confirmText: 'Excluir',
+      cancelText: 'Cancelar',
+      onConfirm: () => { setDialog(DIALOG_HIDDEN); deleteMutation.mutate(); },
+      onCancel: () => setDialog(DIALOG_HIDDEN),
+    });
   };
 
   const handleSelectCustomer = (customer: Customer) => {
-    Alert.alert(
-      'Pedir Condicional',
-      `Criar condicional do look "${look?.name}" para ${customer.full_name}?`,
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Confirmar',
-          onPress: () => conditionalMutation.mutate(customer.id),
-        },
-      ]
-    );
+    setDialog({
+      visible: true,
+      type: 'info',
+      title: 'Pedir Condicional',
+      message: `Criar condicional do look "${look?.name}" para ${customer.full_name}?`,
+      confirmText: 'Confirmar',
+      cancelText: 'Cancelar',
+      onConfirm: () => { setDialog(DIALOG_HIDDEN); conditionalMutation.mutate(customer.id); },
+      onCancel: () => setDialog(DIALOG_HIDDEN),
+    });
   };
 
   const filteredCustomers = customers.filter((c) =>
@@ -283,6 +293,17 @@ export default function LookDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      <ConfirmDialog
+        visible={dialog.visible}
+        type={dialog.type}
+        title={dialog.title}
+        message={dialog.message}
+        confirmText={dialog.confirmText}
+        cancelText={dialog.cancelText}
+        onConfirm={dialog.onConfirm ?? (() => setDialog(DIALOG_HIDDEN))}
+        onCancel={dialog.onCancel ?? (() => setDialog(DIALOG_HIDDEN))}
+      />
     </View>
   );
 }

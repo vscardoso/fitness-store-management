@@ -203,7 +203,7 @@ export default function AddCustomerScreen() {
                 <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
                   <Ionicons name="person-outline" size={20} color={brandingColors.primary} />
                 </View>
-                <Text style={styles.cardTitle}>Informacoes Basicas</Text>
+                <Text style={styles.cardTitle}>Informações Básicas</Text>
               </View>
 
               <View style={styles.fieldGroup}>
@@ -424,8 +424,8 @@ export default function AddCustomerScreen() {
 
       <ConfirmDialog
         visible={showCepDialog}
-        title="CEP nao encontrado"
-        message="O CEP informado nao foi localizado. Preencha o endereco manualmente."
+        title="CEP não encontrado"
+        message="O CEP informado não foi localizado. Preencha o endereço manualmente."
         confirmText="OK"
         onConfirm={() => setShowCepDialog(false)}
         onCancel={() => setShowCepDialog(false)}

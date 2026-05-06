@@ -122,7 +122,7 @@ export default function TripsScreen() {
   const getStatusLabel = (status: TripStatus) => {
     switch (status) {
       case TripStatus.COMPLETED:
-        return 'CONCLUIDA';
+        return 'CONCLUÍDA';
       case TripStatus.IN_PROGRESS:
         return 'EM ANDAMENTO';
       case TripStatus.PLANNED:
@@ -206,7 +206,7 @@ export default function TripsScreen() {
               </View>
 
               <View style={styles.kpiCard}>
-                <Text style={styles.kpiLabel}>Concluidas</Text>
+                <Text style={styles.kpiLabel}>Concluídas</Text>
                 <Text style={[styles.kpiValue, { color: Colors.light.success }]}>{stats.completedTrips}</Text>
               </View>
 

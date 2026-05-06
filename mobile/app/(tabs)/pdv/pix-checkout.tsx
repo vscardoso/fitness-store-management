@@ -13,7 +13,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Alert,
   Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,10 +20,13 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/layout/PageHeader';
 import AppButton from '@/components/ui/AppButton';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
-import { generatePixPayment, subscribePixStatus, confirmManualPayment } from '@/services/pdvService';
+import { subscribePixStatus } from '@/services/pdvService';
+import { createSale } from '@/services/saleService';
+import { useCart } from '@/hooks/useCart';
 import type { PixPaymentData } from '@/types/pdv';
 
 const C = Colors.light;
@@ -32,11 +34,10 @@ const C = Colors.light;
 export default function PixCheckoutScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { sale_id, amount, sale_number, payment_id, qr_code, qr_code_base64, expires_at, is_generic } =
+  const cart = useCart();
+  const { amount, payment_id, qr_code, qr_code_base64, expires_at, is_generic } =
     useLocalSearchParams<{
-      sale_id: string;
       amount: string;
-      sale_number: string;
       payment_id?: string;
       qr_code?: string;
       qr_code_base64?: string;
@@ -54,7 +55,19 @@ export default function PixCheckoutScreen() {
   const [confirmingManual, setConfirmingManual] = useState(false);
   const confirmedRef = useRef(false);
 
-  const saleId = parseInt(sale_id ?? '0', 10);
+  type DialogState = {
+    visible: boolean;
+    type: 'danger' | 'warning' | 'info' | 'success';
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm?: () => void;
+    onCancel?: () => void;
+  };
+  const DIALOG_HIDDEN: DialogState = { visible: false, type: 'info', title: '', message: '' };
+  const [dialog, setDialog] = useState<DialogState>(DIALOG_HIDDEN);
+
   const totalAmount = parseFloat(amount ?? '0');
 
   const applyPixData = (data: PixPaymentData) => {
@@ -73,24 +86,17 @@ export default function PixCheckoutScreen() {
   };
 
   const doGenerate = () => {
-    if (!saleId) return;
-    setGenerating(true);
-    setGenerateError(null);
-    generatePixPayment(saleId)
-      .then(applyPixData)
-      .catch((err) => {
-        const msg = err?.response?.data?.detail || err?.message || 'Erro ao gerar PIX.';
-        setGenerateError(msg);
-      })
-      .finally(() => setGenerating(false));
+    // fallback: sem dados pré-carregados e sem sale_id — mostra erro
+    setGenerating(false);
+    setGenerateError('QR Code não disponível. Volte e tente novamente.');
   };
 
-  // Usa dados pré-carregados pelo pixStart (sem nova chamada de rede) ou busca agora
+  // Usa dados pré-carregados (qr_code passado via params do generate-qr)
   useEffect(() => {
-    if (payment_id && qr_code !== undefined && qr_code_base64 !== undefined) {
+    if (qr_code) {
       applyPixData({
-        sale_id: saleId,
-        payment_id,
+        sale_id: 0,
+        payment_id: payment_id || 'generic',
         qr_code: qr_code ?? '',
         qr_code_base64: qr_code_base64 ?? '',
         expires_at: expires_at || null,
@@ -102,7 +108,7 @@ export default function PixCheckoutScreen() {
     } else {
       doGenerate();
     }
-  }, [saleId]);
+  }, []);
 
   // Countdown regressivo
   useEffect(() => {
@@ -114,9 +120,12 @@ export default function PixCheckoutScreen() {
   }, [timeLeft !== null]);
 
   // SSE: recebe confirmação instantânea do servidor (sem polling)
-  // Não usado para PIX genérico (confirmação manual)
+  // Só para providers reais (Cielo PIX, Mercado Pago) — não para PIX genérico
   useEffect(() => {
-    if (!pixData?.payment_id || confirmedRef.current || isGeneric) return;
+    const realPaymentId = pixData?.payment_id && pixData.payment_id !== 'generic'
+      ? pixData.payment_id
+      : null;
+    if (!realPaymentId || confirmedRef.current || isGeneric) return;
 
     const handleConfirmed = () => {
       if (confirmedRef.current) return;
@@ -129,10 +138,7 @@ export default function PixCheckoutScreen() {
       queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
       queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
       queryClient.invalidateQueries({ queryKey: ['low-stock'] });
-      router.replace({
-        pathname: '/checkout/success',
-        params: { sale_number: sale_number ?? '' },
-      });
+      router.replace({ pathname: '/checkout/success' });
     };
 
     const handleExpiredOrCancelled = () => {
@@ -140,13 +146,13 @@ export default function PixCheckoutScreen() {
     };
 
     const controller = subscribePixStatus(
-      pixData.payment_id,
+      realPaymentId,
       handleConfirmed,
       handleExpiredOrCancelled,
     );
 
     return () => controller.abort();
-  }, [pixData?.payment_id]);
+  }, [pixData?.payment_id, isGeneric]);
 
   const handleCopy = async () => {
     if (!pixData?.qr_code) return;
@@ -161,50 +167,73 @@ export default function PixCheckoutScreen() {
   };
 
   const handleCancel = () => {
-    Alert.alert(
-      'Sair do pagamento PIX',
-      'O QR Code ficará ativo por alguns minutos. A venda permanecerá pendente até o pagamento ser confirmado.',
-      [
-        { text: 'Ficar aqui', style: 'cancel' },
-        { text: 'Sair', style: 'destructive', onPress: () => router.back() },
-      ],
-    );
+    setDialog({
+      visible: true,
+      type: 'danger',
+      title: 'Sair do pagamento PIX',
+      message: 'Se sair agora, nenhuma venda será registrada. O QR Code será descartado.',
+      confirmText: 'Sair',
+      cancelText: 'Ficar aqui',
+      onConfirm: () => { setDialog(DIALOG_HIDDEN); router.back(); },
+      onCancel: () => setDialog(DIALOG_HIDDEN),
+    });
   };
 
   const handleManualConfirm = () => {
-    Alert.alert(
-      'Confirmar recebimento',
-      'Confirme apenas após verificar o pagamento PIX no seu banco.',
-      [
-        { text: 'Cancelar', style: 'cancel' },
-        {
-          text: 'Confirmar',
-          onPress: async () => {
-            setConfirmingManual(true);
-            try {
-              await confirmManualPayment(saleId);
-              confirmedRef.current = true;
-              haptics.success();
-              queryClient.invalidateQueries({ queryKey: ['sales'] });
-              queryClient.invalidateQueries({ queryKey: ['pdv-pending-sales'] });
-              queryClient.invalidateQueries({ queryKey: ['products'] });
-              queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
-              queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
-              queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
-              queryClient.invalidateQueries({ queryKey: ['low-stock'] });
-              router.replace({
-                pathname: '/checkout/success',
-                params: { sale_number: sale_number ?? '' },
-              });
-            } catch (e: any) {
-              Alert.alert('Erro', e?.response?.data?.detail || 'Erro ao confirmar pagamento.');
-            } finally {
-              setConfirmingManual(false);
-            }
-          },
-        },
-      ],
-    );
+    setDialog({
+      visible: true,
+      type: 'info',
+      title: 'Confirmar recebimento',
+      message: 'Confirme apenas após verificar o pagamento PIX no seu banco.',
+      confirmText: 'Confirmar',
+      cancelText: 'Cancelar',
+      onConfirm: async () => {
+        setDialog(DIALOG_HIDDEN);
+        setConfirmingManual(true);
+        try {
+          // Cria venda COMPLETED agora, após confirmação do recebimento
+          const saleData = {
+            payment_method: 'pix',
+            items: cart.items.map(i => ({
+              product_id: i.product_id,
+              ...(i.variant_id ? { variant_id: i.variant_id } : {}),
+              quantity: i.quantity,
+              unit_price: i.unit_price,
+              discount_amount: i.discount ?? 0,
+            })),
+            payments: cart.payments.map(p => ({
+              payment_method: p.method,
+              amount: p.amount,
+              installments: p.installments ?? 1,
+            })),
+            ...(cart.customer_id ? { customer_id: cart.customer_id } : {}),
+            discount_amount: cart.discount ?? 0,
+            tax_amount: 0,
+            notes: cart.notes,
+          };
+          const sale = await createSale(saleData as any);
+          confirmedRef.current = true;
+          haptics.success();
+          cart.clear();
+          queryClient.invalidateQueries({ queryKey: ['sales'] });
+          queryClient.invalidateQueries({ queryKey: ['pdv-pending-sales'] });
+          queryClient.invalidateQueries({ queryKey: ['products'] });
+          queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+          queryClient.invalidateQueries({ queryKey: ['grouped-products-modal'] });
+          queryClient.invalidateQueries({ queryKey: ['products-inventory'] });
+          queryClient.invalidateQueries({ queryKey: ['low-stock'] });
+          router.replace({
+            pathname: '/checkout/success',
+            params: { sale_number: sale.sale_number },
+          });
+        } catch (e: any) {
+          setDialog({ visible: true, type: 'danger', title: 'Erro', message: e?.response?.data?.detail || 'Erro ao registrar venda. Tente novamente.', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
+        } finally {
+          setConfirmingManual(false);
+        }
+      },
+      onCancel: () => setDialog(DIALOG_HIDDEN),
+    });
   };
 
   const formatCountdown = (seconds: number) => {
@@ -224,9 +253,6 @@ export default function PixCheckoutScreen() {
         <View style={styles.amountCard}>
           <Text style={styles.amountLabel}>Total a pagar</Text>
           <Text style={styles.amountValue}>{formatCurrency(totalAmount)}</Text>
-          {sale_number && (
-            <Text style={styles.saleNumber}>Venda #{sale_number}</Text>
-          )}
         </View>
 
         {/* Gerando QR Code */}
@@ -382,6 +408,17 @@ export default function PixCheckoutScreen() {
           fullWidth
         />
       </View>
+
+      <ConfirmDialog
+        visible={dialog.visible}
+        type={dialog.type}
+        title={dialog.title}
+        message={dialog.message}
+        confirmText={dialog.confirmText}
+        cancelText={dialog.cancelText}
+        onConfirm={dialog.onConfirm ?? (() => setDialog(DIALOG_HIDDEN))}
+        onCancel={dialog.onCancel ?? (() => setDialog(DIALOG_HIDDEN))}
+      />
     </View>
   );
 }

@@ -8,7 +8,6 @@ import {
   StyleSheet,
   FlatList,
   ActivityIndicator,
-  Alert,
   TouchableOpacity,
   Image,
   Text as RNText,
@@ -19,6 +18,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getGroupedProducts } from '@/services/productService';
 import { createLook } from '@/services/lookService';
 import { Colors, theme } from '@/constants/Colors';
@@ -40,6 +40,17 @@ export default function LookBuilderScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedItems, setSelectedItems] = useState<SelectedItem[]>([]);
   const [step, setStep] = useState<'info' | 'products'>('info');
+
+  type DialogState = {
+    visible: boolean;
+    type: 'danger' | 'warning' | 'info' | 'success';
+    title: string;
+    message: string;
+    confirmText?: string;
+    onConfirm?: () => void;
+  };
+  const DIALOG_HIDDEN: DialogState = { visible: false, type: 'info', title: '', message: '' };
+  const [dialog, setDialog] = useState<DialogState>(DIALOG_HIDDEN);
 
   const { data: pages, isLoading } = useQuery({
     queryKey: ['grouped-products'],
@@ -82,17 +93,17 @@ export default function LookBuilderScreen() {
       router.replace(`/looks/${look.id}`);
     },
     onError: () => {
-      Alert.alert('Erro', 'Não foi possível salvar o look. Tente novamente.');
+      setDialog({ visible: true, type: 'danger', title: 'Erro', message: 'Não foi possível salvar o look. Tente novamente.', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
     },
   });
 
   const handleSave = () => {
     if (!lookName.trim()) {
-      Alert.alert('Nome obrigatório', 'Informe um nome para o look.');
+      setDialog({ visible: true, type: 'warning', title: 'Nome obrigatório', message: 'Informe um nome para o look.', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
       return;
     }
     if (selectedItems.length === 0) {
-      Alert.alert('Adicione produtos', 'Selecione ao menos um produto.');
+      setDialog({ visible: true, type: 'warning', title: 'Adicione produtos', message: 'Selecione ao menos um produto.', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
       return;
     }
     saveMutation.mutate();
@@ -139,7 +150,7 @@ export default function LookBuilderScreen() {
             mode="contained"
             onPress={() => {
               if (!lookName.trim()) {
-                Alert.alert('Nome obrigatório', 'Informe um nome para o look.');
+                setDialog({ visible: true, type: 'warning', title: 'Nome obrigatório', message: 'Informe um nome para o look.', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
                 return;
               }
               setStep('products');
@@ -150,6 +161,16 @@ export default function LookBuilderScreen() {
             Selecionar Produtos
           </Button>
         </View>
+
+        <ConfirmDialog
+          visible={dialog.visible}
+          type={dialog.type}
+          title={dialog.title}
+          message={dialog.message}
+          confirmText={dialog.confirmText}
+          onConfirm={dialog.onConfirm ?? (() => setDialog(DIALOG_HIDDEN))}
+          onCancel={() => setDialog(DIALOG_HIDDEN)}
+        />
       </View>
     );
   }
@@ -221,6 +242,17 @@ export default function LookBuilderScreen() {
           }
         />
       )}
+      </View>
+
+      <ConfirmDialog
+        visible={dialog.visible}
+        type={dialog.type}
+        title={dialog.title}
+        message={dialog.message}
+        confirmText={dialog.confirmText}
+        onConfirm={dialog.onConfirm ?? (() => setDialog(DIALOG_HIDDEN))}
+        onCancel={() => setDialog(DIALOG_HIDDEN)}
+      />
     </View>
   );
 }

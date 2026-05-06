@@ -1,7 +1,8 @@
 /**
  * Pagamentos Pendentes — PDV
- * Lista vendas com status PENDING (PIX ou maquininha aguardando confirmação).
- * Permite confirmar manualmente (terminal) ou re-abrir QR Code (PIX).
+ * Terminal: confirmar + cancelar.
+ * PIX provider real: ver QR inline + confirmar.
+ * (PIX genérico não gera PENDING desde a refatoração — confirma na hora.)
  */
 
 import { useState, useCallback } from 'react';
@@ -13,6 +14,10 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
+  Modal,
+  Image,
+  ActivityIndicator,
+  Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -40,6 +45,14 @@ import type { PendingSale } from '@/types/pdv';
 
 const C = Colors.light;
 
+interface QRModalState {
+  visible: boolean;
+  sale: PendingSale | null;
+  qr_code: string;
+  qr_code_base64: string;
+  loading: boolean;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function timeLabel(minutes: number): string {
@@ -59,24 +72,21 @@ function isPix(sale: PendingSale): boolean {
 function PendingCard({
   sale,
   onConfirm,
-  onConfirmPix,
-  onCancel,
   onOpenQR,
+  onCancel,
   confirming,
   cancelling,
   brandingColors,
 }: {
   sale: PendingSale;
   onConfirm: (s: PendingSale) => void;
-  onConfirmPix: (s: PendingSale) => void;
-  onCancel: (s: PendingSale) => void;
   onOpenQR: (s: PendingSale) => void;
+  onCancel: (s: PendingSale) => void;
   confirming: boolean;
   cancelling: boolean;
   brandingColors: { primary: string; secondary: string; accent: string; gradient: [string, string] };
 }) {
   const pix = isPix(sale);
-  const isGenericPix = pix && sale.is_generic;
   const methodColor = pix ? C.success : C.info;
 
   return (
@@ -104,11 +114,12 @@ function PendingCard({
       </View>
 
       <View style={styles.actions}>
-        {isGenericPix ? (
+        {pix ? (
+          // PIX de provider real (Cielo/MP) — confirma após webhook ou ver QR
           <>
             <TouchableOpacity
               style={[styles.btn, styles.btnPrimary, { backgroundColor: brandingColors.primary }, confirming && styles.btnDisabled]}
-              onPress={() => { haptics.medium(); onConfirmPix(sale); }}
+              onPress={() => { haptics.medium(); onConfirm(sale); }}
               disabled={confirming || cancelling}
               activeOpacity={0.8}
             >
@@ -118,7 +129,7 @@ function PendingCard({
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[styles.btn, styles.btnOutlined]}
+              style={[styles.btn, styles.btnOutlined, cancelling && styles.btnDisabled]}
               onPress={() => { haptics.light(); onOpenQR(sale); }}
               disabled={confirming || cancelling}
               activeOpacity={0.8}
@@ -127,17 +138,8 @@ function PendingCard({
               <Text style={[styles.btnOutlinedText, { color: brandingColors.primary }]}>QR</Text>
             </TouchableOpacity>
           </>
-        ) : pix ? (
-          <TouchableOpacity
-            style={[styles.btn, styles.btnPrimary, { backgroundColor: brandingColors.primary }]}
-            onPress={() => { haptics.medium(); onOpenQR(sale); }}
-            disabled={confirming || cancelling}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="qr-code-outline" size={15} color="#fff" />
-            <Text style={styles.btnPrimaryText}>Ver QR Code</Text>
-          </TouchableOpacity>
         ) : (
+          // Terminal — só confirmar
           <TouchableOpacity
             style={[styles.btn, styles.btnPrimary, { backgroundColor: brandingColors.primary }, confirming && styles.btnDisabled]}
             onPress={() => { haptics.medium(); onConfirm(sale); }}
@@ -146,7 +148,7 @@ function PendingCard({
           >
             <Ionicons name="checkmark-circle-outline" size={15} color="#fff" />
             <Text style={styles.btnPrimaryText}>
-              {confirming ? 'Confirmando…' : 'Confirmar'}
+              {confirming ? 'Confirmando…' : 'Confirmar Pagamento'}
             </Text>
           </TouchableOpacity>
         )}
@@ -179,6 +181,99 @@ function EmptyPending() {
   );
 }
 
+// ── QR Modal ─────────────────────────────────────────────────────────────────
+
+function QRModal({
+  state,
+  onConfirm,
+  onClose,
+  confirming,
+  brandingColors,
+}: {
+  state: QRModalState;
+  onConfirm: () => void;
+  onClose: () => void;
+  confirming: boolean;
+  brandingColors: { primary: string; gradient: [string, string] };
+}) {
+  const handleCopy = async () => {
+    if (!state.qr_code) return;
+    try { await Share.share({ message: state.qr_code }); } catch { /* cancelado */ }
+    haptics.light();
+  };
+
+  return (
+    <Modal
+      visible={state.visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHandle} />
+
+          <Text style={styles.modalTitle}>QR Code PIX</Text>
+          {state.sale && (
+            <Text style={styles.modalAmount}>{formatCurrency(state.sale.total_amount)}</Text>
+          )}
+          {state.sale?.sale_number && (
+            <Text style={styles.modalSaleNum}>Venda #{state.sale.sale_number}</Text>
+          )}
+
+          {state.loading ? (
+            <View style={styles.modalQRPlaceholder}>
+              <ActivityIndicator size="large" color={C.primary} />
+              <Text style={styles.modalLoadingText}>Carregando QR Code...</Text>
+            </View>
+          ) : state.qr_code_base64 ? (
+            <Image
+              source={{ uri: `data:image/png;base64,${state.qr_code_base64}` }}
+              style={styles.modalQRImage}
+              resizeMode="contain"
+            />
+          ) : (
+            <View style={styles.modalQRPlaceholder}>
+              <Ionicons name="qr-code-outline" size={64} color={C.textSecondary} />
+              <Text style={styles.modalLoadingText}>QR Code indisponível</Text>
+            </View>
+          )}
+
+          {!!state.qr_code && !state.loading && (
+            <TouchableOpacity style={styles.copyRow} onPress={handleCopy} activeOpacity={0.7}>
+              <Ionicons name="copy-outline" size={14} color={C.textSecondary} />
+              <Text style={styles.copyText} numberOfLines={1} ellipsizeMode="middle">
+                {state.qr_code.substring(0, 40)}…
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          <View style={styles.modalActions}>
+            <TouchableOpacity
+              style={[styles.modalBtn, styles.modalBtnPrimary, { backgroundColor: brandingColors.primary }, confirming && styles.btnDisabled]}
+              onPress={onConfirm}
+              disabled={confirming || state.loading}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
+              <Text style={styles.modalBtnPrimaryText}>
+                {confirming ? 'Confirmando…' : 'Confirmar Recebimento'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modalBtn, styles.modalBtnOutlined]}
+              onPress={onClose}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.modalBtnOutlinedText}>Fechar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ── Screen ────────────────────────────────────────────────────────────────────
 
 export default function PendingSalesScreen() {
@@ -193,7 +288,13 @@ export default function PendingSalesScreen() {
 
   const [cancelTarget, setCancelTarget] = useState<PendingSale | null>(null);
   const [confirmingId, setConfirmingId] = useState<number | null>(null);
-  const [openingQRId, setOpeningQRId] = useState<number | null>(null);
+  const [qrModal, setQrModal] = useState<QRModalState>({
+    visible: false,
+    sale: null,
+    qr_code: '',
+    qr_code_base64: '',
+    loading: false,
+  });
 
   const { data: sales = [], isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['pdv-pending-sales'],
@@ -210,7 +311,6 @@ export default function PendingSalesScreen() {
 
     headerOpacity.value = withTiming(1, { duration: 360, easing: Easing.out(Easing.quad) });
     headerScale.value = withSpring(1, { damping: 16, stiffness: 200 });
-
     contentOpacity.value = withTiming(1, { duration: 320, easing: Easing.out(Easing.quad) });
     contentTranslateY.value = withSpring(0, { damping: 18, stiffness: 200 });
   }, [refetch, contentOpacity, contentTranslateY, headerOpacity, headerScale]));
@@ -243,6 +343,7 @@ export default function PendingSalesScreen() {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       queryClient.invalidateQueries({ queryKey: ['low-stock'] });
       setConfirmingId(null);
+      setQrModal(m => ({ ...m, visible: false }));
     },
     onError: () => {
       haptics.error();
@@ -255,38 +356,31 @@ export default function PendingSalesScreen() {
     confirmMutation.mutate(sale.id);
   }, [confirmMutation]);
 
-  const handleConfirmPix = useCallback((sale: PendingSale) => {
-    setConfirmingId(sale.id);
-    confirmMutation.mutate(sale.id);
-  }, [confirmMutation]);
-
   const handleCancel = useCallback((sale: PendingSale) => {
     setCancelTarget(sale);
   }, []);
 
   const handleOpenQR = useCallback(async (sale: PendingSale) => {
-    setOpeningQRId(sale.id);
+    setQrModal({ visible: true, sale, qr_code: '', qr_code_base64: '', loading: true });
     try {
       const pix = await generatePixPayment(sale.id);
-      router.push({
-        pathname: '/(tabs)/pdv/pix-checkout',
-        params: {
-          sale_id: String(sale.id),
-          amount: String(sale.total_amount),
-          sale_number: sale.sale_number,
-          payment_id: pix.payment_id,
-          qr_code: pix.qr_code,
-          qr_code_base64: pix.qr_code_base64,
-          expires_at: pix.expires_at ?? '',
-          is_generic: String(pix.is_generic ?? sale.is_generic ?? false),
-        },
-      });
+      setQrModal(m => ({
+        ...m,
+        qr_code: pix.qr_code,
+        qr_code_base64: pix.qr_code_base64,
+        loading: false,
+      }));
     } catch {
       haptics.error();
-    } finally {
-      setOpeningQRId(null);
+      setQrModal(m => ({ ...m, loading: false }));
     }
-  }, [router]);
+  }, []);
+
+  const handleQRConfirm = useCallback(() => {
+    if (!qrModal.sale) return;
+    setConfirmingId(qrModal.sale.id);
+    confirmMutation.mutate(qrModal.sale.id);
+  }, [qrModal.sale, confirmMutation]);
 
   return (
     <View style={styles.container}>
@@ -318,9 +412,8 @@ export default function PendingSalesScreen() {
             <PendingCard
               sale={item}
               onConfirm={handleConfirm}
-              onConfirmPix={handleConfirmPix}
-              onCancel={handleCancel}
               onOpenQR={handleOpenQR}
+              onCancel={handleCancel}
               confirming={confirmingId === item.id}
               cancelling={cancelMutation.isPending && cancelTarget?.id === item.id}
               brandingColors={brandingColors}
@@ -328,6 +421,14 @@ export default function PendingSalesScreen() {
           )}
         />
       </Animated.View>
+
+      <QRModal
+        state={qrModal}
+        onConfirm={handleQRConfirm}
+        onClose={() => setQrModal(m => ({ ...m, visible: false }))}
+        confirming={!!(qrModal.sale && confirmingId === qrModal.sale.id)}
+        brandingColors={brandingColors}
+      />
 
       <ConfirmDialog
         visible={!!cancelTarget}
@@ -365,7 +466,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 
-  // Card
+  // ── Card ──
   card: {
     backgroundColor: C.card,
     borderRadius: theme.borderRadius.xl,
@@ -396,7 +497,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: C.textSecondary,
   },
-
   cardBody: {
     gap: 2,
   },
@@ -415,7 +515,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 
-  // Botões
+  // ── Botões ──
   actions: {
     flexDirection: 'row',
     gap: 8,
@@ -463,7 +563,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Empty
+  // ── Empty ──
   empty: {
     flex: 1,
     alignItems: 'center',
@@ -479,6 +579,110 @@ const styles = StyleSheet.create({
   },
   emptySub: {
     fontSize: 13,
+    color: C.textSecondary,
+  },
+
+  // ── QR Modal ──
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  modalSheet: {
+    backgroundColor: C.background,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.sm,
+    paddingBottom: 40,
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  modalHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: C.border,
+    marginBottom: theme.spacing.xs,
+  },
+  modalTitle: {
+    fontSize: theme.fontSize.lg,
+    fontWeight: '700',
+    color: C.text,
+  },
+  modalAmount: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: C.text,
+    letterSpacing: -0.5,
+  },
+  modalSaleNum: {
+    fontSize: 13,
+    color: C.textSecondary,
+  },
+  modalQRImage: {
+    width: 220,
+    height: 220,
+    marginVertical: theme.spacing.sm,
+  },
+  modalQRPlaceholder: {
+    width: 220,
+    height: 220,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: C.backgroundSecondary,
+    borderRadius: 12,
+    gap: 12,
+    marginVertical: theme.spacing.sm,
+  },
+  modalLoadingText: {
+    fontSize: 13,
+    color: C.textSecondary,
+  },
+  copyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: C.backgroundSecondary,
+    borderRadius: theme.borderRadius.lg,
+    width: '100%',
+  },
+  copyText: {
+    flex: 1,
+    fontSize: 11,
+    color: C.textSecondary,
+  },
+  modalActions: {
+    width: '100%',
+    gap: 8,
+    marginTop: theme.spacing.xs,
+  },
+  modalBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 52,
+    borderRadius: theme.borderRadius.xl,
+  },
+  modalBtnPrimary: {
+    backgroundColor: C.primary,
+  },
+  modalBtnPrimaryText: {
+    color: '#fff',
+    fontSize: theme.fontSize.base,
+    fontWeight: '700',
+  },
+  modalBtnOutlined: {
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.card,
+  },
+  modalBtnOutlinedText: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '600',
     color: C.textSecondary,
   },
 });

@@ -75,6 +75,23 @@ if (-not (Test-Path "node_modules")) {
     Write-Success "node_modules OK"
 }
 
+# Passo 2.5: Detectar IP e atualizar Config.ts
+Write-Step "Detectando IP local e atualizando Config.ts..." "Cyan"
+$currentIP = (Get-NetIPAddress -AddressFamily IPv4 | Where-Object {
+    $_.InterfaceAlias -notmatch 'Loopback|Hyper|vEthernet|WSL' -and
+    $_.IPAddress -notmatch '^169'
+} | Select-Object -First 1).IPAddress
+
+if ($currentIP) {
+    $configPath = "$PSScriptRoot\constants\Config.ts"
+    $content = Get-Content $configPath -Raw -Encoding utf8
+    $updated = $content -replace "let LOCAL_IP_FALLBACK = '[^']*'", "let LOCAL_IP_FALLBACK = '$currentIP'"
+    [System.IO.File]::WriteAllText($configPath, $updated, [System.Text.Encoding]::UTF8)
+    Write-Success "IP detectado e salvo: $currentIP"
+} else {
+    Write-Warning "Nao foi possivel detectar IP - mantendo fallback atual."
+}
+
 # Passo 3: Limpar cache (opcional)
 if (-not $NoClear) {
     Write-Step "Limpando cache Metro/Expo..." "Cyan"

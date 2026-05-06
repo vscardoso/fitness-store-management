@@ -4,7 +4,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
   Animated,
   Text,
   ActivityIndicator,
@@ -313,7 +312,7 @@ export default function CreateConditionalShipmentScreen() {
         setCity(cepData.localidade || '');
         setState(cepData.uf || '');
       } else {
-        Alert.alert('Aviso', 'CEP não encontrado');
+        setDialogConfig({ visible: true, title: 'Aviso', message: 'CEP não encontrado', type: 'warning', onConfirm: () => setDialogConfig({ ...dialogConfig, visible: false }) });
       }
     }
   };
@@ -324,7 +323,7 @@ export default function CreateConditionalShipmentScreen() {
   const handleSearchCep = async () => {
     const cleanCep = zipCode.replace(/\D/g, '');
     if (cleanCep.length !== 8) {
-      Alert.alert('Aviso', 'Digite um CEP válido com 8 dígitos');
+      setDialogConfig({ visible: true, title: 'Aviso', message: 'Digite um CEP válido com 8 dígitos', type: 'warning', onConfirm: () => setDialogConfig({ ...dialogConfig, visible: false }) });
       return;
     }
 
@@ -338,7 +337,7 @@ export default function CreateConditionalShipmentScreen() {
       setCity(cepData.localidade || '');
       setState(cepData.uf || '');
     } else {
-      Alert.alert('Erro', 'CEP não encontrado. Verifique o número digitado.');
+      setDialogConfig({ visible: true, title: 'Erro', message: 'CEP não encontrado. Verifique o número digitado.', type: 'danger', onConfirm: () => setDialogConfig({ ...dialogConfig, visible: false }) });
     }
   };
 

@@ -400,7 +400,7 @@ export default function AddTripScreen() {
       >
           {/* Informações Básicas */}
           <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Informacoes Basicas</Text>
+            <Text style={styles.sectionTitle}>Informações Básicas</Text>
 
             <TextInput
               label="Código da Viagem *"
@@ -610,7 +610,7 @@ export default function AddTripScreen() {
 
           {/* Observações */}
           <View style={styles.sectionCard}>
-            <Text style={styles.sectionTitle}>Observacoes</Text>
+            <Text style={styles.sectionTitle}>Observações</Text>
 
             <TextInput
               label="Observações"

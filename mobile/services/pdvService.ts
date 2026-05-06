@@ -189,6 +189,20 @@ export async function pixStart(payload: PixStartRequest): Promise<PixStartRespon
   return data;
 }
 
+export interface PixGenerateQRResult {
+  qr_code: string;
+  qr_code_base64: string;
+  is_generic: boolean;
+  payment_id: string | null;
+  expires_at: string | null;
+  message: string;
+}
+
+export async function pixGenerateQR(amount: number): Promise<PixGenerateQRResult> {
+  const { data } = await api.post(`${BASE}/pix/generate-qr`, { amount });
+  return data;
+}
+
 export async function refundPixPayment(
   paymentId: string,
 ): Promise<{ payment_id: string; refund_id: string; sale_id: number; status: string; message: string }> {

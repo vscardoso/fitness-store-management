@@ -1,5 +1,5 @@
 /**
- * Tela de Historico Unificado
+ * Tela de Histórico Unificado
  * Timeline com vendas, entradas e condicionais
  */
 
@@ -235,8 +235,8 @@ export default function HistoryScreen() {
     <View style={styles.container}>
       <Animated.View style={headerAnimStyle}>
         <PageHeader
-          title="Historico"
-          subtitle={`${totalCount} atividades no periodo`}
+          title="Histórico"
+          subtitle={`${totalCount} atividades no período`}
           showBackButton
           onBack={goBack}
           rightActions={[{ icon: 'time-outline', onPress: () => undefined }]}
@@ -298,12 +298,12 @@ export default function HistoryScreen() {
         {isLoading ? (
           <View style={styles.stateCard}>
             <Ionicons name="hourglass-outline" size={38} color={brandingColors.primary} />
-            <Text style={styles.stateTitle}>Carregando historico...</Text>
+            <Text style={styles.stateTitle}>Carregando histórico...</Text>
           </View>
         ) : error ? (
           <View style={styles.stateCard}>
             <Ionicons name="alert-circle-outline" size={38} color={VALUE_COLORS.negative} />
-            <Text style={styles.stateTitle}>Erro ao carregar historico</Text>
+            <Text style={styles.stateTitle}>Erro ao carregar histórico</Text>
             <TouchableOpacity style={[styles.retryButton, { backgroundColor: brandingColors.primary }]} onPress={() => refetch()}>
               <Text style={styles.retryText}>Tentar novamente</Text>
             </TouchableOpacity>
@@ -336,7 +336,7 @@ export default function HistoryScreen() {
               <Ionicons name="time-outline" size={28} color={brandingColors.primary} />
             </View>
             <Text style={styles.emptyTitle}>Sem atividades</Text>
-            <Text style={styles.emptyText}>Nenhuma atividade encontrada no periodo selecionado.</Text>
+            <Text style={styles.emptyText}>Nenhuma atividade encontrada no período selecionado.</Text>
           </View>
         )}
       </Animated.View>
