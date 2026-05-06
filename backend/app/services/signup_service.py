@@ -95,12 +95,6 @@ class SignupService:
                 role=UserRole.ADMIN  # First user is always admin/owner
             )
             
-            # 7. Seed fitness products automatically (100+ products)
-            from app.services.product_seed_service import ProductSeedService
-            seed_service = ProductSeedService(self.db)
-            products_count = await seed_service.seed_fitness_products(store.id)
-            logger.info(f" {products_count} produtos fitness criados para store_id={store.id}")
-
             # Commit transaction
             await self.db.commit()
             

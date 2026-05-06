@@ -227,11 +227,7 @@ export default function ProductsScreen() {
       };
     }
 
-    return {
-      icon: 'storefront-outline' as const,
-      title: 'Sua loja ainda está vazia',
-      description: 'Adicione itens do catálogo para começar a montar sua lista de produtos.',
-    };
+    return null; // primeiro acesso — renderiza onboarding dedicado
   }, [searchQuery, showLowStock, showOnlyWithStock]);
 
   if (isLoading && !isRefetching) {
@@ -434,23 +430,70 @@ export default function ProductsScreen() {
             ) : null
           }
           ListEmptyComponent={
-            <View style={styles.emptyStateCard}>
-              <View style={[styles.emptyStateIconWrap, { backgroundColor: brandingColors.primary + '12' }]}>
-                <Ionicons name={emptyState.icon} size={28} color={brandingColors.primary} />
-              </View>
-              <Text style={styles.emptyStateTitle}>{emptyState.title}</Text>
-              <Text style={styles.emptyStateDescription}>{emptyState.description}</Text>
-
-              {hasActiveFilter && (
+            hasActiveFilter ? (
+              <View style={styles.emptyStateCard}>
+                <View style={[styles.emptyStateIconWrap, { backgroundColor: brandingColors.primary + '12' }]}>
+                  <Ionicons name={emptyState?.icon ?? 'search-outline'} size={28} color={brandingColors.primary} />
+                </View>
+                <Text style={styles.emptyStateTitle}>{emptyState?.title ?? 'Nenhum resultado'}</Text>
+                <Text style={styles.emptyStateDescription}>{emptyState?.description ?? ''}</Text>
                 <View style={styles.emptyFilterSummary}>
                   <Text style={styles.emptyFilterSummaryLabel}>Filtros ativos</Text>
                   <View style={styles.emptyFilterSummaryRow}>
                     {renderFilterPills()}
                   </View>
                 </View>
-              )}
+              </View>
+            ) : (
+              <View style={styles.onboardingCard}>
+                <LinearGradient
+                  colors={[brandingColors.gradient[0] + '18', brandingColors.gradient[1] + '08']}
+                  style={StyleSheet.absoluteFillObject}
+                />
+                <View style={[styles.onboardingIconWrap, { backgroundColor: brandingColors.primary + '18' }]}>
+                  <Ionicons name="storefront-outline" size={36} color={brandingColors.primary} />
+                </View>
+                <Text style={styles.onboardingTitle}>Bem-vindo à sua loja!</Text>
+                <Text style={styles.onboardingSubtitle}>
+                  Comece cadastrando seus produtos. Você pode escaneá-los ou inserir manualmente.
+                </Text>
 
-            </View>
+                <View style={styles.onboardingActions}>
+                  <TouchableOpacity
+                    activeOpacity={0.82}
+                    style={[styles.onboardingBtn, { backgroundColor: brandingColors.primary }]}
+                    onPress={() => router.push('/products/wizard?method=scanner')}
+                  >
+                    <Ionicons name="scan-outline" size={18} color="#fff" />
+                    <Text style={styles.onboardingBtnLabel}>Escanear código de barras</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    activeOpacity={0.82}
+                    style={[styles.onboardingBtnSecondary, { borderColor: brandingColors.primary + '40' }]}
+                    onPress={() => router.push('/products/wizard')}
+                  >
+                    <Ionicons name="create-outline" size={18} color={brandingColors.primary} />
+                    <Text style={[styles.onboardingBtnSecondaryLabel, { color: brandingColors.primary }]}>
+                      Cadastrar manualmente
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.onboardingTips}>
+                  {[
+                    { icon: 'flash-outline', text: 'Escaneie para preencher nome e código automaticamente' },
+                    { icon: 'pricetag-outline', text: 'Defina preço de custo e venda logo no cadastro' },
+                    { icon: 'cube-outline', text: 'Informe o estoque inicial para o sistema rastreá-lo' },
+                  ].map((tip, i) => (
+                    <View key={i} style={styles.onboardingTipRow}>
+                      <Ionicons name={tip.icon as any} size={14} color={brandingColors.primary} />
+                      <Text style={styles.onboardingTipText}>{tip.text}</Text>
+                    </View>
+                  ))}
+                </View>
+              </View>
+            )
           }
         />
         </Animated.View>
@@ -632,6 +675,92 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'center',
     gap: theme.spacing.xs,
+  },
+  onboardingCard: {
+    marginTop: theme.spacing.lg,
+    marginHorizontal: theme.spacing.sm,
+    borderRadius: theme.borderRadius.xxl,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    overflow: 'hidden',
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.xl,
+    alignItems: 'center',
+    backgroundColor: Colors.light.card,
+    ...theme.shadows.sm,
+  },
+  onboardingIconWrap: {
+    width: 72,
+    height: 72,
+    borderRadius: theme.borderRadius.full,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  onboardingTitle: {
+    fontSize: theme.fontSize.xl,
+    fontWeight: '800',
+    color: Colors.light.text,
+    textAlign: 'center',
+    letterSpacing: -0.4,
+    marginBottom: theme.spacing.xs,
+  },
+  onboardingSubtitle: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+    maxWidth: 280,
+    marginBottom: theme.spacing.lg,
+  },
+  onboardingActions: {
+    width: '100%',
+    gap: theme.spacing.sm,
+    marginBottom: theme.spacing.lg,
+  },
+  onboardingBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 50,
+    borderRadius: theme.borderRadius.xl,
+    gap: theme.spacing.sm,
+  },
+  onboardingBtnLabel: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  onboardingBtnSecondary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: 50,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1.5,
+    gap: theme.spacing.sm,
+  },
+  onboardingBtnSecondaryLabel: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '700',
+  },
+  onboardingTips: {
+    width: '100%',
+    gap: theme.spacing.xs,
+    paddingTop: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.light.border,
+  },
+  onboardingTipRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+  },
+  onboardingTipText: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+    flex: 1,
+    lineHeight: 18,
   },
   loadingMore: {
     flexDirection: 'row',
