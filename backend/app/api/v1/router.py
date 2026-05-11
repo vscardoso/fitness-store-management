@@ -25,6 +25,7 @@ from app.api.v1.endpoints import (
     audit,
     mp_connect,
     pdv,
+    label_printers,
     products,
     products_grouped,
     product_media,
@@ -212,3 +213,6 @@ api_router.include_router(pdv.router)
 
 # MP Connect OAuth — conecta conta MP do lojista (multi-tenant)
 api_router.include_router(mp_connect.router)
+
+# Etiquetas e Impressão (Elgin L42 Pro — ZPL via Ethernet/USB/Serial)
+api_router.include_router(label_printers.router)

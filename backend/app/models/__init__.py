@@ -28,6 +28,8 @@ from .audit_log import AuditLog
 from .product_media import ProductMedia
 from .pdv_terminal import PDVTerminal
 from .pix_transaction import PixTransaction
+from .label_printer import LabelPrinter, ConnectionType, PrinterProtocol
+from .print_job import PrintJob, PrintJobStatus
 
 __all__ = [
     # Base
@@ -119,4 +121,11 @@ __all__ = [
 
     # PIX Transactions (auditoria + idempotência)
     "PixTransaction",
+
+    # Etiquetas e Impressão (Elgin L42 Pro)
+    "LabelPrinter",
+    "ConnectionType",
+    "PrinterProtocol",
+    "PrintJob",
+    "PrintJobStatus",
 ]

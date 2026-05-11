@@ -31,6 +31,7 @@ import { useTutorialContext } from '@/components/tutorial';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useProductSuppliers } from '@/hooks/useSuppliers';
 import { VALUE_COLORS } from '@/constants/Colors';
+import ElginPrintSheet from '@/components/labels/ElginPrintSheet';
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -122,6 +123,7 @@ export default function ProductDetailsScreen() {
    */
   const [refreshing, setRefreshing] = useState(false);
   const [showPhotoModal, setShowPhotoModal] = useState(false);
+  const [printSheetOpen, setPrintSheetOpen] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -836,6 +838,21 @@ export default function ProductDetailsScreen() {
             <View style={styles.actionList}>
               <TouchableOpacity
                 style={styles.actionCard}
+                onPress={() => setPrintSheetOpen(true)}
+                activeOpacity={0.75}
+              >
+                <View style={[styles.actionCardIcon, { backgroundColor: brandingColors.primary + '16' }]}>
+                  <Ionicons name="print-outline" size={18} color={brandingColors.primary} />
+                </View>
+                <View style={styles.actionCardContent}>
+                  <Text style={styles.actionCardTitle}>Imprimir Etiqueta</Text>
+                  <Text style={styles.actionCardSub}>Envia para impressora de etiquetas</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.actionCard}
                 onPress={() => router.push(`/products/qrcode/${productId}` as any)}
                 activeOpacity={0.75}
               >
@@ -843,8 +860,8 @@ export default function ProductDetailsScreen() {
                   <Ionicons name="pricetag-outline" size={18} color={brandingColors.primary} />
                 </View>
                 <View style={styles.actionCardContent}>
-                  <Text style={styles.actionCardTitle}>Etiqueta</Text>
-                  <Text style={styles.actionCardSub}>Gerar e imprimir etiqueta</Text>
+                  <Text style={styles.actionCardTitle}>QR Code / PDF</Text>
+                  <Text style={styles.actionCardSub}>Gerar e compartilhar etiqueta</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
               </TouchableOpacity>
@@ -858,8 +875,8 @@ export default function ProductDetailsScreen() {
                   <Ionicons name="albums-outline" size={18} color={brandingColors.primary} />
                 </View>
                 <View style={styles.actionCardContent}>
-                  <Text style={styles.actionCardTitle}>Estúdio</Text>
-                  <Text style={styles.actionCardSub}>Criar etiquetas em lote</Text>
+                  <Text style={styles.actionCardTitle}>Estúdio em Lote</Text>
+                  <Text style={styles.actionCardSub}>Criar etiquetas para multiplos produtos</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
               </TouchableOpacity>
@@ -925,6 +942,15 @@ export default function ProductDetailsScreen() {
 
         <View style={{ height: theme.spacing.md }} />
       </ScrollView>
+
+      {/* Impressora de etiquetas */}
+      <ElginPrintSheet
+        visible={printSheetOpen}
+        onClose={() => setPrintSheetOpen(false)}
+        productId={productId}
+        productName={product.name}
+        variants={displayVariants}
+      />
 
       {/* Confirm Dialog */}
       <ConfirmDialog
