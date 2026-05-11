@@ -16,7 +16,7 @@ import Constants from 'expo-constants';
 let MODE = 'local' as 'local' | 'tunnel';
 
 // Fallback manual — atualizar se auto-detecção falhar
-let LOCAL_IP_FALLBACK = '192.168.0.5';
+let LOCAL_IP_FALLBACK = '10.212.128.157';
 
 // URL do tunnel — atualizada AUTOMATICAMENTE por .\start_tunnel.ps1 a cada execução
 let TUNNEL_URL = 'https://good-mammals-tap.loca.lt';

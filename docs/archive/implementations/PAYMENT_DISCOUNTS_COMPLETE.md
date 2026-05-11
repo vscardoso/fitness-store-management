@@ -22,7 +22,7 @@ Sistema completo de descontos automáticos baseado na forma de pagamento escolhi
 
 ---
 
-## � CONFIGURAÇÕES SUGERIDAS
+## ⚙️ CONFIGURAÇÕES SUGERIDAS
 
 ⚠️ **IMPORTANTE:** Os descontos devem ser configurados pelo ADMIN através da interface mobile.  
 Não há valores padrão inseridos automaticamente no banco de dados.

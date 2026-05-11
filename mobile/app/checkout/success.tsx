@@ -66,6 +66,14 @@ export default function CheckoutSuccessScreen() {
   }, [router]);
 
   /**
+   * Navega para a tela inicial
+   */
+  const handleGoHome = useCallback(() => {
+    haptics.light();
+    router.replace('/(tabs)');
+  }, [router]);
+
+  /**
    * Navega para detalhes da venda
    */
   const handleViewDetails = useCallback(() => {
@@ -361,6 +369,16 @@ export default function CheckoutSuccessScreen() {
               style={styles.actionButton}
             />
           </View>
+
+          <AppButton
+            variant="secondary"
+            size="lg"
+            fullWidth
+            icon="home-outline"
+            label="Ir para Início"
+            onPress={handleGoHome}
+            style={styles.homeButton}
+          />
         </Animated.View>
       </Animated.ScrollView>
     </View>
@@ -438,6 +456,9 @@ const styles = StyleSheet.create({
   },
   actionButton: {
     flex: 1,
+  },
+  homeButton: {
+    marginTop: 10,
   },
 
   // Estados de loading/erro

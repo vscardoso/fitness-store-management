@@ -215,7 +215,11 @@
       "PowerShell(cd C:\\\\Dev\\\\fitness-store-management\\\\mobile; npx tsc --noEmit 2>&1 | where { $_ -notmatch \"looks/builder\" } | Select-Object -First 10)",
       "PowerShell(cd C:\\\\Dev\\\\fitness-store-management\\\\mobile; $out = npx tsc --noEmit 2>&1; $errors = $out | where { $_ -match \"error TS\" -and $_ -notmatch \"looks/builder\" }; if \\($errors\\) { $errors | Select-Object -First 15 } else { \"Nenhum erro nos arquivos modificados\" })",
       "PowerShell($ip = \\(Get-NetIPAddress -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -notmatch 'Loopback|Hyper|vEthernet|WSL' -and $_.IPAddress -notmatch '^169' } | Select-Object -First 1\\).IPAddress; Write-Host \"IP detectado: $ip\")",
-      "PowerShell(powershell -NoProfile -Command \"& 'C:\\\\Dev\\\\fitness-store-management\\\\mobile\\\\expo-dev.ps1' -NoClear\" 2>&1 | Select-Object -First 5)"
+      "PowerShell(powershell -NoProfile -Command \"& 'C:\\\\Dev\\\\fitness-store-management\\\\mobile\\\\expo-dev.ps1' -NoClear\" 2>&1 | Select-Object -First 5)",
+      "PowerShell(cd C:\\\\Dev\\\\fitness-store-management\\\\mobile; npx tsc --noEmit 2>&1 | Select-String \"error TS\" | where { $_ -match \"builder\" } | Select-Object -First 5)",
+      "PowerShell(git *)",
+      "PowerShell(alembic current *)",
+      "PowerShell(cd \"C:\\\\Dev\\\\fitness-store-management\\\\mobile\"; npx tsc --noEmit --skipLibCheck 2>&1 | Where-Object { $_ -match \"products/\\\\[id\\\\]|ElginPrint|printService|printer|labels|printers\" } | Select-Object -First 20)"
     ],
     "deny": [],
     "ask": []

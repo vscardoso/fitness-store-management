@@ -1055,3 +1055,240 @@
    Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
  [16:15:55] [mobile] [API] POST /auth/refresh - 401
    Data: {"status": 401, "detail": "Sessão expirada por inatividade (60 min). Faça login novamente.", "code": "ERR_BAD_REQUEST"}
+ [12:56:34] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [12:56:34] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [12:56:34] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [12:56:34] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [12:56:34] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [12:56:34] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [12:56:34] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [12:56:34] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [12:56:34] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [12:56:34] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [12:56:34] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Refresh token inválido.", "code": "ERR_BAD_REQUEST"}
+ [12:59:21] [mobile] [API] GET /inventory/product/12 - 404
+   Data: {"status": 404, "detail": "Estoque não encontrado para produto 12", "code": "ERR_BAD_REQUEST"}
+ [12:59:22] [mobile] [API] GET /inventory/product/12 - 404
+   Data: {"status": 404, "detail": "Estoque não encontrado para produto 12", "code": "ERR_BAD_REQUEST"}
+ [13:00:08] [mobile] [API] GET /products/catalog - 422
+   Data: {"status": 422, "detail": "[{\"type\":\"int_parsing\",\"loc\":[\"path\",\"product_id\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"catalog\",\"url\":\"https://errors.pydantic.dev/2.13/v/int_parsing\"}]", "code": "ERR_BAD_REQUEST"}
+ [13:00:09] [mobile] [API] GET /products/catalog - 422
+   Data: {"status": 422, "detail": "[{\"type\":\"int_parsing\",\"loc\":[\"path\",\"product_id\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"catalog\",\"url\":\"https://errors.pydantic.dev/2.13/v/int_parsing\"}]", "code": "ERR_BAD_REQUEST"}
+ [13:00:21] [mobile] [API] GET /products/catalog - 422
+   Data: {"status": 422, "detail": "[{\"type\":\"int_parsing\",\"loc\":[\"path\",\"product_id\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"catalog\",\"url\":\"https://errors.pydantic.dev/2.13/v/int_parsing\"}]", "code": "ERR_BAD_REQUEST"}
+ [13:00:22] [mobile] [API] GET /products/catalog - 422
+   Data: {"status": 422, "detail": "[{\"type\":\"int_parsing\",\"loc\":[\"path\",\"product_id\"],\"msg\":\"Input should be a valid integer, unable to parse string as an integer\",\"input\":\"catalog\",\"url\":\"https://errors.pydantic.dev/2.13/v/int_parsing\"}]", "code": "ERR_BAD_REQUEST"}
+ [14:13:04] [mobile] [API] POST /ai/scan-product - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:31:16] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Legging Fitness PUMA com Recortes Laterais Rosas", "brand": "PUMA", "color": "Preta", "size": null, "category_id": 3, "duplicates_count": 0, "duplicates": []}
+ [14:31:52] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Legging Fitness PUMA com Recortes Laterais Rosas", "variantsCount": 6}
+ [14:32:08] [mobile] [Wizard] goToNewEntryWithVariants - modo atômico
+   Data: {"productName": "Legging Fitness PUMA com Recortes Laterais Rosas", "variantsCount": 6, "totalQty": 6}
+ [14:32:52] [mobile] [Entries/Add] Imagem do wizard persistida com sucesso
+   Data: {"entryId": 1, "productId": 40}
+ [14:34:03] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Conjunto Fitness Top e Legging com Recortes Laterais", "brand": "w.a.moda_fitness", "color": "Preto com detalhes em Roxo Vinho", "size": "M", "category_id": 3, "duplicates_count": 0, "duplicates": []}
+ [15:27:24] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:27:24] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:27:24] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:27:24] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:27:24] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:27:24] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:27:24] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:27:24] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:27:24] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [15:27:24] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:27:28] [mobile] [API] POST /products/40/media/upload - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:36:34] [mobile] [Wizard] goToNewEntry - usando endpoint atômico
+   Data: {"productName": "Teste Produto Manual", "sku": "NIKE-TESTEP-BRA-GG-001", "quantity": 5, "atomic": true}
+ [16:36:34] [mobile] [Entries/Add] Produto parseado
+ [16:36:34] [mobile] [Entries/Add] Modo atômico ativo - produto será criado junto com entrada
+   Data: {"productName": "Teste Produto Manual", "quantity": 5}
+ [16:53:42] [mobile] [Wizard] handleCreateProduct - produto com variantes: usando fluxo atômico
+   Data: {"productName": "Teste 2 Produto Manual ", "variantsCount": 2}
+ [16:53:47] [mobile] [Wizard] goToNewEntryWithVariants - modo atômico
+   Data: {"productName": "Teste 2 Produto Manual", "variantsCount": 2, "totalQty": 15}
+ [16:59:20] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Tênis Nike Dunk Low SB Skate Like a Girl", "brand": "Nike", "color": "Branco e Azul Marinho", "size": "36-45", "category_id": 6, "duplicates_count": 0, "duplicates": []}
+ [17:00:28] [mobile] [API] POST /products/ - 500
+   Data: {"status": 500, "detail": "Erro ao criar produto: type object 'ProductVariant' has no attribute 'barcode'", "code": "ERR_BAD_RESPONSE"}
+ [17:00:34] [mobile] [API] POST /products/ - 500
+   Data: {"status": 500, "detail": "Erro ao criar produto: type object 'ProductVariant' has no attribute 'barcode'", "code": "ERR_BAD_RESPONSE"}
+ [17:01:03] [mobile] [API] POST /products/ - 500
+   Data: {"status": 500, "detail": "Erro ao criar produto: type object 'ProductVariant' has no attribute 'barcode'", "code": "ERR_BAD_RESPONSE"}
+ [17:02:12] [mobile] [API] POST /products/ - 500
+   Data: {"status": 500, "detail": "Erro ao criar produto: type object 'ProductVariant' has no attribute 'barcode'", "code": "ERR_BAD_RESPONSE"}
+ [17:02:47] [mobile] [API] POST /products/ - 500
+   Data: {"status": 500, "detail": "Erro ao criar produto: type object 'ProductVariant' has no attribute 'barcode'", "code": "ERR_BAD_RESPONSE"}
+ [17:02:47] [mobile] [Wizard] skipEntry - erro ao criar produto virtual no catálogo
+   Data: {"name": "Error", "message": "Erro ao criar produto: type object 'ProductVariant' has no attribute 'barcode'", "stack": ["Error: Erro ao criar produto: type object 'ProductVariant' has no attribute 'barcode'", "    at ?anon_0_ (http://192.168.0.2:8081/node_modules/expo-router/entry.bundle//&platform=ios&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&unstable_transformProfile=hermes-stable:145210:37)", "    at next (native)"]}
+ [17:02:59] [mobile] [API] POST /products/ - 500
+   Data: {"status": 500, "detail": "Erro ao criar produto: type object 'ProductVariant' has no attribute 'barcode'", "code": "ERR_BAD_RESPONSE"}
+ [17:02:59] [mobile] [Wizard] skipEntry - erro ao criar produto virtual no catálogo
+   Data: {"name": "Error", "message": "Erro ao criar produto: type object 'ProductVariant' has no attribute 'barcode'", "stack": ["Error: Erro ao criar produto: type object 'ProductVariant' has no attribute 'barcode'", "    at ?anon_0_ (http://192.168.0.2:8081/node_modules/expo-router/entry.bundle//&platform=ios&dev=true&hot=false&lazy=true&transform.engine=hermes&transform.bytecode=1&transform.routerRoot=app&unstable_transformProfile=hermes-stable:145210:37)", "    at next (native)"]}
+ [17:30:15] [mobile] [API] POST /ai/scan-product - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:30:25] [mobile] [AI Scan] Resultado da análise
+   Data: {"name": "Cueca Boxer Fitness", "brand": "ZORN MEN", "color": "Preto", "size": null, "category_id": 2, "duplicates_count": 0, "duplicates": []}
+ [09:06:38] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:06:38] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:06:38] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:06:38] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:06:38] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:06:38] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:06:38] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:06:38] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:06:38] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:06:38] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:06:38] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Refresh token inválido.", "code": "ERR_BAD_REQUEST"}
+ [10:16:58] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:16:58] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:16:58] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:16:58] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:16:58] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:16:58] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:16:58] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:16:58] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:16:58] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:16:58] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [11:17:15] [mobile] [API] GET /pdv/pending-sales - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [11:32:40] [mobile] [API] GET /pdv/pending-sales - Network Error
+   Data: {"detail": "timeout of 30000ms exceeded", "code": "ECONNABORTED"}
+ [14:14:17] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:14:17] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:14:17] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:14:17] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:14:17] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:14:17] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:14:17] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:14:17] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:14:17] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:14:17] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [14:16:48] [mobile] [API] POST /pdv/cielo-pix/register-webhook - 502
+   Data: {"status": 502, "detail": "Falha na autenticação Cielo PIX: 401 — {\"error\":\"Client Id in the request, identified by HEADER client_id, is invalid. Check docs.sensedia.com\"}", "code": "ERR_BAD_RESPONSE"}
+ [14:20:57] [mobile] [API] POST /pdv/cielo-pix/register-webhook - 502
+   Data: {"status": 502, "detail": "Falha na autenticação Cielo PIX: 401 — {\"error\":\"Client Id in the request, identified by HEADER client_id, is invalid. Check docs.sensedia.com\"}", "code": "ERR_BAD_RESPONSE"}
+ [09:26:01] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:26:01] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:26:01] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:26:01] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:26:01] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:26:01] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:26:01] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:26:01] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:26:01] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:26:01] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [09:26:01] [mobile] [API] POST /auth/refresh - 401
+   Data: {"status": 401, "detail": "Sessão expirada por inatividade (60 min). Faça login novamente.", "code": "ERR_BAD_REQUEST"}
+ [10:36:23] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:36:23] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:36:23] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:36:23] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:36:23] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:36:23] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:36:23] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:36:23] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:36:23] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [10:36:23] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:01:53] [mobile] [API] GET /dashboard/inventory/valuation - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:01:53] [mobile] [API] GET /dashboard/purchases - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:01:53] [mobile] [API] GET /dashboard/stats - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:01:53] [mobile] [API] GET /dashboard/sales/monthly - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:01:53] [mobile] [API] GET /sales/ - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:01:53] [mobile] [API] GET /dashboard/sales/daily - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:01:53] [mobile] [API] GET /dashboard/top-products - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:01:53] [mobile] [API] GET /dashboard/sales/yoy - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:01:53] [mobile] [API] GET /dashboard/fifo-performance - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:01:53] [mobile] [API] GET /expenses/resultado-mes - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [16:59:32] [mobile] [API] POST /pdv/terminal/start - 500
+   Data: {"status": 500, "detail": "greenlet_spawn has not been called; can't call await_only() here. Was IO attempted in an unexpected place? (Background on this error at: https://sqlalche.me/e/20/xd2s)", "code": "ERR_BAD_RESPONSE"}
+ [17:02:37] [mobile] [API] GET /products/40 - 401
+   Data: {"status": 401, "detail": "Não foi possível validar as credenciais", "code": "ERR_BAD_REQUEST"}
+ [17:02:39] [mobile] [API] POST /pdv/terminal/start - 400
+   Data: {"status": 400, "detail": "Erro ao criar order Cielo: {\n  \"error\": \"Invalid Client\"\n}", "code": "ERR_BAD_REQUEST"}
