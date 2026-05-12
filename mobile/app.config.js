@@ -17,7 +17,8 @@ export default {
       supportsTablet: true,
       bundleIdentifier: "com.fitnessstore.mobile",
       infoPlist: {
-        NSCameraUsageDescription: "Este app precisa acessar sua câmera para escanear códigos de barras de produtos.",
+        NSCameraUsageDescription: "Precisamos acessar sua câmera para escanear produtos.",
+        NSPhotoLibraryUsageDescription: "Precisamos acessar suas fotos para cadastrar produtos.",
         NSUserNotificationsUsageDescription: "Este app precisa enviar notificações sobre envios condicionais e prazos.",
         ITSAppUsesNonExemptEncryption: false
       }
@@ -27,6 +28,8 @@ export default {
       package: "com.fitnessstore.mobile",
       permissions: [
         "android.permission.CAMERA",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.RECEIVE_BOOT_COMPLETED",
         "android.permission.VIBRATE"
       ],
@@ -54,9 +57,16 @@ export default {
       "expo-router",
       "expo-font",
       [
+        "expo-image-picker",
+        {
+          photosPermission: "Precisamos acessar suas fotos para cadastrar produtos.",
+          cameraPermission: "Precisamos acessar sua câmera para escanear produtos."
+        }
+      ],
+      [
         "expo-camera",
         {
-          cameraPermission: "Permitir $(PRODUCT_NAME) acessar sua câmera para escanear códigos de barras"
+          cameraPermission: "Precisamos acessar sua câmera para escanear produtos."
         }
       ],
       [

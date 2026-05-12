@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Stack
-FastAPI (Python 3.11) + React Native/Expo. Para mudanças multi-camada ver AGENT_ORCHESTRATION.md (comando `🔄 FULL-STACK`).
+FastAPI (Python 3.11) + React Native/Expo + Next.js (landing page). Para mudanças multi-camada ver AGENT_ORCHESTRATION.md (comando `🔄 FULL-STACK`).
 
 ## Backend: 3 camadas
 `API → Service → Repository`. Nunca acessar DB na API, nunca lógica de negócio no Repository.
@@ -29,6 +29,31 @@ FastAPI (Python 3.11) + React Native/Expo. Para mudanças multi-camada ver AGENT
 - UI: sem Dividers, usar margin/gap. `headerShown: false` em telas com header custom.
 - Componentes UI reutilizáveis em `mobile/components/ui/`: PageHeader, BottomSheet, ConfirmDialog, EmptyState, StatCard, Badge, DateTimeInput, etc.
 
+## Web (Landing Page)
+Landing page em `web/` focada em conversão para download do app mobile.
+
+- **Framework:** Next.js 14+ (App Router)
+- **Styling:** Tailwind CSS + shadcn/ui
+- **Animações:** Framer Motion
+- **Icons:** Lucide React
+- **Deploy:** Vercel (planejado)
+
+**Público-alvo:** Lojistas de fitness/suplementos que precisam de um sistema de gestão.
+
+**Seções planejadas:** Hero → Problema/Solução → Funcionalidades → Screenshots → Depoimentos → CTA Final
+
+**Padrões de UI:**
+- Mobile-first (375px baseline)
+- Sem emojis como ícones (usar Lucide React)
+- Contraste mínimo 4.5:1
+- Animações 150–300ms
+- Tokens semânticos (nunca hex hardcoded nos componentes)
+
+**Skill de design disponível:** `ui-ux-pro-max` em `.agents/skills/ui-ux-pro-max/`
+```bash
+python3 ../.agents/skills/ui-ux-pro-max/scripts/search.py "fitness store ecommerce landing" --design-system --persist -p "FitnessStore"
+```
+
 ## Comandos
 ```powershell
 # Backend
@@ -40,6 +65,9 @@ python migrate.py "descrição"   # migration: gera + aplica
 cd mobile && .\expo-dev.ps1
 .\expo-dev.ps1 -Tunnel          # device físico
 .\kill-all.ps1                  # se travar
+
+# Web
+cd web && npm run dev
 ```
 
 ## Mudanças backend: Model → Schema → `python migrate.py` → Service → Endpoint
