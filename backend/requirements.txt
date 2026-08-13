@@ -30,7 +30,7 @@ celery==5.3.1
 apscheduler==3.10.4
 
 # HTTP Client
-httpx==0.24.1
+httpx==0.28.1
 
 # AI
 google-genai>=2.1.0
