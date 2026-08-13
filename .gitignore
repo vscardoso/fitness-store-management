@@ -191,7 +191,7 @@ secrets/
 # ========================================
 # CLAUDE CODE / AGENT TOOLS
 # ========================================
-.claude/settings.local.json
+**/.claude/
 **/.agents/
 **/skills-lock.json
 
