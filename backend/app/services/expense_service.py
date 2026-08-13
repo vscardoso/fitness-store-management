@@ -304,7 +304,7 @@ class ExpenseService:
         # 5. Cálculos
         gross_profit = revenue - cmv
         gross_margin_pct = (gross_profit / revenue * 100).quantize(Decimal("0.01")) if revenue > 0 else Decimal(0)
-        net_profit = gross_profit - total_expenses
+        net_profit = gross_profit - total_expenses - trip_costs
         net_margin_pct = (net_profit / revenue * 100).quantize(Decimal("0.01")) if revenue > 0 else Decimal(0)
 
         import locale

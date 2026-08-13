@@ -81,18 +81,13 @@ function PLCard({ data }: { data: MonthlyResult }) {
       <View style={styles.plContent}>
         <PLRow label="Receita Bruta" value={data.revenue} color={Colors.light.success} icon="trending-up" />
         <PLRow label={`CMV (custo mercadoria)`} value={-data.cmv} color={Colors.light.warning} icon="cube-outline" isNegative />
-        {data.trip_costs > 0 && (
-          <View style={styles.tripCostNote}>
-            <Ionicons name="car-outline" size={13} color="#92400E" />
-            <Text style={styles.tripCostNoteText}>
-              Viagens do mês: {formatCurrency(data.trip_costs)} — já embutidos no CMV
-            </Text>
-          </View>
-        )}
         <View style={styles.divider} />
         <PLRow label="Lucro Bruto" value={data.gross_profit} color={Colors.light.primary} icon="analytics-outline" bold />
         <Text style={styles.marginLabel}>{Number(data.gross_margin_pct).toFixed(1)}% de margem bruta</Text>
         <PLRow label="Despesas Operacionais" value={-data.total_expenses} color={Colors.light.error} icon="receipt-outline" isNegative />
+        {data.trip_costs > 0 && (
+          <PLRow label="Custo de Viagens" value={-data.trip_costs} color={Colors.light.error} icon="car-outline" isNegative />
+        )}
         <View style={styles.divider} />
         <View style={[styles.netRow, { backgroundColor: netPositive ? Colors.light.successLight ?? '#E8F5E9' : '#FFEBEE' }]}>
           <Ionicons
@@ -189,21 +184,6 @@ const styles = StyleSheet.create({
   plRowLabel: { flex: 1, fontSize: 14, color: Colors.light.text },
   plRowValue: { fontSize: 14, fontWeight: '600' },
   plRowBold: { fontWeight: '700', fontSize: 15 },
-  tripCostNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: '#FEF3C7',
-    borderRadius: theme.borderRadius.md,
-    marginTop: -4,
-  },
-  tripCostNoteText: {
-    fontSize: 11,
-    color: '#92400E',
-    flex: 1,
-  },
   divider: { height: 1, backgroundColor: Colors.light.border, marginVertical: theme.spacing.xs },
   marginLabel: { fontSize: 11, color: Colors.light.textSecondary, marginTop: -8, marginLeft: 28 },
   netRow: {

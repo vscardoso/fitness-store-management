@@ -3,7 +3,7 @@
  * Permite adicionar pagamentos, ver resumo e confirmar venda
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Text, TextInput, ActivityIndicator } from 'react-native';
 import KeyboardSafeView from '@/components/ui/KeyboardSafeView';
 import { Ionicons } from '@expo/vector-icons';
@@ -198,8 +198,13 @@ export default function CheckoutScreen() {
 
   /**
    * Redirecionar se carrinho vazio
+   * Suprimido quando a venda acabou de ser concluída (cart.clear() é chamado
+   * antes de navegar para a tela de sucesso — sem essa flag, este efeito
+   * vence a corrida e joga o usuário de volta ao PDV antes da navegação).
    */
+  const skipEmptyCartRedirect = useRef(false);
   useEffect(() => {
+    if (skipEmptyCartRedirect.current) return;
     if (!cart.hasItems()) {
       router.replace('/(tabs)/sale');
     }
@@ -582,6 +587,7 @@ export default function CheckoutScreen() {
       });
       haptics.success();
       invalidateProductQueries();
+      skipEmptyCartRedirect.current = true;
       cart.clear();
       router.replace({
         pathname: '/(tabs)/pdv/terminal-checkout',
@@ -807,6 +813,7 @@ export default function CheckoutScreen() {
           invalidateProductQueries();
 
           // Limpar carrinho
+          skipEmptyCartRedirect.current = true;
           cart.clear();
 
           // Navegar para tela de sucesso com troco (se houver)
@@ -1006,14 +1013,29 @@ export default function CheckoutScreen() {
 
                         const paymentMethod = method.value as PaymentMethod;
 
-                        // Cartão de crédito: mostrar seletor de parcelas antes de confirmar
+                        // Cartão de crédito: sempre via maquininha Cielo — mostra seletor de parcelas antes de enviar
                         if (paymentMethod === PaymentMethod.CREDIT_CARD) {
                           if (cart.payments.length > 0) cart.clearPayments();
                           setSelectedMethod(paymentMethod);
                           setInstallments(1);
+                          setTerminalPaymentType('credit_card');
                           setPendingCreditCard(true);
                           setPendingTerminal(false);
+                          loadTerminals();
                           haptics.selection();
+                          return;
+                        }
+
+                        // Cartão de débito: sempre via maquininha Cielo — envia direto (sem parcelas)
+                        if (paymentMethod === PaymentMethod.DEBIT_CARD) {
+                          if (cart.payments.length > 0) cart.clearPayments();
+                          setPendingCreditCard(false);
+                          setPendingTerminal(false);
+                          setSelectedMethod(paymentMethod);
+                          setTerminalPaymentType('debit_card');
+                          setTerminalInstallments(1);
+                          loadTerminals();
+                          handleAddDirectPayment(paymentMethod);
                           return;
                         }
 
