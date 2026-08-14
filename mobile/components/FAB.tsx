@@ -5,7 +5,7 @@ import {
   TouchableOpacity,
   Modal,
   Animated,
-  Dimensions,
+  useWindowDimensions,
   Pressable,
 } from 'react-native';
 import { Text } from 'react-native-paper';
@@ -14,8 +14,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-
-const { width } = Dimensions.get('window');
 
 interface QuickAction {
   id: string;
@@ -43,6 +41,7 @@ interface FABProps {
 export default function FAB({ bottom = 20, directRoute, onPress }: FABProps) {
   const router = useRouter();
   const brandingColors = useBrandingColors();
+  const { width } = useWindowDimensions();
   const [visible, setVisible] = useState(false);
   const [scaleAnim] = useState(new Animated.Value(0));
   const [rotateAnim] = useState(new Animated.Value(0));
@@ -142,6 +141,13 @@ export default function FAB({ bottom = 20, directRoute, onPress }: FABProps) {
     outputRange: ['0deg', '45deg'],
   });
 
+  // modalContent tem width:'100%' + maxWidth:400 — a largura real é o menor
+  // dos dois, não a largura bruta da janela (senão em telas largas/web o
+  // card calcula uma largura maior que o espaço disponível e quebra a
+  // grade em 1 coluna).
+  const modalContentWidth = Math.min(width - theme.spacing.lg * 2, 400);
+  const actionCardWidth = (modalContentWidth - theme.spacing.xl * 2 - theme.spacing.md) / 2;
+
   // Prioridade: onPress customizado > rota direta > modal de ações
   const handleFABPress = () => {
     if (onPress) {
@@ -208,7 +214,7 @@ export default function FAB({ bottom = 20, directRoute, onPress }: FABProps) {
                 {quickActions.map((action) => (
                   <TouchableOpacity
                     key={action.id}
-                    style={styles.actionCard}
+                    style={[styles.actionCard, { width: actionCardWidth }]}
                     onPress={() => handleActionPress(action.route)}
                     activeOpacity={0.7}
                   >
@@ -315,7 +321,6 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.lg,
   },
   actionCard: {
-    width: (width - theme.spacing.lg * 2 - theme.spacing.xl * 2 - theme.spacing.md) / 2,
     aspectRatio: 1,
     borderRadius: theme.borderRadius.xl,
     overflow: 'hidden',
