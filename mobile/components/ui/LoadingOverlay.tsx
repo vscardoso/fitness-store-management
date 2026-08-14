@@ -1,17 +1,19 @@
 /**
- * LoadingOverlay — ring spinner moderno com branding dinâmico.
- * Ring rotativo + glow de gradiente + glass card.
- * Usa Reanimated para animações nativas suaves (60 fps na UI thread).
+ * LoadingOverlay — cometa orbital com cauda de partículas + branding dinâmico.
+ * 5 partículas orbitando em fase, com cauda de opacidade decrescente (efeito cometa),
+ * halo pulsante e glass card. Reanimated puro (SVG), 60fps na UI thread.
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, Portal } from 'react-native-paper';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
+import Svg, { Circle } from 'react-native-svg';
 import Animated, {
   useAnimatedStyle,
+  useAnimatedProps,
   useSharedValue,
   withRepeat,
   withTiming,
@@ -20,13 +22,61 @@ import Animated, {
   cancelAnimation,
   Easing,
   runOnJS,
+  type SharedValue,
 } from 'react-native-reanimated';
 import { loadingManager } from '@/services/loadingManager';
 import { useBrandingColors } from '@/store/brandingStore';
 
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
 interface LoadingOverlayProps {
   visible?: boolean;
   message?: string;
+}
+
+// Cauda do cometa: 6 partículas, defasadas em ângulo, tamanho e opacidade decrescentes
+const PARTICLES = [
+  { lag: 0,  size: 8, opacity: 1 },
+  { lag: 22, size: 7, opacity: 0.72 },
+  { lag: 44, size: 6, opacity: 0.5 },
+  { lag: 66, size: 5, opacity: 0.32 },
+  { lag: 88, size: 4, opacity: 0.18 },
+  { lag: 110, size: 3, opacity: 0.08 },
+];
+
+function CometParticle({
+  angle,
+  lag,
+  size,
+  opacity,
+  orbitRadius,
+  center,
+  color,
+}: {
+  angle: SharedValue<number>;
+  lag: number;
+  size: number;
+  opacity: number;
+  orbitRadius: number;
+  center: number;
+  color: string;
+}) {
+  const animatedProps = useAnimatedProps(() => {
+    const rad = ((angle.value - lag) * Math.PI) / 180;
+    return {
+      cx: center + orbitRadius * Math.cos(rad),
+      cy: center + orbitRadius * Math.sin(rad),
+    };
+  });
+
+  return (
+    <AnimatedCircle
+      animatedProps={animatedProps}
+      r={size / 2}
+      fill={color}
+      opacity={opacity}
+    />
+  );
 }
 
 export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
@@ -36,13 +86,13 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
   const [showTimeout, setShowTimeout] = useState(false);
   const [mounted, setMounted] = useState(false);
 
-  // Shared values Reanimated
-  const rotation    = useSharedValue(0);
   const cardScale   = useSharedValue(0.9);
   const cardOpacity = useSharedValue(0);
   const bgOpacity   = useSharedValue(0);
-  const pulseScale  = useSharedValue(1);
-  const pulseOpacity = useSharedValue(0.6);
+  const orbitAngle  = useSharedValue(0);
+  const haloScale   = useSharedValue(1);
+  const haloOpacity = useSharedValue(0.5);
+  const coreScale   = useSharedValue(1);
 
   useEffect(() => {
     const unsubscribe = loadingManager.subscribe((state) => {
@@ -56,39 +106,52 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
   const shouldShow = visible !== undefined ? visible : isVisible;
   const displayMessage = message !== undefined ? message : loadingMessage;
 
-  // Ring rotation infinita — linear, 800ms por volta
+  // Órbita contínua — 1 volta a cada 1400ms, easing linear
   useEffect(() => {
-    rotation.value = withRepeat(
-      withTiming(360, { duration: 800, easing: Easing.linear }),
+    orbitAngle.value = withRepeat(
+      withTiming(360, { duration: 1400, easing: Easing.linear }),
       -1,
       false
     );
-    return () => cancelAnimation(rotation);
-  }, [rotation]);
+    return () => cancelAnimation(orbitAngle);
+  }, [orbitAngle]);
 
-  // Pulso suave no dot central
+  // Halo pulsante de fundo
   useEffect(() => {
-    pulseScale.value = withRepeat(
+    haloScale.value = withRepeat(
       withSequence(
-        withTiming(1.4, { duration: 600, easing: Easing.out(Easing.quad) }),
-        withTiming(1,   { duration: 600, easing: Easing.in(Easing.quad) })
+        withTiming(1.15, { duration: 900, easing: Easing.inOut(Easing.quad) }),
+        withTiming(1,    { duration: 900, easing: Easing.inOut(Easing.quad) })
       ),
       -1,
       false
     );
-    pulseOpacity.value = withRepeat(
+    haloOpacity.value = withRepeat(
       withSequence(
-        withTiming(1,   { duration: 600 }),
-        withTiming(0.5, { duration: 600 })
+        withTiming(0.75, { duration: 900 }),
+        withTiming(0.35, { duration: 900 })
       ),
       -1,
       false
     );
     return () => {
-      cancelAnimation(pulseScale);
-      cancelAnimation(pulseOpacity);
+      cancelAnimation(haloScale);
+      cancelAnimation(haloOpacity);
     };
-  }, [pulseScale, pulseOpacity]);
+  }, [haloScale, haloOpacity]);
+
+  // Núcleo central — pequeno "respiro"
+  useEffect(() => {
+    coreScale.value = withRepeat(
+      withSequence(
+        withTiming(1.25, { duration: 700, easing: Easing.out(Easing.quad) }),
+        withTiming(1,    { duration: 700, easing: Easing.in(Easing.quad) })
+      ),
+      -1,
+      false
+    );
+    return () => cancelAnimation(coreScale);
+  }, [coreScale]);
 
   // Mount/unmount com animação de entrada e saída
   useEffect(() => {
@@ -101,12 +164,10 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
     if (!mounted) return;
 
     if (shouldShow) {
-      // Entrada
       bgOpacity.value   = withTiming(1, { duration: 220 });
       cardOpacity.value = withTiming(1, { duration: 260 });
       cardScale.value   = withSpring(1, { damping: 18, stiffness: 220 });
     } else {
-      // Saída: fade out, depois desmonta
       bgOpacity.value   = withTiming(0, { duration: 200 });
       cardOpacity.value = withTiming(0, { duration: 180 });
       cardScale.value   = withTiming(0.9, { duration: 180 }, () => {
@@ -114,10 +175,6 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
       });
     }
   }, [shouldShow, mounted, bgOpacity, cardOpacity, cardScale]);
-
-  const spinStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotation.value}deg` }],
-  }));
 
   const cardStyle = useAnimatedStyle(() => ({
     opacity:   cardOpacity.value,
@@ -128,15 +185,18 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
     opacity: bgOpacity.value,
   }));
 
-  const dotStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: pulseScale.value }],
-    opacity:   pulseOpacity.value,
+  const haloStyle = useAnimatedStyle(() => ({
+    opacity:   haloOpacity.value,
+    transform: [{ scale: haloScale.value }],
+  }));
+
+  const coreStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: coreScale.value }],
   }));
 
   if (!mounted) return null;
 
   const [c1, c2] = brandingColors.gradient;
-  const trackColor = `${brandingColors.primary}22`;
 
   return (
     <Portal>
@@ -146,7 +206,6 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
 
         <Animated.View style={[styles.card, cardStyle]}>
 
-          {/* Faixa gradiente no topo */}
           <LinearGradient
             colors={[c1, c2]}
             start={{ x: 0, y: 0 }}
@@ -156,34 +215,34 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
 
           <View style={styles.cardBody}>
 
-            {/* Ring container */}
-            <View style={styles.ringWrap}>
-
-              {/* Glow de fundo (halo) */}
-              <View style={[styles.ringGlow, { backgroundColor: `${brandingColors.primary}14` }]} />
-
-              {/* Track — anel de fundo */}
-              <View style={[styles.track, { borderColor: trackColor }]} />
-
-              {/* Arco giratório — borda superior + direita coloridas */}
+            <View style={styles.orbitWrap}>
               <Animated.View
-                style={[
-                  styles.arc,
-                  {
-                    borderTopColor:   brandingColors.primary,
-                    borderRightColor: `${brandingColors.primary}60`,
-                  },
-                  spinStyle,
-                ]}
+                style={[styles.halo, { backgroundColor: `${brandingColors.primary}22` }, haloStyle]}
               />
 
-              {/* Dot central pulsante */}
-              <Animated.View
-                style={[styles.centerDot, { backgroundColor: brandingColors.primary }, dotStyle]}
-              />
+              <Svg width={RING} height={RING} style={StyleSheet.absoluteFillObject}>
+                {PARTICLES.map((p, i) => (
+                  <CometParticle
+                    key={i}
+                    angle={orbitAngle}
+                    lag={p.lag}
+                    size={p.size}
+                    opacity={p.opacity}
+                    orbitRadius={ORBIT_R}
+                    center={RING_C}
+                    color={brandingColors.primary}
+                  />
+                ))}
+              </Svg>
+
+              <Animated.View style={[styles.core, coreStyle]}>
+                <LinearGradient
+                  colors={[c1, c2]}
+                  style={styles.coreGradient}
+                />
+              </Animated.View>
             </View>
 
-            {/* Mensagem */}
             {displayMessage ? (
               <Text style={styles.message} numberOfLines={2}>
                 {displayMessage}
@@ -193,7 +252,6 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
           </View>
         </Animated.View>
 
-        {/* Aviso de timeout */}
         {showTimeout && (
           <View style={styles.timeoutRow}>
             <Ionicons name="time-outline" size={13} color="rgba(255,255,255,0.38)" />
@@ -206,8 +264,8 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
 }
 
 const RING = 64;
-const RING_R = RING / 2;
-const BORDER = 3;
+const RING_C = RING / 2;
+const ORBIT_R = RING / 2 - 6;
 
 const styles = StyleSheet.create({
   overlay: {
@@ -248,40 +306,28 @@ const styles = StyleSheet.create({
     gap: 16,
   },
 
-  // Ring
-  ringWrap: {
+  // Órbita
+  orbitWrap: {
     width: RING,
     height: RING,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  ringGlow: {
+  halo: {
     position: 'absolute',
-    width: RING + 16,
-    height: RING + 16,
-    borderRadius: (RING + 16) / 2,
+    width: RING + 20,
+    height: RING + 20,
+    borderRadius: (RING + 20) / 2,
   },
-  track: {
-    position: 'absolute',
-    width: RING,
-    height: RING,
-    borderRadius: RING_R,
-    borderWidth: BORDER,
+  core: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    overflow: 'hidden',
   },
-  arc: {
-    position: 'absolute',
-    width: RING,
-    height: RING,
-    borderRadius: RING_R,
-    borderWidth: BORDER,
-    borderColor: 'transparent',
-    borderBottomColor: 'transparent',
-    borderLeftColor: 'transparent',
-  },
-  centerDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
+  coreGradient: {
+    width: '100%',
+    height: '100%',
   },
 
   // Texto
