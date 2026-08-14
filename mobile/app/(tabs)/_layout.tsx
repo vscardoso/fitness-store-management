@@ -173,6 +173,9 @@ export default function TabsLayout() {
       {/* Prejuízos: módulo financeiro separado, oculto do tab bar */}
       <Tabs.Screen name="stock-losses" options={{ href: null }} />
 
+      {/* Central de Ajuda: oculta do tab bar mas mantém rota acessível com tab bar visível */}
+      <Tabs.Screen name="help" options={{ href: null }} />
+
       {/* PDV: rotas de checkout e gestão, ocultas do tab bar */}
       <Tabs.Screen name="pdv/index" options={{ href: null }} />
       <Tabs.Screen name="pdv/pix-checkout" options={{ href: null }} />

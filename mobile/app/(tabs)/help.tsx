@@ -13,12 +13,12 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
+import PageHeader from '@/components/layout/PageHeader';
 import { useTutorialContext } from '@/contexts/TutorialContext';
-import { TUTORIAL_LIST, TUTORIALS, TUTORIAL_COLORS } from '@/constants/tutorials';
-import { Colors } from '@/constants/Colors';
+import { TUTORIAL_LIST, TUTORIAL_COLORS } from '@/constants/tutorials';
 import useBackToList from '@/hooks/useBackToList';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { getProducts } from '@/services/productService';
 
 export default function HelpScreen() {
   const router = useRouter();
@@ -32,6 +32,7 @@ export default function HelpScreen() {
 
   const [resetConfirmDialog, setResetConfirmDialog] = useState(false);
   const [resetSuccessDialog, setResetSuccessDialog] = useState(false);
+  const [noProductDialog, setNoProductDialog] = useState(false);
 
   // Calcular progresso geral
   const totalTutorials = TUTORIAL_LIST.length;
@@ -39,9 +40,28 @@ export default function HelpScreen() {
   const progressPercent = totalTutorials > 0 ? (completedCount / totalTutorials) * 100 : 0;
 
   // Handler para iniciar tutorial
-  const handleStartTutorial = (tutorialId: string, screen: string) => {
+  const handleStartTutorial = async (tutorialId: string, screen: string) => {
+    let targetScreen = screen;
+
+    // Tutoriais de telas com parâmetro dinâmico (ex: /products/edit/[id]) não
+    // podem navegar pro literal "[id]" — precisam de um produto real primeiro,
+    // senão a tela abre com "ID inválido".
+    if (screen.includes('[id]')) {
+      try {
+        const products = await getProducts({ limit: 1 });
+        if (!products.length) {
+          setNoProductDialog(true);
+          return;
+        }
+        targetScreen = screen.replace('[id]', String(products[0].id));
+      } catch {
+        setNoProductDialog(true);
+        return;
+      }
+    }
+
     // Navegar para a tela e iniciar tutorial
-    router.push(screen as any);
+    router.push(targetScreen as any);
     setTimeout(() => {
       startTutorial(tutorialId);
     }, 500);
@@ -54,29 +74,12 @@ export default function HelpScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Header */}
-      <LinearGradient
-        colors={[Colors.light.primary, Colors.light.secondary]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.header}
-      >
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={goBack}
-        >
-          <Ionicons name="arrow-back" size={24} color="#fff" />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <View style={styles.headerIcon}>
-            <Ionicons name="help-circle" size={40} color="#fff" />
-          </View>
-          <Text style={styles.headerTitle}>Central de Ajuda</Text>
-          <Text style={styles.headerSubtitle}>
-            Aprenda a usar todas as funcionalidades
-          </Text>
-        </View>
-      </LinearGradient>
+      <PageHeader
+        title="Central de Ajuda"
+        subtitle="Aprenda a usar todas as funcionalidades"
+        showBackButton
+        onBack={goBack}
+      />
 
       <ScrollView
         style={styles.scrollView}
@@ -213,6 +216,17 @@ export default function HelpScreen() {
         onCancel={() => setResetSuccessDialog(false)}
         icon="checkmark-circle-outline"
       />
+
+      <ConfirmDialog
+        visible={noProductDialog}
+        type="info"
+        title="Cadastre um produto primeiro"
+        message="Este tutorial usa um produto real como exemplo. Cadastre pelo menos um produto para poder vê-lo."
+        confirmText="OK"
+        onConfirm={() => setNoProductDialog(false)}
+        onCancel={() => setNoProductDialog(false)}
+        icon="cube-outline"
+      />
     </View>
   );
 }
@@ -221,44 +235,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F3F4F6',
-  },
-  header: {
-    paddingTop: 50,
-    paddingBottom: 30,
-    paddingHorizontal: 20,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  headerContent: {
-    alignItems: 'center',
-  },
-  headerIcon: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: 'rgba(255, 255, 255, 0.8)',
   },
   scrollView: {
     flex: 1,

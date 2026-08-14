@@ -169,6 +169,68 @@ export const TUTORIALS: Record<string, Tutorial> = {
     ],
   },
 
+  'product-new': {
+    id: 'product-new',
+    name: 'Novo Produto',
+    description: 'Aprenda a cadastrar um produto do zero',
+    icon: 'add-circle',
+    screen: '/products/wizard',
+    steps: [
+      {
+        id: 'product-new-welcome',
+        title: 'Cadastro guiado',
+        description: 'O assistente leva voce por 3 passos: identificar o produto, confirmar os dados e dar entrada no estoque.',
+        position: 'bottom',
+      },
+      {
+        id: 'product-new-identify',
+        title: 'Identifique o produto',
+        description: 'Escaneie o codigo de barras, use a IA da camera ou digite os dados manualmente para comecar.',
+        position: 'bottom',
+      },
+      {
+        id: 'product-new-confirm',
+        title: 'Confirme os dados',
+        description: 'Revise nome, categoria, preco e variacoes (cor/tamanho) antes de salvar o produto.',
+        position: 'bottom',
+      },
+      {
+        id: 'product-new-entry',
+        title: 'Entrada de estoque',
+        description: 'Todo produto novo precisa de uma entrada vinculada — informe quantidade e custo para liberar o estoque.',
+        position: 'top',
+      },
+    ],
+  },
+
+  'product-edit': {
+    id: 'product-edit',
+    name: 'Editar Produto',
+    description: 'Aprenda a atualizar dados de um produto existente',
+    icon: 'create',
+    screen: '/products/edit/[id]',
+    steps: [
+      {
+        id: 'product-edit-welcome',
+        title: 'Editar produto',
+        description: 'Acesse esta tela a partir do detalhe do produto, tocando no icone de editar no cabecalho.',
+        position: 'bottom',
+      },
+      {
+        id: 'product-edit-fields',
+        title: 'Dados basicos',
+        description: 'Altere nome, categoria, marca e outras informacoes gerais do produto.',
+        position: 'bottom',
+      },
+      {
+        id: 'product-edit-cost',
+        title: 'Atualizar custo',
+        description: 'Ao mudar o custo, o sistema pergunta se deve aplicar o novo valor tambem ao estoque ja existente.',
+        position: 'top',
+      },
+    ],
+  },
+
   'product-details': {
     id: 'product-details',
     name: 'Detalhes do Produto',
