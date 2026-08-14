@@ -421,9 +421,29 @@ class SaleService:
                 except Exception as sync_err:
                     print(f"  [Inventory Sync] Falha ao sincronizar produto {pid}: {sync_err}")
 
+            # Recarregar venda com todos os relacionamentos necessários para o
+            # response schema — refresh() simples não popula relationships
+            # lazy em modo async, causando MissingGreenlet na serialização
+            # (mesmo padrão usado em create_sale).
+            from sqlalchemy import select
+            from sqlalchemy.orm import selectinload
+            from app.models.product import Product
+
+            result = await self.db.execute(
+                select(Sale)
+                .options(
+                    selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
+                    selectinload(Sale.payments),
+                    selectinload(Sale.customer),
+                    selectinload(Sale.seller)
+                )
+                .where(Sale.id == sale.id)
+            )
+            sale = result.scalar_one()
+
             print(f" Venda {sale.sale_number} cancelada com sucesso!")
             return sale
-            
+
         except Exception as e:
             print(f" Erro ao cancelar venda: {str(e)}")
             await self.db.rollback()
