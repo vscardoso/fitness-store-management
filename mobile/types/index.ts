@@ -162,6 +162,7 @@ export interface Product {
   category?: Category;
   batch?: Batch;
   has_sales?: boolean; // Possui vendas não canceladas (bloqueia exclusão e desativação)
+  variants?: ProductVariant[]; // Variantes ativas (cor/tamanho) — necessário para vincular EntryItem.variant_id
 }
 
 export interface ProductCreate {

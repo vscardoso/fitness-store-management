@@ -185,6 +185,12 @@ export default function AddStockScreen() {
       donation:   'Doação',
     };
 
+    // Vincula à variante quando o produto só tem 1 ativa (caso comum vindo do scanner).
+    // Sem isso o EntryItem fica sem variant_id e o estoque some do card do produto,
+    // que é calculado por variante — só apareceria no histórico bruto de entradas.
+    const activeVariants = (product?.variants || []).filter(v => v.is_active !== false);
+    const variantId = activeVariants.length === 1 ? activeVariants[0].id : undefined;
+
     const payload: StockEntryCreate = {
       entry_code:    autoCode,
       entry_date:    entryDateISO,
@@ -193,6 +199,7 @@ export default function AddStockScreen() {
       notes:         notes.trim() || undefined,
       items: [{
         product_id:        productId,
+        variant_id:        variantId,
         quantity_received: quantity,
         unit_cost:         unitCost,
       }],

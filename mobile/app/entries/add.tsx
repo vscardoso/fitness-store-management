@@ -49,7 +49,7 @@ import { formatCurrency } from '@/utils/format';
 import { cnpjMask, phoneMask } from '@/utils/masks';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import { EntryType, StockEntryCreate, EntryItem, Product, Supplier } from '@/types';
+import { EntryType, StockEntryCreate, EntryItem, Product, ProductVariant, Supplier } from '@/types';
 import type { WizardStep } from '@/types/wizard';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
@@ -227,6 +227,8 @@ export default function AddStockEntryScreen() {
   const [tripMenuVisible, setTripMenuVisible] = useState(false);
   const [productMenuVisible, setProductMenuVisible] = useState(false);
   const [productSearch, setProductSearch] = useState('');
+  // Seletor de variante — aberto quando o produto escolhido tem mais de 1 variante ativa
+  const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
   const [showCreateTripDialog, setShowCreateTripDialog] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
@@ -553,8 +555,18 @@ export default function AddStockEntryScreen() {
         // Marcar como processado ANTES de adicionar
         preselectedProductAddedRef.current = true;
 
+        const activeVariants = (product.variants || []).filter(v => v.is_active !== false);
+
+        // Múltiplas variantes ativas: não dá para saber qual está sendo reabastecida
+        // sem perguntar — abre o seletor em vez de montar o item direto.
+        if (activeVariants.length > 1) {
+          setVariantPickerProduct(product);
+          return;
+        }
+
+        const variant = activeVariants[0];
         const quantity = params.preselectedQuantity ? parseInt(params.preselectedQuantity) : 1;
-        const price = params.preselectedPrice ? parseFloat(params.preselectedPrice) : (product.cost_price || 0);
+        const price = params.preselectedPrice ? parseFloat(params.preselectedPrice) : (variant?.cost_price ?? product.cost_price ?? 0);
 
         // Converter price para formato aceito por formatCostInput (números inteiros representando centavos)
         const priceInCents = Math.round(price * 100).toString();
@@ -563,6 +575,7 @@ export default function AddStockEntryScreen() {
         const newItem: EntryItemForm = {
           id: Date.now().toString(),
           product_id: product.id,
+          variant_id: variant?.id,
           quantity_received: quantity,
           unit_cost: price,
           notes: '',
@@ -570,7 +583,7 @@ export default function AddStockEntryScreen() {
         };
 
         // Formatar preço de venda
-        const sellPriceFormatted = formatCostInput(Math.round((product.price || 0) * 100).toString());
+        const sellPriceFormatted = formatCostInput(Math.round((variant?.price ?? product.price ?? 0) * 100).toString());
 
         setItems([newItem]);
         setItemCosts({ [newItem.id]: costFormatted });
@@ -842,15 +855,31 @@ export default function AddStockEntryScreen() {
       return;
     }
 
-    const costFormatted = formatCostInput(Math.round((product.cost_price || 0) * 100).toString());
-    const priceFormatted = formatCostInput(Math.round((product.price || 0) * 100).toString());
+    const activeVariants = (product.variants || []).filter(v => v.is_active !== false);
 
-    console.log('🔍 ADD PRODUCT DEBUG:', {
-      product_name: product.name,
-      product_price: product.price,
-      priceFormatted,
-      costFormatted
-    });
+    // Produto com mais de 1 variante ativa: precisa escolher qual está sendo reabastecida
+    // (sem isso, o EntryItem fica sem variant_id e o estoque "some" do card de estoque,
+    // que é calculado por variante — só o histórico bruto de entradas mostraria o valor certo)
+    if (activeVariants.length > 1) {
+      setProductMenuVisible(false);
+      setProductSearch('');
+      setVariantPickerProduct(product);
+      return;
+    }
+
+    // 0 ou 1 variante: vincula automaticamente (sem variante = produto legado, mantém null)
+    addProductItem(product, activeVariants[0]);
+  };
+
+  /**
+   * Adiciona um item à entrada, já com o variant_id resolvido
+   * (ou undefined quando o produto não tem variante ativa).
+   */
+  const addProductItem = (product: Product, variant?: ProductVariant) => {
+    const unitCost = variant?.cost_price ?? product.cost_price ?? 0;
+    const unitPrice = variant?.price ?? product.price ?? 0;
+    const costFormatted = formatCostInput(Math.round(unitCost * 100).toString());
+    const priceFormatted = formatCostInput(Math.round(unitPrice * 100).toString());
 
     // Mark catalog products appropriately
     const productWithFlag = product.is_catalog
@@ -860,25 +889,20 @@ export default function AddStockEntryScreen() {
     const newItem: EntryItemForm = {
       id: Date.now().toString(),
       product_id: product.id,
+      variant_id: variant?.id,
       quantity_received: 1,
-      unit_cost: product.cost_price || 0,
+      unit_cost: unitCost,
       notes: '',
       product: productWithFlag,
     };
 
-    console.log('🔍 NEW ITEM:', {
-      item_id: newItem.id,
-      product_price_in_item: newItem.product?.price
-    });
-
     setItems([...items, newItem]);
     setItemCosts({ ...itemCosts, [newItem.id]: costFormatted });
     setItemPrices({ ...itemPrices, [newItem.id]: priceFormatted });
-    
-    console.log('🔍 ITEM PRICES AFTER SET:', { ...itemPrices, [newItem.id]: priceFormatted });
-    
+
     setProductMenuVisible(false);
     setProductSearch('');
+    setVariantPickerProduct(null);
   };
 
   /**
@@ -1811,6 +1835,54 @@ export default function AddStockEntryScreen() {
                     )}
                   </ScrollView>
                 )}
+              </View>
+            </View>
+          </Modal>
+
+          {/* Modal de escolha de variante — produto tem mais de 1 variante ativa */}
+          <Modal
+            visible={!!variantPickerProduct}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setVariantPickerProduct(null)}
+          >
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Qual variante?</Text>
+                  <IconButton
+                    icon="close"
+                    size={24}
+                    onPress={() => setVariantPickerProduct(null)}
+                  />
+                </View>
+                <Text style={{ paddingHorizontal: 16, marginBottom: 8, color: '#666' }}>
+                  {variantPickerProduct?.name} tem mais de uma variação — escolha qual está recebendo estoque.
+                </Text>
+                <ScrollView style={styles.productList}>
+                  {(variantPickerProduct?.variants || [])
+                    .filter(v => v.is_active !== false)
+                    .map((variant) => (
+                      <TouchableOpacity
+                        key={variant.id}
+                        style={styles.productItem}
+                        onPress={() => variantPickerProduct && addProductItem(variantPickerProduct, variant)}
+                      >
+                        <View style={styles.productItemContent}>
+                          <Text style={styles.productName} numberOfLines={1}>
+                            {[variant.color, variant.size].filter(Boolean).join(' · ') || 'Variação padrão'}
+                          </Text>
+                          <Text style={styles.productPrice}>
+                            Custo: {formatCurrency(variant.cost_price || 0)} · Estoque atual: {variant.current_stock}
+                          </Text>
+                          {variant.sku && (
+                            <Text style={styles.productSku}>SKU: {variant.sku}</Text>
+                          )}
+                        </View>
+                        <IconButton icon="plus" size={20} />
+                      </TouchableOpacity>
+                    ))}
+                </ScrollView>
               </View>
             </View>
           </Modal>
