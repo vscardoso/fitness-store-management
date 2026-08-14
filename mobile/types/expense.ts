@@ -53,9 +53,12 @@ export interface MonthlyResult {
   gross_margin_pct: number;
   trip_costs: number;
   total_expenses: number;
+  stock_losses_total: number;
   net_profit: number;
   net_margin_pct: number;
   expenses_by_category: ExpenseByCategoryItem[];
+  sales_count: number;
+  units_sold: number;
 }
 
 export interface ExpenseByCategoryItem {

@@ -67,3 +67,14 @@ export async function getMonthlyResult(year?: number, month?: number): Promise<M
   });
   return data;
 }
+
+/**
+ * Resultado financeiro dos últimos N dias corridos (janela móvel).
+ * Mesma fórmula do P&L mensal, usada na dashboard de estoque (filtro 7/30/60/90 dias).
+ */
+export async function getResultByPeriod(days: number): Promise<MonthlyResult> {
+  const { data } = await api.get('/expenses/resultado-periodo', {
+    params: { days },
+  });
+  return data;
+}

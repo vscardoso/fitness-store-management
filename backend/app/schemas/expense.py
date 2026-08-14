@@ -97,7 +97,10 @@ class MonthlyResultResponse(BaseModel):
     gross_profit: Decimal       # Receita − CMV
     gross_margin_pct: Decimal   # % margem bruta
     trip_costs: Decimal         # Custos de viagem do mês (combustível, hospedagem etc.)
-    total_expenses: Decimal     # Soma das despesas operacionais
+    total_expenses: Decimal     # Soma das despesas operacionais (inclui perdas de estoque)
+    stock_losses_total: Decimal = Decimal(0)  # Subconjunto de total_expenses — perdas de estoque
     net_profit: Decimal         # Lucro líquido = gross_profit − expenses
     net_margin_pct: Decimal     # % lucro líquido sobre receita
     expenses_by_category: List[dict]  # [{category, total, color, icon}]
+    sales_count: int = 0         # Quantidade de vendas concluídas no período
+    units_sold: int = 0          # Soma de itens vendidos no período

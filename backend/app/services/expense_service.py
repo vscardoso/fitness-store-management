@@ -2,13 +2,14 @@
 Service de despesas: criação, listagem e cálculo de P&L mensal.
 """
 from calendar import monthrange
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import List, Optional
 
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.timezone import today_brazil
 from app.models.expense import Expense, ExpenseCategory
 from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.trip import Trip
@@ -237,9 +238,40 @@ class ExpenseService:
         first_day = date(year, month, 1)
         last_day = date(year, month, monthrange(year, month)[1])
 
+        import locale
+        month_names = [
+            "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+            "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
+        ]
+        period_label = f"{month_names[month - 1]} {year}"
+
+        return await self._build_period_result(first_day, last_day, tenant_id, period_label)
+
+    async def result_by_days(
+        self,
+        days: int,
+        tenant_id: Optional[int] = None,
+    ) -> MonthlyResultResponse:
+        """
+        Calcula o resultado financeiro dos últimos N dias corridos
+        (janela móvel, ex.: 7/30/60/90 dias) — mesma fórmula do P&L mensal.
+        """
+        end_day = today_brazil()
+        start_day = end_day - timedelta(days=days - 1)
+        period_label = f"Últimos {days} dias"
+
+        return await self._build_period_result(start_day, end_day, tenant_id, period_label)
+
+    async def _build_period_result(
+        self,
+        first_day: date,
+        last_day: date,
+        tenant_id: Optional[int],
+        period_label: str,
+    ) -> MonthlyResultResponse:
+        """Núcleo do cálculo de P&L, compartilhado entre monthly_result e result_by_days."""
         # 1. Receita bruta (soma de total_amount de vendas completed)
-        from app.core.timezone import get_day_range_utc
-        from datetime import datetime, timedelta
+        from datetime import datetime
 
         UTC_OFFSET = timedelta(hours=3)
         start_dt = datetime.combine(first_day, datetime.min.time()) + UTC_OFFSET
@@ -258,9 +290,25 @@ class ExpenseService:
         revenue_result = await self.db.execute(revenue_stmt)
         revenue = Decimal(str(revenue_result.scalar() or 0))
 
+        # 1b. Quantidade de vendas concluídas no período
+        sales_count_stmt = select(func.count(Sale.id)).where(
+            Sale.is_active == True,
+            Sale.status == SaleStatus.COMPLETED,
+            Sale.created_at >= start_dt,
+            Sale.created_at < end_dt,
+        )
+        if tenant_id is not None:
+            sales_count_stmt = sales_count_stmt.where(Sale.tenant_id == tenant_id)
+        sales_count_result = await self.db.execute(sales_count_stmt)
+        sales_count = int(sales_count_result.scalar() or 0)
+
         # 2. CMV (Custo das Mercadorias Vendidas) — sum(unit_cost * quantity) dos itens
+        #    e unidades vendidas no mesmo passe (evita query extra)
         cmv_stmt = (
-            select(func.coalesce(func.sum(SaleItem.unit_cost * SaleItem.quantity), 0))
+            select(
+                func.coalesce(func.sum(SaleItem.unit_cost * SaleItem.quantity), 0),
+                func.coalesce(func.sum(SaleItem.quantity), 0),
+            )
             .join(Sale, SaleItem.sale_id == Sale.id)
             .where(
                 Sale.is_active == True,
@@ -272,9 +320,11 @@ class ExpenseService:
         if tenant_id is not None:
             cmv_stmt = cmv_stmt.where(Sale.tenant_id == tenant_id)
         cmv_result = await self.db.execute(cmv_stmt)
-        cmv = Decimal(str(cmv_result.scalar() or 0))
+        cmv_row = cmv_result.first()
+        cmv = Decimal(str(cmv_row[0] if cmv_row else 0))
+        units_sold = int(cmv_row[1] if cmv_row else 0)
 
-        # 3. Custos de viagem do mês (soma de travel_cost_total das viagens com trip_date no período)
+        # 3. Custos de viagem do período (soma de travel_cost_total das viagens com trip_date no período)
         trip_costs_stmt = select(
             func.coalesce(func.sum(Trip.travel_cost_total), 0)
         ).where(
@@ -287,7 +337,7 @@ class ExpenseService:
         trip_costs_result = await self.db.execute(trip_costs_stmt)
         trip_costs = Decimal(str(trip_costs_result.scalar() or 0))
 
-        # 4. Despesas operacionais
+        # 4. Despesas operacionais (inclui perdas de estoque, destacadas à parte abaixo)
         total_expenses = await _exp_repo.sum_by_period(
             self.db,
             start_date=first_day,
@@ -300,19 +350,15 @@ class ExpenseService:
             end_date=last_day,
             tenant_id=tenant_id,
         )
+        stock_losses_total = Decimal(str(
+            sum(Decimal(str(c["total"])) for c in expenses_by_category if c["category"] == self.STOCK_LOSS_CATEGORY_NAME)
+        ))
 
         # 5. Cálculos
         gross_profit = revenue - cmv
         gross_margin_pct = (gross_profit / revenue * 100).quantize(Decimal("0.01")) if revenue > 0 else Decimal(0)
         net_profit = gross_profit - total_expenses - trip_costs
         net_margin_pct = (net_profit / revenue * 100).quantize(Decimal("0.01")) if revenue > 0 else Decimal(0)
-
-        import locale
-        month_names = [
-            "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
-            "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
-        ]
-        period_label = f"{month_names[month - 1]} {year}"
 
         return MonthlyResultResponse(
             period_label=period_label,
@@ -322,7 +368,10 @@ class ExpenseService:
             gross_margin_pct=gross_margin_pct,
             trip_costs=trip_costs,
             total_expenses=total_expenses,
+            stock_losses_total=stock_losses_total,
             net_profit=net_profit,
             net_margin_pct=net_margin_pct,
             expenses_by_category=expenses_by_category,
+            sales_count=sales_count,
+            units_sold=units_sold,
         )

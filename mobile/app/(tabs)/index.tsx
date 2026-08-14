@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect } from 'expo-router';
+import { useScrollToTop } from '@react-navigation/native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -53,6 +54,8 @@ interface QuickAction {
 export default function DashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const scrollRef = useRef<ScrollView>(null);
+  useScrollToTop(scrollRef);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilterValue>('this_month');
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
@@ -330,6 +333,7 @@ export default function DashboardScreen() {
 
       <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
       <ScrollView
+        ref={scrollRef}
         style={styles.scrollView}
         contentContainerStyle={styles.content}
         refreshControl={
@@ -546,7 +550,7 @@ export default function DashboardScreen() {
                 <View style={styles.plSummaryItem}>
                   <Text style={styles.plSummaryLabel}>Despesas</Text>
                   <Text style={[styles.plSummaryValue, { color: Colors.light.error }]}>
-                    -{formatCurrency(monthlyResult.total_expenses)}
+                    -{formatCurrency(Number(monthlyResult.total_expenses) + Number(monthlyResult.trip_costs))}
                   </Text>
                 </View>
                 <View style={[styles.plSummaryItem, styles.plSummaryNet, {
@@ -1059,7 +1063,7 @@ export default function DashboardScreen() {
             <View style={styles.purchasesStatDivider} />
             <View style={styles.purchasesStat}>
               <Text style={styles.purchasesStatValue}>{purchasesItems}</Text>
-              <Text style={styles.purchasesStatLabel}>un. compradas</Text>
+              <Text style={styles.purchasesStatLabel}>unidades compradas</Text>
             </View>
           </View>
         </TouchableOpacity>
@@ -1084,7 +1088,7 @@ export default function DashboardScreen() {
                 <Text style={styles.stockItemValue}>{formatCurrency(stockCost)}</Text>
                 {purchasesTotal > 0 && stockCost !== purchasesTotal && (
                   <Text style={styles.stockItemPeriodHint}>
-                    + {formatCurrency(purchasesTotal)} comprado {periodLabel.toLowerCase() === 'este mês' ? 'este mês' : `em ${periodLabel.toLowerCase()}`}
+                    de {formatCurrency(purchasesTotal)} comprados {periodLabel.toLowerCase() === 'este mês' ? 'este mês' : `em ${periodLabel.toLowerCase()}`} (parte já vendida)
                   </Text>
                 )}
               </View>

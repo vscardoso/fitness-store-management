@@ -34,11 +34,19 @@ import { useAuth } from '@/hooks/useAuth';
 import { getStockEntries, getSlowMovingProducts } from '@/services/stockEntryService';
 import { getLowStockProducts, getProducts } from '@/services/productService';
 import { getInventoryValuation } from '@/services/dashboardService';
+import { getResultByPeriod } from '@/services/expenseService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { EntryType } from '@/types';
 import PageHeader from '@/components/layout/PageHeader';
 import { useTutorialContext } from '@/components/tutorial';
+
+const PERIOD_DAYS_OPTIONS = [
+  { value: 7, label: '7 dias' },
+  { value: 30, label: '30 dias' },
+  { value: 60, label: '60 dias' },
+  { value: 90, label: '90 dias' },
+];
 
 /**
  * Componente: Card de Estatística
@@ -157,6 +165,7 @@ export default function InventoryDashboard() {
   const { user } = useAuth();
   const { startTutorial } = useTutorialContext();
   const [refreshing, setRefreshing] = useState(false);
+  const [periodDays, setPeriodDays] = useState(30);
 
   const headerOpacity = useSharedValue(0);
   const headerScale = useSharedValue(0.94);
@@ -190,6 +199,12 @@ export default function InventoryDashboard() {
     queryFn: getInventoryValuation,
   });
 
+  // Performance do período (vendas, lucro, perdas, despesas) — filtro 7/30/60/90 dias
+  const { data: periodResult, isLoading: loadingPeriodResult, refetch: refetchPeriodResult } = useQuery({
+    queryKey: ['inventory-period-result', periodDays],
+    queryFn: () => getResultByPeriod(periodDays),
+  });
+
   /**
    * Refresh handler
    */
@@ -201,6 +216,7 @@ export default function InventoryDashboard() {
       refetchSlow(),
       refetchLow(),
       refetchValuation(),
+      refetchPeriodResult(),
     ]);
     setRefreshing(false);
   };
@@ -408,6 +424,111 @@ export default function InventoryDashboard() {
               />
             </View>
           </View>
+        </View>
+
+        {/* Performance do Período */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Performance do Período</Text>
+          </View>
+
+          <View style={styles.periodFilterRow}>
+            {PERIOD_DAYS_OPTIONS.map((opt) => (
+              <TouchableOpacity
+                key={opt.value}
+                style={[
+                  styles.periodFilterChip,
+                  periodDays === opt.value && styles.periodFilterChipActive,
+                ]}
+                onPress={() => setPeriodDays(opt.value)}
+                activeOpacity={0.76}
+              >
+                <Text
+                  style={[
+                    styles.periodFilterChipText,
+                    periodDays === opt.value && styles.periodFilterChipTextActive,
+                  ]}
+                >
+                  {opt.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {loadingPeriodResult || !periodResult ? (
+            <View style={styles.emptyState}>
+              <Text style={styles.emptyText}>Carregando...</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.statsRow}>
+                <View style={styles.statCardWrapper}>
+                  <StatCard
+                    icon="cart-outline"
+                    label="Vendas"
+                    value={`${periodResult.sales_count} ${periodResult.sales_count === 1 ? 'venda' : 'vendas'}`}
+                    iconColor={Colors.light.info}
+                    iconBg={Colors.light.infoLight}
+                    onPress={() => router.push('/reports/sales')}
+                  />
+                </View>
+                <View style={styles.statCardWrapper}>
+                  <StatCard
+                    icon="layers-outline"
+                    label="Unidades Vendidas"
+                    value={periodResult.units_sold.toLocaleString('pt-BR')}
+                    iconColor={Colors.light.primary}
+                    iconBg={Colors.light.primaryLight}
+                    onPress={() => router.push('/reports/sales')}
+                  />
+                </View>
+              </View>
+              <View style={styles.statsRow}>
+                <View style={styles.statCardWrapper}>
+                  <StatCard
+                    icon="trending-up-outline"
+                    label="Receita"
+                    value={formatCurrency(Number(periodResult.revenue))}
+                    iconColor={Colors.light.success}
+                    iconBg={Colors.light.successLight}
+                    onPress={() => router.push('/reports/sales')}
+                  />
+                </View>
+                <View style={styles.statCardWrapper}>
+                  <StatCard
+                    icon={Number(periodResult.net_profit) >= 0 ? 'happy-outline' : 'sad-outline'}
+                    label="Lucro Líquido"
+                    value={formatCurrency(Number(periodResult.net_profit))}
+                    iconColor={Number(periodResult.net_profit) >= 0 ? Colors.light.success : Colors.light.error}
+                    iconBg={Number(periodResult.net_profit) >= 0 ? Colors.light.successLight : Colors.light.errorLight}
+                    onPress={() => router.push('/(tabs)/expenses/resultado')}
+                  />
+                </View>
+              </View>
+              <View style={styles.statsRow}>
+                <View style={styles.statCardWrapper}>
+                  <StatCard
+                    icon="receipt-outline"
+                    label="Despesas"
+                    value={formatCurrency(Number(periodResult.total_expenses) + Number(periodResult.trip_costs))}
+                    iconColor={Colors.light.error}
+                    iconBg={Colors.light.errorLight}
+                    onPress={() => router.push('/(tabs)/expenses')}
+                  />
+                </View>
+                <View style={styles.statCardWrapper}>
+                  <StatCard
+                    icon="warning-outline"
+                    label="Perdas de Estoque"
+                    value={formatCurrency(Number(periodResult.stock_losses_total))}
+                    iconColor="#B91C1C"
+                    iconBg="#FEE2E2"
+                    onPress={() => router.push('/(tabs)/stock-losses')}
+                  />
+                </View>
+              </View>
+            </>
+          )}
         </View>
 
         {/* Alertas */}
@@ -679,6 +800,32 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: Colors.light.text,
     marginBottom: 12,
+  },
+  periodFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  periodFilterChip: {
+    flex: 1,
+    paddingVertical: 8,
+    borderRadius: theme.borderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    alignItems: 'center',
+  },
+  periodFilterChipActive: {
+    backgroundColor: Colors.light.primary,
+    borderColor: Colors.light.primary,
+  },
+  periodFilterChipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+  },
+  periodFilterChipTextActive: {
+    color: '#fff',
   },
   statsRow: {
     flexDirection: 'row',
