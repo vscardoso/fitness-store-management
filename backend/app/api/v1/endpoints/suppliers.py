@@ -52,6 +52,21 @@ async def list_suppliers(
     return await svc.list_suppliers(tenant_id=tenant_id, skip=skip, limit=limit)
 
 
+@router.get("/{supplier_id}", response_model=SupplierResponse)
+async def get_supplier(
+    supplier_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: Optional[int] = Depends(get_current_tenant_id),
+):
+    """Retorna os dados de um fornecedor específico."""
+    svc = SupplierService(db)
+    supplier = await svc.get_supplier(supplier_id, tenant_id)
+    if not supplier:
+        raise HTTPException(status_code=404, detail="Fornecedor não encontrado")
+    return supplier
+
+
 @router.post("", response_model=SupplierResponse, status_code=status.HTTP_201_CREATED)
 async def create_supplier(
     data: SupplierCreate,
