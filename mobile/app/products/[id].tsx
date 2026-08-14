@@ -699,7 +699,7 @@ export default function ProductDetailsScreen() {
                               />
                             </View>
                             <Text style={[styles.entryProgressLabel, { color: isExausted ? Colors.light.textTertiary : Colors.light.text }]}>
-                              {isExausted ? 'Esgotado' : `${remaining} de ${received} restantes`}
+                              {isExausted ? `Esgotado · ${received} recebidas` : `${remaining} de ${received} restantes`}
                             </Text>
                           </View>
 
