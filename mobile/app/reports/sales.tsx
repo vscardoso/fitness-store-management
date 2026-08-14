@@ -24,6 +24,7 @@ import {
   PeriodFilter as PeriodFilterType,
   type TopProduct,
 } from '@/services/reportService';
+import { getSales } from '@/services/saleService';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import PeriodFilter from '@/components/PeriodFilter';
@@ -401,6 +402,116 @@ export default function SalesReportScreen() {
       </body>
       </html>
     `;
+  };
+
+  /**
+   * Converte o period selecionado em um range de datas (YYYY-MM-DD)
+   */
+  const getDateRangeForPeriod = (p: PeriodFilterType): { start_date: string; end_date: string } => {
+    const toISODate = (d: Date) => d.toISOString().split('T')[0];
+    const today = new Date();
+    const end_date = toISODate(today);
+    const start = new Date(today);
+
+    switch (p) {
+      case 'this_month':
+        start.setDate(1);
+        break;
+      case 'last_30_days':
+        start.setDate(start.getDate() - 30);
+        break;
+      case 'last_2_months':
+        start.setMonth(start.getMonth() - 2);
+        break;
+      case 'last_3_months':
+        start.setMonth(start.getMonth() - 3);
+        break;
+      case 'last_6_months':
+        start.setMonth(start.getMonth() - 6);
+        break;
+      case 'this_year':
+        start.setMonth(0, 1);
+        break;
+    }
+
+    return { start_date: toISODate(start), end_date };
+  };
+
+  /**
+   * Escapa um campo para CSV (delimitador ";" — padrão do Excel PT-BR)
+   */
+  const csvField = (value: string | number): string => {
+    const str = String(value);
+    return /[;"\n]/.test(str) ? `"${str.replace(/"/g, '""')}"` : str;
+  };
+
+  /**
+   * Exportar relatório em CSV (lista detalhada de vendas do período)
+   */
+  const handleExportCSV = async () => {
+    if (!report) {
+      setErrorMessage('Nenhum relatório disponível para exportar');
+      setShowErrorDialog(true);
+      return;
+    }
+
+    try {
+      setIsExporting(true);
+
+      const { start_date, end_date } = getDateRangeForPeriod(period);
+      const sales = await getSales({ start_date, end_date, limit: 1000 });
+
+      const header = ['Data', 'Nº Venda', 'Cliente', 'Vendedor', 'Forma de Pagamento', 'Subtotal', 'Desconto', 'Total', 'Status']
+        .map(csvField)
+        .join(';');
+
+      const rows = sales.map((sale) => {
+        const date = new Date(sale.created_at).toLocaleString('pt-BR');
+        return [
+          date,
+          sale.sale_number,
+          sale.customer_name || 'Consumidor final',
+          sale.seller_name || '',
+          paymentLabels[sale.payment_method] || sale.payment_method,
+          sale.subtotal.toFixed(2).replace('.', ','),
+          sale.discount_amount.toFixed(2).replace('.', ','),
+          sale.total_amount.toFixed(2).replace('.', ','),
+          sale.status,
+        ].map(csvField).join(';');
+      });
+
+      const summary = [
+        '',
+        `Período: ${periodLabels[period]} (${start_date} a ${end_date})`,
+        `Total de vendas: ${report.total_sales}`,
+        `Receita total: ${report.total_revenue.toFixed(2).replace('.', ',')}`,
+        `Lucro total: ${report.total_profit.toFixed(2).replace('.', ',')}`,
+        `Ticket médio: ${report.average_ticket.toFixed(2).replace('.', ',')}`,
+      ].join('\n');
+
+      const csvContent = '﻿' + [header, ...rows].join('\n') + '\n' + summary;
+
+      const fileName = `relatorio-vendas-${period}-${Date.now()}.csv`;
+      const filePath = `${FileSystem.documentDirectory}${fileName}`;
+
+      await FileSystem.writeAsStringAsync(filePath, csvContent, {
+        encoding: 'utf8',
+      });
+
+      await shareAsync(filePath, {
+        mimeType: 'text/csv',
+        dialogTitle: 'Exportar Relatório de Vendas (CSV)',
+        UTI: 'public.comma-separated-values-text',
+      });
+
+      setShowSuccessDialog(true);
+    } catch (error) {
+      console.error('Erro ao exportar CSV:', error);
+      setErrorMessage('Não foi possível exportar o relatório');
+      setShowErrorDialog(true);
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   /**
