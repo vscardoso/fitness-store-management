@@ -143,10 +143,27 @@ class StockEntryService:
             for item_data in items:
                 item_dict = item_data.model_dump(exclude_unset=True)
                 item_dict['entry_id'] = entry.id
-                
+
                 # Garantir que quantity_remaining = quantity_received
                 if 'quantity_remaining' not in item_dict:
                     item_dict['quantity_remaining'] = item_dict['quantity_received']
+
+                # Se variant_id não veio no payload, auto-vincula quando o
+                # produto tem exatamente 1 variante ativa (senão o estoque
+                # fica órfão: invisível na soma por variante usada em
+                # current_stock e nos alertas de estoque baixo).
+                if not item_dict.get('variant_id'):
+                    from app.models.product_variant import ProductVariant
+                    from sqlalchemy import select as _select
+                    active_variants = (await self.db.execute(
+                        _select(ProductVariant).where(
+                            ProductVariant.product_id == item_dict['product_id'],
+                            ProductVariant.tenant_id == tenant_id,
+                            ProductVariant.is_active == True,
+                        )
+                    )).scalars().all()
+                    if len(active_variants) == 1:
+                        item_dict['variant_id'] = active_variants[0].id
                 
                 # Extrair selling_price se fornecido (não é campo do EntryItem, é do Product)
                 selling_price = item_dict.pop('selling_price', None)

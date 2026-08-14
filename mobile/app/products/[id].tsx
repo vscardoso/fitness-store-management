@@ -309,8 +309,11 @@ export default function ProductDetailsScreen() {
                 {isOutOfStock ? 'Sem Estoque' : isLowStock ? 'Estoque Baixo' : 'Em Estoque'}
               </Text>
               <Text style={[styles.quickValue, { color: stockColor }]}>
-                {currentStock} un{hasVariants ? ' totais' : ''}
+                {currentStock} un
               </Text>
+              {hasMultipleVariants && (
+                <Text style={styles.quickSub}>soma de {totalVariantsCount} variações</Text>
+              )}
               {minStock > 0 && (
                 <Text style={styles.quickSub}>mín: {minStock}</Text>
               )}

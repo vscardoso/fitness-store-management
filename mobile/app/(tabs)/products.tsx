@@ -77,6 +77,20 @@ export default function ProductsScreen() {
     initialPageParam: 0,
   });
 
+  // Filtro "Estoque Baixo" precisa ver TODOS os produtos, não só a página já
+  // carregada pela infinite query — senão itens com estoque baixo que estão
+  // em páginas ainda não buscadas somem da lista (bug real: dashboard contava
+  // 13 produtos com estoque baixo, a tela só mostrava 1 por causa disso).
+  const {
+    data: allProductsData,
+    isLoading: isLoadingAllProducts,
+    refetch: refetchAllProducts,
+  } = useQuery({
+    queryKey: ['grouped-products-all'],
+    queryFn: () => getGroupedProducts({ limit: 500, skip: 0 }),
+    enabled: showLowStock,
+  });
+
   // Auto-refresh quando a tela recebe foco;
   // Se vier com filtro de estoque baixo, garante que o toggle de estoque fica desativado
   useFocusEffect(
@@ -89,6 +103,7 @@ export default function ProductsScreen() {
       refetch();
       if (filter === 'low_stock') {
         setShowOnlyWithStock(false);
+        refetchAllProducts();
       }
 
       Animated.parallel([
@@ -127,7 +142,7 @@ export default function ProductsScreen() {
         contentTranslateY.stopAnimation();
         contentOpacity.stopAnimation();
       };
-    }, [refetch, filter, headerScale, headerOpacity, contentTranslateY, contentOpacity])
+    }, [refetch, refetchAllProducts, filter, headerScale, headerOpacity, contentTranslateY, contentOpacity])
   );
 
   /**
@@ -137,7 +152,11 @@ export default function ProductsScreen() {
    * PADRÃO: Mostra TODOS os produtos (com e sem estoque)
    */
   const products = useMemo(() => {
-    const allProducts = data?.pages?.flat() ?? [];
+    // Com filtro de estoque baixo ativo, usa a lista COMPLETA (não paginada)
+    // para não perder produtos que estão em páginas ainda não carregadas.
+    const allProducts = showLowStock
+      ? (allProductsData ?? [])
+      : (data?.pages?.flat() ?? []);
 
     // 1. FILTRO DE BUSCA (instantâneo, sem request ao backend)
     let filtered = allProducts;
@@ -165,7 +184,7 @@ export default function ProductsScreen() {
     }
 
     return filtered;
-  }, [data, searchQuery, showOnlyWithStock, showLowStock]);
+  }, [data, allProductsData, searchQuery, showOnlyWithStock, showLowStock]);
 
   const handleProductPress = (product: ProductGrouped) => {
     router.push(`/products/${product.id}`);
@@ -230,7 +249,7 @@ export default function ProductsScreen() {
     return null; // primeiro acesso — renderiza onboarding dedicado
   }, [searchQuery, showLowStock, showOnlyWithStock]);
 
-  if (isLoading && !isRefetching) {
+  if ((isLoading || (showLowStock && isLoadingAllProducts)) && !isRefetching) {
     return (
       <View style={styles.container}>
         <PageHeader
