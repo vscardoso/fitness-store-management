@@ -193,6 +193,11 @@ secrets/
 # ========================================
 **/.claude/
 **/.agents/
+
+# Exceção: slash commands do projeto são versionados (documentação de time)
+!/.claude/
+/.claude/*
+!/.claude/commands/
 **/skills-lock.json
 
 # OpenSquad (runtime / gerado automaticamente)
