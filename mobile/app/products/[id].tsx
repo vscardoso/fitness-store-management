@@ -22,7 +22,8 @@ import InfoRow from '@/components/ui/InfoRow';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getProductById, deleteProduct, updateProduct } from '@/services/productService';
 import { getProductStock } from '@/services/inventoryService';
-import { getProductVariants, formatVariantLabel } from '@/services/productVariantService';
+import { getProductVariants, getVariantGrid, formatVariantLabel } from '@/services/productVariantService';
+import { VariantStockMatrix } from '@/components/products/VariantStockMatrix';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { getImageUrl } from '@/constants/Config';
 import { Colors, theme } from '@/constants/Colors';
@@ -98,6 +99,15 @@ export default function ProductDetailsScreen() {
   });
 
   /**
+   * Query: Grade tamanho x cor (matriz de estoque)
+   */
+  const { data: variantGrid, refetch: refetchVariantGrid } = useQuery({
+    queryKey: ['product-variant-grid', productId],
+    queryFn: () => getVariantGrid(productId),
+    enabled: isValidId,
+  });
+
+  /**
    * Query: Mídia do produto (galeria)
    */
   const { data: productMedia = [], refetch: refetchMedia } = useQuery({
@@ -130,8 +140,9 @@ export default function ProductDetailsScreen() {
       refetchProduct();
       refetchInventory();
       refetchVariants();
+      refetchVariantGrid();
       refetchMedia();
-    }, [refetchInventory, refetchProduct, refetchVariants, refetchMedia])
+    }, [refetchInventory, refetchProduct, refetchVariants, refetchVariantGrid, refetchMedia])
   );
 
   /**
@@ -139,7 +150,7 @@ export default function ProductDetailsScreen() {
    */
   const onRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([refetchProduct(), refetchInventory(), refetchVariants(), refetchMedia()]);
+    await Promise.all([refetchProduct(), refetchInventory(), refetchVariants(), refetchVariantGrid(), refetchMedia()]);
     setRefreshing(false);
   };
 
@@ -377,6 +388,21 @@ export default function ProductDetailsScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* ── GRADE TAMANHO x COR — matriz de estoque ── */}
+        {hasMultipleVariants && variantGrid && variantGrid.grid.length > 1 && (
+          <View style={styles.card}>
+            <View style={styles.cardInner}>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardHeaderIcon}>
+                  <Ionicons name="grid-outline" size={20} color={Colors.light.primary} />
+                </View>
+                <Text style={styles.cardTitle}>Grade de estoque</Text>
+              </View>
+              <VariantStockMatrix grid={variantGrid} />
+            </View>
+          </View>
+        )}
 
         {/* ── VARIAÇÕES — grid 2 colunas ── */}
         {hasVariants && (

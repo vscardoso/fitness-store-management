@@ -74,6 +74,10 @@ export interface VariantGrid {
   available_sizes: string[];
   available_colors: string[];
   grid: VariantGridItem[];
+  total_stock?: number;
+  stock_by_size?: Record<string, number>;
+  stock_by_color?: Record<string, number>;
+  out_of_stock_count?: number;
 }
 
 // ================================
