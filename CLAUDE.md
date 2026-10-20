@@ -112,3 +112,13 @@ Os seguintes padrões de comando são seguros e podem ser aprovados automaticame
 - cd para diretórios do projeto + py_compile
 - cd para diretórios do projeto + pytest
 - cd para diretórios do projeto + alembic
+
+## Log de sessão (2026-10-20): grade tamanho x cor
+
+Feito: normalização de tamanho/cor (`backend/app/utils/variant_grid.py`), ordem natural dos tamanhos, totais na grade, matriz de estoque no app (`mobile/components/products/VariantStockMatrix.tsx`), correção do 500 em `POST /product-variants/bulk` (lazy-load de `entry_items`), tooltip do tutorial reativo ao tamanho da janela (`useWindowDimensions`) e botão "?" da home ligado ao tutorial `dashboard`.
+
+Problemas conhecidos, não corrigidos:
+- `mobile/app/(auth)/onboarding.tsx`: crash no web quando `SCREEN_WIDTH` vale 0 (`inputRange must be monotonically non-decreasing 0,28,0`). Contorno em teste: `localStorage.setItem('@fitness_store:onboarding_completed','true')`.
+- Backend: 110 testes antigos falham (e-mails duplicados, testes desatualizados) e `tests/e2e/test_catalog.py` importa `get_async_session`, que não existe.
+- `Config.ts` usa IP fixo de fallback (192.168.0.70:8000) no app web; para testar local o backend precisa escutar em `0.0.0.0`.
+- Metro em `CI=1` não relê arquivos alterados: reiniciar o Metro a cada mudança ao validar no navegador.

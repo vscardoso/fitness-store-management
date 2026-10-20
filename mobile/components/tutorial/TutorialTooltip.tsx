@@ -10,17 +10,16 @@ import {
   StyleSheet,
   Animated,
   TouchableOpacity,
-  Dimensions,
+  useWindowDimensions,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { TUTORIAL_COLORS, TutorialStepPosition } from '@/constants/tutorials';
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 // Altura estimada do tooltip (para cálculos de posicionamento)
 const ESTIMATED_TOOLTIP_HEIGHT = 220;
 const TOOLTIP_MARGIN = 24;
 const ARROW_SIZE = 12;
+const TOOLTIP_MAX_WIDTH = 420; // evita balão gigante em janela larga (web/tablet)
 const SAFE_AREA_TOP = 50; // Status bar + safe area
 const SAFE_AREA_BOTTOM = 100; // Tab bar + safe area
 
@@ -56,6 +55,8 @@ export function TutorialTooltip({
   isFirstStep = false,
   isLastStep = false,
 }: TutorialTooltipProps) {
+  // Dimensões reativas: acompanham resize/rotação (antes eram fixas no carregamento do módulo)
+  const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(20)).current;
   const scale = useRef(new Animated.Value(0.95)).current;
@@ -90,13 +91,17 @@ export function TutorialTooltip({
 
   // Calcular posição do tooltip
   const getTooltipPosition = () => {
-    const TOOLTIP_WIDTH = SCREEN_WIDTH - (TOOLTIP_MARGIN * 2);
+    const TOOLTIP_WIDTH = Math.max(
+      0,
+      Math.min(SCREEN_WIDTH - (TOOLTIP_MARGIN * 2), TOOLTIP_MAX_WIDTH)
+    );
+    const centeredLeft = (SCREEN_WIDTH - TOOLTIP_WIDTH) / 2;
 
     // Se não tem target, centralizar na tela
     if (!targetMeasurements) {
       return {
         width: TOOLTIP_WIDTH,
-        left: TOOLTIP_MARGIN,
+        left: centeredLeft,
         top: (SCREEN_HEIGHT - ESTIMATED_TOOLTIP_HEIGHT) / 2,
         showArrow: false,
         arrowPosition: 'none' as const,
@@ -130,15 +135,21 @@ export function TutorialTooltip({
       }
     }
 
-    // Calcular posição da seta
+    // Posição horizontal: centrada no alvo, sem sair da tela
+    const tooltipLeft = Math.max(
+      TOOLTIP_MARGIN,
+      Math.min(targetCenterX - TOOLTIP_WIDTH / 2, SCREEN_WIDTH - TOOLTIP_WIDTH - TOOLTIP_MARGIN)
+    );
+
+    // Calcular posição da seta (relativa ao balão)
     const arrowLeft = Math.max(
       20,
-      Math.min(targetCenterX - TOOLTIP_MARGIN - ARROW_SIZE, TOOLTIP_WIDTH - 40)
+      Math.min(targetCenterX - tooltipLeft - ARROW_SIZE, TOOLTIP_WIDTH - 40)
     );
 
     return {
       width: TOOLTIP_WIDTH,
-      left: TOOLTIP_MARGIN,
+      left: tooltipLeft,
       top: tooltipTop,
       showArrow: true,
       arrowPosition: actualPosition,

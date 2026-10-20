@@ -36,7 +36,7 @@ import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { valueColor } from '@/utils/format';
 import FAB from '@/components/FAB';
 import PeriodFilter, { type PeriodFilterValue, PERIOD_OPTIONS } from '@/components/PeriodFilter';
-import { HelpButton } from '@/components/tutorial';
+import { HelpButton, useTutorialContext } from '@/components/tutorial';
 import PageHeader from '@/components/layout/PageHeader';
 import { FitFlowLogo } from '@/components/branding/FitFlowLogo';
 
@@ -54,6 +54,7 @@ interface QuickAction {
 export default function DashboardScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const { startTutorial } = useTutorialContext();
   const scrollRef = useRef<ScrollView>(null);
   useScrollToTop(scrollRef);
   const [refreshing, setRefreshing] = useState(false);
@@ -325,7 +326,7 @@ export default function DashboardScreen() {
             )
           }
           rightActions={[
-            { icon: 'help-circle-outline', onPress: () => {} },
+            { icon: 'help-circle-outline', onPress: () => startTutorial('dashboard') },
             { icon: 'person-circle-outline', onPress: () => router.push('/(tabs)/more') },
           ]}
         />

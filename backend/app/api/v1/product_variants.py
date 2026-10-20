@@ -121,7 +121,9 @@ async def create_bulk_variants(
     """Cria variantes em massa (grade de tamanhos × cores)."""
     service = ProductVariantService(db)
     try:
-        variants = await service.create_bulk_variants(data, tenant_id)
+        created = await service.create_bulk_variants(data, tenant_id)
+        # Reload com selectinload para evitar lazy-load no contexto async
+        variants = [await service.get_variant(v.id, tenant_id) for v in created]
         return BulkVariantResponse(
             product_id=data.product_id,
             variants_created=len(variants),

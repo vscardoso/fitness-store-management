@@ -1,7 +1,7 @@
 /**
  * Matriz de estoque tamanho x cor, com totais por linha/coluna e destaque de rupturas.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
@@ -12,8 +12,10 @@ interface Props {
   grid: VariantGrid;
 }
 
-const CELL_W = 52;
-const LABEL_W = 84;
+const LABEL_W = 76;
+const CELL_MIN = 38;
+const CELL_MAX = 56;
+const CELL_DEFAULT = 52;
 
 const STATUS_COLORS: Record<CellStatus, { fg: string; bg: string }> = {
   out: { fg: Colors.light.error, bg: Colors.light.errorLight },
@@ -23,11 +25,19 @@ const STATUS_COLORS: Record<CellStatus, { fg: string; bg: string }> = {
 
 export function VariantStockMatrix({ grid }: Props) {
   const m = useMemo(() => buildVariantMatrix(grid), [grid]);
+  const [availWidth, setAvailWidth] = useState(0);
+
+  // Ajusta a largura das células para caber tamanhos + coluna Total na tela;
+  // se ainda não couber (muitos tamanhos), a tabela rola na horizontal.
+  const cols = m.sizes.length + 1;
+  const CELL_W = availWidth > 0
+    ? Math.max(CELL_MIN, Math.min(CELL_MAX, Math.floor((availWidth - LABEL_W) / cols)))
+    : CELL_DEFAULT;
 
   if (m.existingCount === 0) return null;
 
   return (
-    <View>
+    <View onLayout={(e) => setAvailWidth(e.nativeEvent.layout.width)}>
       <View style={styles.summary}>
         <Text style={styles.summaryText}>{m.total} un em estoque</Text>
         {m.outCount > 0 && (
@@ -59,7 +69,7 @@ export function VariantStockMatrix({ grid }: Props) {
 
           {m.colors.map((color) => (
             <View key={color} style={styles.row}>
-              <Text style={[styles.labelCell, { width: LABEL_W }]} numberOfLines={1}>{color}</Text>
+              <Text style={[styles.labelCell, { width: LABEL_W }]} numberOfLines={2}>{color}</Text>
               {m.sizes.map((size) => {
                 const cell = m.cells[color]?.[size];
                 if (!cell) {
@@ -105,7 +115,7 @@ const styles = StyleSheet.create({
   headCell: { fontSize: 12, fontWeight: '700', color: Colors.light.textSecondary, textAlign: 'center' },
   strong: { color: Colors.light.text },
   cellWrap: { alignItems: 'center' },
-  cell: { minWidth: 40, paddingVertical: 6, borderRadius: 8, alignItems: 'center' },
+  cell: { minWidth: 34, paddingVertical: 6, borderRadius: 8, alignItems: 'center' },
   cellText: { fontSize: 13, fontWeight: '700' },
   noCell: { color: Colors.light.textTertiary, fontSize: 16 },
   totalCell: { fontSize: 13, fontWeight: '700', color: Colors.light.text, textAlign: 'center' },
