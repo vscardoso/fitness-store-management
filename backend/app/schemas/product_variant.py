@@ -4,7 +4,9 @@ Schemas para variantes de produto.
 from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.utils.variant_grid import normalize_size, normalize_color
 
 
 class ProductVariantBase(BaseModel):
@@ -16,6 +18,16 @@ class ProductVariantBase(BaseModel):
     price: Decimal = Field(..., gt=0, description="Preço de venda")
     cost_price: Optional[Decimal] = Field(None, ge=0, description="Preço de custo")
     image_url: Optional[str] = Field(None, max_length=500, description="URL da imagem específica")
+
+    @field_validator("size", mode="before")
+    @classmethod
+    def _normalize_size(cls, v):
+        return normalize_size(v) if isinstance(v, str) else v
+
+    @field_validator("color", mode="before")
+    @classmethod
+    def _normalize_color(cls, v):
+        return normalize_color(v) if isinstance(v, str) else v
 
 
 class ProductVariantCreate(ProductVariantBase):
@@ -33,6 +45,16 @@ class ProductVariantUpdate(BaseModel):
     cost_price: Optional[Decimal] = Field(None, ge=0)
     image_url: Optional[str] = Field(None, max_length=500)
     is_active: Optional[bool] = None
+
+    @field_validator("size", mode="before")
+    @classmethod
+    def _normalize_size(cls, v):
+        return normalize_size(v) if isinstance(v, str) else v
+
+    @field_validator("color", mode="before")
+    @classmethod
+    def _normalize_color(cls, v):
+        return normalize_color(v) if isinstance(v, str) else v
 
 
 class ProductVariantResponse(ProductVariantBase):
@@ -171,6 +193,12 @@ class VariantGridResponse(BaseModel):
     # Grade de variações
     grid: List[VariantGridItem] = []
 
+    # Totais para a matriz tamanho x cor
+    total_stock: int = 0
+    stock_by_size: dict[str, int] = {}
+    stock_by_color: dict[str, int] = {}
+    out_of_stock_count: int = 0
+
 
 # ================================
 # Schemas para bulk operations
@@ -187,6 +215,35 @@ class BulkVariantCreate(BaseModel):
         description="Ajustes de preço por tamanho/cor. Ex: {'GG': 5.00, 'XG': 10.00}"
     )
     sku_prefix: Optional[str] = Field(None, description="Prefixo para SKU. Ex: 'LEG-NIK'")
+
+    @field_validator("sizes", mode="after")
+    @classmethod
+    def _normalize_sizes(cls, v):
+        out = list(dict.fromkeys(n for n in (normalize_size(x) for x in v) if n))
+        if not out:
+            raise ValueError("Informe ao menos um tamanho válido")
+        return out
+
+    @field_validator("colors", mode="after")
+    @classmethod
+    def _normalize_colors(cls, v):
+        out = list(dict.fromkeys(n for n in (normalize_color(x) for x in v) if n))
+        if not out:
+            raise ValueError("Informe ao menos uma cor válida")
+        return out
+
+    @field_validator("price_adjustments", mode="after")
+    @classmethod
+    def _normalize_adjustments(cls, v):
+        if not v:
+            return v
+        # A chave pode ser tamanho ou cor: indexa pelas duas formas normalizadas
+        out = {}
+        for key, amount in v.items():
+            for norm in (normalize_size(key), normalize_color(key)):
+                if norm:
+                    out[norm] = amount
+        return out
 
 
 class BulkVariantResponse(BaseModel):

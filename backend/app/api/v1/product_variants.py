@@ -23,6 +23,8 @@ from app.schemas.product_variant import (
     VariantGridItem,
 )
 
+from app.utils.variant_grid import sort_sizes, sort_colors, size_sort_key
+
 router = APIRouter(prefix="/product-variants", tags=["Product Variants"])
 
 
@@ -256,11 +258,15 @@ async def get_variant_grid(
     # Buscar variantes
     variants = await variant_service.get_product_variants(product_id, tenant_id)
     
-    # Extrair tamanhos e cores únicos
-    sizes = sorted(set(v.size for v in variants if v.size))
-    colors = sorted(set(v.color for v in variants if v.color))
-    
-    # Montar grade
+    # Tamanhos em ordem natural (PP, P, M, G, GG... / 34, 36, 38...) e cores alfabéticas
+    sizes = sort_sizes(v.size for v in variants)
+    colors = sort_colors(v.color for v in variants)
+
+    # Montar grade ordenada por cor e tamanho
+    ordered = sorted(
+        variants,
+        key=lambda v: ((v.color or "").upper(), size_sort_key(v.size)),
+    )
     grid = [
         VariantGridItem(
             size=v.size,
@@ -270,9 +276,17 @@ async def get_variant_grid(
             stock=v.get_current_stock(),
             variant_id=v.id,
         )
-        for v in variants
+        for v in ordered
     ]
-    
+
+    stock_by_size: dict[str, int] = {}
+    stock_by_color: dict[str, int] = {}
+    for cell in grid:
+        if cell.size:
+            stock_by_size[cell.size] = stock_by_size.get(cell.size, 0) + cell.stock
+        if cell.color:
+            stock_by_color[cell.color] = stock_by_color.get(cell.color, 0) + cell.stock
+
     return VariantGridResponse(
         product_id=product_id,
         product_name=product.name,
@@ -281,6 +295,10 @@ async def get_variant_grid(
         available_sizes=sizes,
         available_colors=colors,
         grid=grid,
+        total_stock=sum(c.stock for c in grid),
+        stock_by_size=stock_by_size,
+        stock_by_color=stock_by_color,
+        out_of_stock_count=sum(1 for c in grid if c.stock <= 0),
     )
 
 

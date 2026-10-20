@@ -2,7 +2,7 @@
 Repositório para operações de banco de dados de variantes de produto.
 """
 from typing import List, Optional
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -125,12 +125,12 @@ class ProductVariantRepository(BaseRepository[ProductVariant, ProductVariantCrea
         if size is None:
             conditions.append(ProductVariant.size.is_(None))
         else:
-            conditions.append(ProductVariant.size == size)
+            conditions.append(func.upper(ProductVariant.size) == size.upper())
         
         if color is None:
             conditions.append(ProductVariant.color.is_(None))
         else:
-            conditions.append(ProductVariant.color == color)
+            conditions.append(func.lower(ProductVariant.color) == color.lower())
         
         result = await db.execute(
             select(ProductVariant)
