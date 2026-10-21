@@ -84,6 +84,123 @@ class StockEntryService:
         return value
 
     @staticmethod
+    def _norm_text(value) -> str:
+        """Nome normalizado para comparar fornecedores: sem acento, minúsculo, espaços únicos."""
+        import re
+        import unicodedata
+
+        text_ = unicodedata.normalize("NFD", str(value or ""))
+        text_ = "".join(ch for ch in text_ if unicodedata.category(ch) != "Mn")
+        return re.sub(r"\s+", " ", text_).strip().casefold()
+
+    async def _resolve_supplier(
+        self,
+        supplier_id,
+        name,
+        cnpj,
+        contact,
+        tenant_id: int,
+    ):
+        """Acha (ou cria) o fornecedor da loja.
+
+        - `supplier_id` informado: precisa existir na loja e estar ativo.
+        - só `name`: acha pelo nome normalizado (ou CNPJ); se não existe, cria o cadastro.
+        Não faz commit (entra na transação da entrada).
+        """
+        import re
+        from sqlalchemy import select
+        from app.models.supplier import Supplier
+
+        if supplier_id:
+            supplier = (await self.db.execute(
+                select(Supplier).where(
+                    Supplier.id == supplier_id,
+                    Supplier.tenant_id == tenant_id,
+                    Supplier.is_active == True,
+                )
+            )).scalar_one_or_none()
+            if not supplier:
+                raise ValueError(f"Fornecedor {supplier_id} não encontrado")
+            return supplier
+
+        clean = re.sub(r"\s+", " ", (name or "")).strip()
+        if not clean:
+            return None
+
+        wanted = self._norm_text(clean)
+        digits = re.sub(r"\D", "", cnpj or "")
+        rows = (await self.db.execute(
+            select(Supplier).where(Supplier.tenant_id == tenant_id)
+        )).scalars().all()
+        for sup in rows:
+            same_name = self._norm_text(sup.name) == wanted
+            same_cnpj = bool(digits) and re.sub(r"\D", "", sup.cnpj or "") == digits
+            if same_name or same_cnpj:
+                if not sup.is_active:
+                    sup.is_active = True  # reativa fornecedor arquivado
+                return sup
+
+        supplier = Supplier(
+            name=clean,
+            cnpj=(cnpj or None),
+            phone=(contact or None),
+            tenant_id=tenant_id,
+        )
+        self.db.add(supplier)
+        await self.db.flush()
+        return supplier
+
+    async def _link_supplier_product(
+        self,
+        supplier_id: int,
+        product_id: int,
+        unit_cost,
+        purchase_date,
+        tenant_id: int,
+    ) -> None:
+        """Cria/atualiza o vínculo fornecedor x produto (último custo, nº de compras, data).
+        Não faz commit."""
+        from datetime import date as _date
+        from sqlalchemy import select
+        from app.models.supplier_product import SupplierProduct
+
+        when = purchase_date or today_brazil()
+        if isinstance(when, datetime):
+            when = when.date()
+        existing = (await self.db.execute(
+            select(SupplierProduct).where(
+                SupplierProduct.supplier_id == supplier_id,
+                SupplierProduct.product_id == product_id,
+                SupplierProduct.tenant_id == tenant_id,
+            )
+        )).scalar_one_or_none()
+        if existing is None:
+            self.db.add(SupplierProduct(
+                supplier_id=supplier_id,
+                product_id=product_id,
+                last_unit_cost=unit_cost,
+                purchase_count=1,
+                last_purchase_date=when,
+                tenant_id=tenant_id,
+            ))
+        else:
+            existing.purchase_count += 1
+            if not isinstance(existing.last_purchase_date, _date) or when >= existing.last_purchase_date:
+                existing.last_unit_cost = unit_cost
+                existing.last_purchase_date = when
+            existing.is_active = True
+        await self.db.flush()
+
+    async def _apply_supplier_links(self, acc: dict, purchase_date, tenant_id: int) -> None:
+        """Grava 1 vínculo por (fornecedor, produto) da entrada: conta UMA compra mesmo que o produto
+        tenha várias variações, com custo médio ponderado pela quantidade."""
+        for (supplier_id, product_id), (qty, total) in acc.items():
+            avg = (total / qty) if qty else Decimal('0')
+            await self._link_supplier_product(
+                supplier_id, product_id, avg.quantize(Decimal('0.01')), purchase_date, tenant_id
+            )
+
+    @staticmethod
     def _variant_label(size, color, sku) -> str:
         parts = " / ".join(p for p in (size, color) if p) or "variação única"
         return f"{parts} (SKU {sku})" if sku else parts
@@ -159,38 +276,31 @@ class StockEntryService:
                 if entry_data.entry_type != EntryType.TRIP:
                     raise ValueError("entry_type deve ser 'trip' quando trip_id é fornecido")
             
-            # Validar produtos e atualizar is_catalog (items é opcional)
-            for item in items or []:
-                product = await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id)
+            # Fornecedor padrão da entrada (cadastro): achado pelo id ou pelo nome, ou criado
+            default_supplier = await self._resolve_supplier(
+                entry_data.supplier_id, entry_data.supplier_name,
+                entry_data.supplier_cnpj, entry_data.supplier_contact, tenant_id,
+            )
+            if default_supplier is None:
+                raise ValueError("Informe o fornecedor da entrada")
+
+            # VALIDA TUDO ANTES de criar a entrada: o repositório faz commit ao criar, então um erro
+            # depois disso deixaria uma entrada vazia gravada. Aqui nada é persistido ainda.
+            prepared_items = []
+            for item_data in items or []:
+                item_dict = item_data.model_dump(exclude_unset=True)
+
+                product = await self.product_repo.get(self.db, item_dict['product_id'], tenant_id=tenant_id)
                 if not product:
-                    raise ValueError(f"Product {item.product_id} não encontrado")
-                
+                    raise ValueError(f"Product {item_dict['product_id']} não encontrado")
+
                 # Se produto é de catálogo, marcar como adicionado à loja
                 if product.is_catalog:
                     product.is_catalog = False
                     # Commit será feito ao final da transação
-            
-            # Criar entrada
-            entry_dict = entry_data.model_dump(exclude_unset=True)
-            entry_dict['total_cost'] = Decimal('0.00')  # Será calculado depois
-            
-            entry = await self.entry_repo.create(self.db, entry_dict, tenant_id=tenant_id)
-            
-            # Criar itens
-            total_cost = Decimal('0.00')
-            created_items = []
-            
-            for item_data in items:
-                item_dict = item_data.model_dump(exclude_unset=True)
-                item_dict['entry_id'] = entry.id
 
                 # Custo obrigatório (zero só em doação): sem ele o lucro/FIFO fica incorreto
-                _prod = await self.product_repo.get(self.db, item_dict['product_id'], tenant_id=tenant_id)
-                self._require_cost(
-                    item_dict.get('unit_cost'),
-                    (_prod.name if _prod else f"produto {item_dict['product_id']}"),
-                    entry_data.entry_type,
-                )
+                self._require_cost(item_dict.get('unit_cost'), product.name, entry_data.entry_type)
 
                 # Garantir que quantity_remaining = quantity_received
                 if 'quantity_remaining' not in item_dict:
@@ -219,7 +329,32 @@ class StockEntryService:
                             f"O produto {item_dict['product_id']} tem {len(active_variants)} variações: "
                             "informe a variação (variant_id) de cada item da entrada."
                         )
-                
+
+                # Fornecedor do item: o informado (validado) ou o padrão da entrada
+                if item_dict.get('supplier_id'):
+                    item_supplier = await self._resolve_supplier(item_dict['supplier_id'], None, None, None, tenant_id)
+                    item_dict['supplier_id'] = item_supplier.id
+                else:
+                    item_dict['supplier_id'] = default_supplier.id
+
+                prepared_items.append(item_dict)
+
+            # Criar entrada (o fornecedor do cadastro é a fonte do nome exibido)
+            entry_dict = entry_data.model_dump(exclude_unset=True)
+            entry_dict['supplier_id'] = default_supplier.id
+            entry_dict['supplier_name'] = default_supplier.name
+            entry_dict['total_cost'] = Decimal('0.00')  # Será calculado depois
+
+            entry = await self.entry_repo.create(self.db, entry_dict, tenant_id=tenant_id)
+
+            # Criar itens
+            total_cost = Decimal('0.00')
+            created_items = []
+            supplier_acc: dict = {}
+
+            for item_dict in prepared_items:
+                item_dict['entry_id'] = entry.id
+
                 # Extrair selling_price se fornecido (não é campo do EntryItem, é do Product)
                 selling_price = item_dict.pop('selling_price', None)
                 
@@ -227,6 +362,11 @@ class StockEntryService:
                 item_dict['tenant_id'] = tenant_id
                 item = await self.item_repo.create(self.db, item_dict)
                 created_items.append(item)
+
+                # Acumula para o vinculo fornecedor x produto (gravado 1x por entrada, abaixo)
+                _k = (item.supplier_id, item.product_id)
+                _q, _t = supplier_acc.get(_k, (0, Decimal('0')))
+                supplier_acc[_k] = (_q + item.quantity_received, _t + item.quantity_received * item.unit_cost)
                 
                 # Calcular custo total
                 total_cost += item.quantity_received * item.unit_cost
@@ -246,6 +386,9 @@ class StockEntryService:
                     tenant_id=tenant_id,
                 )
             
+            # Vinculo fornecedor x produto (alimenta o card "Fornecedores" do produto)
+            await self._apply_supplier_links(supplier_acc, entry.entry_date, tenant_id)
+
             # Atualizar total_cost da entrada
             entry.total_cost = total_cost
             await self.db.commit()
@@ -1323,6 +1466,14 @@ class StockEntryService:
                 raise ValueError("Nome e SKU do produto são obrigatórios")
             
             await self._ensure_skus_free([product_data['sku']], tenant_id)
+
+            # Fornecedor da entrada (cadastro): achado pelo id/nome ou criado
+            default_supplier = await self._resolve_supplier(
+                entry_data.get('supplier_id'), entry_data.get('supplier_name'),
+                entry_data.get('supplier_cnpj'), entry_data.get('supplier_contact'), tenant_id,
+            )
+            if default_supplier is None:
+                raise ValueError("Informe o fornecedor da entrada")
             # Valida o custo ANTES de criar produto/entrada: se falhar, nada fica gravado pela metade
             self._require_cost(
                 product_data.get('cost_price'),
@@ -1369,7 +1520,8 @@ class StockEntryService:
                 entry_date=entry_data.get('entry_date'),
                 entry_type=entry_data.get('entry_type'),
                 trip_id=entry_data.get('trip_id'),
-                supplier_name=entry_data.get('supplier_name'),
+                supplier_id=default_supplier.id,
+                supplier_name=default_supplier.name,
                 supplier_cnpj=entry_data.get('supplier_cnpj'),
                 supplier_contact=entry_data.get('supplier_contact'),
                 invoice_number=entry_data.get('invoice_number'),
@@ -1393,6 +1545,7 @@ class StockEntryService:
                 entry_id=entry.id,
                 product_id=product.id,
                 variant_id=variant.id,  # Vincular à variante
+                supplier_id=default_supplier.id,
                 quantity_received=quantity,
                 quantity_remaining=quantity,  # Todo estoque disponível
                 unit_cost=unit_cost,
@@ -1403,6 +1556,9 @@ class StockEntryService:
             
             self.db.add(item)
             await self.db.flush()
+            await self._link_supplier_product(
+                default_supplier.id, product.id, unit_cost, entry.entry_date, tenant_id
+            )
             
             # 5. Calcular e atualizar total_cost da entrada
             item_total_cost = Decimal(str(quantity)) * unit_cost
@@ -1471,6 +1627,14 @@ class StockEntryService:
                 raise ValueError("Nome e categoria do produto são obrigatórios")
             
             await self._ensure_skus_free([v.get('sku') for v in variants_data], tenant_id)
+
+            # Fornecedor da entrada (cadastro): achado pelo id/nome ou criado
+            default_supplier = await self._resolve_supplier(
+                entry_data.get('supplier_id'), entry_data.get('supplier_name'),
+                entry_data.get('supplier_cnpj'), entry_data.get('supplier_contact'), tenant_id,
+            )
+            if default_supplier is None:
+                raise ValueError("Informe o fornecedor da entrada")
             # Valida o custo de toda variante com quantidade ANTES de criar produto/variantes/entrada:
             # se falhar, nada fica gravado pela metade (e o usuário pode corrigir e reenviar).
             for v in variants_data:
@@ -1523,7 +1687,8 @@ class StockEntryService:
                 entry_date=entry_data.get('entry_date'),
                 entry_type=entry_data.get('entry_type'),
                 trip_id=entry_data.get('trip_id'),
-                supplier_name=entry_data.get('supplier_name'),
+                supplier_id=default_supplier.id,
+                supplier_name=default_supplier.name,
                 supplier_cnpj=entry_data.get('supplier_cnpj'),
                 supplier_contact=entry_data.get('supplier_contact'),
                 invoice_number=entry_data.get('invoice_number'),
@@ -1539,6 +1704,7 @@ class StockEntryService:
             
             # 4. Criar itens da entrada para cada variante
             total_cost = Decimal('0.00')
+            variants_acc: dict = {}
             for i, variant in enumerate(created_variants):
                 # Obter quantidade da variante (está em variants_data, não em variant_quantities)
                 variant_dict = variants_data[i]
@@ -1557,6 +1723,7 @@ class StockEntryService:
                     entry_id=entry.id,
                     product_id=product.id,
                     variant_id=variant.id,
+                    supplier_id=default_supplier.id,
                     quantity_received=quantity,
                     quantity_remaining=quantity,
                     unit_cost=unit_cost,
@@ -1565,10 +1732,13 @@ class StockEntryService:
                 )
                 self.db.add(item)
                 await self.db.flush()
+                _q, _t = variants_acc.get((default_supplier.id, product.id), (0, Decimal('0')))
+                variants_acc[(default_supplier.id, product.id)] = (_q + quantity, _t + Decimal(str(quantity)) * unit_cost)
                 
                 total_cost += Decimal(str(quantity)) * unit_cost
             
             entry.total_cost = total_cost
+            await self._apply_supplier_links(variants_acc, entry.entry_date, tenant_id)
             
             # 5. Atualizar estoque do produto via rebuild FIFO
             inv_sync = InventoryService(self.db)

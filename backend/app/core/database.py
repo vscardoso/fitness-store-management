@@ -159,6 +159,28 @@ def _run_alembic_upgrade() -> None:
     logger.info("Alembic: migrations aplicadas com sucesso")
 
 
+# Colunas adicionadas depois da criação das tabelas (SQLite dev). Postgres usa Alembic.
+_SQLITE_EXTRA_COLUMNS = {
+    "stock_entries": [("supplier_id", "INTEGER")],
+    "entry_items": [("supplier_id", "INTEGER")],
+}
+
+
+def _ensure_sqlite_columns(sync_conn) -> None:
+    from sqlalchemy import inspect
+
+    inspector = inspect(sync_conn)
+    existing_tables = set(inspector.get_table_names())
+    for table, columns in _SQLITE_EXTRA_COLUMNS.items():
+        if table not in existing_tables:
+            continue
+        have = {c["name"] for c in inspector.get_columns(table)}
+        for name, ddl in columns:
+            if name not in have:
+                sync_conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+                logger.info("SQLite: coluna %s.%s adicionada", table, name)
+
+
 async def init_db() -> None:
     """Aplica migrations e verifica conectividade com o banco.
 
@@ -188,6 +210,8 @@ async def init_db() -> None:
                 if _is_sqlite:
                     # Cria tabelas que ainda não existem (novos modelos sem migration)
                     await conn.run_sync(BaseModel.metadata.create_all)
+                    # create_all não altera tabelas existentes: adiciona colunas novas à mão
+                    await conn.run_sync(_ensure_sqlite_columns)
                     await conn.commit()
                 else:
                     await conn.execute(text("SELECT 1"))

@@ -87,6 +87,7 @@ export async function createStockEntryWithNewProduct(
     entry_date?: string;
     entry_type?: 'trip' | 'online' | 'local';
     trip_id?: number;
+    supplier_id?: number;
     supplier_name?: string;
     supplier_cnpj?: string;
     supplier_contact?: string;
@@ -131,6 +132,7 @@ export async function createStockEntryWithNewProductVariants(
     entry_date?: string;
     entry_type?: string;
     trip_id?: number;
+    supplier_id?: number;
     supplier_name?: string;
     supplier_cnpj?: string;
     supplier_contact?: string;

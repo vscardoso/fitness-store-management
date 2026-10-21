@@ -33,6 +33,10 @@ interface Props {
   productId?: number;
   productName?: string;
   selectedSupplierId?: number | null;
+  /** Mostra a opção que limpa a seleção (padrão: sim) */
+  allowNone?: boolean;
+  /** Texto da opção que limpa a seleção (padrão: "Sem fornecedor") */
+  noneLabel?: string;
 }
 
 export default function SupplierPickerSheet({
@@ -42,6 +46,8 @@ export default function SupplierPickerSheet({
   productId,
   productName,
   selectedSupplierId,
+  allowNone = true,
+  noneLabel = 'Sem fornecedor',
 }: Props) {
   const brandingColors = useBrandingColors();
   const [search, setSearch] = useState('');
@@ -206,8 +212,8 @@ export default function SupplierPickerSheet({
             </View>
           ) : null}
 
-          {/* Sem fornecedor */}
-          <TouchableOpacity
+          {/* Sem fornecedor / usar o da entrada */}
+          {allowNone && <TouchableOpacity
             style={[
               styles.supplierRow,
               selectedSupplierId === null && { backgroundColor: Colors.light.primaryLight },
@@ -219,9 +225,9 @@ export default function SupplierPickerSheet({
               <Ionicons name="remove-circle-outline" size={18} color={Colors.light.textSecondary} />
             </View>
             <Text style={[styles.supplierName, { color: Colors.light.textSecondary, fontWeight: '400' }]}>
-              Sem fornecedor
+              {noneLabel}
             </Text>
-          </TouchableOpacity>
+          </TouchableOpacity>}
 
           {/* Botão cadastrar novo */}
           <TouchableOpacity

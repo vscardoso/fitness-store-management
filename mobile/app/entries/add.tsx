@@ -242,6 +242,9 @@ export default function AddStockEntryScreen() {
   const [supplierName, setSupplierName] = useState('');
   const [supplierCnpj, setSupplierCnpj] = useState('');
   const [supplierContact, setSupplierContact] = useState('');
+  // Fornecedor padrão da entrada (cadastro); cada item pode ter o seu
+  const [defaultSupplier, setDefaultSupplier] = useState<Supplier | null>(null);
+  const [supplierPickerHeaderOpen, setSupplierPickerHeaderOpen] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
   const [notes, setNotes] = useState('');
@@ -748,6 +751,7 @@ export default function AddStockEntryScreen() {
           entry_date: computeEntryDateISO(),
           entry_type: selectedType as 'trip' | 'online' | 'local',
           trip_id: selectedType === EntryType.TRIP ? tripId : undefined,
+          supplier_id: defaultSupplier?.id,
           supplier_name: supplierName.trim(),
           supplier_cnpj: supplierCnpj.trim() || undefined,
           supplier_contact: supplierContact.trim() || undefined,
@@ -814,6 +818,7 @@ export default function AddStockEntryScreen() {
           entry_date: computeEntryDateISO(),
           entry_type: selectedType,
           trip_id: selectedType === EntryType.TRIP ? tripId : undefined,
+          supplier_id: defaultSupplier?.id,
           supplier_name: supplierName.trim(),
           supplier_cnpj: supplierCnpj.trim() || undefined,
           supplier_contact: supplierContact.trim() || undefined,
@@ -1017,7 +1022,7 @@ export default function AddStockEntryScreen() {
     }
 
     if (!supplierName.trim()) {
-      newErrors.supplierName = 'Fornecedor é obrigatório';
+      newErrors.supplierName = 'Selecione o fornecedor da entrada';
     }
 
     // Validar CNPJ se preenchido
@@ -1116,6 +1121,7 @@ export default function AddStockEntryScreen() {
       entry_date: computeEntryDateISO(),
       entry_type: selectedType,
       trip_id: selectedType === EntryType.TRIP ? tripId : undefined,
+      supplier_id: defaultSupplier?.id,
       supplier_name: supplierName.trim(),
       supplier_cnpj: supplierCnpj.trim() || undefined,
       supplier_contact: supplierContact.trim() || undefined,
@@ -1327,11 +1333,11 @@ export default function AddStockEntryScreen() {
               <Text
                 style={[
                   styles.supplierChipText,
-                  { color: item.supplier_id ? Colors.light.text : Colors.light.textTertiary },
+                  { color: item.supplier_id ? Colors.light.text : Colors.light.textSecondary },
                 ]}
                 numberOfLines={1}
               >
-                {item.supplier_name || 'Fornecedor'}
+                {item.supplier_name || defaultSupplier?.name || 'Fornecedor'}
               </Text>
               <Ionicons name="chevron-down" size={12} color={Colors.light.textTertiary} />
             </TouchableOpacity>
@@ -1654,78 +1660,42 @@ export default function AddStockEntryScreen() {
               <Text style={styles.cardTitle}>Informações do Fornecedor</Text>
             </View>
 
-          <View style={styles.inputGroup}>
-            <TextInput
-              label="Nome do Fornecedor *"
-              value={supplierName}
-              onChangeText={(text) => setSupplierName(capitalizeSupplierName(text))}
-              mode="outlined"
-              error={!!errors.supplierName}
-              left={<TextInput.Icon icon="store" />}
-              autoCapitalize="words"
-            />
-            {errors.supplierName && (
-              <HelperText type="error">{errors.supplierName}</HelperText>
-            )}
-          </View>
-
-          <View style={styles.inputGroup}>
-            <TextInput
-              label="CNPJ"
-              value={supplierCnpj}
-              onChangeText={(text) => {
-                const masked = cnpjMask(text);
-                setSupplierCnpj(masked);
-                setErrors({ ...errors, supplierCnpj: '' });
-              }}
-              mode="outlined"
-              keyboardType="numeric"
-              placeholder="00.000.000/0000-00"
-              maxLength={18}
-              left={<TextInput.Icon icon="card-account-details" />}
-              error={!!errors.supplierCnpj || cnpjValidationStatus === 'invalid'}
-              right={
-                cnpjValidationStatus === 'valid' ? (
-                  <TextInput.Icon icon="check-circle" color={Colors.light.success} />
-                ) : cnpjValidationStatus === 'invalid' ? (
-                  <TextInput.Icon icon="close-circle" color={Colors.light.error} />
-                ) : null
-              }
-            />
-            {!errors.supplierCnpj && cnpjValidationStatus === 'invalid' && (
-              <HelperText type="error" visible={true}>
-                CNPJ deve ter 14 dígitos
-              </HelperText>
-            )}
-            {!errors.supplierCnpj && cnpjValidationStatus === 'valid' && (
-              <HelperText type="info" visible={true} style={{ color: Colors.light.success }}>
-                CNPJ válido ✓
-              </HelperText>
-            )}
-            {errors.supplierCnpj && (
-              <HelperText type="error">{errors.supplierCnpj}</HelperText>
-            )}
-          </View>
-
-          <View style={styles.inputGroup}>
-            <TextInput
-              label="Contato"
-              value={supplierContact}
-              onChangeText={(text) => {
-                setSupplierContact(phoneMask(text));
-                setErrors({ ...errors, supplierContact: '' });
-              }}
-              mode="outlined"
-              keyboardType="phone-pad"
-              placeholder="(00) 00000-0000"
-              maxLength={15}
-              left={<TextInput.Icon icon="phone" />}
-              error={!!errors.supplierContact}
-            />
-            {errors.supplierContact && (
-              <HelperText type="error">{errors.supplierContact}</HelperText>
-            )}
-          </View>
+          <TouchableOpacity
+            style={[
+              styles.supplierTile,
+              errors.supplierName ? { borderColor: Colors.light.error } : null,
+            ]}
+            onPress={() => setSupplierPickerHeaderOpen(true)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Selecionar fornecedor da entrada"
+          >
+            <View style={[styles.supplierTileIcon, { backgroundColor: `${brandingColors.primary}14` }]}>
+              <Ionicons name="storefront-outline" size={20} color={brandingColors.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.supplierTileLabel}>Fornecedor da entrada *</Text>
+              <Text
+                style={defaultSupplier ? styles.supplierTileName : styles.supplierTilePlaceholder}
+                numberOfLines={1}
+              >
+                {defaultSupplier?.name || 'Selecione ou cadastre o fornecedor'}
+              </Text>
+              {defaultSupplier && (defaultSupplier.cnpj || defaultSupplier.phone) ? (
+                <Text style={styles.supplierTileInfo} numberOfLines={1}>
+                  {[defaultSupplier.cnpj, defaultSupplier.phone].filter(Boolean).join('  •  ')}
+                </Text>
+              ) : null}
+            </View>
+            <Ionicons name="chevron-down" size={18} color={Colors.light.textTertiary} />
+          </TouchableOpacity>
+          {errors.supplierName ? (
+            <HelperText type="error">{errors.supplierName}</HelperText>
+          ) : null}
+          <Text style={styles.supplierHint}>
+            Os produtos usam este fornecedor. Se a compra tem mais de um fornecedor, troque o fornecedor
+            de cada produto na lista de itens.
+          </Text>
         </View>
 
         {/* Nota Fiscal e Pagamento */}
@@ -1953,6 +1923,36 @@ export default function AddStockEntryScreen() {
                 {items.reduce((sum, item) => sum + item.quantity_received, 0)} unidades
               </Text>
             </View>
+            {(() => {
+              const groups = new Map<string, { name: string; qty: number; total: number; count: number }>();
+              items.forEach((it) => {
+                const key = String(it.supplier_id ?? defaultSupplier?.id ?? 'none');
+                const name = it.supplier_name || defaultSupplier?.name || 'Sem fornecedor';
+                const qty = Number(it.quantity_received) || 0;
+                const g = groups.get(key) ?? { name, qty: 0, total: 0, count: 0 };
+                g.qty += qty;
+                g.total += qty * (Number(it.unit_cost) || 0);
+                g.count += 1;
+                groups.set(key, g);
+              });
+              const list = Array.from(groups.values()).sort((x, y) => y.total - x.total);
+              if (list.length === 0) return null;
+              return (
+                <View style={styles.supplierSummary}>
+                  <Text style={styles.supplierSummaryTitle}>
+                    {list.length > 1 ? `Por fornecedor (${list.length})` : 'Fornecedor'}
+                  </Text>
+                  {list.map((g) => (
+                    <View key={g.name} style={styles.summaryRow}>
+                      <Text style={styles.summaryLabel} numberOfLines={1}>
+                        {g.name} · {g.count} {g.count === 1 ? 'item' : 'itens'}, {g.qty} un
+                      </Text>
+                      <Text style={styles.summaryValue}>{formatCurrency(g.total)}</Text>
+                    </View>
+                  ))}
+                </View>
+              );
+            })()}
             <Divider style={styles.summaryDivider} />
             <View style={styles.summaryRow}>
               <Text style={styles.totalLabel}>Total da Entrada</Text>
@@ -2253,9 +2253,28 @@ export default function AddStockEntryScreen() {
             productId={pickerItem?.product_id}
             productName={pickerItem?.product?.name}
             selectedSupplierId={pickerItem?.supplier_id}
+            noneLabel="Usar o fornecedor da entrada"
           />
         );
       })()}
+
+      {/* Seletor do fornecedor padrão da entrada */}
+      <SupplierPickerSheet
+        visible={supplierPickerHeaderOpen}
+        onClose={() => setSupplierPickerHeaderOpen(false)}
+        allowNone={false}
+        selectedSupplierId={defaultSupplier?.id}
+        onSelect={(supplier: Supplier | null) => {
+          if (supplier) {
+            setDefaultSupplier(supplier);
+            setSupplierName(supplier.name);
+            setSupplierCnpj(supplier.cnpj ?? '');
+            setSupplierContact(supplier.phone ?? '');
+            setErrors((prev) => ({ ...prev, supplierName: '' }));
+          }
+          setSupplierPickerHeaderOpen(false);
+        }}
+      />
     </View>
   );
 }
@@ -2564,6 +2583,61 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.light.warning,
     marginTop: 4,
+  },
+  supplierTile: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: theme.borderRadius.lg,
+    padding: theme.spacing.md,
+    backgroundColor: Colors.light.card,
+  },
+  supplierTileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  supplierTileLabel: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700',
+    color: Colors.light.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  supplierTileName: {
+    fontSize: theme.fontSize.base,
+    fontWeight: '600',
+    color: Colors.light.text,
+  },
+  supplierTilePlaceholder: {
+    fontSize: theme.fontSize.base,
+    color: Colors.light.textTertiary,
+  },
+  supplierTileInfo: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  supplierHint: {
+    fontSize: theme.fontSize.xs,
+    color: Colors.light.textSecondary,
+    marginTop: theme.spacing.sm,
+  },
+  supplierSummary: {
+    gap: 4,
+    marginBottom: theme.spacing.sm,
+  },
+  supplierSummaryTitle: {
+    fontSize: theme.fontSize.xs,
+    fontWeight: '700',
+    color: Colors.light.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+    marginBottom: 2,
   },
   supplierChip: {
     flexDirection: 'row',

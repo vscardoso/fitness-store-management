@@ -30,6 +30,7 @@ class EntryItemCreate(BaseModel):
     quantity_received: int = Field(..., gt=0, description="Quantidade comprada/recebida")
     unit_cost: Decimal = Field(..., ge=0, description="Custo unitário")
     selling_price: Optional[Decimal] = Field(None, ge=0, description="Preço de venda do produto (atualiza o produto)")
+    supplier_id: Optional[int] = Field(None, description="Fornecedor deste item (padrão: fornecedor da entrada)")
     notes: Optional[str] = Field(None, max_length=500, description="Observações")
 
     @field_validator('quantity_received')
@@ -72,6 +73,8 @@ class EntryItemResponse(EntryItemBase):
     """Schema for entry item response."""
     id: int
     variant_id: Optional[int] = Field(None, description="ID da variante do produto")
+    supplier_id: Optional[int] = Field(None, description="Fornecedor do item")
+    supplier_name: Optional[str] = Field(None, description="Nome do fornecedor do item")
     quantity_remaining: int = Field(..., description="Quantidade restante")
     is_active: bool
     created_at: datetime

@@ -221,6 +221,11 @@ class EntryItem(BaseModel):
         return self.quantity_remaining >= quantity
     
     @property
+    def supplier_name(self) -> str | None:
+        """Nome do fornecedor do item (cadastro), se houver."""
+        return self.supplier.name if self.supplier else None
+
+    @property
     def product_name(self) -> str | None:
         """Nome do produto associado (via variante ou produto legado)."""
         if self.variant:

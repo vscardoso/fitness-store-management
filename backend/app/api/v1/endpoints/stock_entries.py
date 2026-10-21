@@ -126,8 +126,9 @@ class StockEntryWithNewProductVariantsRequest(BaseModel):
     
     # Dados das variantes
     variants: List[NewVariantInput] = Field(..., min_length=1, description="Lista de variantes com sku, color, size, price, cost_price, quantity")
-    
+
     # Dados da entrada
+    supplier_id: Optional[int] = None  # fornecedor cadastrado (ou use supplier_name)
     entry_code: str
     entry_date: Optional[date] = None
     entry_type: Optional[EntryType] = None
@@ -240,6 +241,7 @@ async def create_stock_entry_with_new_product(
                 "entry_date": request_data.entry_date,
                 "entry_type": request_data.entry_type,
                 "trip_id": request_data.trip_id,
+                "supplier_id": request_data.supplier_id,
                 "supplier_name": request_data.supplier_name,
                 "supplier_cnpj": request_data.supplier_cnpj,
                 "supplier_contact": request_data.supplier_contact,
@@ -342,6 +344,7 @@ async def create_stock_entry_with_new_product_variants(
                 "entry_date": request_data.entry_date,
                 "entry_type": request_data.entry_type,
                 "trip_id": request_data.trip_id,
+                "supplier_id": request_data.supplier_id,
                 "supplier_name": request_data.supplier_name,
                 "supplier_cnpj": request_data.supplier_cnpj,
                 "supplier_contact": request_data.supplier_contact,
@@ -435,6 +438,7 @@ async def create_stock_entry(
             entry_date=request_data.entry_date,
             entry_type=request_data.entry_type,
             trip_id=request_data.trip_id,
+            supplier_id=request_data.supplier_id,
             supplier_name=request_data.supplier_name,
             supplier_cnpj=request_data.supplier_cnpj,
             supplier_contact=request_data.supplier_contact,
@@ -442,7 +446,7 @@ async def create_stock_entry(
             payment_method=request_data.payment_method,
             notes=request_data.notes
         )
-        
+
         service = StockEntryService(db)
         entry = await service.create_entry(entry_data, items, current_user.id, tenant_id=tenant_id)
         

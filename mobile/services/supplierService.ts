@@ -41,5 +41,6 @@ export async function getSupplierProducts(id: number): Promise<SupplierProduct[]
 /** Fornecedores de um produto específico */
 export async function getProductSuppliers(productId: number): Promise<ProductSupplier[]> {
   const response = await api.get<ProductSupplier[]>(`/products/${productId}/suppliers`);
-  return response.data;
+  // Defensivo: o custo é usado em contas e comparações, então garante número
+  return response.data.map((ps) => ({ ...ps, last_unit_cost: Number(ps.last_unit_cost) }));
 }

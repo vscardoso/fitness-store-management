@@ -469,6 +469,9 @@ export default function StockEntryDetailsScreen() {
             {item.product_sku && (
               <Text style={styles.productSku} numberOfLines={1}>SKU: {item.product_sku}</Text>
             )}
+            {item.supplier_name && (entry?.suppliers_summary?.length ?? 0) > 1 && (
+              <Text style={styles.productSupplier} numberOfLines={1}>Fornecedor: {item.supplier_name}</Text>
+            )}
           </View>
           <View style={styles.productHeaderRight}>
             {isBestSeller && (
@@ -633,6 +636,21 @@ export default function StockEntryDetailsScreen() {
             </View>
             <InfoRow label="Data de Entrada" value={formatDate(entry.entry_date)} icon="calendar-outline" />
             <InfoRow label="Fornecedor" value={entry.supplier_name} icon="briefcase-outline" />
+            {entry.suppliers_summary && entry.suppliers_summary.length > 1 && (
+              <View style={styles.supplierBreakdown}>
+                <Text style={styles.supplierBreakdownTitle}>
+                  Compra com {entry.suppliers_summary.length} fornecedores
+                </Text>
+                {entry.suppliers_summary.map((g) => (
+                  <View key={`${g.supplier_id ?? 'x'}-${g.supplier_name}`} style={styles.supplierBreakdownRow}>
+                    <Text style={styles.supplierBreakdownName} numberOfLines={1}>
+                      {g.supplier_name} · {g.items} {g.items === 1 ? 'item' : 'itens'}, {g.quantity} un
+                    </Text>
+                    <Text style={styles.supplierBreakdownValue}>{formatCurrency(g.total_cost)}</Text>
+                  </View>
+                ))}
+              </View>
+            )}
             {entry.supplier_cnpj && (
               <InfoRow label="CNPJ" value={entry.supplier_cnpj} icon="card-outline" />
             )}
@@ -1188,6 +1206,42 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.light.textSecondary,
     marginTop: 2,
+  },
+  productSupplier: {
+    fontSize: 12,
+    color: Colors.light.textSecondary,
+    marginTop: 2,
+  },
+  supplierBreakdown: {
+    marginTop: theme.spacing.sm,
+    marginBottom: theme.spacing.sm,
+    padding: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    backgroundColor: Colors.light.backgroundSecondary,
+    gap: 6,
+  },
+  supplierBreakdownTitle: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: Colors.light.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  supplierBreakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 8,
+  },
+  supplierBreakdownName: {
+    flex: 1,
+    fontSize: 13,
+    color: Colors.light.text,
+  },
+  supplierBreakdownValue: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: Colors.light.text,
   },
   variantLabel: {
     fontSize: 12,

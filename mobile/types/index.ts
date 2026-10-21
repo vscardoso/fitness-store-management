@@ -650,6 +650,7 @@ export enum EntryType {
 export interface EntryItem {
   product_id?: number;
   variant_id?: number;
+  supplier_id?: number | null; // fornecedor do item (padrão: o da entrada)
   quantity_received: number;
   unit_cost: number;
   selling_price?: number;
@@ -660,6 +661,7 @@ export interface EntryItemResponse extends EntryItem {
   id: number;
   entry_id: number;
   variant_id?: number;
+  supplier_name?: string | null;
   quantity_remaining: number;
   total_cost: number;
   quantity_sold: number;
@@ -682,6 +684,7 @@ export interface StockEntry {
   entry_date: string;
   entry_type: EntryType;
   trip_id?: number;
+  supplier_id?: number | null;
   supplier_name: string;
   supplier_cnpj?: string;
   supplier_contact?: string;
@@ -709,6 +712,7 @@ export interface StockEntryCreate {
   entry_date: string;
   entry_type: EntryType;
   trip_id?: number;
+  supplier_id?: number;
   supplier_name: string;
   supplier_cnpj?: string;
   supplier_contact?: string;
@@ -718,8 +722,17 @@ export interface StockEntryCreate {
   items: EntryItem[];
 }
 
+export interface EntrySupplierSummary {
+  supplier_id: number | null;
+  supplier_name: string;
+  items: number;
+  quantity: number;
+  total_cost: number;
+}
+
 export interface StockEntryWithItems extends StockEntry {
   entry_items: EntryItemResponse[];
+  suppliers_summary?: EntrySupplierSummary[];
 }
 
 // ============================================

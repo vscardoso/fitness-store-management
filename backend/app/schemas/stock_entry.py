@@ -3,7 +3,7 @@
 from typing import Optional, List
 from datetime import datetime, date
 from decimal import Decimal
-from pydantic import BaseModel, Field, field_validator, field_serializer
+from pydantic import BaseModel, Field, field_validator, field_serializer, computed_field, model_validator
 
 from app.models.stock_entry import EntryType, EntryStatus
 
@@ -14,6 +14,7 @@ class StockEntryBase(BaseModel):
     entry_date: date = Field(..., description="Data da entrada")
     entry_type: EntryType = Field(..., description="Tipo de entrada (trip/online/local)")
     trip_id: Optional[int] = Field(None, description="ID da viagem (se entry_type = 'trip')")
+    supplier_id: Optional[int] = Field(None, description="Fornecedor padrão da entrada (cadastro)")
     supplier_name: str = Field(..., min_length=1, max_length=255, description="Nome do fornecedor")
     supplier_cnpj: Optional[str] = Field(None, max_length=18, description="CNPJ do fornecedor")
     supplier_contact: Optional[str] = Field(None, max_length=255, description="Contato do fornecedor")
@@ -48,7 +49,18 @@ def normalize_entry_code(value):
 
 
 class StockEntryCreate(StockEntryBase):
-    """Schema for creating a stock entry."""
+    """Schema for creating a stock entry.
+
+    Informe `supplier_id` (fornecedor cadastrado) OU `supplier_name` (texto: o servidor acha o
+    cadastro pelo nome ou cria um novo). Se vierem os dois, vale o `supplier_id`.
+    """
+    supplier_name: Optional[str] = Field(None, min_length=1, max_length=255, description="Nome do fornecedor")
+
+    @model_validator(mode='after')
+    def require_supplier(self):
+        if self.supplier_id is None and not (self.supplier_name or '').strip():
+            raise ValueError('Informe o fornecedor (supplier_id ou supplier_name)')
+        return self
 
     @field_validator('entry_code', mode='before')
     @classmethod
@@ -157,6 +169,20 @@ class StockEntryStats(BaseModel):
 class StockEntryWithItems(StockEntryResponse):
     """Schema for stock entry with full items list."""
     entry_items: List["EntryItemResponse"] = Field(default_factory=list, description="Lista de itens da entrada")
+
+    @computed_field(description="Resumo por fornecedor: itens, quantidade e custo")
+    @property
+    def suppliers_summary(self) -> List[dict]:
+        groups: dict = {}
+        for it in self.entry_items:
+            key = it.supplier_id if it.supplier_id is not None else 0
+            name = it.supplier_name or self.supplier_name
+            g = groups.setdefault(key, {"supplier_id": it.supplier_id, "supplier_name": name,
+                                        "items": 0, "quantity": 0, "total_cost": 0.0})
+            g["items"] += 1
+            g["quantity"] += it.quantity_received
+            g["total_cost"] = round(g["total_cost"] + float(it.total_cost or 0), 2)
+        return sorted(groups.values(), key=lambda g: -g["total_cost"])
 
     class Config:
         from_attributes = True

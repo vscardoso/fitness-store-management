@@ -74,6 +74,15 @@ class StockEntry(BaseModel):
         comment="ID da viagem associada (se entry_type = 'trip')"
     )
     
+    # Fornecedor padrão da entrada (cadastro). Cada item pode ter o seu (entry_items.supplier_id);
+    # supplier_name continua como texto de exibição/retrocompatibilidade.
+    supplier_id: Mapped[int | None] = mapped_column(
+        ForeignKey("suppliers.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Fornecedor padrão da entrada (FK para suppliers)"
+    )
+
     # Informações do fornecedor
     supplier_name: Mapped[str] = mapped_column(
         String(255),

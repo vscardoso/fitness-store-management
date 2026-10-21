@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.models.supplier import Supplier
 from app.models.supplier_product import SupplierProduct
+from app.models.product import Product
 from app.repositories.base import BaseRepository
 from app.schemas.supplier import SupplierCreate, SupplierUpdate
 
@@ -49,7 +50,8 @@ class SupplierRepository(BaseRepository[Supplier, SupplierCreate, SupplierUpdate
             select(SupplierProduct)
             .options(
                 selectinload(SupplierProduct.supplier),
-                selectinload(SupplierProduct.product),
+                # variants junto: Product.sku/price são propriedades que leem as variantes
+                selectinload(SupplierProduct.product).selectinload(Product.variants),
             )
             .where(
                 SupplierProduct.product_id == product_id,
@@ -74,7 +76,8 @@ class SupplierRepository(BaseRepository[Supplier, SupplierCreate, SupplierUpdate
             select(SupplierProduct)
             .options(
                 selectinload(SupplierProduct.supplier),
-                selectinload(SupplierProduct.product),
+                # variants junto: Product.sku/price são propriedades que leem as variantes
+                selectinload(SupplierProduct.product).selectinload(Product.variants),
             )
             .where(
                 SupplierProduct.supplier_id == supplier_id,

@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_serializer
 
 
 # ─────────────────────────────────────────────
@@ -59,5 +59,16 @@ class SupplierProductResponse(BaseModel):
 
     # Dados do fornecedor
     supplier_name: Optional[str] = None
+    supplier_cnpj: Optional[str] = None
+    supplier_phone: Optional[str] = None
+
+    # Selos calculados pela lista do produto (menor custo / mais compras)
+    is_cheapest: bool = False
+    is_most_frequent: bool = False
+
+    @field_serializer("last_unit_cost")
+    def _cost_as_number(self, value: Decimal) -> float:
+        """O app faz contas e comparações com o custo: tem que ser número, não texto."""
+        return float(value) if value is not None else 0.0
 
     model_config = {"from_attributes": True}

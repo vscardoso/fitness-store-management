@@ -32,6 +32,8 @@ def _sp_to_response(sp) -> SupplierProductResponse:
         product_name=sp.product.name if sp.product else None,
         product_sku=getattr(sp.product, "sku", None) if sp.product else None,
         supplier_name=sp.supplier.name if sp.supplier else None,
+        supplier_cnpj=sp.supplier.cnpj if sp.supplier else None,
+        supplier_phone=sp.supplier.phone if sp.supplier else None,
     )
 
 
@@ -156,4 +158,12 @@ async def get_product_suppliers(
     """
     svc = SupplierService(db)
     items = await svc.get_product_suppliers(product_id, tenant_id)
-    return [_sp_to_response(sp) for sp in items]
+    rows = [_sp_to_response(sp) for sp in items]
+    if len(rows) > 1:
+        # Selo só quando há diferença real (empate não destaca ninguém)
+        costs = [r.last_unit_cost for r in rows]
+        counts = [r.purchase_count for r in rows]
+        for r in rows:
+            r.is_cheapest = min(costs) < max(costs) and r.last_unit_cost == min(costs)
+            r.is_most_frequent = min(counts) < max(counts) and r.purchase_count == max(counts)
+    return rows
