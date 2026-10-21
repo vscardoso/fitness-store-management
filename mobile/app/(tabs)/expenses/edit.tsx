@@ -187,7 +187,7 @@ export default function EditExpenseScreen() {
               />
 
               <DateTimeInput
-                label="Data *"
+                label="Data do pagamento *"
                 value={expenseDate}
                 onChange={(d) => d && setExpenseDate(d)}
                 mode="date"
