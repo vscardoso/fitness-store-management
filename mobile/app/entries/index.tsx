@@ -757,12 +757,19 @@ export default function StockEntriesScreen() {
                 actionLabel="Criar Entrada e Vincular"
                 onAction={() => router.push({
                   pathname: '/entries/add',
-                  params: {
-                    from: '/(tabs)/entries',
-                    preselectedProductData: JSON.stringify(productToLink),
-                    preselectedQuantity: '1',
-                    fromCatalog: 'true',
-                  }
+                  params: productToLink?.isVariantProduct && Array.isArray(productToLink.variants)
+                    ? {
+                        // Variações já com as quantidades digitadas: uma linha por variação na entrada
+                        from: '/(tabs)/entries',
+                        fromWizard: 'true',
+                        preselectedVariantsData: JSON.stringify(productToLink.variants),
+                      }
+                    : {
+                        from: '/(tabs)/entries',
+                        preselectedProductData: JSON.stringify(productToLink),
+                        preselectedQuantity: '1',
+                        fromCatalog: 'true',
+                      }
                 })}
               />
             ) : filter === 'history' ? (
