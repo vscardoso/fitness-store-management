@@ -106,6 +106,29 @@ class NewVariantInput(BaseModel):
         return normalize_color(v) if isinstance(v, str) else v
 
 
+class NewProductForEntryRequest(BaseModel):
+    """Produto NOVO (simples = 1 variação) para lançar numa entrada já existente, numa transação só."""
+    product_name: str
+    product_description: Optional[str] = None
+    product_brand: Optional[str] = None
+    product_category_id: int
+    product_gender: Optional[str] = None
+    product_material: Optional[str] = None
+    base_price: float
+    variants: List[NewVariantInput] = Field(..., min_length=1)
+
+    @field_validator("product_gender", mode="before")
+    @classmethod
+    def _norm_gender(cls, v):
+        return normalize_gender(v) if isinstance(v, str) else v
+
+
+class NewProductForEntryResponse(BaseModel):
+    entry_id: int
+    product_id: int
+    total_cost: float
+
+
 class VariantItem(BaseModel):
     """Item de variante com quantidade."""
     variant_id: int
@@ -372,6 +395,42 @@ async def create_stock_entry_with_new_product_variants(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao criar entrada com novo produto com variantes: {str(e)}"
         )
+
+
+@router.post(
+    "/{entry_id}/with-new-product",
+    response_model=NewProductForEntryResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Lançar um NOVO produto numa entrada existente (transação atômica)",
+)
+async def add_new_product_to_entry(
+    entry_id: int,
+    request_data: NewProductForEntryRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """O produto só passa a existir se o lançamento na entrada der certo; qualquer falha desfaz tudo."""
+    try:
+        return await StockEntryService(db).add_new_product_to_entry(
+            entry_id,
+            product_data={
+                "name": request_data.product_name,
+                "description": request_data.product_description,
+                "brand": request_data.product_brand,
+                "category_id": request_data.product_category_id,
+                "gender": request_data.product_gender,
+                "material": request_data.product_material,
+                "base_price": request_data.base_price,
+            },
+            variants_data=[v.model_dump() for v in request_data.variants],
+            tenant_id=tenant_id,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao lançar o produto na entrada: {e}")
 
 
 @router.post(

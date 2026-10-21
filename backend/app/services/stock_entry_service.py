@@ -1761,6 +1761,118 @@ class StockEntryService:
             await self.db.rollback()
             raise e
 
+    async def add_new_product_to_entry(
+        self,
+        entry_id: int,
+        product_data: Dict[str, Any],
+        variants_data: List[Dict[str, Any]],
+        *,
+        tenant_id: int,
+    ) -> Dict[str, Any]:
+        """
+        Cria um NOVO produto (com variações) e o lança numa entrada JÁ EXISTENTE, tudo numa transação.
+
+        Produto simples = 1 variação. Só variações com quantidade > 0 entram na entrada, mas todas
+        são criadas. Se qualquer passo falhar, nada é gravado (rollback): o produto não existe
+        enquanto a entrada não o contiver.
+        """
+        from decimal import Decimal
+        from app.models.product_variant import ProductVariant
+        from app.repositories.product_repository import ProductRepository
+
+        try:
+            entry = await self.entry_repo.get_by_id(self.db, entry_id, include_items=True, tenant_id=tenant_id)
+            if not entry:
+                raise ValueError(f"Entrada {entry_id} não encontrada")
+            if not product_data.get('name') or not product_data.get('category_id'):
+                raise ValueError("Nome e categoria do produto são obrigatórios")
+            if not variants_data:
+                raise ValueError("Informe ao menos uma variação")
+            if not any((v.get('quantity') or 0) > 0 for v in variants_data):
+                raise ValueError("Informe a quantidade de ao menos uma variação")
+
+            await self._ensure_skus_free([v.get('sku') for v in variants_data], tenant_id)
+            entry_type = entry.entry_type
+            name = product_data['name'].strip()
+            for v in variants_data:
+                if (v.get('quantity') or 0) > 0:
+                    self._require_cost(
+                        v.get('cost_price'),
+                        f"{name}, variação {self._variant_label(v.get('size'), v.get('color'), v.get('sku'))}",
+                        entry_type,
+                    )
+
+            base_price = Decimal(str(product_data.get('base_price') or 0))
+            product = await ProductRepository(self.db).create({
+                'name': name,
+                'description': product_data.get('description'),
+                'brand': product_data.get('brand'),
+                'gender': product_data.get('gender'),
+                'material': product_data.get('material'),
+                'category_id': product_data.get('category_id'),
+                'base_price': base_price,
+                'is_catalog': False,
+                'is_active': True,
+            }, tenant_id=tenant_id)
+            await self.db.flush()
+
+            supplier_id = entry.supplier_id
+            added_cost = Decimal('0')
+            acc: dict = {}
+            for v in variants_data:
+                sku = (v.get('sku') or '').strip().upper() or None
+                variant = ProductVariant(
+                    product_id=product.id,
+                    sku=sku,
+                    color=v.get('color'),
+                    size=v.get('size'),
+                    price=Decimal(str(v['price'] if v.get('price') is not None else base_price)),
+                    cost_price=Decimal(str(v['cost_price'])) if v.get('cost_price') is not None else None,
+                    is_active=True,
+                    tenant_id=tenant_id,
+                )
+                self.db.add(variant)
+                await self.db.flush()
+                qty = v.get('quantity') or 0
+                if qty <= 0:
+                    continue
+                unit_cost = self._require_cost(
+                    v.get('cost_price'),
+                    f"{name}, variação {self._variant_label(v.get('size'), v.get('color'), v.get('sku'))}",
+                    entry_type,
+                )
+                self.db.add(EntryItem(
+                    entry_id=entry.id,
+                    product_id=product.id,
+                    variant_id=variant.id,
+                    supplier_id=supplier_id,
+                    quantity_received=qty,
+                    quantity_remaining=qty,
+                    unit_cost=unit_cost,
+                    tenant_id=tenant_id,
+                    is_active=True,
+                ))
+                await self.db.flush()
+                added_cost += Decimal(str(qty)) * unit_cost
+                if supplier_id:
+                    q0, t0 = acc.get((supplier_id, product.id), (0, Decimal('0')))
+                    acc[(supplier_id, product.id)] = (q0 + qty, t0 + Decimal(str(qty)) * unit_cost)
+
+            entry.total_cost = (entry.total_cost or Decimal('0')) + added_cost
+            if acc:
+                await self._apply_supplier_links(acc, entry.entry_date, tenant_id)
+            try:
+                await InventoryService(self.db).rebuild_product_from_fifo(product.id, tenant_id=tenant_id)
+            except Exception as sync_err:
+                print(f"  [Inventory Sync ADD_NEW_PRODUCT] Falha sync produto {product.id}: {sync_err}")
+
+            product_id, entry_id_out, total_out = product.id, entry.id, entry.total_cost
+            await self.db.commit()
+            return {"entry_id": entry_id_out, "product_id": product_id, "total_cost": float(total_out or 0)}
+        except Exception:
+            await self.db.rollback()
+            raise
+
     async def correct_entry_item(
         self,
         item_id: int,

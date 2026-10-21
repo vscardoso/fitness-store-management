@@ -41,7 +41,9 @@ import FAB from '@/components/FAB';
 import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import useBackToList from '@/hooks/useBackToList';
-import { getStockEntries, getStockEntriesStats, addItemToEntry } from '@/services/stockEntryService';
+import { getStockEntries, getStockEntriesStats, addItemToEntry, addNewProductToEntry } from '@/services/stockEntryService';
+import { takePendingProductImage } from '@/services/pendingProductImage';
+import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -126,11 +128,26 @@ export default function StockEntriesScreen() {
   const [showDeleteSuccessDialog, setShowDeleteSuccessDialog] = useState(false);
   const [showErrorDialog, setShowErrorDialog] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [createdProductId, setCreatedProductId] = useState<number | null>(null);
 
   // Mutation para vincular produto
   const linkMutation = useMutation({
     mutationFn: async (data: { entryId: number; productData: any }) => {
       const { entryId, productData } = data;
+
+      // ── Produto NOVO (wizard): cria produto + lança na entrada numa transação só ──
+      if (productData.newProduct) {
+        const created = await addNewProductToEntry(entryId, productData.newProduct);
+        const imageUri = takePendingProductImage();
+        if (imageUri) {
+          try {
+            await uploadProductImageWithFallback(created.product_id, imageUri);
+          } catch {
+            // foto é opcional: o produto já está salvo e a foto pode ser enviada depois
+          }
+        }
+        return { createdProductId: created.product_id };
+      }
 
       // ── Produto com variantes: adicionar um item por variante ──
       if (productData.isVariantProduct && Array.isArray(productData.variants)) {
@@ -162,11 +179,13 @@ export default function StockEntriesScreen() {
           : 'Adicionado via catálogo',
       });
     },
-    onSuccess: async (_, variables) => {
+    onSuccess: async (result: any, variables) => {
       setShowLinkDialog(false);
+      if (result?.createdProductId) setCreatedProductId(result.createdProductId);
 
       const productIdsToRefresh = Array.from(new Set<number>([
         Number(variables.productData?.id || 0),
+        Number(result?.createdProductId || 0),
         ...((variables.productData?.variants || []).map((v: any) => Number(v.product_id || 0))),
       ].filter((id) => id > 0)));
 
@@ -844,9 +863,11 @@ export default function StockEntriesScreen() {
                   createdEntrySupplier: selectedEntry.supplier_name || '',
                   // Para variantes, passar produto completo; para simples, reconstruir
                   createdProductData: productToLink?._fullProductData
-                    ? productToLink._fullProductData
+                    ? (createdProductId
+                        ? JSON.stringify({ ...JSON.parse(productToLink._fullProductData), id: createdProductId, _atomicVariants: undefined, _virtual: undefined })
+                        : productToLink._fullProductData)
                     : JSON.stringify({
-                        id: productToLink?.id,
+                        id: createdProductId ?? productToLink?.id,
                         name: productToLink?.name,
                         sku: productToLink?.sku,
                       barcode: productToLink?.barcode,

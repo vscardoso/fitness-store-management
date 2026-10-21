@@ -308,3 +308,33 @@ export async function addItemToEntry(
   const response = await api.post(`${ENTRIES_ENDPOINT}${entryId}/items`, data);
   return response.data;
 }
+
+export interface NewProductForEntry {
+  product_name: string;
+  product_description?: string;
+  product_brand?: string;
+  product_category_id: number;
+  product_gender?: string;
+  product_material?: string;
+  base_price: number;
+  variants: Array<{
+    sku?: string | null;
+    size?: string | null;
+    color?: string | null;
+    price?: number | null;
+    cost_price?: number | null;
+    quantity: number;
+  }>;
+}
+
+/**
+ * Cria um produto NOVO e o lança numa entrada existente numa transação só:
+ * se falhar, o produto não existe (nada fica gravado pela metade).
+ */
+export async function addNewProductToEntry(
+  entryId: number,
+  data: NewProductForEntry
+): Promise<{ entry_id: number; product_id: number; total_cost: number }> {
+  const response = await api.post(`${ENTRIES_ENDPOINT}${entryId}/with-new-product`, data);
+  return response.data;
+}

@@ -18,6 +18,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { scanProductImage } from '@/services/aiService';
 import { createProduct, getProductById, updateProduct } from '@/services/productService';
 import { createProductWithVariants } from '@/services/productVariantService';
+import { setPendingProductImage } from '@/services/pendingProductImage';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { logError, logWarn, logInfo } from '@/services/debugLog';
 import { generateSKU, generateVariantSKU } from '@/utils/skuGenerator';
@@ -920,47 +921,51 @@ export function useProductWizard() {
 
     const productAny = state.createdProduct as any;
 
-    // Produto simples virtual: criar na API antes de vincular a entrada existente
+    // Produto simples virtual: NÃO cria na API agora. Produto + lançamento na entrada existente
+    // acontecem numa transação só (entries/index), então abandonar o fluxo não deixa produto órfão.
     if (productAny._virtual) {
-      setState(prev => ({ ...prev, isCreating: true }));
-      try {
-        const { _virtual, ...productPayload } = productAny;
-        let realProduct = await createProduct({ ...productPayload, is_catalog: true } as any);
-        if (state.capturedImage) {
-          try {
-            realProduct = await uploadProductImageWithFallback(realProduct.id, state.capturedImage);
-          } catch (uploadErr) {
-            logWarn('Wizard', 'goToExistingEntry - erro ao fazer upload da imagem', uploadErr);
-          }
-        }
-        invalidateProductCaches(realProduct.id);
-        _wizardCreatedProductBackup = realProduct;
-        setState(prev => ({ ...prev, createdProduct: realProduct as Product, isCreating: false }));
-        // Navegar com o produto real recém-criado
-        router.push({
-          pathname: '/entries',
-          params: {
-            selectMode: 'true',
-            fromWizard: 'true',
-            productToLink: JSON.stringify({
-              id: realProduct.id,
-              name: realProduct.name,
-              sku: realProduct.sku,
-              barcode: realProduct.barcode,
-              image_url: realProduct.image_url,
-              cost_price: realProduct.cost_price,
-              price: realProduct.price,
-              category_id: realProduct.category_id,
-              quantity,
-            }),
-          },
-        });
-        return;
-      } catch (err: any) {
-        setState(prev => ({ ...prev, isCreating: false }));
-        showDialog('Erro', 'Não foi possível criar o produto. Tente novamente.', 'danger');
-        return;
-      }
+      setPendingProductImage(state.capturedImage ?? null);
+      router.push({
+        pathname: '/entries',
+        params: {
+          selectMode: 'true',
+          fromWizard: 'true',
+          productToLink: JSON.stringify({
+            id: 0,
+            name: productAny.name,
+            sku: productAny.sku,
+            barcode: productAny.barcode,
+            cost_price: productAny.cost_price,
+            price: productAny.price,
+            category_id: productAny.category_id,
+            description: productAny.description,
+            brand: productAny.brand,
+            color: productAny.color,
+            size: productAny.size,
+            gender: productAny.gender,
+            material: productAny.material,
+            quantity,
+            newProduct: {
+              product_name: productAny.name,
+              product_description: productAny.description || undefined,
+              product_brand: productAny.brand || undefined,
+              product_category_id: productAny.category_id,
+              product_gender: productAny.gender || undefined,
+              product_material: productAny.material || undefined,
+              base_price: productAny.price ?? 0,
+              variants: [{
+                sku: productAny.sku,
+                size: productAny.size || undefined,
+                color: productAny.color || undefined,
+                price: productAny.price ?? 0,
+                cost_price: productAny.cost_price,
+                quantity,
+              }],
+            },
+          }),
+        },
+      });
+      return;
     }
 
     logInfo('Wizard', 'goToExistingEntry - navegando para entries', {
@@ -997,61 +1002,53 @@ export function useProductWizard() {
     let product = state.createdProduct as any;
     const variants: any[] = product.variants ?? [];
 
-    // ── FLUXO ATÔMICO: produto virtual → criar na API antes de vincular entrada ─
+    // ── FLUXO ATÔMICO: produto virtual NÃO é criado agora ──────────────────────
+    // Produto + variações + lançamento na entrada existente acontecem numa transação só
+    // (entries/index). Abandonar ou falhar não deixa produto órfão no catálogo.
     if (product._atomicVariants) {
-      setState(prev => ({ ...prev, isCreating: true }));
-      try {
-        const variantsList: ProductVariantCreate[] = variants.map((v: any) => ({
-          sku: v.sku,
-          size: v.size || undefined,
-          color: v.color || undefined,
-          price: v.price,
-          cost_price: v.cost_price,
-        }));
-
-        const withVariants = await createProductWithVariants({
-          name: product.name,
-          description: product.description,
-          brand: product.brand,
-          gender: product.gender,
-          material: product.material,
-          category_id: product.category_id,
-          base_price: product.price,
-          is_catalog: true,
-          variants: variantsList,
-        });
-
-        product = {
-          ...withVariants,
-          sku: withVariants.variants[0]?.sku || product.sku,
-          price: withVariants.base_price ?? withVariants.variants[0]?.price ?? 0,
-          cost_price: withVariants.variants[0]?.cost_price ?? undefined,
-          current_stock: 0,
-          min_stock_threshold: 5,
-          is_active: true,
-        } as any;
-
-        if (state.capturedImage) {
-          try {
-            product = await uploadProductImageWithFallback(product.id, state.capturedImage);
-          } catch (uploadErr) {
-            logWarn('Wizard', 'goToExistingEntryWithVariants - erro ao fazer upload da imagem', uploadErr);
-          }
-        }
-
-        _wizardCreatedProductBackup = product; // Backup para sobreviver router.replace
-        setState(prev => ({ ...prev, createdProduct: product as Product, isCreating: false }));
-        invalidateProductCaches(product.id);
-
-        logInfo('Wizard', 'goToExistingEntryWithVariants - produto criado para entrada existente', {
-          productId: product.id,
-          productName: product.name,
-        });
-      } catch (err: any) {
-        setState(prev => ({ ...prev, isCreating: false }));
-        showDialog('Erro', 'Não foi possível criar o produto. Tente novamente.', 'danger');
+      const virtualVariants: any[] = variants;
+      const newProductVariants = virtualVariants.map((v: any, idx: number) => ({
+        sku: v.sku,
+        size: v.size || undefined,
+        color: v.color || undefined,
+        price: v.price ?? product.price ?? 0,
+        cost_price: v.cost_price ?? product.cost_price ?? undefined,
+        quantity: variantQtys[idx] ?? variantQtys[v.id] ?? 0,
+      }));
+      const totalQty = newProductVariants.reduce((sum: number, v: any) => sum + v.quantity, 0);
+      if (totalQty <= 0) {
+        showDialog('Atenção', 'Informe a quantidade de ao menos uma variação.', 'warning');
         return;
       }
+      setPendingProductImage(state.capturedImage ?? null);
+      router.push({
+        pathname: '/entries',
+        params: {
+          selectMode: 'true',
+          fromWizard: 'true',
+          productToLink: JSON.stringify({
+            id: 0,
+            name: product.name,
+            sku: product.sku,
+            cost_price: product.cost_price,
+            price: product.price,
+            category_id: product.category_id,
+            quantity: totalQty,
+            _fullProductData: JSON.stringify(state.createdProduct),
+            newProduct: {
+              product_name: product.name,
+              product_description: product.description || undefined,
+              product_brand: product.brand || undefined,
+              product_category_id: product.category_id,
+              product_gender: product.gender || undefined,
+              product_material: product.material || undefined,
+              base_price: product.price ?? 0,
+              variants: newProductVariants,
+            },
+          }),
+        },
+      });
+      return;
     }
 
     // Montar payload com variantes e quantidades.
