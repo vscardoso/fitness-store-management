@@ -61,6 +61,8 @@ export default function StockEntriesScreen() {
   const [typeFilter, setTypeFilter] = useState<EntryType | undefined>();
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<FilterType>('active');
+  // No modo "vincular produto" o filtro salvo não vale: entrada 100% vendida também aceita produto novo
+  const [pickedFilter, setPickedFilter] = useState(false);
 
   // ── Animações de entrada ──
   const headerOpacity  = useSharedValue(0);
@@ -114,6 +116,7 @@ export default function StockEntriesScreen() {
 
   const isSelectMode = params.selectMode === 'true' && productToLink;
   const isFromWizard = params.fromWizard === 'true';
+  const shownFilter: FilterType = isSelectMode && !pickedFilter ? 'all' : filter;
 
   // Estados para diálogos
   const [showLinkDialog, setShowLinkDialog] = useState(false);
@@ -297,7 +300,8 @@ export default function StockEntriesScreen() {
   const filteredByStatus = useMemo(() => {
     if (!entries) return [];
 
-    switch (filter) {
+    const effectiveFilter = params.selectMode === 'true' && !pickedFilter ? 'all' : filter;
+    switch (effectiveFilter) {
       case 'active':
         return entries.filter(e => e.sell_through_rate < 100);
       case 'history':
@@ -305,7 +309,7 @@ export default function StockEntriesScreen() {
       default:
         return entries;
     }
-  }, [entries, filter]);
+  }, [entries, filter, pickedFilter, params.selectMode]);
 
   /**
    * Filtrar entradas por busca
@@ -573,7 +577,7 @@ export default function StockEntriesScreen() {
       {/* Filtros de Status (Ativas/Histórico/Todas) */}
       <View style={styles.filterContainer}>
         {(['active', 'history', 'all'] as FilterType[]).map((f) => {
-          const isActive = filter === f;
+          const isActive = shownFilter === f;
           const labels = { active: 'Ativas', history: 'Histórico', all: 'Todas' };
           const icons  = { active: 'cube', history: 'archive', all: 'list' } as const;
           const counts = { active: activeCount, history: historyCount, all: totalCount };
@@ -587,7 +591,7 @@ export default function StockEntriesScreen() {
                   borderColor: brandingColors.primary,
                 },
               ]}
-              onPress={() => setFilter(f)}
+              onPress={() => { setPickedFilter(true); setFilter(f); }}
             >
               <Ionicons
                 name={icons[f]}
