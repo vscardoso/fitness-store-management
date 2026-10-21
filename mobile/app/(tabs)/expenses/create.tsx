@@ -46,7 +46,7 @@ export default function CreateExpenseScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['monthly-result'] });
-      router.back();
+      router.replace('/(tabs)/expenses');
     },
     onError: (err: any) => {
       setErrorMessage(err?.response?.data?.detail || 'Não foi possível salvar a despesa.');

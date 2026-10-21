@@ -80,7 +80,7 @@ export default function EditExpenseScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['monthly-result'] });
-      router.back();
+      router.replace('/(tabs)/expenses');
     },
     onError: (err: any) => {
       setErrorMessage(err?.response?.data?.detail || 'Não foi possível salvar.');
@@ -93,7 +93,7 @@ export default function EditExpenseScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['monthly-result'] });
-      router.back();
+      router.replace('/(tabs)/expenses');
     },
     onError: (err: any) => {
       setDeleteConfirm(false);
