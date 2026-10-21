@@ -129,3 +129,12 @@ Problemas conhecidos, não corrigidos:
 - `LoadingOverlay` (carregamento global via `loadingManager`) agora é um cartão claro com a lupa, sem escurecer a tela, com camada transparente que bloqueia toques durante o carregamento. Spinners internos de `Button loading` do react-native-paper e `ProgressBar` não foram trocados.
 - `CategoryPickerModal` aceita `allowCreate` e cria a categoria dentro do seletor (nome duplicado seleciona a existente). Ligado em `WizardStep1`, `WizardStep2` e `products/edit/[id]`. O backend só permite criar categoria para ADMIN e MANAGER (`require_role`); vendedor recebe mensagem de permissão (403 ainda não testado com usuário vendedor).
 - `onboarding.tsx` usa `useWindowDimensions` (corrigido o crash com largura 0 no web).
+
+## Fornecedores, Fase 1 (2026-10-21)
+
+- Entrada tem fornecedor padrão (`stock_entries.supplier_id`); cada item pode ter o seu (`entry_items.supplier_id`, padrão: o da entrada). O servidor aceita `supplier_id` ou `supplier_name` (acha por nome sem acento/caixa ou CNPJ, ou cria o cadastro).
+- `supplier_products` é atualizado sozinho por entrada (1 compra por fornecedor x produto, custo médio ponderado). Alimenta o card "Fornecedores" do produto e o selo "mais barato / mais frequente" (só quando há diferença real).
+- `StockEntryService.create_entry` valida tudo (fornecedor, custo, variação) ANTES de criar a entrada, porque `StockEntryRepository.create` faz commit: erro depois dele deixaria entrada vazia gravada.
+- Colunas novas: migração Alembic `20261021_entry_supplier` e, no SQLite dev, `_ensure_sqlite_columns` em `app/core/database.py` (create_all não altera tabela existente).
+- `backend/scripts/backfill_suppliers.py` (idempotente; sem `--apply` só simula) migra os fornecedores antigos escritos como texto. Aplicado na base de demonstração em 21/10/2026 com backup `fitness_store_demo.db.bak-antes-fornecedores-20261021`. Entradas de estoque inicial do sistema são ignoradas.
+- Armadilha: shell do Bash tool quebra com scripts Python muito longos em heredoc; gravar o script em arquivo e rodar.

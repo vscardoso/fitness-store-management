@@ -1,5 +1,7 @@
 # Fluxo de fornecedores na entrada de estoque (2026-10-21)
 
+> Status: Fase 1 implementada em 21/10/2026 (fornecedor por item, padrão na entrada, vínculo automático, seletor, resumo, card do produto e migração dos textos antigos). Fases 2 e 3 pendentes.
+
 Pedido: uma mesma entrada pode ter produtos de vários fornecedores (ex.: viagem ao Brás, várias lojas no mesmo dia). Pensar o fluxo, ideias de melhoria e ciclo de vida para o lojista.
 
 ## 1. Como é hoje (verificado por teste, 21/10/2026)
