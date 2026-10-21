@@ -18,7 +18,6 @@ import {
   ScrollView,
   Switch,
   Alert,
-  ActivityIndicator,
   Modal,
 } from 'react-native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -34,6 +33,7 @@ import {
 } from '@/services/printService';
 import type { LabelPrinter, PrintVariantItem } from '@/types/printer';
 import type { ProductVariant } from '@/types/productVariant';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 interface Props {
   visible: boolean;

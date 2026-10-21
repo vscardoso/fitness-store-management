@@ -12,7 +12,6 @@ import {
   StatusBar,
   Image,
   Dimensions,
-  ActivityIndicator,
 } from 'react-native';
 import { Text, Button, Card, Chip, ProgressBar } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,6 +23,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import SimilarProductsModal from '@/components/products/SimilarProductsModal';
 import useBackToList from '@/hooks/useBackToList';
 import type { DuplicateMatch } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 const { width } = Dimensions.get('window');
 

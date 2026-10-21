@@ -7,7 +7,6 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
-  ActivityIndicator,
 } from 'react-native';
 import {
   Text,
@@ -29,6 +28,7 @@ import {
   ReturnEligibility,
   ReturnItemRequest,
 } from '@/services/returnService';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 interface ReturnModalProps {
   visible: boolean;

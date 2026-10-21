@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, Text, TextInput, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Text, TextInput } from 'react-native';
 import KeyboardSafeView from '@/components/ui/KeyboardSafeView';
 import { Ionicons } from '@expo/vector-icons';
 import PageHeader from '@/components/layout/PageHeader';
@@ -33,6 +33,7 @@ import {
 } from '@/utils/validation';
 import { PaymentMethod } from '@/types';
 import type { Customer } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 /**
  * Métodos de pagamento disponíveis

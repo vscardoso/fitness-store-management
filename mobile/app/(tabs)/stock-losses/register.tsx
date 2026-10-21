@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  ActivityIndicator,
   Animated,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
@@ -24,6 +23,7 @@ import { searchProducts } from '@/services/productService';
 import { useConditionalProcessingStore } from '@/store/conditionalProcessingStore';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { Product } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function StockLossRegisterScreen() {
   const router = useRouter();

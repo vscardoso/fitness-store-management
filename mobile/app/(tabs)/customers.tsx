@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Text,
   TextInput,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import Animated, {
@@ -29,6 +28,7 @@ import { formatPhone } from '@/utils/format';
 import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { Customer } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function CustomersScreen() {
   const router = useRouter();

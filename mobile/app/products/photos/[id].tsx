@@ -13,7 +13,6 @@ import {
   TouchableOpacity,
   Image,
   StatusBar,
-  ActivityIndicator,
   Text,
   useWindowDimensions,
 } from 'react-native';
@@ -45,6 +44,7 @@ import {
 } from '@/services/productMediaService';
 import type { ProductVariant } from '@/types/productVariant';
 import type { ProductMedia } from '@/types/productMedia';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 

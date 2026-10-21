@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -21,6 +20,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { listPrintJobs, statusColor, statusLabel } from '@/services/printService';
 import type { PrintJob } from '@/types/printer';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function PrintQueueScreen() {
   const router = useRouter();

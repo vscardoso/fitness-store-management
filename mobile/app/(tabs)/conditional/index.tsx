@@ -4,7 +4,6 @@ import {
   StyleSheet,
   FlatList,
   RefreshControl,
-  ActivityIndicator,
   TouchableOpacity,
   Text,
   TextInput,
@@ -39,6 +38,7 @@ import {
 import { formatCurrency } from '@/utils/format';
 import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 type FilterType = 'all' | 'pending' | 'overdue';
 

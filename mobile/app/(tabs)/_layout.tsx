@@ -2,12 +2,12 @@ import { Tabs, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator } from 'react-native-paper';
 import { Text } from 'react-native-paper';
 import { useAuthStore } from '@/store/authStore';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
 import { useUIStore } from '@/store/uiStore';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function TabsLayout() {
   const router = useRouter();

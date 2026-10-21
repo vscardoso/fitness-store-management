@@ -7,7 +7,7 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, Linking } from 'react-native';
-import { Modal, Portal, Button, Text, ActivityIndicator } from 'react-native-paper';
+import { Modal, Portal, Button, Text } from 'react-native-paper';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '@/constants/Colors';
@@ -15,6 +15,7 @@ import { haptics } from '@/utils/haptics';
 import { getProductByBarcode } from '@/services/productService';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { Product } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 interface BarcodeScannerProps {
   visible: boolean;

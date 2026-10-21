@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   Animated,
   Text,
-  ActivityIndicator,
   TextInput as RNTextInput,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
@@ -24,6 +23,7 @@ import { CreateShipmentDTO } from '@/types/conditional';
 import { getCustomers } from '@/services/customerService';
 import { searchCep } from '@/services/cepService';
 import type { ProductGrouped, ProductVariant } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 type Step = 1 | 2 | 3 | 4;
 

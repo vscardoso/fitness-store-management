@@ -1,7 +1,11 @@
 import React, { useState, useRef, useCallback } from 'react';
 import {
-  View, Text, TextInput, StyleSheet,
-  TouchableOpacity, ActivityIndicator, Animated,
+  View,
+  Text,
+  TextInput,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -13,6 +17,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getStorePIX, updateStorePIX, registerCieloPIXWebhook } from '@/services/storeService';
 import type { StorePIXKey } from '@/services/storeService';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 const PIX_TYPES = [
   { value: 'cpf',    label: 'CPF',             placeholder: '000.000.000-00' },

@@ -32,7 +32,6 @@ import {
   TouchableOpacity,
   View,
   StyleSheet,
-  ActivityIndicator,
   ViewStyle,
   TextStyle,
 } from 'react-native';
@@ -42,6 +41,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, theme } from '@/constants/Colors';
 import { BUTTON, type ButtonSize, type ButtonVariant } from '@/constants/tokens';
 import { useBrandingColors } from '@/store/brandingStore';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 // ─────────────────────────────────────────────────────────────────────────────
 

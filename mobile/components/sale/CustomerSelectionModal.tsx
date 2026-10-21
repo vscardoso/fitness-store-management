@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   FlatList,
   Pressable,
-  ActivityIndicator,
   TextInput,
   Text,
 } from 'react-native';
@@ -18,6 +17,7 @@ import { formatPhone, formatCurrency } from '@/utils/format';
 import { getCustomers } from '@/services/customerService';
 import EmptyState from '@/components/ui/EmptyState';
 import type { Customer } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 interface CustomerSelectionModalProps {
   visible: boolean;

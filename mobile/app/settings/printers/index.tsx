@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   FlatList,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
@@ -30,6 +29,7 @@ import {
   connectionLabel,
 } from '@/services/printService';
 import type { LabelPrinter } from '@/types/printer';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function PrintersScreen() {
   const router = useRouter();

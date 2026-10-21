@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
-  ActivityIndicator,
   Animated,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -21,6 +20,7 @@ import { TripStatus, type Trip } from '@/types';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { formatCurrency, formatDate } from '@/utils/format';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function TripsScreen() {
   const router = useRouter();

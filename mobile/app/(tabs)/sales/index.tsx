@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   Text,
   TextInput,
-  ActivityIndicator,
 } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -28,6 +27,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';
 import PeriodFilter, { PeriodFilterValue } from '@/components/PeriodFilter';
 import type { Sale } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 const statusMap: Record<string, { label: string; color: string; icon: string }> = {
   pending:            { label: 'Pendente',     color: '#F59E0B',             icon: 'time-outline' },

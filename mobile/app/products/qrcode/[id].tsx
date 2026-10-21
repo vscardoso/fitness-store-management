@@ -5,7 +5,6 @@ import {
   ScrollView,
   Text,
   TouchableOpacity,
-  ActivityIndicator,
 } from 'react-native';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +29,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { ProductVariant } from '@/types/productVariant';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 type LegacyFileSystemWithEncoding = typeof LegacyFileSystem & {
   EncodingType?: {

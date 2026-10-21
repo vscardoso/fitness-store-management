@@ -12,6 +12,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, theme } from '@/constants/Colors';
+import { useCreateCategory } from '@/hooks/useCategories';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { Category } from '@/types';
 
@@ -24,6 +26,8 @@ interface CategoryPickerModalProps {
   onSelect: (category: Category) => void;
   onDismiss: () => void;
   showProductCount?: boolean;
+  /** Mostra "Nova categoria" e cria a categoria direto do seletor (exige perfil admin/gerente) */
+  allowCreate?: boolean;
 }
 
 // ─── Ícone por nome de categoria ─────────────────────────────────────────────
@@ -62,11 +66,30 @@ export default function CategoryPickerModal({
   onSelect,
   onDismiss,
   showProductCount = false,
+  allowCreate = false,
 }: CategoryPickerModalProps) {
   const brandingColors = useBrandingColors();
   const [searchQuery, setSearchQuery] = useState('');
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
   const backdropAnim = useRef(new Animated.Value(0)).current;
+
+  // ── Criação de categoria ──
+  const createMutation = useCreateCategory();
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  const openCreate = (prefill?: string) => {
+    setNewName((prefill ?? '').trim());
+    setCreateError(null);
+    setCreating(true);
+  };
+
+  const closeCreate = () => {
+    setCreating(false);
+    setNewName('');
+    setCreateError(null);
+  };
 
   // ── Animação de entrada/saída ──
   useEffect(() => {
@@ -112,12 +135,43 @@ export default function CategoryPickerModal({
 
   const handleDismiss = () => {
     setSearchQuery('');
+    closeCreate();
     onDismiss();
   };
 
   const handleSelect = (category: Category) => {
     setSearchQuery('');
+    closeCreate();
     onSelect(category);
+  };
+
+  const handleCreate = async () => {
+    const name = newName.trim().replace(/\s+/g, ' ');
+    if (name.length < 2) {
+      setCreateError('Digite o nome da categoria (mínimo 2 letras).');
+      return;
+    }
+    // Já existe com o mesmo nome? Seleciona a existente em vez de duplicar.
+    const existing = categories.find((c) => c.name.trim().toLowerCase() === name.toLowerCase());
+    if (existing) {
+      handleSelect(existing);
+      return;
+    }
+    try {
+      setCreateError(null);
+      const created = await createMutation.mutateAsync({ name });
+      handleSelect(created);
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const detail = err?.response?.data?.detail;
+      if (status === 403) {
+        setCreateError('Você não tem permissão para criar categorias. Peça a um administrador ou gerente.');
+      } else if (typeof detail === 'string') {
+        setCreateError(detail);
+      } else {
+        setCreateError('Não foi possível criar a categoria. Tente novamente.');
+      }
+    }
   };
 
   // ── Item de categoria ──
@@ -173,7 +227,11 @@ export default function CategoryPickerModal({
         {searchQuery ? 'Nenhuma categoria encontrada' : 'Sem categorias'}
       </Text>
       <Text style={styles.emptySubtitle}>
-        {searchQuery ? 'Tente outros termos' : 'Cadastre categorias primeiro'}
+        {searchQuery
+          ? 'Tente outros termos'
+          : allowCreate
+            ? 'Crie a primeira categoria acima'
+            : 'Cadastre categorias primeiro'}
       </Text>
     </View>
   );
@@ -244,6 +302,65 @@ export default function CategoryPickerModal({
           )}
         </View>
 
+        {/* Nova categoria */}
+        {allowCreate && !creating && (
+          <TouchableOpacity
+            style={[styles.createRow, { borderColor: brandingColors.primary + '55' }]}
+            onPress={() => openCreate(searchQuery)}
+            activeOpacity={0.7}
+          >
+            <View style={[styles.createIcon, { backgroundColor: brandingColors.primary + '15' }]}>
+              <Ionicons name="add" size={20} color={brandingColors.primary} />
+            </View>
+            <Text style={[styles.createText, { color: brandingColors.primary }]} numberOfLines={1}>
+              {searchQuery.trim() ? `Criar categoria "${searchQuery.trim()}"` : 'Nova categoria'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+        {allowCreate && creating && (
+          <View style={styles.createForm}>
+            <Text style={styles.createLabel}>Nome da nova categoria</Text>
+            <TextInput
+              style={styles.createInput}
+              placeholder="Ex: Leggings, Tops, Acessórios"
+              placeholderTextColor={Colors.light.textTertiary}
+              value={newName}
+              onChangeText={(t) => {
+                setNewName(t);
+                if (createError) setCreateError(null);
+              }}
+              autoFocus
+              maxLength={80}
+              returnKeyType="done"
+              onSubmitEditing={handleCreate}
+              editable={!createMutation.isPending}
+            />
+            {createError ? <Text style={styles.createError}>{createError}</Text> : null}
+            <View style={styles.createActions}>
+              <TouchableOpacity
+                style={styles.createCancel}
+                onPress={closeCreate}
+                disabled={createMutation.isPending}
+              >
+                <Text style={styles.createCancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.createSubmit, { backgroundColor: brandingColors.primary }]}
+                onPress={handleCreate}
+                disabled={createMutation.isPending}
+                activeOpacity={0.85}
+              >
+                {createMutation.isPending ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.createSubmitText}>Criar e selecionar</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         {/* Divisor */}
         <View style={styles.divider} />
 
@@ -268,6 +385,61 @@ export default function CategoryPickerModal({
 // ─── Estilos ──────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
+  createRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginHorizontal: 20,
+    marginBottom: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+  },
+  createIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createText: { flex: 1, fontSize: 14, fontWeight: '700' },
+  createForm: {
+    marginHorizontal: 20,
+    marginBottom: 10,
+    padding: 14,
+    borderRadius: 14,
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    gap: 8,
+  },
+  createLabel: { fontSize: 12, fontWeight: '700', color: Colors.light.textSecondary },
+  createInput: {
+    height: 44,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    fontSize: 15,
+    color: Colors.light.text,
+  },
+  createError: { fontSize: 12, color: Colors.light.error },
+  createActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 2 },
+  createCancel: { paddingVertical: 10, paddingHorizontal: 14, justifyContent: 'center' },
+  createCancelText: { fontSize: 14, fontWeight: '600', color: Colors.light.textSecondary },
+  createSubmit: {
+    minWidth: 150,
+    height: 42,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  createSubmitText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0,0,0,0.52)',

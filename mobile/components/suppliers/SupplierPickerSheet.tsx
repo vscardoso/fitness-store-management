@@ -15,7 +15,6 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,6 +24,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { useSuppliers, useProductSuppliers, useCreateSupplier } from '@/hooks/useSuppliers';
 import { cnpjMask, phoneMask } from '@/utils/masks';
 import type { Supplier } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 interface Props {
   visible: boolean;

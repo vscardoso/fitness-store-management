@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
-  ActivityIndicator,
   Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -23,6 +22,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { listPrintJobs, listPrinters, statusColor, statusLabel } from '@/services/printService';
 import type { PrintJob, LabelPrinter } from '@/types/printer';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function LabelsHubScreen() {
   const router = useRouter();

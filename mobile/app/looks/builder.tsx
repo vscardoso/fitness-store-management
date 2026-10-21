@@ -7,7 +7,6 @@ import {
   View,
   StyleSheet,
   FlatList,
-  ActivityIndicator,
   TouchableOpacity,
   Image,
   Text as RNText,
@@ -25,6 +24,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { getImageUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
 import type { ProductGrouped, ProductVariant } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 interface SelectedItem {
   product: ProductGrouped;

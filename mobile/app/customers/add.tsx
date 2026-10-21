@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Text,
   TextInput,
-  ActivityIndicator,
   Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -24,6 +23,7 @@ import { phoneMask, cpfMask, cepMask, dateMask, isValidDate } from '@/utils/mask
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { CustomerCreate } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function AddCustomerScreen() {
   const router = useRouter();

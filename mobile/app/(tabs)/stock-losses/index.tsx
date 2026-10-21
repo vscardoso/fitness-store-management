@@ -4,7 +4,6 @@ import {
   StyleSheet,
   FlatList,
   RefreshControl,
-  ActivityIndicator,
   TouchableOpacity,
   Animated,
 } from 'react-native';
@@ -19,6 +18,7 @@ import { getStockLosses } from '@/services/expenseService';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import type { Expense } from '@/types/expense';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 const fmt = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

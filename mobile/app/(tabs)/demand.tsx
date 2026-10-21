@@ -8,7 +8,6 @@ import {
   StyleSheet,
   FlatList,
   RefreshControl,
-  ActivityIndicator,
   Image,
   Text,
 } from 'react-native';
@@ -23,6 +22,7 @@ import { getImageUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { DemandItem } from '@/types/look';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function DemandScreen() {
   const brandingColors = useBrandingColors();

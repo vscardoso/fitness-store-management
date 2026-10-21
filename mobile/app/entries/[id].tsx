@@ -16,7 +16,6 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  ActivityIndicator,
   TouchableOpacity,
   Text,
   TextInput as RNTextInput,
@@ -46,6 +45,7 @@ import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import EmptyState from '@/components/ui/EmptyState';
 import { useBrandingColors } from '@/store/brandingStore';
 import { EntryType, EntryItemResponse } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function StockEntryDetailsScreen() {
   const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();

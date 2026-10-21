@@ -10,7 +10,7 @@ import {
   Image,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Text, TextInput, HelperText, ActivityIndicator } from 'react-native-paper';
+import { Text, TextInput, HelperText } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
@@ -22,6 +22,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useBrandingStore, useBrandingColors } from '@/store/brandingStore';
 import type { SignupData } from '@/types';
 import { Colors, PRESET_THEMES, theme } from '@/constants/Colors';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 type BrandingPreset = (typeof PRESET_THEMES)[number];
 

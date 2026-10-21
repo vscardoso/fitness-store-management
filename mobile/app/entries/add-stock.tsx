@@ -17,7 +17,6 @@ import {
   TouchableOpacity,
   Text,
   TextInput,
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
@@ -41,6 +40,7 @@ import { getProductById } from '@/services/productService';
 import { createStockEntry } from '@/services/stockEntryService';
 import { formatCurrency } from '@/utils/format';
 import { EntryType, StockEntryCreate } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 // ─── Tipos de entrada disponíveis nesse fluxo ────────────────────────────────
 

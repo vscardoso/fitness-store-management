@@ -10,7 +10,6 @@ import {
   Image,
   Animated,
   Text,
-  ActivityIndicator,
   TextInput,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,6 +30,7 @@ import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { Colors, theme } from '@/constants/Colors';
 import type { ProductUpdate } from '@/types';
 import { formatPriceInput, formatPriceDisplay, formatMoneyDisplay } from '@/utils/priceFormatter';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -983,6 +983,7 @@ export default function EditProductScreen() {
 
       {/* Modal de Seleção de Categoria */}
       <CategoryPickerModal
+        allowCreate
         visible={menuVisible}
         categories={categories}
         selectedId={categoryId}

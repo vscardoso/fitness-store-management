@@ -16,7 +16,6 @@ import {
   RefreshControl,
   Modal,
   Image,
-  ActivityIndicator,
   Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -42,6 +41,7 @@ import {
   generatePixPayment,
 } from '@/services/pdvService';
 import type { PendingSale } from '@/types/pdv';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 const C = Colors.light;
 

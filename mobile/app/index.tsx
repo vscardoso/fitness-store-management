@@ -5,12 +5,13 @@
 
 import { useEffect, useState } from 'react';
 import { Redirect } from 'expo-router';
-import { View, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
 import { useAuthStore } from '@/store/authStore';
 import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
 import { getAccessToken } from '@/services/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/Colors';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 const ONBOARDING_COMPLETED_KEY = '@fitness_store:onboarding_completed';
 

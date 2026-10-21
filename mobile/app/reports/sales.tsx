@@ -3,7 +3,7 @@
  * Análise completa de vendas, lucro, margem e breakdown
  */
 import { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import Animated, {
   useSharedValue,
@@ -32,6 +32,7 @@ import type { PeriodFilterValue } from '@/components/PeriodFilter';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import PageHeader from '@/components/layout/PageHeader';
 import { useBrandingColors } from '@/store/brandingStore';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function SalesReportScreen() {
   const { goBack } = useBackToList('/(tabs)/more');

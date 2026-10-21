@@ -556,6 +556,7 @@ export default function WizardStep2({
 
       {/* Modal de Seleção de Categoria */}
       <CategoryPickerModal
+        allowCreate
         visible={categoryModalVisible}
         categories={categories}
         selectedId={formData.category_id}

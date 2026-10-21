@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   FlatList,
   Pressable,
-  ActivityIndicator,
   TextInput,
 } from 'react-native';
 import { Text } from 'react-native-paper';
@@ -20,6 +19,7 @@ import { formatCurrency } from '@/utils/format';
 import { getGroupedProducts } from '@/services/productService';
 import EmptyState from '@/components/ui/EmptyState';
 import type { ProductGrouped, ProductVariant } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 interface ProductSelectionModalProps {
   visible: boolean;

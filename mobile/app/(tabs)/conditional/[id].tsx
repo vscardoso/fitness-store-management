@@ -9,7 +9,6 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  ActivityIndicator,
   StatusBar,
   TouchableOpacity,
   Animated,
@@ -49,6 +48,7 @@ import {
   getDeadlineColor,
   isFinalStatus,
 } from '@/types/conditional';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 /**
  * Traduz os códigos de forma de pagamento para labels legíveis

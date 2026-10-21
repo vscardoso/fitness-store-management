@@ -12,7 +12,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  ActivityIndicator,
   FlatList,
   KeyboardAvoidingView,
   Platform,
@@ -29,6 +28,7 @@ import type { Category, Product, DuplicateMatch } from '@/types';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { capitalizeWords } from '@/utils/format';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 interface WizardStep1Props {
   wizard: UseProductWizardReturn;
@@ -478,6 +478,7 @@ export default function WizardStep1({
         })}
 
         <CategoryPickerModal
+          allowCreate
           visible={categoryModalVisible}
           categories={categories}
           selectedId={state.productData.category_id}

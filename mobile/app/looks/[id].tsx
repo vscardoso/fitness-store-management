@@ -4,7 +4,6 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  ActivityIndicator,
   Image,
   TouchableOpacity,
   Modal,
@@ -27,6 +26,7 @@ import { getImageUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
 import type { LookItemResponse } from '@/types/look';
 import type { Customer } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function LookDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

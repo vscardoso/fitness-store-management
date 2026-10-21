@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
-import { Text, TextInput, Button, ActivityIndicator } from 'react-native-paper';
+import { Text, TextInput, Button } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ import { Colors, theme, PRESET_THEMES } from '@/constants/Colors';
 import { useBrandingStore } from '@/store/brandingStore';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import useBackToList from '@/hooks/useBackToList';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function BrandingScreen() {
   const router = useRouter();

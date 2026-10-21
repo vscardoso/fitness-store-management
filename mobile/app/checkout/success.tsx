@@ -10,7 +10,7 @@
  */
 
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { View, StyleSheet, ScrollView, Animated, Easing, Text, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ScrollView, Animated, Easing, Text } from 'react-native';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -26,6 +26,7 @@ import { useAuthStore } from '@/store/authStore';
 import SaleReceipt from '@/components/receipt/SaleReceipt';
 import PageHeader from '@/components/layout/PageHeader';
 import AppButton from '@/components/ui/AppButton';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 /**
  * Componente principal da tela de sucesso

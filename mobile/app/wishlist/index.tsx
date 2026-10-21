@@ -8,7 +8,6 @@ import {
   StyleSheet,
   FlatList,
   RefreshControl,
-  ActivityIndicator,
   Image,
   Text as RNText,
 } from 'react-native';
@@ -23,6 +22,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { getImageUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
 import type { DemandItem } from '@/types/look';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function WishlistDemandScreen() {
   const router = useRouter();

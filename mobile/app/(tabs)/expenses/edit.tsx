@@ -7,7 +7,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
-import { TextInput, Button, Text, Switch, ActivityIndicator } from 'react-native-paper';
+import { TextInput, Button, Text, Switch } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -23,6 +23,7 @@ import {
 import { Colors, theme } from '@/constants/Colors';
 import { maskCurrencyBR, unmaskCurrency, toBRNumber } from '@/utils/priceFormatter';
 import type { ExpenseCategory, ExpenseUpdate } from '@/types/expense';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 /** Converte YYYY-MM-DD → Date (horário meio-dia para evitar bug de fuso) */
 const isoToDate = (iso: string): Date => {

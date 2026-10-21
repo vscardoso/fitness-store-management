@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   RefreshControl,
   Text,
-  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import Animated, {
@@ -25,6 +24,7 @@ import FAB from '@/components/FAB';
 import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 // ── Ícone por palavra-chave no nome da categoria ──
 const getCategoryIcon = (name: string): keyof typeof Ionicons.glyphMap => {

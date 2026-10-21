@@ -9,7 +9,6 @@ import {
   StatusBar,
   Text,
   TextInput,
-  ActivityIndicator,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -27,6 +26,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function EditCategoryScreen() {
   const router = useRouter();

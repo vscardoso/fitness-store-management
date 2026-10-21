@@ -4,7 +4,6 @@ import {
   StyleSheet,
   ScrollView,
   Text,
-  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -35,6 +34,7 @@ import ReturnModal from '@/components/sale/ReturnModal';
 import AppButton from '@/components/ui/AppButton';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { SaleWithDetails } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 const statusMap: Record<string, { label: string; color: string; solid?: boolean; icon: keyof typeof Ionicons.glyphMap }> = {
   pending:            { label: 'Pendente',     color: '#F59E0B', icon: 'time-outline' },

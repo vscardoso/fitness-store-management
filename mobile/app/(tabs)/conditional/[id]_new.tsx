@@ -15,7 +15,6 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  ActivityIndicator,
   StatusBar,
 } from 'react-native';
 import {
@@ -51,6 +50,7 @@ import type {
   ProcessReturnItemDTO,
   ShipmentItemStatus,
 } from '@/types/conditional';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 interface ProcessingItem {
   id: number;

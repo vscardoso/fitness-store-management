@@ -5,7 +5,6 @@ import {
   ScrollView,
   RefreshControl,
   Linking,
-  ActivityIndicator,
   TouchableOpacity,
   Text,
 } from 'react-native';
@@ -23,6 +22,7 @@ import { formatPhone, formatDate, formatCurrency, formatDateTime } from '@/utils
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { Sale } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function CustomerDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

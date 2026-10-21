@@ -17,7 +17,6 @@ import {
   StyleSheet,
   FlatList,
   RefreshControl,
-  ActivityIndicator,
   TouchableOpacity,
   Alert,
   Text,
@@ -47,6 +46,7 @@ import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { StockEntry, EntryType } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 const PAGE_SIZE = 20;
 

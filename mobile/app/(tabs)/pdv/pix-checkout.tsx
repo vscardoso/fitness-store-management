@@ -12,7 +12,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Share,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,6 +27,7 @@ import { subscribePixStatus } from '@/services/pdvService';
 import { createSale } from '@/services/saleService';
 import { useCart } from '@/hooks/useCart';
 import type { PixPaymentData } from '@/types/pdv';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 const C = Colors.light;
 

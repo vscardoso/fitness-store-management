@@ -5,7 +5,6 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  ActivityIndicator,
   TouchableOpacity,
   Switch,
   Image,
@@ -33,6 +32,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { useProductSuppliers } from '@/hooks/useSuppliers';
 import { VALUE_COLORS } from '@/constants/Colors';
 import ElginPrintSheet from '@/components/labels/ElginPrintSheet';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

@@ -5,7 +5,6 @@ import {
   StyleSheet,
   FlatList,
   RefreshControl,
-  ActivityIndicator,
   TouchableOpacity,
   TextInput,
   Animated,
@@ -24,6 +23,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useTutorialContext } from '@/components/tutorial';
 import type { ProductGrouped } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 const PAGE_SIZE = 20;
 

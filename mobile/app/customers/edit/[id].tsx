@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Text,
   TextInput,
-  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +23,7 @@ import { phoneMask, cpfMask, cepMask, dateMask, isValidDate } from '@/utils/mask
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { CustomerUpdate } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function EditCustomerScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

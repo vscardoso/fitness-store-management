@@ -4,7 +4,6 @@ import {
   StyleSheet,
   FlatList,
   RefreshControl,
-  ActivityIndicator,
   TouchableOpacity,
   Image,
   Text as RNText,
@@ -20,6 +19,7 @@ import { listLooks } from '@/services/lookService';
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import type { LookList } from '@/types/look';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function LooksScreen() {
   const router = useRouter();

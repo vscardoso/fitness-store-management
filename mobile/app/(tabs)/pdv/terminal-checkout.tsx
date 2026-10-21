@@ -11,7 +11,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -26,6 +25,7 @@ import { confirmManualPayment, cancelOrder, getOrderStatus } from '@/services/pd
 import { getAccessToken } from '@/services/storage';
 import { API_CONFIG } from '@/constants/Config';
 import { useCart } from '@/hooks/useCart';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 const C = Colors.light;
 

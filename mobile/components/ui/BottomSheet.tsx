@@ -21,7 +21,6 @@ import {
   TouchableWithoutFeedback,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   Animated,
 } from 'react-native';
 import { Text } from 'react-native-paper';
@@ -30,6 +29,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 interface BottomSheetAction {
   label: string;

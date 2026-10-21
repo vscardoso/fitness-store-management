@@ -3,7 +3,6 @@ import {
   View,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
   TouchableOpacity,
   Text,
 } from 'react-native';
@@ -14,6 +13,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import { getExpense } from '@/services/expenseService';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 function parseNoteValue(notes: string | null | undefined, key: string): string | null {
   if (!notes) return null;

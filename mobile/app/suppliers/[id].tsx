@@ -10,7 +10,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -23,6 +22,7 @@ import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useSupplier, useSupplierProducts, useDeleteSupplier, useUpdateSupplier } from '@/hooks/useSuppliers';
 import { formatDate } from '@/utils/format';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function SupplierDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();

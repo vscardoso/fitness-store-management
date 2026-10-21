@@ -15,7 +15,6 @@ import {
   Modal,
   Keyboard,
   ScrollView,
-  ActivityIndicator,
 } from 'react-native';
 import { Text, TextInput, Button } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -27,6 +26,7 @@ import { getStockEntries } from '@/services/stockEntryService';
 import type { StockEntry } from '@/types';
 import { useBrandingColors } from '@/store/brandingStore';
 import { logError } from '@/services/debugLog';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 interface WizardStep3Props {
   wizard: UseProductWizardReturn;

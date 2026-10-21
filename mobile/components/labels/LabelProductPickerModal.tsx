@@ -13,7 +13,7 @@ import {
   FlatList,
   SafeAreaView,
 } from 'react-native';
-import { Text, Searchbar, ActivityIndicator } from 'react-native-paper';
+import { Text, Searchbar } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
 import { Colors } from '@/constants/Colors';
@@ -22,6 +22,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import AppButton from '@/components/ui/AppButton';
 import { getGroupedProducts } from '@/services/productService';
 import type { ProductGrouped, ProductVariant } from '@/types';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 

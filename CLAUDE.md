@@ -122,3 +122,10 @@ Problemas conhecidos, não corrigidos:
 - Backend: 110 testes antigos falham (e-mails duplicados, testes desatualizados) e `tests/e2e/test_catalog.py` importa `get_async_session`, que não existe.
 - `Config.ts` usa IP fixo de fallback (192.168.0.70:8000) no app web; para testar local o backend precisa escutar em `0.0.0.0`.
 - Metro em `CI=1` não relê arquivos alterados: reiniciar o Metro a cada mudança ao validar no navegador.
+
+## Carregamento (lupa) e categorias (2026-10-21)
+
+- Todo indicador de carregamento do app é a lupa animada `mobile/components/ui/MagnifierLoader.tsx`. Ela exporta `ActivityIndicator` com a mesma interface (`size`, `color`, `animating`, `style`): em código novo, importe `ActivityIndicator` de `@/components/ui/MagnifierLoader`, nunca de `react-native` nem de `react-native-paper`.
+- `LoadingOverlay` (carregamento global via `loadingManager`) agora é um cartão claro com a lupa, sem escurecer a tela, com camada transparente que bloqueia toques durante o carregamento. Spinners internos de `Button loading` do react-native-paper e `ProgressBar` não foram trocados.
+- `CategoryPickerModal` aceita `allowCreate` e cria a categoria dentro do seletor (nome duplicado seleciona a existente). Ligado em `WizardStep1`, `WizardStep2` e `products/edit/[id]`. O backend só permite criar categoria para ADMIN e MANAGER (`require_role`); vendedor recebe mensagem de permissão (403 ainda não testado com usuário vendedor).
+- `onboarding.tsx` usa `useWindowDimensions` (corrigido o crash com largura 0 no web).

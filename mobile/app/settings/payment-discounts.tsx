@@ -10,7 +10,6 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
   Modal,
   ScrollView,
@@ -41,6 +40,7 @@ import FAB from '@/components/FAB';
 import PageHeader from '@/components/layout/PageHeader';
 import { useBrandingColors } from '@/store/brandingStore';
 import useBackToList from '@/hooks/useBackToList';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 /**
  * Métodos de pagamento disponíveis
