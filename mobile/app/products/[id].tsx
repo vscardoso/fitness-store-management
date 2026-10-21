@@ -21,7 +21,8 @@ import InfoRow from '@/components/ui/InfoRow';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getProductById, deleteProduct, updateProduct } from '@/services/productService';
 import { getProductStock } from '@/services/inventoryService';
-import { getProductVariants, getVariantGrid, formatVariantLabel } from '@/services/productVariantService';
+import { getProductVariants, getVariantGrid, formatVariantLabel, deleteVariant } from '@/services/productVariantService';
+import VariantKeepModal from '@/components/products/VariantKeepModal';
 import { VariantStockMatrix } from '@/components/products/VariantStockMatrix';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { getImageUrl } from '@/constants/Config';
@@ -221,6 +222,35 @@ export default function ProductDetailsScreen() {
   };
 
   // Verificar ID inválido
+  // Usar só algumas variações: desativa as desmarcadas (só variação sem estoque)
+  const [keepModalVisible, setKeepModalVisible] = useState(false);
+  const removeVariantsMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      for (const id of ids) await deleteVariant(id);
+    },
+    onSuccess: async () => {
+      setKeepModalVisible(false);
+      await Promise.all([
+        refetchVariants(),
+        queryClient.invalidateQueries({ queryKey: ['product', productId] }),
+        queryClient.invalidateQueries({ queryKey: ['product-variant-grid', productId] }),
+        queryClient.invalidateQueries({ queryKey: ['grouped-products'] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+      ]);
+    },
+    onError: (error: any) => {
+      setKeepModalVisible(false);
+      setDialog({
+        visible: true,
+        type: 'danger',
+        title: 'Não foi possível remover',
+        message: error?.response?.data?.detail || 'Erro ao remover as variações. Tente novamente.',
+        confirmText: 'OK',
+        onConfirm: () => setDialog((d) => ({ ...d, visible: false })),
+      });
+    },
+  });
+
   if (!isValidId) {
     return (
       <View style={styles.centerContainer}>
@@ -382,6 +412,13 @@ export default function ProductDetailsScreen() {
                 <Ionicons name="add-circle-outline" size={18} color="#fff" />
                 <Text style={styles.emptyStockBtnText}>Dar entrada neste produto</Text>
               </TouchableOpacity>
+              {hasMultipleVariants && (
+                <TouchableOpacity style={styles.emptyStockLink} onPress={() => setKeepModalVisible(true)} activeOpacity={0.7}>
+                  <Text style={[styles.emptyStockLinkText, { color: brandingColors.primary }]}>
+                    Vou usar só algumas variações
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </View>
         )}
@@ -1003,6 +1040,14 @@ export default function ProductDetailsScreen() {
         variants={displayVariants}
       />
 
+      <VariantKeepModal
+        visible={keepModalVisible}
+        variants={activeVariants}
+        busy={removeVariantsMutation.isPending}
+        onClose={() => setKeepModalVisible(false)}
+        onConfirm={(ids) => removeVariantsMutation.mutate(ids)}
+      />
+
       {/* Confirm Dialog */}
       <ConfirmDialog
         visible={dialog.visible}
@@ -1068,6 +1113,8 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 12,
   },
+  emptyStockLink: { alignItems: 'center', paddingVertical: 10 },
+  emptyStockLinkText: { fontSize: 13, fontWeight: '700' },
   emptyStockBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   // ── Layout ──
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
