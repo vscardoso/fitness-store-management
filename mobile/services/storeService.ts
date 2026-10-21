@@ -3,6 +3,7 @@
  * GET/PUT branding + upload de logo
  */
 
+import { Platform } from 'react-native';
 import api from './api';
 import { skipLoading } from '@/utils/apiHelpers';
 import { API_CONFIG } from '@/constants/Config';
@@ -83,18 +84,25 @@ export const updateStorePIX = async (payload: StorePIXKeyUpdate): Promise<StoreP
 };
 
 export const uploadLogo = async (uri: string): Promise<{ logo_url: string }> => {
-  const filename = uri.split('/').pop() ?? 'logo.jpg';
-  const ext = filename.split('.').pop()?.toLowerCase() ?? 'jpg';
   const mimeTypes: Record<string, string> = {
     jpg: 'image/jpeg',
     jpeg: 'image/jpeg',
     png: 'image/png',
     webp: 'image/webp',
   };
-  const type = mimeTypes[ext] ?? 'image/jpeg';
-
   const formData = new FormData();
-  formData.append('file', { uri, name: filename, type } as any);
+
+  if (Platform.OS === 'web') {
+    // No web o seletor devolve blob:/data: URI; o objeto {uri,name,type} do RN não vira arquivo no FormData.
+    const blob = await (await fetch(uri)).blob();
+    const ext = Object.keys(mimeTypes).find((k) => mimeTypes[k] === blob.type) ?? 'jpg';
+    formData.append('file', blob, `logo.${ext}`);
+  } else {
+    const filename = uri.split('/').pop() ?? 'logo.jpg';
+    const ext = filename.split('.').pop()?.toLowerCase() ?? 'jpg';
+    const type = mimeTypes[ext] ?? 'image/jpeg';
+    formData.append('file', { uri, name: filename, type } as any);
+  }
 
   const { data } = await api.post<{ logo_url: string }>('/store/logo', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
