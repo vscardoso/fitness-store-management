@@ -146,3 +146,14 @@ Problemas conhecidos, não corrigidos:
 - App: `app/suppliers/ranking.tsx`, `costs.tsx`, `restock.tsx`, abas em `components/suppliers/SuppliersTabs.tsx`; WhatsApp via `wa.me` (sem expo-clipboard, no web copia com `navigator.clipboard`).
 - Documento do fornecedor (`cnpj`) é opcional e aceita CPF ou CNPJ (`validate_cpf_cnpj`, `documentMask`, `documentLabel`); muitos fornecedores de feira (Brás) são pessoa física ou sem documento.
 - Testes: `backend/tests/test_supplier_insights.py`. QA ponta a ponta foi feito com script em backend de teste separado (porta 8766).
+
+## Persistência tudo-ou-nada (2026-10-21)
+
+Regra do Victor: nada fica gravado até a operação terminar com sucesso; falha ou abandono = rollback (ou volta ao último estado bom). Produto sem estoque não é criado "antes".
+- Service faz UM commit no fim (`flush` no meio) e `rollback` em qualquer erro. Repositórios com `commit` próprio (`StockEntryRepository.create`, `ConditionalShipmentRepository.create_with_items/update_status`) recebem `commit=False` quando chamados dentro de uma operação maior; validar tudo ANTES de chamar um repo que commita.
+- Produto novo + entrada existente: `POST /stock-entries/{id}/with-new-product` (produto, variações e itens numa transação). O app não cria produto antes de escolher a entrada (`pendingProductImage` guarda a foto até o sucesso).
+- Itens de entrada: `variant_id` tem que pertencer ao produto; produto com várias variações exige `variant_id`; custo obrigatório (zero só em doação), inclusive ao vincular a entrada existente.
+- Envio condicional: criar e processar devolução são atômicos (envio sem reserva e devolução sem venda não existem mais).
+- `GET /inventory/product/{id}` devolve estoque 0 para produto sem linha de estoque (404 só se o produto não existe).
+- Auditoria repetível (servidor de teste na 8766 com banco próprio, ver cabeçalho de cada script): `backend/scripts/qa_atomicidade.py`, `qa_envio_condicional.py`, `qa_devolucao_cancelamento.py`, `qa_cadastros.py`.
+- Typecheck do mobile deve ficar em 0 erros (`npx tsc --noEmit`).

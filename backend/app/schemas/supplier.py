@@ -5,7 +5,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr, field_serializer
+from pydantic import BaseModel, EmailStr, field_serializer, field_validator
 
 
 # ─────────────────────────────────────────────
@@ -20,8 +20,21 @@ class SupplierBase(BaseModel):
     notes: Optional[str] = None
 
 
+def _clean_name(value):
+    """Nome do fornecedor: sem espaços nas pontas e com ao menos 2 caracteres."""
+    if value is None:
+        return value
+    value = value.strip()
+    if len(value) < 2:
+        raise ValueError("Informe o nome do fornecedor (mínimo 2 caracteres)")
+    return value
+
+
 class SupplierCreate(SupplierBase):
-    pass
+    @field_validator("name")
+    @classmethod
+    def _name(cls, v):
+        return _clean_name(v)
 
 
 class SupplierUpdate(BaseModel):
@@ -30,6 +43,11 @@ class SupplierUpdate(BaseModel):
     phone: Optional[str] = None
     email: Optional[str] = None
     notes: Optional[str] = None
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, v):
+        return _clean_name(v)
 
 
 class SupplierResponse(SupplierBase):

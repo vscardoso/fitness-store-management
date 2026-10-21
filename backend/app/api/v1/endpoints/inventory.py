@@ -304,11 +304,27 @@ async def get_product_stock(
         inventory = await inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
         
         if not inventory:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Estoque não encontrado para produto {product_id}"
-            )
-        
+            # Produto de catálogo (ou criado com variações) ainda sem entrada não tem linha de estoque:
+            # é estoque zero, não "não encontrado". 404 só se o produto não existir na loja.
+            from app.repositories.product_repository import ProductRepository
+            product = await ProductRepository(db).get(db, product_id, tenant_id=tenant_id)
+            if not product:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Produto {product_id} não encontrado"
+                )
+            from datetime import datetime
+            now = datetime.utcnow()
+            return {
+                "id": 0,
+                "product_id": product_id,
+                "quantity": 0,
+                "min_stock": 0,
+                "max_stock": None,
+                "created_at": now,
+                "updated_at": now,
+            }
+
         return inventory
         
     except HTTPException:
