@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
-  Dimensions,
+  useWindowDimensions,
   FlatList,
   ViewToken,
   Animated,
@@ -17,7 +17,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+// Distância máxima (px) do atraso escalonado dos destaques; limitada à metade da largura
+const HIGHLIGHT_STAGGER_PX = 28;
 
 interface IntroSlide {
   id: string;
@@ -65,6 +66,11 @@ const INTRO_SLIDES: IntroSlide[] = [
 ];
 
 export default function OnboardingScreen() {
+  // Largura reativa (evita valor 0 lido no carregamento do módulo no web) e nunca menor que 1,
+  // para que todo inputRange de animação continue válido.
+  const { width: windowWidth } = useWindowDimensions();
+  const SCREEN_WIDTH = Math.max(windowWidth, 1);
+
   const [currentIndex, setCurrentIndex] = useState(0);
   const [reduceMotionEnabled, setReduceMotionEnabled] = useState(false);
   const flatListRef = useRef<FlatList<IntroSlide>>(null);
@@ -332,7 +338,7 @@ export default function OnboardingScreen() {
               {item.highlights.map((h, idx) => {
                 const staggerInputRange = [
                   (index - 1) * SCREEN_WIDTH,
-                  index * SCREEN_WIDTH + idx * 28,
+                  index * SCREEN_WIDTH + Math.min(idx * HIGHLIGHT_STAGGER_PX, SCREEN_WIDTH / 2),
                   (index + 1) * SCREEN_WIDTH,
                 ];
 
