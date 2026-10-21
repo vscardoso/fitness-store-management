@@ -125,7 +125,7 @@ export default function ProductWizardScreen() {
         wizard.setManualData(data);
         wizard.goToStep('confirm');
       } catch (e) {
-        logError('Erro ao parsear prefillData:', e);
+        logError('Wizard', 'Erro ao parsear prefillData', e);
         wizard.selectMethod('manual');
       }
     }
@@ -146,7 +146,7 @@ export default function ProductWizardScreen() {
         try {
           restoreProduct = JSON.parse(params.restoreProductData);
         } catch (e) {
-          logError('Erro ao parsear restoreProductData:', e);
+          logError('Wizard', 'Erro ao parsear restoreProductData', e);
         }
       }
       restoreFromRoute(step, restoreProduct);
@@ -172,7 +172,7 @@ export default function ProductWizardScreen() {
         try {
           productData = JSON.parse(params.createdProductData);
         } catch (e) {
-          logError('Erro ao parsear createdProductData:', e);
+          logError('Wizard', 'Erro ao parsear createdProductData', e);
         }
       }
 

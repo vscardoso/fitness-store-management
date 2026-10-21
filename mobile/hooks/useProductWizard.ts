@@ -195,7 +195,7 @@ export function useProductWizard() {
     try {
       return await requestCameraPermissionFriendly();
     } catch (err) {
-      logError('Error requesting camera permission:', err);
+      logError('Wizard', 'Error requesting camera permission', err);
       return false;
     }
   }, []);
@@ -204,7 +204,7 @@ export function useProductWizard() {
     try {
       return await requestGalleryPermissionFriendly();
     } catch (err) {
-      logError('Error requesting gallery permission:', err);
+      logError('Wizard', 'Error requesting gallery permission', err);
       return false;
     }
   }, []);
@@ -359,7 +359,7 @@ export function useProductWizard() {
         await analyzeImage(result.assets[0].uri);
       }
     } catch (err) {
-      logError('Error taking photo:', err);
+      logError('Wizard', 'Error taking photo', err);
       showDialog('Erro', 'Nao foi possivel tirar a foto', 'danger');
     }
   }, [requestCameraPermission, analyzeImage, showDialog]);
@@ -383,7 +383,7 @@ export function useProductWizard() {
         await analyzeImage(result.assets[0].uri);
       }
     } catch (err) {
-      logError('Error picking image:', err);
+      logError('Wizard', 'Error picking image', err);
       showDialog('Erro', 'Nao foi possivel selecionar a imagem', 'danger');
     }
   }, [requestGalleryPermission, analyzeImage, showDialog]);

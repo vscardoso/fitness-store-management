@@ -40,6 +40,12 @@ interface LabelFormat {
   size: 'large' | 'medium' | 'small';
 }
 
+// Dimensões reais da etiqueta por formato de folha A4 (mm), exibidas em escala 3x
+const LABEL_MM: Record<string, [number, number]> = {
+  f10: [99, 57], f14: [99, 38], f21: [66, 38], f33: [66, 25], f65: [38, 21],
+};
+const LABEL_PREVIEW_SCALE = 3;
+
 const LABEL_FORMATS: LabelFormat[] = [
   { id: 'f10', label: '10/fl', perSheet: 10, description: '2×5 · Grande',   size: 'large'  },
   { id: 'f14', label: '14/fl', perSheet: 14, description: '2×7 · Médio',    size: 'medium' },
@@ -655,7 +661,8 @@ export default function ProductLabelScreen() {
                       <ProductLabel
                         key={i}
                         data={labelData}
-                        size={format.size}
+                        widthPx={Math.round((LABEL_MM[format.id]?.[0] ?? 66) * LABEL_PREVIEW_SCALE)}
+                        heightPx={Math.round((LABEL_MM[format.id]?.[1] ?? 38) * LABEL_PREVIEW_SCALE)}
                         showPrice={showPrice}
                         showSku={showSku}
                       />

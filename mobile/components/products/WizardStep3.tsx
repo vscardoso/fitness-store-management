@@ -101,7 +101,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
         // Considera que existem entradas se houver pelo menos 1
         setHasExistingEntries(entries.length > 0);
       } catch (error) {
-        logError('Erro ao buscar entradas:', error);
+        logError('WizardStep3', 'Erro ao buscar entradas', error);
         setHasExistingEntries(false);
       } finally {
         setIsLoadingEntries(false);

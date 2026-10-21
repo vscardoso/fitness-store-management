@@ -313,6 +313,8 @@ export default function ConditionalShipmentDetailsScreen() {
         id: item.id,
         quantity_kept: processing.quantity_kept,
         quantity_returned: processing.quantity_returned,
+        quantity_damaged: processing.quantity_damaged,
+        quantity_lost: processing.quantity_lost,
         status,
         notes: processing.notes || undefined,
       };

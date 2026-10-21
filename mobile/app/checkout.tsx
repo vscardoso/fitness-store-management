@@ -259,7 +259,7 @@ export default function CheckoutScreen() {
               : null;
             const currentPrice = currentVariant
               ? Number(currentVariant.price)
-              : Number(latest.price ?? latest.sale_price);
+              : Number(latest.price ?? (latest as any).sale_price);
             if (currentPrice > 0 && Math.abs(currentPrice - item.unit_price) > 0.001) {
               return { type: 'price_changed' as const, item, currentPrice };
             }

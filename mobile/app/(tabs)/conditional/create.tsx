@@ -127,7 +127,7 @@ export default function CreateConditionalShipmentScreen() {
     visible: boolean;
     title: string;
     message: string;
-    type?: 'danger' | 'warning' | 'info';
+    type?: 'danger' | 'warning' | 'info' | 'success';
     onConfirm?: () => void;
   }>({ visible: false, title: '', message: '' });
 
