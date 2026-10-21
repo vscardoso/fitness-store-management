@@ -224,6 +224,23 @@ class StockEntryService:
         if used:
             raise ValueError(f"SKU já existe em outro produto: {', '.join(used)}")
 
+    async def _validate_variant_of_product(self, variant_id: int, product_id: int, tenant_id: int):
+        """A variação do item tem que existir, estar ativa e pertencer ao produto do item."""
+        from sqlalchemy import select as _select
+        from app.models.product_variant import ProductVariant
+        variant = (await self.db.execute(
+            _select(ProductVariant).where(
+                ProductVariant.id == variant_id,
+                ProductVariant.tenant_id == tenant_id,
+                ProductVariant.is_active == True,
+            )
+        )).scalar_one_or_none()
+        if variant is None:
+            raise ValueError(f"Variação {variant_id} não encontrada")
+        if variant.product_id != product_id:
+            raise ValueError(f"A variação {variant_id} não pertence ao produto {product_id}")
+        return variant
+
     async def check_code_exists(self, entry_code: str, tenant_id: int) -> bool:
         """
         Verifica se um código de entrada já existe para o tenant.
@@ -310,6 +327,8 @@ class StockEntryService:
                 # produto tem exatamente 1 variante ativa (senão o estoque
                 # fica órfão: invisível na soma por variante usada em
                 # current_stock e nos alertas de estoque baixo).
+                if item_dict.get('variant_id'):
+                    await self._validate_variant_of_product(item_dict['variant_id'], item_dict['product_id'], tenant_id)
                 if not item_dict.get('variant_id'):
                     from app.models.product_variant import ProductVariant
                     from sqlalchemy import select as _select
@@ -1363,22 +1382,33 @@ class StockEntryService:
         unit_cost = item_data.get('unit_cost', 0)
         if unit_cost < 0:
             raise ValueError("unit_cost não pode ser negativo")
+        # Custo obrigatório (zero só em doação): sem ele o lucro FIFO fica incorreto
+        self._require_cost(unit_cost, product.name, entry.entry_type)
 
         # Se produto é de catálogo, marcar como adicionado à loja
         if product.is_catalog:
             product.is_catalog = False
 
-        # Buscar variante padrão do produto para vincular no EntryItem
-        # (necessário para que a query de total_stock em products_grouped funcione corretamente)
+        # Variação do item: a informada (validada) ou a única ativa do produto.
+        # Produto com várias variações exige dizer qual (senão o estoque iria para a primeira).
         from app.models.product_variant import ProductVariant
         from sqlalchemy import select as _select
-        default_variant_result = await self.db.execute(
-            _select(ProductVariant).where(
-                ProductVariant.product_id == product_id,
-                ProductVariant.is_active == True,
-            ).limit(1)
-        )
-        default_variant = default_variant_result.scalar_one_or_none()
+        requested_variant_id = item_data.get('variant_id')
+        if requested_variant_id:
+            default_variant = await self._validate_variant_of_product(requested_variant_id, product_id, tenant_id)
+        else:
+            active_variants = (await self.db.execute(
+                _select(ProductVariant).where(
+                    ProductVariant.product_id == product_id,
+                    ProductVariant.tenant_id == tenant_id,
+                    ProductVariant.is_active == True,
+                )
+            )).scalars().all()
+            if len(active_variants) > 1:
+                raise ValueError(
+                    f"O produto {product_id} tem {len(active_variants)} variações: informe a variação (variant_id)."
+                )
+            default_variant = active_variants[0] if active_variants else None
 
         # Criar item da entrada
         new_item = EntryItem(
