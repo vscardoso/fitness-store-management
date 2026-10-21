@@ -45,6 +45,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import { useTrips } from '@/hooks/useTrips';
 import { useProducts } from '@/hooks';
 import { createStockEntry, createStockEntryWithNewProduct, createStockEntryWithNewProductVariants, checkEntryCode, getStockEntryById } from '@/services/stockEntryService';
+import { getProductVariants } from '@/services/productVariantService';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { formatCurrency } from '@/utils/format';
 import { cnpjMask, phoneMask } from '@/utils/masks';
@@ -573,6 +574,46 @@ export default function AddStockEntryScreen() {
         setItems([newItem]);
         setItemCosts({ [newItem.id]: costFormatted });
         setItemPrices({ [newItem.id]: priceFormatted });
+
+        // Produto com várias variações: vira uma linha por variação (sem variant_id o servidor recusa
+        // e o estoque não seria atribuído à variação certa). Quantidade 0 = não comprou essa variação.
+        if (!isAtomicMode && productData.id) {
+          getProductVariants(productData.id)
+            .then((all) => {
+              const active = all.filter((v) => v.is_active !== false);
+              if (active.length < 2) {
+                if (active.length === 1) {
+                  setItems((prev) => prev.map((it) => ({ ...it, variant_id: active[0].id })));
+                }
+                return;
+              }
+              const nextItems: EntryItemForm[] = [];
+              const nextCosts: Record<string, string> = {};
+              const nextPrices: Record<string, string> = {};
+              active.forEach((v, idx) => {
+                const id = `${Date.now()}-${idx}`;
+                const cost = v.cost_price ?? price;
+                const sale = v.price ?? finalPrice;
+                nextItems.push({
+                  id,
+                  product_id: productData.id,
+                  variant_id: v.id,
+                  quantity_received: idx === 0 ? Math.max(quantity, 1) : 0,
+                  unit_cost: cost,
+                  notes: '',
+                  product: { ...catalogProduct, price: sale, cost_price: cost } as Product,
+                  variant_color: v.color ?? undefined,
+                  variant_size: v.size ?? undefined,
+                });
+                nextCosts[id] = formatCostInput(Math.round(cost * 100).toString());
+                nextPrices[id] = formatCostInput(Math.round(sale * 100).toString());
+              });
+              setItems(nextItems);
+              setItemCosts(nextCosts);
+              setItemPrices(nextPrices);
+            })
+            .catch((err) => logError('Entries/Add', 'Erro ao carregar variações do produto', err));
+        }
         return;
       } catch (e) {
         console.error('Error parsing preselectedProductData:', e);
@@ -1039,13 +1080,17 @@ export default function AddStockEntryScreen() {
 
     // Validar cada item
     items.forEach((item, index) => {
-      if (item.quantity_received <= 0) {
+      const zeroVariantOk =
+        item.quantity_received === 0 &&
+        item.variant_id != null &&
+        items.some((o) => o.product_id === item.product_id && o.quantity_received > 0);
+      if (item.quantity_received <= 0 && !zeroVariantOk) {
         newErrors[`item_${index}_quantity`] = 'Quantidade inválida';
       }
       if (item.unit_cost < 0) {
         newErrors[`item_${index}_cost`] = 'Custo inválido';
       }
-      if (item.unit_cost === 0 && selectedType !== EntryType.DONATION) {
+      if (item.unit_cost === 0 && item.quantity_received > 0 && selectedType !== EntryType.DONATION) {
         const name = item.product?.name || `Item ${index + 1}`;
         newErrors[`item_${index}_cost`] = `Custo de "${name}" está zerado. Informe o custo unitário.`;
       }
@@ -1128,7 +1173,7 @@ export default function AddStockEntryScreen() {
       invoice_number: invoiceNumber.trim() || undefined,
       payment_method: paymentMethod.trim() || undefined,
       notes: notes.trim() || undefined,
-      items: items.map(item => ({
+      items: items.filter(item => item.quantity_received > 0).map(item => ({
         product_id: item.product_id,
         variant_id: item.variant_id ?? undefined,
         quantity_received: item.quantity_received,
