@@ -1,0 +1,47 @@
+# Produção no VPS (Hetzner). Uso: cd /opt/provador && docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# Backend só escuta em 127.0.0.1:8000 (quem expõe é o nginx, com HTTPS). Postgres não tem porta publicada.
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: provador-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - provador_pgdata:/var/lib/postgresql/data
+    # VPS compartilhado (3,7 GB de RAM com n8n): limites conservadores
+    command: ["postgres", "-c", "shared_buffers=256MB", "-c", "max_connections=60", "-c", "work_mem=8MB"]
+    mem_limit: 768m
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+
+  backend:
+    build: ../backend
+    container_name: provador-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: production
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      SECRET_KEY: ${SECRET_KEY}
+      ACCESS_TOKEN_EXPIRE_MINUTES: 60
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      # PIX nunca em mock em produção (o mock sempre aprova). Sem MP_ACCESS_TOKEN o PIX falha (seguro), não aprova de mentira.
+      PIX_PROVIDER: ${PIX_PROVIDER:-mercadopago}
+      MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - provador_uploads:/app/uploads
+    mem_limit: 1g
+
+volumes:
+  provador_pgdata:
+  provador_uploads:
