@@ -31,6 +31,8 @@ import { Colors, theme } from '@/constants/Colors';
 import type { ProductUpdate } from '@/types';
 import { formatPriceInput, formatPriceDisplay, formatMoneyDisplay } from '@/utils/priceFormatter';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { Menu } from 'react-native-paper';
+import { GENDER_OPTIONS, normalizeGender } from '@/utils/gender';
 
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -56,6 +58,8 @@ export default function EditProductScreen() {
 
   const [description, setDescription] = useState('');
   const [brand, setBrand] = useState('');
+  const [gender, setGender] = useState('');
+  const [genderMenuVisible, setGenderMenuVisible] = useState(false);
   const [color, setColor] = useState('');
   const [size, setSize] = useState('');
   const [categoryId, setCategoryId] = useState<number | undefined>();
@@ -181,6 +185,8 @@ export default function EditProductScreen() {
 
       setDescription(product.description || '');
       setBrand(product.brand || '');
+      // Valores antigos (ex.: "feminina") viram uma das opções; desconhecidos (ex.: "Unissex") ficam como estão
+      setGender(normalizeGender(product.gender) ?? product.gender ?? '');
       setColor(product.color || '');
       setSize(product.size || '');
       
@@ -298,6 +304,8 @@ export default function EditProductScreen() {
       sku: hasVariants ? undefined : sku.trim().toUpperCase(),
       description: description.trim() || undefined,
       brand: brand.trim() || undefined,
+      // '' limpa o gênero no servidor; é um campo do produto (vale com ou sem variantes)
+      gender,
       color: hasVariants ? undefined : (color.trim() || undefined),
       size: hasVariants ? undefined : (size.trim() || undefined),
       category_id: categoryId!,
@@ -530,6 +538,52 @@ export default function EditProductScreen() {
               placeholder="Ex: Nike, Adidas, Under Armour"
               placeholderTextColor={Colors.light.textTertiary}
             />
+
+            <Text style={styles.inputLabel}>Gênero</Text>
+            <Menu
+              visible={genderMenuVisible}
+              onDismiss={() => setGenderMenuVisible(false)}
+              anchorPosition="bottom"
+              anchor={
+                <TouchableOpacity
+                  style={[styles.input, styles.selectInput]}
+                  activeOpacity={0.8}
+                  onPress={() => setGenderMenuVisible(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Gênero: ${gender || 'não selecionado'}`}
+                >
+                  <Text style={gender ? styles.selectText : styles.selectPlaceholder}>
+                    {gender || 'Selecione o gênero'}
+                  </Text>
+                  <Ionicons
+                    name={genderMenuVisible ? 'chevron-up' : 'chevron-down'}
+                    size={20}
+                    color={Colors.light.textTertiary}
+                  />
+                </TouchableOpacity>
+              }
+            >
+              {GENDER_OPTIONS.map((option) => (
+                <Menu.Item
+                  key={option}
+                  title={option}
+                  leadingIcon={option === gender ? 'check' : undefined}
+                  onPress={() => {
+                    setGender(option);
+                    setGenderMenuVisible(false);
+                  }}
+                />
+              ))}
+              {gender ? (
+                <Menu.Item
+                  title="Limpar"
+                  onPress={() => {
+                    setGender('');
+                    setGenderMenuVisible(false);
+                  }}
+                />
+              ) : null}
+            </Menu>
 
             {/* Cor e Tamanho só no produto quando NÃO há variantes (cada variante tem os seus) */}
             {!hasVariants && (
@@ -1070,6 +1124,19 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
     marginBottom: theme.spacing.sm,
     backgroundColor: Colors.light.card,
+  },
+  selectInput: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  selectText: {
+    fontSize: theme.fontSize.base,
+    color: Colors.light.text,
+  },
+  selectPlaceholder: {
+    fontSize: theme.fontSize.base,
+    color: Colors.light.textTertiary,
   },
   inputMultiline: {
     minHeight: 104,

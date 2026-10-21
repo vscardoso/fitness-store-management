@@ -4,11 +4,13 @@ from typing import Optional, List
 from datetime import datetime, date
 from decimal import Decimal
 from pydantic import BaseModel, Field
-from pydantic import model_validator, computed_field
+from pydantic import field_validator, model_validator, computed_field
 
 # Import para relação de categoria
 from .category import CategoryResponse
 
+
+from app.utils.variant_grid import normalize_gender
 
 class ProductBase(BaseModel):
     """Base product schema."""
@@ -37,6 +39,11 @@ class ProductCreate(ProductBase):
     sale_price: Optional[Decimal] = Field(None, gt=0, description="Alias para price")
     initial_stock: Optional[int] = Field(0, ge=0, description="Quantidade inicial em estoque")
     min_stock: Optional[int] = Field(5, ge=0, description="Estoque mínimo")
+
+    @field_validator("gender", mode="before")
+    @classmethod
+    def _normalize_gender(cls, v):
+        return normalize_gender(v) if isinstance(v, str) else v
 
     @model_validator(mode="after")
     def ensure_price(self):
@@ -69,6 +76,12 @@ class ProductUpdate(BaseModel):
     is_active: Optional[bool] = None
     is_catalog: Optional[bool] = None
     image_url: Optional[str] = Field(None, max_length=500)
+
+    @field_validator("gender", mode="before")
+    @classmethod
+    def _normalize_gender(cls, v):
+        """feminina -> Feminino; vazio -> None (limpa o gênero)."""
+        return normalize_gender(v) if isinstance(v, str) else v
 
     @model_validator(mode="after")
     def map_sale_price(self):
