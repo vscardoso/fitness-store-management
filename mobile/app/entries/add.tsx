@@ -10,7 +10,7 @@
  * - Suporte a produto pré-selecionado do catálogo
  */
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -148,6 +148,32 @@ export default function AddStockEntryScreen() {
   }>();
 
   const isFromWizard = params.fromWizard === 'true';
+
+  // Nome do produto vindo do wizard. Nem toda rota envia `wizardProductName`
+  // (o modo atômico manda só o JSON do produto), então procura também nos JSONs.
+  const wizardProductName = useMemo(() => {
+    if (params.wizardProductName) return params.wizardProductName;
+    for (const raw of [
+      params.wizardProductData,
+      params.wizardAtomicVariantsData,
+      params.preselectedProductData,
+    ]) {
+      if (!raw) continue;
+      try {
+        const data = JSON.parse(raw);
+        const name = data?.product_name ?? data?.name;
+        if (name) return String(name);
+      } catch {
+        // JSON inválido: tenta o próximo
+      }
+    }
+    return undefined;
+  }, [
+    params.wizardProductName,
+    params.wizardProductData,
+    params.wizardAtomicVariantsData,
+    params.preselectedProductData,
+  ]);
 
   const buildWizardRestorePayload = (): string | null => {
     if (params.preselectedProductData) {
@@ -1371,7 +1397,7 @@ export default function AddStockEntryScreen() {
                 Finalizando cadastro de produto
               </Text>
               <Text style={styles.wizardBannerSubtitle}>
-                {params.wizardProductName || 'Produto'}
+                {wizardProductName || 'Produto'}
               </Text>
             </View>
           </View>
@@ -1480,7 +1506,7 @@ export default function AddStockEntryScreen() {
             <TextInput
               label="Código da Entrada *"
               value={entryCode}
-              onChangeText={setEntryCode}
+              onChangeText={(text) => setEntryCode(text.toUpperCase())}
               mode="outlined"
               placeholder="Ex: ENTRADA-001 (mín. 5 caracteres)"
               maxLength={50}
@@ -2034,7 +2060,7 @@ export default function AddStockEntryScreen() {
         message={
           isFromWizard
             ? params.wizardMode === 'atomic-variants'
-              ? `${params.wizardProductName || 'Produto'} e variantes criados com entrada ${createdEntryCode || ''}!`
+              ? `${wizardProductName || 'Produto'} e variantes criados com entrada ${createdEntryCode || ''}!`
               : `Produto vinculado a entrada ${createdEntryCode || ''} com sucesso!`
             : isFromAIScanner
             ? `Produto escaneado foi cadastrado e vinculado à entrada de estoque!`
@@ -2046,14 +2072,14 @@ export default function AddStockEntryScreen() {
           isFromWizard
             ? params.wizardMode === 'atomic-variants'
               ? [
-                  `Produto: ${params.wizardProductName || 'N/A'}`,
+                  `Produto: ${wizardProductName || 'N/A'}`,
                   `Entrada: ${createdEntryCode}`,
                   `Variantes: ${items.length} | Total: ${items.reduce((sum, i) => sum + i.quantity_received, 0)} un`,
                   '✅ Produto + Variantes + Estoque criados atomicamente',
                   '✅ Rastreabilidade FIFO ativa',
                 ]
               : [
-                  `Produto: ${params.wizardProductName || 'N/A'}`,
+                  `Produto: ${wizardProductName || 'N/A'}`,
                   `Entrada: ${createdEntryCode}`,
                   `Total: ${items.reduce((sum, i) => sum + i.quantity_received, 0)} un`,
                   '✅ Produto + Estoque criados',

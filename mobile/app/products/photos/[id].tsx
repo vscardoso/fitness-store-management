@@ -237,6 +237,9 @@ export default function VariantPhotosScreen() {
   // cardSize: usado para o card de produto sem variações (centralizado)
   const cardSize = Math.min(200, colorItemWidth);
 
+  // Foto otimista do produto (declarada antes do uso abaixo)
+  const [localProductPhotoOverride, setLocalProductPhotoOverride] = useState<string | null | undefined>(undefined);
+
   // product.image_url é a fonte de verdade (igual à lista de produtos)
   const productImageUrl =
     localProductPhotoOverride !== undefined
@@ -262,7 +265,6 @@ export default function VariantPhotosScreen() {
 
   const [uploadingProduct, setUploadingProduct] = useState(false);
   // undefined = usa dado do servidor; string = URI local otimista; null = excluída localmente
-  const [localProductPhotoOverride, setLocalProductPhotoOverride] = useState<string | null | undefined>(undefined);
 
   const pickAndUploadProduct = useCallback(async () => {
     setOpeningPicker('product');

@@ -691,6 +691,7 @@ export function useProductWizard() {
         params: {
           fromWizard: 'true',
           wizardMode: 'atomic', // ← Flag para tela de entrada usar endpoint atômico
+          wizardProductName: product.name,
           ...(state.capturedImage ? { wizardImageUri: encodeURIComponent(state.capturedImage) } : {}),
           wizardProductData: JSON.stringify({
             product_name: product.name,

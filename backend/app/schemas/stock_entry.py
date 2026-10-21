@@ -42,14 +42,29 @@ class StockEntryBase(BaseModel):
         return v
 
 
+def normalize_entry_code(value):
+    """Código da entrada é sempre em MAIÚSCULAS e sem espaços nas pontas."""
+    return value.strip().upper() if isinstance(value, str) else value
+
+
 class StockEntryCreate(StockEntryBase):
     """Schema for creating a stock entry."""
-    pass
+
+    @field_validator('entry_code', mode='before')
+    @classmethod
+    def uppercase_entry_code(cls, v):
+        return normalize_entry_code(v)
 
 
 class StockEntryUpdate(BaseModel):
     """Schema for updating a stock entry."""
     entry_code: Optional[str] = Field(None, min_length=5, max_length=50)
+
+    @field_validator('entry_code', mode='before')
+    @classmethod
+    def uppercase_entry_code(cls, v):
+        return normalize_entry_code(v)
+
     entry_date: Optional[date] = None
     entry_type: Optional[EntryType] = None
     trip_id: Optional[int] = None

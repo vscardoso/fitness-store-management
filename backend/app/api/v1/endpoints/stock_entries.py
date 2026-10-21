@@ -5,7 +5,7 @@ Todos os endpoints requerem autenticação.
 Operações de modificação (POST, PUT, DELETE) requerem permissões de admin ou seller.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from datetime import date
@@ -89,6 +89,11 @@ class StockEntryWithNewProductVariantsRequest(BaseModel):
     invoice_number: Optional[str] = None
     payment_method: Optional[str] = None
     notes: Optional[str] = None
+
+    @field_validator("entry_code", mode="before")
+    @classmethod
+    def uppercase_entry_code(cls, v):
+        return v.strip().upper() if isinstance(v, str) else v
 
 
 @router.post(
@@ -483,7 +488,7 @@ async def check_entry_code(
     """
     try:
         service = StockEntryService(db)
-        exists = await service.check_code_exists(entry_code, tenant_id)
+        exists = await service.check_code_exists(entry_code.strip().upper(), tenant_id)
 
         return {
             "exists": exists,

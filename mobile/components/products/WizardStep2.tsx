@@ -23,6 +23,8 @@ import { useBrandingColors } from '@/store/brandingStore';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import type { Category } from '@/types';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
+import { SelectField } from '@/components/ui/SelectField';
+import { GENDER_OPTIONS, normalizeGender } from '@/utils/gender';
 import VariantBuilderInline from '@/components/products/VariantBuilderInline';
 import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
 import { getActiveProducts } from '@/services/productService';
@@ -54,7 +56,6 @@ export default function WizardStep2({
   const brandRef = useRef<RNTextInput>(null);
   const colorRef = useRef<RNTextInput>(null);
   const sizeRef = useRef<RNTextInput>(null);
-  const genderRef = useRef<RNTextInput>(null);
   const materialRef = useRef<RNTextInput>(null);
   const descRef = useRef<RNTextInput>(null);
 
@@ -163,6 +164,17 @@ export default function WizardStep2({
   const updateField = (field: string, value: any) => {
     setFormData({ ...formData, [field]: value });
   };
+
+  // Gênero vindo do scanner de IA ou de cadastro antigo ("feminina", "MASCULINO"...)
+  // é convertido para uma das opções da lista; valores não reconhecidos ficam como estão.
+  const currentGender = (formData as any).gender as string | undefined;
+  useEffect(() => {
+    const canonical = normalizeGender(currentGender);
+    if (currentGender && canonical && canonical !== currentGender) {
+      setFormData({ ...formData, gender: canonical });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentGender]);
 
   /**
    * Regenerar SKU automaticamente baseado nos dados atuais
@@ -409,23 +421,19 @@ export default function WizardStep2({
                 style={styles.input}
                 left={<TextInput.Icon icon="tag" />}
                 returnKeyType="next"
-                onSubmitEditing={() => genderRef.current?.focus()}
+                onSubmitEditing={() => materialRef.current?.focus()}
                 blurOnSubmit={false}
               />
 
               <View style={styles.row}>
-                <TextInput
-                  ref={genderRef}
+                <SelectField
                   label="Gênero"
                   value={(formData as any).gender || ''}
-                  onChangeText={(text) => updateField('gender', capitalizeWords(text))}
-                  autoCapitalize="words"
-                  mode="outlined"
+                  options={GENDER_OPTIONS}
+                  onChange={(next) => updateField('gender', next ?? '')}
+                  icon="account-outline"
+                  allowClear
                   style={[styles.input, styles.halfInput]}
-                  left={<TextInput.Icon icon="account-outline" />}
-                  returnKeyType="next"
-                  onSubmitEditing={() => materialRef.current?.focus()}
-                  blurOnSubmit={false}
                 />
                 <TextInput
                   ref={materialRef}
