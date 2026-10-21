@@ -233,6 +233,8 @@ export default function SaleDetailsScreen() {
   const statusStyle = statusMap[sale.status] || statusMap.pending;
   const formattedDateTime = formatDateTime(sale.created_at);
   const [datePart, timePart] = formattedDateTime.split(' ');
+  // Título curto, como nas demais telas de detalhe: o número completo fica no cartão do total
+  const shortSaleCode = sale.sale_number.split('-').pop() || sale.sale_number;
   const hasDiscount = Number(sale.discount_amount) > 0;
   const hasTax = Number(sale.tax_amount) > 0;
 
@@ -247,17 +249,12 @@ export default function SaleDetailsScreen() {
     <View style={styles.container}>
       <Animated.View style={headerAnimStyle}>
         <PageHeader
-          title={sale.sale_number}
+          title={`Venda #${shortSaleCode}`}
           subtitle={`${datePart} · ${timePart}`}
           showBackButton
           onBack={goBack}
           rightActions={[{ icon: 'share-outline', onPress: handleShareReceipt }]}
-        >
-          <View style={[styles.statusBadge, { backgroundColor: statusStyle.solid ? statusStyle.color : statusStyle.color + '18' }]}>
-            <Ionicons name={statusStyle.icon} size={13} color={statusStyle.solid ? '#fff' : statusStyle.color} />
-            <Text style={[styles.statusText, { color: statusStyle.solid ? '#fff' : statusStyle.color }]}>{statusStyle.label}</Text>
-          </View>
-        </PageHeader>
+        />
       </Animated.View>
 
       <Animated.ScrollView
@@ -272,11 +269,16 @@ export default function SaleDetailsScreen() {
           end={{ x: 1, y: 1 }}
           style={styles.heroCard}
         >
+          <View style={[styles.statusBadge, styles.heroStatus, { backgroundColor: statusStyle.solid ? statusStyle.color : '#FFFFFF' }]}>
+            <Ionicons name={statusStyle.icon} size={13} color={statusStyle.solid ? '#fff' : statusStyle.color} />
+            <Text style={[styles.statusText, { color: statusStyle.solid ? '#fff' : statusStyle.color }]}>{statusStyle.label}</Text>
+          </View>
           <Text style={styles.heroLabel}>TOTAL DA VENDA</Text>
           <Text style={styles.heroAmount}>{formatCurrency(sale.total_amount)}</Text>
           <Text style={styles.heroItems}>
             {sale.items.length} {sale.items.length === 1 ? 'produto' : 'produtos'}
           </Text>
+          <Text style={styles.heroNumber} selectable>{sale.sale_number}</Text>
 
         </LinearGradient>
 
@@ -654,6 +656,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 12,
+  },
+  heroStatus: {
+    alignSelf: 'center',
+    marginBottom: 10,
+  },
+  heroNumber: {
+    marginTop: 6,
+    fontSize: 11,
+    color: 'rgba(255, 255, 255, 0.75)',
+    textAlign: 'center',
   },
   heroLabel: {
     fontSize: theme.fontSize.xxs, fontWeight: '700',

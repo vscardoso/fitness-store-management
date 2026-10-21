@@ -33,30 +33,30 @@ export const formatDate = (date: string | Date): string => {
 };
 
 /**
- * Formata data e hora (ajusta para timezone local do Brasil)
+ * Converte uma data vinda da API em Date.
+ * O backend grava e devolve em UTC; quando a string não traz fuso (ISO sem "Z"/offset),
+ * o JavaScript a interpretaria como horário LOCAL e a hora sairia errada (+3h no Brasil).
+ * Por isso, sem fuso, assumimos UTC.
+ */
+export const parseApiDate = (value: string | Date): Date => {
+  if (value instanceof Date) return value;
+  const hasZone = /([zZ]|[+-]\d{2}:?\d{2})$/.test(value);
+  return new Date(hasZone ? value : `${value}Z`);
+};
+
+/** Hora do dia no fuso do aparelho. Ex.: 09:52 */
+export const formatClock = (date: string | Date): string =>
+  parseApiDate(date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+/** Dia e mês abreviado. Ex.: 21 de out. */
+export const formatDayMonth = (date: string | Date): string =>
+  parseApiDate(date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
+
+/**
+ * Formata data e hora no fuso local do aparelho. Ex.: 21/10/2026 09:52
  */
 export const formatDateTime = (date: string | Date): string => {
-  let d: Date;
-  
-  if (typeof date === 'string') {
-    // Se a string não tem timezone (ISO sem Z), o JS interpreta como UTC
-    // Precisamos adicionar o offset local
-    d = new Date(date);
-    
-    // Se a string termina com Z (UTC), converter para local
-    if (date.endsWith('Z') || date.includes('+')) {
-      // Já está em UTC, JS converte automaticamente
-      d = new Date(date);
-    } else {
-      // String sem timezone, assumir que é UTC e converter
-      // Backend salva em UTC, então precisamos subtrair 3h para BRT
-      d = new Date(date + 'Z'); // Força interpretação como UTC
-    }
-  } else {
-    d = date;
-  }
-  
-  return d.toLocaleString('pt-BR', {
+  return parseApiDate(date).toLocaleString('pt-BR', {
     day: '2-digit',
     month: '2-digit',
     year: 'numeric',

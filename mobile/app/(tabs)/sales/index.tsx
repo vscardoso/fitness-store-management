@@ -20,7 +20,7 @@ import Animated, {
 import { Ionicons } from '@expo/vector-icons';
 import PageHeader from '@/components/layout/PageHeader';
 import { getSales } from '@/services/saleService';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatClock, formatDayMonth } from '@/utils/format';
 import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import EmptyState from '@/components/ui/EmptyState';
@@ -122,9 +122,8 @@ export default function SalesListScreen() {
 
   const renderItem = ({ item }: { item: Sale }) => {
     const status = statusMap[item.status] || statusMap.pending;
-    const date   = new Date(item.created_at);
-    const formattedDate = date.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' });
-    const formattedTime = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const formattedDate = formatDayMonth(item.created_at);
+    const formattedTime = formatClock(item.created_at);
 
     return (
       <TouchableOpacity
