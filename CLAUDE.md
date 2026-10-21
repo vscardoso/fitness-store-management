@@ -157,3 +157,12 @@ Regra do Victor: nada fica gravado até a operação terminar com sucesso; falha
 - `GET /inventory/product/{id}` devolve estoque 0 para produto sem linha de estoque (404 só se o produto não existe).
 - Auditoria repetível (servidor de teste na 8766 com banco próprio, ver cabeçalho de cada script): `backend/scripts/qa_atomicidade.py`, `qa_envio_condicional.py`, `qa_devolucao_cancelamento.py`, `qa_cadastros.py`.
 - Typecheck do mobile deve ficar em 0 erros (`npx tsc --noEmit`).
+
+## Resumo da sessão de 2026-10-21 e próximos passos
+
+Feito: fornecedores Fase 1 e 2 (ranking, custos, reposição), CPF/CNPJ opcional, grade/produto sem estoque ("Dar entrada", escolher variações a usar), entrada a partir do catálogo com uma linha por variação, produto novo + entrada existente numa transação, auditoria tudo-ou-nada (vendas, entradas, envio condicional, devolução, cadastros) com scripts em `backend/scripts/qa_*.py`, typecheck do mobile em 0.
+
+Subir o ambiente: backend `cd backend; .\venv\Scripts\python -m uvicorn app.main:app --host 0.0.0.0 --port 8000` e app `cd mobile; npx expo start --port 8081` (sem `--web`, para não abrir aba).
+
+Pendente / não testado no navegador: modal "Vou usar só algumas variações", expansão de variações na nova entrada, banner de produto sem estoque.
+Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fornecedores (contas a pagar, devolução ao fornecedor, XML de NF-e); (3) `.gitignore` para DEBUG_LOG.txt, coverage.xml e backups .bak.
