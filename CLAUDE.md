@@ -174,3 +174,23 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 - App: `app/notifications.tsx` (Central), `hooks/useNotificationInbox.ts`, selo no menu Mais. Push real (expo-notifications) NÃO ligado a esses alertas ainda; no web a permissão de notificação fica bloqueada.
 - Teste: `backend/scripts/qa_alertas.py` (servidor de teste na 8766 com `qa_alert.db`), 15 verificações, TUDO OK.
 - Pendente: preferências por tipo de alerta, alerta de produto parado, despesa recorrente do dia, push real.
+
+## Decisões de produto e infra (2026-10-22)
+
+- **Produto**: nome candidato **Provador**, domínio `provadorfit.com.br` (Victor vai registrar no Registro.br; falta busca de marca no INPI e checar Play Store). Subdomínios: `api.`, `app.` e e-mails (`admin@`, `suporte@`) nele. O `wamodafitness.com.br` continua sendo o site da W.A. O endereço da API fica gravado no APK: definir o domínio ANTES de gerar o APK. Identificador do pacote Android (ex.: `br.com.provadorfit.app`) é permanente depois de publicado.
+- **Multi-loja**: todas as lojas usam o mesmo endereço; cada uma só precisa de login (tenant). Domínio próprio da loja só para catálogo online (opcional, futuro).
+- **Meta comercial**: 100 lojas a R$ 94/mês. Preço dos concorrentes NÃO verificado (ver `PLANO_PRODUTO.md`); piloto com 3 a 5 lojas antes de cravar.
+- **Hospedagem**: sair do Render (Starter, Docker) e do Neon (cota estourou em 21/10/2026, login em produção dá 500, deploys falham em ~30 s no `db_init`). Vai para o VPS Hetzner 204.168.144.151 (Ubuntu 22.04, 2 vCPU, 3,7 GB RAM, disco 38 GB com 85% usado: `/var/log` 4,2 GB, `/root` 11 GB). Já roda n8n (5678) e nginx (80/443, site wamodafitness.com.br com certbot). Sem Postgres local, `ufw` desligado, portas 631 (cups) e 5678 abertas. Plano: containers de backend + Postgres, nginx existente como proxy, certbot, backup diário do `pg_dump` fora do VPS, banco novo e vazio.
+- **Distribuição do app**: app web (PWA) em `app.` + APK direto para Android (build EAS ou local). Push usa o serviço do Expo. Loja de apps só depois.
+- **E-mail**: caixas da equipe no Zoho (grátis, conferir limites) ou Google Workspace; e-mails automáticos do app via Resend (SPF/DKIM no DNS do Registro.br).
+
+## Dev pendente / fase 2 (anotado em 2026-10-22)
+
+- **PDV**: não há conector universal de maquininha. Padrão = confirmação manual (qualquer marca): débito/crédito/PIX registrados pela lojista, NSU opcional. Hoje o checkout manda débito/crédito para a Cielo ("sempre via Cielo") e `PIX_PROVIDER` padrão é `mock` (SEMPRE aprova): bloquear `mock` em produção e fazer cartão/PIX caírem em manual quando não há terminal. Integrações (Cielo LIO, Stone, Mercado Pago Point) viram plugins opcionais por demanda (estrutura por provider/factory já existe). Nada disso foi testado com maquininha real.
+- **Taxa da maquininha por loja** (débito, crédito, parcelas) para calcular margem real.
+- **Etiquetas**: impressão incompleta.
+- **Notificações**: preferências por tipo de alerta, produto parado, despesa recorrente do dia; push só testado com Expo falso (`qa_push_alertas.py`).
+- **Despesa recorrente** não gera o lançamento do mês seguinte (só guarda `is_recurring`/`recurrence_day`).
+- **Renomear** app/pacote/textos "Fitness Store Management" para Provador depois da decisão do nome.
+- **Menus de fase 2** visíveis no app e não prontos (Lookbook, Wishlist e outros): esconder antes de liberar para lojas.
+- Fase 3 de fornecedores (contas a pagar, devolução ao fornecedor, XML de NF-e); `.gitignore` para `DEBUG_LOG.txt`, `coverage.xml`, `*.bak-*`.
