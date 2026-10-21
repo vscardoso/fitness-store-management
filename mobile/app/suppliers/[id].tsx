@@ -19,6 +19,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import InfoRow from '@/components/ui/InfoRow';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
+import { documentLabel } from '@/utils/masks';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useSupplier, useSupplierProducts, useDeleteSupplier, useUpdateSupplier } from '@/hooks/useSuppliers';
 import { formatDate } from '@/utils/format';
@@ -134,7 +135,7 @@ export default function SupplierDetailScreen() {
           <View style={styles.infoList}>
             <InfoRow
               icon="business-outline"
-              label="CNPJ"
+              label={supplier.cnpj ? documentLabel(supplier.cnpj) : 'CPF/CNPJ'}
               value={supplier.cnpj || 'Não informado'}
               layout="vertical"
             />

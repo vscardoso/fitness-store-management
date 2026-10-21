@@ -8,6 +8,18 @@ from pydantic import BaseModel, Field, field_validator, field_serializer, comput
 from app.models.stock_entry import EntryType, EntryStatus
 
 
+def validate_cpf_cnpj(value):
+    """Documento do fornecedor é opcional; quando vier, aceita CPF (11 dígitos) ou CNPJ (14).
+
+    Muito fornecedor de feira é pessoa física ou não passa o documento.
+    """
+    if value is not None and value.strip():
+        digits = ''.join(filter(str.isdigit, value))
+        if len(digits) not in (11, 14):
+            raise ValueError('Informe um CPF (11 dígitos) ou CNPJ (14 dígitos), ou deixe em branco')
+    return value
+
+
 class StockEntryBase(BaseModel):
     """Base stock entry schema."""
     entry_code: str = Field(..., min_length=5, max_length=50, description="Código único da entrada")
@@ -25,13 +37,7 @@ class StockEntryBase(BaseModel):
     @field_validator('supplier_cnpj')
     @classmethod
     def validate_cnpj_format(cls, v):
-        """Valida formato básico do CNPJ."""
-        if v is not None and v.strip():
-            # Remove pontuação
-            cnpj = ''.join(filter(str.isdigit, v))
-            if len(cnpj) != 14:
-                raise ValueError('CNPJ deve ter 14 dígitos')
-        return v
+        return validate_cpf_cnpj(v)
 
     @field_validator('trip_id')
     @classmethod
@@ -91,12 +97,7 @@ class StockEntryUpdate(BaseModel):
     @field_validator('supplier_cnpj')
     @classmethod
     def validate_cnpj_format(cls, v):
-        """Valida formato básico do CNPJ."""
-        if v is not None and v.strip():
-            cnpj = ''.join(filter(str.isdigit, v))
-            if len(cnpj) != 14:
-                raise ValueError('CNPJ deve ter 14 dígitos')
-        return v
+        return validate_cpf_cnpj(v)
 
 
 class StockEntryResponse(StockEntryBase):

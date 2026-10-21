@@ -138,3 +138,11 @@ Problemas conhecidos, não corrigidos:
 - Colunas novas: migração Alembic `20261021_entry_supplier` e, no SQLite dev, `_ensure_sqlite_columns` em `app/core/database.py` (create_all não altera tabela existente).
 - `backend/scripts/backfill_suppliers.py` (idempotente; sem `--apply` só simula) migra os fornecedores antigos escritos como texto. Aplicado na base de demonstração em 21/10/2026 com backup `fitness_store_demo.db.bak-antes-fornecedores-20261021`. Entradas de estoque inicial do sistema são ignoradas.
 - Armadilha: shell do Bash tool quebra com scripts Python muito longos em heredoc; gravar o script em arquivo e rodar.
+
+## Fornecedores, Fase 2 (2026-10-21)
+
+- Serviço `backend/app/services/supplier_insights_service.py` + endpoints `GET /suppliers/ranking|cost-comparison|restock-list` (registrados ANTES de `suppliers.router` para `/ranking` não cair em `/{id}`). Vendas ligadas ao fornecedor via `SaleItem.sale_sources` (FIFO).
+- Nota do ranking = 60% giro + 40% margem; fornecedor com menos de 5 un vendidas fica "poucos dados". Reposição: variação vendida no período com estoque <= 2; sugestão cobre 30 dias; grupo "Sem fornecedor definido" quando não há vínculo.
+- App: `app/suppliers/ranking.tsx`, `costs.tsx`, `restock.tsx`, abas em `components/suppliers/SuppliersTabs.tsx`; WhatsApp via `wa.me` (sem expo-clipboard, no web copia com `navigator.clipboard`).
+- Documento do fornecedor (`cnpj`) é opcional e aceita CPF ou CNPJ (`validate_cpf_cnpj`, `documentMask`, `documentLabel`); muitos fornecedores de feira (Brás) são pessoa física ou sem documento.
+- Testes: `backend/tests/test_supplier_insights.py`. QA ponta a ponta foi feito com script em backend de teste separado (porta 8766).

@@ -51,6 +51,18 @@ export const cnpjMask = (value: string): string => {
 };
 
 /**
+ * Máscara de CPF ou CNPJ conforme a quantidade de dígitos (até 11 = CPF, acima = CNPJ).
+ */
+export const documentMask = (value: string): string => {
+  const numbers = value.replace(/\D/g, '');
+  return numbers.length <= 11 ? cpfMask(numbers) : cnpjMask(numbers);
+};
+
+/** Rótulo do documento conforme os dígitos: "CPF" (11) ou "CNPJ" (14). */
+export const documentLabel = (value?: string | null): string =>
+  (value || '').replace(/\D/g, '').length === 11 ? 'CPF' : 'CNPJ';
+
+/**
  * Máscara de CEP: 99999-999
  */
 export const cepMask = (value: string): string => {

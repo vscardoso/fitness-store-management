@@ -26,6 +26,7 @@ import { VariantStockMatrix } from '@/components/products/VariantStockMatrix';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { getImageUrl } from '@/constants/Config';
 import { Colors, theme } from '@/constants/Colors';
+import { documentLabel } from '@/utils/masks';
 import { getEntryTypeLabel, getEntryTypeColor, getEntryTypeIcon } from '@/constants/entryTypes';
 import { useTutorialContext } from '@/components/tutorial';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -803,7 +804,7 @@ export default function ProductDetailsScreen() {
                             {ps.supplier_name}
                           </Text>
                           {ps.supplier_cnpj ? (
-                            <Text style={styles.supplierCardCnpj}>CNPJ: {ps.supplier_cnpj}</Text>
+                            <Text style={styles.supplierCardCnpj}>{documentLabel(ps.supplier_cnpj)}: {ps.supplier_cnpj}</Text>
                           ) : null}
                         </View>
                         <View style={{ flexDirection: 'row', gap: 4 }}>

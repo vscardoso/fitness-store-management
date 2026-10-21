@@ -50,6 +50,7 @@ from app.api.v1.endpoints import (
     expenses,
     store,
     suppliers,
+    supplier_insights,
 )
 from app.api.v1 import product_variants
 
@@ -201,7 +202,8 @@ api_router.include_router(expenses.router)
 # Branding e configuração da loja
 api_router.include_router(store.router, tags=["Loja"])
 
-# Catálogo de Fornecedores
+# Catálogo de Fornecedores (análises ANTES: /suppliers/ranking não pode virar /suppliers/{id})
+api_router.include_router(supplier_insights.router)
 api_router.include_router(suppliers.router)
 api_router.include_router(suppliers.product_supplier_router)
 

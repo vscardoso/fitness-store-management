@@ -26,10 +26,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import PageHeader from '@/components/layout/PageHeader';
 import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
+import SuppliersTabs from '@/components/suppliers/SuppliersTabs';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useSuppliers } from '@/hooks/useSuppliers';
 import type { Supplier } from '@/types';
+import { documentLabel } from '@/utils/masks';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function SuppliersIndexScreen() {
@@ -97,7 +99,7 @@ export default function SuppliersIndexScreen() {
       <View style={styles.cardContent}>
         <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
         {item.cnpj ? (
-          <Text style={styles.cardMeta}>CNPJ: {item.cnpj}</Text>
+          <Text style={styles.cardMeta}>{documentLabel(item.cnpj)}: {item.cnpj}</Text>
         ) : item.phone ? (
           <Text style={styles.cardMeta}>{item.phone}</Text>
         ) : null}
@@ -154,6 +156,7 @@ export default function SuppliersIndexScreen() {
       </Animated.View>
 
       <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
+        <SuppliersTabs active="list" />
         {/* Search bar */}
         <View style={styles.searchBar}>
           <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />

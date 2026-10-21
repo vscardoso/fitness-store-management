@@ -65,7 +65,7 @@ Consequência: o print do produto mostra a entrada "ENTRADA-001 · Brás" e, log
 ## 6. Fases sugeridas
 
 - **Fase 1 (fundação)**: itens 1, 2 (seletor e migração) e card do produto. Backend: `EntryItemCreate.supplier_id`, `StockEntry.supplier_id` opcional (padrão), chamada do `upsert_supplier_product`, migração dos textos livres. App: seletor por entrada e por item, resumo por fornecedor, card do produto.
-- **Fase 2 (inteligência)**: ranking, lista de reposição por fornecedor, comparação de custo.
+- **Fase 2 (inteligência)**: ranking, lista de reposição por fornecedor, comparação de custo. FEITA em 21/10/2026: `GET /suppliers/ranking` (nota = 60% giro + 40% margem; vendas COMPLETED e PARTIALLY_REFUNDED, devoluções descontadas, desconto já na receita), `/suppliers/cost-comparison` (só produtos com 2+ fornecedores, alerta de aumento) e `/suppliers/restock-list` (estoque <= 2 e venda recente; sugestão cobre 30 dias; texto de WhatsApp sem preço). Telas `suppliers/ranking`, `costs`, `restock` com abas (`SuppliersTabs`). Documento do fornecedor é opcional e aceita CPF (11) ou CNPJ (14).
 - **Fase 3 (financeiro e conferência)**: documento por fornecedor, contas a pagar, devolução, XML de NF-e.
 
 ## 7. Perguntas abertas para o lojista

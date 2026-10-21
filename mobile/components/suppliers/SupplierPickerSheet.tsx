@@ -22,7 +22,7 @@ import BottomSheet from '@/components/ui/BottomSheet';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useSuppliers, useProductSuppliers, useCreateSupplier } from '@/hooks/useSuppliers';
-import { cnpjMask, phoneMask } from '@/utils/masks';
+import { documentMask, phoneMask } from '@/utils/masks';
 import type { Supplier } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
@@ -154,7 +154,7 @@ export default function SupplierPickerSheet({
         <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />
         <TextInput
           style={styles.searchInput}
-          placeholder="Buscar por nome ou CNPJ"
+          placeholder="Buscar por nome, CPF ou CNPJ"
           placeholderTextColor={Colors.light.textTertiary}
           value={search}
           onChangeText={setSearch}
@@ -261,13 +261,13 @@ export default function SupplierPickerSheet({
 
               <View style={styles.miniRow}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.miniFormLabel}>CNPJ (opcional)</Text>
+                  <Text style={styles.miniFormLabel}>CPF ou CNPJ (opcional)</Text>
                   <TextInput
                     style={styles.miniInput}
-                    placeholder="00.000.000/0000-00"
+                    placeholder="Se tiver"
                     placeholderTextColor={Colors.light.textTertiary}
                     value={miniCnpj}
-                    onChangeText={(t) => setMiniCnpj(cnpjMask(t))}
+                    onChangeText={(t) => setMiniCnpj(documentMask(t))}
                     keyboardType="numeric"
                   />
                 </View>
