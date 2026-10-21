@@ -11,6 +11,7 @@ from app.core.database import async_session_maker
 from app.services.conditional_notification_service import ConditionalNotificationService
 from app.tasks.wishlist_notifier import run_wishlist_notifier
 from app.services.pdv_service import PDVService
+from app.services.app_notification_service import AppNotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,20 @@ async def check_sla_notifications_job():
             logger.info(f"SLA check completed: {result}")
     except Exception as e:
         logger.error(f"Error in SLA check job: {e}", exc_info=True)
+
+
+async def stock_alerts_push_job():
+    """
+    Job: sincroniza os alertas de estoque de todas as lojas e manda push dos novos.
+    Roda a cada 15 minutos.
+    """
+    try:
+        async with async_session_maker() as db:
+            result = await AppNotificationService().run_stock_alerts(db)
+            if result["pending"]:
+                logger.info(f"Stock alerts push: {result}")
+    except Exception as e:
+        logger.error(f"Error in stock alerts push job: {e}", exc_info=True)
 
 
 async def send_pending_reminder_job():
@@ -113,6 +128,15 @@ def start_scheduler():
         trigger=IntervalTrigger(minutes=1),
         id="check_sla_notifications",
         name="Verificar SLAs e enviar notificações",
+        replace_existing=True,
+    )
+
+    # Job 1b: Alertas de estoque (push) a cada 15 minutos
+    scheduler.add_job(
+        stock_alerts_push_job,
+        trigger=IntervalTrigger(minutes=15),
+        id="stock_alerts_push",
+        name="Sincronizar alertas de estoque e enviar push",
         replace_existing=True,
     )
 

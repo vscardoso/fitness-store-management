@@ -163,6 +163,7 @@ def _run_alembic_upgrade() -> None:
 _SQLITE_EXTRA_COLUMNS = {
     "stock_entries": [("supplier_id", "INTEGER")],
     "entry_items": [("supplier_id", "INTEGER")],
+    "app_notifications": [("push_sent", "BOOLEAN NOT NULL DEFAULT 0")],
 }
 
 

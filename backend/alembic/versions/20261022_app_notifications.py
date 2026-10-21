@@ -26,6 +26,7 @@ def upgrade() -> None:
         sa.Column("body", sa.Text(), nullable=False),
         sa.Column("product_id", sa.Integer(), sa.ForeignKey("products.id"), nullable=True),
         sa.Column("is_read", sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column("push_sent", sa.Boolean(), nullable=False, server_default=sa.false()),
     )
     op.create_index("ix_app_notifications_tenant_id", "app_notifications", ["tenant_id"])
     op.create_index("ix_app_notifications_kind", "app_notifications", ["kind"])

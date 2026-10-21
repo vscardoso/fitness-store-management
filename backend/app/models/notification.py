@@ -40,3 +40,4 @@ class AppNotification(BaseModel):
     body = Column(Text, nullable=False)
     product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
     is_read = Column(Boolean, default=False, nullable=False)
+    push_sent = Column(Boolean, default=False, nullable=False)  # já virou push no celular

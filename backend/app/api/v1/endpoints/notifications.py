@@ -56,6 +56,15 @@ async def inbox_mark_read(
     return n
 
 
+@router.post("/inbox/push-now", dependencies=[Depends(require_role([UserRole.ADMIN]))])
+async def inbox_push_now(
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Sincroniza os alertas de estoque desta loja e dispara os pushes pendentes (ADMIN; o agendador faz o mesmo a cada 15 min)"""
+    return await AppNotificationService().run_stock_alerts(db, tenant_id)
+
+
 @router.post("/token", response_model=PushTokenResponse, status_code=status.HTTP_201_CREATED)
 async def register_push_token(
     token_data: PushTokenCreate,

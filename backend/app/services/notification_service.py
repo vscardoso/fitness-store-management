@@ -1,5 +1,6 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
+import os
 import httpx
 from typing import Optional
 from app.repositories.notification_repository import PushTokenRepository, NotificationLogRepository
@@ -10,7 +11,7 @@ class NotificationService:
     def __init__(self):
         self.token_repo = PushTokenRepository()
         self.log_repo = NotificationLogRepository()
-        self.expo_url = "https://exp.host/--/api/v2/push/send"
+        self.expo_url = os.getenv("EXPO_PUSH_URL", "https://exp.host/--/api/v2/push/send")
 
     async def register_token(
         self, db: AsyncSession, user_id: int, tenant_id: int, token: str, device_type: Optional[str] = None
