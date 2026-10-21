@@ -131,7 +131,7 @@ export default function ConfirmDialog({
             styles.actions,
             (!cancelText || cancelText.trim() === '') && styles.actionsCenter
           ]}>
-            {cancelText && cancelText.trim() !== '' && (
+            {!!cancelText && cancelText.trim() !== '' && (
               <Button
                 mode="outlined"
                 onPress={onCancel}
