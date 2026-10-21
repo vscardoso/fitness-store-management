@@ -9,6 +9,7 @@ import {
   TouchableWithoutFeedback,
   TextInput,
   Text,
+  Platform,
 } from 'react-native';
 import { useBrandingColors } from '@/store/brandingStore';
 import { Ionicons } from '@expo/vector-icons';
@@ -470,7 +471,7 @@ export default function SaleScreen() {
 
   return (
     <KeyboardSafeView style={styles.container}>
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+    <TouchableWithoutFeedback onPress={Platform.OS === 'web' ? undefined : Keyboard.dismiss} accessible={false}>
     <View style={{ flex: 1 }}>
       
       {/* Header */}
@@ -589,7 +590,7 @@ export default function SaleScreen() {
               description="Use a barra de busca acima para encontrar e adicionar produtos à venda"
             />
           ) : (
-            <ScrollView style={styles.cartList} showsVerticalScrollIndicator={false}>
+            <ScrollView style={styles.cartList} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
               {cart.items.map((item) => (
                 <View key={item.cart_key} style={styles.cartItem}>
                   <View style={styles.cartItemContent}>
@@ -691,13 +692,13 @@ export default function SaleScreen() {
                   {/* Toggle R$ / % */}
                   <View style={styles.discountTypeToggle}>
                     <TouchableOpacity
-                      onPress={() => setDiscountType('value')}
+                      onPress={() => { setDiscountType('value'); setTimeout(() => discountInputRef.current?.focus(), 0); }}
                       style={[styles.discountTypeBtn, discountType === 'value' && styles.discountTypeBtnActive]}
                     >
                       <Text style={[styles.discountTypeBtnText, discountType === 'value' && styles.discountTypeBtnTextActive]}>R$</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      onPress={() => setDiscountType('percent')}
+                      onPress={() => { setDiscountType('percent'); setTimeout(() => discountInputRef.current?.focus(), 0); }}
                       style={[styles.discountTypeBtn, discountType === 'percent' && styles.discountTypeBtnActive]}
                     >
                       <Text style={[styles.discountTypeBtnText, discountType === 'percent' && styles.discountTypeBtnTextActive]}>%</Text>
