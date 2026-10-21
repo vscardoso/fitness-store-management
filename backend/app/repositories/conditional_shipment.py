@@ -28,6 +28,7 @@ class ConditionalShipmentRepository(
         db: AsyncSession,
         tenant_id: int,
         shipment_data: ConditionalShipmentCreate,
+        commit: bool = True,
     ) -> ConditionalShipment:
         """
         Cria envio condicional com seus itens.
@@ -76,7 +77,11 @@ class ConditionalShipmentRepository(
             )
             db.add(item)
         
-        await db.commit()
+        # commit=False: o service faz o commit só depois de reservar o estoque (tudo ou nada)
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
         await db.refresh(shipment)
         
         # Carregar items
@@ -184,6 +189,7 @@ class ConditionalShipmentRepository(
         shipment_id: int,
         tenant_id: int,
         new_status: str,
+        commit: bool = True,
     ) -> Optional[ConditionalShipment]:
         """
         Atualiza status do envio.
@@ -209,7 +215,10 @@ class ConditionalShipmentRepository(
         elif new_status == "COMPLETED":
             shipment.completed_at = datetime.utcnow()
         
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
         await db.refresh(shipment)
         return shipment
     

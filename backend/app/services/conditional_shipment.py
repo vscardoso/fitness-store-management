@@ -81,7 +81,7 @@ class ConditionalShipmentService:
 
         # 2. Criar shipment (status PENDING)
         shipment = await self.shipment_repo.create_with_items(
-            db, tenant_id, shipment_data
+            db, tenant_id, shipment_data, commit=False
         )
 
         # 3. Reservar estoque via FIFO — decrementa entry_items e armazena fontes para reverter
@@ -95,11 +95,15 @@ class ConditionalShipmentService:
                 )
                 # Armazenar fontes FIFO para permitir reversão exata ao devolver
                 db_item.fifo_sources = {"sources": fifo_sources}
-            except ValueError as e:
+            except Exception as e:
                 await db.rollback()
                 raise ValueError(f"Erro ao reservar estoque via FIFO: {str(e)}")
 
-        await db.commit()
+        try:
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
         await db.refresh(shipment)
 
         # 4. NOVO: Criar notificações automáticas se departure_datetime ou return_datetime foram fornecidos
@@ -254,7 +258,7 @@ class ConditionalShipmentService:
             new_status = ShipmentStatus.SENT.value
         
         shipment = await self.shipment_repo.update_status(
-            db, shipment_id, tenant_id, new_status
+            db, shipment_id, tenant_id, new_status, commit=False
         )
         
         # Atualizar timestamps baseado no status final
@@ -268,8 +272,6 @@ class ConditionalShipmentService:
         if return_data.notes:
             shipment.notes = (shipment.notes or "") + f"\n[Devolução] {return_data.notes}"
         
-        await db.commit()
-
         # 4. Criar venda AUTOMATICAMENTE se houver itens mantidos (comprados)
         # MUDANÇA: Sempre cria venda quando houver produtos comprados, independente de create_sale
         # Isso garante que toda compra seja registrada como venda imediatamente
@@ -277,10 +279,12 @@ class ConditionalShipmentService:
         if items_for_sale:
             payment_method = return_data.payment_method or PaymentMethod.PIX
             await self._create_sale_from_shipment(
-                db, shipment, tenant_id, user_id, items_for_sale, payment_method
+                db, shipment, tenant_id, user_id, items_for_sale, payment_method, commit=False
             )
             sale_created = True
 
+        # Um único commit: itens, estoque devolvido, perdas, status e venda juntos (ou nada)
+        await db.commit()
         await db.refresh(shipment)
         return shipment
 
@@ -383,6 +387,7 @@ class ConditionalShipmentService:
         user_id: int,
         items: List[dict],
         payment_method: PaymentMethod = PaymentMethod.PIX,
+        commit: bool = True,
     ) -> Sale:
         """
         Cria venda automaticamente a partir dos itens mantidos.
@@ -446,7 +451,10 @@ class ConditionalShipmentService:
             )
             db.add(sale_item)
 
-        await db.commit()
+        if commit:
+            await db.commit()
+        else:
+            await db.flush()
         return sale
     
     async def mark_as_sent(
