@@ -348,7 +348,7 @@ export default function TripDetailsScreen() {
                   </Text>
                 </View>
                 <View style={styles.analyticsCell}>
-                  <Text style={styles.analyticsCellLabel}>ROI</Text>
+                  <Text style={styles.analyticsCellLabel}>Lucro</Text>
                   <Text style={[
                     styles.analyticsCellValue,
                     { color: (analytics.roi ?? 0) >= 0 ? Colors.light.success : Colors.light.error },

@@ -526,7 +526,7 @@ export default function StockEntryDetailsScreen() {
         {/* Sell-Through */}
         <View style={styles.progressContainer}>
           <View style={styles.progressHeader}>
-            <Text style={styles.progressLabel}>Sell-Through</Text>
+            <Text style={styles.progressLabel}>Já vendido</Text>
             <Text style={[styles.progressPercentage, { color: progressColor }]}>
               {depletionRate.toFixed(1)}%
             </Text>

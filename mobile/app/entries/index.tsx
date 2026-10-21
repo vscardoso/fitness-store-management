@@ -475,7 +475,7 @@ export default function StockEntriesScreen() {
             {item.sell_through_rate > 0 && (
               <View style={styles.sellThroughContainer}>
                 <View style={styles.sellThroughHeader}>
-                  <Text style={styles.kpiLabel}>Sell-Through</Text>
+                  <Text style={styles.kpiLabel}>Já vendido</Text>
                   <View style={styles.kpiRow}>
                     <Text style={[
                       styles.kpiValue,
@@ -489,7 +489,7 @@ export default function StockEntriesScreen() {
                         styles.roiValue,
                         { color: item.roi >= 0 ? Colors.light.success : Colors.light.error }
                       ]}>
-                        ROI {item.roi >= 0 ? '+' : ''}{item.roi.toFixed(1)}%
+                        Lucro {item.roi >= 0 ? '+' : ''}{item.roi.toFixed(1)}%
                       </Text>
                     )}
                   </View>

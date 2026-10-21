@@ -42,7 +42,7 @@ const paymentMethods: { value: PaymentMethod | 'MIXED' | 'TERMINAL'; label: stri
   { value: PaymentMethod.DEBIT_CARD, label: 'Débito', icon: 'card-outline' },
   { value: PaymentMethod.CREDIT_CARD, label: 'Crédito', icon: 'card-outline' },
   { value: PaymentMethod.CASH, label: 'Dinheiro', icon: 'cash-outline' },
-  { value: 'TERMINAL' as any, label: 'Maquininha', icon: 'card-outline' },
+  { value: 'TERMINAL' as any, label: 'PIX', icon: 'qr-code-outline' },
   { value: 'MIXED', label: '2 Métodos', icon: 'swap-horizontal-outline' },
 ];
 
@@ -1004,7 +1004,7 @@ export default function CheckoutScreen() {
                           if (cart.payments.length > 0) cart.clearPayments();
                           setPendingTerminal(true);
                           setPendingCreditCard(false);
-                          setTerminalPaymentType('credit_card');
+                          setTerminalPaymentType('pix');
                           setTerminalInstallments(1);
                           setSelectedTerminal(null);
                           loadTerminals();

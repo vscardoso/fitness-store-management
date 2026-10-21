@@ -598,7 +598,7 @@ export default function AddStockEntryScreen() {
                   id,
                   product_id: productData.id,
                   variant_id: v.id,
-                  quantity_received: params.preselectedQuantity && idx === 0 ? Math.max(quantity, 1) : 0, // sem quantidade pedida: o usuário informa só as variações que comprou
+                  quantity_received: params.preselectedQuantity && idx === 0 ? Math.max(quantity, 1) : 1, // toda variação mantida entra com mínimo 1; quem não vai comprar sai no X ou no modal de variações
                   unit_cost: cost,
                   notes: '',
                   product: { ...catalogProduct, price: sale, cost_price: cost } as Product,
@@ -1080,12 +1080,9 @@ export default function AddStockEntryScreen() {
 
     // Validar cada item
     items.forEach((item, index) => {
-      const zeroVariantOk =
-        item.quantity_received === 0 &&
-        item.variant_id != null &&
-        items.some((o) => o.product_id === item.product_id && o.quantity_received > 0);
-      if (item.quantity_received <= 0 && !zeroVariantOk) {
-        newErrors[`item_${index}_quantity`] = 'Quantidade inválida';
+      if (item.quantity_received < 1) {
+        const name = item.product?.name || `Item ${index + 1}`;
+        newErrors[`item_${index}_quantity`] = `Informe a quantidade de "${name}" (mínimo 1) ou remova a variação no X.`;
       }
       if (item.unit_cost < 0) {
         newErrors[`item_${index}_cost`] = 'Custo inválido';
@@ -1097,7 +1094,7 @@ export default function AddStockEntryScreen() {
     });
 
     lastValidationMessage.current =
-      Object.entries(newErrors).find(([key]) => key.endsWith('_cost'))?.[1] ?? null;
+      Object.entries(newErrors).find(([key]) => key.endsWith('_cost') || key.endsWith('_quantity'))?.[1] ?? null;
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -2148,8 +2145,8 @@ export default function AddStockEntryScreen() {
                 '✅ Rastreabilidade completa garantida',
                 '📊 Você pode acompanhar:',
                 '  • Custo real por venda (FIFO)',
-                '  • ROI por entrada/viagem',
-                '  • Sell-Through Rate',
+                '  • Lucro por entrada/viagem',
+                '  • Percentual já vendido',
                 '',
                 'Cada venda usará o estoque da entrada mais antiga primeiro (FIFO)',
               ]
@@ -2172,7 +2169,7 @@ export default function AddStockEntryScreen() {
                       : selectedType === EntryType.ONLINE
                       ? 'Online'
                       : 'Local'),
-                'Você pode acompanhar performance (Sell-Through / ROI) após vendas',
+                'Você pode acompanhar performance (percentual vendido e lucro) após vendas',
               ].filter(Boolean)
         }
         type="success"
