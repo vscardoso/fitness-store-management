@@ -67,6 +67,27 @@ class StockEntryService:
                 timestamp = now_brazil().strftime("%Y%m%d%H%M%S")
                 return f"{base_code}-{timestamp}"
 
+    @staticmethod
+    def _require_cost(cost, label: str, entry_type=None):
+        """Custo é obrigatório: sem ele o lucro/FIFO fica errado. Zero só vale em entrada de doação."""
+        from decimal import Decimal, InvalidOperation
+
+        kind = str(getattr(entry_type, "value", entry_type) or "").lower()
+        try:
+            value = Decimal(str(cost)) if cost is not None else None
+        except InvalidOperation:
+            value = None
+        if value is None or value < 0 or (value == 0 and kind != "donation"):
+            raise ValueError(
+                f"Informe o custo de {label}. Sem o custo, o lucro (FIFO) fica incorreto."
+            )
+        return value
+
+    @staticmethod
+    def _variant_label(size, color, sku) -> str:
+        parts = " / ".join(p for p in (size, color) if p) or "variação única"
+        return f"{parts} (SKU {sku})" if sku else parts
+
     async def _ensure_skus_free(self, skus, tenant_id: int) -> None:
         """Recusa SKU já usado por outra variante ativa da loja (sem diferenciar maiúsculas)."""
         from sqlalchemy import select, func
@@ -162,6 +183,14 @@ class StockEntryService:
             for item_data in items:
                 item_dict = item_data.model_dump(exclude_unset=True)
                 item_dict['entry_id'] = entry.id
+
+                # Custo obrigatório (zero só em doação): sem ele o lucro/FIFO fica incorreto
+                _prod = await self.product_repo.get(self.db, item_dict['product_id'], tenant_id=tenant_id)
+                self._require_cost(
+                    item_dict.get('unit_cost'),
+                    (_prod.name if _prod else f"produto {item_dict['product_id']}"),
+                    entry_data.entry_type,
+                )
 
                 # Garantir que quantity_remaining = quantity_received
                 if 'quantity_remaining' not in item_dict:
@@ -1294,6 +1323,12 @@ class StockEntryService:
                 raise ValueError("Nome e SKU do produto são obrigatórios")
             
             await self._ensure_skus_free([product_data['sku']], tenant_id)
+            # Valida o custo ANTES de criar produto/entrada: se falhar, nada fica gravado pela metade
+            self._require_cost(
+                product_data.get('cost_price'),
+                f"{product_data['name'].strip()} (SKU {product_data['sku'].strip().upper()})",
+                entry_data.get('entry_type'),
+            )
 
             # Criar produto pai com is_catalog=False (produto com estoque)
             # Nota: sku, barcode, price, cost_price foram movidos para ProductVariant
@@ -1320,7 +1355,7 @@ class StockEntryService:
                 color=product_data.get('color'),
                 size=product_data.get('size'),
                 price=Decimal(str(product_data['price'])),
-                cost_price=Decimal(str(product_data.get('cost_price', product_data['price']))),
+                cost_price=Decimal(str(product_data['cost_price'])) if product_data.get('cost_price') is not None else None,
                 is_active=True,
                 tenant_id=tenant_id,
             )
@@ -1349,7 +1384,11 @@ class StockEntryService:
             await self.db.flush()
             
             # 4. Criar item da entrada (vinculado à variante)
-            unit_cost = Decimal(str(product_data.get('cost_price', product_data['price'])))
+            unit_cost = self._require_cost(
+                product_data.get('cost_price'),
+                f"{product_data['name'].strip()} (SKU {product_data['sku'].strip().upper()})",
+                entry_data.get('entry_type'),
+            )
             item = EntryItem(
                 entry_id=entry.id,
                 product_id=product.id,
@@ -1432,6 +1471,16 @@ class StockEntryService:
                 raise ValueError("Nome e categoria do produto são obrigatórios")
             
             await self._ensure_skus_free([v.get('sku') for v in variants_data], tenant_id)
+            # Valida o custo de toda variante com quantidade ANTES de criar produto/variantes/entrada:
+            # se falhar, nada fica gravado pela metade (e o usuário pode corrigir e reenviar).
+            for v in variants_data:
+                if (v.get('quantity') or 0) > 0:
+                    self._require_cost(
+                        v.get('cost_price'),
+                        f"{product_data['name'].strip()}, variação "
+                        f"{self._variant_label(v.get('size'), v.get('color'), v.get('sku'))}",
+                        entry_data.get('entry_type'),
+                    )
 
             # Criar produto pai com is_catalog=False (produto com estoque)
             product_dict = {
@@ -1458,8 +1507,8 @@ class StockEntryService:
                     sku=variant_dict.get('sku'),
                     color=variant_dict.get('color'),
                     size=variant_dict.get('size'),
-                    price=Decimal(str(variant_dict.get('price', product_data['base_price']))),
-                    cost_price=Decimal(str(variant_dict['cost_price'])) if variant_dict.get('cost_price') else None,
+                    price=Decimal(str(variant_dict['price'] if variant_dict.get('price') is not None else product_data['base_price'])),
+                    cost_price=Decimal(str(variant_dict['cost_price'])) if variant_dict.get('cost_price') is not None else None,
                     is_active=True,
                     tenant_id=tenant_id,
                 )
@@ -1497,7 +1546,12 @@ class StockEntryService:
                 if quantity <= 0:
                     continue  # Pular variantes sem quantidade
                 
-                unit_cost = Decimal(str(variant.cost_price)) if variant.cost_price else Decimal(str(variant.price * Decimal('0.5')))
+                unit_cost = self._require_cost(
+                    variant_dict.get('cost_price'),
+                    f"{product_data['name'].strip()}, variação "
+                    f"{self._variant_label(variant.size, variant.color, variant.sku)}",
+                    entry_data.get('entry_type'),
+                )
                 
                 item = EntryItem(
                     entry_id=entry.id,

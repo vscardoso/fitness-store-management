@@ -228,6 +228,7 @@ export interface ProductVariant {
   price: number;
   cost_price?: number;
   current_stock: number;
+  is_active?: boolean;
 }
 
 export interface ProductGrouped {

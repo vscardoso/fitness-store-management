@@ -31,6 +31,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { parseApiError } from '@/utils/apiError';
 import { useFocusEffect } from '@react-navigation/native';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import Animated, {
@@ -148,6 +149,9 @@ export default function AddStockEntryScreen() {
   }>();
 
   const isFromWizard = params.fromWizard === 'true';
+
+  // Primeira mensagem específica da última validação (ex.: custo zerado) para o diálogo
+  const lastValidationMessage = useRef<string | null>(null);
 
   // Nome do produto vindo do wizard. Nem toda rota envia `wizardProductName`
   // (o modo atômico manda só o JSON do produto), então procura também nos JSONs.
@@ -718,7 +722,7 @@ export default function AddStockEntryScreen() {
       invalidateAndShowSuccess(createdEntry);
     },
     onError: (error: any) => {
-      const errorMessage = error.message || 'Erro ao criar entrada';
+      const errorMessage = parseApiError(error) || 'Erro ao criar entrada';
       showFeedbackDialog('Erro', errorMessage, 'danger');
     },
   });
@@ -759,7 +763,7 @@ export default function AddStockEntryScreen() {
       invalidateAndShowSuccess(createdEntry);
     },
     onError: (error: any) => {
-      const errorMessage = error.message || 'Erro ao criar entrada com novo produto';
+      const errorMessage = parseApiError(error) || 'Erro ao criar entrada com novo produto';
       showFeedbackDialog('Erro', errorMessage, 'danger');
     },
   });
@@ -824,7 +828,7 @@ export default function AddStockEntryScreen() {
       invalidateAndShowSuccess(createdEntry);
     },
     onError: (error: any) => {
-      const errorMessage = error.message || 'Erro ao criar produto com variantes e entrada';
+      const errorMessage = parseApiError(error) || 'Erro ao criar produto com variantes e entrada';
       showFeedbackDialog('Erro', errorMessage, 'danger');
     },
   });
@@ -1036,11 +1040,14 @@ export default function AddStockEntryScreen() {
       if (item.unit_cost < 0) {
         newErrors[`item_${index}_cost`] = 'Custo inválido';
       }
-      if (item.unit_cost === 0) {
+      if (item.unit_cost === 0 && selectedType !== EntryType.DONATION) {
         const name = item.product?.name || `Item ${index + 1}`;
         newErrors[`item_${index}_cost`] = `Custo de "${name}" está zerado. Informe o custo unitário.`;
       }
     });
+
+    lastValidationMessage.current =
+      Object.entries(newErrors).find(([key]) => key.endsWith('_cost'))?.[1] ?? null;
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -1075,7 +1082,11 @@ export default function AddStockEntryScreen() {
    */
   const handleSubmit = async () => {
     if (!validate()) {
-      showFeedbackDialog('Atenção', 'Preencha todos os campos obrigatórios', 'warning');
+      showFeedbackDialog(
+        'Atenção',
+        lastValidationMessage.current ?? 'Preencha todos os campos obrigatórios',
+        'warning'
+      );
       return;
     }
 
