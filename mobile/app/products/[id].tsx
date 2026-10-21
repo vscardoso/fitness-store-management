@@ -268,6 +268,23 @@ export default function ProductDetailsScreen() {
   const isLowStock = currentStock > 0 && currentStock <= minStock;
   const isOutOfStock = currentStock === 0;
 
+  // Dar entrada: vai pela rota de catálogo, que cria uma linha por variação (sem escolher uma a uma)
+  const goToEntry = () =>
+    router.push({
+      pathname: '/entries/add',
+      params: {
+        fromCatalog: 'true',
+        preselectedProductData: JSON.stringify({
+          id: productId,
+          name: product.name,
+          sku: product.sku,
+          price: product.price,
+          cost_price: product.cost_price,
+          image_url: product.image_url,
+        }),
+      },
+    } as any);
+
   const stockColor = isOutOfStock
     ? Colors.light.error
     : isLowStock
@@ -349,6 +366,25 @@ export default function ProductDetailsScreen() {
             </View>
           </View>
         </View>
+
+        {/* ── PRODUTO SEM ESTOQUE: como reaproveitar ── */}
+        {isOutOfStock && (
+          <View style={styles.emptyStockBanner}>
+            <Ionicons name="information-circle-outline" size={22} color={Colors.light.info} />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.emptyStockTitle}>Cadastro pronto, falta dar entrada</Text>
+              <Text style={styles.emptyStockText}>
+                {hasMultipleVariants
+                  ? `As ${totalVariantsCount} variações já estão cadastradas. Dê entrada informando só as quantidades que comprou; as demais ficam zeradas.`
+                  : 'O produto já está cadastrado. Dê entrada para ele aparecer com estoque e poder ser vendido.'}
+              </Text>
+              <TouchableOpacity style={[styles.emptyStockBtn, { backgroundColor: brandingColors.primary }]} onPress={goToEntry} activeOpacity={0.85}>
+                <Ionicons name="add-circle-outline" size={18} color="#fff" />
+                <Text style={styles.emptyStockBtnText}>Dar entrada neste produto</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
 
         {/* ── FOTO DO PRODUTO ── */}
         <View style={styles.card}>
@@ -923,22 +959,7 @@ export default function ProductDetailsScreen() {
               size="md"
               icon="add-circle-outline"
               label="Entrada"
-              onPress={() =>
-                router.push({
-                  pathname: '/entries/add',
-                  params: {
-                    preselectedProductId: String(productId),
-                    preselectedProductData: JSON.stringify({
-                      id: productId,
-                      name: product.name,
-                      sku: product.sku,
-                      price: product.price,
-                      cost_price: product.cost_price,
-                      image_url: product.image_url,
-                    }),
-                  },
-                } as any)
-              }
+              onPress={goToEntry}
               style={{ flex: 1 }}
             />
             {!hasSales && (
@@ -1025,6 +1046,29 @@ export default function ProductDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
+  emptyStockBanner: {
+    flexDirection: 'row',
+    gap: 12,
+    marginHorizontal: 16,
+    marginBottom: 12,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: Colors.light.info + '14',
+    borderWidth: 1,
+    borderColor: Colors.light.info + '40',
+  },
+  emptyStockTitle: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
+  emptyStockText: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 4, lineHeight: 17 },
+  emptyStockBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    height: 40,
+    borderRadius: 12,
+  },
+  emptyStockBtnText: { color: '#fff', fontSize: 13, fontWeight: '700' },
   // ── Layout ──
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },

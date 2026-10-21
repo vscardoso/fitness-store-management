@@ -598,7 +598,7 @@ export default function AddStockEntryScreen() {
                   id,
                   product_id: productData.id,
                   variant_id: v.id,
-                  quantity_received: idx === 0 ? Math.max(quantity, 1) : 0,
+                  quantity_received: params.preselectedQuantity && idx === 0 ? Math.max(quantity, 1) : 0, // sem quantidade pedida: o usuário informa só as variações que comprou
                   unit_cost: cost,
                   notes: '',
                   product: { ...catalogProduct, price: sale, cost_price: cost } as Product,
