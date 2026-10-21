@@ -1,3 +1,4 @@
+import { useUnreadCount } from '@/hooks/useNotificationInbox';
 import { useState } from 'react';
 import {
   View,
@@ -57,6 +58,7 @@ export default function MoreScreen() {
   const { user, logout } = useAuth();
   const router = useRouter();
   const brandingColors = useBrandingColors();
+  const { data: unreadAlerts = 0 } = useUnreadCount();
   const [refreshing, setRefreshing] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [showDevDialog, setShowDevDialog] = useState(false);
@@ -254,7 +256,7 @@ export default function MoreScreen() {
               <MenuItem icon="cash-outline" title="Descontos de Pagamento" subtitle="Configure descontos por forma de pagamento" onPress={() => router.push('/settings/payment-discounts')} iconColor="#10B981" iconBg="#D1FAE5" />
             )}
             <MenuItem icon="person-circle-outline" title="Meu Perfil" subtitle="Dados pessoais e preferências" onPress={() => showDev('Meu Perfil')} iconColor={Colors.light.primary} iconBg={Colors.light.primaryLight} />
-            <MenuItem icon="notifications-outline" title="Notificações" subtitle="Alertas e lembretes" onPress={() => showDev('Notificações')} iconColor="#F97316" iconBg="#FFEDD5" />
+            <MenuItem icon="notifications-outline" title="Notificações" subtitle="Alertas e lembretes" onPress={() => router.push('/notifications' as any)} badge={unreadAlerts > 0 ? String(unreadAlerts) : undefined} iconColor="#F97316" iconBg="#FFEDD5" />
             <MenuItem icon="help-circle-outline" title="Ajuda e Tutoriais" subtitle="Aprenda a usar o app" onPress={() => router.push('/help')} iconColor="#06B6D4" iconBg="#CFFAFE" />
           </View>
         </View>

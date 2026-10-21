@@ -30,3 +30,19 @@ class NotificationResponse(BaseModel):
     sent_count: int
     failed_count: int
     errors: list[str] = []
+
+
+class AppNotificationResponse(BaseModel):
+    id: int
+    kind: str
+    title: str
+    body: str
+    product_id: Optional[int] = None
+    is_read: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class UnreadCountResponse(BaseModel):
+    count: int

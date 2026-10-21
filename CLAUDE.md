@@ -166,3 +166,11 @@ Subir o ambiente: backend `cd backend; .\venv\Scripts\python -m uvicorn app.main
 
 Pendente / não testado no navegador: modal "Vou usar só algumas variações", expansão de variações na nova entrada, banner de produto sem estoque.
 Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fornecedores (contas a pagar, devolução ao fornecedor, XML de NF-e); (3) `.gitignore` para DEBUG_LOG.txt, coverage.xml e backups .bak.
+
+## Notificações (2026-10-22)
+
+- Caixa de alertas da loja: tabela `app_notifications` (migração `20261022_app_notifications`), serviço `backend/app/services/app_notification_service.py`, rotas `GET /notifications/inbox`, `GET /notifications/inbox/unread-count`, `POST /notifications/inbox/{id}/read` e `/inbox/read-all`.
+- Alertas gerados sozinhos ao consultar (idempotente): `low_stock` (estoque total <= soma dos `min_stock`, só quando `min_stock` > 0) e `out_of_stock` (estoque 0 de produto que já teve entrada). Alerta some quando o estoque se recupera e volta a alertar numa nova queda. Caixa compartilhada pelo tenant (leitura não é por usuário).
+- App: `app/notifications.tsx` (Central), `hooks/useNotificationInbox.ts`, selo no menu Mais. Push real (expo-notifications) NÃO ligado a esses alertas ainda; no web a permissão de notificação fica bloqueada.
+- Teste: `backend/scripts/qa_alertas.py` (servidor de teste na 8766 com `qa_alert.db`), 15 verificações, TUDO OK.
+- Pendente: preferências por tipo de alerta, alerta de produto parado, despesa recorrente do dia, push real.

@@ -16,7 +16,7 @@ from .entry_item import EntryItem
 from .store import Store
 from .subscription import Subscription
 from .conditional_shipment import ConditionalShipment, ConditionalShipmentItem
-from .notification import PushToken, NotificationLog
+from .notification import PushToken, NotificationLog, AppNotification
 from .sale_return import SaleReturn, ReturnItem
 from .look import Look, LookItem
 from .wishlist import Wishlist
@@ -91,6 +91,7 @@ __all__ = [
     # Notifications
     "PushToken",
     "NotificationLog",
+    "AppNotification",
     
     # Sale Return
     "SaleReturn",

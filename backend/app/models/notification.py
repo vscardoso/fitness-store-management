@@ -27,3 +27,16 @@ class NotificationLog(BaseModel):
     sent_at = Column(DateTime, nullable=False)
     success = Column(Boolean, default=True)
     error_message = Column(Text, nullable=True)
+
+
+class AppNotification(BaseModel):
+    """Caixa de entrada de alertas da loja (estoque baixo etc.), compartilhada pelo tenant"""
+    __tablename__ = "app_notifications"
+
+    tenant_id = Column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
+    kind = Column(String(40), nullable=False, index=True)  # low_stock, out_of_stock
+    dedupe_key = Column(String(120), nullable=False, index=True)  # ex.: low_stock:12
+    title = Column(String(255), nullable=False)
+    body = Column(Text, nullable=False)
+    product_id = Column(Integer, ForeignKey("products.id"), nullable=True)
+    is_read = Column(Boolean, default=False, nullable=False)

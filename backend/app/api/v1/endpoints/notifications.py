@@ -1,13 +1,59 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
-from app.schemas.notification import PushTokenCreate, PushTokenResponse, SendNotificationRequest, NotificationResponse
+from app.schemas.notification import (
+    PushTokenCreate, PushTokenResponse, SendNotificationRequest, NotificationResponse,
+    AppNotificationResponse, UnreadCountResponse,
+)
+from app.services.app_notification_service import AppNotificationService
 from app.services.notification_service import NotificationService
 from app.services.conditional_notification_service import ConditionalNotificationService
 from app.api.deps import get_current_active_user, get_current_tenant_id, require_role
 from app.models.user import User, UserRole
 
 router = APIRouter(prefix="/notifications", tags=["Notificações"])
+
+
+@router.get("/inbox", response_model=list[AppNotificationResponse])
+async def list_inbox(
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    _: User = Depends(get_current_active_user),
+):
+    """Alertas da loja (estoque baixo e zerado); não lidos primeiro"""
+    return await AppNotificationService().list(db, tenant_id)
+
+
+@router.get("/inbox/unread-count", response_model=UnreadCountResponse)
+async def inbox_unread_count(
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    _: User = Depends(get_current_active_user),
+):
+    return UnreadCountResponse(count=await AppNotificationService().unread_count(db, tenant_id))
+
+
+@router.post("/inbox/read-all", response_model=UnreadCountResponse)
+async def inbox_read_all(
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    _: User = Depends(get_current_active_user),
+):
+    await AppNotificationService().mark_all_read(db, tenant_id)
+    return UnreadCountResponse(count=0)
+
+
+@router.post("/inbox/{notification_id}/read", response_model=AppNotificationResponse)
+async def inbox_mark_read(
+    notification_id: int,
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+    _: User = Depends(get_current_active_user),
+):
+    n = await AppNotificationService().mark_read(db, tenant_id, notification_id)
+    if not n:
+        raise HTTPException(status_code=404, detail="Notificação não encontrada")
+    return n
 
 
 @router.post("/token", response_model=PushTokenResponse, status_code=status.HTTP_201_CREATED)
