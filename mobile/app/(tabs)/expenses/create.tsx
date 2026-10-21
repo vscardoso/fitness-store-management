@@ -16,10 +16,12 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import DateTimeInput from '@/components/ui/DateTimeInput';
 import { createExpense, getExpenseCategories } from '@/services/expenseService';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import type { ExpenseCategory, ExpenseCreate } from '@/types/expense';
 
 export default function CreateExpenseScreen() {
+  const brandingColors = useBrandingColors();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -217,7 +219,8 @@ export default function CreateExpenseScreen() {
             <Button
               mode="outlined"
               onPress={() => router.back()}
-              style={styles.button}
+              style={[styles.button, { borderColor: brandingColors.primary }]}
+              textColor={brandingColors.primary}
               disabled={createMutation.isPending}
             >
               Cancelar
@@ -226,7 +229,7 @@ export default function CreateExpenseScreen() {
             <Button
               mode="contained"
               onPress={handleSave}
-              style={[styles.button, styles.buttonPrimary]}
+              style={[styles.button, { backgroundColor: brandingColors.primary }]}
               loading={createMutation.isPending}
               disabled={createMutation.isPending}
               icon="check"
@@ -340,8 +343,5 @@ const styles = StyleSheet.create({
   button: {
     flex: 1,
     borderRadius: 12,
-  },
-  buttonPrimary: {
-    backgroundColor: Colors.light.primary,
   },
 });

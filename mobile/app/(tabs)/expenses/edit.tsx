@@ -21,6 +21,7 @@ import {
   getExpenseCategories,
 } from '@/services/expenseService';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import { maskCurrencyBR, unmaskCurrency, toBRNumber } from '@/utils/priceFormatter';
 import type { ExpenseCategory, ExpenseUpdate } from '@/types/expense';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
@@ -32,6 +33,7 @@ const isoToDate = (iso: string): Date => {
 };
 
 export default function EditExpenseScreen() {
+  const brandingColors = useBrandingColors();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const expenseId = Number(id);
@@ -279,7 +281,8 @@ export default function EditExpenseScreen() {
             <Button
               mode="outlined"
               onPress={() => router.back()}
-              style={styles.button}
+              style={[styles.button, { borderColor: brandingColors.primary }]}
+              textColor={brandingColors.primary}
               disabled={updateMutation.isPending}
             >
               Cancelar
@@ -288,7 +291,7 @@ export default function EditExpenseScreen() {
             <Button
               mode="contained"
               onPress={handleSave}
-              style={[styles.button, styles.buttonPrimary]}
+              style={[styles.button, { backgroundColor: brandingColors.primary }]}
               loading={updateMutation.isPending}
               disabled={updateMutation.isPending}
               icon="check"
@@ -434,9 +437,6 @@ const styles = StyleSheet.create({
   button: {
     flex: 1,
     borderRadius: 12,
-  },
-  buttonPrimary: {
-    backgroundColor: Colors.light.primary,
   },
   deleteButton: {
     flexDirection: 'row',
