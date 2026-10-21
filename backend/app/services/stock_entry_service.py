@@ -67,6 +67,25 @@ class StockEntryService:
                 timestamp = now_brazil().strftime("%Y%m%d%H%M%S")
                 return f"{base_code}-{timestamp}"
 
+    async def _ensure_skus_free(self, skus, tenant_id: int) -> None:
+        """Recusa SKU já usado por outra variante ativa da loja (sem diferenciar maiúsculas)."""
+        from sqlalchemy import select, func
+        from app.models.product_variant import ProductVariant
+
+        wanted = {str(s).strip().upper() for s in skus if s and str(s).strip()}
+        if not wanted:
+            return
+        result = await self.db.execute(
+            select(ProductVariant.sku).where(
+                ProductVariant.tenant_id == tenant_id,
+                ProductVariant.is_active == True,
+                func.upper(ProductVariant.sku).in_(wanted),
+            )
+        )
+        used = sorted({row[0] for row in result.all() if row[0]})
+        if used:
+            raise ValueError(f"SKU já existe em outro produto: {', '.join(used)}")
+
     async def check_code_exists(self, entry_code: str, tenant_id: int) -> bool:
         """
         Verifica se um código de entrada já existe para o tenant.
@@ -164,6 +183,13 @@ class StockEntryService:
                     )).scalars().all()
                     if len(active_variants) == 1:
                         item_dict['variant_id'] = active_variants[0].id
+                    elif len(active_variants) > 1:
+                        # Sem a variação, o estoque ficaria órfão (conta no produto, mas em
+                        # nenhuma variação). Exige que o item diga qual variação está entrando.
+                        raise ValueError(
+                            f"O produto {item_dict['product_id']} tem {len(active_variants)} variações: "
+                            "informe a variação (variant_id) de cada item da entrada."
+                        )
                 
                 # Extrair selling_price se fornecido (não é campo do EntryItem, é do Product)
                 selling_price = item_dict.pop('selling_price', None)
@@ -1267,12 +1293,16 @@ class StockEntryService:
             if not product_data.get('name') or not product_data.get('sku'):
                 raise ValueError("Nome e SKU do produto são obrigatórios")
             
+            await self._ensure_skus_free([product_data['sku']], tenant_id)
+
             # Criar produto pai com is_catalog=False (produto com estoque)
             # Nota: sku, barcode, price, cost_price foram movidos para ProductVariant
             product_dict = {
                 'name': product_data['name'].strip(),
                 'description': product_data.get('description'),
                 'brand': product_data.get('brand'),
+                'gender': product_data.get('gender'),
+                'material': product_data.get('material'),
                 'category_id': product_data.get('category_id'),
                 'base_price': Decimal(str(product_data['price'])),
                 'is_catalog': False,  # Produto já tem entrada, não é catálogo
@@ -1401,11 +1431,15 @@ class StockEntryService:
             if not product_data.get('name') or not product_data.get('category_id'):
                 raise ValueError("Nome e categoria do produto são obrigatórios")
             
+            await self._ensure_skus_free([v.get('sku') for v in variants_data], tenant_id)
+
             # Criar produto pai com is_catalog=False (produto com estoque)
             product_dict = {
                 'name': product_data['name'].strip(),
                 'description': product_data.get('description'),
                 'brand': product_data.get('brand'),
+                'gender': product_data.get('gender'),
+                'material': product_data.get('material'),
                 'category_id': product_data.get('category_id'),
                 'base_price': Decimal(str(product_data['base_price'])),
                 'is_catalog': False,  # Produto já tem entrada, não é catálogo

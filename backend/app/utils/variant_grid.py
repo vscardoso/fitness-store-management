@@ -84,3 +84,19 @@ def sort_sizes(sizes: Iterable[Optional[str]]) -> List[str]:
 def sort_colors(colors: Iterable[Optional[str]]) -> List[str]:
     unique = {c for c in colors if c}
     return sorted(unique, key=lambda c: _strip_accents_upper(c))
+
+
+def normalize_gender(value: Optional[str]) -> Optional[str]:
+    """'feminina' -> 'Feminino'; 'MASCULINO' -> 'Masculino'. Outros valores (ex.: 'Unissex')
+    são mantidos com a primeira letra maiúscula; vazio -> None."""
+    if value is None:
+        return None
+    cleaned = re.sub(r"\s+", " ", value).strip()
+    if not cleaned:
+        return None
+    key = _strip_accents_upper(cleaned)
+    if key.startswith("FEM"):
+        return "Feminino"
+    if key.startswith("MASC"):
+        return "Masculino"
+    return cleaned[:1].upper() + cleaned[1:]

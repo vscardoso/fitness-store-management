@@ -5,7 +5,9 @@ Todos os endpoints requerem autenticação.
 Operações de modificação (POST, PUT, DELETE) requerem permissões de admin ou seller.
 """
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.utils.variant_grid import normalize_size, normalize_color, normalize_gender
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from datetime import date
@@ -42,9 +44,26 @@ class StockEntryWithNewProductRequest(StockEntryCreate):
     product_brand: Optional[str] = None
     product_color: Optional[str] = None
     product_size: Optional[str] = None
+    product_gender: Optional[str] = None
+    product_material: Optional[str] = None
     product_category_id: int
     product_cost_price: Optional[float] = None
     product_price: float
+
+    @field_validator("product_size", mode="before")
+    @classmethod
+    def _norm_size(cls, v):
+        return normalize_size(v) if isinstance(v, str) else v
+
+    @field_validator("product_color", mode="before")
+    @classmethod
+    def _norm_color(cls, v):
+        return normalize_color(v) if isinstance(v, str) else v
+
+    @field_validator("product_gender", mode="before")
+    @classmethod
+    def _norm_gender(cls, v):
+        return normalize_gender(v) if isinstance(v, str) else v
     # Dados da entrada
     quantity: int  # Quantidade do produto na entrada
     entry_code: str
@@ -57,6 +76,34 @@ class StockEntryWithNewProductRequest(StockEntryCreate):
     invoice_number: Optional[str] = None
     payment_method: Optional[str] = None
     notes: Optional[str] = None
+
+
+class NewVariantInput(BaseModel):
+    """Variante de um produto novo (cadastro atômico). Tamanho e cor são normalizados."""
+    sku: Optional[str] = None
+    size: Optional[str] = None
+    color: Optional[str] = None
+    price: Optional[float] = None
+    cost_price: Optional[float] = None
+    quantity: int = 0
+
+    @field_validator("sku", mode="before")
+    @classmethod
+    def _norm_sku(cls, v):
+        if isinstance(v, str):
+            v = v.strip().upper()
+            return v or None
+        return v
+
+    @field_validator("size", mode="before")
+    @classmethod
+    def _norm_size(cls, v):
+        return normalize_size(v) if isinstance(v, str) else v
+
+    @field_validator("color", mode="before")
+    @classmethod
+    def _norm_color(cls, v):
+        return normalize_color(v) if isinstance(v, str) else v
 
 
 class VariantItem(BaseModel):
@@ -73,10 +120,12 @@ class StockEntryWithNewProductVariantsRequest(BaseModel):
     product_description: Optional[str] = None
     product_brand: Optional[str] = None
     product_category_id: int
+    product_gender: Optional[str] = None
+    product_material: Optional[str] = None
     base_price: float
     
     # Dados das variantes
-    variants: List[dict] = Field(..., description="Lista de variantes com sku, color, size, price, cost_price, quantity")
+    variants: List[NewVariantInput] = Field(..., min_length=1, description="Lista de variantes com sku, color, size, price, cost_price, quantity")
     
     # Dados da entrada
     entry_code: str
@@ -94,6 +143,26 @@ class StockEntryWithNewProductVariantsRequest(BaseModel):
     @classmethod
     def uppercase_entry_code(cls, v):
         return v.strip().upper() if isinstance(v, str) else v
+
+    @field_validator("product_gender", mode="before")
+    @classmethod
+    def _norm_gender(cls, v):
+        return normalize_gender(v) if isinstance(v, str) else v
+
+    @model_validator(mode="after")
+    def _no_duplicate_variants(self):
+        """Mesma combinação tamanho/cor ou mesmo SKU duas vezes na mesma requisição."""
+        seen_combo, seen_sku = set(), set()
+        for v in self.variants:
+            combo = (v.size, v.color)
+            if combo in seen_combo:
+                raise ValueError(f"Variante duplicada: tamanho={v.size}, cor={v.color}")
+            seen_combo.add(combo)
+            if v.sku:
+                if v.sku in seen_sku:
+                    raise ValueError(f"SKU repetido na lista de variantes: {v.sku}")
+                seen_sku.add(v.sku)
+        return self
 
 
 @router.post(
@@ -160,6 +229,8 @@ async def create_stock_entry_with_new_product(
                 "brand": request_data.product_brand,
                 "color": request_data.product_color,
                 "size": request_data.product_size,
+                "gender": request_data.product_gender,
+                "material": request_data.product_material,
                 "category_id": request_data.product_category_id,
                 "cost_price": request_data.product_cost_price,
                 "price": request_data.product_price,
@@ -261,9 +332,11 @@ async def create_stock_entry_with_new_product_variants(
                 "description": request_data.product_description,
                 "brand": request_data.product_brand,
                 "category_id": request_data.product_category_id,
+                "gender": request_data.product_gender,
+                "material": request_data.product_material,
                 "base_price": request_data.base_price,
             },
-            variants_data=request_data.variants,
+            variants_data=[v.model_dump() for v in request_data.variants],
             entry_data={
                 "entry_code": request_data.entry_code,
                 "entry_date": request_data.entry_date,
