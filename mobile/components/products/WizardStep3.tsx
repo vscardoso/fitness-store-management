@@ -427,23 +427,47 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
                       </TouchableOpacity>
                     ))}
                   </View>
-                  {/* Input */}
-                  <TextInput
-                    value={variantQtys[v.id] ?? ''}
-                    onChangeText={(text) =>
-                      setVariantQtys((prev) => ({
-                        ...prev,
-                        [v.id]: text.replace(/[^0-9]/g, ''),
-                      }))
-                    }
-                    mode="outlined"
-                    keyboardType="number-pad"
-                    returnKeyType="done"
-                    blurOnSubmit
-                    style={styles.variantQtyInput}
-                    placeholder="0"
-                    dense
-                  />
+                  {/* Input com setas de incremento */}
+                  <View style={styles.variantQtyWrap}>
+                    <TextInput
+                      value={variantQtys[v.id] ?? ''}
+                      onChangeText={(text) =>
+                        setVariantQtys((prev) => ({
+                          ...prev,
+                          [v.id]: text.replace(/[^0-9]/g, ''),
+                        }))
+                      }
+                      mode="outlined"
+                      keyboardType="number-pad"
+                      returnKeyType="done"
+                      blurOnSubmit
+                      style={styles.variantQtyInput}
+                      placeholder="0"
+                      dense
+                    />
+                    <View style={styles.variantQtyArrows}>
+                      <TouchableOpacity
+                        style={styles.variantQtyArrow}
+                        hitSlop={{ top: 4, bottom: 0, left: 6, right: 6 }}
+                        onPress={() =>
+                          setVariantQtys((prev) => ({ ...prev, [v.id]: String((parseInt(prev[v.id] ?? '0') || 0) + 1) }))
+                        }
+                        accessibilityLabel="Aumentar quantidade"
+                      >
+                        <Ionicons name="chevron-up" size={16} color={brandingColors.primary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.variantQtyArrow}
+                        hitSlop={{ top: 0, bottom: 4, left: 6, right: 6 }}
+                        onPress={() =>
+                          setVariantQtys((prev) => ({ ...prev, [v.id]: String(Math.max(0, (parseInt(prev[v.id] ?? '0') || 0) - 1)) }))
+                        }
+                        accessibilityLabel="Diminuir quantidade"
+                      >
+                        <Ionicons name="chevron-down" size={16} color={brandingColors.primary} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
                 </View>
               ))}
             </ScrollView>
@@ -955,9 +979,27 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.light.primary,
   },
+  variantQtyWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   variantQtyInput: {
     backgroundColor: Colors.light.card,
-    width: 72,
+    width: 56,
+    textAlign: 'center',
+  },
+  variantQtyArrows: {
+    marginLeft: 2,
+    height: 44,
+    justifyContent: 'space-between',
+  },
+  variantQtyArrow: {
+    width: 22,
+    height: 21,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 6,
+    backgroundColor: Colors.light.backgroundSecondary,
   },
   
   // Option Card Disabled
