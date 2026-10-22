@@ -11,7 +11,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View, Pressable } from 'react-native';
 import { Text, IconButton } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/Colors';
 
 export type ErrorSeverity = 'error' | 'warning' | 'info' | 'success';

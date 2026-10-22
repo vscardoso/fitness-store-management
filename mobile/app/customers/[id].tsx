@@ -11,7 +11,7 @@ import {
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import useBackToList from '@/hooks/useBackToList';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import PageHeader from '@/components/layout/PageHeader';
 import InfoRow from '@/components/ui/InfoRow';
 import StatCard from '@/components/ui/StatCard';

@@ -17,7 +17,7 @@ import Animated, {
   withSpring,
   Easing,
 } from 'react-native-reanimated';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import PageHeader from '@/components/layout/PageHeader';
 import { getSales } from '@/services/saleService';
 import { formatCurrency, formatClock, formatDayMonth } from '@/utils/format';

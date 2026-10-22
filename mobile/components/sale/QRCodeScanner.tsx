@@ -22,7 +22,7 @@ import {
 } from 'react-native';
 import { Text, Button, Card } from 'react-native-paper';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
 import { getProductById, getProductBySku } from '@/services/productService';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';

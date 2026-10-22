@@ -18,7 +18,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/store/authStore';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/hooks/useAuth';
 import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';

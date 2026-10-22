@@ -3,7 +3,7 @@
  */
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import PageHeader from '@/components/layout/PageHeader';
 import SuppliersTabs from '@/components/suppliers/SuppliersTabs';
 import { Colors, theme } from '@/constants/Colors';

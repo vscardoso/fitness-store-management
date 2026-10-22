@@ -8,7 +8,26 @@ if (html.includes('rel="manifest"')) {
   console.log('PWA: tags ja presentes');
   process.exit(0);
 }
+// O Ionicons só começaria a baixar depois do JS de 5 MB rodar; o preload antecipa o download.
+// crossorigin é obrigatório: fonte é sempre buscada em modo CORS, sem ele o preload é baixado duas vezes.
+const iconFont = (function find(dir) {
+  for (const f of fs.readdirSync(dir, { withFileTypes: true })) {
+    const p = path.join(dir, f.name);
+    if (f.isDirectory()) {
+      const r = find(p);
+      if (r) return r;
+    } else if (/^Ionicons\.[0-9a-f]+\.ttf$/.test(f.name)) {
+      return '/' + path.relative(path.join(__dirname, '..', 'dist'), p).split(path.sep).join('/');
+    }
+  }
+  return null;
+})(path.join(__dirname, '..', 'dist', 'assets'));
+if (!iconFont) {
+  console.error('PWA: fonte Ionicons nao encontrada em dist/assets');
+  process.exit(1);
+}
 const tags = `
+    <link rel="preload" href="${iconFont}" as="font" type="font/ttf" crossorigin />
     <style id="pwa-fill">
       /* No iPhone instalado, 100% de altura deixava uma faixa branca embaixo: prende o app nas 4 bordas */
       body { height: 100%; margin: 0; background-color: #F8F9FA; }

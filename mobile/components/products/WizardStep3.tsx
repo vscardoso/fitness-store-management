@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import { Text, TextInput, Button } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import { formatCurrency } from '@/utils/format';

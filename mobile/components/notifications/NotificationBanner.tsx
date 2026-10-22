@@ -4,7 +4,7 @@
  */
 import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Vibration } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { Notification, NOTIFICATION_COLORS } from '../../types/notification';
 import { useNotificationStore } from '../../store/notificationStore';

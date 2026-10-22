@@ -16,7 +16,7 @@ import {
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import BottomSheet from '@/components/ui/BottomSheet';
 import { Colors, theme } from '@/constants/Colors';

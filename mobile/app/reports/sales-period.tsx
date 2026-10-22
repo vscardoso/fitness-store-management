@@ -7,7 +7,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { Text } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import Animated, {
   useSharedValue,

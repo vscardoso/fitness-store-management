@@ -19,7 +19,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Text, Button } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, theme } from '@/constants/Colors';
 import type { DuplicateMatch } from '@/types';

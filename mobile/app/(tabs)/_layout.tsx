@@ -1,7 +1,7 @@
 import { Tabs, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from 'react-native-paper';
 import { useAuthStore } from '@/store/authStore';

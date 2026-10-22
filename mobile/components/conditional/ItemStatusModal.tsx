@@ -10,7 +10,7 @@
 import React, { useState, useMemo } from 'react';
 import { StyleSheet, View, Text, Animated } from 'react-native';
 import { TextInput, IconButton, Divider } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import BottomSheet from '@/components/ui/BottomSheet';
 import { Colors } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';

@@ -10,7 +10,7 @@ import {
   Text,
 } from 'react-native';
 import { Chip, TextInput, Divider } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
 import {
   DEFAULT_SIZES,

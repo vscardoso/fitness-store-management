@@ -1,7 +1,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated } from 'react-native';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import useBackToList from '@/hooks/useBackToList';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 

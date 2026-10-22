@@ -18,7 +18,7 @@ import {
 } from 'react-native';
 import { Text, Button, TextInput, Card, ProgressBar, Chip } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import * as MediaLibrary from 'expo-media-library';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';

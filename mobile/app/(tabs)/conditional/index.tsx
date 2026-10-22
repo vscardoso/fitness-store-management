@@ -17,7 +17,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import PageHeader from '@/components/layout/PageHeader';
 import { useTutorialContext } from '@/components/tutorial';
 import EmptyState from '@/components/ui/EmptyState';

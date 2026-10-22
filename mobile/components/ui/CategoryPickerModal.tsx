@@ -10,7 +10,7 @@ import {
   Animated,
   Text,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
 import { useCreateCategory } from '@/hooks/useCategories';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';

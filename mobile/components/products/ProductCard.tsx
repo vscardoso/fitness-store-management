@@ -1,6 +1,6 @@
 import { View, StyleSheet } from 'react-native';
 import { Card, Text, useTheme } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { Product } from '@/types';
 import { formatCurrency } from '@/utils/format';
 import { Colors } from '@/constants/Colors';

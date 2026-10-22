@@ -17,7 +17,7 @@ import { Text, TextInput, Button, SegmentedButtons, Card } from 'react-native-pa
 import { useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
 import { createTeamMember, getRoleLabel } from '@/services/teamService';
 import { UserRole, type TeamMemberCreate } from '@/types';

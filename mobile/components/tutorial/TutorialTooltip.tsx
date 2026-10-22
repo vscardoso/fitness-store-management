@@ -12,7 +12,7 @@ import {
   TouchableOpacity,
   useWindowDimensions,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { TUTORIAL_COLORS, TutorialStepPosition } from '@/constants/tutorials';
 
 // Altura estimada do tooltip (para cálculos de posicionamento)

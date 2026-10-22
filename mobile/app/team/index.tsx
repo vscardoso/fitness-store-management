@@ -16,7 +16,7 @@ import { Text, Card, Searchbar, Chip } from 'react-native-paper';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/hooks/useAuth';
 import useBackToList from '@/hooks/useBackToList';
 import { Colors, theme } from '@/constants/Colors';

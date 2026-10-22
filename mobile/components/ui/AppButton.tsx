@@ -36,7 +36,7 @@ import {
   TextStyle,
 } from 'react-native';
 import { Text } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, theme } from '@/constants/Colors';
 import { BUTTON, type ButtonSize, type ButtonVariant } from '@/constants/tokens';

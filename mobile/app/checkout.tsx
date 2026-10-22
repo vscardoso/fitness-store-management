@@ -6,7 +6,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Text, TextInput } from 'react-native';
 import KeyboardSafeView from '@/components/ui/KeyboardSafeView';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import PageHeader from '@/components/layout/PageHeader';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';

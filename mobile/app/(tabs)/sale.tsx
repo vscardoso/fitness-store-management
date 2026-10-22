@@ -12,7 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { useBrandingColors } from '@/store/brandingStore';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/layout/PageHeader';

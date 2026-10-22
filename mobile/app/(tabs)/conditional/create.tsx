@@ -9,7 +9,7 @@ import {
   TextInput as RNTextInput,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { Colors, theme } from '@/constants/Colors';

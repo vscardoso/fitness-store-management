@@ -9,7 +9,7 @@ import { useState, useRef, useEffect } from 'react';
 import { View, StyleSheet, Linking, Alert } from 'react-native';
 import { Modal, Portal, Button, Text } from 'react-native-paper';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/Colors';
 import { haptics } from '@/utils/haptics';
 import { getProductByBarcode } from '@/services/productService';

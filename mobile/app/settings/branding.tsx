@@ -3,7 +3,7 @@ import { View, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-nat
 import { Text, TextInput, Button } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import PageHeader from '@/components/layout/PageHeader';
 import { Colors, theme, PRESET_THEMES } from '@/constants/Colors';
 import { useBrandingStore } from '@/store/brandingStore';

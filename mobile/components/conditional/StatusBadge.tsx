@@ -5,7 +5,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Chip } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ShipmentStatus } from '@/types/conditional';
 import {
   SHIPMENT_STATUS_COLORS,

@@ -5,7 +5,7 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ConditionalShipment } from '@/types/conditional';
 import { Colors } from '@/constants/Colors';
 import { formatDate } from '@/utils/format';

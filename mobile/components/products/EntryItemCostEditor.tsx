@@ -14,7 +14,7 @@
 import { useState, useEffect } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { TextInput, HelperText } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Text } from 'react-native-paper';
 import BottomSheet from '@/components/ui/BottomSheet';
 import { maskCurrencyBR, unmaskCurrency, toBRNumber } from '@/utils/priceFormatter';

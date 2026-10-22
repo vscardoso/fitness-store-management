@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, Portal } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import Animated, {
   runOnJS,
   useAnimatedStyle,

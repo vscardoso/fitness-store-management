@@ -1,7 +1,7 @@
 import React, { forwardRef } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, Card } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { formatCurrency, formatDateTime } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import type { SaleWithDetails, PaymentMethod } from '@/types';

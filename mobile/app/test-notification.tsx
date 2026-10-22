@@ -5,7 +5,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useNotificationStore } from '@/store/notificationStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { createNotification } from '@/types/notification';

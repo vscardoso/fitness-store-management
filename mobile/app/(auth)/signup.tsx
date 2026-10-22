@@ -16,7 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import AppButton from '@/components/ui/AppButton';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingStore, useBrandingColors } from '@/store/brandingStore';

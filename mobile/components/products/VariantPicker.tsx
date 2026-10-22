@@ -13,7 +13,7 @@ import {
   Dimensions,
 } from 'react-native';
 import { Chip, Button, Card } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
 import { formatVariantLabel } from '@/services/productVariantService';
 import type { ProductVariant, VariantGrid } from '@/types/productVariant';

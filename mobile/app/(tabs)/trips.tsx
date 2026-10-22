@@ -9,7 +9,7 @@ import {
   Animated,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 
 import PageHeader from '@/components/layout/PageHeader';

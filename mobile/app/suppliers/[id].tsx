@@ -13,7 +13,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import PageHeader from '@/components/layout/PageHeader';
 import InfoRow from '@/components/ui/InfoRow';

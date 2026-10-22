@@ -8,7 +8,7 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView, Animated } from 'react-native';
 import { Portal, Modal, Text, Button, Surface, IconButton } from 'react-native-paper';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
 
 export interface ConfirmDialogProps {

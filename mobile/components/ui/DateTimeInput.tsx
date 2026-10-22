@@ -3,7 +3,7 @@ import { View, StyleSheet, Platform, Modal, TouchableOpacity } from 'react-nativ
 import { TextInput, HelperText, Button } from 'react-native-paper';
 import { Text } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Ionicons } from '@expo/vector-icons';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/Colors';
 
 interface DateTimeInputProps {
