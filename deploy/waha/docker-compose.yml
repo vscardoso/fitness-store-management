@@ -1,0 +1,29 @@
+# WAHA Core da loja: so leitura e etiquetas. WAHA nao publica porta; so o proxy de leitura escuta em 127.0.0.1:3001.
+services:
+  waha:
+    image: devlikeapro/waha:latest
+    container_name: waha
+    restart: unless-stopped
+    expose: ["3000"]
+    env_file: .env
+    environment:
+      WHATSAPP_DEFAULT_ENGINE: NOWEB
+      WHATSAPP_RESTART_ALL_SESSIONS: "True"
+      WAHA_PRINT_QR: "False"
+      WAHA_DASHBOARD_ENABLED: "false"
+      WHATSAPP_SWAGGER_ENABLED: "false"
+      WHATSAPP_API_KEY_EXCLUDE_PATH: ping,health
+    volumes:
+      - ./sessions:/app/.sessions
+    mem_limit: 700m
+  waha-guard:
+    image: nginx:1.27-alpine
+    container_name: waha-guard
+    restart: unless-stopped
+    depends_on: [waha]
+    env_file: .env
+    ports:
+      - "127.0.0.1:3001:3001"
+    volumes:
+      - ./guard/default.conf.template:/etc/nginx/templates/default.conf.template:ro
+    mem_limit: 64m

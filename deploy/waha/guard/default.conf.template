@@ -1,0 +1,28 @@
+# Proxy SOMENTE LEITURA na frente do WAHA. Nenhum envio de mensagem passa por aqui.
+server {
+  listen 3001;
+  server_tokens off;
+  proxy_set_header X-Api-Key ${WAHA_API_KEY};
+  proxy_read_timeout 30s;
+
+  location = /ping { proxy_pass http://waha:3000/ping; }
+
+  # estado da sessao (so leitura)
+  location = /api/sessions/default {
+    limit_except GET { deny all; }
+    proxy_pass http://waha:3000;
+  }
+
+  # etiquetas e conversas: leitura; PUT so para marcar etiqueta no chat
+  location ~ ^/api/default/labels/chats/ {
+    limit_except GET PUT { deny all; }
+    proxy_pass http://waha:3000;
+  }
+  location ~ ^/api/default/(labels|chats|contacts)(/|$|\?) {
+    limit_except GET { deny all; }
+    proxy_pass http://waha:3000;
+  }
+
+  # tudo o resto (sendText, sendImage, auth, sessions, dashboard...) = proibido
+  location / { return 403; }
+}
