@@ -2,6 +2,7 @@ import { Tabs, useRouter } from 'expo-router';
 import { useEffect } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Text } from 'react-native-paper';
 import { useAuthStore } from '@/store/authStore';
 import { Colors, theme } from '@/constants/Colors';
@@ -10,6 +11,9 @@ import { useUIStore } from '@/store/uiStore';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function TabsLayout() {
+  const { bottom: safeBottom } = useSafeAreaInsets();
+  // No app web instalado (iPhone) a barra de gesto fica por cima: soma a área segura real
+  const webBottom = Platform.OS === 'web' ? safeBottom : 0;
   const router = useRouter();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const brandingColors = useBrandingColors();
@@ -47,8 +51,8 @@ export default function TabsLayout() {
         tabBarActiveTintColor: brandingColors.primary,
         tabBarInactiveTintColor: Colors.light.tabIconDefault,
         tabBarStyle: {
-          height: Platform.OS === 'ios' ? 85 : 65,
-          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+          height: (Platform.OS === 'ios' ? 85 : 65) + webBottom,
+          paddingBottom: (Platform.OS === 'ios' ? 20 : 8) + webBottom,
           paddingTop: 8,
           backgroundColor: Colors.light.background,
           borderTopWidth: 1,
