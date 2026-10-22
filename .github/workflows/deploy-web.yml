@@ -41,6 +41,8 @@ jobs:
           node node_modules/expo/bin/cli export --platform web
           node scripts/pwa-postbuild.js
           grep -q 'rel="manifest"' dist/index.html
+          # trava: bundle com import.meta abre em branco no navegador
+          if grep -l 'import\.meta' dist/_expo/static/js/web/*.js; then echo "::error::bundle web contem import.meta, publicacao abortada"; exit 1; fi
 
       - name: Configurar SSH
         env:
