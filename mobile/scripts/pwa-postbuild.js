@@ -9,6 +9,11 @@ if (html.includes('rel="manifest"')) {
   process.exit(0);
 }
 const tags = `
+    <style id="pwa-fill">
+      /* No iPhone instalado, 100% de altura deixava uma faixa branca embaixo: prende o app nas 4 bordas */
+      html, body { height: 100%; margin: 0; background-color: #F8F9FA; }
+      #root { position: fixed; top: 0; right: 0; bottom: 0; left: 0; height: auto; }
+    </style>
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#7C3AED" />
     <meta name="mobile-web-app-capable" content="yes" />
