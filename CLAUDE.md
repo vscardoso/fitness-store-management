@@ -233,3 +233,10 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 - Dado real: etiqueta "Novo cliente" tem 283 chats; etiquetas de produto quase vazias (interesse virá de anúncio, formulário e mensagens). 15 etiquetas visíveis (12 dele + 3 do WhatsApp).
 - Regra: só tratar como lead chat com etiqueta de funil ou origem em anúncio; nunca gravar chat de contato pessoal.
 
+## E-mail do domínio (2026-10-22, noite)
+
+- **Zoho Mail, plano Correio Lite**: 1 usuário, R$ 60/ano (5 GB), contratado por ele. Caixa `admin@provadorfit.com.br` (titular Victor) e `suporte@provadorfit.com.br` como ALIAS da mesma caixa (nome de exibição "Provador Fit"). O plano grátis do Zoho não é mais oferecido. Painel de admin: `mailadmin.zoho.com`.
+- **DNS no Registro.br** (zona do domínio): 3 MX (mx.zoho.com 10, mx2.zoho.com 20, mx3.zoho.com 50), SPF `v=spf1 include:zohomail.com ~all`, DKIM `zmail._domainkey` (conferido caractere a caractere contra o painel), DMARC `_dmarc` com `p=none` e relatórios para `admin@`, mais o TXT de verificação do Zoho. No Registro.br o nome em branco = domínio principal (digitar `@` cria um host chamado "@", erro já cometido e corrigido).
+- Teste real: e-mail do Gmail para `suporte@` chegou na caixa (19:54). Falta provar SPF e DKIM PASS no envio.
+- **Para o e-mail automático do app (Resend)**: só pode existir UM registro SPF, então juntar `include:` dos dois provedores. Registros de ZeptoMail que o Zoho sugere (bounce-zem, 22154326._domainkey) não são usados.
+
