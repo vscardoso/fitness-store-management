@@ -29,6 +29,7 @@ services:
         condition: service_healthy
     environment:
       ENVIRONMENT: production
+      DATABASE_SSL: disable   # Postgres no mesmo compose, sem SSL (o código exige SSL por padrão por causa do Neon/Render)
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       SECRET_KEY: ${SECRET_KEY}
       ACCESS_TOKEN_EXPIRE_MINUTES: 60
