@@ -1,0 +1,37 @@
+name: Deploy VPS
+
+# Todo push na main que mexe no backend ou no deploy atualiza o VPS.
+on:
+  push:
+    branches: [main]
+    paths: ['backend/**', 'deploy/**', '.github/workflows/deploy-vps.yml']
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Configurar SSH
+        env:
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy no VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o ServerAliveInterval=30 root@"$VPS_HOST" \
+            'cd /opt/provador/repo && git fetch origin main && git show origin/main:deploy/deploy_vps.sh > /opt/provador/deploy_vps.sh && chmod +x /opt/provador/deploy_vps.sh && /opt/provador/deploy_vps.sh'
+
+      - name: Conferir API publica
+        run: curl -fsS https://api.provadorfit.com.br/health
