@@ -219,3 +219,9 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 - Publicar: export, `node scripts/pwa-postbuild.js`, `scp -r dist/* root@204.168.144.151:/var/www/provador-app/`. Instalar: Chrome Android (menu > Instalar app), iPhone (Safari > Compartilhar > Adicionar à Tela de Início), Windows (Chrome/Edge > Instalar).
 - Ícone atual é o `assets/icon.png` antigo e cor do tema provisória (#7C3AED); trocar quando houver a marca Provador.
 
+
+## Segurança do VPS e backups criptografados (2026-10-22, noite)
+
+- **SSH endurecido** (`/etc/ssh/sshd_config.d/99-hardening.conf`): só chave pública, sem senha, `PermitRootLogin prohibit-password`, `MaxAuthTries 3`, X11 desligado. Testado: chave entra, senha recusada. Antes havia 8.175 tentativas de força bruta em 24 h. **fail2ban** ativo (sshd: 3 falhas em 10 min = banido 1 dia). Porta 631 (cups via snap) desligada. Sessão root esquecida no console encerrada. Se perder a chave `provador_deploy`: recuperar pelo console da Hetzner (Rescue / Reset root password), a senha de SSH não funciona mais.
+- **Backups criptografados com age**: `deploy/backup_pg.sh` gera `provador-*.sql.gz.age` usando a chave pública `/opt/provador/backup_recipient.pub`. A chave PRIVADA fica só neste PC em `~/.ssh/provador_backup` (nunca no VPS). **Guardar uma cópia dela no gerenciador de senhas: sem ela os backups não abrem.** Abrir: `age -d -i ~/.ssh/provador_backup arquivo.sql.gz.age | gunzip` (ou pyrage). Testado: cifrado sem texto legível, abre com a chave certa (39 tabelas), recusa chave errada. Dumps antigos sem criptografia apagados do VPS e do Drive.
+- **Ainda aberto**: porta 5678 do n8n pública (Docker publica por cima do ufw; não mexi por regra); WAHA ainda com porta local e painel ligado até o QR ser escaneado; depois: proxy que só permite leitura e etiquetas (bloqueia envio), painel desligado, chave e senha trocadas.
