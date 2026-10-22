@@ -11,8 +11,10 @@ if (html.includes('rel="manifest"')) {
 const tags = `
     <style id="pwa-fill">
       /* No iPhone instalado, 100% de altura deixava uma faixa branca embaixo: prende o app nas 4 bordas */
-      html, body { height: 100%; margin: 0; background-color: #F8F9FA; }
-      #root { position: fixed; top: 0; right: 0; bottom: 0; left: 0; height: auto; }
+      body { height: 100%; margin: 0; background-color: #F8F9FA; }
+      /* 100lvh = altura real da tela; no iOS instalado 100% e bottom:0 ficam ~55pt menores */
+      html { height: 100vh; height: 100lvh; }
+      #root { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; height: 100lvh; }
     </style>
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#7C3AED" />
