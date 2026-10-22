@@ -31,8 +31,9 @@ export function usePushNotifications() {
   const notificationListener = useRef<Notifications.Subscription | null>(null);
   const responseListener = useRef<Notifications.Subscription | null>(null);
 
-  // Effect 1: obter token do dispositivo (só uma vez)
+  // Effect 1: obter token do dispositivo (só uma vez); o PWA não tem push via Expo
   useEffect(() => {
+    if (Platform.OS === 'web') return;
     registerForPushNotificationsAsync()
       .then((token) => {
         if (token) {
@@ -58,6 +59,7 @@ export function usePushNotifications() {
 
   // Effect 3: listeners de notificação
   useEffect(() => {
+    if (Platform.OS === 'web') return;
     notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
       console.log('🔔 Notificação recebida (foreground):', notification);
 

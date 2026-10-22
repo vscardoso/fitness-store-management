@@ -47,7 +47,43 @@ type RefreshResponse = {
   token_type: string;
 };
 
-const isRefreshEndpoint = (url?: string) => !!url && url.includes('/auth/refresh');
+// Rotas em que 401 significa credencial errada, não sessão expirada
+const PUBLIC_AUTH_PATHS = ['/auth/login', '/auth/signup', '/auth/check-email', '/auth/check-slug', '/auth/refresh'];
+const isPublicAuthEndpoint = (url?: string) => !!url && PUBLIC_AUTH_PATHS.some((p) => url.includes(p));
+
+let expiringSession: Promise<void> | null = null;
+
+/**
+ * Encerra a sessão: limpa tokens, cache do React Query e estado do authStore.
+ * O redirecionamento ao login acontece no layout raiz quando isAuthenticated vira false.
+ */
+const expireSession = (): Promise<void> => {
+  if (expiringSession) return expiringSession;
+
+  expiringSession = (async () => {
+    const { useAuthStore } = await import('@/store/authStore');
+    const stillActive = useAuthStore.getState().isAuthenticated || !!(await getAccessToken());
+    if (!stillActive) return;
+
+    console.log('🔒 Sessão inválida após tentativa de refresh - iniciando logout forçado');
+    await clearAuthData();
+
+    if (onInvalidateQueriesCallback) {
+      onInvalidateQueriesCallback();
+    }
+
+    const reason = 'Sessão expirada. Faça login novamente.';
+    if (onForceLogoutCallback) {
+      await onForceLogoutCallback(reason);
+    } else {
+      await useAuthStore.getState().forceLogout(reason);
+    }
+  })().finally(() => {
+    expiringSession = null;
+  });
+
+  return expiringSession;
+};
 
 const refreshAccessToken = async (): Promise<string | null> => {
   if (refreshPromise) {
@@ -255,14 +291,16 @@ api.interceptors.response.use(
       return Promise.reject(new Error(networkError));
     }
     
-    // Token expirado (401) -> tenta refresh silencioso antes de forçar logout
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      const isRefreshCall = isRefreshEndpoint(originalRequest.url);
+    // 401 -> refresh silencioso uma vez; se falhar (ou o reenvio também der 401), volta ao login
+    if (error.response?.status === 401) {
+      if (isPublicAuthEndpoint(originalRequest.url)) {
+        return Promise.reject(error);
+      }
 
-      // Apenas forçar logout se a requisição tinha Authorization
       const hadAuth = (originalRequest as any)._hadAuth === true;
-      if (hadAuth && !isRefreshCall) {
+
+      if (hadAuth && !originalRequest._retry) {
+        originalRequest._retry = true;
         const newAccessToken = await refreshAccessToken();
 
         if (newAccessToken) {
@@ -277,34 +315,11 @@ api.interceptors.response.use(
 
           return api(originalRequest);
         }
-
-        console.log('🔒 Sessão inválida após tentativa de refresh - iniciando logout forçado');
-
-        // 1. Limpar AsyncStorage
-        await clearAuthData();
-
-        // 2. Invalidar todo o cache do React Query
-        if (onInvalidateQueriesCallback) {
-          console.log('🗑️ Invalidando cache do React Query');
-          onInvalidateQueriesCallback();
-        }
-
-        // 3. Chamar logout forçado no authStore
-        if (onForceLogoutCallback) {
-          const reason = error.response?.status === 401
-            ? 'Sessão expirada. Faça login novamente.'
-            : 'Acesso não autorizado. Faça login novamente.';
-
-          console.log('🚪 Executando logout forçado');
-          await onForceLogoutCallback(reason);
-        }
-
-        // 4. Retornar erro específico
-        return Promise.reject(new Error('Sessão inválida'));
       }
 
-      // Se não havia Authorization no request, não forçar logout; apenas repassar erro
-      return Promise.reject(error);
+      // Sem token novo: a sessão acabou (também cobre sessão salva sem token válido)
+      await expireSession();
+      return Promise.reject(new Error('Sessão inválida'));
     }
 
     // 403 (proibido): não forçar logout automaticamente

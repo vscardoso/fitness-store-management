@@ -3,7 +3,7 @@
  * Configura providers globais (React Query, Paper, Auth)
  */
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { LogBox } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
 
@@ -70,6 +70,7 @@ const queryClient = new QueryClient({
 
 export default function RootLayout() {
   const segments = useSegments();
+  const router = useRouter();
   const loadUser = useAuthStore((state) => state.loadUser);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const forceLogout = useAuthStore((state) => state.forceLogout);
@@ -126,6 +127,15 @@ export default function RootLayout() {
     loadUser();
     loadNotifications();
   }, []);
+
+  // Sessão caiu (401, logout): volta ao login de qualquer tela, não só das abas
+  const wasAuthenticated = useRef(isAuthenticated);
+  useEffect(() => {
+    if (wasAuthenticated.current && !isAuthenticated) {
+      router.replace('/(auth)/login');
+    }
+    wasAuthenticated.current = isAuthenticated;
+  }, [isAuthenticated, router]);
 
   // Hidrata branding com token válido caso store local não esteja sincronizado.
   useEffect(() => {
