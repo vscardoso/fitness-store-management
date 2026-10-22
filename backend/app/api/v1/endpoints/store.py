@@ -1,9 +1,12 @@
 """Endpoints de branding e configuração da loja."""
+import io
 import os
 import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Request
+from starlette.concurrency import run_in_threadpool
+from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from jose import jwt, JWTError
@@ -17,11 +20,27 @@ from app.schemas.store_branding import StoreBrandingResponse, StoreBrandingUpdat
 
 router = APIRouter(prefix="/store", tags=["Loja"])
 
+LOGO_MAX_SIDE = 512  # px; o logo aparece em ~40-120 px, o original de vários MB atrasava a tela
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 MAX_LOGO_SIZE = 5 * 1024 * 1024  # 5 MB
 DEFAULT_PRIMARY_COLOR = "#667eea"
 DEFAULT_SECONDARY_COLOR = "#764ba2"
 DEFAULT_ACCENT_COLOR = "#10B981"
+
+def _optimize_logo(contents: bytes) -> bytes:
+    """Reduz o logo para no máximo LOGO_MAX_SIDE px e grava em WebP (mantém transparência)."""
+    try:
+        with Image.open(io.BytesIO(contents)) as img:
+            img = ImageOps.exif_transpose(img)
+            img.thumbnail((LOGO_MAX_SIDE, LOGO_MAX_SIDE), Image.LANCZOS)
+            if img.mode not in ("RGB", "RGBA"):
+                img = img.convert("RGBA" if "transparency" in img.info or img.mode in ("LA", "PA") else "RGB")
+            out = io.BytesIO()
+            img.save(out, format="WEBP", quality=85, method=4)
+            return out.getvalue()
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
+        raise HTTPException(status_code=400, detail="Imagem inválida ou corrompida.")
+
 
 
 async def _get_store(tenant_id: int, db: AsyncSession) -> Store:
@@ -176,25 +195,27 @@ async def upload_logo(
     if len(contents) > MAX_LOGO_SIZE:
         raise HTTPException(status_code=400, detail="Arquivo muito grande. Máximo 5MB.")
 
+    store = await _get_store(tenant_id, db)
+    optimized = await run_in_threadpool(_optimize_logo, contents)
+
     # Salvar em uploads/logos/<tenant_id>/
-    ext = Path(file.filename or "logo.png").suffix or ".png"
-    filename = f"{uuid.uuid4().hex}{ext}"
-    rel_path = f"logos/{tenant_id}/{filename}"
+    rel_path = f"logos/{tenant_id}/{uuid.uuid4().hex}.webp"
     abs_path = Path(settings.UPLOAD_DIR) / rel_path
     abs_path.parent.mkdir(parents=True, exist_ok=True)
+    abs_path.write_bytes(optimized)
 
-    with open(abs_path, "wb") as f:
-        f.write(contents)
-
-    # Remover logo antigo
-    store = await _get_store(tenant_id, db)
-    if store.logo_path:
-        old = Path(settings.UPLOAD_DIR) / store.logo_path
-        if old.exists():
-            old.unlink()
-
+    old_path = store.logo_path
     store.logo_path = rel_path
-    await db.commit()
+    try:
+        await db.commit()
+    except Exception:
+        # Tudo-ou-nada: sem commit não sobra arquivo novo e o logo antigo continua valendo.
+        await db.rollback()
+        abs_path.unlink(missing_ok=True)
+        raise
+
+    if old_path:
+        (Path(settings.UPLOAD_DIR) / old_path).unlink(missing_ok=True)
 
     return LogoUploadResponse(logo_url=f"/uploads/{rel_path}")
 

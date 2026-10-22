@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from pathlib import Path
+import mimetypes
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -133,9 +134,22 @@ app.include_router(whatsapp_router)
 uploads_path = Path(settings.UPLOAD_DIR)
 uploads_path.mkdir(parents=True, exist_ok=True)
 
+mimetypes.add_type("image/webp", ".webp")  # sem isso o Python pode servir .webp como text/plain
+
+
+class UploadsStaticFiles(StaticFiles):
+    """Logos têm nome UUID novo a cada upload, então o navegador pode guardá-los por muito tempo."""
+
+    def file_response(self, full_path, stat_result, scope, status_code=200):
+        response = super().file_response(full_path, stat_result, scope, status_code)
+        if "logos" in Path(full_path).parts:
+            response.headers["Cache-Control"] = "public, max-age=2592000, immutable"
+        return response
+
+
 # Montar pasta de uploads como arquivos estáticos
 # Acesso via: GET /uploads/{folder}/{filename}
-app.mount("/uploads", StaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
+app.mount("/uploads", UploadsStaticFiles(directory=settings.UPLOAD_DIR), name="uploads")
 
 
 # ============================================================================
