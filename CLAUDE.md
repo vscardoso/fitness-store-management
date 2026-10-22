@@ -194,3 +194,13 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 - **Renomear** app/pacote/textos "Fitness Store Management" para Provador depois da decisão do nome.
 - **Menus de fase 2** visíveis no app e não prontos (Lookbook, Wishlist e outros): esconder antes de liberar para lojas.
 - Fase 3 de fornecedores (contas a pagar, devolução ao fornecedor, XML de NF-e); `.gitignore` para `DEBUG_LOG.txt`, `coverage.xml`, `*.bak-*`.
+
+## Servidor de produção no VPS (2026-10-22)
+
+- Backend + Postgres rodando em `/opt/provador` no VPS (compose `docker-compose.prod.yml`, `.env.prod` com segredos só no servidor, modo 600). Backend em `127.0.0.1:8000`, nginx site `provador-api` na porta 80 para `api.provadorfit.com.br`; Postgres sem porta publicada; `DATABASE_SSL=disable` (sem isso o código exige SSL por causa do Neon/Render).
+- Testado por IP com `deploy/smoke_test.py` (cadastro, login, produto com entrada, venda, estoque, alerta, recusas): TUDO OK. Falta HTTPS (certbot) quando o DNS `api.` propagar; depois, apontar o app para `https://api.provadorfit.com.br/api/v1`.
+- Backup: `backup_pg.sh` no cron às 03:15, com restauração testada (dump restaurado em banco temporário, contagens iguais). AINDA SEM cópia fora do VPS (`REMOTE` do rclone não definido): obrigatório antes de uso real.
+- O banco de produção ainda tem lojas de TESTE (smoke): recriar vazio (`docker compose ... down -v` e `up -d`) antes de cadastrar a loja real.
+- Bug achado pelo smoke test: `RefreshToken` não estava importado em `app/models/__init__.py`; banco novo (create_all + stamp) ficava sem `refresh_tokens` e o login dava 500. Corrigido (e3837f4).
+- Incidente: em 22/10/2026 a Hetzner bloqueou o IP do servidor por fatura em aberto (e-mail "Final Payment Warning"), derrubando também o site da W.A. Resolvido pagando e pedindo o desbloqueio no Robot. Manter cartão reserva e e-mail de cobrança secundário.
+- VPS: ufw ativo (22, 80, 443, 5678). Container `moneyprinterturbo-api` em loop de reinício (projeto rejeitado): decidir se remove.
