@@ -299,7 +299,7 @@ class ProductService:
                     "LEFT JOIN product_variants pv ON si.variant_id = pv.id "
                     "JOIN sales s ON s.id = si.sale_id "
                     "WHERE si.tenant_id = :tid AND si.is_active = true "
-                    "AND UPPER(s.status) NOT IN ('CANCELLED', 'REFUNDED')"
+                    "AND UPPER(CAST(s.status AS TEXT)) NOT IN ('CANCELLED', 'REFUNDED')"
                     "AND (si.product_id = :pid OR pv.product_id = :pid)"
                 ),
                 {"pid": product_id, "tid": tenant_id},
@@ -351,7 +351,7 @@ class ProductService:
                     "LEFT JOIN product_variants pv ON si.variant_id = pv.id "
                     "JOIN sales s ON s.id = si.sale_id "
                     "WHERE si.tenant_id = :tid AND si.is_active = true "
-                    "AND UPPER(s.status) NOT IN ('CANCELLED', 'REFUNDED') "
+                    "AND UPPER(CAST(s.status AS TEXT)) NOT IN ('CANCELLED', 'REFUNDED') "
                     "AND (si.product_id = :pid OR pv.product_id = :pid)"
                 ),
                 {"pid": product_id, "tid": tenant_id},
@@ -604,7 +604,7 @@ class ProductService:
                 "LEFT JOIN product_variants pv ON si.variant_id = pv.id "
                 "JOIN sales s ON s.id = si.sale_id "
                 "WHERE si.tenant_id = :tid AND si.is_active = true "
-                "AND UPPER(s.status) NOT IN ('CANCELLED', 'REFUNDED')"
+                "AND UPPER(CAST(s.status AS TEXT)) NOT IN ('CANCELLED', 'REFUNDED')"
                 "AND (si.product_id = :pid OR pv.product_id = :pid)"
             ),
             {"pid": product_id, "tid": tenant_id},
@@ -924,7 +924,7 @@ class ProductService:
                 "LEFT JOIN product_variants pv ON si.variant_id = pv.id "
                 "JOIN sales s ON s.id = si.sale_id "
                 "WHERE si.tenant_id = :tid AND si.is_active = true "
-                "AND UPPER(s.status) NOT IN ('CANCELLED', 'REFUNDED') "
+                "AND UPPER(CAST(s.status AS TEXT)) NOT IN ('CANCELLED', 'REFUNDED') "
                 "AND (si.product_id = :pid OR pv.product_id = :pid)"
             ),
             {"pid": product_id, "tid": tenant_id},
