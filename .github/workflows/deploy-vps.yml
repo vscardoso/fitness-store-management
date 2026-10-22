@@ -21,10 +21,13 @@ jobs:
           VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
+          [ -n "$VPS_HOST" ] || { echo "::error::Secret VPS_HOST vazio ou inexistente (Settings > Secrets and variables > Actions > Repository secrets)"; exit 1; }
+          [ -n "$VPS_SSH_KEY" ] || { echo "::error::Secret VPS_SSH_KEY vazio ou inexistente"; exit 1; }
           mkdir -p ~/.ssh
           printf '%s\n' "$VPS_SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          ssh-keyscan -T 15 -H "$VPS_HOST" >> ~/.ssh/known_hosts
+          [ -s ~/.ssh/known_hosts ] || { echo "::error::ssh-keyscan nao retornou chave do host $VPS_HOST"; exit 1; }
 
       - name: Deploy no VPS
         env:
