@@ -571,8 +571,8 @@ async def get_daily_report(
         # Breakdown por status
         status_breakdown = {}
         for sale in sales:
-            status = sale.status
-            status_breakdown[status] = status_breakdown.get(status, 0) + 1
+            sale_status = sale.status
+            status_breakdown[sale_status] = status_breakdown.get(sale_status, 0) + 1
         
         return {
             "date": report_date.isoformat(),
@@ -676,8 +676,8 @@ async def get_period_report(
         # Breakdown por status
         status_breakdown = {}
         for sale in sales:
-            status = sale.status
-            status_breakdown[status] = status_breakdown.get(status, 0) + 1
+            sale_status = sale.status
+            status_breakdown[sale_status] = status_breakdown.get(sale_status, 0) + 1
         
         # Top produtos (se implementado no repositório)
         top_products = []

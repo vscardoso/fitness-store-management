@@ -3,9 +3,13 @@ Modelo de loja/tenant para multi-tenancy.
 """
 from sqlalchemy import String, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 from datetime import datetime
 from .base import BaseModel
+
+if TYPE_CHECKING:
+    from .subscription import Subscription
+    from .conditional_shipment import ConditionalShipment
 
 
 class Store(BaseModel):

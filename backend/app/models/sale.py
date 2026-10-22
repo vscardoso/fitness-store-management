@@ -12,6 +12,7 @@ if TYPE_CHECKING:
     from .customer import Customer
     from .user import User
     from .product import Product
+    from .product_variant import ProductVariant
     from .sale_return import SaleReturn, ReturnItem
 
 

@@ -11,6 +11,7 @@ from .base import BaseModel
 
 if TYPE_CHECKING:
     from .sale import Sale
+    from .conditional_shipment import ConditionalShipment
 
 
 class CustomerType(str, Enum):

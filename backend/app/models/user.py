@@ -10,6 +10,7 @@ from .base import BaseModel
 if TYPE_CHECKING:
     from .sale import Sale
     from .store import Store
+    from .notification import PushToken
 
 
 class UserRole(str, Enum):

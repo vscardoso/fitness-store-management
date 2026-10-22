@@ -1287,12 +1287,11 @@ class StockEntryService:
             inv_service = InventoryService(self.db)
             await inv_service.rebuild_product_from_fifo(item.product_id, tenant_id=tenant_id)
 
-            if __DEV__ if '__DEV__' in dir() else True:
-                print(
-                    f"  [EntryItem Update] Produto {item.product_id}: "
-                    f"delta inventário = {inventory_delta:+d} "
-                    f"(de {old_quantity_remaining} para {new_quantity})"
-                )
+            print(
+                f"  [EntryItem Update] Produto {item.product_id}: "
+                f"delta inventário = {inventory_delta:+d} "
+                f"(de {old_quantity_remaining} para {new_quantity})"
+            )
 
         # Se custo ou quantidade mudaram, recalcular total_cost da entrada
         if 'unit_cost' in update_data or 'quantity_received' in update_data:
@@ -1307,11 +1306,10 @@ class StockEntryService:
                 entry.total_cost = new_total_cost
                 await self.db.flush()
 
-                if __DEV__ if '__DEV__' in dir() else True:
-                    print(
-                        f"  [EntryItem Update] Entrada {entry.entry_code}: "
-                        f"total_cost recalculado = R$ {new_total_cost:.2f}"
-                    )
+                print(
+                    f"  [EntryItem Update] Entrada {entry.entry_code}: "
+                    f"total_cost recalculado = R$ {new_total_cost:.2f}"
+                )
 
         # Commit final
         await self.db.commit()

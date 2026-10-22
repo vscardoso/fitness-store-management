@@ -622,30 +622,34 @@ class ConditionalShipmentService:
             else:
                 raise ValueError(f"Status '{shipment.status}' não permite cancelamento.")
         
-        # Instanciar repository
-        inventory_repo = InventoryRepository(db)
-        
-        # Devolver estoque de todos os itens não processados
-        for item in shipment.items:
-            quantity_to_return = item.quantity_sent - item.quantity_kept - item.quantity_returned
+        # Devolve ao FIFO exatamente o que o envio reservou (restaura entry_items; o inventário deriva deles)
+        fifo_service = FIFOService(db)
+        try:
+            for item in shipment.items:
+                quantity_to_return = item.quantity_sent - item.quantity_kept - item.quantity_returned
+                if quantity_to_return <= 0 or not item.fifo_sources:
+                    continue
 
-            if quantity_to_return > 0:
-                await inventory_repo.add_stock(
-                    product_id=item.product_id,
-                    quantity=quantity_to_return,
-                    movement_type=MovementType.RETURN,
-                    notes=f"Cancelamento envio #{shipment.id}: {reason}" + (f" - variante #{item.variant_id}" if item.variant_id else ""),
-                    reference_id=f"CS-{shipment.id}-CANCEL",
-                    tenant_id=tenant_id,
-                )
-        
-        # Atualizar status
-        shipment = await self.shipment_repo.update_status(
-            db, shipment_id, tenant_id, "CANCELLED"
-        )
-        shipment.notes = (shipment.notes or "") + f"\n[Cancelado] {reason}"
-        await db.commit()
-        
+                sources_to_reverse = []
+                remaining = quantity_to_return
+                for src in item.fifo_sources.get("sources", []):
+                    if remaining <= 0:
+                        break
+                    qty = min(src["quantity_taken"], remaining)
+                    sources_to_reverse.append({**src, "quantity_taken": qty})
+                    remaining -= qty
+                if sources_to_reverse:
+                    await fifo_service.reverse_sale(sources_to_reverse)
+
+            shipment = await self.shipment_repo.update_status(
+                db, shipment_id, tenant_id, "CANCELLED", commit=False
+            )
+            shipment.notes = (shipment.notes or "") + f"\n[Cancelado] {reason}"
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+
         return shipment
     
     async def check_overdue_shipments(

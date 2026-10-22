@@ -4,6 +4,7 @@ Endpoints de envios condicionais (try before you buy).
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
+from datetime import datetime
 
 from app.core.database import get_db
 from app.schemas.conditional_shipment import (

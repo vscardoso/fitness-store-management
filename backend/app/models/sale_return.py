@@ -11,6 +11,7 @@ if TYPE_CHECKING:
     from .sale import Sale, SaleItem
     from .user import User
     from .product import Product
+    from .product_variant import ProductVariant
 
 
 class SaleReturn(BaseModel):
