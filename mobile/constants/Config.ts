@@ -48,8 +48,8 @@ function getLocalApiUrl(): string {
 
 const LOCAL_API_URL = getLocalApiUrl();
 
-// Produção (Render.com)
-const PRODUCTION_URL = process.env.EXPO_PUBLIC_API_URL || 'https://fitness-backend-x1qn.onrender.com/api/v1';
+// Produção (VPS, https://api.provadorfit.com.br)
+const PRODUCTION_URL = process.env.EXPO_PUBLIC_API_URL || 'https://api.provadorfit.com.br/api/v1';
 
 // ============================================================================
 // SELEÇÃO AUTOMÁTICA DE AMBIENTE

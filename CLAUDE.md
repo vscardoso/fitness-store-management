@@ -204,3 +204,10 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 - Bug achado pelo smoke test: `RefreshToken` não estava importado em `app/models/__init__.py`; banco novo (create_all + stamp) ficava sem `refresh_tokens` e o login dava 500. Corrigido (e3837f4).
 - Incidente: em 22/10/2026 a Hetzner bloqueou o IP do servidor por fatura em aberto (e-mail "Final Payment Warning"), derrubando também o site da W.A. Resolvido pagando e pedindo o desbloqueio no Robot. Manter cartão reserva e e-mail de cobrança secundário.
 - VPS: ufw ativo (22, 80, 443, 5678). Container `moneyprinterturbo-api` em loop de reinício (projeto rejeitado): decidir se remove.
+
+### Atualização (2026-10-22, tarde): produção no ar com HTTPS
+
+- `https://api.provadorfit.com.br` (nginx + certbot, renovação automática, expira 2027-01-20) e `https://app.provadorfit.com.br` (app web estático em `/var/www/provador-app`, site nginx `provador-app`, rota SPA com `try_files`). DNS no Registro.br (zona com `api` e `app` apontando para o VPS). CORS só aceita `app.provadorfit.com.br` e `provadorfit.com.br`.
+- Publicar nova versão do app web: `cd mobile && EXPO_PUBLIC_API_URL=https://api.provadorfit.com.br/api/v1 CI=1 node node_modules/expo/bin/cli export --platform web`, depois `scp -r dist/* root@204.168.144.151:/var/www/provador-app/`. `Config.ts` agora usa a API nova como padrão de produção (não aponta mais para o Render).
+- Banco de produção recriado VAZIO em 22/10/2026 (0 lojas, 39 tabelas); a primeira loja real será a store_id 1. Smoke test: `backend/venv/Scripts/python deploy/smoke_test.py https://api.provadorfit.com.br/api/v1 ""` (cria loja de teste: NÃO rodar depois que houver dados reais sem apagar a loja de teste).
+- Ainda pendente: cópia do backup fora do VPS (REMOTE/rclone), APK Android, título da aba "Fitness Store" e textos para "Provador", desligar Render/Neon, e-mail (Zoho/Resend), trocar senha de root e desativar SSH por senha.
