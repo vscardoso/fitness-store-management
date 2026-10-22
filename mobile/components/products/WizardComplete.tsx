@@ -6,6 +6,7 @@
  * - Produto com variantes: mostra grade de variações com SKU e preço de cada uma
  */
 
+import { useState } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Text, Card } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -29,6 +30,7 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
   const brandingColors = useBrandingColors();
   const { state, resetWizard } = wizard;
   const { createdProduct, linkedEntry } = state;
+  const [showAllVariants, setShowAllVariants] = useState(false);
 
   // Detectar variantes
   const variants = (createdProduct as any)?.variants as ProductVariant[] | undefined;
@@ -62,8 +64,10 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
     ? [...new Set(activeVariants.map(v => v.size).filter(Boolean))] as string[]
     : [];
 
-  const visibleVariants = activeVariants.slice(0, MAX_VARIANTS_VISIBLE);
-  const hiddenCount = activeVariants.length - visibleVariants.length;
+  const visibleVariants = showAllVariants
+    ? activeVariants
+    : activeVariants.slice(0, MAX_VARIANTS_VISIBLE);
+  const hiddenCount = activeVariants.length - MAX_VARIANTS_VISIBLE;
 
   // Produto virtual (sentinel id=-1) ainda não tem página própria no banco
   const canViewProduct = !!createdProduct && createdProduct.id > 0;
@@ -287,12 +291,23 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
                 })}
 
                 {hiddenCount > 0 && (
-                  <View style={styles.hiddenVariantsRow}>
-                    <Ionicons name="ellipsis-horizontal" size={14} color={Colors.light.textSecondary} />
-                    <Text style={styles.hiddenVariantsText}>
-                      e mais {hiddenCount} variação{hiddenCount > 1 ? 'ões' : ''}
+                  <TouchableOpacity
+                    style={styles.hiddenVariantsRow}
+                    onPress={() => setShowAllVariants(prev => !prev)}
+                    accessibilityRole="button"
+                    accessibilityLabel={showAllVariants ? 'Mostrar menos variações' : 'Ver todas as variações'}
+                  >
+                    <Ionicons
+                      name={showAllVariants ? 'chevron-up' : 'chevron-down'}
+                      size={14}
+                      color={brandingColors.primary}
+                    />
+                    <Text style={[styles.hiddenVariantsText, { color: brandingColors.primary }]}>
+                      {showAllVariants
+                        ? 'Mostrar menos'
+                        : `Ver mais ${hiddenCount} variação${hiddenCount > 1 ? 'ões' : ''}`}
                     </Text>
-                  </View>
+                  </TouchableOpacity>
                 )}
               </View>
             </>
@@ -745,8 +760,7 @@ const styles = StyleSheet.create({
   },
   hiddenVariantsText: {
     fontSize: 12,
-    color: Colors.light.textSecondary,
-    fontStyle: 'italic',
+    fontWeight: '600',
   },
   // ── Entrada ──
   entryInfoGrid: {
