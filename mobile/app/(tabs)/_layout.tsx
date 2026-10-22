@@ -51,8 +51,9 @@ export default function TabsLayout() {
         tabBarActiveTintColor: brandingColors.primary,
         tabBarInactiveTintColor: Colors.light.tabIconDefault,
         tabBarStyle: {
-          height: (Platform.OS === 'ios' ? 85 : 65) + webBottom,
-          paddingBottom: (Platform.OS === 'ios' ? 20 : 8) + webBottom,
+          // Web: área útil de 60px para ícone + rótulo (com 49px o texto era cortado) + área segura
+          height: Platform.OS === 'web' ? 68 + webBottom : Platform.OS === 'ios' ? 85 : 65,
+          paddingBottom: Platform.OS === 'web' ? webBottom : Platform.OS === 'ios' ? 20 : 8,
           paddingTop: 8,
           backgroundColor: Colors.light.background,
           borderTopWidth: 1,
