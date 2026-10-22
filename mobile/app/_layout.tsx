@@ -93,6 +93,13 @@ export default function RootLayout() {
   // Inicializar push notifications
   usePushNotifications();
 
+  // Web (PWA): theme-color segue a cor da loja, para a barra de status do iOS combinar com o header
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', brandingColors.primary);
+  }, [brandingColors.primary]);
+
   // Substitui Alert.alert por modal global para padronizar UX e evitar popup nativo.
   useEffect(() => {
     installGlobalAlertOverride();

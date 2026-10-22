@@ -31,9 +31,10 @@
  * />
  */
 
-import { View, StyleSheet, TouchableOpacity, StatusBar } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, StatusBar, Platform } from 'react-native';
 import { Text } from 'react-native-paper';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, theme } from '@/constants/Colors';
@@ -76,6 +77,9 @@ export default function PageHeader({
   children,
 }: PageHeaderProps) {
   const router = useRouter();
+  // iPhone instalado (PWA): o efeito de vidro da barra de status cobre o topo; começa o conteúdo abaixo da área segura
+  const { top: safeTop } = useSafeAreaInsets();
+  const webTopPad = Platform.OS === 'web' ? { paddingTop: Math.max(64, safeTop + 20) } : null;
   const brandingColors = useBrandingColors();
   const resolvedGradient = gradientColors ?? brandingColors.gradient;
 
@@ -94,7 +98,7 @@ export default function PageHeader({
         colors={resolvedGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={styles.gradient}
+        style={[styles.gradient, webTopPad]}
       >
         <View style={styles.content}>
           {/* Linha única: Botão voltar + Título centralizado + Ações */}
