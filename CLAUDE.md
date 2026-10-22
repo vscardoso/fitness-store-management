@@ -212,3 +212,10 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 - Banco de produção recriado VAZIO em 22/10/2026 (0 lojas, 39 tabelas); a primeira loja real será a store_id 1. Smoke test: `backend/venv/Scripts/python deploy/smoke_test.py https://api.provadorfit.com.br/api/v1 ""` (cria loja de teste: NÃO rodar depois que houver dados reais sem apagar a loja de teste).
 - Ainda pendente: cópia do backup fora do VPS (REMOTE/rclone), APK Android, título da aba "Fitness Store" e textos para "Provador", desligar Render/Neon, e-mail (Zoho/Resend), trocar senha de root e desativar SSH por senha.
 - Backup fora do VPS FEITO (22/10/2026): `rclone` com destino `gdrive` (Google Drive, escopo `drive.file`, só enxerga o que ele cria), pasta `provador-backups`, `REMOTE=gdrive:provador-backups` no `.env.prod` do servidor. O script confere o tamanho no destino e guarda 30 dias. Token em `/root/.config/rclone/rclone.conf` (600). Para reautorizar: `rclone authorize drive --drive-scope drive.file --auth-no-open-browser` no VPS + túnel `ssh -L 53682:127.0.0.1:53682`.
+
+### App instalável (PWA, 2026-10-22)
+
+- `mobile/public/` (manifest.json, sw.js, icon-192/512, apple-touch-icon) vai para o `dist` no export. O modo `single` do Expo ignora `app/+html.tsx`, então `node scripts/pwa-postbuild.js` injeta as tags no `dist/index.html` (rodar entre o export e o scp). Service worker mínimo, sem cache (sempre dados e versão atuais).
+- Publicar: export, `node scripts/pwa-postbuild.js`, `scp -r dist/* root@204.168.144.151:/var/www/provador-app/`. Instalar: Chrome Android (menu > Instalar app), iPhone (Safari > Compartilhar > Adicionar à Tela de Início), Windows (Chrome/Edge > Instalar).
+- Ícone atual é o `assets/icon.png` antigo e cor do tema provisória (#7C3AED); trocar quando houver a marca Provador.
+
