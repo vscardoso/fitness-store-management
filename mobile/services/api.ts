@@ -319,7 +319,7 @@ api.interceptors.response.use(
 
       // Sem token novo: a sessão acabou (também cobre sessão salva sem token válido)
       await expireSession();
-      return Promise.reject(new Error('Sessão inválida'));
+      return Promise.reject(Object.assign(new Error('Sessão inválida'), { sessionExpired: true }));
     }
 
     // 403 (proibido): não forçar logout automaticamente

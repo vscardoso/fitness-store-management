@@ -26,6 +26,8 @@ export function parseApiError(error: unknown): string {
 }
 
 export function showApiError(error: unknown, title = "Erro") {
+  // Sessão expirada já leva ao login com a mensagem; o toast por cima é ruído
+  if ((error as { sessionExpired?: boolean } | null)?.sessionExpired) return;
   const message = parseApiError(error);
   Toast.show({
     type: "error",
