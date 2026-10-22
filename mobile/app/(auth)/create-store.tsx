@@ -12,7 +12,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Text, TextInput, HelperText } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,6 +20,7 @@ import AppButton from '@/components/ui/AppButton';
 import * as authService from '@/services/authService';
 import { useAuthStore } from '@/store/authStore';
 import { useBrandingStore, useBrandingColors } from '@/store/brandingStore';
+import { useSignupDraftStore } from '@/store/signupDraftStore';
 import type { SignupData } from '@/types';
 import { Colors, PRESET_THEMES, theme } from '@/constants/Colors';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
@@ -64,7 +65,6 @@ const PREFERENCE_KEYS_TO_RESET = [
 ];
 
 export default function CreateStoreScreen() {
-  const params = useLocalSearchParams();
   const { setUser } = useAuthStore();
   const brandingColors = useBrandingColors();
 
@@ -195,12 +195,10 @@ export default function CreateStoreScreen() {
       await AsyncStorage.multiRemove(PREFERENCE_KEYS_TO_RESET);
       useBrandingStore.getState().resetToDefault();
 
-      const userDataString = params.userData as string;
-      if (!userDataString) {
-        throw new Error('Dados do usuário não encontrados');
+      const userData = useSignupDraftStore.getState().draft;
+      if (!userData) {
+        throw new Error('Dados do usuário não encontrados. Volte e preencha o cadastro novamente.');
       }
-
-      const userData = JSON.parse(userDataString);
 
       const signupData: SignupData = {
         full_name: userData.full_name,
@@ -232,6 +230,7 @@ export default function CreateStoreScreen() {
 
       const user = await authService.signup(signupData);
       setUser(user);
+      useSignupDraftStore.getState().clearDraft();
 
       try {
         const brandingStore = useBrandingStore.getState();

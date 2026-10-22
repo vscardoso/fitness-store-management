@@ -20,6 +20,7 @@ import { Ionicons } from '@expo/vector-icons';
 import AppButton from '@/components/ui/AppButton';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingStore, useBrandingColors } from '@/store/brandingStore';
+import { useSignupDraftStore } from '@/store/signupDraftStore';
 
 interface SignupForm {
   fullName: string;
@@ -171,17 +172,13 @@ export default function SignupScreen() {
     setLoading(true);
     try {
       // Navegar para tela de criação da loja, passando dados do usuário
-      router.push({
-        pathname: '/(auth)/create-store',
-        params: {
-          userData: JSON.stringify({
-            full_name: form.fullName.trim(),
-            email: form.email.trim().toLowerCase(),
-            password: form.password,
-            phone: form.phone.trim() || undefined,
-          })
-        }
+      useSignupDraftStore.getState().setDraft({
+        full_name: form.fullName.trim(),
+        email: form.email.trim().toLowerCase(),
+        password: form.password,
+        phone: form.phone.trim() || undefined,
       });
+      router.push('/(auth)/create-store');
     } catch (error) {
       console.error('Signup error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Erro ao processar dados';
