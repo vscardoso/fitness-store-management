@@ -254,7 +254,8 @@ export default function DashboardScreen() {
   const stockCost = valuation?.cost_value || dashboardStats?.stock?.invested_value || 0;
   const stockRetail = valuation?.retail_value || dashboardStats?.stock?.potential_revenue || 0;
   const stockProfit = valuation?.potential_margin || (stockRetail - stockCost);
-  const stockMarginPercent = stockCost > 0 ? ((stockRetail - stockCost) / stockCost) * 100 : 0;
+  // Margem de lucro sobre o preço de venda (não markup sobre o custo)
+  const stockMarginPercent = stockRetail > 0 ? ((stockRetail - stockCost) / stockRetail) * 100 : 0;
 
   // Saudação
   const getGreeting = () => {
@@ -1192,7 +1193,7 @@ export default function DashboardScreen() {
                   </View>
                   <View style={styles.tooltipDivider} />
                   <Text style={styles.tooltipText}>
-                    Diferença entre o preço de venda e o custo do estoque atual.{`\n\nMargem média de ${stockMarginPercent.toFixed(0)}% sobre o custo — se vender tudo ao preço atual.`}
+                    Diferença entre o preço de venda e o custo do estoque atual.{`\n\nMargem de lucro de ${stockMarginPercent.toFixed(0)}% sobre o preço de venda — se vender tudo ao preço atual.`}
                   </Text>
                 </>
               )}
