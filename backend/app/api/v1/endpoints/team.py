@@ -15,6 +15,7 @@ from app.models.refresh_token import RefreshToken
 from app.models.user import User, UserRole
 from app.repositories.user_repository import UserRepository
 from app.services.audit_service import AuditService
+from app.services.team_limit import ensure_can_add_user
 from app.schemas.user import (
     TeamMemberCreate,
     TeamMemberUpdate,
@@ -125,6 +126,7 @@ async def create_team_member(
         )
 
     repo = UserRepository(db)
+    await ensure_can_add_user(db, current_user.tenant_id)
 
     # Verificar se email já existe globalmente
     existing = await repo.get_by_email(member_data.email)
@@ -347,6 +349,7 @@ async def activate_team_member(
         )
 
     repo = UserRepository(db)
+    await ensure_can_add_user(db, current_user.tenant_id)
 
     success = await repo.activate_in_tenant(user_id, current_user.tenant_id)
     if not success:

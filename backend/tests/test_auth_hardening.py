@@ -40,18 +40,39 @@ async def test_register_com_papel_nao_admin_e_recusado(test_client, async_sessio
     assert r.status_code == 403
 
 
-async def test_register_admin_cria_na_propria_loja(test_client, async_session, test_user):
-    token = create_access_token(data={"sub": str(test_user.id)})
+async def test_register_admin_cria_na_propria_loja(test_client, async_session):
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import select
+    from app.models.store import Store
+    from app.models.subscription import Subscription
+    from app.models.user import User, UserRole
+    from app.core.security import get_password_hash
+
+    # Loja própria no plano enterprise (a loja 1 compartilhada fica cheia com os usuários de outros testes)
+    store = Store(name="Loja Registro", slug="loja-registro-teste", subdomain="registro-teste", plan="enterprise",
+                  is_default=False, is_active=True)
+    async_session.add(store)
+    await async_session.flush()
+    async_session.add(Subscription(tenant_id=store.id, plan="enterprise", status="active", is_trial=False,
+                                   current_period_start=datetime.now(timezone.utc),
+                                   current_period_end=datetime.now(timezone.utc) + timedelta(days=30),
+                                   max_products=1, max_users=1, is_active=True))
+    admin = User(email="dono.registro@example.com", full_name="Dono Registro",
+                 hashed_password=get_password_hash("Senha1234"), role=UserRole.ADMIN, is_active=True,
+                 tenant_id=store.id)
+    async_session.add(admin)
+    await async_session.commit()
+    await async_session.refresh(admin)
+
+    token = create_access_token(data={"sub": str(admin.id)})
     r = await test_client.post(
         "/api/v1/auth/register",
         json={**NEW_USER, "tenant_id": 999},  # tenant do corpo deve ser ignorado
         headers={"Authorization": f"Bearer {token}"},
     )
     assert r.status_code == 201, r.text
-    from sqlalchemy import select
-    from app.models.user import User
     u = (await async_session.execute(select(User).where(User.email == NEW_USER["email"]))).scalar_one()
-    assert u.tenant_id == test_user.tenant_id
+    assert u.tenant_id == store.id
     assert u.role.value == "seller"
 
 
@@ -164,3 +185,25 @@ async def test_reset_de_senha_derruba_sessoes_do_membro(test_client, async_sessi
     live = (await async_session.execute(select(RefreshToken).where(
         RefreshToken.user_id == member.id, RefreshToken.revoked == False))).scalars().all()  # noqa: E712
     assert live == []
+
+
+def test_cabecalhos_que_o_app_envia_estao_liberados_no_cors():
+    """Regressão do login quebrado: todo cabeçalho customizado citado no código do app precisa estar no CORS."""
+    import re
+    from pathlib import Path
+    from app.core.config import Settings
+
+    mobile = Path(__file__).resolve().parents[2] / "mobile"
+    if not mobile.exists():
+        pytest.skip("pasta mobile não encontrada")
+    permitidos = {h.lower() for h in Settings(_env_file=None, SECRET_KEY="x" * 40,
+                                              DATABASE_URL="sqlite+aiosqlite://").cors_allow_headers}
+    usados = set()
+    for pasta in ("services", "utils", "store", "hooks"):
+        for f in (mobile / pasta).rglob("*.ts*"):
+            txt = f.read_text(encoding="utf-8", errors="ignore")
+            usados |= {m.lower() for m in re.findall(r"['\"](X-[A-Za-z-]+|bypass-tunnel-reminder)['\"]\s*:", txt)}
+            usados |= {m.lower() for m in re.findall(r"headers\??\.?\[['\"]([A-Za-z-]+)['\"]\]", txt)}
+    usados.discard("authorization")
+    faltando = sorted(usados - permitidos)
+    assert faltando == [], f"cabeçalhos usados pelo app e não liberados no CORS: {faltando}"

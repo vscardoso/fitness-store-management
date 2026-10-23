@@ -98,7 +98,7 @@ class Subscription(BaseModel):
         limits = {
             "trial": {
                 "max_products": 100,
-                "max_users": 1,
+                "max_users": 3,
                 "max_sales_per_month": None,
                 "advanced_reports": False,
                 "multi_store": False,

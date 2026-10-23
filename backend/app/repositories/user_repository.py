@@ -125,7 +125,9 @@ class UserRepository(BaseRepository[User, Any, Any]):
         Returns:
             True se o usuário foi ativado com sucesso
         """
-        user = await super().get(self.db, user_id)
+        # O get() do repositório base só enxerga usuário ativo, então nunca achava quem estava
+        # desativado e a reativação sempre dava 404: busca direto, sem o filtro de is_active.
+        user = (await self.db.execute(select(User).where(User.id == user_id))).scalar_one_or_none()
         if user:
             user.is_active = True
             await self.db.commit()

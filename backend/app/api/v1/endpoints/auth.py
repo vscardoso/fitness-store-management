@@ -20,6 +20,7 @@ from app.services.auth_service import AuthService
 from app.services.signup_service import SignupService
 from app.api.deps import get_current_active_user, require_role
 from app.core import rate_limit
+from app.services.team_limit import ensure_can_add_user
 from app.models.user import UserRole
 from app.models.user import User
 from app.models.store import Store
@@ -61,8 +62,11 @@ async def register(
     auth_service = AuthService(db)
     
     try:
+        await ensure_can_add_user(db, admin.tenant_id)
         user = await auth_service.register_user(user_data, tenant_id=admin.tenant_id)
         return user
+    except HTTPException:
+        raise
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

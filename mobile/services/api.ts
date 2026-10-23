@@ -144,8 +144,9 @@ export const api = axios.create({
   timeout: API_CONFIG.TIMEOUT,
   headers: {
     'Content-Type': 'application/json',
-    // Necessário para localtunnel (loca.lt) — evita página de aviso do tunnel
-    'bypass-tunnel-reminder': 'true',
+    // Necessário só para localtunnel (loca.lt) em desenvolvimento; em produção o cabeçalho extra
+    // exigiria preflight liberado no CORS (e já derrubou o login uma vez).
+    ...(String(API_CONFIG.BASE_URL).includes('loca.lt') ? { 'bypass-tunnel-reminder': 'true' } : {}),
   },
 });
 
