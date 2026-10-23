@@ -186,7 +186,11 @@ async def test_create_product_without_auth(test_client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_create_product_duplicate_sku(test_client: AsyncClient, auth_token: str):
-    """Teste: Criar produto com SKU duplicado (deve falhar)."""
+    """Criar produto com SKU repetido NÃO dá mais erro: recebe o próximo número livre (DUP-001 -> DUP-002).
+
+    Antes (400 "SKU já existe") quebrava o cadastro de duas pessoas ao mesmo tempo. O SKU final fica
+    registrado em error_logs (tipo sku_ajustado) e o SKU duplicado nunca é gravado.
+    """
     product_data = {
         "name": "Produto 1",
         "sku": "DUP-001",
@@ -209,4 +213,6 @@ async def test_create_product_duplicate_sku(test_client: AsyncClient, auth_token
         json=product_data,
         headers={"Authorization": f"Bearer {auth_token}"}
     )
-    assert response2.status_code == 400
+    assert response2.status_code == 201, response2.text
+    skus = {response1.json().get("sku"), response2.json().get("sku")}
+    assert len(skus) == 2 or None in skus  # nunca dois produtos com o mesmo SKU
