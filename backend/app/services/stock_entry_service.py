@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.timezone import now_brazil, today_brazil
 from app.models.stock_entry import StockEntry, EntryType
 from app.models.entry_item import EntryItem
+from app.services import lot_cost_service
 from app.repositories.stock_entry_repository import StockEntryRepository
 from app.repositories.entry_item_repository import EntryItemRepository
 from app.repositories.trip_repository import TripRepository
@@ -410,6 +411,8 @@ class StockEntryService:
 
             # Atualizar total_cost da entrada
             entry.total_cost = total_cost
+            await self.db.flush()
+            await lot_cost_service.recompute_entries(self.db, [entry.id], tenant_id=tenant_id)
             await self.db.commit()
             await self.db.refresh(entry)
             
@@ -590,68 +593,242 @@ class StockEntryService:
         if total_received > 0:
             sell_through_rate = (total_sold / total_received) * 100
         
-        # Receita real: quantity_sold × sell_price (ou product price)
-        real_revenue = Decimal('0.00')
-        for item in entry.entry_items:
-            if not item.is_active:
-                continue
-            qty_sold = item.quantity_sold
-            if qty_sold > 0:
-                price = item.sell_price or (item.product.base_price if item.product else Decimal('0'))
-                real_revenue += Decimal(str(qty_sold)) * (price or Decimal('0'))
-
-        # Despesas de viagem proporcionais (se entry for de viagem)
-        trip_cost_share = Decimal('0.00')
+        # Custos do lote: mercadoria + rateio (viagem e despesas do lote), já gravados por item
+        extra_total = sum(
+            (Decimal(str(i.quantity_received)) * Decimal(str(i.extra_unit_cost or 0))
+             for i in entry.entry_items if i.is_active),
+            Decimal('0.00'),
+        )
         trip_travel_cost = Decimal('0.00')
+        trip_cost_share = Decimal('0.00')
+        own_costs = await lot_cost_service.entry_own_costs(self.db, entry.id)
         if entry.trip_id and entry.trip:
-            trip = entry.trip
-            trip_travel_cost = trip.travel_cost_total or Decimal('0')
-            if trip_travel_cost > 0:
-                # Somar custo total de todas entradas da viagem
-                trip_entries_cost = sum(
-                    (e.total_cost or Decimal('0'))
-                    for e in trip.stock_entries
-                    if e.is_active
-                )
-                if trip_entries_cost > 0 and total_cost > 0:
-                    trip_cost_share = (total_cost / trip_entries_cost) * trip_travel_cost
+            trip_travel_cost = await lot_cost_service.trip_cost_pool(self.db, entry.trip)
+            trip_cost_share = max(extra_total - own_costs, Decimal('0.00'))
 
-        total_investment = total_cost + trip_cost_share
-        roi = 0.0
-        if total_investment > 0 and real_revenue > 0:
-            cost_of_sold = sum(
-                Decimal(str(i.quantity_sold)) * i.unit_cost
-                for i in entry.entry_items
-                if i.is_active and i.quantity_sold > 0
-            )
-            sold_investment = cost_of_sold + trip_cost_share
-            roi = float((real_revenue - sold_investment) / sold_investment * 100) if sold_investment > 0 else 0.0
+        total_investment = total_cost + extra_total
+
+        # Vendas reais deste lote (receita, custo posto e unidades, já líquidos de devolução)
+        sold = await self._lot_sales_stats(entry, tenant_id=tenant_id)
+        real_revenue = sold["revenue"]
+        cost_of_sold = sold["cost"]
+        gross_profit = real_revenue - cost_of_sold
+        margin_pct = float(gross_profit / real_revenue * 100) if real_revenue > 0 else 0.0
+        roi = float(gross_profit / cost_of_sold * 100) if cost_of_sold > 0 else 0.0
+
+        # Estoque que sobrou, a custo posto, e quanto falta vender para cobrir tudo que foi investido
+        stock_value_remaining = sum(
+            (Decimal(str(i.quantity_remaining)) * i.landed_unit_cost for i in entry.entry_items if i.is_active),
+            Decimal('0.00'),
+        )
+        potential_remaining_revenue = Decimal('0.00')
+        for i in entry.entry_items:
+            if i.is_active and i.quantity_remaining > 0:
+                # preço de venda atual da variante (ou do produto); estimativa do que ainda falta vender
+                price = (i.variant.price if i.variant and i.variant.price else None) or (
+                    i.product.base_price if i.product else Decimal('0'))
+                potential_remaining_revenue += Decimal(str(i.quantity_remaining)) * Decimal(str(price or 0))
+        recovered_pct = float(real_revenue / total_investment * 100) if total_investment > 0 else 0.0
+        projected_profit = real_revenue + potential_remaining_revenue - total_investment
 
         return {
             "entry_id": entry.id,
             "entry_code": entry.entry_code,
             "entry_type": entry.entry_type,
+            "entry_date": entry.entry_date,
             "supplier_name": entry.supplier_name,
 
             "total_items": len(entry.entry_items),
             "items_depleted": items_depleted,
             "total_quantity_received": total_received,
             "total_quantity_remaining": total_remaining,
-            "total_quantity_sold": total_sold,
+            "total_quantity_sold": sold["units"],
 
-            "total_cost": float(total_cost),
+            # Custos
+            "total_cost": float(total_cost),                  # mercadoria
+            "trip_travel_cost": float(trip_travel_cost),      # custo total da viagem (todos os lotes dela)
+            "trip_cost_share": float(trip_cost_share),        # parte da viagem que coube a este lote
+            "own_costs": float(own_costs),                    # despesas ligadas a este lote
+            "extra_costs_total": float(extra_total),          # viagem + despesas do lote
+            "total_investment": float(total_investment),      # mercadoria + custos do lote
+
+            # Resultado (vendas reais, líquidas de devolução)
             "real_revenue": float(real_revenue),
-            "trip_travel_cost": float(trip_travel_cost),
-            "trip_cost_share": float(trip_cost_share),
-            "total_investment": float(total_investment),
+            "cost_of_sold": float(cost_of_sold),              # a custo posto (mercadoria + rateio)
+            "gross_profit": float(gross_profit),
+            "margin_pct": round(margin_pct, 2),               # lucro / receita
+            "roi": round(roi, 2),                             # lucro / custo do vendido
+            "recovered_pct": round(recovered_pct, 2),         # quanto do investido já voltou em receita
+            "stock_value_remaining": float(stock_value_remaining),
+            "potential_remaining_revenue": float(potential_remaining_revenue),
+            "projected_profit_if_all_sold": float(projected_profit),  # estimativa, pelos preços atuais
 
             "sell_through_rate": round(sell_through_rate, 2),
-            "roi": round(roi, 2),
             "depletion_rate": round(
                 (items_depleted / len(entry.entry_items) * 100) if entry.entry_items else 0, 2
             ),
         }
-    
+
+    async def get_entry_costs(self, entry_id: int, *, tenant_id: int) -> Dict[str, Any]:
+        """Detalhamento dos custos do lote (o que explica a diferença entre custo da mercadoria e custo posto)."""
+        from sqlalchemy import select
+        from app.models.expense import Expense
+
+        entry = await self.entry_repo.get_by_id(self.db, entry_id, include_items=True, tenant_id=tenant_id)
+        if not entry:
+            raise ValueError(f"Entry {entry_id} não encontrada")
+
+        merchandise = sum(
+            (i.total_cost for i in entry.entry_items if i.is_active), Decimal('0.00')
+        )
+        extra_total = sum(
+            (Decimal(str(i.quantity_received)) * Decimal(str(i.extra_unit_cost or 0))
+             for i in entry.entry_items if i.is_active),
+            Decimal('0.00'),
+        )
+        rows = (await self.db.execute(
+            select(Expense).where(
+                Expense.stock_entry_id == entry.id, Expense.is_active == True, Expense.tenant_id == tenant_id  # noqa: E712
+            ).order_by(Expense.expense_date, Expense.id)
+        )).scalars().all()
+        own = sum((e.amount for e in rows), Decimal('0.00'))
+
+        trip_info = None
+        trip_share = Decimal('0.00')
+        if entry.trip_id and entry.trip:
+            trip = entry.trip
+            pool = await lot_cost_service.trip_cost_pool(self.db, trip)
+            trip_share = max(extra_total - own, Decimal('0.00'))
+            trip_rows = (await self.db.execute(
+                select(Expense).where(
+                    Expense.trip_id == trip.id, Expense.is_active == True, Expense.tenant_id == tenant_id  # noqa: E712
+                ).order_by(Expense.expense_date, Expense.id)
+            )).scalars().all()
+            trip_info = {
+                "trip_id": trip.id,
+                "trip_code": trip.trip_code,
+                "travel_costs": {
+                    "fuel": float(trip.travel_cost_fuel or 0), "food": float(trip.travel_cost_food or 0),
+                    "toll": float(trip.travel_cost_toll or 0), "hotel": float(trip.travel_cost_hotel or 0),
+                    "other": float(trip.travel_cost_other or 0), "total": float(trip.travel_cost_total or 0),
+                },
+                "trip_expenses": [
+                    {"id": e.id, "description": e.description, "amount": float(e.amount), "date": e.expense_date}
+                    for e in trip_rows
+                ],
+                "trip_total_cost": float(pool),
+                "share_of_this_lot": float(trip_share),
+            }
+
+        return {
+            "entry_id": entry.id,
+            "entry_code": entry.entry_code,
+            "merchandise_cost": float(merchandise),
+            "trip": trip_info,
+            "lot_expenses": [
+                {"id": e.id, "description": e.description, "amount": float(e.amount), "date": e.expense_date}
+                for e in rows
+            ],
+            "lot_expenses_total": float(own),
+            "extra_costs_total": float(extra_total),
+            "total_investment": float(merchandise + extra_total),
+            "cost_increase_pct": float(extra_total / merchandise * 100) if merchandise > 0 else 0.0,
+        }
+
+    async def get_profit_ranking(self, *, skip: int, limit: int, tenant_id: int) -> List[Dict[str, Any]]:
+        """Lotes com investimento, receita, lucro e margem, do maior lucro para o menor."""
+        entries = await self.entry_repo.get_multi(
+            self.db, skip=skip, limit=limit, tenant_id=tenant_id
+        ) if hasattr(self.entry_repo, "get_multi") else []
+        rows = []
+        for e in entries:
+            a = await self.get_entry_analytics(e.id, tenant_id=tenant_id)
+            rows.append({
+                k: a[k] for k in (
+                    "entry_id", "entry_code", "entry_type", "entry_date", "supplier_name",
+                    "total_investment", "extra_costs_total", "real_revenue", "cost_of_sold",
+                    "gross_profit", "margin_pct", "roi", "recovered_pct", "sell_through_rate",
+                    "projected_profit_if_all_sold",
+                )
+            })
+        rows.sort(key=lambda r: r["gross_profit"], reverse=True)
+        return rows
+
+    async def _lot_sales_stats(self, entry: StockEntry, *, tenant_id: int) -> Dict[str, Any]:
+        """
+        Receita, custo (posto) e unidades vendidas A PARTIR DESTE LOTE, líquidas de devolução.
+        Lê as fontes FIFO gravadas em cada item de venda (sale_sources) e nas devoluções (return_sources).
+        Receita do item = subtotal - desconto do item, proporcional às unidades que saíram deste lote.
+        """
+        from sqlalchemy import select, or_
+        from app.models.sale import Sale, SaleItem, SaleStatus
+        from app.models.sale_return import ReturnItem
+
+        variant_ids = {i.variant_id for i in entry.entry_items if i.is_active and i.variant_id}
+        product_ids = {i.product_id for i in entry.entry_items if i.is_active and i.product_id}
+        zero = Decimal('0.00')
+        out = {"units": 0, "revenue": zero, "cost": zero}
+        if not variant_ids and not product_ids:
+            return out
+
+        conds = []
+        if variant_ids:
+            conds.append(SaleItem.variant_id.in_(variant_ids))
+        if product_ids:
+            conds.append(SaleItem.product_id.in_(product_ids))
+        stmt = (
+            select(SaleItem)
+            .join(Sale, Sale.id == SaleItem.sale_id)
+            .where(
+                Sale.tenant_id == tenant_id,
+                Sale.is_active == True,  # noqa: E712
+                Sale.status.in_([SaleStatus.COMPLETED, SaleStatus.PARTIALLY_REFUNDED, SaleStatus.REFUNDED]),
+                or_(*conds),
+            )
+        )
+        sale_items = (await self.db.execute(stmt)).scalars().all()
+        by_id = {}
+        for si in sale_items:
+            raw = si.sale_sources
+            sources = raw.get("sources", []) if isinstance(raw, dict) else (raw or [])
+            taken = [t for t in sources if t.get("entry_id") == entry.id]
+            if not taken or not si.quantity:
+                continue
+            qty = sum(int(t["quantity_taken"]) for t in taken)
+            net_item = Decimal(str(si.subtotal or 0)) - Decimal(str(si.discount_amount or 0))
+            out["units"] += qty
+            out["revenue"] += net_item * Decimal(qty) / Decimal(si.quantity)
+            out["cost"] += sum(Decimal(str(t["quantity_taken"])) * Decimal(str(t["unit_cost"])) for t in taken)
+            by_id[si.id] = si
+
+        if by_id:
+            rets = (await self.db.execute(
+                select(ReturnItem).where(ReturnItem.sale_item_id.in_(list(by_id)))
+            )).scalars().all()
+            for r in rets:
+                si = by_id.get(r.sale_item_id)
+                if si is None or not r.quantity_returned:
+                    continue
+                raw = si.sale_sources
+                sources = raw.get("sources", []) if isinstance(raw, dict) else (raw or [])
+                # Mesma regra do return_service: a devolução volta às entradas de origem, na ordem das fontes
+                remaining = r.quantity_returned
+                qty_back = 0
+                back_cost = Decimal('0.00')
+                for src in sources:
+                    if remaining <= 0:
+                        break
+                    take = min(int(src["quantity_taken"]), remaining)
+                    if src.get("entry_id") == entry.id:
+                        qty_back += take
+                        back_cost += Decimal(take) * Decimal(str(src["unit_cost"]))
+                    remaining -= take
+                if qty_back:
+                    out["units"] -= qty_back
+                    out["revenue"] -= Decimal(str(r.refund_amount or 0)) * Decimal(qty_back) / Decimal(r.quantity_returned)
+                    out["cost"] -= back_cost
+        return out
+
     async def link_to_trip(
         self, 
         entry_id: int, 
@@ -693,6 +870,8 @@ class StockEntryService:
             },
             tenant_id=tenant_id,
         )
+        await lot_cost_service.recompute_trip(self.db, trip_id, tenant_id=tenant_id)
+        await self.db.commit()
         
         return updated
     
@@ -734,8 +913,15 @@ class StockEntryService:
                 raise ValueError(f"Trip {entry_data.trip_id} não encontrada")
         
         # Atualizar
+        old_trip_id = entry.trip_id
         entry_dict = entry_data.model_dump(exclude_unset=True)
         updated = await self.entry_repo.update(self.db, entry_id, entry_dict, tenant_id=tenant_id)
+
+        # Mudou de viagem (ou saiu dela): refaz o rateio do lote e dos lotes da viagem antiga
+        await lot_cost_service.recompute_entries(self.db, [entry_id], tenant_id=tenant_id)
+        if old_trip_id and old_trip_id != getattr(updated, "trip_id", None):
+            await lot_cost_service.recompute_trip(self.db, old_trip_id, tenant_id=tenant_id)
+        await self.db.commit()
         
         return updated
     
@@ -848,6 +1034,7 @@ class StockEntryService:
             entry.tenant_id = None
 
             # Soft delete da entrada (cascata para itens via is_active=False)
+            _deleted_trip_id = entry.trip_id
             success = await self.entry_repo.delete(self.db, entry_id, tenant_id=tenant_id)
 
             # Flush para que o soft delete seja visível antes do rebuild
@@ -950,6 +1137,8 @@ class StockEntryService:
                 except Exception as sync_err:
                     print(f"  [Inventory Sync DELETE_ENTRY] Falha sync produto {pid}: {sync_err}")
 
+            if _deleted_trip_id:
+                await lot_cost_service.recompute_trip(self.db, _deleted_trip_id, tenant_id=tenant_id)
             await self.db.commit()
 
             return {
@@ -1311,6 +1500,9 @@ class StockEntryService:
                     f"total_cost recalculado = R$ {new_total_cost:.2f}"
                 )
 
+        # Quantidade/custo mudou: o rateio do lote muda junto
+        await lot_cost_service.recompute_entries(self.db, [item.entry_id], tenant_id=tenant_id)
+
         # Commit final
         await self.db.commit()
 
@@ -1445,6 +1637,9 @@ class StockEntryService:
             )
         except Exception as sync_err:
             print(f"  [Inventory Sync ADD_ITEM] Falha sync produto {product_id}: {sync_err}")
+
+        await self.db.flush()
+        await lot_cost_service.recompute_entries(self.db, [entry_id], tenant_id=tenant_id)
 
         # Commit
         await self.db.commit()
@@ -1600,6 +1795,9 @@ class StockEntryService:
             except Exception as sync_err:
                 print(f"  [Inventory Sync NEW_PRODUCT] Falha sync produto {product.id}: {sync_err}")
             
+            await self.db.flush()
+            await lot_cost_service.recompute_entries(self.db, [entry.id], tenant_id=tenant_id)
+
             # 7. Commit de tudo (transação atômica)
             await self.db.commit()
             await self.db.refresh(entry)
@@ -1776,6 +1974,9 @@ class StockEntryService:
             except Exception as sync_err:
                 print(f"  [Inventory Sync NEW_PRODUCT_VARIANTS] Falha sync produto {product.id}: {sync_err}")
             
+            await self.db.flush()
+            await lot_cost_service.recompute_entries(self.db, [entry.id], tenant_id=tenant_id)
+
             # 6. Commit de tudo (transação atômica)
             await self.db.commit()
             await self.db.refresh(entry)
@@ -1895,6 +2096,8 @@ class StockEntryService:
                 print(f"  [Inventory Sync ADD_NEW_PRODUCT] Falha sync produto {product.id}: {sync_err}")
 
             product_id, entry_id_out, total_out = product.id, entry.id, entry.total_cost
+            await self.db.flush()
+            await lot_cost_service.recompute_entries(self.db, [entry.id], tenant_id=tenant_id)
             await self.db.commit()
             return {"entry_id": entry_id_out, "product_id": product_id, "total_cost": float(total_out or 0)}
         except Exception:
@@ -1990,6 +2193,8 @@ class StockEntryService:
         inv_service = InventoryService(self.db)
         await inv_service.rebuild_product_from_fifo(product_id, tenant_id=tenant_id)
 
+        await self.db.flush()
+        await lot_cost_service.recompute_entries(self.db, [item.entry_id], tenant_id=tenant_id)
         await self.db.commit()
 
         return {

@@ -48,7 +48,7 @@ import { createStockEntry, createStockEntryWithNewProduct, createStockEntryWithN
 import { getProductVariants } from '@/services/productVariantService';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { formatCurrency } from '@/utils/format';
-import { cnpjMask, phoneMask } from '@/utils/masks';
+import { cnpjMask, dateMask, isValidDate, phoneMask } from '@/utils/masks';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { EntryType, StockEntryCreate, EntryItem, Product, ProductVariant, Supplier } from '@/types';
@@ -240,6 +240,9 @@ export default function AddStockEntryScreen() {
   const [selectedType, setSelectedType] = useState<EntryType>(EntryType.LOCAL);
   const [entryCode, setEntryCode] = useState('');
   const [tripId, setTripId] = useState<number | undefined>();
+  // Data da entrada: sugerida (viagem ou hoje), mas editável para lançar compra retroativa
+  const [entryDateInput, setEntryDateInput] = useState('');
+  const [entryDateEdited, setEntryDateEdited] = useState(false);
   const [supplierName, setSupplierName] = useState('');
   const [supplierCnpj, setSupplierCnpj] = useState('');
   const [supplierContact, setSupplierContact] = useState('');
@@ -1058,6 +1061,17 @@ export default function AddStockEntryScreen() {
       newErrors.entryCode = 'Código da entrada é obrigatório';
     }
 
+    if (entryDateEdited) {
+      if (!isValidDate(entryDateInput)) {
+        newErrors.entryDate = 'Data inválida. Use DD/MM/AAAA';
+      } else if (typedDateISO(entryDateInput) > autoEntryDateISO()) {
+        // sugerida pode ser a data de retorno da viagem; o limite é hoje ou a sugerida, o que for maior
+        if (typedDateISO(entryDateInput) > todayISO()) {
+          newErrors.entryDate = 'A data da entrada não pode ser no futuro';
+        }
+      }
+    }
+
     if (entryCode.trim().length < 5) {
       newErrors.entryCode = 'Código deve ter no mínimo 5 caracteres';
     }
@@ -1100,11 +1114,26 @@ export default function AddStockEntryScreen() {
     return Object.keys(newErrors).length === 0;
   };
 
-  /** Calcular data da entrada (auto)
+  const todayISO = (): string => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+
+  /** 'DD/MM/AAAA' digitado -> 'AAAA-MM-DD' */
+  const typedDateISO = (text: string): string => {
+    const [dd, mm, yyyy] = text.split('/');
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  /** Data da entrada que vai para a API: a digitada (se editou e é válida) ou a sugerida. */
+  const computeEntryDateISO = (): string =>
+    entryDateEdited && isValidDate(entryDateInput) ? typedDateISO(entryDateInput) : autoEntryDateISO();
+
+  /** Data sugerida
    * - Viagem: usa data de retorno (se existir) ou data da viagem
    * - Outros tipos: hoje
    */
-  const computeEntryDateISO = (): string => {
+  const autoEntryDateISO = (): string => {
     if (selectedType === EntryType.TRIP && tripId) {
       const trip = trips.find((t) => t.id === tripId);
       if (trip) {
@@ -1600,14 +1629,32 @@ export default function AddStockEntryScreen() {
 
           <View style={styles.inputGroup}>
             <TextInput
-              label="Data da Entrada (auto)"
-              value={computeEntryDateISO().split('-').reverse().join('/')}
+              label="Data da Entrada *"
+              value={entryDateEdited ? entryDateInput : autoEntryDateISO().split('-').reverse().join('/')}
+              onChangeText={(text) => {
+                setEntryDateEdited(true);
+                setEntryDateInput(dateMask(text));
+                if (errors.entryDate) setErrors({ ...errors, entryDate: '' });
+              }}
               mode="outlined"
-              editable={false}
+              keyboardType="numeric"
+              placeholder="DD/MM/AAAA"
+              maxLength={10}
+              error={!!errors.entryDate}
               left={<TextInput.Icon icon="calendar" />}
+              right={entryDateEdited ? (
+                <TextInput.Icon
+                  icon="restore"
+                  onPress={() => { setEntryDateEdited(false); setEntryDateInput(''); }}
+                />
+              ) : undefined}
             />
-            <HelperText type="info">
-              Calculada automaticamente
+            <HelperText type={errors.entryDate ? 'error' : 'info'} visible={true}>
+              {errors.entryDate
+                ? errors.entryDate
+                : entryDateEdited
+                  ? 'Data informada por você. Toque em restaurar para voltar à sugerida.'
+                  : 'Sugerida (viagem ou hoje). Pode ser retroativa: toque e digite a data da compra.'}
             </HelperText>
           </View>
         </View>

@@ -5,7 +5,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Optional, List
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 # ─────────────────────────────────────────────
@@ -47,6 +47,15 @@ class ExpenseBase(BaseModel):
     is_recurring: bool = False
     recurrence_day: Optional[int] = None
     category_id: Optional[int] = None
+    # Despesa de um lote (entrada) OU de uma viagem; sem nenhum dos dois é despesa geral.
+    stock_entry_id: Optional[int] = None
+    trip_id: Optional[int] = None
+
+    @model_validator(mode="after")
+    def only_one_link(self):
+        if self.stock_entry_id is not None and self.trip_id is not None:
+            raise ValueError("A despesa pode ser de um lote ou de uma viagem, não dos dois")
+        return self
 
     @field_validator("amount")
     @classmethod
@@ -75,6 +84,14 @@ class ExpenseUpdate(BaseModel):
     is_recurring: Optional[bool] = None
     recurrence_day: Optional[int] = None
     category_id: Optional[int] = None
+    stock_entry_id: Optional[int] = None
+    trip_id: Optional[int] = None
+
+    @model_validator(mode="after")
+    def only_one_link(self):
+        if self.stock_entry_id is not None and self.trip_id is not None:
+            raise ValueError("A despesa pode ser de um lote ou de uma viagem, não dos dois")
+        return self
 
 
 class ExpenseResponse(ExpenseBase):

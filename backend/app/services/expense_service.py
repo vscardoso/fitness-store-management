@@ -11,8 +11,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timezone import today_brazil
 from app.models.expense import Expense, ExpenseCategory
-from app.models.sale import Sale, SaleItem, SaleStatus
+from app.models.stock_entry import StockEntry
 from app.models.trip import Trip
+from app.services import lot_cost_service
+from app.models.sale import Sale, SaleItem, SaleStatus
 from app.repositories.expense import ExpenseCategoryRepository, ExpenseRepository
 from app.schemas.expense import (
     ExpenseCategoryCreate,
@@ -168,6 +170,29 @@ class ExpenseService:
             limit=limit,
         )
 
+    async def _validate_link(self, stock_entry_id: Optional[int], trip_id: Optional[int], tenant_id: Optional[int]) -> None:
+        """Lote/viagem informados precisam existir, estar ativos e ser da mesma loja."""
+        if stock_entry_id is not None:
+            stmt = select(StockEntry.id).where(StockEntry.id == stock_entry_id, StockEntry.is_active == True)  # noqa: E712
+            if tenant_id is not None:
+                stmt = stmt.where(StockEntry.tenant_id == tenant_id)
+            if (await self.db.execute(stmt)).scalar_one_or_none() is None:
+                raise ValueError("Lote (entrada) não encontrado")
+        if trip_id is not None:
+            stmt = select(Trip.id).where(Trip.id == trip_id, Trip.is_active == True)  # noqa: E712
+            if tenant_id is not None:
+                stmt = stmt.where(Trip.tenant_id == tenant_id)
+            if (await self.db.execute(stmt)).scalar_one_or_none() is None:
+                raise ValueError("Viagem não encontrada")
+
+    async def _reallocate(self, entry_ids: set, trip_ids: set, tenant_id: Optional[int]) -> None:
+        """Refaz o rateio dos lotes/viagens afetados (mesma transação da despesa)."""
+        ids = {i for i in entry_ids if i}
+        if ids:
+            await lot_cost_service.recompute_entries(self.db, ids, tenant_id=tenant_id)
+        for t in {i for i in trip_ids if i}:
+            await lot_cost_service.recompute_trip(self.db, t, tenant_id=tenant_id)
+
     async def create_expense(
         self,
         data: ExpenseCreate,
@@ -176,8 +201,11 @@ class ExpenseService:
         from sqlalchemy.orm import selectinload
         from sqlalchemy import select as sa_select
 
+        await self._validate_link(data.stock_entry_id, data.trip_id, tenant_id)
         obj = Expense(**data.model_dump(), tenant_id=tenant_id)
         self.db.add(obj)
+        await self.db.flush()
+        await self._reallocate({obj.stock_entry_id}, {obj.trip_id}, tenant_id)
         await self.db.commit()
         # Recarregar com categoria
         result = await self.db.execute(
@@ -196,8 +224,22 @@ class ExpenseService:
         exp = await _exp_repo.get_with_category(self.db, expense_id, tenant_id=tenant_id)
         if not exp:
             return None
-        for field, value in data.model_dump(exclude_unset=True).items():
+        changes = data.model_dump(exclude_unset=True)
+        old_entry, old_trip = exp.stock_entry_id, exp.trip_id
+        new_entry = changes.get("stock_entry_id", old_entry)
+        new_trip = changes.get("trip_id", old_trip)
+        # trocar de lote para viagem (ou vice-versa) exige limpar o outro vínculo na mesma chamada
+        if new_entry is not None and new_trip is not None:
+            raise ValueError("A despesa pode ser de um lote ou de uma viagem, não dos dois")
+        await self._validate_link(
+            new_entry if "stock_entry_id" in changes else None,
+            new_trip if "trip_id" in changes else None,
+            tenant_id,
+        )
+        for field, value in changes.items():
             setattr(exp, field, value)
+        await self.db.flush()
+        await self._reallocate({old_entry, exp.stock_entry_id}, {old_trip, exp.trip_id}, tenant_id)
         await self.db.commit()
         await self.db.refresh(exp)
         return exp
@@ -211,6 +253,8 @@ class ExpenseService:
         if not exp:
             return False
         exp.is_active = False
+        await self.db.flush()
+        await self._reallocate({exp.stock_entry_id}, {exp.trip_id}, tenant_id)
         await self.db.commit()
         return True
 
@@ -238,7 +282,6 @@ class ExpenseService:
         first_day = date(year, month, 1)
         last_day = date(year, month, monthrange(year, month)[1])
 
-        import locale
         month_names = [
             "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
             "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro",
@@ -324,18 +367,10 @@ class ExpenseService:
         cmv = Decimal(str(cmv_row[0] if cmv_row else 0))
         units_sold = int(cmv_row[1] if cmv_row else 0)
 
-        # 3. Custos de viagem do período (soma de travel_cost_total das viagens com trip_date no período)
-        trip_costs_stmt = select(
-            func.coalesce(func.sum(Trip.travel_cost_total), 0)
-        ).where(
-            Trip.is_active == True,
-            Trip.trip_date >= first_day,
-            Trip.trip_date <= last_day,
-        )
-        if tenant_id is not None:
-            trip_costs_stmt = trip_costs_stmt.where(Trip.tenant_id == tenant_id)
-        trip_costs_result = await self.db.execute(trip_costs_stmt)
-        trip_costs = Decimal(str(trip_costs_result.scalar() or 0))
+        # 3. Custos de viagem: entram no CUSTO das peças do lote (custo posto, rateado em entry_items.extra_unit_cost)
+        #    e portanto já estão no CMV quando a peça é vendida. Não somar de novo aqui (antes a viagem inteira caía
+        #    no mês da viagem, muito antes da venda). O campo trip_costs segue na resposta, sempre 0, por compatibilidade.
+        trip_costs = Decimal("0")
 
         # 4. Despesas operacionais (inclui perdas de estoque, destacadas à parte abaixo)
         total_expenses = await _exp_repo.sum_by_period(

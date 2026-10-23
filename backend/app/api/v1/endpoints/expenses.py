@@ -183,7 +183,11 @@ async def create_expense(
     tenant_id: Optional[int] = Depends(get_current_tenant_id),
 ):
     svc = ExpenseService(db)
-    return await svc.create_expense(data, tenant_id)
+    try:
+        return await svc.create_expense(data, tenant_id)
+    except ValueError as e:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get("/{expense_id}", response_model=ExpenseResponse)
@@ -209,7 +213,11 @@ async def update_expense(
     tenant_id: Optional[int] = Depends(get_current_tenant_id),
 ):
     svc = ExpenseService(db)
-    exp = await svc.update_expense(expense_id, data, tenant_id)
+    try:
+        exp = await svc.update_expense(expense_id, data, tenant_id)
+    except ValueError as e:
+        await db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
     if not exp:
         raise HTTPException(status_code=404, detail="Despesa não encontrada")
     return exp

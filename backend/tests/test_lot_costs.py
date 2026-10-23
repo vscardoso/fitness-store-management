@@ -1,0 +1,363 @@
+"""Custo por lote: rateio da viagem e das despesas do lote, FIFO a custo posto, P&L sem dupla contagem e lucro por lote."""
+import itertools
+from datetime import date, timedelta
+from decimal import Decimal
+
+import pytest
+from sqlalchemy import select
+
+from app.core.security import create_access_token, get_password_hash
+
+pytestmark = pytest.mark.asyncio
+_seq = itertools.count(1)
+D = Decimal
+
+
+async def _loja(db, *, with_trip_cost=None):
+    """Loja nova + admin + categoria. Devolve (tenant_id, token, category_id)."""
+    from datetime import datetime, timezone
+    from app.models.category import Category
+    from app.models.store import Store
+    from app.models.subscription import Subscription
+    from app.models.user import User, UserRole
+
+    n = next(_seq)
+    store = Store(name=f"Loja Lote {n}", slug=f"loja-lote-{n}", subdomain=f"lote-{n}", plan="enterprise",
+                  is_default=False, is_active=True)
+    db.add(store)
+    await db.flush()
+    db.add(Subscription(tenant_id=store.id, plan="enterprise", status="active", is_trial=False,
+                        current_period_start=datetime.now(timezone.utc),
+                        current_period_end=datetime.now(timezone.utc) + timedelta(days=30),
+                        max_products=1, max_users=1, is_active=True))
+    admin = User(email=f"dono.lote.{n}@example.com", full_name="Dona Lote", hashed_password=get_password_hash("Senha1234"),
+                 role=UserRole.ADMIN, is_active=True, tenant_id=store.id)
+    cat = Category(name=f"Cat {n}", slug=f"cat-lote-{n}", tenant_id=store.id)
+    db.add_all([admin, cat])
+    await db.commit()
+    await db.refresh(admin)
+    await db.refresh(cat)
+    return store.id, create_access_token(data={"sub": str(admin.id)}), cat.id
+
+
+@pytest.fixture(autouse=True)
+async def _limpa_loja_1(async_session):
+    """O banco de teste é compartilhado: apaga o que estes testes criaram na loja 1 para não alterar contagens de outros testes."""
+    from sqlalchemy import delete, func
+    from app.models.category import Category
+    from app.models.entry_item import EntryItem
+    from app.models.expense import Expense
+    from app.models.product import Product
+    from app.models.product_variant import ProductVariant
+    from app.models.stock_entry import StockEntry
+    from app.models.trip import Trip
+
+    modelos = [Expense, EntryItem, StockEntry, Trip, ProductVariant, Product, Category]
+    antes = {}
+    for m in modelos:
+        antes[m] = (await async_session.execute(select(func.coalesce(func.max(m.id), 0)))).scalar()
+    yield
+    await async_session.rollback()
+    for m in modelos:
+        await async_session.execute(delete(m).where(m.tenant_id == 1, m.id > antes[m]))
+    await async_session.commit()
+
+
+async def _loja_api(db, test_user):
+    """Loja 1 (a que a API dos testes usa) com categoria nova. Devolve (tenant_id, token, category_id)."""
+    from app.models.category import Category
+    n = next(_seq)
+    cat = Category(name=f"Cat API {n}", slug=f"cat-api-{n}", tenant_id=test_user.tenant_id)
+    db.add(cat)
+    await db.commit()
+    await db.refresh(cat)
+    return test_user.tenant_id, create_access_token(data={"sub": str(test_user.id)}), cat.id
+
+
+async def _produto(db, tenant_id, cat_id, nome, preco="200.00"):
+    from app.models.product import Product
+    from app.models.product_variant import ProductVariant
+    n = next(_seq)
+    p = Product(name=f"{nome} {n}", category_id=cat_id, tenant_id=tenant_id, base_price=D(preco))
+    db.add(p)
+    await db.flush()
+    v = ProductVariant(product_id=p.id, sku=f"SKU-{n}-{tenant_id}", price=D(preco), tenant_id=tenant_id)
+    db.add(v)
+    await db.flush()
+    return p, v
+
+
+async def _viagem(db, tenant_id, **custos):
+    from app.models.trip import Trip
+    n = next(_seq)
+    fuel = D(str(custos.get("fuel", 0)))
+    t = Trip(trip_code=f"VIAGEM-{n}", trip_date=date.today(), destination="Brás", tenant_id=tenant_id,
+             travel_cost_fuel=fuel, travel_cost_food=D(0), travel_cost_toll=D(0), travel_cost_hotel=D(0),
+             travel_cost_other=D(0), travel_cost_total=fuel)
+    db.add(t)
+    await db.flush()
+    return t
+
+
+async def _lote(db, tenant_id, itens, *, trip=None, entry_date=None):
+    """itens: [(variant, produto, quantidade, custo_unitario)]. Devolve a entrada."""
+    from app.models.entry_item import EntryItem
+    from app.models.stock_entry import EntryType, StockEntry
+    n = next(_seq)
+    total = sum(D(q) * D(str(c)) for _, _, q, c in itens)
+    e = StockEntry(entry_code=f"LOTE-{n:04d}", entry_date=entry_date or date.today(),
+                   entry_type=EntryType.TRIP if trip else EntryType.LOCAL, trip_id=trip.id if trip else None,
+                   supplier_name="Fornecedor Teste", total_cost=total, tenant_id=tenant_id)
+    db.add(e)
+    await db.flush()
+    for v, p, q, c in itens:
+        db.add(EntryItem(entry_id=e.id, variant_id=v.id, product_id=p.id, quantity_received=q, quantity_remaining=q,
+                         unit_cost=D(str(c)), tenant_id=tenant_id))
+    await db.flush()
+    return e
+
+
+async def _extras(db, entry_id):
+    from app.models.entry_item import EntryItem
+    rows = (await db.execute(select(EntryItem).where(EntryItem.entry_id == entry_id).order_by(EntryItem.id))).scalars().all()
+    return [(r.unit_cost, r.extra_unit_cost, r.landed_unit_cost) for r in rows]
+
+
+# ───────────────────────── rateio ─────────────────────────
+
+async def test_exemplo_do_lojista_viagem_1000_mercadoria_10000(async_session):
+    from app.services import lot_cost_service as svc
+    t_id, _, cat = await _loja(async_session)
+    p, v = await _produto(async_session, t_id, cat, "Legging")
+    trip = await _viagem(async_session, t_id, fuel=1000)
+    lote = await _lote(async_session, t_id, [(v, p, 100, 100)], trip=trip)
+    out = await svc.recompute_entries(async_session, [lote.id], tenant_id=t_id)
+    assert out[lote.id]["extra"] == D("1000")
+    (custo, extra, posto), = await _extras(async_session, lote.id)
+    assert custo == D("100.00") and extra == D("10.0000") and posto == D("110.0000")  # +10% por peça
+
+
+async def test_viagem_com_dois_lotes_divide_proporcional_ao_custo(async_session):
+    from app.services import lot_cost_service as svc
+    t_id, _, cat = await _loja(async_session)
+    p1, v1 = await _produto(async_session, t_id, cat, "A")
+    p2, v2 = await _produto(async_session, t_id, cat, "B")
+    trip = await _viagem(async_session, t_id, fuel=1000)
+    a = await _lote(async_session, t_id, [(v1, p1, 60, 100)], trip=trip)   # 6.000
+    b = await _lote(async_session, t_id, [(v2, p2, 40, 100)], trip=trip)   # 4.000
+    out = await svc.recompute_entries(async_session, [a.id], tenant_id=t_id)   # recalcula o irmão junto
+    assert out[a.id]["trip_share"] == D("600") and out[b.id]["trip_share"] == D("400")
+    assert (await _extras(async_session, a.id))[0][1] == D("10.0000")
+    assert (await _extras(async_session, b.id))[0][1] == D("10.0000")
+
+
+async def test_despesa_do_lote_divide_entre_itens_proporcional_ao_custo(async_session):
+    from app.models.expense import Expense
+    from app.services import lot_cost_service as svc
+    t_id, _, cat = await _loja(async_session)
+    p1, v1 = await _produto(async_session, t_id, cat, "Barato")
+    p2, v2 = await _produto(async_session, t_id, cat, "Caro")
+    lote = await _lote(async_session, t_id, [(v1, p1, 10, 100), (v2, p2, 10, 300)])  # 1.000 + 3.000
+    async_session.add(Expense(amount=D("400"), description="Frete", expense_date=date.today(), tenant_id=t_id,
+                              stock_entry_id=lote.id))
+    await async_session.flush()
+    await svc.recompute_entries(async_session, [lote.id], tenant_id=t_id)
+    (c1, e1, _), (c2, e2, _) = await _extras(async_session, lote.id)
+    assert e1 == D("10.0000") and e2 == D("30.0000")  # 10% sobre cada custo; soma = 100 + 300 = 400
+
+
+async def test_despesa_geral_nao_entra_no_custo(async_session):
+    from app.models.expense import Expense
+    from app.services import lot_cost_service as svc
+    t_id, _, cat = await _loja(async_session)
+    p, v = await _produto(async_session, t_id, cat, "X")
+    lote = await _lote(async_session, t_id, [(v, p, 10, 100)])
+    async_session.add(Expense(amount=D("999"), description="Aluguel", expense_date=date.today(), tenant_id=t_id))
+    await async_session.flush()
+    await svc.recompute_entries(async_session, [lote.id], tenant_id=t_id)
+    assert (await _extras(async_session, lote.id))[0][1] == D("0")
+
+
+# ───────────────────────── API de despesas ─────────────────────────
+
+async def test_api_despesa_de_lote_atualiza_rateio_edita_e_apaga(test_client, async_session, test_user):
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    p, v = await _produto(async_session, t_id, cat, "X")
+    lote = await _lote(async_session, t_id, [(v, p, 10, 100)])  # 1.000
+    lote_id = lote.id
+    await async_session.commit()
+
+    r = await test_client.post("/api/v1/expenses", headers=h, json={
+        "amount": "100.00", "description": "Frete do lote", "expense_date": date.today().isoformat(),
+        "stock_entry_id": lote_id})
+    assert r.status_code == 201, r.text
+    exp_id = r.json()["id"]
+    assert r.json()["stock_entry_id"] == lote_id
+    assert (await _extras(async_session, lote_id))[0][1] == D("10.0000")      # 100 / 10 peças
+
+    r = await test_client.put(f"/api/v1/expenses/{exp_id}", headers=h, json={"amount": "200.00"})
+    assert r.status_code == 200, r.text
+    async_session.expire_all()
+    assert (await _extras(async_session, lote_id))[0][1] == D("20.0000")
+
+    assert (await test_client.delete(f"/api/v1/expenses/{exp_id}", headers=h)).status_code == 204
+    async_session.expire_all()
+    assert (await _extras(async_session, lote_id))[0][1] == D("0")
+
+
+async def test_api_despesa_nao_pode_ser_de_lote_e_viagem_nem_de_outra_loja(test_client, async_session, test_user):
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    p, v = await _produto(async_session, t_id, cat, "X")
+    lote = await _lote(async_session, t_id, [(v, p, 10, 100)])
+    trip = await _viagem(async_session, t_id, fuel=50)
+    outra_id, _, outra_cat = await _loja(async_session)
+    po, vo = await _produto(async_session, outra_id, outra_cat, "Y")
+    lote_alheio = await _lote(async_session, outra_id, [(vo, po, 5, 10)])
+    await async_session.commit()
+    base = {"amount": "10.00", "description": "x", "expense_date": date.today().isoformat()}
+
+    r = await test_client.post("/api/v1/expenses", headers=h, json={**base, "stock_entry_id": lote.id, "trip_id": trip.id})
+    assert r.status_code == 422
+    r = await test_client.post("/api/v1/expenses", headers=h, json={**base, "stock_entry_id": lote_alheio.id})
+    assert r.status_code == 400 and "não encontrado" in r.json()["detail"]
+    r = await test_client.post("/api/v1/expenses", headers=h, json={**base, "stock_entry_id": 999999})
+    assert r.status_code == 400
+
+
+async def test_api_despesa_de_viagem_rateia_entre_lotes_e_trocar_de_lote_para_viagem(test_client, async_session, test_user):
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    p1, v1 = await _produto(async_session, t_id, cat, "A")
+    p2, v2 = await _produto(async_session, t_id, cat, "B")
+    trip = await _viagem(async_session, t_id, fuel=0)
+    a = await _lote(async_session, t_id, [(v1, p1, 10, 100)], trip=trip)   # 1.000
+    b = await _lote(async_session, t_id, [(v2, p2, 30, 100)], trip=trip)   # 3.000
+    a_id, b_id, trip_id = a.id, b.id, trip.id
+    await async_session.commit()
+    r = await test_client.post("/api/v1/expenses", headers=h, json={
+        "amount": "400.00", "description": "Hotel", "expense_date": date.today().isoformat(), "trip_id": trip_id})
+    assert r.status_code == 201, r.text
+    async_session.expire_all()
+    assert (await _extras(async_session, a_id))[0][1] == D("10.0000")   # 100 / 10 peças
+    assert (await _extras(async_session, b_id))[0][1] == D("10.0000")   # 300 / 30 peças
+
+    # a mesma despesa passa a ser só do lote A: sai da viagem inteira
+    r = await test_client.put(f"/api/v1/expenses/{r.json()['id']}", headers=h, json={"trip_id": None, "stock_entry_id": a_id})
+    assert r.status_code == 200, r.text
+    async_session.expire_all()
+    assert (await _extras(async_session, a_id))[0][1] == D("40.0000")   # 400 / 10 peças
+    assert (await _extras(async_session, b_id))[0][1] == D("0")
+
+
+async def test_editar_custo_da_viagem_atualiza_total_e_rateio(test_client, async_session, test_user):
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    p, v = await _produto(async_session, t_id, cat, "X")
+    trip = await _viagem(async_session, t_id, fuel=100)
+    lote = await _lote(async_session, t_id, [(v, p, 10, 100)], trip=trip)
+    from app.services import lot_cost_service as svc
+    await svc.recompute_entries(async_session, [lote.id], tenant_id=t_id)
+    lote_id, trip_id = lote.id, trip.id
+    await async_session.commit()
+    assert (await _extras(async_session, lote_id))[0][1] == D("10.0000")
+
+    r = await test_client.put(f"/api/v1/trips/{trip_id}", headers=h, json={"travel_cost_fuel": "300.00", "travel_cost_toll": "50.00"})
+    assert r.status_code == 200, r.text
+    assert float(r.json()["travel_cost_total"]) == 350.0                # o total acompanha (antes ficava velho)
+    async_session.expire_all()
+    assert (await _extras(async_session, lote_id))[0][1] == D("35.0000")
+
+
+# ───────────────────────── FIFO e resultado ─────────────────────────
+
+async def test_fifo_grava_custo_posto_e_o_p_l_nao_conta_a_viagem_de_novo(async_session):
+    from app.models.expense import Expense
+    from app.services import lot_cost_service as svc
+    from app.services.expense_service import ExpenseService
+    from app.services.fifo_service import FIFOService
+    t_id, _, cat = await _loja(async_session)
+    p, v = await _produto(async_session, t_id, cat, "X")
+    trip = await _viagem(async_session, t_id, fuel=1000)
+    lote = await _lote(async_session, t_id, [(v, p, 100, 100)], trip=trip)
+    await svc.recompute_entries(async_session, [lote.id], tenant_id=t_id)
+
+    sources = await FIFOService(async_session).process_sale(p.id, 50, variant_id=v.id, tenant_id=t_id)
+    assert len(sources) == 1
+    assert sources[0]["unit_cost"] == 110.0                       # mercadoria 100 + 10 de viagem
+    assert sources[0]["merchandise_unit_cost"] == 100.0 and sources[0]["extra_unit_cost"] == 10.0
+    assert sources[0]["total_cost"] == 5500.0
+
+    # despesa geral conta no mês; a do lote não
+    async_session.add(Expense(amount=D("300"), description="Aluguel", expense_date=date.today(), tenant_id=t_id))
+    async_session.add(Expense(amount=D("100"), description="Frete", expense_date=date.today(), tenant_id=t_id,
+                              stock_entry_id=lote.id))
+    await async_session.flush()
+    hoje = date.today()
+    res = await ExpenseService(async_session)._build_period_result(hoje.replace(day=1), hoje, t_id, "teste")
+    assert res.total_expenses == D("300")          # só a geral
+    assert res.trip_costs == D("0")                # viagem já está no CMV
+
+
+async def test_analise_do_lote_com_vendas_reais_e_devolucao(async_session):
+    """100 peças a R$ 100 + viagem R$ 1.000; vende 50 por R$ 200 cada."""
+    from app.models.sale import Sale, SaleItem, SaleStatus
+    from app.services import lot_cost_service as svc
+    from app.services.fifo_service import FIFOService
+    from app.services.stock_entry_service import StockEntryService
+    t_id, _, cat = await _loja(async_session)
+    p, v = await _produto(async_session, t_id, cat, "Legging", preco="200.00")
+    trip = await _viagem(async_session, t_id, fuel=1000)
+    lote = await _lote(async_session, t_id, [(v, p, 100, 100)], trip=trip)
+    await svc.recompute_entries(async_session, [lote.id], tenant_id=t_id)
+
+    seller_id = (await async_session.execute(select(__import__("app.models.user", fromlist=["User"]).User.id)
+                                             .where(__import__("app.models.user", fromlist=["User"]).User.tenant_id == t_id))).scalar_one()
+    sources = await FIFOService(async_session).process_sale(p.id, 50, variant_id=v.id, tenant_id=t_id)
+    sale = Sale(sale_number=f"V-{next(_seq)}", subtotal=D("10000"), total_amount=D("10000"), payment_method="cash",
+                seller_id=seller_id, status=SaleStatus.COMPLETED, tenant_id=t_id)
+    async_session.add(sale)
+    await async_session.flush()
+    async_session.add(SaleItem(sale_id=sale.id, product_id=p.id, variant_id=v.id, quantity=50, unit_price=D("200"),
+                               unit_cost=D("110"), subtotal=D("10000"), discount_amount=D("0"),
+                               sale_sources={"sources": sources}, tenant_id=t_id))
+    await async_session.flush()
+
+    a = await StockEntryService(async_session).get_entry_analytics(lote.id, tenant_id=t_id)
+    assert a["total_cost"] == 10000.0 and a["extra_costs_total"] == 1000.0 and a["total_investment"] == 11000.0
+    assert a["total_quantity_sold"] == 50
+    assert a["real_revenue"] == 10000.0 and a["cost_of_sold"] == 5500.0
+    assert a["gross_profit"] == 4500.0 and a["margin_pct"] == 45.0
+    assert round(a["recovered_pct"], 2) == 90.91
+    assert a["stock_value_remaining"] == 5500.0                      # 50 peças x 110
+    assert a["projected_profit_if_all_sold"] == 9000.0               # 20.000 - 11.000
+
+    c = await StockEntryService(async_session).get_entry_costs(lote.id, tenant_id=t_id)
+    assert c["merchandise_cost"] == 10000.0 and c["trip"]["share_of_this_lot"] == 1000.0
+    assert round(c["cost_increase_pct"], 2) == 10.0
+
+
+async def test_ranking_de_lucro_por_lote(test_client, async_session, test_user):
+    from app.services import lot_cost_service as svc
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    p, v = await _produto(async_session, t_id, cat, "X")
+    lote = await _lote(async_session, t_id, [(v, p, 10, 100)])
+    await svc.recompute_entries(async_session, [lote.id], tenant_id=t_id)
+    lote_id = lote.id
+    await async_session.commit()
+    r = await test_client.get("/api/v1/stock-entries/profit-ranking", headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 200, r.text
+    mine = [x for x in r.json() if x["entry_id"] == lote_id]
+    assert len(mine) == 1 and mine[0]["total_investment"] == 1000.0
+
+
+# ───────────────────────── data da entrada ─────────────────────────
+
+async def test_data_da_entrada_pode_ser_retroativa_mas_nao_futura():
+    from app.core.timezone import today_brazil
+    from app.schemas.stock_entry import entry_date_not_future
+    assert entry_date_not_future(today_brazil() - timedelta(days=90)) == today_brazil() - timedelta(days=90)
+    assert entry_date_not_future(today_brazil()) == today_brazil()
+    with pytest.raises(ValueError):
+        entry_date_not_future(today_brazil() + timedelta(days=10))

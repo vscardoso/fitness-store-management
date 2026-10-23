@@ -230,8 +230,8 @@ class InventoryService:
 
         # Somas por entry_items
         ei_stmt = select(
-            func.coalesce(func.sum(EntryItem.quantity_received * EntryItem.unit_cost), 0),
-            func.coalesce(func.sum(EntryItem.quantity_remaining * EntryItem.unit_cost), 0),
+            func.coalesce(func.sum(EntryItem.quantity_received * EntryItem.landed_unit_cost), 0),
+            func.coalesce(func.sum(EntryItem.quantity_remaining * EntryItem.landed_unit_cost), 0),
         ).where(EntryItem.tenant_id == tenant_id)
         if product_id is not None:
             ei_stmt = ei_stmt.where(EntryItem.product_id == product_id)

@@ -85,8 +85,11 @@ class ExpenseRepository(
         tenant_id: Optional[int] = None,
     ) -> Decimal:
         """Retorna o total de despesas no período."""
+        # Só despesa GERAL: a ligada a lote ou viagem já está no custo das peças (CMV) e não conta de novo.
         stmt = select(func.coalesce(func.sum(Expense.amount), 0)).where(
             Expense.is_active == True,
+            Expense.stock_entry_id.is_(None),
+            Expense.trip_id.is_(None),
             Expense.expense_date >= start_date,
             Expense.expense_date <= end_date,
         )
@@ -115,6 +118,8 @@ class ExpenseRepository(
             .outerjoin(Expense, (
                 (Expense.category_id == ExpenseCategory.id)
                 & (Expense.is_active == True)
+                & Expense.stock_entry_id.is_(None)
+                & Expense.trip_id.is_(None)
                 & (Expense.expense_date >= start_date)
                 & (Expense.expense_date <= end_date)
                 & (

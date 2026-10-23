@@ -44,6 +44,9 @@ import { toBRNumber, maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatt
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import EmptyState from '@/components/ui/EmptyState';
 import { useBrandingColors } from '@/store/brandingStore';
+import LotMoneyCard from '@/components/entries/LotMoneyCard';
+import { useAuth } from '@/hooks/useAuth';
+import { UserRole } from '@/types';
 import { EntryType, EntryItemResponse } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
@@ -53,6 +56,7 @@ export default function StockEntryDetailsScreen() {
   const { goBack } = useBackToList('/(tabs)/entries');
   const queryClient = useQueryClient();
   const brandingColors = useBrandingColors();
+  const { user } = useAuth();
 
   // Validar ID
   const entryId = id ? parseInt(id as string) : NaN;
@@ -674,6 +678,12 @@ export default function StockEntryDetailsScreen() {
               <InfoRow label="Observações" value={entry.notes} icon="document-outline" />
             )}
         </View>
+
+        {/* O dinheiro do lote, em linguagem simples (gastou, voltou, sobrou) */}
+        <LotMoneyCard
+          entryId={entryId}
+          canEdit={user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER}
+        />
 
         {/* KPIs */}
         <View style={styles.statsGrid}>

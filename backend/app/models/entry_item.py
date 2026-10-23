@@ -8,6 +8,7 @@ IMPORTANTE: Após a migração para o sistema de variantes:
 """
 from decimal import Decimal
 from sqlalchemy import String, Text, Numeric, ForeignKey, Integer, CheckConstraint
+from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING, Optional
 
@@ -75,6 +76,16 @@ class EntryItem(BaseModel):
         comment="Custo unitário do produto nesta entrada"
     )
     
+    # Parte do custo do lote (viagem, frete, despesas ligadas ao lote) que cabe a CADA unidade deste item.
+    # Calculado por app/services/lot_cost_service.py; nunca digitado à mão.
+    extra_unit_cost: Mapped[Decimal] = mapped_column(
+        Numeric(12, 4),
+        nullable=False,
+        default=Decimal("0"),
+        server_default="0",
+        comment="Rateio do custo do lote por unidade (custo posto = unit_cost + extra_unit_cost)"
+    )
+
     # Observações
     notes: Mapped[str | None] = mapped_column(
         Text,
@@ -144,6 +155,11 @@ class EntryItem(BaseModel):
             f"received={self.quantity_received}, remaining={self.quantity_remaining})>"
         )
     
+    @hybrid_property
+    def landed_unit_cost(self):
+        """Custo posto no estoque: mercadoria + rateio do custo do lote. É o custo que o FIFO, o CMV e o valor do estoque usam."""
+        return self.unit_cost + self.extra_unit_cost
+
     @property
     def total_cost(self) -> Decimal:
         """

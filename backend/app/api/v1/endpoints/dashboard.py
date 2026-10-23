@@ -125,7 +125,7 @@ async def get_dashboard_stats(
     from app.models.stock_entry import StockEntry
     entry_items_query = (
         select(
-            func.coalesce(func.sum(EntryItem.quantity_remaining * EntryItem.unit_cost), 0).label("invested_value"),
+            func.coalesce(func.sum(EntryItem.quantity_remaining * EntryItem.landed_unit_cost), 0).label("invested_value"),
             func.coalesce(func.sum(EntryItem.quantity_remaining), 0).label("total_quantity"),
         )
         .select_from(EntryItem)
@@ -510,7 +510,7 @@ async def get_inventory_valuation(
     # Total por custo
     total_cost_q = (
         select(
-            func.coalesce(func.sum(EntryItem.quantity_remaining * EntryItem.unit_cost), 0).label("cost_value")
+            func.coalesce(func.sum(EntryItem.quantity_remaining * EntryItem.landed_unit_cost), 0).label("cost_value")
         )
         .select_from(EntryItem)
         .join(StockEntry, EntryItem.entry_id == StockEntry.id)
@@ -550,7 +550,7 @@ async def get_inventory_valuation(
         select(
             Category.id.label("category_id"),
             Category.name.label("category_name"),
-            func.coalesce(func.sum(EntryItem.quantity_remaining * EntryItem.unit_cost), 0).label("cost_value"),
+            func.coalesce(func.sum(EntryItem.quantity_remaining * EntryItem.landed_unit_cost), 0).label("cost_value"),
             func.coalesce(func.sum(EntryItem.quantity_remaining * func.coalesce(ProductVariant.price, Product.base_price, 0)), 0).label("retail_value"),
         )
         .select_from(EntryItem)
@@ -739,7 +739,7 @@ async def get_inventory_health(
 
     # Giro (proxy): custo das vendas nos últimos 30 dias / custo atual do estoque
     invested_q = (
-        select(func.coalesce(func.sum(EntryItem.quantity_remaining * EntryItem.unit_cost), 0))
+        select(func.coalesce(func.sum(EntryItem.quantity_remaining * EntryItem.landed_unit_cost), 0))
         .select_from(EntryItem)
         .join(StockEntry, EntryItem.entry_id == StockEntry.id)
         .where(
@@ -1419,7 +1419,7 @@ async def get_fifo_performance(
                 .scalar_subquery(), StockEntry.total_cost
             ).label("trip_total_goods_cost"),
             func.coalesce(
-                func.sum((EntryItem.quantity_received - EntryItem.quantity_remaining) * EntryItem.unit_cost), 0
+                func.sum((EntryItem.quantity_received - EntryItem.quantity_remaining) * EntryItem.landed_unit_cost), 0
             ).label("cost_of_sold"),
             func.coalesce(
                 func.sum(

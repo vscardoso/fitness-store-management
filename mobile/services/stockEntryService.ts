@@ -45,15 +45,78 @@ export async function getStockEntryById(id: number): Promise<StockEntryWithItems
  * Buscar analytics de uma entrada
  * Retorna métricas detalhadas: sell-through, ROI, best sellers, etc.
  */
-export async function getStockEntryAnalytics(id: number): Promise<{
+export interface LotAnalytics {
+  entry_id: number;
+  entry_code: string;
+  total_quantity_received: number;
+  total_quantity_sold: number;
+  total_quantity_remaining: number;
+  /** Mercadoria: o que foi pago ao fornecedor. */
+  total_cost: number;
+  /** Parte da viagem que coube a este lote. */
+  trip_cost_share: number;
+  /** Despesas lançadas neste lote (frete, embalagem...). */
+  own_costs: number;
+  /** Viagem + despesas do lote. */
+  extra_costs_total: number;
+  /** Mercadoria + custos do lote. */
+  total_investment: number;
+  /** Dinheiro que já entrou com as vendas deste lote (líquido de devolução). */
+  real_revenue: number;
+  /** Custo das peças já vendidas (com a parte do frete/viagem). */
+  cost_of_sold: number;
+  gross_profit: number;
+  /** De cada R$ 100 vendidos, quanto virou lucro. */
+  margin_pct: number;
+  /** Quanto do dinheiro gasto já voltou em vendas (%). */
+  recovered_pct: number;
+  stock_value_remaining: number;
+  projected_profit_if_all_sold: number;
   sell_through_rate: number;
-  roi: number;
-  total_revenue: number;
-  total_profit: number;
-  best_sellers: Array<{ product_id: number; product_name: string; quantity_sold: number }>;
-  slow_movers: Array<{ product_id: number; product_name: string; quantity_remaining: number }>;
-}> {
-  const response = await api.get(`${ENTRIES_ENDPOINT}${id}/analytics`);
+}
+
+export async function getStockEntryAnalytics(id: number): Promise<LotAnalytics> {
+  const response = await api.get<LotAnalytics>(`${ENTRIES_ENDPOINT}${id}/analytics`, skipLoading());
+  return response.data;
+}
+
+export interface LotCosts {
+  entry_id: number;
+  merchandise_cost: number;
+  trip: null | {
+    trip_id: number;
+    trip_code: string;
+    trip_total_cost: number;
+    share_of_this_lot: number;
+  };
+  lot_expenses: Array<{ id: number; description: string; amount: number; date: string }>;
+  lot_expenses_total: number;
+  extra_costs_total: number;
+  total_investment: number;
+  cost_increase_pct: number;
+}
+
+export async function getStockEntryCosts(id: number): Promise<LotCosts> {
+  const response = await api.get<LotCosts>(`${ENTRIES_ENDPOINT}${id}/costs`, skipLoading());
+  return response.data;
+}
+
+export interface LotProfitRow {
+  entry_id: number;
+  entry_code: string;
+  entry_date: string;
+  supplier_name: string;
+  total_investment: number;
+  real_revenue: number;
+  gross_profit: number;
+  margin_pct: number;
+  recovered_pct: number;
+  sell_through_rate: number;
+  projected_profit_if_all_sold: number;
+}
+
+export async function getLotProfitRanking(): Promise<LotProfitRow[]> {
+  const response = await api.get<LotProfitRow[]>(`${ENTRIES_ENDPOINT}profit-ranking`, skipLoading());
   return response.data;
 }
 

@@ -1,0 +1,144 @@
+"""
+Custo por lote: rateio do custo da viagem e das despesas de lote entre as peças.
+
+Regra (a mesma explicada ao lojista):
+- custo da viagem = custos de viagem (combustível, alimentação, pedágio, hotel, outros) + despesas ligadas à viagem;
+- cada lote da viagem recebe uma fatia proporcional ao custo de mercadoria dele;
+- o custo do lote = fatia da viagem + despesas ligadas ao lote;
+- dentro do lote, o custo é dividido entre os itens proporcional ao custo de mercadoria de cada um;
+- cada unidade guarda a sua parte em entry_items.extra_unit_cost; o custo posto no estoque é
+  unit_cost + extra_unit_cost, e é ele que o FIFO grava na venda (CMV), o valor do estoque e o lucro usam.
+
+Despesa geral (sem lote nem viagem) nunca entra aqui: vai para o resultado do mês.
+Peças já vendidas mantêm o custo que tinham na venda; só o saldo em estoque é recalculado.
+"""
+from decimal import Decimal, ROUND_HALF_UP
+from typing import Iterable, Optional
+
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.models.entry_item import EntryItem
+from app.models.expense import Expense
+from app.models.stock_entry import StockEntry
+from app.models.trip import Trip
+
+ZERO = Decimal("0")
+FOUR = Decimal("0.0001")
+
+
+def _q4(value: Decimal) -> Decimal:
+    return value.quantize(FOUR, rounding=ROUND_HALF_UP)
+
+
+async def _entry_base_totals(db: AsyncSession, entry_ids: list[int]) -> dict[int, Decimal]:
+    """Custo de mercadoria (quantidade recebida x custo unitário) dos itens ativos de cada entrada."""
+    if not entry_ids:
+        return {}
+    rows = (await db.execute(
+        select(EntryItem.entry_id, func.coalesce(func.sum(EntryItem.quantity_received * EntryItem.unit_cost), 0))
+        .where(EntryItem.entry_id.in_(entry_ids), EntryItem.is_active == True)  # noqa: E712
+        .group_by(EntryItem.entry_id)
+    )).all()
+    return {r[0]: Decimal(str(r[1])) for r in rows}
+
+
+async def trip_cost_pool(db: AsyncSession, trip: Trip) -> Decimal:
+    """Custo total da viagem: custos de viagem + despesas ligadas à viagem."""
+    extra = (await db.execute(
+        select(func.coalesce(func.sum(Expense.amount), 0))
+        .where(Expense.trip_id == trip.id, Expense.is_active == True)  # noqa: E712
+    )).scalar() or 0
+    return Decimal(str(trip.travel_cost_total or 0)) + Decimal(str(extra))
+
+
+async def entry_own_costs(db: AsyncSession, entry_id: int) -> Decimal:
+    """Soma das despesas ligadas diretamente ao lote."""
+    total = (await db.execute(
+        select(func.coalesce(func.sum(Expense.amount), 0))
+        .where(Expense.stock_entry_id == entry_id, Expense.is_active == True)  # noqa: E712
+    )).scalar() or 0
+    return Decimal(str(total))
+
+
+async def recompute_entries(db: AsyncSession, entry_ids: Iterable[int], *, tenant_id: Optional[int] = None) -> dict[int, dict]:
+    """
+    Recalcula o rateio dos lotes informados e dos outros lotes das mesmas viagens (a fatia de cada um
+    depende do total dos irmãos). Só mexe em extra_unit_cost; não faz commit.
+    Devolve {entry_id: {"base": mercadoria, "trip_share": fatia da viagem, "own": despesas do lote, "extra": total}}.
+    """
+    ids = {int(i) for i in entry_ids if i is not None}
+    if not ids:
+        return {}
+
+    stmt = select(StockEntry).where(StockEntry.id.in_(ids))
+    if tenant_id is not None:
+        stmt = stmt.where(StockEntry.tenant_id == tenant_id)
+    entries = {e.id: e for e in (await db.execute(stmt)).scalars().all()}
+
+    # inclui os lotes irmãos das viagens envolvidas
+    trip_ids = {e.trip_id for e in entries.values() if e.trip_id}
+    if trip_ids:
+        sib = select(StockEntry).where(StockEntry.trip_id.in_(trip_ids), StockEntry.is_active == True)  # noqa: E712
+        if tenant_id is not None:
+            sib = sib.where(StockEntry.tenant_id == tenant_id)
+        for e in (await db.execute(sib)).scalars().all():
+            entries.setdefault(e.id, e)
+
+    if not entries:
+        return {}
+
+    base = await _entry_base_totals(db, list(entries))
+
+    trips: dict[int, Trip] = {}
+    pools: dict[int, Decimal] = {}
+    base_by_trip: dict[int, Decimal] = {}
+    if trip_ids:
+        for t in (await db.execute(select(Trip).where(Trip.id.in_(trip_ids)))).scalars().all():
+            trips[t.id] = t
+            pools[t.id] = await trip_cost_pool(db, t)
+        for e in entries.values():
+            if e.trip_id and e.is_active:
+                base_by_trip[e.trip_id] = base_by_trip.get(e.trip_id, ZERO) + base.get(e.id, ZERO)
+
+    result: dict[int, dict] = {}
+    for entry in entries.values():
+        entry_base = base.get(entry.id, ZERO)
+        trip_share = ZERO
+        if entry.is_active and entry.trip_id in pools and base_by_trip.get(entry.trip_id, ZERO) > 0:
+            trip_share = pools[entry.trip_id] * entry_base / base_by_trip[entry.trip_id]
+        own = await entry_own_costs(db, entry.id) if entry.is_active else ZERO
+        extra_total = trip_share + own
+
+        items = (await db.execute(
+            select(EntryItem).where(EntryItem.entry_id == entry.id, EntryItem.is_active == True)  # noqa: E712
+        )).scalars().all()
+        total_units = sum(i.quantity_received for i in items)
+        for item in items:
+            if extra_total <= 0:
+                new_extra = ZERO
+            elif entry_base > 0:
+                new_extra = _q4(item.unit_cost * extra_total / entry_base)
+            elif total_units > 0:  # lote com mercadoria de custo zero: divide igualmente por unidade
+                new_extra = _q4(extra_total / Decimal(total_units))
+            else:
+                new_extra = ZERO
+            if Decimal(str(item.extra_unit_cost or 0)) != new_extra:
+                item.extra_unit_cost = new_extra
+        result[entry.id] = {
+            "base": entry_base,
+            "trip_share": trip_share,
+            "own": own,
+            "extra": extra_total,
+        }
+    await db.flush()
+    return result
+
+
+async def recompute_trip(db: AsyncSession, trip_id: int, *, tenant_id: Optional[int] = None) -> dict[int, dict]:
+    """Recalcula todos os lotes de uma viagem (custo da viagem mudou, despesa da viagem criada/editada...)."""
+    stmt = select(StockEntry.id).where(StockEntry.trip_id == trip_id)
+    if tenant_id is not None:
+        stmt = stmt.where(StockEntry.tenant_id == tenant_id)
+    ids = [r[0] for r in (await db.execute(stmt)).all()]
+    return await recompute_entries(db, ids, tenant_id=tenant_id)

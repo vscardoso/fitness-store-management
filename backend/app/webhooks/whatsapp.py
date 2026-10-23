@@ -24,7 +24,6 @@ from typing import Optional
 import logging
 import os
 
-from app.core.database import get_db
 from app.core.database import get_db_unscoped
 from app.core.config import settings
 

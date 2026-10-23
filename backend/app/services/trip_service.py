@@ -11,6 +11,7 @@ import json
 
 from app.models.trip import Trip, TripStatus
 from app.models.sale import Sale, SaleItem, SaleStatus
+from app.services import lot_cost_service
 from app.repositories.trip_repository import TripRepository
 from app.repositories.stock_entry_repository import StockEntryRepository
 from app.repositories.entry_item_repository import EntryItemRepository
@@ -397,7 +398,19 @@ class TripService:
         
         # Atualizar
         trip_dict = trip_data.model_dump(exclude_unset=True)
+
+        # Editou algum custo de viagem: o total acompanha (antes o total ficava no valor antigo)
+        _parts = ("travel_cost_fuel", "travel_cost_food", "travel_cost_toll", "travel_cost_hotel", "travel_cost_other")
+        if any(k in trip_dict for k in _parts) and "travel_cost_total" not in trip_dict:
+            trip_dict["travel_cost_total"] = sum(
+                Decimal(str(trip_dict.get(k, getattr(trip, k)) or 0)) for k in _parts
+            )
+
         updated = await self.trip_repo.update(self.db, trip_id, trip_dict, tenant_id=tenant_id)
+
+        # O custo da viagem é rateado entre os lotes dela
+        await lot_cost_service.recompute_trip(self.db, trip_id, tenant_id=tenant_id)
+        await self.db.commit()
         
         return updated
     

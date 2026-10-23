@@ -116,14 +116,16 @@ class FIFOService:
                 )
             
             # Calcular custo total desta porção
-            total_cost = Decimal(str(quantity_to_take)) * item.unit_cost
+            total_cost = Decimal(str(quantity_to_take)) * item.landed_unit_cost
             
             # Adicionar à lista de fontes
             source = {
                 "entry_id": item.entry_id,
                 "entry_item_id": item.id,
                 "quantity_taken": quantity_to_take,
-                "unit_cost": float(item.unit_cost),
+                "unit_cost": float(item.landed_unit_cost),  # custo posto: mercadoria + rateio do lote
+                "merchandise_unit_cost": float(item.unit_cost),
+                "extra_unit_cost": float(item.extra_unit_cost or 0),
                 "total_cost": float(total_cost),
                 "entry_code": item.stock_entry.entry_code if item.stock_entry else None,
                 "entry_date": item.stock_entry.entry_date.isoformat() if item.stock_entry and item.stock_entry.entry_date else None,
@@ -282,14 +284,14 @@ class FIFOService:
                 break
             
             quantity_to_take = min(item.quantity_remaining, remaining_to_allocate)
-            cost = Decimal(str(quantity_to_take)) * item.unit_cost
+            cost = Decimal(str(quantity_to_take)) * item.landed_unit_cost
             total_cost += cost
             
             sources.append({
                 "entry_id": item.entry_id,
                 "entry_item_id": item.id,
                 "quantity_taken": quantity_to_take,
-                "unit_cost": float(item.unit_cost),
+                "unit_cost": float(item.landed_unit_cost),
                 "total_cost": float(cost),
                 "entry_code": item.stock_entry.entry_code if item.stock_entry else None,
                 "entry_date": item.stock_entry.entry_date.isoformat() if item.stock_entry and item.stock_entry.entry_date else None,
@@ -355,14 +357,14 @@ class FIFOService:
         # Calcular métricas
         total_quantity = sum(item.quantity_remaining for item in available_items)
         total_cost = sum(
-            Decimal(str(item.quantity_remaining)) * item.unit_cost 
+            Decimal(str(item.quantity_remaining)) * item.landed_unit_cost 
             for item in available_items
         )
         average_unit_cost = total_cost / Decimal(str(total_quantity)) if total_quantity > 0 else Decimal("0.00")
         
         # Custos unitários (primeiro = mais antigo, último = mais novo)
-        oldest_unit_cost = available_items[0].unit_cost if available_items else None
-        newest_unit_cost = available_items[-1].unit_cost if available_items else None
+        oldest_unit_cost = available_items[0].landed_unit_cost if available_items else None
+        newest_unit_cost = available_items[-1].landed_unit_cost if available_items else None
         
         return {
             "total_quantity": total_quantity,

@@ -20,10 +20,25 @@ def validate_cpf_cnpj(value):
     return value
 
 
+def entry_date_not_future(value):
+    """Entrada pode ser retroativa (compra já feita), mas não no futuro. Tolera 1 dia por causa de fuso horário."""
+    from datetime import timedelta
+    from app.core.timezone import today_brazil
+
+    if value is not None and value > today_brazil() + timedelta(days=1):
+        raise ValueError("A data da entrada não pode ser no futuro")
+    return value
+
+
 class StockEntryBase(BaseModel):
     """Base stock entry schema."""
     entry_code: str = Field(..., min_length=5, max_length=50, description="Código único da entrada")
-    entry_date: date = Field(..., description="Data da entrada")
+    entry_date: date = Field(..., description="Data da entrada (pode ser retroativa)")
+
+    @field_validator("entry_date")
+    @classmethod
+    def _entry_date_ok(cls, v):
+        return entry_date_not_future(v)
     entry_type: EntryType = Field(..., description="Tipo de entrada (trip/online/local)")
     trip_id: Optional[int] = Field(None, description="ID da viagem (se entry_type = 'trip')")
     supplier_id: Optional[int] = Field(None, description="Fornecedor padrão da entrada (cadastro)")
@@ -84,6 +99,11 @@ class StockEntryUpdate(BaseModel):
         return normalize_entry_code(v)
 
     entry_date: Optional[date] = None
+
+    @field_validator('entry_date')
+    @classmethod
+    def _entry_date_ok(cls, v):
+        return entry_date_not_future(v)
     entry_type: Optional[EntryType] = None
     trip_id: Optional[int] = None
     supplier_name: Optional[str] = Field(None, min_length=1, max_length=255)

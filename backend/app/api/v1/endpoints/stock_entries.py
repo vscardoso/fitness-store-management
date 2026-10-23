@@ -13,6 +13,7 @@ from typing import List, Optional
 from datetime import date
 
 from app.core.database import get_db
+from app.schemas.stock_entry import entry_date_not_future
 from app.schemas.stock_entry import (
     StockEntryResponse, 
     StockEntryCreate, 
@@ -68,6 +69,12 @@ class StockEntryWithNewProductRequest(StockEntryCreate):
     quantity: int  # Quantidade do produto na entrada
     entry_code: str
     entry_date: Optional[date] = None
+
+    @field_validator("entry_date")
+    @classmethod
+    def _entry_date_ok(cls, v):
+        return entry_date_not_future(v)
+
     entry_type: Optional[EntryType] = None
     trip_id: Optional[int] = None
     supplier_name: Optional[str] = None
@@ -154,6 +161,12 @@ class StockEntryWithNewProductVariantsRequest(BaseModel):
     supplier_id: Optional[int] = None  # fornecedor cadastrado (ou use supplier_name)
     entry_code: str
     entry_date: Optional[date] = None
+
+    @field_validator("entry_date")
+    @classmethod
+    def _entry_date_ok(cls, v):
+        return entry_date_not_future(v)
+
     entry_type: Optional[EntryType] = None
     trip_id: Optional[int] = None
     supplier_name: Optional[str] = None
@@ -854,6 +867,41 @@ async def get_best_performing_entries(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao buscar melhores entradas: {str(e)}"
         )
+
+
+@router.get(
+    "/profit-ranking",
+    summary="Lucro por lote",
+    description="Lista os lotes com investimento, receita, lucro e margem (custo posto: mercadoria + viagem + despesas do lote)",
+)
+async def get_profit_ranking(
+    skip: int = Query(0, ge=0),
+    limit: int = Query(30, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    try:
+        return await StockEntryService(db).get_profit_ranking(skip=skip, limit=limit, tenant_id=tenant_id)
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao calcular lucro por lote: {str(e)}")
+
+
+@router.get(
+    "/{entry_id}/costs",
+    summary="Custos do lote",
+    description="Detalha os custos que entram no custo das peças do lote: mercadoria, parte da viagem e despesas do lote",
+)
+async def get_entry_costs(
+    entry_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    try:
+        return await StockEntryService(db).get_entry_costs(entry_id, tenant_id=tenant_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
 
 @router.get(

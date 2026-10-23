@@ -103,6 +103,21 @@ class Expense(BaseModel):
         comment="Categoria da despesa"
     )
 
+    # Despesa de lote ou de viagem (no máximo uma das duas). Sem nenhuma = despesa geral (aluguel, luz...).
+    # Despesa ligada entra no CUSTO das peças do lote (custo posto), não no resultado do mês direto.
+    stock_entry_id: Mapped[int | None] = mapped_column(
+        ForeignKey("stock_entries.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Lote (entrada) a que esta despesa pertence"
+    )
+    trip_id: Mapped[int | None] = mapped_column(
+        ForeignKey("trips.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+        comment="Viagem a que esta despesa pertence (rateada entre os lotes da viagem)"
+    )
+
     # Relacionamentos
     category: Mapped["ExpenseCategory | None"] = relationship(
         "ExpenseCategory",

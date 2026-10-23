@@ -79,12 +79,12 @@ function PLCard({ data }: { data: MonthlyResult }) {
   return (
     <View style={styles.plCard}>
       <View style={styles.plContent}>
-        <PLRow label="Receita Bruta" value={data.revenue} color={Colors.light.success} icon="trending-up" />
-        <PLRow label={`CMV (custo mercadoria)`} value={-data.cmv} color={Colors.light.warning} icon="cube-outline" isNegative />
+        <PLRow label="Quanto você vendeu" hint="Tudo que os clientes pagaram neste mês." value={data.revenue} color={Colors.light.success} icon="trending-up" />
+        <PLRow label="Quanto custaram as peças vendidas" hint="O que você pagou por elas, já com a parte do frete e da viagem de cada compra." value={-data.cmv} color={Colors.light.warning} icon="cube-outline" isNegative />
         <View style={styles.divider} />
-        <PLRow label="Lucro Bruto" value={data.gross_profit} color={Colors.light.primary} icon="analytics-outline" bold />
-        <Text style={styles.marginLabel}>{Number(data.gross_margin_pct).toFixed(1)}% de margem bruta</Text>
-        <PLRow label="Despesas Operacionais" value={-data.total_expenses} color={Colors.light.error} icon="receipt-outline" isNegative />
+        <PLRow label="Sobrou das vendas" hint="Vendas menos o custo das peças." value={data.gross_profit} color={Colors.light.primary} icon="analytics-outline" bold />
+        <Text style={styles.marginLabel}>De cada R$ 100 vendidos, R$ {Number(data.gross_margin_pct).toFixed(0)} sobraram depois de pagar as peças.</Text>
+        <PLRow label="Gastos da loja" hint="Aluguel, luz, salários e outros gastos do mês. Frete e viagem de compras não entram aqui: já estão no custo das peças." value={-data.total_expenses} color={Colors.light.error} icon="receipt-outline" isNegative />
         {data.trip_costs > 0 && (
           <PLRow label="Custo de Viagens" value={-data.trip_costs} color={Colors.light.error} icon="car-outline" isNegative />
         )}
@@ -97,10 +97,10 @@ function PLCard({ data }: { data: MonthlyResult }) {
           />
           <View style={{ flex: 1 }}>
             <Text style={[styles.netLabel, { color: netPositive ? Colors.light.success : Colors.light.error }]}>
-              Lucro Líquido
+              Lucro do mês (o que sobrou no bolso)
             </Text>
             <Text style={[styles.netMargin, { color: netPositive ? Colors.light.success : Colors.light.error }]}>
-              {Number(data.net_margin_pct).toFixed(1)}% sobre receita
+              {Number(data.net_margin_pct).toFixed(0)}% do que você vendeu
             </Text>
           </View>
           <Text style={[styles.netValue, { color: netPositive ? Colors.light.success : Colors.light.error }]}>
@@ -113,9 +113,10 @@ function PLCard({ data }: { data: MonthlyResult }) {
 }
 
 function PLRow({
-  label, value, color, icon, bold, isNegative,
+  label, value, color, icon, bold, isNegative, hint,
 }: {
   label: string;
+  hint?: string;
   value: number;
   color: string;
   icon: string;
@@ -123,12 +124,15 @@ function PLRow({
   isNegative?: boolean;
 }) {
   return (
-    <View style={styles.plRow}>
-      <Ionicons name={icon as any} size={18} color={color} />
-      <Text style={[styles.plRowLabel, bold && styles.plRowBold]}>{label}</Text>
-      <Text style={[styles.plRowValue, bold && styles.plRowBold, { color }]}>
-        {isNegative ? '-' : ''}{formatCurrency(Math.abs(value))}
-      </Text>
+    <View>
+      <View style={styles.plRow}>
+        <Ionicons name={icon as any} size={18} color={color} />
+        <Text style={[styles.plRowLabel, bold && styles.plRowBold]}>{label}</Text>
+        <Text style={[styles.plRowValue, bold && styles.plRowBold, { color }]}>
+          {isNegative ? '-' : ''}{formatCurrency(Math.abs(value))}
+        </Text>
+      </View>
+      {!!hint && <Text style={{ fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary, marginLeft: 28, marginTop: -4, marginBottom: 6 }}>{hint}</Text>}
     </View>
   );
 }
@@ -138,7 +142,7 @@ function ExpenseBreakdown({ items, total }: { items: ExpenseByCategoryItem[]; to
   return (
     <View style={[styles.plCard, { marginTop: 12 }]}>
       <View style={styles.plContent}>
-        <Text style={styles.breakdownTitle}>Despesas por Categoria</Text>
+        <Text style={styles.breakdownTitle}>Para onde foram os gastos da loja</Text>
         {items.map((item) => {
           const pct = total > 0 ? (item.total / total) * 100 : 0;
           return (

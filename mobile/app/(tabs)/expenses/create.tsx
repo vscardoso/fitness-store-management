@@ -15,6 +15,9 @@ import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import DateTimeInput from '@/components/ui/DateTimeInput';
 import { createExpense, getExpenseCategories } from '@/services/expenseService';
+import { getStockEntries } from '@/services/stockEntryService';
+import { getTrips } from '@/services/tripService';
+import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
@@ -32,6 +35,21 @@ export default function CreateExpenseScreen() {
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrenceDay, setRecurrenceDay] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ExpenseCategory | null>(null);
+  // De onde vem a despesa: da loja (aluguel, luz), de um lote (frete da compra) ou de uma viagem
+  const [scope, setScope] = useState<'general' | 'lot' | 'trip'>('general');
+  const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
+  const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
+
+  const { data: lots } = useQuery({
+    queryKey: ['expense-scope-lots'],
+    queryFn: () => getStockEntries({ limit: 30 }),
+    enabled: scope === 'lot',
+  });
+  const { data: trips } = useQuery({
+    queryKey: ['expense-scope-trips'],
+    queryFn: () => getTrips({ limit: 30 }),
+    enabled: scope === 'trip',
+  });
 
   const [errorDialog, setErrorDialog] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
@@ -46,6 +64,10 @@ export default function CreateExpenseScreen() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['expenses'] });
       queryClient.invalidateQueries({ queryKey: ['monthly-result'] });
+      queryClient.invalidateQueries({ queryKey: ['lot-analytics'] });
+      queryClient.invalidateQueries({ queryKey: ['lot-costs'] });
+      queryClient.invalidateQueries({ queryKey: ['lot-profit-ranking'] });
+      queryClient.invalidateQueries({ queryKey: ['inventory-valuation'] });
       router.replace('/(tabs)/expenses');
     },
     onError: (err: any) => {
@@ -68,6 +90,17 @@ export default function CreateExpenseScreen() {
       return;
     }
 
+    if (scope === 'lot' && !selectedEntryId) {
+      setErrorMessage('Escolha de qual lote é esta despesa.');
+      setErrorDialog(true);
+      return;
+    }
+    if (scope === 'trip' && !selectedTripId) {
+      setErrorMessage('Escolha de qual viagem é esta despesa.');
+      setErrorDialog(true);
+      return;
+    }
+
     const payload: ExpenseCreate = {
       amount: parsedAmount,
       description: description.trim(),
@@ -76,6 +109,8 @@ export default function CreateExpenseScreen() {
       is_recurring: isRecurring,
       recurrence_day: isRecurring && recurrenceDay ? parseInt(recurrenceDay) : null,
       category_id: selectedCategory?.id ?? null,
+      stock_entry_id: scope === 'lot' ? selectedEntryId : null,
+      trip_id: scope === 'trip' ? selectedTripId : null,
     };
     createMutation.mutate(payload);
   };
@@ -143,6 +178,81 @@ export default function CreateExpenseScreen() {
                 numberOfLines={3}
                 style={[styles.input, { marginBottom: 0 }]}
               />
+            </View>
+          </View>
+
+          {/* De onde vem a despesa */}
+          <View style={styles.card}>
+            <View style={styles.cardHeader}>
+              <Ionicons name="git-branch-outline" size={20} color={brandingColors.primary} />
+              <Text style={styles.cardTitle}>De onde vem este gasto?</Text>
+            </View>
+            <View style={styles.cardContent}>
+              <View style={styles.categoryGrid}>
+                {([
+                  ['general', 'Da loja', 'storefront-outline'],
+                  ['lot', 'De um lote', 'layers-outline'],
+                  ['trip', 'De uma viagem', 'airplane-outline'],
+                ] as const).map(([key, label, icon]) => {
+                  const on = scope === key;
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      style={[styles.categoryChip, { borderColor: brandingColors.primary }, on && { backgroundColor: brandingColors.primary }]}
+                      onPress={() => setScope(key)}
+                      activeOpacity={0.75}
+                    >
+                      <Ionicons name={icon} size={16} color={on ? '#fff' : brandingColors.primary} />
+                      <Text style={[styles.categoryChipText, { color: on ? '#fff' : Colors.light.text }]}>{label}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <Text style={styles.scopeHelp}>
+                {scope === 'general' &&
+                  'Gastos do dia a dia da loja, como aluguel, luz, internet e salários. Eles aparecem no resultado do mês em que você pagou.'}
+                {scope === 'lot' &&
+                  'Gasto de uma compra específica, como frete, embalagem ou taxa. Ele soma no custo das peças daquele lote e só pesa no resultado quando as peças forem vendidas.'}
+                {scope === 'trip' &&
+                  'Gasto de uma viagem de compras, como combustível, pedágio ou hospedagem. Ele é dividido entre os lotes que vieram dessa viagem, proporcional ao que cada um custou.'}
+              </Text>
+
+              {scope === 'lot' &&
+                (lots ?? []).map((l) => (
+                  <TouchableOpacity key={l.id} style={styles.pickRow} onPress={() => setSelectedEntryId(l.id)} activeOpacity={0.75}>
+                    <Ionicons
+                      name={selectedEntryId === l.id ? 'radio-button-on' : 'radio-button-off'}
+                      size={20}
+                      color={brandingColors.primary}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.pickTitle}>{l.entry_code}</Text>
+                      <Text style={styles.pickSub}>
+                        {l.supplier_name} · {formatCurrency(Number(l.total_cost) || 0)}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              {scope === 'trip' &&
+                (trips ?? []).map((t) => (
+                  <TouchableOpacity key={t.id} style={styles.pickRow} onPress={() => setSelectedTripId(t.id)} activeOpacity={0.75}>
+                    <Ionicons
+                      name={selectedTripId === t.id ? 'radio-button-on' : 'radio-button-off'}
+                      size={20}
+                      color={brandingColors.primary}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.pickTitle}>{t.trip_code}</Text>
+                      <Text style={styles.pickSub}>{t.destination}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              {scope === 'lot' && lots && lots.length === 0 && (
+                <Text style={styles.scopeHelp}>Você ainda não tem nenhum lote cadastrado.</Text>
+              )}
+              {scope === 'trip' && trips && trips.length === 0 && (
+                <Text style={styles.scopeHelp}>Você ainda não tem nenhuma viagem cadastrada.</Text>
+              )}
             </View>
           </View>
 
@@ -256,6 +366,10 @@ export default function CreateExpenseScreen() {
 }
 
 const styles = StyleSheet.create({
+  scopeHelp: { fontSize: 13, lineHeight: 19, color: Colors.light.textSecondary, marginTop: 10 },
+  pickRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.light.border },
+  pickTitle: { fontSize: 14, fontWeight: '600', color: Colors.light.text },
+  pickSub: { fontSize: 12, color: Colors.light.textSecondary },
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,

@@ -67,7 +67,8 @@ export default function ExpenseListScreen() {
   };
 
   const total = useMemo(
-    () => (expenses ?? []).reduce((s, e) => s + Number(e.amount), 0),
+    // Só despesa da loja: a de lote/viagem já está no custo das peças e não conta de novo no mês
+    () => (expenses ?? []).filter((e) => !e.stock_entry_id && !e.trip_id).reduce((s, e) => s + Number(e.amount), 0),
     [expenses]
   );
 
@@ -100,6 +101,14 @@ export default function ExpenseListScreen() {
             <Text variant="bodySmall" style={styles.dateLabel}>
               {dateStr}
             </Text>
+            {(item.stock_entry_id || item.trip_id) && (
+              <View style={[styles.recurringBadge, { backgroundColor: Colors.light.backgroundSecondary }]}>
+                <Ionicons name="layers-outline" size={11} color={Colors.light.textSecondary} />
+                <Text style={[styles.recurringText, { color: Colors.light.textSecondary }]}>
+                  {item.stock_entry_id ? 'Custo de um lote' : 'Custo de uma viagem'}
+                </Text>
+              </View>
+            )}
             {item.is_recurring && (
               <View style={[styles.recurringBadge, { backgroundColor: brandingColors.primary + '20' }]}>
                 <Ionicons name="repeat" size={11} color={brandingColors.primary} />

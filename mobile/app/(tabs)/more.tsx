@@ -179,7 +179,7 @@ export default function MoreScreen() {
           <View style={styles.menuCard}>
             <MenuItem icon="receipt-outline" title="Despesas" subtitle="Registrar e gerenciar despesas operacionais" onPress={() => router.push('/(tabs)/expenses')} iconColor={Colors.light.error} iconBg="#FFEBEE" />
             <MenuItem icon="warning-outline" title="Prejuízos" subtitle="Perdas de estoque lançadas em módulo separado" onPress={() => router.push('/(tabs)/stock-losses')} iconColor="#B91C1C" iconBg="#FEE2E2" />
-            <MenuItem icon="stats-chart-outline" title="Resultado do Mês (P&L)" subtitle="Receita − CMV − Despesas = Lucro Líquido" onPress={() => router.push('/(tabs)/expenses/resultado')} iconColor="#7C3AED" iconBg="#EDE9FE" />
+            <MenuItem icon="stats-chart-outline" title="Resultado do Mês" subtitle="Quanto vendeu, quanto gastou e quanto sobrou" onPress={() => router.push('/(tabs)/expenses/resultado')} iconColor="#7C3AED" iconBg="#EDE9FE" />
           </View>
         </View>
         )}
@@ -190,6 +190,7 @@ export default function MoreScreen() {
           <Text style={styles.sectionTitle}>Relatórios</Text>
           <View style={styles.menuCard}>
             <MenuItem icon="bar-chart-outline" title="Vendas" subtitle="Relatório de vendas e faturamento" onPress={() => router.push('/reports/sales')} iconColor={Colors.light.success} iconBg={Colors.light.successLight} />
+            <MenuItem icon="layers-outline" title="Lucro por Lote" subtitle="Quanto gastou, vendeu e sobrou em cada compra" onPress={() => router.push('/reports/lots' as any)} iconColor="#10B981" iconBg="#D1FAE5" />
             <MenuItem icon="trending-up" title="Produtos Mais Vendidos" subtitle="Ranking e análise de performance" onPress={() => router.push('/reports/top-products')} iconColor="#EC4899" iconBg="#FCE7F3" />
             <MenuItem icon="calendar-outline" title="Histórico" subtitle="Vendas, entradas e movimentações" onPress={() => router.push('/reports/history')} iconColor="#8B5CF6" iconBg="#EDE9FE" />
           </View>
