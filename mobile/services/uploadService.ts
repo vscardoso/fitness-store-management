@@ -7,6 +7,7 @@
  */
 
 import api from './api';
+import { appendFileToFormData } from '@/utils/formDataFile';
 import type { Product } from '@/types';
 import type { ProductVariant } from '@/types/productVariant';
 
@@ -35,11 +36,7 @@ export async function uploadProductImage(
   const fileType = fileName.endsWith('.png') ? 'image/png' : 'image/jpeg';
 
   // Adicionar arquivo ao FormData
-  formData.append('file', {
-    uri: imageUri,
-    name: fileName,
-    type: fileType,
-  } as any);
+  await appendFileToFormData(formData, 'file', imageUri, fileName, fileType);
 
   const response = await api.post<Product>(
     `/products/${productId}/image`,
@@ -129,7 +126,7 @@ export async function uploadVariantImage(
   const fileName = uriParts[uriParts.length - 1];
   const fileType = fileName.endsWith('.png') ? 'image/png' : 'image/jpeg';
 
-  formData.append('file', { uri: imageUri, name: fileName, type: fileType } as any);
+  await appendFileToFormData(formData, 'file', imageUri, fileName, fileType);
 
   const response = await api.post<ProductVariant>(
     `/product-variants/${variantId}/image`,

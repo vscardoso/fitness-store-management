@@ -4,6 +4,7 @@
  */
 
 import api from './api';
+import { appendFileToFormData } from '@/utils/formDataFile';
 import { skipLoading } from '@/utils/apiHelpers';
 import { logError } from './debugLog';
 import type { ProductScanResponse, AIStatusResponse } from '@/types';
@@ -26,19 +27,13 @@ export const scanProductImage = async (
   const formData = new FormData();
 
   // Preparar imagem para upload
-  const extension = imageUri.split('.').pop()?.toLowerCase() || 'jpg';
+  const rawExt = imageUri.startsWith('data:') || imageUri.startsWith('blob:') ? '' : imageUri.split('.').pop()?.toLowerCase() ?? '';
+  const extension = ['png', 'webp', 'gif', 'jpg', 'jpeg'].includes(rawExt) ? rawExt : 'jpg';
   const mimeType = extension === 'png' ? 'image/png' :
                    extension === 'webp' ? 'image/webp' :
                    extension === 'gif' ? 'image/gif' : 'image/jpeg';
 
-  // Criar objeto de arquivo para FormData
-  const imageFile = {
-    uri: imageUri,
-    type: mimeType,
-    name: `scan.${extension}`,
-  } as any;
-
-  formData.append('image', imageFile);
+  await appendFileToFormData(formData, 'image', imageUri, `scan.${extension}`, mimeType);
 
   // Adicionar opções
   if (options?.context) {

@@ -10,6 +10,7 @@
  *   PUT    /products/{id}/media/reorder      — reordenar
  */
 import api from './api';
+import { appendFileToFormData } from '@/utils/formDataFile';
 import type { ProductMedia } from '@/types/productMedia';
 
 export async function getProductMedia(
@@ -37,7 +38,7 @@ export async function uploadProductMedia(
   const uriParts = imageUri.split('/');
   const fileName = uriParts[uriParts.length - 1];
   const fileType = fileName.endsWith('.png') ? 'image/png' : 'image/jpeg';
-  formData.append('file', { uri: imageUri, name: fileName, type: fileType } as any);
+  await appendFileToFormData(formData, 'file', imageUri, fileName, fileType);
 
   const params = variantId != null ? `?variant_id=${variantId}` : '';
   const { data } = await api.post<ProductMedia>(
