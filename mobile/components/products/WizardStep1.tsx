@@ -22,6 +22,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import * as MediaLibrary from 'expo-media-library';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
+import { useRouter } from 'expo-router';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import type { IdentifyMethod } from '@/types/wizard';
 import type { Category, Product, DuplicateMatch } from '@/types';
@@ -45,6 +46,7 @@ export default function WizardStep1({
   const categories = Array.isArray(categoriesProp) ? categoriesProp : [];
   const { state } = wizard;
   const brandingColors = useBrandingColors();
+  const router = useRouter();
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [isSavingToGallery, setIsSavingToGallery] = useState(false);
 
@@ -225,6 +227,25 @@ export default function WizardStep1({
         </TouchableOpacity>
       </View>
 
+      {/* Produto que já existe: não cadastra de novo, só dá nova entrada (compra) dele */}
+      <TouchableOpacity
+        style={{
+          flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 16, padding: 14, borderRadius: 14,
+          borderWidth: 1, borderColor: brandingColors.primary + '55', backgroundColor: brandingColors.primary + '0F',
+        }}
+        onPress={() => router.push('/entries/add' as any)}
+        activeOpacity={0.8}
+        accessibilityLabel="Produto já cadastrado: dar nova entrada"
+      >
+        <Ionicons name="repeat-outline" size={22} color={brandingColors.primary} />
+        <View style={{ flex: 1 }}>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: Colors.light.text }}>Produto já cadastrado</Text>
+          <Text style={{ fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary, marginTop: 2 }}>
+            Comprou de novo um produto que já existe? Dê uma nova entrada dele, sem cadastrar outra vez.
+          </Text>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={Colors.light.textSecondary} />
+      </TouchableOpacity>
     </View>
   );
 
