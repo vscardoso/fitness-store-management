@@ -644,33 +644,47 @@ export default function DashboardScreen() {
               })}
             </View>
 
-            {/* Resumo do período */}
+            {/* Resumo do período: rótulo em linha única e número sempre na mesma altura nas 3 colunas */}
             <View style={styles.chartSummary}>
               <View style={styles.chartSummaryItem}>
-                <Text style={styles.chartSummaryLabel}>Faturamento</Text>
-                <Text style={styles.chartSummaryValue}>{formatCurrency(dailySales.totals?.total || 0)}</Text>
+                <View style={styles.chartSummaryLabelRow}>
+                  <Text style={styles.chartSummaryLabel} numberOfLines={1}>Faturamento</Text>
+                </View>
+                <Text style={styles.chartSummaryValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                  {formatCurrency(dailySales.totals?.total || 0)}
+                </Text>
               </View>
               <View style={styles.chartSummaryDivider} />
               <View style={styles.chartSummaryItem}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                  <Text style={styles.chartSummaryLabel}>Lucro das vendas</Text>
+                <View style={styles.chartSummaryLabelRow}>
+                  <Text style={styles.chartSummaryLabel} numberOfLines={1}>Lucro das vendas</Text>
                   <TouchableOpacity onPress={() => setActiveTooltip('lucro-periodo')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                    <Ionicons name="information-circle-outline" size={10} color="#9CA3AF" />
+                    <Ionicons name="information-circle-outline" size={12} color="#9CA3AF" />
                   </TouchableOpacity>
                 </View>
-                <Text style={[styles.chartSummaryValue, { color: VALUE_COLORS.positive }]}>
+                <Text
+                  style={[styles.chartSummaryValue, { color: VALUE_COLORS.positive }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
                   {formatCurrency(dailySales.totals?.profit || 0)}
                 </Text>
               </View>
               <View style={styles.chartSummaryDivider} />
               <View style={styles.chartSummaryItem}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                  <Text style={styles.chartSummaryLabel}>Custo dos Produtos</Text>
+                <View style={styles.chartSummaryLabelRow}>
+                  <Text style={styles.chartSummaryLabel} numberOfLines={1}>Custo das peças</Text>
                   <TouchableOpacity onPress={() => setActiveTooltip('cmv')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
-                    <Ionicons name="information-circle-outline" size={10} color="#9CA3AF" />
+                    <Ionicons name="information-circle-outline" size={12} color="#9CA3AF" />
                   </TouchableOpacity>
                 </View>
-                <Text style={[styles.chartSummaryValue, { color: VALUE_COLORS.negative }]}>
+                <Text
+                  style={[styles.chartSummaryValue, { color: VALUE_COLORS.negative }]}
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.7}
+                >
                   {formatCurrency(dailySales.totals?.cmv || 0)}
                 </Text>
               </View>
@@ -1253,10 +1267,10 @@ export default function DashboardScreen() {
                     <View style={[styles.tooltipIconContainer, { backgroundColor: '#FEF2F2' }]}>
                       <Ionicons name="calculator-outline" size={20} color={VALUE_COLORS.negative} />
                     </View>
-                    <Text style={styles.tooltipTitle}>Custo dos Produtos</Text>
+                    <Text style={styles.tooltipTitle}>Custo das peças</Text>
                   </View>
                   <View style={styles.tooltipDivider} />
-                  <Text style={styles.tooltipText}>{`Quanto você pagou para comprar os produtos que foram vendidos neste período (CMV). Não inclui o que ainda está em estoque.`}</Text>
+                  <Text style={styles.tooltipText}>{`Quanto custaram as peças que você vendeu neste período, já com a parte do frete e da viagem de cada compra. Não inclui as peças que ainda estão no estoque.`}</Text>
                 </>
               )}
               {activeTooltip === 'giro' && (
@@ -2266,16 +2280,28 @@ const styles = StyleSheet.create({
   chartSummaryItem: {
     flex: 1,
     alignItems: 'center',
+    justifyContent: 'flex-start',
+    paddingHorizontal: 2,
+  },
+  chartSummaryLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    height: 18,
+    marginBottom: 6,
   },
   chartSummaryLabel: {
     fontSize: 11,
     color: '#6B7280',
-    marginBottom: 2,
+    flexShrink: 1,
   },
   chartSummaryValue: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '700',
     color: '#1F2937',
+    textAlign: 'center',
+    alignSelf: 'stretch',
   },
   chartSummaryDivider: {
     width: 1,

@@ -356,7 +356,7 @@ export default function SalesReportScreen() {
             <div class="metric-subtitle">Por venda</div>
           </div>
           <div class="metric-card secondary">
-            <div class="metric-label">CMV (FIFO)</div>
+            <div class="metric-label">Custo das peças vendidas</div>
             <div class="metric-value">${formatCurrency(report.total_cost)}</div>
             <div class="metric-subtitle">Custo total</div>
           </div>
@@ -661,7 +661,7 @@ export default function SalesReportScreen() {
                     <View style={[styles.metricIconWrap, { backgroundColor: VALUE_COLORS.warning + '18' }]}>
                       <Ionicons name="pricetag-outline" size={18} color={VALUE_COLORS.warning} />
                     </View>
-                    <Text style={styles.metricLabel}>CMV (FIFO)</Text>
+                    <Text style={styles.metricLabel}>Custo das peças</Text>
                   </View>
                   <Text style={[styles.metricValue, { color: VALUE_COLORS.negative }]}>{formatCurrency(report.total_cost)}</Text>
                   <Text style={styles.metricCount}>custo total</Text>
