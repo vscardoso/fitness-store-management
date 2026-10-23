@@ -134,3 +134,33 @@ async def test_signup_ignora_plano_pago_do_cliente(test_client, async_session):
     user = (await async_session.execute(select(User).where(User.email == "dona.plano@example.com"))).scalar_one()
     store = (await async_session.execute(select(Store).where(Store.id == user.tenant_id))).scalar_one()
     assert store.plan == "trial"
+
+
+async def test_reset_de_senha_derruba_sessoes_do_membro(test_client, async_session, test_user):
+    from sqlalchemy import select
+    from app.models.refresh_token import RefreshToken
+    from app.models.user import User, UserRole
+    from app.core.security import get_password_hash
+
+    member = User(email="membro.sessao@example.com", full_name="Membro Sessao",
+                  hashed_password=get_password_hash("Senha1234"), role=UserRole.SELLER,
+                  is_active=True, tenant_id=test_user.tenant_id)
+    async_session.add(member)
+    await async_session.commit()
+    await async_session.refresh(member)
+
+    login = await test_client.post("/api/v1/auth/login", json={"email": member.email, "password": "Senha1234"})
+    assert login.status_code == 200, login.text
+    refresh = login.json()["refresh_token"]
+
+    admin_token = create_access_token(data={"sub": str(test_user.id)})
+    r = await test_client.patch(f"/api/v1/team/{member.id}/reset-password",
+                                json={"new_password": "NovaSenha123"},
+                                headers={"Authorization": f"Bearer {admin_token}"})
+    assert r.status_code == 200, r.text
+
+    again = await test_client.post("/api/v1/auth/refresh", json={"refresh_token": refresh})
+    assert again.status_code == 401, again.text
+    live = (await async_session.execute(select(RefreshToken).where(
+        RefreshToken.user_id == member.id, RefreshToken.revoked == False))).scalars().all()  # noqa: E712
+    assert live == []

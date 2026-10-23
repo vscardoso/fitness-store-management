@@ -5,11 +5,13 @@ Permite que admins/managers gerenciem os membros da sua loja.
 
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import get_password_hash
 from app.api.deps import get_current_user, require_role
+from app.models.refresh_token import RefreshToken
 from app.models.user import User, UserRole
 from app.repositories.user_repository import UserRepository
 from app.services.audit_service import AuditService
@@ -275,6 +277,13 @@ async def reset_member_password(
         user_id,
         current_user.tenant_id,
         {"hashed_password": hashed}
+    )
+    # Senha trocada pelo admin: derruba as sessões abertas do membro (refresh tokens), senão quem
+    # tinha a senha antiga continuaria logado.
+    await db.execute(
+        update(RefreshToken)
+        .where(RefreshToken.user_id == user_id, RefreshToken.revoked == False)  # noqa: E712
+        .values(revoked=True)
     )
     await db.commit()
     await AuditService.log(db, "PASSWORD_RESET",
