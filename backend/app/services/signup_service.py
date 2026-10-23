@@ -59,6 +59,10 @@ class SignupService:
         # 3. Generate subdomain (store-slug-1234)
         subdomain = await self._generate_unique_subdomain(slug)
         
+        # Plano: todo cadastro público começa em trial. Plano pago só muda por pagamento confirmado
+        # (antes o cliente podia mandar plan="pro"/"enterprise" e ganhar limites ilimitados de graça).
+        plan = 'trial'
+
         # Begin atomic transaction
         try:
             # 4. Create Store (tenant)
@@ -66,7 +70,7 @@ class SignupService:
                 name=signup_data.store_name,
                 slug=slug,
                 subdomain=subdomain,
-                plan=signup_data.plan,
+                plan=plan,
                 primary_color=signup_data.primary_color,
                 secondary_color=signup_data.secondary_color,
                 accent_color=signup_data.accent_color,
@@ -82,7 +86,7 @@ class SignupService:
             # 5. Create Subscription for the store
             subscription = await self._create_subscription(
                 tenant_id=store.id,
-                plan=signup_data.plan
+                plan=plan
             )
             
             # 6. Create User (owner)

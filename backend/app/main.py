@@ -70,9 +70,10 @@ app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
     description="API REST para gerenciamento de loja fitness",
-    docs_url="/docs",  # Swagger UI sempre disponível
-    redoc_url="/redoc",  # ReDoc sempre disponível
-    openapi_url="/openapi.json",  # OpenAPI schema sempre disponível
+    # Documentação da API só fora de produção (em produção revela todas as rotas a qualquer pessoa)
+    docs_url=None if settings.ENVIRONMENT == "production" else "/docs",
+    redoc_url=None if settings.ENVIRONMENT == "production" else "/redoc",
+    openapi_url=None if settings.ENVIRONMENT == "production" else "/openapi.json",
     lifespan=lifespan,
 )
 

@@ -117,3 +117,20 @@ async def test_cors_preflight_headers_do_app_e_negacao():
         assert bad.status_code == 400
         bad_m = await c.options("/x", headers={"Origin": origin, "Access-Control-Request-Method": "TRACE"})
         assert bad_m.status_code == 400
+
+
+async def test_signup_ignora_plano_pago_do_cliente(test_client, async_session):
+    from sqlalchemy import select
+    from app.models.store import Store
+    from app.models.user import User
+
+    r = await test_client.post("/api/v1/auth/signup", json={
+        "full_name": "Dona da Loja", "email": "dona.plano@example.com", "password": "Senha1234",
+        "store_name": "Loja Plano Teste", "plan": "enterprise",
+    })
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["subscription"]["plan"] == "trial" if "subscription" in body else True
+    user = (await async_session.execute(select(User).where(User.email == "dona.plano@example.com"))).scalar_one()
+    store = (await async_session.execute(select(Store).where(Store.id == user.tenant_id))).scalar_one()
+    assert store.plan == "trial"
