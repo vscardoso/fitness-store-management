@@ -10,12 +10,12 @@ import {
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useAuth } from '@/hooks/useAuth';
-import { UserRole } from '@/types';
 import { useRouter } from 'expo-router';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { isAdminRole, isManagerRole } from '@/utils/roles';
 
 interface MenuItemProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -57,7 +57,7 @@ function MenuItem({ icon, title, subtitle, onPress, badge, iconColor, iconBg }: 
 export default function MoreScreen() {
   const { user, logout } = useAuth();
   // Caixa e vendedor não têm acesso a custos, despesas e relatórios (a API devolve 403); o menu some para eles
-  const isManager = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
+  const isManager = isManagerRole(user?.role);
   const router = useRouter();
   const brandingColors = useBrandingColors();
   const { data: unreadAlerts = 0 } = useUnreadCount();
@@ -228,7 +228,7 @@ export default function MoreScreen() {
               iconColor="#003DA5"
               iconBg="#E0E9FF"
             />
-            {user?.role === UserRole.ADMIN && (
+            {isAdminRole(user?.role) && (
               <MenuItem
                 icon="qr-code-outline"
                 title="Chave PIX"
@@ -242,7 +242,7 @@ export default function MoreScreen() {
         </View>
 
         {/* Viagens - Apenas ADMIN/MANAGER */}
-        {(user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER) && (
+        {isManagerRole(user?.role) && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Viagens</Text>
             <View style={styles.menuCard}>
@@ -255,13 +255,13 @@ export default function MoreScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Configurações</Text>
           <View style={styles.menuCard}>
-            {user?.role === UserRole.ADMIN && (
+            {isAdminRole(user?.role) && (
               <MenuItem icon="color-palette-outline" title="Identidade da Loja" subtitle="Cores, logo e personalização" onPress={() => router.push('/settings/branding')} iconColor="#667eea" iconBg="#E0E7FF" />
             )}
-            {user?.role === UserRole.ADMIN && (
+            {isAdminRole(user?.role) && (
               <MenuItem icon="people-outline" title="Gerenciar Equipe" subtitle="Usuários e permissões da loja" onPress={() => router.push('/team')} iconColor="#8B5CF6" iconBg="#EDE9FE" />
             )}
-            {user?.role === UserRole.ADMIN && (
+            {isAdminRole(user?.role) && (
               <MenuItem icon="cash-outline" title="Descontos de Pagamento" subtitle="Configure descontos por forma de pagamento" onPress={() => router.push('/settings/payment-discounts')} iconColor="#10B981" iconBg="#D1FAE5" />
             )}
             <MenuItem icon="person-circle-outline" title="Meu Perfil" subtitle="Dados pessoais e preferências" onPress={() => showDev('Meu Perfil')} iconColor={Colors.light.primary} iconBg={Colors.light.primaryLight} />

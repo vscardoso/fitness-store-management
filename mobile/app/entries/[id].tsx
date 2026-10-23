@@ -46,9 +46,9 @@ import EmptyState from '@/components/ui/EmptyState';
 import { useBrandingColors } from '@/store/brandingStore';
 import LotMoneyCard from '@/components/entries/LotMoneyCard';
 import { useAuth } from '@/hooks/useAuth';
-import { UserRole } from '@/types';
 import { EntryType, EntryItemResponse } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { isManagerRole } from '@/utils/roles';
 
 export default function StockEntryDetailsScreen() {
   const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
@@ -689,7 +689,7 @@ export default function StockEntryDetailsScreen() {
         {/* O dinheiro do lote, em linguagem simples (gastou, voltou, sobrou) */}
         <LotMoneyCard
           entryId={entryId}
-          canEdit={user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER}
+          canEdit={isManagerRole(user?.role)}
         />
 
         {/* KPIs */}

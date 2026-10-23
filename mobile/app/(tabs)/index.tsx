@@ -30,7 +30,7 @@ import { getMonthlyResult } from '@/services/expenseService';
 import type { DailySalesData } from '@/services/dashboardService';
 import { getSales } from '@/services/saleService';
 import { getLowStockProducts } from '@/services/productService';
-import { UserRole, type Sale } from '@/types';
+import type { Sale } from '@/types';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { valueColor } from '@/utils/format';
@@ -39,6 +39,7 @@ import PeriodFilter, { type PeriodFilterValue, PERIOD_OPTIONS } from '@/componen
 import { HelpButton, useTutorialContext } from '@/components/tutorial';
 import PageHeader from '@/components/layout/PageHeader';
 import { FitFlowLogo } from '@/components/branding/FitFlowLogo';
+import { isManagerRole } from '@/utils/roles';
 
 const { width } = Dimensions.get('window');
 
@@ -111,7 +112,7 @@ export default function DashboardScreen() {
   }));
 
   // Painel financeiro (custos, lucro, relatórios) só para gerente e admin; caixa e vendedor veem vendas recentes
-  const canSeeDashboard = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
+  const canSeeDashboard = isManagerRole(user?.role);
 
   // Queries
   const { data: dashboardStats, refetch: refetchStats } = useQuery({
