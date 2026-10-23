@@ -16,12 +16,12 @@ import { useRouter } from 'expo-router';
 import { useQueryClient } from '@tanstack/react-query';
 
 import { scanProductImage } from '@/services/aiService';
-import { createProduct, getProductById, updateProduct } from '@/services/productService';
+import { createProduct, getActiveProducts, getProductById, updateProduct } from '@/services/productService';
 import { createProductWithVariants } from '@/services/productVariantService';
 import { setPendingProductImage } from '@/services/pendingProductImage';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { logError, logWarn, logInfo } from '@/services/debugLog';
-import { generateSKU, generateVariantSKU } from '@/utils/skuGenerator';
+import { collectSkus, generateSKU, generateVariantSKU } from '@/utils/skuGenerator';
 import { capitalizeWords } from '@/utils/format';
 import type {
   WizardStep,
@@ -494,7 +494,14 @@ export function useProductWizard() {
 
         const variantsList: ProductVariantCreate[] = [];
         // Acumula SKUs já gerados nesta sessão para garantir unicidade entre variantes irmãs
-        const usedSkus: string[] = [];
+        // Começa com todos os SKUs que já existem na loja, senão duas peças parecidas
+        // (ex.: "Conjunto ... com manga" e "sem manga") geram o mesmo SKU e a entrada é recusada.
+        let usedSkus: string[] = [];
+        try {
+          usedSkus = collectSkus((await getActiveProducts({ limit: 1000 })) as any[]);
+        } catch (e) {
+          logWarn('Wizard', 'Não foi possível carregar SKUs existentes; seguindo só com os da sessão');
+        }
 
         for (const color of colors) {
           const sizesForColor = (state.colorSizes[color] ?? state.variantSizes);

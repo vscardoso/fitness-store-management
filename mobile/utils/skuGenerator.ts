@@ -18,6 +18,26 @@ function cleanString(str: string): string {
   return cleaned.toUpperCase();
 }
 
+/** Forma comparável de um SKU: sem hífens e em maiúsculas (o SKU de variante perde os hífens do SKU base). */
+function normalizeSku(sku: string): string {
+  return sku.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+}
+
+/**
+ * Reúne todos os SKUs já usados na loja: o do produto e o de cada variante.
+ * Sem as variantes a checagem nunca enxerga os SKUs reais (o sku do produto é só o da 1ª variante).
+ */
+export function collectSkus(
+  products: Array<{ sku?: string | null; variants?: Array<{ sku?: string | null }> | null }>
+): string[] {
+  const out = new Set<string>();
+  for (const p of products) {
+    if (p.sku) out.add(p.sku);
+    for (const v of p.variants ?? []) if (v.sku) out.add(v.sku);
+  }
+  return [...out];
+}
+
 /**
  * Gera um SKU baseado nos dados do produto
  *
@@ -68,9 +88,15 @@ export function generateSKU(
 
   // Se temos lista de SKUs existentes, verificar unicidade
   if (existingSKUs && existingSKUs.length > 0) {
-    const existingSet = new Set(existingSKUs.map(s => s.toUpperCase()));
+    // O SKU base é "tronco" dos SKUs das variantes (ALO-CONJUN-001 -> ALOCONJUN001-MAR-G-001):
+    // está ocupado se algum SKU existente, sem hífens, começa com ele.
+    const existingNorm = existingSKUs.map(normalizeSku);
+    const taken = (c: string) => {
+      const n = normalizeSku(c);
+      return existingNorm.some(e => e.startsWith(n));
+    };
 
-    while (existingSet.has(candidate.toUpperCase()) && counter < 999) {
+    while (taken(candidate) && counter < 999) {
       counter++;
       candidate = `${baseSku}-${counter.toString().padStart(3, '0')}`;
     }
@@ -108,8 +134,8 @@ export function generateVariantSKU(
   let candidate = `${base}-${counter.toString().padStart(3, '0')}`;
 
   if (existingSKUs && existingSKUs.length > 0) {
-    const existingSet = new Set(existingSKUs.map(s => s.toUpperCase()));
-    while (existingSet.has(candidate.toUpperCase()) && counter < 999) {
+    const existingSet = new Set(existingSKUs.map(normalizeSku));
+    while (existingSet.has(normalizeSku(candidate)) && counter < 999) {
       counter++;
       candidate = `${base}-${counter.toString().padStart(3, '0')}`;
     }

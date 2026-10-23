@@ -30,6 +30,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
+import { colorNameToHex } from '@/utils/colorHex';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import useBackToList from '@/hooks/useBackToList';
@@ -48,25 +49,8 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const COLOR_HEX: Record<string, string> = {
-  preto: '#1a1a1a', negro: '#1a1a1a', black: '#1a1a1a',
-  branco: '#f5f5f5', white: '#f5f5f5',
-  cinza: '#9ca3af', gray: '#9ca3af', grey: '#9ca3af',
-  vermelho: '#ef4444', red: '#ef4444',
-  azul: '#3b82f6', blue: '#3b82f6',
-  verde: '#22c55e', green: '#22c55e',
-  amarelo: '#eab308', yellow: '#eab308',
-  laranja: '#f97316', orange: '#f97316',
-  rosa: '#ec4899', pink: '#ec4899',
-  roxo: '#a855f7', purple: '#a855f7',
-  marrom: '#92400e', brown: '#92400e',
-  bege: '#d4b896', beige: '#d4b896',
-};
-
 function colorHex(name?: string | null): string {
-  if (!name) return Colors.light.primary;
-  const key = name.toLowerCase().trim();
-  return COLOR_HEX[key] ?? Colors.light.primary;
+  return colorNameToHex(name) ?? '#9ca3af';
 }
 
 function groupByColor(variants: ProductVariant[]): Map<string, ProductVariant[]> {

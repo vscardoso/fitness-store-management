@@ -28,7 +28,7 @@ import { GENDER_OPTIONS, normalizeGender } from '@/utils/gender';
 import VariantBuilderInline from '@/components/products/VariantBuilderInline';
 import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
 import { getActiveProducts } from '@/services/productService';
-import { generateSKU, generateVariantSKU } from '@/utils/skuGenerator';
+import { collectSkus, generateSKU, generateVariantSKU } from '@/utils/skuGenerator';
 import { capitalizeWords } from '@/utils/format';
 import { formatPriceInput } from '@/utils/priceFormatter';
 
@@ -81,7 +81,7 @@ export default function WizardStep2({
     const loadExistingSKUs = async () => {
       try {
         const products = await getActiveProducts({ limit: 1000 });
-        const skus = products.map(p => p.sku).filter(Boolean);
+        const skus = collectSkus(products as any[]);
         setExistingSKUs(skus);
       } catch (error) {
         console.error('Erro ao carregar SKUs existentes:', error);
