@@ -454,7 +454,7 @@ export default function DashboardScreen() {
             onPress={() => router.push('/reports/sales-period' as any)}
           >
             <View style={[styles.monthCardIcon, { backgroundColor: '#EEF2FF' }]}>
-              <Ionicons name="wallet-outline" size={22} color="#6366F1" />
+              <Ionicons name="wallet-outline" size={22} color={brandingColors.primary} />
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
               <Text style={styles.monthCardLabel}>Faturamento</Text>
@@ -706,7 +706,7 @@ export default function DashboardScreen() {
                 <Text style={styles.fifoSubtitle}>Análise detalhada do seu inventário</Text>
               </View>
               <TouchableOpacity style={styles.fifoInfoButton} activeOpacity={0.6} onPress={() => setActiveTooltip('giro')}>
-                <Ionicons name="information-circle-outline" size={20} color="#6366F1" />
+                <Ionicons name="information-circle-outline" size={20} color={brandingColors.primary} />
               </TouchableOpacity>
             </View>
 
@@ -714,7 +714,7 @@ export default function DashboardScreen() {
             <View style={styles.fifoSellThrough}>
               <View style={styles.fifoSellThroughHeader}>
                 <View style={styles.fifoSellThroughLabelContainer}>
-                  <Ionicons name="sync-outline" size={16} color="#6366F1" />
+                  <Ionicons name="sync-outline" size={16} color={brandingColors.primary} />
                   <Text style={styles.fifoSellThroughLabel}>Giro de Estoque</Text>
                 </View>
                 <View style={[
@@ -942,7 +942,7 @@ export default function DashboardScreen() {
                   <Ionicons name="arrow-forward" size={18} color="#9CA3AF" />
                 </View>
                 <View style={[styles.yoyTotalCard, styles.yoyTotalCardCurrent]}>
-                  <Text style={[styles.yoyTotalYear, { color: '#6366F1' }]}>{yoyData.totals.current_year}</Text>
+                  <Text style={[styles.yoyTotalYear, { color: brandingColors.primary }]}>{yoyData.totals.current_year}</Text>
                   <Text style={[styles.yoyTotalValue, { color: '#1F2937', fontWeight: '800' as const }]}>
                     {formatCurrency(yoyData.totals.current_total)}
                   </Text>
@@ -956,7 +956,7 @@ export default function DashboardScreen() {
                   <Text style={styles.yoyLegendText}>{yoyData.totals.prev_year}</Text>
                 </View>
                 <View style={styles.yoyLegendItem}>
-                  <View style={[styles.yoyLegendDot, { backgroundColor: '#6366F1' }]} />
+                  <View style={[styles.yoyLegendDot, { backgroundColor: brandingColors.primary }]} />
                   <Text style={styles.yoyLegendText}>{yoyData.totals.current_year}</Text>
                 </View>
               </View>
@@ -989,7 +989,7 @@ export default function DashboardScreen() {
                         {/* Ano atual */}
                         <View style={styles.yoyBarHRow}>
                           <View style={[styles.yoyBarHTrack]}>
-                            <View style={[styles.yoyBarHFill, styles.yoyBarHCurr, { width: `${currW}%` as any }]} />
+                            <View style={[styles.yoyBarHFill, styles.yoyBarHCurr, { backgroundColor: brandingColors.primary, width: `${currW}%` as any }]} />
                           </View>
                           <Text style={[styles.yoyBarHValue, { color: '#1F2937', fontWeight: '600' as const }]}>
                             {formatCurrency(month.current_total)}
@@ -1089,7 +1089,7 @@ export default function DashboardScreen() {
                 </View>
                 <Text style={styles.stockItemValue}>{formatCurrency(stockCost)}</Text>
                 {purchasesTotal > 0 && stockCost !== purchasesTotal && (
-                  <Text style={styles.stockItemPeriodHint}>
+                  <Text style={[styles.stockItemPeriodHint, { color: brandingColors.primary }]}>
                     de {formatCurrency(purchasesTotal)} comprados {periodLabel.toLowerCase() === 'este mês' ? 'este mês' : `em ${periodLabel.toLowerCase()}`} (parte já vendida)
                   </Text>
                 )}
@@ -1159,7 +1159,7 @@ export default function DashboardScreen() {
                 <>
                   <View style={styles.tooltipHeader}>
                     <View style={[styles.tooltipIconContainer, { backgroundColor: '#EEF2FF' }]}>
-                      <Ionicons name="cube-outline" size={20} color="#6366F1" />
+                      <Ionicons name="cube-outline" size={20} color={brandingColors.primary} />
                     </View>
                     <Text style={styles.tooltipTitle}>Capital Investido</Text>
                   </View>
@@ -1201,7 +1201,7 @@ export default function DashboardScreen() {
                 <>
                   <View style={styles.tooltipHeader}>
                     <View style={[styles.tooltipIconContainer, { backgroundColor: '#EEF2FF' }]}>
-                      <Ionicons name="wallet-outline" size={20} color="#6366F1" />
+                      <Ionicons name="wallet-outline" size={20} color={brandingColors.primary} />
                     </View>
                     <Text style={styles.tooltipTitle}>Faturamento</Text>
                   </View>
@@ -1237,7 +1237,7 @@ export default function DashboardScreen() {
                 <>
                   <View style={styles.tooltipHeader}>
                     <View style={[styles.tooltipIconContainer, { backgroundColor: '#EEF2FF' }]}>
-                      <Ionicons name="sync-outline" size={20} color="#6366F1" />
+                      <Ionicons name="sync-outline" size={20} color={brandingColors.primary} />
                     </View>
                     <Text style={styles.tooltipTitle}>Giro de Estoque</Text>
                   </View>
@@ -1369,7 +1369,7 @@ export default function DashboardScreen() {
         <View style={styles.recentHeader}>
           <Text style={styles.sectionTitle}>Últimas Vendas</Text>
           <TouchableOpacity onPress={() => router.push('/(tabs)/sales')}>
-            <Text style={styles.seeAllText}>Ver todas</Text>
+            <Text style={[styles.seeAllText, { color: brandingColors.primary }]}>Ver todas</Text>
           </TouchableOpacity>
         </View>
 
@@ -1422,7 +1422,7 @@ export default function DashboardScreen() {
               <Ionicons name="receipt-outline" size={48} color="#D1D5DB" />
               <Text style={styles.emptyText}>Nenhuma venda ainda</Text>
               <TouchableOpacity
-                style={styles.emptyButton}
+                style={[styles.emptyButton, { backgroundColor: brandingColors.primary }]}
                 onPress={() => router.push('/(tabs)/sale')}
               >
                 <Text style={styles.emptyButtonText}>Fazer primeira venda</Text>

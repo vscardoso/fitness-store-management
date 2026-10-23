@@ -109,7 +109,7 @@ async def test_cors_preflight_headers_do_app_e_negacao():
     async with AsyncClient(app=mini, base_url="http://t") as c:
         ok = await c.options("/x", headers={
             "Origin": origin, "Access-Control-Request-Method": "POST",
-            "Access-Control-Request-Headers": "authorization,content-type,x-tenant-id,x-skip-loading,x-skip-auth,x-loading-message",
+            "Access-Control-Request-Headers": "authorization,content-type,x-tenant-id,x-skip-loading,x-skip-auth,x-loading-message,cache-control,pragma,expires",
         })
         assert ok.status_code == 200, ok.text
         bad = await c.options("/x", headers={"Origin": origin, "Access-Control-Request-Method": "POST",

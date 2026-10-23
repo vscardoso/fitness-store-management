@@ -58,7 +58,8 @@ class Settings(BaseSettings):
     # Cabeçalhos que o app envia (mobile/services/api.ts). Novo cabeçalho customizado no app exige entrar aqui.
     CORS_ALLOW_HEADERS: str = (
         '["Authorization","Content-Type","Accept","Accept-Language",'
-        '"X-Tenant-Id","X-Store-Slug","X-Skip-Auth","X-Skip-Loading","X-Loading-Message"]'
+        '"X-Tenant-Id","X-Store-Slug","X-Skip-Auth","X-Skip-Loading","X-Loading-Message",'
+        '"Cache-Control","Pragma","Expires","If-None-Match","If-Modified-Since","X-Requested-With"]'
     )
 
     @property
