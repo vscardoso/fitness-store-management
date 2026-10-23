@@ -78,6 +78,13 @@ async def test_numeros_do_cenario_do_lojista_em_todas_as_telas(test_client, asyn
     assert a["real_revenue"] == 120.0 and a["cost_of_sold"] == 80.0 and a["gross_profit"] == 40.0
     assert a["recovered_pct"] == 60.0 and round(a["margin_pct"], 1) == 33.3
     assert a["stock_value_remaining"] == 120.0 and a["projected_profit_if_all_sold"] == 100.0
+    # antes de vender: 10 peças, custo 10 + 10 de custos do lote = 20, preço 30
+    assert a["potential_revenue_total"] == 300.0 and a["potential_profit_total"] == 100.0
+    assert a["markup_pct_total"] == 50.0 and round(a["potential_margin_pct"], 1) == 33.3
+    assert len(a["items"]) >= 1
+    it = a["items"][0]
+    assert it["landed_unit_cost"] == 20.0 and it["sell_price"] == 30.0 and it["profit_per_unit"] == 10.0
+    assert it["markup_pct"] == 50.0 and round(it["margin_pct"], 1) == 33.3
 
     # ---- a entrada e a lista mostram o mesmo total gasto
     e = (await test_client.get(f"/api/v1/stock-entries/{lote_id}", headers=h)).json()

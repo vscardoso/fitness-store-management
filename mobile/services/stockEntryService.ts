@@ -73,6 +73,27 @@ export interface LotAnalytics {
   stock_value_remaining: number;
   projected_profit_if_all_sold: number;
   sell_through_rate: number;
+  /** Se vender tudo desta entrada pelos preços de hoje. */
+  potential_revenue_total: number;
+  potential_profit_total: number;
+  /** Lucro em cima do custo (markup). */
+  markup_pct_total: number;
+  /** Lucro em cima da venda. */
+  potential_margin_pct: number;
+  /** Por peça: custo com frete, preço, lucro, markup e margem. */
+  items: LotItemNumbers[];
+}
+
+export interface LotItemNumbers {
+  item_id: number;
+  quantity_received: number;
+  merchandise_unit_cost: number;
+  extra_unit_cost: number;
+  landed_unit_cost: number;
+  sell_price: number;
+  profit_per_unit: number;
+  markup_pct: number;
+  margin_pct: number;
 }
 
 export async function getStockEntryAnalytics(id: number): Promise<LotAnalytics> {

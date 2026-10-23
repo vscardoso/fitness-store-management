@@ -471,6 +471,7 @@ export default function StockEntryDetailsScreen() {
     const hasSales = item.quantity_sold > 0;
     const progressColor = depletionRate >= 70 ? Colors.light.success : depletionRate >= 40 ? Colors.light.warning : Colors.light.error;
 
+    const itemNumbers = lotAnalytics?.items?.find((x) => x.item_id === item.id);
     return (
       <View key={item.id} style={styles.productCard}>
         {/* Header: nome + chips + ação */}
@@ -527,6 +528,19 @@ export default function StockEntryDetailsScreen() {
             ) : null}
           </View>
         </View>
+
+        {/* Custo com frete, preço, lucro e markup desta peça */}
+        {itemNumbers && (
+          <Text style={{ fontSize: 12, lineHeight: 18, color: Colors.light.textSecondary, marginBottom: 8 }}>
+            Custo {formatCurrency(itemNumbers.landed_unit_cost)}
+            {itemNumbers.extra_unit_cost > 0
+              ? ` (${formatCurrency(itemNumbers.merchandise_unit_cost)} + ${formatCurrency(itemNumbers.extra_unit_cost)} de frete e viagem)`
+              : ''}
+            {' · '}Venda {formatCurrency(itemNumbers.sell_price)}
+            {' · '}Lucro {formatCurrency(itemNumbers.profit_per_unit)} por peça
+            {' · '}Markup {itemNumbers.markup_pct.toFixed(0)}%
+          </Text>
+        )}
 
         {/* Métricas */}
         <View style={styles.productMetrics}>

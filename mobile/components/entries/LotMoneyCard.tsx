@@ -148,6 +148,22 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
         </TouchableOpacity>
       )}
 
+      {/* Antes de vender: o que esta entrada rende se tudo for vendido pelos preços de hoje */}
+      <Text style={styles.blockTitle}>Se você vender tudo desta entrada</Text>
+      <Row label="Gasto (mercadoria, frete e viagem)" value={a.total_investment} />
+      <Row label="Venda prevista (pelos preços de hoje)" value={a.potential_revenue_total} valueColor={VALUE_COLORS.positive} />
+      <View style={[styles.row, styles.totalRow]}>
+        <Text style={[styles.rowLabel, styles.bold, { flex: 1 }]}>Lucro previsto</Text>
+        <Text style={[styles.rowValue, styles.bold, { color: a.potential_profit_total >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
+          {formatCurrency(a.potential_profit_total)}
+        </Text>
+      </View>
+      <Text style={styles.note}>
+        Markup de <Text style={styles.bold}>{a.markup_pct_total.toFixed(0)}%</Text>: para cada R$ 100 que você gastou, a venda prevista põe R${' '}
+        {a.markup_pct_total.toFixed(0)} de lucro por cima. Olhando pelo valor vendido, de cada R$ 100 vendidos, R${' '}
+        {a.potential_margin_pct.toFixed(0)} são lucro.
+      </Text>
+
       {/* 2. Quanto voltou */}
       <Text style={styles.blockTitle}>2. Quanto já voltou em vendas</Text>
       {hasSales ? (

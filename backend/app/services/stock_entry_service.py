@@ -704,6 +704,32 @@ class StockEntryService:
         recovered_pct = float(real_revenue / total_investment * 100) if total_investment > 0 else 0.0
         projected_profit = real_revenue + potential_remaining_revenue - total_investment
 
+        # Antes de vender: o que a entrada inteira rende pelos preços de hoje, e por peça (custo posto x preço)
+        items_view = []
+        potential_revenue_total = Decimal('0.00')
+        for i in entry.entry_items:
+            if not i.is_active:
+                continue
+            price = Decimal(str((i.variant.price if i.variant and i.variant.price else None) or
+                                (i.product.base_price if i.product else 0) or 0))
+            landed = i.landed_unit_cost
+            potential_revenue_total += Decimal(str(i.quantity_received)) * price
+            profit_unit = price - landed
+            items_view.append({
+                "item_id": i.id,
+                "quantity_received": i.quantity_received,
+                "merchandise_unit_cost": float(i.unit_cost),
+                "extra_unit_cost": float(i.extra_unit_cost or 0),
+                "landed_unit_cost": float(landed),
+                "sell_price": float(price),
+                "profit_per_unit": float(profit_unit),
+                "markup_pct": float(profit_unit / landed * 100) if landed > 0 else 0.0,   # lucro / custo
+                "margin_pct": float(profit_unit / price * 100) if price > 0 else 0.0,     # lucro / venda
+            })
+        potential_profit_total = potential_revenue_total - total_investment
+        markup_pct_total = float(potential_profit_total / total_investment * 100) if total_investment > 0 else 0.0
+        potential_margin_pct = float(potential_profit_total / potential_revenue_total * 100) if potential_revenue_total > 0 else 0.0
+
         return {
             "entry_id": entry.id,
             "entry_code": entry.entry_code,
@@ -732,6 +758,11 @@ class StockEntryService:
             "margin_pct": round(margin_pct, 2),               # lucro / receita
             "roi": round(roi, 2),                             # lucro / custo do vendido
             "recovered_pct": round(recovered_pct, 2),         # quanto do investido já voltou em receita
+            "potential_revenue_total": float(potential_revenue_total),      # se vender tudo, pelos preços de hoje
+            "potential_profit_total": float(potential_profit_total),
+            "markup_pct_total": round(markup_pct_total, 2),                  # lucro / custo
+            "potential_margin_pct": round(potential_margin_pct, 2),          # lucro / venda
+            "items": items_view,
             "stock_value_remaining": float(stock_value_remaining),
             "potential_remaining_revenue": float(potential_remaining_revenue),
             "projected_profit_if_all_sold": float(projected_profit),  # estimativa, pelos preços atuais
