@@ -39,6 +39,8 @@ class TenantMiddleware(BaseHTTPMiddleware):
 
             try:
                 async with async_session_maker() as session:
+                    from app.core.rls import bypass_on
+                    await bypass_on(session)
                     if slug:
                         result = await session.execute(
                             select(Store.id).where(Store.slug == slug, Store.is_active == True)

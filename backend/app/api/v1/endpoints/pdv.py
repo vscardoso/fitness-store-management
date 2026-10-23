@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
 from app.api.deps import get_current_user, get_db, get_current_tenant_id
+from app.core.database import get_db_unscoped
 from app.models.user import User
 from app.repositories.pdv_repository import PDVTerminalRepository
 from app.services.pdv_service import PDVService
@@ -509,7 +510,7 @@ async def check_payment_status_compat(
 @router.post("/webhooks/mp", status_code=200)
 async def mp_webhook(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_unscoped),
 ):
     """Recebe webhook do Mercado Pago (Point + PIX). Valida HMAC-SHA256."""
     x_signature = request.headers.get("x-signature")
@@ -536,7 +537,7 @@ async def mp_webhook(
 @router.post("/webhooks/stone", status_code=200)
 async def stone_webhook(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_unscoped),
 ):
     """
     Recebe webhooks da Stone/Pagar.me (charge.paid, charge.refunded).
@@ -571,7 +572,7 @@ async def stone_webhook(
 @router.post("/webhooks/cielo", status_code=200)
 async def cielo_webhook(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_unscoped),
 ):
     """
     Recebe webhooks da Cielo LIO (status change).
@@ -609,7 +610,7 @@ async def cielo_webhook(
 @router.post("/webhooks/cielo-pix", status_code=200)
 async def cielo_pix_webhook(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_unscoped),
 ):
     """
     Recebe notificações de PIX pagos da Cielo.

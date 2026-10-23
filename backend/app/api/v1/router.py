@@ -178,12 +178,15 @@ api_router.include_router(
     tags=["IA"]
 )
 
-# Debug - Logs em tempo real (apenas desenvolvimento)
-api_router.include_router(
-    debug.router,
-    prefix="/debug",
-    tags=["Debug"]
-)
+# Debug - Logs em tempo real (apenas desenvolvimento). Em produção as rotas ficam fora:
+# eram públicas (ler, escrever e apagar o log sem login).
+from app.core.config import settings as _settings
+if _settings.ENVIRONMENT != "production":
+    api_router.include_router(
+        debug.router,
+        prefix="/debug",
+        tags=["Debug"]
+    )
 
 # Devoluções de Vendas
 api_router.include_router(

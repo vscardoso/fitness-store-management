@@ -25,6 +25,7 @@ import logging
 import os
 
 from app.core.database import get_db
+from app.core.database import get_db_unscoped
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -106,7 +107,7 @@ def _not_found() -> str:
 async def whatsapp_webhook(
     msg: WhatsAppMessage,
     x_bot_token: Optional[str] = Header(None, alias="X-Bot-Token"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_unscoped),
 ):
     """
     Processa mensagem recebida do WhatsApp e retorna resposta.

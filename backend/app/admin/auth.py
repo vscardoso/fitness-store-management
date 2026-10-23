@@ -22,6 +22,10 @@ class AdminAuth(AuthenticationBackend):
             return False
 
         async with async_session_maker() as db:
+
+            from app.core.rls import bypass_on
+
+            await bypass_on(db)
             result = await db.execute(
                 select(User).where(User.email == email, User.is_active == True)
             )

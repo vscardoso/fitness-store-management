@@ -13,7 +13,7 @@ from typing import List, Optional
 from pydantic import BaseModel
 from datetime import datetime
 
-from app.core.database import get_db
+from app.core.database import get_db, get_db_unscoped
 
 router = APIRouter(prefix="/public", tags=["Catálogo Público"])
 
@@ -108,7 +108,7 @@ async def list_public_products(
     category_id: Optional[int] = Query(None),
     search: Optional[str] = Query(None),
     store: Optional[str] = Query(None, description="Slug da loja"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_unscoped),
 ):
     """Lista produtos públicos da loja. Não expõe custo nem quantidade."""
     tenant_id = await _resolve_tenant(db, request, store)
@@ -185,7 +185,7 @@ async def get_public_product(
     product_id: int,
     request: Request,
     store: Optional[str] = Query(None, description="Slug da loja"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_unscoped),
 ):
     """Detalhe de produto público. Não expõe custo nem quantidade."""
     tenant_id = await _resolve_tenant(db, request, store)
@@ -253,7 +253,7 @@ async def get_public_product(
 async def list_public_categories(
     request: Request,
     store: Optional[str] = Query(None, description="Slug da loja"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_unscoped),
 ):
     """Categorias com pelo menos 1 produto ativo na loja."""
     tenant_id = await _resolve_tenant(db, request, store)
@@ -276,7 +276,7 @@ async def list_public_looks(
     request: Request,
     limit: int = Query(20, ge=1, le=50),
     store: Optional[str] = Query(None, description="Slug da loja"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_unscoped),
 ):
     """Looks públicos da loja (is_public=true apenas)."""
     tenant_id = await _resolve_tenant(db, request, store)

@@ -9,6 +9,7 @@ from jose import JWTError, ExpiredSignatureError, jwt
 from typing import List
 
 from app.core.database import get_db
+from app.core import rls
 from app.core.config import settings
 from app.repositories.user_repository import UserRepository
 from app.models.user import User, UserRole
@@ -76,12 +77,17 @@ async def get_current_user(
 
     # Buscar usuário no banco de dados
     try:
+        # RLS: o usuário é buscado antes de saber a loja, então esta única consulta ignora o filtro;
+        # logo em seguida a sessão passa a enxergar só a loja dele.
+        await rls.bypass_on(db)
         user_repo = UserRepository(db)
         user = await user_repo.get(int(user_id))
 
         if user is None:
             logger.error(f"User {user_id} not found in database")
             raise credentials_exception
+
+        await rls.set_tenant(db, user.tenant_id)
 
         logger.info(f"User {user_id} authenticated successfully")
         return user

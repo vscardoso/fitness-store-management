@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from jose import jwt, JWTError
 
-from app.core.database import get_db
+from app.core.database import get_db, get_db_unscoped
 from app.core.config import settings
 from app.api.deps import get_current_tenant_id, require_role
 from app.models.user import User, UserRole
@@ -132,7 +132,7 @@ def _to_branding_response(store: Store) -> StoreBrandingResponse:
 @router.get("/branding", response_model=StoreBrandingResponse)
 async def get_branding(
     request: Request,
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_unscoped),
 ):
     """Retorna branding da loja (acesso público, somente leitura)."""
     tenant_id = await _resolve_public_tenant_id(request, db)

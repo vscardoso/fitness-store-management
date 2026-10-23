@@ -134,6 +134,25 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
             await session.close()
 
 
+async def get_db_unscoped() -> AsyncGenerator[AsyncSession, None]:
+    """
+    Sessão para rotas SEM usuário logado (login, cadastro, webhooks, catálogo público).
+    Com RLS ligado ela ignora o filtro de loja; o código dessas rotas continua filtrando por conta própria.
+    """
+    from app.core.rls import bypass_on
+
+    async with async_session_maker() as session:
+        try:
+            await bypass_on(session)
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+
+
 def _run_alembic_upgrade() -> None:
     """Executa 'alembic upgrade head' sincronamente (chamado via asyncio.to_thread).
 

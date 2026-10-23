@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
-from app.core.database import get_db
+from app.core.database import get_db, get_db_unscoped
 from app.schemas.category import (
     CategoryCreate,
     CategoryUpdate,
@@ -21,6 +21,11 @@ router = APIRouter(prefix="/categories", tags=["Categorias"])
 
 
 def get_service(db: AsyncSession = Depends(get_db)) -> CategoryService:
+    return CategoryService(db)
+
+
+def get_service_public(db: AsyncSession = Depends(get_db_unscoped)) -> CategoryService:
+    """Rotas de categoria sem login (a árvore é compartilhada)."""
     return CategoryService(db)
 
 
@@ -49,7 +54,7 @@ async def list_categories(
     response_model=List[CategoryWithChildren],
     summary="Árvore de categorias",
 )
-async def get_category_hierarchy(service: CategoryService = Depends(get_service)):
+async def get_category_hierarchy(service: CategoryService = Depends(get_service_public)):
     try:
         return await service.get_hierarchy()
     except Exception as e:
@@ -63,7 +68,7 @@ async def get_category_hierarchy(service: CategoryService = Depends(get_service)
 )
 async def get_category(
     category_id: int,
-    service: CategoryService = Depends(get_service),
+    service: CategoryService = Depends(get_service_public),
 ):
     try:
         category = await service.get_category(category_id)

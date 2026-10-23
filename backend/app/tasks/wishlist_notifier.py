@@ -85,6 +85,8 @@ async def run_wishlist_notifier():
     Para cada item com estoque disponível, envia push e/ou WhatsApp e marca como notificado.
     """
     async with AsyncSessionLocal() as db:
+        from app.core.rls import bypass_on
+        await bypass_on(db)
         try:
             stmt = (
                 select(Wishlist)

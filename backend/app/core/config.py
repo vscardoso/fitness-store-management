@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     APP_NAME: str = "Fitness Store Management API"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
+    # Row Level Security do Postgres (segunda camada de isolamento entre lojas). Só ligar depois de
+    # aplicar scripts/rls_apply.py e de a aplicação conectar com um usuário SEM poder de superusuário.
+    RLS_ENABLED: bool = False
     ENVIRONMENT: str = "production"
     
     # Server

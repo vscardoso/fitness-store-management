@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from app.core.database import get_db
+from app.core.database import get_db, get_db_unscoped
 from app.schemas.user import UserCreate, UserLogin, UserResponse, Token, TokenResponse, RefreshTokenRequest
 from app.schemas.signup import (
     SignupRequest,
@@ -84,7 +84,7 @@ async def register(
 async def login(
     credentials: UserLogin,
     request: Request,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db_unscoped)
 ):
     """
     Login e obter token JWT com dados do usuário.
@@ -260,7 +260,7 @@ async def logout(
 )
 async def refresh_token(
     payload: RefreshTokenRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db_unscoped)
 ):
     """
     Renovar sessao via refresh token com rotacao.
@@ -317,7 +317,7 @@ async def refresh_token(
 )
 async def signup(
     signup_data: SignupRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db_unscoped)
 ):
     """
     Cadastro completo para SaaS multi-tenant:
@@ -362,7 +362,7 @@ async def signup(
 )
 async def check_email(
     request: CheckEmailRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db_unscoped)
 ):
     """
     Verifica se email está disponível para cadastro.
@@ -393,7 +393,7 @@ async def check_email(
 )
 async def check_slug(
     request: CheckSlugRequest,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db_unscoped)
 ):
     """
     Verifica se slug da loja está disponível.
@@ -424,7 +424,7 @@ async def check_slug(
 )
 async def forgot_password(
     request: dict,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db_unscoped)
 ):
     """
     Solicitar recuperação de senha.

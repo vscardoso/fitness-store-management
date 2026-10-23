@@ -26,6 +26,8 @@ async def check_sla_notifications_job():
     """
     try:
         async with async_session_maker() as db:
+            from app.core.rls import bypass_on
+            await bypass_on(db)
             service = ConditionalNotificationService()
             result = await service.check_and_send_sla_notifications(db)
             logger.info(f"SLA check completed: {result}")
@@ -40,6 +42,8 @@ async def stock_alerts_push_job():
     """
     try:
         async with async_session_maker() as db:
+            from app.core.rls import bypass_on
+            await bypass_on(db)
             result = await AppNotificationService().run_stock_alerts(db)
             if result["pending"]:
                 logger.info(f"Stock alerts push: {result}")
@@ -54,6 +58,8 @@ async def send_pending_reminder_job():
     """
     try:
         async with async_session_maker() as db:
+            from app.core.rls import bypass_on
+            await bypass_on(db)
             service = ConditionalNotificationService()
             result = await service.send_pending_shipments_reminder(db)
             logger.info(f"Pending reminder sent: {result}")
@@ -68,6 +74,8 @@ async def send_overdue_alert_job():
     """
     try:
         async with async_session_maker() as db:
+            from app.core.rls import bypass_on
+            await bypass_on(db)
             service = ConditionalNotificationService()
             result = await service.send_overdue_shipments_alert(db)
             logger.info(f"Overdue alert sent: {result}")
@@ -82,6 +90,8 @@ async def auto_cancel_stale_terminal_sales_job():
     """
     try:
         async with async_session_maker() as db:
+            from app.core.rls import bypass_on
+            await bypass_on(db)
             service = PDVService()
             count = await service.auto_cancel_stale_pending_sales(db, timeout_minutes=30)
             if count:
@@ -97,6 +107,8 @@ async def expire_pix_transactions_job():
     """
     try:
         async with async_session_maker() as db:
+            from app.core.rls import bypass_on
+            await bypass_on(db)
             service = PDVService()
             count = await service.expire_pending_pix(db)
             if count:
@@ -112,6 +124,8 @@ async def send_missed_departure_alert_job():
     """
     try:
         async with async_session_maker() as db:
+            from app.core.rls import bypass_on
+            await bypass_on(db)
             service = ConditionalNotificationService()
             result = await service.send_missed_departure_alert(db)
             logger.info(f"Missed departure alert sent: {result}")

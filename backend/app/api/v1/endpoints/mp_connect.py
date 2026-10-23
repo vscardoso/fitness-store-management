@@ -19,6 +19,7 @@ from sqlalchemy import select, update
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.database import get_db_unscoped
 from app.api.deps import get_current_user, get_current_tenant_id  # noqa
 from app.models.store import Store
 from app.models.user import User
@@ -60,7 +61,7 @@ async def get_oauth_url(
 async def oauth_callback(
     code: str = Query(..., description="Código de autorização retornado pelo MP"),
     state: str = Query(..., description="tenant_id passado no state"),
-    db: AsyncSession = Depends(get_db),
+    db: AsyncSession = Depends(get_db_unscoped),
 ):
     """
     Recebe o code do MP, troca por access_token e salva no Store.
