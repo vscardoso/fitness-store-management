@@ -13,7 +13,7 @@ import {
   Platform,
   StatusBar,
 } from 'react-native';
-import { Text, TextInput, Button, SegmentedButtons, Card } from 'react-native-paper';
+import { Text, TextInput, Button, SegmentedButtons, Card, HelperText } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,6 +25,7 @@ import { UserRole, type TeamMemberCreate } from '@/types';
 import { phoneMask } from '@/utils/masks';
 import { capitalizeWords } from '@/utils/format';
 import { useBrandingColors } from '@/store/brandingStore';
+import { checkEmailAvailability } from '@/services/authService';
 
 type DialogState = {
   visible: boolean;
@@ -69,12 +70,31 @@ export default function AddTeamMemberScreen() {
       });
     },
     onError: (error: any) => {
-      setDialog({ visible: true, type: 'danger', title: 'Erro', message: error.response?.data?.detail || 'Erro ao criar membro da equipe', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
+      const detail: string = error.response?.data?.detail || '';
+      if (error.response?.status === 400 && /e-?mail/i.test(detail)) {
+        setEmailError(detail);  // erro no próprio campo, sem pop-up
+        return;
+      }
+      setDialog({ visible: true, type: 'danger', title: 'Erro', message: detail || 'Erro ao criar membro da equipe', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
     },
   });
 
+  // E-mail já usado: avisa na hora (ao sair do campo) e também se o servidor recusar ao salvar
+  const [emailError, setEmailError] = useState('');
+  const checkEmailFree = async () => {
+    const email = formData.email.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return;
+    try {
+      const r = await checkEmailAvailability(email);
+      if (!r.available) setEmailError('Este e-mail já está cadastrado (nesta loja ou em outra). Use outro e-mail para este membro.');
+    } catch {
+      // sem rede ou serviço fora: o servidor confere de novo ao salvar
+    }
+  };
+
   // Validar e submeter
   const handleSubmit = () => {
+    if (emailError) return;
     // Validações
     if (!formData.full_name.trim()) {
       setDialog({ visible: true, type: 'warning', title: 'Atenção', message: 'Informe o nome completo', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
@@ -189,14 +209,20 @@ export default function AddTeamMemberScreen() {
           <TextInput
             label="Email *"
             value={formData.email}
-            onChangeText={(text) => setFormData({ ...formData, email: text.toLowerCase() })}
+            onChangeText={(text) => {
+              setFormData({ ...formData, email: text.toLowerCase() });
+              if (emailError) setEmailError('');
+            }}
+            onBlur={checkEmailFree}
             style={styles.input}
             mode="outlined"
             keyboardType="email-address"
             autoCapitalize="none"
+            error={!!emailError}
             left={<TextInput.Icon icon="email" />}
             placeholder="exemplo@dominio.com"
           />
+          {!!emailError && <HelperText type="error" visible>{emailError}</HelperText>}
 
           <TextInput
             label="Telefone"

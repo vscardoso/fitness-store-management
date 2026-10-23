@@ -123,3 +123,15 @@ async def test_so_admin_cria_membro_por_papel(test_client, async_session, role, 
         token = create_access_token(data={"sub": str(u.id)})
     r = await _criar(test_client, token, 1)
     assert r.status_code == esperado, f"{role}: {r.status_code} {r.text[:150]}"
+
+
+async def test_email_repetido_na_equipe_da_mensagem_clara(test_client, async_session):
+    _, admin, token = await _nova_loja(async_session, "pro")
+    h = {"Authorization": f"Bearer {token}"}
+    r = await test_client.post("/api/v1/team", headers=h, json={
+        "email": admin.email, "full_name": "Pessoa Repetida", "password": "Senha1234", "role": "seller"})
+    assert r.status_code == 400
+    assert "e-mail" in r.json()["detail"].lower() and "outro e-mail" in r.json()["detail"].lower()
+    # e a checagem que o app faz ao sair do campo reconhece o e-mail como já usado
+    c = await test_client.post("/api/v1/auth/check-email", json={"email": admin.email})
+    assert c.status_code == 200 and c.json()["available"] is False
