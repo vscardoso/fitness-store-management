@@ -219,7 +219,7 @@ export default function HistoryScreen() {
         router.push(`/sales/${event.link_id}` as any);
         break;
       case 'entry':
-        router.push(`/entries/${event.link_id}` as any);
+        router.push({ pathname: `/entries/${event.link_id}`, params: { from: '/reports/history' } } as any);
         break;
       case 'conditional':
         router.push(`/conditionals/${event.link_id}` as any);

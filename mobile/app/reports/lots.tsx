@@ -18,7 +18,7 @@ import { getLotProfitRanking, type LotProfitRow } from '@/services/stockEntrySer
 export default function LotProfitScreen() {
   const brand = useBrandingColors();
   const router = useRouter();
-  const { goBack } = useBackToList('/(tabs)/reports');
+  const { goBack } = useBackToList('/(tabs)/more');
 
   const { data, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['lot-profit-ranking'],
@@ -51,7 +51,9 @@ export default function LotProfitScreen() {
             key={lot.entry_id}
             lot={lot}
             color={brand.primary}
-            onPress={() => router.push(`/entries/${lot.entry_id}` as any)}
+            onPress={() =>
+              router.push({ pathname: `/entries/${lot.entry_id}`, params: { from: '/reports/lots' } } as any)
+            }
           />
         ))}
       </ScrollView>
