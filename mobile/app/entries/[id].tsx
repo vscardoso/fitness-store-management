@@ -50,6 +50,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { EntryType, EntryItemResponse } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { isManagerRole } from '@/utils/roles';
+import SendToSupplierModal from '@/components/entries/SendToSupplierModal';
 
 export default function StockEntryDetailsScreen() {
   const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
@@ -106,6 +107,7 @@ export default function StockEntryDetailsScreen() {
 
   // Estados
   const [refreshing, setRefreshing] = useState(false);
+  const [supplierItem, setSupplierItem] = useState<EntryItemResponse | null>(null);
   // Lançar outra variação (cor/tamanho) de um produto já cadastrado nesta entrada
   const [variantTarget, setVariantTarget] = useState<EntryItemResponse | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -515,6 +517,16 @@ export default function StockEntryDetailsScreen() {
                 {hasSales ? 'Corrigir' : 'Editar'}
               </Text>
             </TouchableOpacity>
+            {isManagerRole(user?.role) && item.quantity_remaining > 0 && (
+              <TouchableOpacity
+                onPress={() => setSupplierItem(item)}
+                style={[styles.editItemButton, { borderColor: Colors.light.border, backgroundColor: Colors.light.backgroundSecondary }]}
+                activeOpacity={0.7}
+              >
+                <Ionicons name="return-down-back-outline" size={14} color={Colors.light.textSecondary} />
+                <Text style={[styles.editItemButtonText, { color: Colors.light.textSecondary }]}>Devolver ao fornecedor</Text>
+              </TouchableOpacity>
+            )}
             {isManagerRole(user?.role) && item.product_id ? (
               <TouchableOpacity
                 onPress={() => setVariantTarget(item)}
@@ -648,6 +660,13 @@ export default function StockEntryDetailsScreen() {
 
   return (
     <View style={styles.container}>
+      <SendToSupplierModal
+        visible={!!supplierItem}
+        entryItemId={supplierItem?.id ?? null}
+        productLabel={[supplierItem?.product_name, supplierItem?.variant_label].filter(Boolean).join(' ')}
+        remaining={supplierItem?.quantity_remaining ?? 0}
+        onClose={() => setSupplierItem(null)}
+      />
       <Animated.View style={headerAnimStyle}>
         <PageHeader
           title={entry.entry_code}

@@ -51,6 +51,7 @@ async def check_return_eligibility(
             sale_id,
             tenant_id=tenant_id,
         )
+        eligibility.allow_money_refund = await return_service._allow_money_refund(tenant_id)
         return eligibility
         
     except Exception as e:

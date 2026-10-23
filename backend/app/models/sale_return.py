@@ -77,11 +77,29 @@ class SaleReturn(BaseModel):
         Text,
         comment="Observações adicionais"
     )
+
+    # Troca: venda das peças novas e saldo do acerto (positivo = cliente pagou; negativo = loja devolveu)
+    exchange_sale_id: Mapped[int | None] = mapped_column(
+        ForeignKey("sales.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Venda criada com as peças novas desta troca"
+    )
+    net_amount: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 2),
+        nullable=True,
+        comment="Saldo da troca: peças novas - valor devolvido (positivo: cliente paga; negativo: loja devolve)"
+    )
+    settlement_method: Mapped[str | None] = mapped_column(
+        String(20),
+        nullable=True,
+        comment="Como o saldo foi acertado (cash, pix, debit_card, credit_card)"
+    )
     
     # Relacionamentos
     sale: Mapped["Sale"] = relationship(
         "Sale",
-        back_populates="returns"
+        back_populates="returns",
+        foreign_keys=[sale_id]
     )
     
     processed_by: Mapped["User"] = relationship(
@@ -164,6 +182,19 @@ class ReturnItem(BaseModel):
         nullable=False,
         comment="Valor do reembolso deste item"
     )
+
+    restock: Mapped[bool] = mapped_column(
+        default=True,
+        server_default="true",
+        nullable=False,
+        comment="False = peça com defeito, não volta ao estoque"
+    )
+
+    replacement_variant_id: Mapped[int | None] = mapped_column(
+        ForeignKey("product_variants.id", ondelete="SET NULL"),
+        nullable=True,
+        comment="Variação que o cliente levou no lugar (troca)"
+    )
     
     # FIFO Tracking - Rastreabilidade de devolução ao estoque
     return_sources: Mapped[Any | None] = mapped_column(
@@ -192,7 +223,8 @@ class ReturnItem(BaseModel):
     # NOVO: relacionamento com ProductVariant (via variant_id)
     variant: Mapped["ProductVariant"] = relationship(
         "ProductVariant",
-        back_populates="return_items"
+        back_populates="return_items",
+        foreign_keys=[variant_id]
     )
     
     def __repr__(self) -> str:

@@ -1,5 +1,6 @@
 """Endpoints de branding e configuração da loja."""
 import io
+from pydantic import BaseModel, Field
 import os
 import uuid
 from pathlib import Path
@@ -218,6 +219,35 @@ async def upload_logo(
         (Path(settings.UPLOAD_DIR) / old_path).unlink(missing_ok=True)
 
     return LogoUploadResponse(logo_url=f"/uploads/{rel_path}")
+
+
+class ReturnSettings(BaseModel):
+    return_window_days: int = Field(7, ge=0, le=90, description="Prazo, em dias, para devolver ou trocar uma compra")
+    allow_money_refund: bool = Field(True, description="False: a loja só troca peça, não devolve dinheiro")
+
+
+@router.get("/return-settings", response_model=ReturnSettings)
+async def get_return_settings(
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role([UserRole.ADMIN])),
+):
+    store = await _get_store(tenant_id, db)
+    return ReturnSettings(return_window_days=store.return_window_days, allow_money_refund=store.allow_money_refund)
+
+
+@router.put("/return-settings", response_model=ReturnSettings)
+async def update_return_settings(
+    data: ReturnSettings,
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role([UserRole.ADMIN])),
+):
+    store = await _get_store(tenant_id, db)
+    store.return_window_days = data.return_window_days
+    store.allow_money_refund = data.allow_money_refund
+    await db.commit()
+    return ReturnSettings(return_window_days=store.return_window_days, allow_money_refund=store.allow_money_refund)
 
 
 @router.get("/pix", response_model=StorePIXKeyResponse)

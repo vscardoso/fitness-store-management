@@ -116,7 +116,8 @@ class ProductVariant(BaseModel):
     
     return_items: Mapped[List["ReturnItem"]] = relationship(
         "ReturnItem",
-        back_populates="variant"
+        back_populates="variant",
+        foreign_keys="ReturnItem.variant_id"
     )
 
     media: Mapped[List["ProductMedia"]] = relationship(

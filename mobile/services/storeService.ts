@@ -111,3 +111,18 @@ export const uploadLogo = async (uri: string): Promise<{ logo_url: string }> => 
     logo_url: toAbsoluteLogoUrl(data.logo_url) ?? data.logo_url,
   };
 };
+
+export interface ReturnSettings {
+  return_window_days: number;
+  allow_money_refund: boolean;
+}
+
+export const getReturnSettings = async (): Promise<ReturnSettings> => {
+  const { data } = await api.get<ReturnSettings>('/store/return-settings');
+  return data;
+};
+
+export const updateReturnSettings = async (payload: ReturnSettings): Promise<ReturnSettings> => {
+  const { data } = await api.put<ReturnSettings>('/store/return-settings', payload);
+  return data;
+};

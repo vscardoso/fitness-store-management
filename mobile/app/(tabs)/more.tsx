@@ -238,6 +238,16 @@ export default function MoreScreen() {
                 iconBg="#D1FAE5"
               />
             )}
+            {isAdminRole(user?.role) && (
+              <MenuItem
+                icon="swap-horizontal-outline"
+                title="Prazo de troca e devolução"
+                subtitle="Dias que o cliente tem e se a loja devolve dinheiro"
+                onPress={() => router.push('/settings/returns' as any)}
+                iconColor="#F59E0B"
+                iconBg="#FEF3C7"
+              />
+            )}
           </View>
         </View>
 

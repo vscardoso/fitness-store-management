@@ -376,7 +376,8 @@ Sale.payments = relationship(
 Sale.returns = relationship(
     "SaleReturn",
     back_populates="sale",
-    cascade="all, delete-orphan"
+    cascade="all, delete-orphan",
+    foreign_keys="SaleReturn.sale_id"
 )
 
 # Relacionamento com itens de devolução

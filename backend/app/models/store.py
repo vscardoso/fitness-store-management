@@ -1,7 +1,7 @@
 """
 Modelo de loja/tenant para multi-tenancy.
 """
-from sqlalchemy import String, DateTime
+from sqlalchemy import String, DateTime, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import List, Optional, TYPE_CHECKING
 from datetime import datetime
@@ -50,6 +50,21 @@ class Store(BaseModel):
     is_default: Mapped[bool] = mapped_column(
         default=False,
         comment="Marca se é o tenant padrão"
+    )
+
+    return_window_days: Mapped[int] = mapped_column(
+        Integer,
+        default=7,
+        server_default="7",
+        nullable=False,
+        comment="Prazo, em dias, para o cliente devolver ou trocar uma compra"
+    )
+
+    allow_money_refund: Mapped[bool] = mapped_column(
+        default=True,
+        server_default="true",
+        nullable=False,
+        comment="False = a loja só troca peça, não devolve dinheiro"
     )
 
     # Branding da loja

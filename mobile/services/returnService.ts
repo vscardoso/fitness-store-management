@@ -51,6 +51,8 @@ export interface ReturnableItem {
   quantity_available_for_return: number;
   unit_price: number;
   max_refund_amount: number;
+  variant_id?: number | null;
+  variant_label?: string | null;
 }
 
 export interface ReturnEligibility {
@@ -61,18 +63,25 @@ export interface ReturnEligibility {
   is_eligible: boolean;
   reason: string | null;
   max_return_days: number;
+  allow_money_refund?: boolean;
   items: ReturnableItem[];
 }
 
 export interface ReturnItemRequest {
   sale_item_id: number;
   quantity: number;
+  /** false = peça com defeito (não volta ao estoque) */
+  restock?: boolean;
+  /** troca: variação que o cliente leva no lugar */
+  replacement_variant_id?: number;
 }
 
 export interface ReturnRequest {
   items: ReturnItemRequest[];
   reason: string;
   refund_method?: 'original' | 'store_credit' | 'cash';
+  /** como o cliente paga a diferença da troca */
+  settlement_method?: 'cash' | 'pix' | 'debit_card' | 'credit_card';
 }
 
 export interface ReturnItemResponse {
@@ -93,6 +102,10 @@ export interface SaleReturn {
   status: string;
   reason: string;
   total_refund: number;
+  exchange_sale_id?: number | null;
+  exchange_sale_number?: string | null;
+  net_amount?: number | null;
+  settlement_method?: string | null;
   items: ReturnItemResponse[];
   created_at: string;
   processed_by_id: number;

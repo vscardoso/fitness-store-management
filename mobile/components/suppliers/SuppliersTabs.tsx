@@ -8,13 +8,14 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 
-export type SuppliersTab = 'list' | 'ranking' | 'costs' | 'restock';
+export type SuppliersTab = 'list' | 'ranking' | 'costs' | 'restock' | 'returns';
 
 const TABS: { key: SuppliersTab; label: string; icon: keyof typeof Ionicons.glyphMap; href: string }[] = [
   { key: 'list', label: 'Fornecedores', icon: 'business-outline', href: '/suppliers' },
   { key: 'ranking', label: 'Ranking', icon: 'trophy-outline', href: '/suppliers/ranking' },
   { key: 'costs', label: 'Custos', icon: 'pricetags-outline', href: '/suppliers/costs' },
   { key: 'restock', label: 'Reposição', icon: 'cart-outline', href: '/suppliers/restock' },
+  { key: 'returns', label: 'Devoluções', icon: 'return-down-back-outline', href: '/suppliers/returns' },
 ];
 
 export default function SuppliersTabs({ active }: { active: SuppliersTab }) {

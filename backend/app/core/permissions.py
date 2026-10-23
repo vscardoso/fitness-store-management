@@ -67,6 +67,7 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     # ── vendedor ─────────────────────────────────────────────────────────────
     ({"PUT"}, r"^/customers/\{customer_id\}$", SELLER),
     ({"GET", "POST"}, r"^/returns/", SELLER),
+    (ANY, r"^/supplier-returns(/|$)", MANAGER),
     ({"POST"}, r"^/conditional-shipments/\{shipment_id\}/", SELLER),
     ({"DELETE"}, r"^/conditional-shipments/\{shipment_id\}$", MANAGER),
     (ANY, r"^/conditional-shipments(/|$)", SELLER),

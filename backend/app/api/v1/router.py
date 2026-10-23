@@ -45,6 +45,7 @@ from app.api.v1.endpoints import (
     ai,
     debug,
     returns,
+    supplier_returns,
     looks,
     wishlist,
     suggestions,
@@ -194,6 +195,9 @@ api_router.include_router(
     returns.router,
     tags=["Devoluções"]
 )
+
+# Devolução ao fornecedor
+api_router.include_router(supplier_returns.router, tags=["Devolução ao fornecedor"])
 
 # Lookbook
 api_router.include_router(looks.router, tags=["Looks"])

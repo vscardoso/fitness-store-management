@@ -14,6 +14,8 @@ import {
   TextInput,
   IconButton,
   Portal,
+  Switch,
+  Chip,
 } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { formatCurrency } from '@/utils/format';
@@ -29,6 +31,7 @@ import {
   ReturnItemRequest,
 } from '@/services/returnService';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import ReplacementPicker, { ReplacementChoice } from '@/components/sale/ReplacementPicker';
 
 interface ReturnModalProps {
   visible: boolean;
@@ -51,6 +54,11 @@ export default function ReturnModal({
   const [eligibility, setEligibility] = useState<ReturnEligibility | null>(null);
   const [selectedItems, setSelectedItems] = useState<Map<number, number>>(new Map());
   const [reason, setReason] = useState('');
+  // Troca: por item, a peça que o cliente leva no lugar; e quais peças voltaram com defeito
+  const [replacements, setReplacements] = useState<Map<number, ReplacementChoice>>(new Map());
+  const [defects, setDefects] = useState<Set<number>>(new Set());
+  const [pickerItemId, setPickerItemId] = useState<number | null>(null);
+  const [settlement, setSettlement] = useState<'cash' | 'pix' | 'debit_card' | 'credit_card'>('cash');
   const [dialog, setDialog] = useState<{
     visible: boolean;
     type: 'danger' | 'warning' | 'info' | 'success';
@@ -77,6 +85,10 @@ export default function ReturnModal({
       // Reset ao fechar
       setSelectedItems(new Map());
       setReason('');
+      setReplacements(new Map());
+      setDefects(new Set());
+      setPickerItemId(null);
+      setSettlement('cash');
     }
   }, [visible]);
 
@@ -156,6 +168,19 @@ export default function ReturnModal({
   };
 
   const totalRefund = calculateTotalRefund();
+  const allowRefund = eligibility?.allow_money_refund !== false;
+  // Troca: valor das peças novas e diferença a pagar na hora (a loja pode não devolver dinheiro)
+  const totalNew = (() => {
+    let t = 0;
+    selectedItems.forEach((qty, id) => {
+      const r = replacements.get(id);
+      if (r) t += r.price * qty;
+    });
+    return t;
+  })();
+  const hasExchange = replacements.size > 0;
+  const netToPay = hasExchange ? totalNew - totalRefund : 0;
+  const missingReplacement = !allowRefund && Array.from(selectedItems.keys()).some((id) => !replacements.has(id));
   const selectedCount = selectedItems.size;
   const totalItems = eligibility?.items.length || 0;
   const isAllSelected = selectedCount === totalItems && totalItems > 0;
@@ -175,6 +200,17 @@ export default function ReturnModal({
       return;
     }
 
+    if (missingReplacement) {
+      haptics.warning();
+      setDialog({ visible: true, type: 'warning', title: 'Escolha a peça nova', message: 'Esta loja não devolve dinheiro: para cada peça devolvida, escolha a peça que o cliente leva no lugar.', confirmText: 'OK', cancelText: '', onConfirm: closeDialog });
+      return;
+    }
+    if (hasExchange && netToPay < -0.005 && !allowRefund) {
+      haptics.warning();
+      setDialog({ visible: true, type: 'warning', title: 'Peça nova vale menos', message: `A peça nova vale ${formatCurrency(-netToPay)} a menos que a devolvida e a loja não devolve dinheiro. Escolha uma peça de valor igual ou maior.`, confirmText: 'OK', cancelText: '', onConfirm: closeDialog });
+      return;
+    }
+
     const isFullReturn = eligibility.items.every(
       item => selectedItems.get(item.sale_item_id) === item.quantity_available_for_return
     );
@@ -184,7 +220,9 @@ export default function ReturnModal({
       visible: true,
       type: 'warning',
       title: isFullReturn ? 'Confirmar Devolução Total' : 'Confirmar Devolução Parcial',
-      message: `Deseja processar a devolução de ${isFullReturn ? 'todos os itens' : `${selectedCount} item(ns)`}?\n\nO reembolso será processado e o estoque será atualizado.`,
+      message: hasExchange
+        ? `Confirmar a troca de ${selectedCount} item(ns)?\n\n${netToPay > 0.005 ? `O cliente paga agora ${formatCurrency(netToPay)} de diferença (${settlementLabel(settlement)}).` : 'Sem diferença a pagar.'}\nO estoque será atualizado.`
+        : `Deseja processar a devolução de ${isFullReturn ? 'todos os itens' : `${selectedCount} item(ns)`}?\n\nO reembolso será processado e o estoque será atualizado.`,
       confirmText: 'Confirmar Devolução',
       cancelText: 'Cancelar',
       onConfirm: executeReturn,
@@ -202,9 +240,12 @@ export default function ReturnModal({
       const items: ReturnItemRequest[] = [];
       selectedItems.forEach((quantity, saleItemId) => {
         if (quantity > 0) {
+          const rep = replacements.get(saleItemId);
           items.push({
             sale_item_id: saleItemId,
             quantity,
+            restock: !defects.has(saleItemId),
+            replacement_variant_id: rep?.variant_id,
           });
         }
       });
@@ -213,6 +254,7 @@ export default function ReturnModal({
         items,
         reason: reason.trim(),
         refund_method: 'original',
+        settlement_method: settlement,
       });
       
       haptics.success();
@@ -220,7 +262,9 @@ export default function ReturnModal({
         visible: true,
         type: 'success',
         title: 'Devolução Concluída',
-        message: `A devolução de ${formatCurrency(totalRefund)} foi processada com sucesso.\n\nO estoque foi atualizado automaticamente.`,
+        message: hasExchange
+          ? `Troca concluída.${netToPay > 0.005 ? ` Diferença recebida: ${formatCurrency(netToPay)}.` : ''}\n\nO estoque foi atualizado automaticamente.`
+          : `A devolução de ${formatCurrency(totalRefund)} foi processada com sucesso.\n\nO estoque foi atualizado automaticamente.`,
         confirmText: 'OK',
         cancelText: '',
         onConfirm: () => { closeDialog(); onSuccess(); onDismiss(); },
@@ -241,6 +285,9 @@ export default function ReturnModal({
     }
   };
 
+  const settlementLabel = (m: string) =>
+    ({ cash: 'dinheiro', pix: 'PIX', debit_card: 'débito', credit_card: 'crédito' } as Record<string, string>)[m] || m;
+
   // Calcular dias restantes (corrigido)
   const daysRemaining = eligibility 
     ? Math.max(0, eligibility.max_return_days - eligibility.days_since_sale)
@@ -253,7 +300,7 @@ export default function ReturnModal({
       <BottomSheet
         visible={visible}
         onDismiss={onDismiss}
-        title="Devolução"
+        title="Troca e devolução"
         subtitle={saleNumber}
         icon="return-up-back-outline"
         dismissOnBackdrop={!processing}
@@ -267,9 +314,9 @@ export default function ReturnModal({
                   disabled: processing,
                 },
                 {
-                  label: 'Processar Devolução',
+                  label: hasExchange ? 'Confirmar troca' : 'Processar Devolução',
                   onPress: handleProcessReturn,
-                  variant: 'danger',
+                  variant: hasExchange ? 'primary' : 'danger',
                   loading: processing,
                   disabled: processing || selectedItems.size === 0,
                 },
@@ -321,6 +368,12 @@ export default function ReturnModal({
               </View>
             </View>
 
+            {!allowRefund && (
+              <Text style={styles.infoBannerSubtext}>
+                Esta loja não devolve dinheiro: para cada peça devolvida, escolha a peça que o cliente leva no lugar.
+              </Text>
+            )}
+
             {/* Ações Rápidas */}
             <View style={styles.quickActions}>
               <Button
@@ -362,7 +415,7 @@ export default function ReturnModal({
                 >
                   <View style={styles.itemHeader}>
                     <View style={styles.itemInfo}>
-                      <Text style={styles.itemName}>{item.product_name}</Text>
+                      <Text style={styles.itemName}>{item.product_name}{item.variant_label ? ` (${item.variant_label})` : ''}</Text>
                       <Text style={styles.itemPrice}>{formatCurrency(item.unit_price)} cada</Text>
                     </View>
                     <View style={styles.itemQuantityInfo}>
@@ -396,8 +449,37 @@ export default function ReturnModal({
 
                   {selectedQuantity > 0 && (
                     <Text style={styles.itemRefund}>
-                      Reembolso: {formatCurrency((selectedQuantity / item.quantity_available_for_return) * item.max_refund_amount)}
+                      {allowRefund ? 'Reembolso' : 'Valor da peça devolvida'}: {formatCurrency((selectedQuantity / item.quantity_available_for_return) * item.max_refund_amount)}
                     </Text>
+                  )}
+
+                  {selectedQuantity > 0 && (
+                    <View style={{ marginTop: 8 }}>
+                      {replacements.has(item.sale_item_id) ? (
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                          <Ionicons name="swap-horizontal" size={18} color={brandingColors.primary} />
+                          <Text style={{ flex: 1, color: Colors.light.text }}>
+                            Leva: {replacements.get(item.sale_item_id)!.label} ({formatCurrency(replacements.get(item.sale_item_id)!.price)})
+                          </Text>
+                          <Button compact onPress={() => setReplacements((prev) => { const m = new Map(prev); m.delete(item.sale_item_id); return m; })}>
+                            Tirar
+                          </Button>
+                        </View>
+                      ) : (
+                        <Button mode="outlined" icon="swap-horizontal" compact onPress={() => setPickerItemId(item.sale_item_id)}>
+                          Trocar por outra peça
+                        </Button>
+                      )}
+                      <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 6 }}>
+                        <Switch
+                          value={defects.has(item.sale_item_id)}
+                          onValueChange={(v) => setDefects((prev) => { const s = new Set(prev); if (v) s.add(item.sale_item_id); else s.delete(item.sale_item_id); return s; })}
+                        />
+                        <Text style={{ flex: 1, marginLeft: 8, color: Colors.light.textSecondary }}>
+                          Peça com defeito (não volta ao estoque; dá para enviar ao fornecedor)
+                        </Text>
+                      </View>
+                    </View>
                   )}
                 </View>
               );
@@ -416,8 +498,38 @@ export default function ReturnModal({
               maxLength={500}
             />
 
+            {/* Troca: diferença a pagar na hora */}
+            {hasExchange && (
+              <View style={[styles.summaryCard, { borderColor: brandingColors.primary }]}>
+                <Text style={styles.summaryTitle}>Resumo da troca</Text>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Valor das peças devolvidas</Text>
+                  <Text style={styles.summaryValue}>{formatCurrency(totalRefund)}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>Valor das peças novas</Text>
+                  <Text style={styles.summaryValue}>{formatCurrency(totalNew)}</Text>
+                </View>
+                <View style={styles.summaryRow}>
+                  <Text style={styles.summaryLabel}>{netToPay >= 0 ? 'Cliente paga agora' : 'Diferença a devolver'}</Text>
+                  <Text style={[styles.summaryValue, styles.summaryTotal, { color: brandingColors.primary }]}>
+                    {formatCurrency(Math.abs(netToPay))}
+                  </Text>
+                </View>
+                {netToPay > 0.005 && (
+                  <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                    {(['cash', 'pix', 'debit_card', 'credit_card'] as const).map((m) => (
+                      <Chip key={m} selected={settlement === m} onPress={() => setSettlement(m)} mode={settlement === m ? 'flat' : 'outlined'}>
+                        {settlementLabel(m)}
+                      </Chip>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+
             {/* Resumo */}
-            {totalRefund > 0 && (
+            {!hasExchange && totalRefund > 0 && (
               <View style={[styles.summaryCard, { borderColor: brandingColors.primary }]}>
                 <Text style={styles.summaryTitle}>Resumo da Devolução</Text>
                 <View style={styles.summaryRow}>
@@ -435,6 +547,17 @@ export default function ReturnModal({
 
             </View>
           )}
+
+          <ReplacementPicker
+            visible={pickerItemId !== null}
+            productId={eligibility?.items.find((i) => i.sale_item_id === pickerItemId)?.product_id}
+            excludeVariantId={eligibility?.items.find((i) => i.sale_item_id === pickerItemId)?.variant_id}
+            onClose={() => setPickerItemId(null)}
+            onSelect={(choice) => {
+              if (pickerItemId !== null) setReplacements((prev) => new Map(prev).set(pickerItemId, choice));
+              setPickerItemId(null);
+            }}
+          />
 
           <ConfirmDialog
             visible={dialog.visible}

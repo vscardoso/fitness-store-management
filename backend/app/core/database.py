@@ -182,6 +182,9 @@ def _run_alembic_upgrade() -> None:
 _SQLITE_EXTRA_COLUMNS = {
     "stock_entries": [("supplier_id", "INTEGER"), ("discount_amount", "NUMERIC(10,2) NOT NULL DEFAULT 0")],
     "entry_items": [("supplier_id", "INTEGER")],
+    "stores": [("return_window_days", "INTEGER NOT NULL DEFAULT 7"), ("allow_money_refund", "BOOLEAN NOT NULL DEFAULT 1")],
+    "sale_returns": [("exchange_sale_id", "INTEGER"), ("net_amount", "NUMERIC(10,2)"), ("settlement_method", "VARCHAR(20)")],
+    "return_items": [("restock", "BOOLEAN NOT NULL DEFAULT 1"), ("replacement_variant_id", "INTEGER")],
     "app_notifications": [("push_sent", "BOOLEAN NOT NULL DEFAULT 0")],
 }
 
