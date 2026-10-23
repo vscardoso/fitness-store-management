@@ -271,3 +271,12 @@ async def test_http_produto_de_outra_loja_da_404(client):
 async def test_http_token_sem_usuario_valido_nao_ve_nada(client):
     r = await client.get("/api/v1/products/", headers={"Authorization": "Bearer lixo"})
     assert r.status_code == 401
+
+
+async def test_arvore_de_categorias_roda_no_postgres(pg):
+    """Regressão: a CTE recursiva falhava no Postgres (tipo varchar(100) x varchar)."""
+    from app.repositories.category_repository import CategoryRepository
+    admin, _, _ = pg
+    async with _sess(admin) as db:
+        tree = await CategoryRepository(db).get_hierarchy()
+        assert isinstance(tree, list) and tree

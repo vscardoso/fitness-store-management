@@ -69,7 +69,7 @@ class CategoryRepository(BaseRepository[Category, Any, Any]):
                     description, 
                     parent_id,
                     0 as level,
-                    name as path,
+                    CAST(name AS TEXT) as path,
                     CAST(id AS TEXT) as id_path
                 FROM categories 
                 WHERE parent_id IS NULL
