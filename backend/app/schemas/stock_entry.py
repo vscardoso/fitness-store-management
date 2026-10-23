@@ -126,7 +126,9 @@ class StockEntryUpdate(BaseModel):
 class StockEntryResponse(StockEntryBase):
     """Schema for stock entry response with metrics."""
     id: int
-    total_cost: Decimal = Field(..., description="Custo total da entrada")
+    total_cost: Decimal = Field(..., description="Custo total da entrada (só a mercadoria)")
+    extra_costs_total: float = Field(default=0.0, description="Viagem e despesas do lote, rateadas nas peças")
+    total_invested: Optional[float] = Field(default=None, description="Total gasto no lote: mercadoria + viagem + despesas do lote")
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -161,6 +163,8 @@ class StockEntrySummary(BaseModel):
     entry_type: EntryType
     supplier_name: str
     total_cost: Decimal
+    extra_costs_total: float = 0.0
+    total_invested: Optional[float] = None
     total_items: int = 0
     total_quantity: int = 0
     is_active: bool

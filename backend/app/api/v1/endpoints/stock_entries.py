@@ -699,6 +699,14 @@ async def get_stock_entries_stats(
             .where(StockEntry.tenant_id == tenant_id)
         )
         total_invested = total_invested_result.scalar() or 0
+        # + viagem e despesas dos lotes (rateadas nos itens): o mesmo total que cada entrada mostra
+        extras_result = await db.execute(
+            select(func.coalesce(func.sum(EntryItem.quantity_received * EntryItem.extra_unit_cost), 0))
+            .join(StockEntry, StockEntry.id == EntryItem.entry_id)
+            .where(StockEntry.is_active == True, EntryItem.is_active == True)
+            .where(StockEntry.tenant_id == tenant_id)
+        )
+        total_invested = float(total_invested) + float(extras_result.scalar() or 0)
 
         # Total de entradas ativas
         total_entries_result = await db.execute(

@@ -369,3 +369,37 @@ async def test_codigo_da_entrada_troca_espacos_por_traco():
     assert normalize_entry_code("  Entrada   SP  22  ") == "ENTRADA-SP-22"
     assert normalize_entry_code("ENTRADA-001") == "ENTRADA-001"
     assert normalize_entry_code(None) is None
+
+
+async def test_entrada_mostra_total_gasto_com_viagem_e_despesas_e_nao_inventa_retorno(test_client, async_session, test_user):
+    """O mesmo total em todas as telas: mercadoria + viagem + despesas do lote. E o 'retorno' fixo de 30% não existe mais."""
+    from app.models.expense import Expense
+    from app.services import lot_cost_service as svc
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    p, v = await _produto(async_session, t_id, cat, "X")
+    trip = await _viagem(async_session, t_id, fuel=230)
+    lote = await _lote(async_session, t_id, [(v, p, 10, 100)], trip=trip)     # 1.000 de mercadoria
+    async_session.add(Expense(amount=D("120"), description="Almoço", expense_date=date.today(), tenant_id=t_id,
+                              stock_entry_id=lote.id))
+    await async_session.flush()
+    await svc.recompute_entries(async_session, [lote.id], tenant_id=t_id)
+    lote_id = lote.id
+    await async_session.commit()
+
+    r = await test_client.get(f"/api/v1/stock-entries/{lote_id}", headers=h)
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["total_cost"] == 1000.0
+    assert body["extra_costs_total"] == 350.0 and body["total_invested"] == 1350.0
+    assert body["roi"] is None                      # antes: +30% fixo, mesmo sem vender nada
+
+    a = (await test_client.get(f"/api/v1/stock-entries/{lote_id}/analytics", headers=h)).json()
+    assert a["total_investment"] == body["total_invested"]          # cartão e KPI mostram o mesmo número
+
+    lista = (await test_client.get("/api/v1/stock-entries/", headers=h)).json()
+    item = next(x for x in (lista if isinstance(lista, list) else lista["items"]) if x["id"] == lote_id)
+    assert item["total_invested"] == 1350.0
+
+    stats = (await test_client.get("/api/v1/stock-entries/stats", headers=h)).json()
+    assert stats["total_invested"] >= 1350.0                        # o total da lista inclui os extras

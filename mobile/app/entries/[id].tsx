@@ -38,7 +38,7 @@ import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import BottomSheet from '@/components/ui/BottomSheet';
 import useBackToList from '@/hooks/useBackToList';
-import { getStockEntryById, deleteStockEntry, updateEntryItem, correctEntryItem } from '@/services/stockEntryService';
+import { getStockEntryById, deleteStockEntry, updateEntryItem, correctEntryItem, getStockEntryAnalytics } from '@/services/stockEntryService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { toBRNumber, maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
@@ -135,6 +135,13 @@ export default function StockEntryDetailsScreen() {
   /**
    * Query: Buscar entrada
    */
+  // Mesmos números do cartão "Quanto rendeu esta entrada" (a consulta é compartilhada)
+  const { data: lotAnalytics } = useQuery({
+    queryKey: ['lot-analytics', entryId],
+    queryFn: () => getStockEntryAnalytics(entryId),
+    enabled: isValidId,
+  });
+
   const { data: entry, isLoading, error, refetch } = useQuery({
     queryKey: ['stock-entry', entryId],
     queryFn: () => getStockEntryById(entryId),
@@ -688,8 +695,8 @@ export default function StockEntryDetailsScreen() {
         {/* KPIs */}
         <View style={styles.statsGrid}>
           <StatCard
-            label="Custo Total"
-            value={formatCurrency(entry.total_cost)}
+            label="Total gasto"
+            value={formatCurrency(lotAnalytics?.total_investment ?? entry.total_invested ?? entry.total_cost)}
             icon="cash-outline"
             valueColor={Colors.light.text}
           />
@@ -711,12 +718,12 @@ export default function StockEntryDetailsScreen() {
             icon="trending-up"
             valueColor={entry.sell_through_rate >= 70 ? Colors.light.success : entry.sell_through_rate >= 40 ? Colors.light.warning : Colors.light.error}
           />
-          {entry.roi !== null && entry.roi !== undefined && (
+          {lotAnalytics && lotAnalytics.total_quantity_sold > 0 && (
             <StatCard
-              label="Retorno"
-              value={`${entry.roi >= 0 ? '+' : ''}${entry.roi.toFixed(1)}%`}
-              icon="analytics-outline"
-              valueColor={entry.roi >= 0 ? Colors.light.success : Colors.light.error}
+              label="Sobrou até agora"
+              value={formatCurrency(lotAnalytics.gross_profit)}
+              icon="trending-up"
+              valueColor={lotAnalytics.gross_profit >= 0 ? Colors.light.success : Colors.light.error}
             />
           )}
         </View>

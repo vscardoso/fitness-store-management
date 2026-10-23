@@ -692,6 +692,10 @@ export interface StockEntry {
   payment_method?: string;
   notes?: string;
   total_cost: number;
+  /** Viagem e despesas do lote, rateadas nas peças. */
+  extra_costs_total?: number;
+  /** Total gasto no lote: mercadoria + viagem + despesas do lote. */
+  total_invested?: number;
   total_items: number;
   total_quantity: number;
   items_sold: number;

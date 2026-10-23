@@ -226,17 +226,30 @@ class StockEntry(BaseModel):
     @property
     def roi(self) -> float | None:
         """
-        Retorna o ROI (Return on Investment).
-        
-        Returns:
-            float | None: Porcentagem de retorno sobre investimento
+        Sem valor próprio: o retorno real depende das vendas e vem de
+        StockEntryService.get_entry_analytics (receita real e custo posto).
+
+        Antes este campo devolvia SEMPRE +30% (estimativa fixa para qualquer entrada, mesmo sem
+        nenhuma venda), o que enganava o lojista. Não inventar número aqui.
         """
-        if not self.total_cost or self.total_cost == 0:
-            return None
-        # ROI simplificado baseado em margem de 30%
-        estimated_revenue = float(self.total_cost) * 1.3
-        return ((estimated_revenue - float(self.total_cost)) / float(self.total_cost)) * 100.0
-    
+        return None
+
+    @property
+    def extra_costs_total(self) -> Decimal:
+        """Parte do custo do lote que não é mercadoria: viagem e despesas do lote (rateadas nos itens)."""
+        from sqlalchemy import inspect as _inspect
+        if "entry_items" in _inspect(self).unloaded:  # itens não carregados: não dispara consulta
+            return Decimal("0.00")
+        return sum(
+            (Decimal(str(i.quantity_received)) * Decimal(str(i.extra_unit_cost or 0))
+             for i in self.entry_items if i.is_active),
+            Decimal("0.00"),
+        )
+
+    @property
+    def total_invested(self) -> Decimal:
+        """Total gasto no lote: mercadoria + viagem e despesas do lote."""
+        return Decimal(str(self.total_cost or 0)) + self.extra_costs_total
     @property
     def entry_status(self) -> "EntryStatus":
         """Status operacional calculado da entrada."""

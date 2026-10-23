@@ -457,9 +457,9 @@ export default function StockEntriesScreen() {
             {/* Métricas */}
             <View style={styles.metricsRow}>
               <View style={styles.metricItem}>
-                <Text style={styles.metricLabel}>Custo Total</Text>
+                <Text style={styles.metricLabel}>Total gasto</Text>
                 <Text style={styles.metricValue}>
-                  {formatCurrency(item.total_cost)}
+                  {formatCurrency(item.total_invested ?? item.total_cost)}
                 </Text>
               </View>
 
