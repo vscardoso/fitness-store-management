@@ -30,7 +30,7 @@ import { getMonthlyResult } from '@/services/expenseService';
 import type { DailySalesData } from '@/services/dashboardService';
 import { getSales } from '@/services/saleService';
 import { getLowStockProducts } from '@/services/productService';
-import type { Sale } from '@/types';
+import { UserRole, type Sale } from '@/types';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { valueColor } from '@/utils/format';
@@ -110,29 +110,32 @@ export default function DashboardScreen() {
     transform: [{ translateY: contentTranslateY.value }],
   }));
 
+  // Painel financeiro (custos, lucro, relatórios) só para gerente e admin; caixa e vendedor veem vendas recentes
+  const canSeeDashboard = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
+
   // Queries
   const { data: dashboardStats, refetch: refetchStats } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: getDashboardStats,
-    enabled: !!user,
+    enabled: !!user && canSeeDashboard,
   });
 
   const { data: valuation, refetch: refetchValuation } = useQuery({
     queryKey: ['inventory-valuation'],
     queryFn: getInventoryValuation,
-    enabled: !!user,
+    enabled: !!user && canSeeDashboard,
   });
 
   const { data: periodStats, refetch: refetchPeriod } = useQuery({
     queryKey: ['period-sales', selectedPeriod],
     queryFn: () => getPeriodSalesStats(selectedPeriod),
-    enabled: !!user,
+    enabled: !!user && canSeeDashboard,
   });
 
   const { data: purchasesStats, refetch: refetchPurchases } = useQuery({
     queryKey: ['period-purchases', selectedPeriod],
     queryFn: () => getPeriodPurchases(selectedPeriod),
-    enabled: !!user,
+    enabled: !!user && canSeeDashboard,
   });
 
   const { data: recentSales, refetch: refetchRecentSales } = useQuery({
@@ -153,28 +156,28 @@ export default function DashboardScreen() {
   const { data: dailySales, refetch: refetchDailySales } = useQuery({
     queryKey: ['daily-sales'],
     queryFn: () => getDailySales(7),
-    enabled: !!user,
+    enabled: !!user && canSeeDashboard,
   });
 
   // Query top produtos do período
   const { data: topProducts, refetch: refetchTopProducts } = useQuery({
     queryKey: ['top-products', selectedPeriod],
     queryFn: () => getTopProducts(selectedPeriod, 5),
-    enabled: !!user,
+    enabled: !!user && canSeeDashboard,
   });
 
   // Query performance FIFO
   const { data: fifoPerf, refetch: refetchFifo } = useQuery({
     queryKey: ['fifo-performance'],
     queryFn: getFifoPerformance,
-    enabled: !!user,
+    enabled: !!user && canSeeDashboard,
   });
 
   // Query YoY (ano a ano)
   const { data: yoyData, refetch: refetchYoY } = useQuery({
     queryKey: ['yoy-comparison'],
     queryFn: getYoYComparison,
-    enabled: !!user,
+    enabled: !!user && canSeeDashboard,
   });
 
   // Query resultado do mês (P&L)
@@ -182,23 +185,27 @@ export default function DashboardScreen() {
   const { data: monthlyResult, refetch: refetchMonthly } = useQuery({
     queryKey: ['monthly-result', now.getFullYear(), now.getMonth() + 1],
     queryFn: () => getMonthlyResult(now.getFullYear(), now.getMonth() + 1),
-    enabled: !!user,
+    enabled: !!user && canSeeDashboard,
   });
 
   // Refresh
   const onRefresh = async () => {
     setRefreshing(true);
     await Promise.all([
-      refetchStats(),
-      refetchValuation(),
-      refetchPeriod(),
-      refetchPurchases(),
       refetchRecentSales(),
-      refetchDailySales(),
-      refetchTopProducts(),
-      refetchFifo(),
-      refetchYoY(),
-      refetchMonthly(),
+      ...(canSeeDashboard
+        ? [
+            refetchStats(),
+            refetchValuation(),
+            refetchPeriod(),
+            refetchPurchases(),
+            refetchDailySales(),
+            refetchTopProducts(),
+            refetchFifo(),
+            refetchYoY(),
+            refetchMonthly(),
+          ]
+        : []),
     ]);
     setRefreshing(false);
     playEntryAnimation();
@@ -365,6 +372,8 @@ export default function DashboardScreen() {
             </View>
           </TouchableOpacity>
         )}
+        {canSeeDashboard && (
+<>
         {/* ========== CARD PRINCIPAL: VENDAS HOJE ========== */}
         <TouchableOpacity
           activeOpacity={0.9}
@@ -415,6 +424,9 @@ export default function DashboardScreen() {
           </LinearGradient>
         </TouchableOpacity>
 
+        </>
+)}
+
         {/* ========== AÇÕES RÁPIDAS ========== */}
         <Text style={styles.sectionTitle}>Ações Rápidas</Text>
         <ScrollView
@@ -437,6 +449,8 @@ export default function DashboardScreen() {
           ))}
         </ScrollView>
 
+        {canSeeDashboard && (
+<>
         {/* ========== RESUMO DO PERÍODO ========== */}
         <View style={styles.periodHeader}>
           <Text style={styles.sectionTitle}>{periodLabel}</Text>
@@ -1141,6 +1155,9 @@ export default function DashboardScreen() {
             </View>
           </View>
         </View>
+
+        </>
+)}
 
         {/* Tooltip Modal */}
         <Modal

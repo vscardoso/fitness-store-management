@@ -56,6 +56,8 @@ function MenuItem({ icon, title, subtitle, onPress, badge, iconColor, iconBg }: 
 
 export default function MoreScreen() {
   const { user, logout } = useAuth();
+  // Caixa e vendedor não têm acesso a custos, despesas e relatórios (a API devolve 403); o menu some para eles
+  const isManager = user?.role === UserRole.ADMIN || user?.role === UserRole.MANAGER;
   const router = useRouter();
   const brandingColors = useBrandingColors();
   const { data: unreadAlerts = 0 } = useUnreadCount();
@@ -163,15 +165,16 @@ export default function MoreScreen() {
           <View style={styles.menuCard}>
             <MenuItem icon="cube-outline" title="Produtos" subtitle="Catálogo e gerenciamento" onPress={() => router.push('/(tabs)/products')} iconColor={Colors.light.primary} iconBg={Colors.light.primaryLight} />
             <MenuItem icon="people-outline" title="Clientes" subtitle="Gerenciar clientes e fidelidade" onPress={() => router.push('/(tabs)/customers')} iconColor={Colors.light.info} iconBg={Colors.light.infoLight} />
-            <MenuItem icon="layers-outline" title="Entradas" subtitle="Compras e controle de entradas" onPress={() => router.push('/entries')} iconColor="#9333EA" iconBg="#F3E8FF" />
-            <MenuItem icon="business-outline" title="Fornecedores" subtitle="Catálogo de fornecedores" onPress={() => router.push('/suppliers' as any)} iconColor="#F97316" iconBg="#FFEDD5" />
+            {isManager && <MenuItem icon="layers-outline" title="Entradas" subtitle="Compras e controle de entradas" onPress={() => router.push('/entries')} iconColor="#9333EA" iconBg="#F3E8FF" />}
+            {isManager && <MenuItem icon="business-outline" title="Fornecedores" subtitle="Catálogo de fornecedores" onPress={() => router.push('/suppliers' as any)} iconColor="#F97316" iconBg="#FFEDD5" />}
             <MenuItem icon="pricetags-outline" title="Categorias" subtitle="Organizar produtos por categoria" onPress={() => router.push('/(tabs)/categories')} iconColor="#9333EA" iconBg="#F3E8FF" />
             <MenuItem icon="layers-outline" title="Inventário" subtitle="Dashboard de estoque e alertas" onPress={() => router.push('/(tabs)/inventory')} iconColor={Colors.light.warning} iconBg={Colors.light.warningLight} />
           </View>
         </View>
 
         {/* Financeiro */}
-        <View style={styles.section}>
+        {isManager && (
+<View style={styles.section}>
           <Text style={styles.sectionTitle}>Financeiro</Text>
           <View style={styles.menuCard}>
             <MenuItem icon="receipt-outline" title="Despesas" subtitle="Registrar e gerenciar despesas operacionais" onPress={() => router.push('/(tabs)/expenses')} iconColor={Colors.light.error} iconBg="#FFEBEE" />
@@ -179,9 +182,11 @@ export default function MoreScreen() {
             <MenuItem icon="stats-chart-outline" title="Resultado do Mês (P&L)" subtitle="Receita − CMV − Despesas = Lucro Líquido" onPress={() => router.push('/(tabs)/expenses/resultado')} iconColor="#7C3AED" iconBg="#EDE9FE" />
           </View>
         </View>
+        )}
 
         {/* Relatórios */}
-        <View style={styles.section}>
+        {isManager && (
+<View style={styles.section}>
           <Text style={styles.sectionTitle}>Relatórios</Text>
           <View style={styles.menuCard}>
             <MenuItem icon="bar-chart-outline" title="Vendas" subtitle="Relatório de vendas e faturamento" onPress={() => router.push('/reports/sales')} iconColor={Colors.light.success} iconBg={Colors.light.successLight} />
@@ -189,15 +194,18 @@ export default function MoreScreen() {
             <MenuItem icon="calendar-outline" title="Histórico" subtitle="Vendas, entradas e movimentações" onPress={() => router.push('/reports/history')} iconColor="#8B5CF6" iconBg="#EDE9FE" />
           </View>
         </View>
+        )}
 
         {/* Looks & Wishlist */}
-        <View style={styles.section}>
+        {isManager && (
+<View style={styles.section}>
           <Text style={styles.sectionTitle}>Looks & Wishlist</Text>
           <View style={styles.menuCard}>
             <MenuItem icon="shirt-outline" title="Lookbook" subtitle="Montar e gerenciar looks" onPress={() => router.push('/looks')} iconColor="#EC4899" iconBg="#FCE7F3" />
             <MenuItem icon="heart-outline" title="Demanda Wishlist" subtitle="Produtos mais desejados por clientes" onPress={() => router.push('/(tabs)/demand')} iconColor="#8B5CF6" iconBg="#EDE9FE" />
           </View>
         </View>
+        )}
 
         {/* PDV — Pagamentos */}
         <View style={styles.section}>

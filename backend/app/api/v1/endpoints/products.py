@@ -546,7 +546,7 @@ async def generate_product_barcode(
     product_id: int,
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER]))
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.SELLER]))
 ):
     """
     Gera um código de barras EAN-13 único para o produto.
@@ -624,7 +624,7 @@ async def generate_product_barcode(
 async def generate_standalone_barcode(
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER]))
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.SELLER]))
 ):
     """
     Gera um código de barras EAN-13 único sem associar a um produto.
@@ -858,7 +858,7 @@ async def create_product(
     product_data: ProductCreate,
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN]))
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER]))
 ):
     """
     Criar novo produto.
@@ -961,7 +961,7 @@ async def update_product(
     product_data: ProductUpdate,
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN]))
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER]))
 ):
     """
     Atualizar produto existente.
@@ -1029,7 +1029,7 @@ async def update_product_price(
     cost_price: Optional[float] = Query(None, ge=0, description="Novo preço de custo"),
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN]))
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER]))
 ):
     """
     Atualizar preço do produto.
@@ -1096,7 +1096,7 @@ async def delete_product(
     product_id: int,
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN]))
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER]))
 ):
     """
     Deletar produto (soft delete).
@@ -1237,7 +1237,7 @@ async def upload_product_image(
     file: UploadFile = File(...),
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN]))
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER]))
 ):
     """
     Upload de imagem para um produto.
@@ -1345,7 +1345,7 @@ async def upload_product_image_base64(
     image_data: str = Body(..., embed=True, description="Imagem em base64 (com ou sem prefixo data:image/...)"),
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN]))
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER]))
 ):
     """
     Upload de imagem em base64 (útil para fotos do scanner mobile).

@@ -199,7 +199,7 @@ class StockEntryWithNewProductVariantsRequest(BaseModel):
 async def create_stock_entry_with_new_product(
     request_data: StockEntryWithNewProductRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.SELLER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
@@ -305,7 +305,7 @@ async def create_stock_entry_with_new_product(
 async def create_stock_entry_with_new_product_variants(
     request_data: StockEntryWithNewProductVariantsRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.SELLER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
@@ -407,7 +407,7 @@ async def add_new_product_to_entry(
     entry_id: int,
     request_data: NewProductForEntryRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.SELLER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     """O produto só passa a existir se o lançamento na entrada der certo; qualquer falha desfaz tudo."""
@@ -443,7 +443,7 @@ async def add_new_product_to_entry(
 async def create_stock_entry(
     request_data: StockEntryCreateRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.SELLER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
@@ -1065,7 +1065,7 @@ async def update_stock_entry(
     entry_id: int,
     entry_data: StockEntryUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.SELLER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
@@ -1189,7 +1189,7 @@ async def update_entry_item(
     item_id: int,
     item_data: EntryItemUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.SELLER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
@@ -1290,7 +1290,7 @@ async def add_item_to_entry(
     entry_id: int,
     item_data: EntryItemCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.SELLER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
@@ -1417,7 +1417,7 @@ async def correct_entry_item(
     item_id: int,
     data: EntryItemCorrectionRequest,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.SELLER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     try:

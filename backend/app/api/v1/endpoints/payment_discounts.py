@@ -238,7 +238,7 @@ async def calculate_discount(
 async def create_payment_discount(
     discount_data: PaymentDiscountCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     tenant_id: int = Depends(get_current_tenant_id)
 ):
     """
@@ -290,7 +290,7 @@ async def update_payment_discount(
     discount_id: int,
     discount_data: PaymentDiscountUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     tenant_id: int = Depends(get_current_tenant_id)
 ):
     """
@@ -333,7 +333,7 @@ async def update_payment_discount(
 async def delete_payment_discount(
     discount_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
     tenant_id: int = Depends(get_current_tenant_id)
 ):
     """

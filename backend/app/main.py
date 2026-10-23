@@ -139,6 +139,10 @@ for view in ALL_VIEWS:
 # Include all API v1 endpoints
 app.include_router(api_router)
 
+# Matriz de permissões por papel (caixa, vendedor, gerente, admin): app/core/permissions.py
+from app.core.permissions import apply_permission_matrix
+apply_permission_matrix(app)
+
 # Webhook WhatsApp (fora do prefixo /api/v1)
 app.include_router(whatsapp_router)
 

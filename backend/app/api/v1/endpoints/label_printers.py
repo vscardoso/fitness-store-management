@@ -86,7 +86,7 @@ async def get_default_printer(
 async def create_printer(
     data: LabelPrinterCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     try:
@@ -106,7 +106,7 @@ async def update_printer(
     printer_id: int,
     data: LabelPrinterUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     try:
@@ -127,7 +127,7 @@ async def update_printer(
 async def delete_printer(
     printer_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     try:
@@ -145,7 +145,7 @@ async def delete_printer(
 async def test_printer(
     printer_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role(UserRole.ADMIN)),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     try:

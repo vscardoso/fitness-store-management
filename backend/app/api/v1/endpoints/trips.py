@@ -29,7 +29,7 @@ router = APIRouter(prefix="/trips", tags=["Viagens"])
 async def create_trip(
     trip_data: TripCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.SELLER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
@@ -420,7 +420,7 @@ async def update_trip(
     trip_id: int,
     trip_data: TripUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.SELLER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     """
@@ -484,7 +484,7 @@ async def update_trip_status(
     trip_id: int,
     status_data: TripStatusUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.SELLER])),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.SELLER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     """

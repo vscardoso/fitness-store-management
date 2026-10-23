@@ -85,7 +85,7 @@ async def upload_product_media(
     file: UploadFile = File(...),
     variant_id: Optional[int] = Query(None),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     from app.services.storage_service import get_storage_service
@@ -134,7 +134,7 @@ async def upload_product_media_base64(
     image_data: str = Body(..., embed=True),
     variant_id: Optional[int] = Body(None, embed=True),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     import base64
@@ -177,7 +177,7 @@ async def set_media_as_cover(
     product_id: int,
     media_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     svc = ProductMediaService(db)
@@ -196,7 +196,7 @@ async def delete_product_media(
     product_id: int,
     media_id: int,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     svc = ProductMediaService(db)
@@ -215,7 +215,7 @@ async def reorder_product_media(
     product_id: int,
     items: List[ProductMediaReorderItem],
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     svc = ProductMediaService(db)

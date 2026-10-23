@@ -32,7 +32,9 @@ const tags = `
       /* No iPhone instalado, 100% de altura deixava uma faixa branca embaixo: prende o app nas 4 bordas */
       body { height: 100%; margin: 0; background-color: #F8F9FA; }
       /* 100lvh = altura real da tela; no iOS instalado 100% e bottom:0 ficam ~55pt menores */
-      html { height: 100vh; height: 100lvh; }
+      html { height: 100vh; height: 100lvh; touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+      /* iOS dá zoom ao focar campo com fonte menor que 16px; o maximum-scale=1 do viewport impede, e isto garante */
+      input, textarea, select { font-size: max(16px, 1em); }
       #root { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; height: 100lvh; }
     </style>
     <link rel="manifest" href="/manifest.json" />
@@ -46,7 +48,7 @@ const tags = `
 html = html
   .replace(/<title>[^<]*<\/title>/, '<title>Provador</title>')
   .replace('<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />',
-           '<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover" />')
+           '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no, viewport-fit=cover" />')
   .replace('</head>', tags + '\n  </head>');
 fs.writeFileSync(file, html);
 console.log('PWA: tags injetadas em dist/index.html');
