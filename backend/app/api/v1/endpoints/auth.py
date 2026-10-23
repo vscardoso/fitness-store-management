@@ -18,7 +18,9 @@ from app.schemas.signup import (
 )
 from app.services.auth_service import AuthService
 from app.services.signup_service import SignupService
-from app.api.deps import get_current_active_user
+from app.api.deps import get_current_active_user, require_role
+from app.core import rate_limit
+from app.models.user import UserRole
 from app.models.user import User
 from app.models.store import Store
 from app.services.audit_service import AuditService
@@ -32,15 +34,19 @@ logger = logging.getLogger(__name__)
     "/register",
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
-    summary="Registrar novo usuário",
-    description="Cria um novo usuário no sistema com email e senha"
+    summary="Criar usuário da loja (somente admin)",
+    description="Admin cria um usuário na PRÓPRIA loja. Lojas novas nascem em /auth/signup."
 )
 async def register(
     user_data: UserCreate,
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
+    admin: User = Depends(require_role([UserRole.ADMIN])),
 ):
     """
-    Registrar novo usuário.
+    Criar usuário na loja do admin autenticado.
+
+    A loja vem do admin, nunca do corpo da requisição. Antes esta rota era pública e
+    aceitava `role` do cliente (qualquer pessoa podia se criar como admin).
     
     Args:
         user_data: Dados do usuário (email, senha, nome completo, role, telefone)
@@ -55,7 +61,7 @@ async def register(
     auth_service = AuthService(db)
     
     try:
-        user = await auth_service.register_user(user_data)
+        user = await auth_service.register_user(user_data, tenant_id=admin.tenant_id)
         return user
     except ValueError as e:
         raise HTTPException(
@@ -103,6 +109,15 @@ async def login(
             detail="Email e senha são obrigatórios"
         )
 
+    ip = rate_limit.client_ip(request)
+    wait = rate_limit.retry_after(ip, credentials.email)
+    if wait:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Muitas tentativas de login. Tente novamente em alguns minutos.",
+            headers={"Retry-After": str(wait)},
+        )
+
     # Autenticar usuário
     user = await auth_service.authenticate(
         credentials.email,
@@ -110,6 +125,7 @@ async def login(
     )
 
     if not user:
+        rate_limit.register_failure(ip, credentials.email)
         await AuditService.log(db, "LOGIN_FAILED",
             user_email=credentials.email,
             ip_address=request.client.host if request.client else None,
@@ -127,6 +143,8 @@ async def login(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Usuário inativo. Entre em contato com o administrador."
         )
+
+    rate_limit.clear_email(credentials.email)
 
     # Criar sessão (access_token + refresh_token rastreado no banco)
     try:

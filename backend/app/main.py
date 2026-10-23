@@ -88,13 +88,29 @@ app.add_middleware(
 )
 
 # Session middleware (necessário para o painel Admin)
+# Cookie só trafega por HTTPS em produção (em dev local o painel roda em http).
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.SECRET_KEY,
     session_cookie="admin_session",
     max_age=3600,
-    https_only=False,
+    same_site="strict",
+    https_only=settings.ENVIRONMENT == "production",
 )
+
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    """Cabeçalhos de segurança em toda resposta da API."""
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    # HSTS só quando a requisição chegou por HTTPS (nginx informa em X-Forwarded-Proto)
+    if request.headers.get("x-forwarded-proto") == "https" or request.url.scheme == "https":
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+    return response
 
 # Tenant Middleware (resolve tenant_id por requisição)
 app.add_middleware(TenantMiddleware)

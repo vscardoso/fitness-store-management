@@ -51,8 +51,12 @@ class Settings(BaseSettings):
     # antes do validador rodar (causaria SettingsError em qualquer formato não-JSON)
     CORS_ORIGINS: str = '["http://localhost:3000"]'
     CORS_ALLOW_CREDENTIALS: bool = True
-    CORS_ALLOW_METHODS: str = '["*"]'
-    CORS_ALLOW_HEADERS: str = '["*"]'
+    CORS_ALLOW_METHODS: str = '["GET","POST","PUT","PATCH","DELETE","OPTIONS"]'
+    # Cabeçalhos que o app envia (mobile/services/api.ts). Novo cabeçalho customizado no app exige entrar aqui.
+    CORS_ALLOW_HEADERS: str = (
+        '["Authorization","Content-Type","Accept","Accept-Language",'
+        '"X-Tenant-Id","X-Store-Slug","X-Skip-Auth","X-Skip-Loading","X-Loading-Message"]'
+    )
 
     @property
     def cors_origins(self) -> List[str]:
