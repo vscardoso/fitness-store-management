@@ -4,6 +4,8 @@ Endpoints de entradas de estoque (StockEntries) - Gerenciamento de compras e inv
 Todos os endpoints requerem autenticação.
 Operações de modificação (POST, PUT, DELETE) requerem permissões de admin ou seller.
 """
+from decimal import Decimal
+
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -82,6 +84,7 @@ class StockEntryWithNewProductRequest(StockEntryCreate):
     supplier_contact: Optional[str] = None
     invoice_number: Optional[str] = None
     payment_method: Optional[str] = None
+    discount_amount: Decimal = Field(Decimal('0'), ge=0)
     notes: Optional[str] = None
 
 
@@ -175,6 +178,7 @@ class StockEntryWithNewProductVariantsRequest(BaseModel):
     supplier_contact: Optional[str] = None
     invoice_number: Optional[str] = None
     payment_method: Optional[str] = None
+    discount_amount: Decimal = Field(Decimal('0'), ge=0)
     notes: Optional[str] = None
 
     @field_validator("entry_code", mode="before")
@@ -285,6 +289,7 @@ async def create_stock_entry_with_new_product(
                 "supplier_contact": request_data.supplier_contact,
                 "invoice_number": request_data.invoice_number,
                 "payment_method": request_data.payment_method,
+                "discount_amount": request_data.discount_amount,
                 "notes": request_data.notes,
             },
             quantity=request_data.quantity,
@@ -389,6 +394,7 @@ async def create_stock_entry_with_new_product_variants(
                 "supplier_contact": request_data.supplier_contact,
                 "invoice_number": request_data.invoice_number,
                 "payment_method": request_data.payment_method,
+                "discount_amount": request_data.discount_amount,
                 "notes": request_data.notes,
             },
             user_id=current_user.id,
@@ -519,6 +525,7 @@ async def create_stock_entry(
             supplier_contact=request_data.supplier_contact,
             invoice_number=request_data.invoice_number,
             payment_method=request_data.payment_method,
+            discount_amount=request_data.discount_amount,
             notes=request_data.notes
             ,extra_costs=request_data.extra_costs
         )

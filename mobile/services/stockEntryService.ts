@@ -57,7 +57,9 @@ export interface LotAnalytics {
   trip_cost_share: number;
   /** Despesas lançadas neste lote (frete, embalagem...). */
   own_costs: number;
-  /** Viagem + despesas do lote. */
+  /** Desconto do fornecedor (já abatido do custo). */
+  discount_amount: number;
+  /** Viagem + despesas do lote, menos o desconto. */
   extra_costs_total: number;
   /** Mercadoria + custos do lote. */
   total_investment: number;
@@ -112,6 +114,7 @@ export interface LotCosts {
   };
   lot_expenses: Array<{ id: number; description: string; amount: number; date: string }>;
   lot_expenses_total: number;
+  discount_amount: number;
   extra_costs_total: number;
   total_investment: number;
   cost_increase_pct: number;
@@ -199,6 +202,7 @@ export async function createStockEntryWithNewProduct(
     invoice_number?: string;
     payment_method?: string;
     notes?: string;
+    discount_amount?: number;
     extra_costs?: Array<{ description: string; amount: number }>;
   },
   quantity: number
@@ -245,6 +249,7 @@ export async function createStockEntryWithNewProductVariants(
     invoice_number?: string;
     payment_method?: string;
     notes?: string;
+    discount_amount?: number;
     extra_costs?: Array<{ description: string; amount: number }>;
   }
 ): Promise<StockEntry> {

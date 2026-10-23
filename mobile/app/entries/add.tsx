@@ -60,6 +60,7 @@ import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
 import WizardStepper from '@/components/products/WizardStepper';
 import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
 import { logInfo, logError } from '@/services/debugLog';
+import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 
 /**
  * Capitaliza a primeira letra de cada palavra no nome do fornecedor
@@ -255,6 +256,7 @@ export default function AddStockEntryScreen() {
   const [supplierPickerHeaderOpen, setSupplierPickerHeaderOpen] = useState(false);
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('');
+  const [discountText, setDiscountText] = useState('');
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<EntryItemForm[]>([]);
   const [itemCosts, setItemCosts] = useState<Record<string, string>>({});
@@ -810,6 +812,7 @@ export default function AddStockEntryScreen() {
           supplier_contact: supplierContact.trim() || undefined,
           invoice_number: invoiceNumber.trim() || undefined,
           payment_method: paymentMethod.trim() || undefined,
+          discount_amount: unmaskCurrency(discountText) || undefined,
           notes: notes.trim() || undefined,
           extra_costs: extraCosts.length > 0 ? extraCosts : undefined,
         },
@@ -878,6 +881,7 @@ export default function AddStockEntryScreen() {
           supplier_contact: supplierContact.trim() || undefined,
           invoice_number: invoiceNumber.trim() || undefined,
           payment_method: paymentMethod.trim() || undefined,
+          discount_amount: unmaskCurrency(discountText) || undefined,
           notes: notes.trim() || undefined,
           extra_costs: extraCosts.length > 0 ? extraCosts : undefined,
         }
@@ -1221,6 +1225,7 @@ export default function AddStockEntryScreen() {
       supplier_contact: supplierContact.trim() || undefined,
       invoice_number: invoiceNumber.trim() || undefined,
       payment_method: paymentMethod.trim() || undefined,
+      discount_amount: unmaskCurrency(discountText) || undefined,
       notes: notes.trim() || undefined,
       extra_costs: extraCosts.length > 0 ? extraCosts : undefined,
       items: items.filter(item => item.quantity_received > 0).map(item => ({
@@ -1837,6 +1842,21 @@ export default function AddStockEntryScreen() {
               placeholder="Ex: 12345"
               left={<TextInput.Icon icon="receipt" />}
             />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <TextInput
+              label="Desconto do fornecedor (opcional)"
+              value={discountText}
+              onChangeText={(t) => setDiscountText(maskCurrencyBR(t))}
+              mode="outlined"
+              keyboardType="numeric"
+              placeholder="0,00"
+              left={<TextInput.Affix text="R$" />}
+            />
+            <Text style={{ fontSize: 12, color: '#666', marginTop: 4 }}>
+              Se o fornecedor abateu um valor no fim da compra, informe aqui. O desconto reduz o custo de cada peça.
+            </Text>
           </View>
 
           <View style={styles.inputGroup}>

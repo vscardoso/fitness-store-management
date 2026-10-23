@@ -465,18 +465,18 @@ async def test_custos_na_entrada_com_produto_novo_e_com_variantes(test_client, a
     # produto simples
     r = await test_client.post("/api/v1/stock-entries/with-new-product", headers=h, json={
         **base, "entry_code": f"NP-{n:04d}", "product_name": f"Camiseta Teste {n}", "product_sku": f"NP-SKU-{n}",
-        "product_category_id": cat, "product_cost_price": 10, "product_price": 30, "quantity": 10,
+        "product_category_id": cat, "product_cost_price": 10, "product_price": 30, "quantity": 10, "discount_amount": "20.00",
         "extra_costs": [{"description": "Frete", "amount": "50.00"}]})
     assert r.status_code in (200, 201), r.text
     entry_id = r.json()["id"]
     async_session.expire_all()
     (c, extra, posto), = await _extras(async_session, entry_id)
-    assert extra == D("5.0000") and posto == D("15.0000")                       # 50 / 10 peças
+    assert extra == D("3.0000") and posto == D("13.0000")                       # (50 frete - 20 desconto) / 10 peças
 
     # produto com variantes (2 variantes x 5 peças)
     r = await test_client.post("/api/v1/stock-entries/with-new-product-variants", headers=h, json={
         **base, "entry_code": f"NV-{n:04d}", "product_name": f"Legging Teste {n}", "product_category_id": cat,
-        "base_price": 30,
+        "base_price": 30, "discount_amount": "10.00",
         "variants": [
             {"sku": f"NV-{n}-P", "color": "Preto", "size": "P", "price": 30, "cost_price": 10, "quantity": 5},
             {"sku": f"NV-{n}-M", "color": "Preto", "size": "M", "price": 30, "cost_price": 10, "quantity": 5},
@@ -486,6 +486,75 @@ async def test_custos_na_entrada_com_produto_novo_e_com_variantes(test_client, a
     entry2 = r.json()["id"]
     async_session.expire_all()
     extras = await _extras(async_session, entry2)
-    assert [e[1] for e in extras] == [D("3.0000"), D("3.0000")]                  # 30 / 10 peças
+    assert [e[1] for e in extras] == [D("2.0000"), D("2.0000")]                  # (30 - 10 desconto) / 10 peças
     n_exp = len((await async_session.execute(select(Expense).where(Expense.stock_entry_id == entry2))).scalars().all())
     assert n_exp == 2
+
+
+# ───────────────────────── desconto do fornecedor ─────────────────────────
+
+async def test_desconto_do_fornecedor_abate_o_custo_das_pecas(async_session):
+    from app.services import lot_cost_service as svc
+    t_id, _, cat = await _loja(async_session)
+    p, v = await _produto(async_session, t_id, cat, "Top")
+    lote = await _lote(async_session, t_id, [(v, p, 10, 10)])  # mercadoria R$ 100
+    lote.discount_amount = D("10")
+    out = await svc.recompute_entries(async_session, [lote.id], tenant_id=t_id)
+    assert out[lote.id]["extra"] == D("-10") and out[lote.id]["discount"] == D("10")
+    (custo, extra, posto), = await _extras(async_session, lote.id)
+    assert custo == D("10.00") and extra == D("-1.0000") and posto == D("9.0000")
+
+
+async def test_desconto_com_viagem_e_nunca_passa_da_mercadoria(async_session):
+    from app.services import lot_cost_service as svc
+    t_id, _, cat = await _loja(async_session)
+    p, v = await _produto(async_session, t_id, cat, "Top")
+    trip = await _viagem(async_session, t_id, fuel=100)
+    lote = await _lote(async_session, t_id, [(v, p, 10, 10)], trip=trip)  # mercadoria 100 + viagem 100
+    lote.discount_amount = D("20")
+    await svc.recompute_entries(async_session, [lote.id], tenant_id=t_id)
+    (_, extra, posto), = await _extras(async_session, lote.id)
+    assert extra == D("8.0000") and posto == D("18.0000")  # (100 - 20) / 10
+    lote.discount_amount = D("999")  # absurdo: limita à mercadoria, custo posto não fica negativo
+    await svc.recompute_entries(async_session, [lote.id], tenant_id=t_id)
+    (_, extra, posto), = await _extras(async_session, lote.id)
+    assert posto >= 0 and posto == D("10.0000")
+
+
+async def test_api_desconto_na_entrada_reflete_no_custo_e_nas_analises(test_client, async_session, test_user):
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    p, v = await _produto(async_session, t_id, cat, "Legging")
+    lote = await _lote(async_session, t_id, [(v, p, 10, 10)])
+    await async_session.commit()
+    r = await test_client.put(f"/api/v1/stock-entries/{lote.id}", headers=h, json={"discount_amount": 10})
+    assert r.status_code == 200, r.text
+    assert float(r.json()["discount_amount"]) == 10.0
+    c = (await test_client.get(f"/api/v1/stock-entries/{lote.id}/costs", headers=h)).json()
+    assert c["discount_amount"] == 10.0 and c["extra_costs_total"] == -10.0 and c["total_investment"] == 90.0
+    a = (await test_client.get(f"/api/v1/stock-entries/{lote.id}/analytics", headers=h)).json()
+    assert a["discount_amount"] == 10.0 and a["total_investment"] == 90.0 and a["trip_cost_share"] == 0.0
+    r = await test_client.put(f"/api/v1/stock-entries/{lote.id}", headers=h, json={"discount_amount": -5})
+    assert r.status_code == 422
+
+
+async def test_api_criar_entrada_com_desconto_e_frete_juntos(test_client, async_session, test_user):
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    p, v = await _produto(async_session, t_id, cat, "Short")
+    await async_session.commit()
+    r = await test_client.post("/api/v1/stock-entries/", headers=h, json={
+        "entry_date": date.today().isoformat(), "supplier_name": "Fornecedor Teste",
+        "entry_code": f"DESC-{next(_seq):04d}", "entry_type": "local", "discount_amount": "15.00",
+        "items": [{"product_id": p.id, "variant_id": v.id, "quantity_received": 10, "unit_cost": "10.00"}],
+        "extra_costs": [{"description": "Frete", "amount": "25.00"}]})
+    assert r.status_code == 201, r.text
+    assert float(r.json()["discount_amount"]) == 15.0
+    async_session.expire_all()
+    (c, extra, posto), = await _extras(async_session, r.json()["id"])
+    assert extra == D("1.0000") and posto == D("11.0000")  # (25 frete - 15 desconto) / 10 peças
+    r = await test_client.post("/api/v1/stock-entries/", headers=h, json={
+        "entry_date": date.today().isoformat(), "supplier_name": "Fornecedor Teste",
+        "entry_code": f"DESC-{next(_seq):04d}", "entry_type": "local", "discount_amount": "-1",
+        "items": [{"product_id": p.id, "variant_id": v.id, "quantity_received": 1, "unit_cost": "10.00"}]})
+    assert r.status_code == 422

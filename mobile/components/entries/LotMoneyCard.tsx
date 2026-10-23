@@ -15,6 +15,7 @@ import { Colors, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getStockEntryAnalytics, getStockEntryCosts } from '@/services/stockEntryService';
 import { createExpense, deleteExpense } from '@/services/expenseService';
+import { updateStockEntry } from '@/services/stockEntryService';
 import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
@@ -37,6 +38,8 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
   const [description, setDescription] = useState('');
   const [amount, setAmount] = useState('');
   const [formError, setFormError] = useState('');
+  const [discountOpen, setDiscountOpen] = useState(false);
+  const [discountText, setDiscountText] = useState('');
 
   const analytics = useQuery({ queryKey: ['lot-analytics', entryId], queryFn: () => getStockEntryAnalytics(entryId) });
   const costs = useQuery({ queryKey: ['lot-costs', entryId], queryFn: () => getStockEntryCosts(entryId) });
@@ -68,6 +71,16 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
     onError: (e: any) => setFormError(parseApiError(e) || 'Não foi possível salvar. Tente de novo.'),
   });
 
+  const discountMutation = useMutation({
+    mutationFn: (value: number) => updateStockEntry(entryId, { discount_amount: value }),
+    onSuccess: () => {
+      setDiscountOpen(false);
+      setFormError('');
+      refreshAll();
+    },
+    onError: (e: any) => setFormError(parseApiError(e) || 'Não foi possível salvar. Tente de novo.'),
+  });
+
   const removeMutation = useMutation({
     mutationFn: (id: number) => deleteExpense(id),
     onSuccess: refreshAll,
@@ -87,7 +100,8 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
   const received = a.total_quantity_received || 0;
   const perPieceBase = received > 0 ? c.merchandise_cost / received : 0;
   const perPieceFull = received > 0 ? c.total_investment / received : 0;
-  const hasExtra = c.extra_costs_total > 0;
+  const discount = c.discount_amount || 0;
+  const hasExtra = c.extra_costs_total !== 0;
   const hasSales = a.total_quantity_sold > 0;
   const recovered = Math.max(0, Math.min(100, a.recovered_pct));
   const paidOff = a.recovered_pct >= 100;
@@ -130,21 +144,47 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
           )}
         </View>
       ))}
+      {discount > 0 && (
+        <Row
+          label="Desconto do fornecedor"
+          value={-discount}
+          valueColor={VALUE_COLORS.positive}
+          hint="Valor que o fornecedor abateu no fim da compra. Ele diminui o custo de cada peça."
+        />
+      )}
       <View style={[styles.row, styles.totalRow]}>
         <Text style={[styles.rowLabel, styles.bold]}>Total gasto neste lote</Text>
         <Text style={[styles.rowValue, styles.bold]}>{formatCurrency(c.total_investment)}</Text>
       </View>
       {hasExtra && (
         <Text style={styles.note}>
-          Esses gastos extras entram no preço de custo de cada peça. Por isso cada peça deste lote custa{' '}
-          <Text style={styles.bold}>{formatCurrency(perPieceFull)}</Text> (e não {formatCurrency(perPieceBase)}), uns{' '}
-          {c.cost_increase_pct.toFixed(0)}% a mais. É esse custo que o app usa para calcular o seu lucro em cada venda.
+          {c.extra_costs_total > 0
+            ? 'Esses gastos extras entram no preço de custo de cada peça. '
+            : 'O desconto entra no preço de custo de cada peça. '}
+          Por isso cada peça deste lote custa <Text style={styles.bold}>{formatCurrency(perPieceFull)}</Text> (e não{' '}
+          {formatCurrency(perPieceBase)}), uns {Math.abs(c.cost_increase_pct).toFixed(0)}%{' '}
+          {c.extra_costs_total > 0 ? 'a mais' : 'a menos'}. É esse custo que o app usa para calcular o seu lucro em cada venda.
         </Text>
       )}
       {canEdit && (
         <TouchableOpacity style={[styles.addButton, { borderColor: brand.primary }]} onPress={() => setFormOpen(true)}>
           <Ionicons name="add-circle-outline" size={18} color={brand.primary} />
           <Text style={[styles.addButtonText, { color: brand.primary }]}>Lançar despesa deste lote</Text>
+        </TouchableOpacity>
+      )}
+      {canEdit && (
+        <TouchableOpacity
+          style={[styles.addButton, { borderColor: brand.primary }]}
+          onPress={() => {
+            setDiscountText(discount > 0 ? maskCurrencyBR(String(Math.round(discount * 100))) : '');
+            setFormError('');
+            setDiscountOpen(true);
+          }}
+        >
+          <Ionicons name="pricetag-outline" size={18} color={brand.primary} />
+          <Text style={[styles.addButtonText, { color: brand.primary }]}>
+            {discount > 0 ? 'Alterar desconto do fornecedor' : 'Informar desconto do fornecedor'}
+          </Text>
         </TouchableOpacity>
       )}
 
@@ -206,6 +246,41 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
           </Text>
         </View>
       )}
+
+      <Modal visible={discountOpen} transparent animationType="fade" onRequestClose={() => setDiscountOpen(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalCard}>
+            <Text style={styles.modalTitle}>Desconto do fornecedor</Text>
+            <Text style={styles.note}>
+              Se o fornecedor abateu um valor no fim da compra, informe o total do desconto. Ele reduz o custo de cada peça deste lote e
+              aumenta o seu lucro. Para tirar o desconto, deixe em branco.
+            </Text>
+            <TextInput
+              label="Quanto foi o desconto?"
+              value={discountText}
+              onChangeText={(t) => setDiscountText(maskCurrencyBR(t))}
+              mode="outlined"
+              keyboardType="numeric"
+              placeholder="0,00"
+              left={<TextInput.Affix text="R$" />}
+              style={styles.input}
+            />
+            {!!formError && <Text style={styles.error}>{formError}</Text>}
+            <View style={styles.modalButtons}>
+              <TouchableOpacity style={styles.cancelButton} onPress={() => { setDiscountOpen(false); setFormError(''); }}>
+                <Text style={styles.cancelText}>Cancelar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.saveButton, { backgroundColor: brand.primary }, discountMutation.isPending && { opacity: 0.6 }]}
+                onPress={() => discountMutation.mutate(unmaskCurrency(discountText) || 0)}
+                disabled={discountMutation.isPending}
+              >
+                <Text style={styles.saveText}>{discountMutation.isPending ? 'Salvando...' : 'Salvar'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={formOpen} transparent animationType="fade" onRequestClose={() => setFormOpen(false)}>
         <View style={styles.modalBackdrop}>

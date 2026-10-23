@@ -117,6 +117,14 @@ class StockEntry(BaseModel):
         nullable=False,
         comment="Custo total da entrada (soma dos itens)"
     )
+
+    discount_amount: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        default=Decimal("0.00"),
+        server_default="0",
+        nullable=False,
+        comment="Desconto dado pelo fornecedor no fim da compra; abate o custo das peças (rateado)"
+    )
     
     # Observações
     notes: Mapped[str | None] = mapped_column(

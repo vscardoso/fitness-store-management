@@ -625,9 +625,10 @@ class StockEntryService:
         trip_travel_cost = Decimal('0.00')
         trip_cost_share = Decimal('0.00')
         own_costs = await lot_cost_service.entry_own_costs(self.db, entry.id)
+        discount = Decimal(str(entry.discount_amount or 0))
         if entry.trip_id and entry.trip:
             trip_travel_cost = await lot_cost_service.trip_cost_pool(self.db, entry.trip)
-            trip_cost_share = max(extra_total - own_costs, Decimal('0.00'))
+            trip_cost_share = max(extra_total - own_costs + discount, Decimal('0.00'))
 
         total_investment = total_cost + extra_total
 
@@ -698,6 +699,7 @@ class StockEntryService:
             "trip_travel_cost": float(trip_travel_cost),      # custo total da viagem (todos os lotes dela)
             "trip_cost_share": float(trip_cost_share),        # parte da viagem que coube a este lote
             "own_costs": float(own_costs),                    # despesas ligadas a este lote
+            "discount_amount": float(discount),               # desconto do fornecedor (já abatido do custo)
             "extra_costs_total": float(extra_total),          # viagem + despesas do lote
             "total_investment": float(total_investment),      # mercadoria + custos do lote
 
@@ -775,7 +777,7 @@ class StockEntryService:
         if entry.trip_id and entry.trip:
             trip = entry.trip
             pool = await lot_cost_service.trip_cost_pool(self.db, trip)
-            trip_share = max(extra_total - own, Decimal('0.00'))
+            trip_share = max(extra_total - own + Decimal(str(entry.discount_amount or 0)), Decimal('0.00'))
             trip_rows = (await self.db.execute(
                 select(Expense).where(
                     Expense.trip_id == trip.id, Expense.is_active == True, Expense.tenant_id == tenant_id  # noqa: E712
@@ -807,6 +809,7 @@ class StockEntryService:
                 for e in rows
             ],
             "lot_expenses_total": float(own),
+            "discount_amount": float(entry.discount_amount or 0),
             "extra_costs_total": float(extra_total),
             "total_investment": float(merchandise + extra_total),
             "cost_increase_pct": float(extra_total / merchandise * 100) if merchandise > 0 else 0.0,
@@ -1925,6 +1928,7 @@ class StockEntryService:
                 supplier_contact=entry_data.get('supplier_contact'),
                 invoice_number=entry_data.get('invoice_number'),
                 payment_method=entry_data.get('payment_method'),
+                discount_amount=entry_data.get('discount_amount') or 0,
                 notes=entry_data.get('notes'),
             )
             
@@ -2097,6 +2101,7 @@ class StockEntryService:
                 supplier_contact=entry_data.get('supplier_contact'),
                 invoice_number=entry_data.get('invoice_number'),
                 payment_method=entry_data.get('payment_method'),
+                discount_amount=entry_data.get('discount_amount') or 0,
                 notes=entry_data.get('notes'),
             )
             

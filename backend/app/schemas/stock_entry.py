@@ -61,6 +61,7 @@ class StockEntryBase(BaseModel):
     supplier_contact: Optional[str] = Field(None, max_length=255, description="Contato do fornecedor")
     invoice_number: Optional[str] = Field(None, max_length=100, description="Número da nota fiscal")
     payment_method: Optional[str] = Field(None, max_length=50, description="Forma de pagamento")
+    discount_amount: Decimal = Field(Decimal("0"), ge=0, description="Desconto do fornecedor no total da compra (R$)")
     notes: Optional[str] = Field(None, max_length=1000, description="Observações")
 
     @field_validator('supplier_cnpj')
@@ -132,6 +133,7 @@ class StockEntryUpdate(BaseModel):
     supplier_contact: Optional[str] = Field(None, max_length=255)
     invoice_number: Optional[str] = Field(None, max_length=100)
     payment_method: Optional[str] = Field(None, max_length=50)
+    discount_amount: Optional[Decimal] = Field(None, ge=0)
     notes: Optional[str] = Field(None, max_length=1000)
     is_active: Optional[bool] = None
 

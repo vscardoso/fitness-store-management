@@ -692,6 +692,7 @@ export interface StockEntry {
   supplier_contact?: string;
   invoice_number?: string;
   payment_method?: string;
+  discount_amount?: number;
   notes?: string;
   total_cost: number;
   /** Viagem e despesas do lote, rateadas nas peças. */
@@ -730,6 +731,7 @@ export interface StockEntryCreate {
   supplier_contact?: string;
   invoice_number?: string;
   payment_method?: string;
+  discount_amount?: number;
   notes?: string;
   extra_costs?: EntryExtraCostInput[];
   items: EntryItem[];

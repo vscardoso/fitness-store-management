@@ -4,7 +4,7 @@ Custo por lote: rateio do custo da viagem e das despesas de lote entre as peças
 Regra (a mesma explicada ao lojista):
 - custo da viagem = custos de viagem (combustível, alimentação, pedágio, hotel, outros) + despesas ligadas à viagem;
 - cada lote da viagem recebe uma fatia proporcional ao custo de mercadoria dele;
-- o custo do lote = fatia da viagem + despesas ligadas ao lote;
+- o custo do lote = fatia da viagem + despesas ligadas ao lote - desconto do fornecedor (stock_entries.discount_amount);
 - dentro do lote, o custo é dividido entre os itens proporcional ao custo de mercadoria de cada um;
 - cada unidade guarda a sua parte em entry_items.extra_unit_cost; o custo posto no estoque é
   unit_cost + extra_unit_cost, e é ele que o FIFO grava na venda (CMV), o valor do estoque e o lucro usam.
@@ -108,14 +108,16 @@ async def recompute_entries(db: AsyncSession, entry_ids: Iterable[int], *, tenan
         if entry.is_active and entry.trip_id in pools and base_by_trip.get(entry.trip_id, ZERO) > 0:
             trip_share = pools[entry.trip_id] * entry_base / base_by_trip[entry.trip_id]
         own = await entry_own_costs(db, entry.id) if entry.is_active else ZERO
-        extra_total = trip_share + own
+        # Desconto do fornecedor abate o custo das peças; nunca passa da mercadoria (custo não fica negativo)
+        discount = min(Decimal(str(entry.discount_amount or 0)), entry_base) if entry.is_active else ZERO
+        extra_total = trip_share + own - discount
 
         items = (await db.execute(
             select(EntryItem).where(EntryItem.entry_id == entry.id, EntryItem.is_active == True)  # noqa: E712
         )).scalars().all()
         total_units = sum(i.quantity_received for i in items)
         for item in items:
-            if extra_total <= 0:
+            if extra_total == 0:
                 new_extra = ZERO
             elif entry_base > 0:
                 new_extra = _q4(item.unit_cost * extra_total / entry_base)
@@ -129,6 +131,7 @@ async def recompute_entries(db: AsyncSession, entry_ids: Iterable[int], *, tenan
             "base": entry_base,
             "trip_share": trip_share,
             "own": own,
+            "discount": discount,
             "extra": extra_total,
         }
     await db.flush()
