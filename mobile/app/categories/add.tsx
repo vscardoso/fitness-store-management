@@ -27,6 +27,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { titleCaseInput } from '@/utils/format';
 
 export default function AddCategoryScreen() {
   const router = useRouter();
@@ -155,7 +156,7 @@ export default function AddCategoryScreen() {
             <TextInput
               value={name}
               onChangeText={(v) => {
-                setName(v);
+                setName(titleCaseInput(v));
                 setNameError('');
               }}
               placeholder="Ex: Suplementos"

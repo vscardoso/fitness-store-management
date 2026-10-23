@@ -141,6 +141,16 @@ export function valueColor(
  * Capitaliza primeira letra de cada palavra
  * Ex: "joão da silva" -> "João Da Silva"
  */
+/**
+ * Para campo de nome enquanto a pessoa digita: primeira letra de CADA palavra em maiúscula (também depois de - e /),
+ * o resto em minúscula. Mantém o espaço do fim para dar para continuar escrevendo.
+ */
+export const titleCaseInput = (text: string): string =>
+  text
+    .replace(/\s{2,}/g, ' ')
+    .toLowerCase()
+    .replace(/(^|[\s\-/])([^\W\d_])/g, (_m, sep: string, ch: string) => sep + ch.toUpperCase());
+
 export const capitalizeWords = (text: string): string => {
   return text
     .toLowerCase()

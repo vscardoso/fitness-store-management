@@ -186,3 +186,30 @@ async def test_outra_variacao_com_dado_invalido_nao_grava_nada(test_client, asyn
     async_session.expire_all()
     depois = len((await async_session.execute(select(ProductVariant).where(ProductVariant.product_id == pid))).scalars().all())
     assert depois == antes                                                       # nada ficou criado pela metade
+
+
+# ───────────────────────── nome da categoria ─────────────────────────
+
+def test_nome_da_categoria_primeira_letra_de_cada_palavra_maiuscula():
+    from app.schemas.category import title_case_words as t
+    assert t("leggings e calças") == "Leggings E Calças"
+    assert t("  CONJUNTO   pantalona ") == "Conjunto Pantalona"
+    assert t("meia-calça fitness") == "Meia-Calça Fitness"
+    assert t("água de coco") == "Água De Coco"
+    assert t("short 2 em 1") == "Short 2 Em 1"
+
+
+async def test_api_cria_e_edita_categoria_com_nome_padronizado(test_client, async_session, test_user):
+    from app.models.category import Category
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    n = next(_n)
+    r = await test_client.post("/api/v1/categories/", headers=h, json={"name": f"conjuntos de verão {n}"})
+    assert r.status_code == 201, r.text
+    assert r.json()["name"] == f"Conjuntos De Verão {n}"
+    cid = r.json()["id"]
+    r = await test_client.put(f"/api/v1/categories/{cid}", headers=h, json={"name": f"TOPS e regatas {n}"})
+    assert r.status_code == 200, r.text
+    assert r.json()["name"] == f"Tops E Regatas {n}"
+    await async_session.execute(Category.__table__.delete().where(Category.id == cid))
+    await async_session.commit()
