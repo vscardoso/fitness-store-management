@@ -3,7 +3,7 @@
  * Usa Claude Vision para analisar imagens e extrair dados do produto
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -24,10 +24,13 @@ import SimilarProductsModal from '@/components/products/SimilarProductsModal';
 import useBackToList from '@/hooks/useBackToList';
 import type { DuplicateMatch } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useBrandingColors } from '@/store/brandingStore';
 
 const { width } = Dimensions.get('window');
 
 export default function ScanProductScreen() {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/products');
   const {
@@ -72,10 +75,10 @@ export default function ScanProductScreen() {
       {/* Ilustração/Ícone */}
       <View style={styles.illustrationContainer}>
         <LinearGradient
-          colors={[Colors.light.primary + '20', Colors.light.secondary + '20']}
+          colors={[brandingColors.primary + '20', brandingColors.secondary + '20']}
           style={styles.illustrationGradient}
         >
-          <Ionicons name="scan" size={80} color={Colors.light.primary} />
+          <Ionicons name="scan" size={80} color={brandingColors.primary} />
         </LinearGradient>
       </View>
 
@@ -93,7 +96,7 @@ export default function ScanProductScreen() {
           activeOpacity={0.8}
         >
           <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
+            colors={[brandingColors.primary, brandingColors.secondary]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.captureButtonGradient}
@@ -108,7 +111,7 @@ export default function ScanProductScreen() {
           onPress={pickFromGallery}
           activeOpacity={0.8}
         >
-          <Ionicons name="images" size={32} color={Colors.light.primary} />
+          <Ionicons name="images" size={32} color={brandingColors.primary} />
           <Text style={styles.captureButtonOutlineText}>Galeria</Text>
         </TouchableOpacity>
       </View>
@@ -156,7 +159,7 @@ export default function ScanProductScreen() {
         </Text>
         <ProgressBar
           indeterminate
-          color={Colors.light.primary}
+          color={brandingColors.primary}
           style={styles.progressBar}
         />
 
@@ -166,7 +169,7 @@ export default function ScanProductScreen() {
             <Text style={styles.stepText}>Imagem capturada</Text>
           </View>
           <View style={styles.stepItem}>
-            <ActivityIndicator size={16} color={Colors.light.primary} />
+            <ActivityIndicator size={16} color={brandingColors.primary} />
             <Text style={styles.stepText}>Processando com IA...</Text>
           </View>
           <View style={styles.stepItemPending}>
@@ -226,9 +229,9 @@ export default function ScanProductScreen() {
               Qualidade {scanResult.image_quality}
             </Text>
           </View>
-          <View style={[styles.badge, { backgroundColor: Colors.light.primary + '20' }]}>
-            <Ionicons name="time" size={16} color={Colors.light.primary} />
-            <Text style={[styles.badgeText, { color: Colors.light.primary }]}>
+          <View style={[styles.badge, { backgroundColor: brandingColors.primary + '20' }]}>
+            <Ionicons name="time" size={16} color={brandingColors.primary} />
+            <Text style={[styles.badgeText, { color: brandingColors.primary }]}>
               {(processingTime / 1000).toFixed(1)}s
             </Text>
           </View>
@@ -259,7 +262,7 @@ export default function ScanProductScreen() {
           <Card.Content>
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderIcon}>
-                <Ionicons name="cube" size={20} color={Colors.light.primary} />
+                <Ionicons name="cube" size={20} color={brandingColors.primary} />
               </View>
               <Text style={styles.cardTitle}>Dados Identificados</Text>
             </View>
@@ -342,7 +345,7 @@ export default function ScanProductScreen() {
             <Card.Content>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderIcon}>
-                  <Ionicons name="cash" size={20} color={Colors.light.primary} />
+                  <Ionicons name="cash" size={20} color={brandingColors.primary} />
                 </View>
                 <Text style={styles.cardTitle}>Preços Sugeridos</Text>
               </View>
@@ -494,12 +497,12 @@ export default function ScanProductScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
+      <StatusBar barStyle="light-content" backgroundColor={brandingColors.primary} />
 
       {/* Header */}
       <View style={styles.headerContainer}>
         <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
+          colors={[brandingColors.primary, brandingColors.secondary]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.headerGradient}
@@ -576,7 +579,7 @@ export default function ScanProductScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
@@ -689,7 +692,7 @@ const styles = StyleSheet.create({
   },
   captureButtonOutline: {
     borderWidth: 2,
-    borderColor: Colors.light.primary,
+    borderColor: brand,
     borderRadius: 16,
     paddingVertical: theme.spacing.lg,
     paddingHorizontal: theme.spacing.xl,
@@ -699,7 +702,7 @@ const styles = StyleSheet.create({
   captureButtonOutlineText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.primary,
+    color: brand,
   },
   tipsContainer: {
     backgroundColor: Colors.light.backgroundSecondary,
@@ -899,7 +902,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: theme.spacing.sm,
@@ -949,10 +952,10 @@ const styles = StyleSheet.create({
   },
   categoryChip: {
     alignSelf: 'flex-start',
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
   },
   categoryChipText: {
-    color: Colors.light.primary,
+    color: brand,
     fontWeight: '600',
   },
 
@@ -983,7 +986,7 @@ const styles = StyleSheet.create({
   priceValueMarkup: {
     fontSize: 18,
     fontWeight: '600',
-    color: Colors.light.primary,
+    color: brand,
   },
   priceReasoning: {
     fontSize: 12,
@@ -1019,7 +1022,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 5,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: brand,
     borderRadius: 8,
     paddingVertical: 8,
   },
@@ -1095,7 +1098,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 6,
     marginBottom: theme.spacing.md,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: brand,
   },
   primaryButtonLabel: {
     fontSize: 16,

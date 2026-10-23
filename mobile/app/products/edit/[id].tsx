@@ -27,7 +27,7 @@ import { getProductById } from '@/services/productService';
 import { getProductStock } from '@/services/inventoryService';
 import { getProductVariants, updateVariant, formatVariantLabel } from '@/services/productVariantService';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import type { ProductUpdate } from '@/types';
 import { formatPriceInput, formatPriceDisplay, formatMoneyDisplay } from '@/utils/priceFormatter';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
@@ -38,6 +38,7 @@ export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const queryClient = useQueryClient();
   const { categories, isLoading: loadingCategories } = useCategories();
   const updateMutation = useUpdateProduct();
@@ -691,7 +692,7 @@ export default function EditProductScreen() {
                     <Ionicons
                       name="grid-outline"
                       size={20}
-                      color={categoryId ? Colors.light.primary : Colors.light.textTertiary}
+                      color={categoryId ? brandingColors.primary : Colors.light.textTertiary}
                     />
                     <Text style={categoryId ? styles.categoryText : styles.categoryPlaceholder}>
                       {(() => {
@@ -1053,7 +1054,7 @@ export default function EditProductScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
@@ -1111,7 +1112,7 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.semibold,
-    color: Colors.light.primary,
+    color: brand,
     marginBottom: theme.spacing.sm,
   },
   input: {
@@ -1354,7 +1355,7 @@ const styles = StyleSheet.create({
   },
   errorLink: {
     fontSize: 14,
-    color: Colors.light.primary,
+    color: brand,
     marginTop: 16,
     textDecorationLine: 'underline',
     textAlign: 'center',
@@ -1414,7 +1415,7 @@ const styles = StyleSheet.create({
   stockSummaryValue: {
     fontSize: 24,
     fontWeight: '800',
-    color: Colors.light.primary,
+    color: brand,
   },
   entryItem: {
     backgroundColor: Colors.light.card,
@@ -1485,7 +1486,7 @@ const styles = StyleSheet.create({
   entryItemValueMoney: {
     fontSize: 15,
     fontWeight: '700',
-    color: Colors.light.primary,
+    color: VALUE_COLORS.neutral,
   },
   entryItemValueDisabled: {
     color: Colors.light.textTertiary,
@@ -1737,7 +1738,7 @@ const styles = StyleSheet.create({
   fifoCostValue: {
     fontSize: 15,
     fontWeight: '800',
-    color: Colors.light.primary,
+    color: VALUE_COLORS.neutral,
   },
   fifoCostLocked: {
     color: Colors.light.textTertiary,
@@ -1746,7 +1747,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: brand,
     alignItems: 'center',
     justifyContent: 'center',
     elevation: 2,
@@ -1826,13 +1827,13 @@ const styles = StyleSheet.create({
   fifoCostValueCompact: {
     fontSize: 13,
     fontWeight: '700',
-    color: Colors.light.primary,
+    color: VALUE_COLORS.neutral,
   },
   fifoEditButtonSmall: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: Colors.light.primary + '20',
+    backgroundColor: brand + '20',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1970,7 +1971,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   variantEntriesCount: {
-    backgroundColor: Colors.light.primary + '18',
+    backgroundColor: brand + '18',
     paddingHorizontal: 7,
     paddingVertical: 2,
     borderRadius: 10,
@@ -1978,7 +1979,7 @@ const styles = StyleSheet.create({
   variantEntriesCountText: {
     fontSize: 11,
     fontWeight: '700',
-    color: Colors.light.primary,
+    color: brand,
   },
   variantEntriesEmpty: {
     fontSize: 12,

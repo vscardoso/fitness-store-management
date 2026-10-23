@@ -161,8 +161,8 @@ export default function TeamScreen() {
               <View style={styles.nameRow}>
                 <Text style={styles.memberName}>{item.full_name}</Text>
                 {isCurrentUser && (
-                  <View style={[styles.youBadge, { backgroundColor: brandingColors.primary + '20' }, { backgroundColor: brandingColors.primary + '20' }]}>
-                    <Text style={[styles.youBadgeText, { color: brandingColors.primary }, { color: brandingColors.primary }]}>Você</Text>
+                  <View style={[styles.youBadge, { backgroundColor: brandingColors.primary + '20' }]}>
+                    <Text style={[styles.youBadgeText, { color: brandingColors.primary }]}>Você</Text>
                   </View>
                 )}
               </View>

@@ -158,7 +158,7 @@ export default function AddTeamMemberScreen() {
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.cardHeader}>
-              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }, { backgroundColor: brandingColors.primary + '15' }]}>
+              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
                 <Ionicons name="person-outline" size={20} color={brandingColors.primary} />
               </View>
               <Text style={styles.cardTitle}>Informações Pessoais</Text>
@@ -211,7 +211,7 @@ export default function AddTeamMemberScreen() {
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.cardHeader}>
-              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }, { backgroundColor: brandingColors.primary + '15' }]}>
+              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
                 <Ionicons name="briefcase-outline" size={20} color={brandingColors.primary} />
               </View>
               <Text style={styles.cardTitle}>Função na Loja</Text>
@@ -240,7 +240,7 @@ export default function AddTeamMemberScreen() {
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.cardHeader}>
-              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }, { backgroundColor: brandingColors.primary + '15' }]}>
+              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
                 <Ionicons name="lock-closed-outline" size={20} color={brandingColors.primary} />
               </View>
               <Text style={styles.cardTitle}>Senha de Acesso</Text>

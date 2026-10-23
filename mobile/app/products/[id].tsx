@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -41,6 +41,7 @@ export default function ProductDetailsScreen() {
   const router = useRouter();
   const goBack = () => router.replace('/(tabs)/products' as any);
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const queryClient = useQueryClient();
   const { startTutorial } = useTutorialContext();
 
@@ -271,7 +272,7 @@ export default function ProductDetailsScreen() {
     return (
       <View style={styles.container}>
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={brandingColors.primary} />
           <Text style={styles.loadingText}>Carregando produto...</Text>
         </View>
       </View>
@@ -349,7 +350,7 @@ export default function ProductDetailsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[Colors.light.primary]}
+            colors={[brandingColors.primary]}
           />
         }
       >
@@ -380,13 +381,13 @@ export default function ProductDetailsScreen() {
           </View>
 
           <View style={styles.quickCard}>
-            <View style={[styles.quickIconWrap, { backgroundColor: Colors.light.primary + '20' }]}>
-              <Ionicons name="pricetag-outline" size={22} color={Colors.light.primary} />
+            <View style={[styles.quickIconWrap, { backgroundColor: brandingColors.primary + '20' }]}>
+              <Ionicons name="pricetag-outline" size={22} color={brandingColors.primary} />
             </View>
             <View style={styles.quickInfo}>
               <Text style={styles.quickLabel}>Preço</Text>
               <Text
-                style={[styles.quickValue, { color: Colors.light.primary }]}
+                style={[styles.quickValue, { color: VALUE_COLORS.neutral }]}
                 numberOfLines={1}
               >
                 {hasPriceRange
@@ -428,7 +429,7 @@ export default function ProductDetailsScreen() {
           <View style={styles.cardInner}>
             <View style={styles.cardHeader}>
               <View style={styles.cardHeaderIcon}>
-                <Ionicons name="image-outline" size={20} color={Colors.light.primary} />
+                <Ionicons name="image-outline" size={20} color={brandingColors.primary} />
               </View>
               <Text style={styles.cardTitle}>Foto</Text>
             </View>
@@ -469,7 +470,7 @@ export default function ProductDetailsScreen() {
             <View style={styles.cardInner}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderIcon}>
-                  <Ionicons name="grid-outline" size={20} color={Colors.light.primary} />
+                  <Ionicons name="grid-outline" size={20} color={brandingColors.primary} />
                 </View>
                 <Text style={styles.cardTitle}>Grade de estoque</Text>
               </View>
@@ -650,7 +651,7 @@ export default function ProductDetailsScreen() {
             <View style={styles.cardInner}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderIcon}>
-                  <Ionicons name="cash-outline" size={20} color={Colors.light.primary} />
+                  <Ionicons name="cash-outline" size={20} color={brandingColors.primary} />
                 </View>
                 <Text style={styles.cardTitle}>Preços</Text>
               </View>
@@ -888,7 +889,7 @@ export default function ProductDetailsScreen() {
                             </View>
                           )}
                           {isMostFrequent && (
-                            <View style={[styles.badgeFrequent, { backgroundColor: Colors.light.primaryLight }]}>
+                            <View style={[styles.badgeFrequent, { backgroundColor: brandingColors.primary + '20' }]}>
                               <Ionicons name="star-outline" size={10} color={brandingColors.primary} />
                               <Text style={[styles.badgeFrequentText, { color: brandingColors.primary }]}>
                                 Mais frequente
@@ -1090,7 +1091,7 @@ export default function ProductDetailsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   emptyStockBanner: {
     flexDirection: 'row',
     gap: 12,
@@ -1226,7 +1227,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -1269,7 +1270,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.light.primaryLight,
+    backgroundColor: brand + '20',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -1331,12 +1332,12 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
   },
   countBadge: {
-    backgroundColor: Colors.light.primary + '18',
+    backgroundColor: brand + '18',
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 12,
   },
-  countBadgeText: { fontSize: 12, fontWeight: '700', color: Colors.light.primary },
+  countBadgeText: { fontSize: 12, fontWeight: '700', color: brand },
 
   // ── Variants grid ──
   variantGrid: {
@@ -1384,7 +1385,7 @@ const styles = StyleSheet.create({
   variantCardPrice: {
     fontSize: 15,
     fontWeight: '800',
-    color: Colors.light.primary,
+    color: VALUE_COLORS.neutral,
     marginLeft: 15,
   },
   variantCardFooter: {
@@ -1552,7 +1553,7 @@ const styles = StyleSheet.create({
   entryCodeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' },
   entryCode: { fontSize: 13, fontWeight: '700', color: Colors.light.text },
   entrySupplier: { fontSize: 12, color: Colors.light.textSecondary },
-  entryVariantTag: { fontSize: 12, color: Colors.light.primary, fontWeight: '500' },
+  entryVariantTag: { fontSize: 12, color: brand, fontWeight: '500' },
   entryProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 },
   entryProgressTrack: {
     flex: 1,
@@ -1576,7 +1577,7 @@ const styles = StyleSheet.create({
   },
   errorLink: {
     fontSize: 14,
-    color: Colors.light.primary,
+    color: brand,
     marginTop: 16,
     textDecorationLine: 'underline',
   },

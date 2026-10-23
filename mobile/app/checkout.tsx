@@ -19,7 +19,7 @@ import { getPaymentDiscounts, type PaymentDiscount } from '@/services/paymentDis
 import { pixGenerateQR, listTerminals, createOrder, terminalStart } from '@/services/pdvService';
 import type { PDVTerminal } from '@/types/pdv';
 import { getProductById } from '@/services/productService';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -34,6 +34,7 @@ import {
 import { PaymentMethod } from '@/types';
 import type { Customer } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useBrandingColors } from '@/store/brandingStore';
 
 /**
  * Métodos de pagamento disponíveis
@@ -55,6 +56,8 @@ const installmentOptions = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 export default function CheckoutScreen() {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const cart = useCart();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -958,7 +961,7 @@ export default function CheckoutScreen() {
               ) : customer ? (
                 <View style={styles.customerCard}>
                   <View style={styles.customerInfo}>
-                    <Ionicons name="person" size={20} color={Colors.light.primary} />
+                    <Ionicons name="person" size={20} color={brandingColors.primary} />
                     <View style={styles.customerDetails}>
                       <Text style={styles.customerName}>{customer.full_name}</Text>
                       {customer.phone && (
@@ -1059,7 +1062,7 @@ export default function CheckoutScreen() {
                       <Ionicons
                         name={method.icon as any}
                         size={18}
-                        color={isSelected ? Colors.light.primary : Colors.light.textSecondary}
+                        color={isSelected ? brandingColors.primary : Colors.light.textSecondary}
                       />
                       <Text style={[styles.paymentMethodChipText, isSelected && styles.paymentMethodChipTextActive]}>
                         {method.label}
@@ -1077,7 +1080,7 @@ export default function CheckoutScreen() {
                       haptics.selection();
                     }}
                   >
-                    <Ionicons name="swap-horizontal-outline" size={16} color={Colors.light.primary} />
+                    <Ionicons name="swap-horizontal-outline" size={16} color={brandingColors.primary} />
                     <Text style={styles.mixedModeButtonText}>Usar 2 métodos</Text>
                   </TouchableOpacity>
                 )}
@@ -1089,7 +1092,7 @@ export default function CheckoutScreen() {
               <View style={styles.installmentPicker}>
                 <View style={styles.installmentPickerHeader}>
                   <View style={styles.installmentPickerIconWrap}>
-                    <Ionicons name="card-outline" size={14} color={Colors.light.primary} />
+                    <Ionicons name="card-outline" size={14} color={brandingColors.primary} />
                   </View>
                   <View style={styles.installmentPickerHeaderText}>
                     <Text style={styles.installmentPickerLabel}>Pagamento no cartão</Text>
@@ -1137,7 +1140,7 @@ export default function CheckoutScreen() {
                 {/* Header */}
                 <View style={styles.installmentPickerHeader}>
                   <View style={styles.installmentPickerIconWrap}>
-                    <Ionicons name="card-outline" size={14} color={Colors.light.primary} />
+                    <Ionicons name="card-outline" size={14} color={brandingColors.primary} />
                   </View>
                   <View style={styles.installmentPickerHeaderText}>
                     <Text style={styles.installmentPickerLabel}>Pagamento na maquininha</Text>
@@ -1187,12 +1190,12 @@ export default function CheckoutScreen() {
                 {/* Selecionar terminal */}
                 <Text style={[styles.installmentPickerHint, { marginTop: 12, marginBottom: 8 }]}>Terminal</Text>
                 {loadingTerminals ? (
-                  <ActivityIndicator size="small" color={Colors.light.primary} />
+                  <ActivityIndicator size="small" color={brandingColors.primary} />
                 ) : terminals.length === 0 ? (
                   <View style={{ padding: 12, backgroundColor: Colors.light.backgroundSecondary, borderRadius: 8 }}>
                     <Text style={{ color: Colors.light.textSecondary, fontSize: 13, textAlign: 'center' }}>
                       Nenhum terminal configurado.{' '}
-                      <Text style={{ color: Colors.light.primary }} onPress={() => router.push('/(tabs)/pdv/terminals' as any)}>
+                      <Text style={{ color: brandingColors.primary }} onPress={() => router.push('/(tabs)/pdv/terminals' as any)}>
                         Adicionar terminal
                       </Text>
                     </Text>
@@ -1206,7 +1209,7 @@ export default function CheckoutScreen() {
                           style={[styles.installmentChip, selectedTerminal?.id === t.id && styles.installmentChipActive]}
                           onPress={() => { setSelectedTerminal(t); haptics.selection(); }}
                         >
-                          <Ionicons name="card-outline" size={12} color={selectedTerminal?.id === t.id ? Colors.light.primary : Colors.light.textSecondary} />
+                          <Ionicons name="card-outline" size={12} color={selectedTerminal?.id === t.id ? brandingColors.primary : Colors.light.textSecondary} />
                           <Text style={[styles.installmentChipText, selectedTerminal?.id === t.id && styles.installmentChipTextActive]}>
                             {t.name}
                           </Text>
@@ -1293,7 +1296,7 @@ export default function CheckoutScreen() {
                         key={method.value}
                         style={[
                           styles.methodChip,
-                          selectedMethod === method.value && { backgroundColor: Colors.light.primary + '15', borderColor: Colors.light.primary },
+                          selectedMethod === method.value && { backgroundColor: brandingColors.primary + '15', borderColor: brandingColors.primary },
                         ]}
                         onPress={() => {
                           setSelectedMethod(method.value as PaymentMethod);
@@ -1304,11 +1307,11 @@ export default function CheckoutScreen() {
                         <Ionicons
                           name={method.icon as any}
                           size={14}
-                          color={selectedMethod === method.value ? Colors.light.primary : Colors.light.textSecondary}
+                          color={selectedMethod === method.value ? brandingColors.primary : Colors.light.textSecondary}
                         />
                         <Text style={[
                           styles.methodChipText,
-                          selectedMethod === method.value && { color: Colors.light.primary },
+                          selectedMethod === method.value && { color: brandingColors.primary },
                         ]}>
                           {method.label}
                         </Text>
@@ -1546,7 +1549,7 @@ export default function CheckoutScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
@@ -1699,8 +1702,8 @@ const styles = StyleSheet.create({
     borderColor: Colors.light.border,
   },
   paymentMethodChipActive: {
-    backgroundColor: Colors.light.primary + '15',
-    borderColor: Colors.light.primary,
+    backgroundColor: brand + '15',
+    borderColor: brand,
   },
   paymentMethodChipText: {
     fontSize: 13,
@@ -1708,7 +1711,7 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
   },
   paymentMethodChipTextActive: {
-    color: Colors.light.primary,
+    color: brand,
   },
   mixedModeButton: {
     flexDirection: 'row',
@@ -1724,7 +1727,7 @@ const styles = StyleSheet.create({
   mixedModeButtonText: {
     fontSize: 12,
     fontWeight: '600',
-    color: Colors.light.primary,
+    color: brand,
   },
   mixedModeHeader: {
     flexDirection: 'row',
@@ -1903,9 +1906,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   totalHighlightBox: {
-    backgroundColor: `${Colors.light.primary}10`,
+    backgroundColor: `${brand}10`,
     borderWidth: 1,
-    borderColor: `${Colors.light.primary}28`,
+    borderColor: `${brand}28`,
     borderRadius: theme.borderRadius.lg,
     paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm + 2,
@@ -1921,7 +1924,7 @@ const styles = StyleSheet.create({
   },
   totalMainValue: {
     fontSize: theme.fontSize.xxl,
-    color: Colors.light.primary,
+    color: VALUE_COLORS.neutral,
     fontWeight: '800',
     letterSpacing: -0.4,
   },
@@ -1966,7 +1969,7 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: theme.borderRadius.full,
-    backgroundColor: `${Colors.light.primary}12`,
+    backgroundColor: `${brand}12`,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2005,8 +2008,8 @@ const styles = StyleSheet.create({
     minWidth: 52,
   },
   installmentChipActive: {
-    borderColor: Colors.light.primary,
-    backgroundColor: `${Colors.light.primary}14`,
+    borderColor: brand,
+    backgroundColor: `${brand}14`,
   },
   installmentChipText: {
     fontSize: 13,
@@ -2014,7 +2017,7 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
   },
   installmentChipTextActive: {
-    color: Colors.light.primary,
+    color: brand,
   },
   installmentChipSub: {
     fontSize: 10,
@@ -2022,7 +2025,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   installmentChipSubActive: {
-    color: Colors.light.primary,
+    color: brand,
   },
 
   creditSummary: {
@@ -2041,7 +2044,7 @@ const styles = StyleSheet.create({
   creditSummaryChange: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.light.primary,
+    color: brand,
     textDecorationLine: 'underline',
   },
 

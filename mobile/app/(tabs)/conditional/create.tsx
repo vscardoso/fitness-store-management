@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -12,7 +12,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import PageHeader from '@/components/layout/PageHeader';
 import { useBrandingColors } from '@/store/brandingStore';
 import { createShipment } from '@/services/conditionalService';
@@ -61,6 +61,7 @@ export default function CreateConditionalShipmentScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
 
   const [step, setStep] = useState<Step>(1);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
@@ -802,12 +803,12 @@ export default function CreateConditionalShipmentScreen() {
                 {departureDateTime && returnDateTime && (
                   <View style={styles.calculatedDeadlineCard}>
                     <View style={styles.calculatedDeadlineContent}>
-                      <Ionicons name="time-outline" size={24} color={Colors.light.primary} />
+                      <Ionicons name="time-outline" size={24} color={brandingColors.primary} />
                       <View style={{ flex: 1 }}>
                         <Text style={{ fontSize: 12, color: Colors.light.textSecondary, fontWeight: '600' }}>
                           Prazo Calculado
                         </Text>
-                        <Text style={{ fontSize: 18, fontWeight: 'bold', color: Colors.light.primary }}>
+                        <Text style={{ fontSize: 18, fontWeight: 'bold', color: brandingColors.primary }}>
                           {Math.ceil((returnDateTime.getTime() - departureDateTime.getTime()) / (1000 * 60 * 60 * 24))} dias
                         </Text>
                         <Text style={{ fontSize: 11, color: Colors.light.textSecondary, marginTop: 2 }}>
@@ -918,7 +919,7 @@ export default function CreateConditionalShipmentScreen() {
                 )}
                 {departureDateTime && returnDateTime && (
                   <View style={styles.reviewDeadlineBadge}>
-                    <Ionicons name="time" size={20} color={Colors.light.primary} />
+                    <Ionicons name="time" size={20} color={brandingColors.primary} />
                     <Text style={styles.reviewDeadlineText}>
                       Prazo: {Math.ceil((returnDateTime.getTime() - departureDateTime.getTime()) / (1000 * 60 * 60 * 24))} dias
                     </Text>
@@ -1006,7 +1007,7 @@ export default function CreateConditionalShipmentScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.background,
@@ -1224,7 +1225,7 @@ const styles = StyleSheet.create({
   },
   selectedProductVariant: {
     fontSize: 12,
-    color: Colors.light.primary,
+    color: brand,
     fontWeight: '500',
     marginTop: 1,
   },
@@ -1330,7 +1331,7 @@ const styles = StyleSheet.create({
   },
   catalogPrice: {
     fontWeight: 'bold',
-    color: Colors.light.primary,
+    color: VALUE_COLORS.neutral,
     fontSize: 18,
   },
   stockRow: {
@@ -1473,9 +1474,9 @@ const styles = StyleSheet.create({
   calculatedDeadlineCard: {
     marginBottom: theme.spacing.md,
     borderRadius: theme.borderRadius.lg,
-    backgroundColor: Colors.light.primary + '12',
+    backgroundColor: brand + '12',
     borderWidth: 1,
-    borderColor: Colors.light.primary + '24',
+    borderColor: brand + '24',
   },
   calculatedDeadlineContent: {
     flexDirection: 'row',
@@ -1544,7 +1545,7 @@ const styles = StyleSheet.create({
   reviewTotalValue: {
     fontSize: 18,
     fontWeight: 'bold',
-    color: Colors.light.primary,
+    color: VALUE_COLORS.neutral,
   },
   reviewDeadlineBadge: {
     marginTop: theme.spacing.sm,
@@ -1553,12 +1554,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: theme.spacing.xs,
-    backgroundColor: Colors.light.primary + '14',
+    backgroundColor: brand + '14',
   },
   reviewDeadlineText: {
     fontSize: theme.fontSize.sm,
     fontWeight: '700',
-    color: Colors.light.primary,
+    color: brand,
   },
   footer: {
     flexDirection: 'row',

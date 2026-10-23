@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -78,6 +78,7 @@ export default function ProductLabelScreen() {
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/products');
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const { id, variantId } = useLocalSearchParams<{ id: string; variantId?: string }>();
   const viewShotRef = useRef<ViewShot>(null);
 
@@ -757,7 +758,7 @@ export default function ProductLabelScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scrollWrap: { flex: 1 },
@@ -792,10 +793,10 @@ const styles = StyleSheet.create({
   // Sheet chip
   sheetChip: {
     flexDirection: 'row', alignItems: 'center', gap: 4,
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 10,
   },
-  sheetChipText: { fontSize: 12, fontWeight: '700', color: Colors.light.primary },
+  sheetChipText: { fontSize: 12, fontWeight: '700', color: brand },
 
   // Config
   configLabel: {
@@ -826,22 +827,22 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   formatCardActive: {
-    borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primary + '12',
+    borderColor: brand,
+    backgroundColor: brand + '12',
   },
   formatCardMain: {
     fontSize: 14,
     fontWeight: '800',
     color: Colors.light.textSecondary,
   },
-  formatCardMainActive: { color: Colors.light.primary },
+  formatCardMainActive: { color: brand },
   formatCardSub: {
     fontSize: 10,
     color: Colors.light.textTertiary,
     marginTop: 2,
     textAlign: 'left',
   },
-  formatCardSubActive: { color: Colors.light.primary + 'aa' },
+  formatCardSubActive: { color: brand + 'aa' },
   formatMetaRow: {
     marginTop: 6,
     flexDirection: 'row',
@@ -876,7 +877,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.backgroundSecondary,
     borderWidth: 1.5, borderColor: Colors.light.border,
   },
-  chipActive: { backgroundColor: Colors.light.primary, borderColor: Colors.light.primary },
+  chipActive: { backgroundColor: brand, borderColor: brand },
   chipText: { fontSize: 13, fontWeight: '600', color: Colors.light.textSecondary },
   chipTextActive: { color: '#fff' },
 
@@ -887,7 +888,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
     backgroundColor: Colors.light.backgroundSecondary,
   },
-  actionBtnText: { fontSize: 12, fontWeight: '600', color: Colors.light.primary },
+  actionBtnText: { fontSize: 12, fontWeight: '600', color: brand },
 
   // Variant rows
   variantRow: {
@@ -907,7 +908,7 @@ const styles = StyleSheet.create({
   qtyControl: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   qtyBtn: {
     width: 36, height: 36, borderRadius: 18,
-    backgroundColor: Colors.light.primary + '18',
+    backgroundColor: brand + '18',
     alignItems: 'center', justifyContent: 'center',
   },
   qtyBtnDisabled: { backgroundColor: Colors.light.backgroundSecondary },
@@ -933,7 +934,7 @@ const styles = StyleSheet.create({
   },
   totalLabel: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
   totalRight: { alignItems: 'flex-end' },
-  totalValue: { fontSize: 16, fontWeight: '800', color: Colors.light.primary },
+  totalValue: { fontSize: 16, fontWeight: '800', color: brand },
   totalSheets: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 },
 
   // Preview
