@@ -17,6 +17,7 @@ import { getStockEntryAnalytics, getStockEntryCosts } from '@/services/stockEntr
 import { createExpense, deleteExpense } from '@/services/expenseService';
 import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
+import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 
 interface Props {
   entryId: number;
@@ -27,11 +28,6 @@ interface Props {
 function todayISO(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-function parseMoney(text: string): number {
-  const n = Number(text.replace(/\./g, '').replace(',', '.'));
-  return Number.isFinite(n) ? n : 0;
 }
 
 export default function LotMoneyCard({ entryId, canEdit }: Props) {
@@ -57,7 +53,7 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
   const addMutation = useMutation({
     mutationFn: () =>
       createExpense({
-        amount: parseMoney(amount),
+        amount: unmaskCurrency(amount),
         description: description.trim(),
         expense_date: todayISO(),
         stock_entry_id: entryId,
@@ -99,7 +95,7 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
 
   const submit = () => {
     if (!description.trim()) return setFormError('Diga o que foi essa despesa (ex.: frete).');
-    if (parseMoney(amount) <= 0) return setFormError('Informe quanto foi gasto.');
+    if (unmaskCurrency(amount) <= 0) return setFormError('Informe quanto foi gasto.');
     setFormError('');
     addMutation.mutate();
   };
@@ -212,11 +208,13 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
                 style={styles.input}
               />
               <TextInput
-                label="Quanto custou? (R$)"
+                label="Quanto custou?"
                 value={amount}
-                onChangeText={setAmount}
+                onChangeText={(t) => setAmount(maskCurrencyBR(t))}
                 mode="outlined"
-                keyboardType="decimal-pad"
+                keyboardType="numeric"
+                placeholder="0,00"
+                left={<TextInput.Affix text="R$" />}
                 style={styles.input}
               />
               {!!formError && <Text style={styles.error}>{formError}</Text>}
