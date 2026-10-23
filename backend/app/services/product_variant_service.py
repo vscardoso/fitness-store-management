@@ -58,9 +58,9 @@ class ProductVariantService:
         if not product:
             raise ValueError(f"Produto {product_id} não encontrado")
         
-        # Verificar SKU único
-        if await self.variant_repo.exists_by_sku(self.db, variant_data.sku, tenant_id):
-            raise ValueError(f"SKU {variant_data.sku} já existe")
+        # SKU repetido (cadastro simultâneo, lista desatualizada no app) recebe o próximo número livre
+        from app.services import sku_service
+        variant_data.sku = (await sku_service.resolve_free_skus(self.db, [variant_data.sku], tenant_id))[0]
         
         # Verificar se já existe variante com mesmo tamanho/cor
         existing = await self.variant_repo.get_by_size_color(
@@ -107,6 +107,10 @@ class ProductVariantService:
         Returns:
             Product criado com variantes
         """
+        # Dois cadastros da mesma loja ao mesmo tempo esperam um ao outro (SKU não repete)
+        from app.services import sku_service
+        await sku_service.lock_catalog(self.db, tenant_id)
+
         # Criar produto pai
         product_dict = data.model_dump(exclude={'variants'})
         

@@ -32,7 +32,7 @@ class AuthService:
     async def register_user(self, user_data: UserCreate, tenant_id: int) -> User:
         existing_user = await self.user_repo.get_by_email(user_data.email)
         if existing_user:
-            raise ValueError("Email já cadastrado")
+            raise ValueError("Já existe um usuário com este e-mail. Use outro e-mail.")
         hashed_password = get_password_hash(user_data.password)
         user_dict = user_data.model_dump(exclude={'password'})
         user_dict['hashed_password'] = hashed_password

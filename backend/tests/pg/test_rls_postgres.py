@@ -329,3 +329,33 @@ async def test_dois_cadastros_ao_mesmo_tempo_nao_repetem_sku(client, pg, monkeyp
         codes = [r[0] for r in (await c.execute(text("SELECT entry_code FROM stock_entries WHERE entry_code LIKE 'RACE-%'"))).all()]
     assert sorted(skus) == ["RACE-AZU-001", "RACE-AZU-002", "RACE-PRE-001", "RACE-PRE-002"], skus
     assert len(codes) == 2
+
+
+async def test_dois_produtos_simples_ao_mesmo_tempo_nao_repetem_sku(client, pg, monkeypatch):
+    """O erro que o Victor viu (POST /products/ com o mesmo SKU em dois acessos): agora os dois entram, SKUs distintos."""
+    import asyncio
+    from app.services import sku_service
+    admin, _, _ = pg
+    h1 = await _login(client, 1)
+
+    original = sku_service.resolve_free_skus
+
+    async def devagar(db, skus, tenant_id):
+        out = await original(db, skus, tenant_id)
+        await asyncio.sleep(0.4)
+        return out
+
+    monkeypatch.setattr(sku_service, "resolve_free_skus", devagar)
+
+    def corpo(nome):
+        return {"name": nome, "sku": "SIMPLES-PRE-G-001", "price": 99.9, "cost_price": 40,
+                "category_id": 1, "color": "Preto", "size": "G"}
+
+    r1, r2 = await asyncio.gather(
+        client.post("/api/v1/products/", headers=h1, json=corpo("Macacão Flare A")),
+        client.post("/api/v1/products/", headers=h1, json=corpo("Macacão Flare B")),
+    )
+    assert r1.status_code in (200, 201) and r2.status_code in (200, 201), (r1.status_code, r2.status_code)
+    async with admin.connect() as c:
+        skus = sorted(r[0] for r in (await c.execute(text("SELECT sku FROM product_variants WHERE sku LIKE 'SIMPLES-%'"))).all())
+    assert skus == ["SIMPLES-PRE-G-001", "SIMPLES-PRE-G-002"], skus

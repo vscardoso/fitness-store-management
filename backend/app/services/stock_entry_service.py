@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.timezone import now_brazil, today_brazil
 from app.models.stock_entry import StockEntry, EntryType
 from app.models.entry_item import EntryItem
-from app.services import lot_cost_service
+from app.services import lot_cost_service, sku_service
 from app.repositories.stock_entry_repository import StockEntryRepository
 from app.repositories.entry_item_repository import EntryItemRepository
 from app.repositories.trip_repository import TripRepository
@@ -208,74 +208,12 @@ class StockEntryService:
         return f"{parts} (SKU {sku})" if sku else parts
 
     async def _lock_catalog(self, tenant_id: int) -> None:
-        """
-        Serializa a criação de produto/variação/entrada DA MESMA LOJA (Postgres): dois acessos ao mesmo tempo
-        passam a esperar um ao outro, e o segundo já enxerga os SKUs e códigos que o primeiro criou.
-        O bloqueio é liberado sozinho no commit/rollback.
-        """
-        from sqlalchemy import text
+        await sku_service.lock_catalog(self.db, tenant_id)
 
-        if self.db.get_bind().dialect.name != "postgresql":
-            return
-        await self.db.execute(text("SELECT pg_advisory_xact_lock(CAST(:k AS bigint))"), {"k": 7_300_000_000 + int(tenant_id)})
-
-    @staticmethod
-    def _bump_sku(sku: str) -> str:
-        """Próximo SKU livre na sequência: ...-001 vira ...-002 (mantém os zeros); sem número no fim, acrescenta -002."""
-        import re
-
-        m = re.match(r"^(.*?)(\d+)$", sku)
-        if not m:
-            return f"{sku}-002"
-        num = m.group(2)
-        return f"{m.group(1)}{int(num) + 1:0{len(num)}d}"
+    _bump_sku = staticmethod(sku_service.bump_sku)
 
     async def _resolve_free_skus(self, skus, tenant_id: int) -> list:
-        """
-        Devolve os SKUs prontos para gravar. SKU que já existe na loja (ou repetido no mesmo envio) NÃO derruba
-        a criação: recebe o próximo número livre. Isso acontece quando duas pessoas cadastram produtos parecidos
-        ao mesmo tempo e o app de uma delas ainda não conhecia o SKU da outra. Os ajustes ficam no registro de erros.
-        """
-        from sqlalchemy import select, func
-        from app.models.product_variant import ProductVariant
-        from app.services.error_log_service import record_error
-
-        await self._lock_catalog(tenant_id)
-        wanted = [str(s).strip().upper() if s and str(s).strip() else None for s in skus]
-        cache: dict = {}
-
-        async def taken(cand: str) -> bool:
-            if cand not in cache:
-                row = await self.db.execute(
-                    select(ProductVariant.id).where(
-                        ProductVariant.tenant_id == tenant_id,
-                        ProductVariant.is_active == True,  # noqa: E712
-                        func.upper(ProductVariant.sku) == cand,
-                    ).limit(1)
-                )
-                cache[cand] = row.first() is not None
-            return cache[cand]
-
-        chosen: set = set()
-        out: list = []
-        adjusted = []
-        for w in wanted:
-            if w is None:
-                out.append(None)
-                continue
-            cand = w
-            while cand in chosen or await taken(cand):
-                cand = self._bump_sku(cand)
-            if cand != w:
-                adjusted.append({"pedido": w, "gravado": cand})
-            chosen.add(cand)
-            out.append(cand)
-        if adjusted:
-            await record_error(
-                message=f"SKU ja existia; ajustado automaticamente ({len(adjusted)})", level="info", source="api",
-                error_type="sku_ajustado", detail={"ajustes": adjusted}, tenant_id=tenant_id,
-            )
-        return out
+        return await sku_service.resolve_free_skus(self.db, skus, tenant_id)
 
     async def _ensure_skus_free(self, skus, tenant_id: int) -> None:
         """Recusa SKU já usado por outra variante ativa da loja (sem diferenciar maiúsculas)."""

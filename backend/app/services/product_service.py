@@ -89,10 +89,10 @@ class ProductService:
                 "Por favor, selecione uma categoria válida."
             )
 
-        # Verificar SKU único
-        existing = await self.product_repo.get_by_sku(product_data.sku, tenant_id=tenant_id)
-        if existing:
-            raise ValueError(f"SKU {product_data.sku} já existe")
+        # SKU: dois cadastros ao mesmo tempo (ou um SKU já usado) não derrubam a criação:
+        # o bloqueio por loja serializa e o SKU repetido recebe o próximo número livre.
+        from app.services import sku_service
+        product_data.sku = (await sku_service.resolve_free_skus(self.db, [product_data.sku], tenant_id))[0]
 
         # Verificar barcode único se fornecido
         if product_data.barcode:

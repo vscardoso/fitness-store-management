@@ -213,3 +213,21 @@ async def test_api_cria_e_edita_categoria_com_nome_padronizado(test_client, asyn
     assert r.json()["name"] == f"Tops E Regatas {n}"
     await async_session.execute(Category.__table__.delete().where(Category.id == cid))
     await async_session.commit()
+
+
+# ───────────────────────── produto simples e variação avulsa ─────────────────────────
+
+async def test_produto_simples_com_sku_repetido_recebe_o_proximo_numero(test_client, async_session, test_user):
+    from app.models.product_variant import ProductVariant
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    n = next(_n)
+    corpo = lambda nome: {"name": nome, "sku": f"SIMP{n}-PRE-G-001", "price": 99.9, "cost_price": 40,
+                          "category_id": cat, "color": "Preto", "size": "G"}
+    r1 = await test_client.post("/api/v1/products/", headers=h, json=corpo(f"Macacão A {n}"))
+    assert r1.status_code in (200, 201), r1.text
+    r2 = await test_client.post("/api/v1/products/", headers=h, json=corpo(f"Macacão B {n}"))   # antes: 400 "SKU já existe"
+    assert r2.status_code in (200, 201), r2.text
+    skus = sorted(s for (s,) in (await async_session.execute(
+        select(ProductVariant.sku).where(ProductVariant.sku.like(f"SIMP{n}-%")))).all())
+    assert skus == [f"SIMP{n}-PRE-G-001", f"SIMP{n}-PRE-G-002"]

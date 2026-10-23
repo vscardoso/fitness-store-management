@@ -133,7 +133,7 @@ async def create_team_member(
     if existing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Este email já está em uso"
+            detail="Já existe um usuário com este e-mail (em esta loja ou em outra: o e-mail é único em todo o sistema). Use outro e-mail para este membro."
         )
 
     # Criar usuário
