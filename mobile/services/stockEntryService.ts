@@ -157,6 +157,7 @@ export async function createStockEntryWithNewProduct(
     invoice_number?: string;
     payment_method?: string;
     notes?: string;
+    extra_costs?: Array<{ description: string; amount: number }>;
   },
   quantity: number
 ): Promise<StockEntry> {
@@ -202,6 +203,7 @@ export async function createStockEntryWithNewProductVariants(
     invoice_number?: string;
     payment_method?: string;
     notes?: string;
+    extra_costs?: Array<{ description: string; amount: number }>;
   }
 ): Promise<StockEntry> {
   const response = await api.post<StockEntry>(`${ENTRIES_ENDPOINT}with-new-product-variants`, {

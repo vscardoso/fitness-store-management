@@ -97,6 +97,20 @@ def get_previous_period_dates(start: date, end: date) -> tuple[date, date]:
     return prev_start, prev_end
 
 
+
+def _entry_extra_costs_subquery():
+    """Por entrada: viagem e despesas do lote já rateadas nos itens (quantidade x custo extra por peça)."""
+    return (
+        select(
+            EntryItem.entry_id.label("entry_id"),
+            func.coalesce(func.sum(EntryItem.quantity_received * EntryItem.extra_unit_cost), 0).label("extra"),
+        )
+        .where(EntryItem.is_active == True)  # noqa: E712
+        .group_by(EntryItem.entry_id)
+        .subquery()
+    )
+
+
 @router.get("/stats", response_model=Dict[str, Any])
 async def get_dashboard_stats(
     tenant_id: int = Depends(get_current_tenant_id),
@@ -173,8 +187,9 @@ async def get_dashboard_stats(
 
     # 3. Margem média
     average_margin = 0.0
-    if invested_value > 0:
-        average_margin = ((potential_revenue - invested_value) / invested_value) * 100
+    if potential_revenue > 0:
+        # margem sobre o preço de venda (lucro / venda), não markup sobre o custo
+        average_margin = ((potential_revenue - invested_value) / potential_revenue) * 100
 
     # 4. Total de produtos VINCULADOS A ENTRADAS (com estoque)
     # Conta apenas produtos que têm entry_items ativos com quantidade > 0
@@ -1465,12 +1480,9 @@ async def get_fifo_performance(
         # Só calcular ROI para entradas que tiveram vendas
         if qty_sold > 0 and cost_of_sold > 0:
             # Proporção de despesas de viagem para esta entrada
-            trip_travel_cost = float(entry.trip_travel_cost or 0)
-            trip_total_goods = float(entry.trip_total_goods_cost or 0)
-            entry_cost = float(entry.total_cost or 0)
+            # cost_of_sold já está a custo posto (mercadoria + parte da viagem e das despesas do lote):
+            # somar a viagem de novo contaria o frete duas vezes.
             trip_cost_share = 0.0
-            if trip_travel_cost > 0 and trip_total_goods > 0 and entry_cost > 0:
-                trip_cost_share = (entry_cost / trip_total_goods) * trip_travel_cost
 
             total_investment = cost_of_sold + trip_cost_share
             profit = revenue - total_investment
@@ -1776,10 +1788,11 @@ async def get_period_purchases(
     prev_start, prev_end = get_previous_period_dates(start_date, end_date)
 
     # Compras do periodo atual
+    _extra = _entry_extra_costs_subquery()
     purchases_query = select(
-        func.coalesce(func.sum(StockEntry.total_cost), 0).label("total_invested"),
+        func.coalesce(func.sum(StockEntry.total_cost + func.coalesce(_extra.c.extra, 0)), 0).label("total_invested"),
         func.count(StockEntry.id).label("entries_count"),
-    ).where(
+    ).outerjoin(_extra, _extra.c.entry_id == StockEntry.id).where(
         StockEntry.tenant_id == tenant_id,
         StockEntry.entry_date >= start_date,
         StockEntry.entry_date <= end_date,
@@ -1808,9 +1821,9 @@ async def get_period_purchases(
     # Distribuicao por tipo de entrada
     by_type_query = select(
         StockEntry.entry_type,
-        func.coalesce(func.sum(StockEntry.total_cost), 0).label("total"),
+        func.coalesce(func.sum(StockEntry.total_cost + func.coalesce(_extra.c.extra, 0)), 0).label("total"),
         func.count(StockEntry.id).label("count"),
-    ).where(
+    ).outerjoin(_extra, _extra.c.entry_id == StockEntry.id).where(
         StockEntry.tenant_id == tenant_id,
         StockEntry.entry_date >= start_date,
         StockEntry.entry_date <= end_date,
@@ -1830,9 +1843,9 @@ async def get_period_purchases(
 
     # Compras do periodo anterior (para comparacao)
     prev_purchases_query = select(
-        func.coalesce(func.sum(StockEntry.total_cost), 0).label("total_invested"),
+        func.coalesce(func.sum(StockEntry.total_cost + func.coalesce(_extra.c.extra, 0)), 0).label("total_invested"),
         func.count(StockEntry.id).label("entries_count"),
-    ).where(
+    ).outerjoin(_extra, _extra.c.entry_id == StockEntry.id).where(
         StockEntry.tenant_id == tenant_id,
         StockEntry.entry_date >= prev_start,
         StockEntry.entry_date <= prev_end,

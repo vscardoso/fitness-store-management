@@ -403,3 +403,89 @@ async def test_entrada_mostra_total_gasto_com_viagem_e_despesas_e_nao_inventa_re
 
     stats = (await test_client.get("/api/v1/stock-entries/stats", headers=h)).json()
     assert stats["total_invested"] >= 1350.0                        # o total da lista inclui os extras
+
+
+async def test_custos_informados_na_criacao_da_entrada_local_e_de_viagem(test_client, async_session, test_user):
+    """Frete lançado junto com a entrada: local = despesa da entrada; viagem = despesa da viagem (rateada)."""
+    from app.models.expense import Expense
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    p, v = await _produto(async_session, t_id, cat, "X")
+    trip = await _viagem(async_session, t_id, fuel=0)
+    p2, v2 = await _produto(async_session, t_id, cat, "Y")
+    pid, vid, p2id, v2id, trip_id = p.id, v.id, p2.id, v2.id, trip.id
+    await async_session.commit()
+    base = {"entry_date": date.today().isoformat(), "supplier_name": "Fornecedor Teste"}
+
+    # 1) entrada local com frete de R$ 100 (10 peças de R$ 10 = R$ 100)
+    r = await test_client.post("/api/v1/stock-entries/", headers=h, json={
+        **base, "entry_code": f"LOCAL-{next(_seq):04d}", "entry_type": "local",
+        "items": [{"product_id": pid, "variant_id": vid, "quantity_received": 10, "unit_cost": "10.00"}],
+        "extra_costs": [{"description": "Frete", "amount": "100.00"}]})
+    assert r.status_code == 201, r.text
+    entry_id = r.json()["id"]
+    async_session.expire_all()
+    (c, extra, posto), = await _extras(async_session, entry_id)
+    assert extra == D("10.0000") and posto == D("20.0000")
+    exp = (await async_session.execute(select(Expense).where(Expense.stock_entry_id == entry_id))).scalars().all()
+    assert len(exp) == 1 and exp[0].trip_id is None and exp[0].description == "Frete"
+
+    # 2) entrada de viagem: o custo vira despesa DA VIAGEM
+    r = await test_client.post("/api/v1/stock-entries/", headers=h, json={
+        **base, "entry_code": f"VIAGEM-{next(_seq):04d}", "entry_type": "trip", "trip_id": trip_id,
+        "items": [{"product_id": p2id, "variant_id": v2id, "quantity_received": 10, "unit_cost": "10.00"}],
+        "extra_costs": [{"description": "Combustível", "amount": "100.00"}, {"description": "Almoço", "amount": "20.00"}]})
+    assert r.status_code == 201, r.text
+    entry2 = r.json()["id"]
+    async_session.expire_all()
+    (c, extra, posto), = await _extras(async_session, entry2)
+    assert extra == D("12.0000") and posto == D("22.0000")                    # (100 + 20) / 10 peças
+    exp = (await async_session.execute(select(Expense).where(Expense.trip_id == trip_id))).scalars().all()
+    assert sorted(float(e.amount) for e in exp) == [20.0, 100.0] and all(e.stock_entry_id is None for e in exp)
+
+    # 3) custo inválido recusa a entrada inteira (tudo ou nada)
+    antes = len((await async_session.execute(select(Expense))).scalars().all())
+    r = await test_client.post("/api/v1/stock-entries/", headers=h, json={
+        **base, "entry_code": f"RUIM-{next(_seq):04d}", "entry_type": "local",
+        "items": [{"product_id": pid, "variant_id": vid, "quantity_received": 1, "unit_cost": "10.00"}],
+        "extra_costs": [{"description": "Frete", "amount": "0"}]})
+    assert r.status_code == 422
+    async_session.expire_all()
+    assert len((await async_session.execute(select(Expense))).scalars().all()) == antes
+
+
+async def test_custos_na_entrada_com_produto_novo_e_com_variantes(test_client, async_session, test_user):
+    """Os dois caminhos do assistente de produto aceitam os custos e rateiam na mesma transação."""
+    from app.models.expense import Expense
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    n = next(_seq)
+    base = {"entry_date": date.today().isoformat(), "supplier_name": "Fornecedor Teste", "entry_type": "local"}
+
+    # produto simples
+    r = await test_client.post("/api/v1/stock-entries/with-new-product", headers=h, json={
+        **base, "entry_code": f"NP-{n:04d}", "product_name": f"Camiseta Teste {n}", "product_sku": f"NP-SKU-{n}",
+        "product_category_id": cat, "product_cost_price": 10, "product_price": 30, "quantity": 10,
+        "extra_costs": [{"description": "Frete", "amount": "50.00"}]})
+    assert r.status_code in (200, 201), r.text
+    entry_id = r.json()["id"]
+    async_session.expire_all()
+    (c, extra, posto), = await _extras(async_session, entry_id)
+    assert extra == D("5.0000") and posto == D("15.0000")                       # 50 / 10 peças
+
+    # produto com variantes (2 variantes x 5 peças)
+    r = await test_client.post("/api/v1/stock-entries/with-new-product-variants", headers=h, json={
+        **base, "entry_code": f"NV-{n:04d}", "product_name": f"Legging Teste {n}", "product_category_id": cat,
+        "base_price": 30,
+        "variants": [
+            {"sku": f"NV-{n}-P", "color": "Preto", "size": "P", "price": 30, "cost_price": 10, "quantity": 5},
+            {"sku": f"NV-{n}-M", "color": "Preto", "size": "M", "price": 30, "cost_price": 10, "quantity": 5},
+        ],
+        "extra_costs": [{"description": "Frete", "amount": "20.00"}, {"description": "Embalagem", "amount": "10.00"}]})
+    assert r.status_code in (200, 201), r.text
+    entry2 = r.json()["id"]
+    async_session.expire_all()
+    extras = await _extras(async_session, entry2)
+    assert [e[1] for e in extras] == [D("3.0000"), D("3.0000")]                  # 30 / 10 peças
+    n_exp = len((await async_session.execute(select(Expense).where(Expense.stock_entry_id == entry2))).scalars().all())
+    assert n_exp == 2

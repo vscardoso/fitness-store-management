@@ -50,6 +50,7 @@ import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { formatCurrency } from '@/utils/format';
 import { cnpjMask, dateMask, isValidDate, phoneMask } from '@/utils/masks';
 import { cleanEntryCode, formatEntryCodeInput } from '@/utils/entryCode';
+import EntryExtraCostsInput, { type EntryExtraCostInput } from '@/components/entries/EntryExtraCostsInput';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { EntryType, StockEntryCreate, EntryItem, Product, ProductVariant, Supplier } from '@/types';
@@ -244,6 +245,8 @@ export default function AddStockEntryScreen() {
   // Data da entrada: sugerida (viagem ou hoje), mas editável para lançar compra retroativa
   const [entryDateInput, setEntryDateInput] = useState('');
   const [entryDateEdited, setEntryDateEdited] = useState(false);
+  // Frete, pedágio, almoço da viagem... lançados junto com a entrada (mesma transação)
+  const [extraCosts, setExtraCosts] = useState<EntryExtraCostInput[]>([]);
   const [supplierName, setSupplierName] = useState('');
   const [supplierCnpj, setSupplierCnpj] = useState('');
   const [supplierContact, setSupplierContact] = useState('');
@@ -803,6 +806,7 @@ export default function AddStockEntryScreen() {
           invoice_number: invoiceNumber.trim() || undefined,
           payment_method: paymentMethod.trim() || undefined,
           notes: notes.trim() || undefined,
+          extra_costs: extraCosts.length > 0 ? extraCosts : undefined,
         },
         quantity
       );
@@ -870,6 +874,7 @@ export default function AddStockEntryScreen() {
           invoice_number: invoiceNumber.trim() || undefined,
           payment_method: paymentMethod.trim() || undefined,
           notes: notes.trim() || undefined,
+          extra_costs: extraCosts.length > 0 ? extraCosts : undefined,
         }
       );
     },
@@ -898,6 +903,8 @@ export default function AddStockEntryScreen() {
     queryClient.invalidateQueries({ queryKey: ['low-stock'] });
     queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
     queryClient.invalidateQueries({ queryKey: ['inventory-valuation'] });
+    queryClient.invalidateQueries({ queryKey: ['expenses'] });
+    queryClient.invalidateQueries({ queryKey: ['lot-profit-ranking'] });
     queryClient.invalidateQueries({ queryKey: ['period-purchases'] });
 
     setCreatedEntryCode(createdEntry.entry_code);
@@ -1200,6 +1207,7 @@ export default function AddStockEntryScreen() {
       invoice_number: invoiceNumber.trim() || undefined,
       payment_method: paymentMethod.trim() || undefined,
       notes: notes.trim() || undefined,
+      extra_costs: extraCosts.length > 0 ? extraCosts : undefined,
       items: items.filter(item => item.quantity_received > 0).map(item => ({
         product_id: item.product_id,
         variant_id: item.variant_id ?? undefined,
@@ -1744,6 +1752,9 @@ export default function AddStockEntryScreen() {
             )}
           </View>
         )}
+
+        {/* Frete e outros custos da compra (somam no custo das peças) */}
+        <EntryExtraCostsInput costs={extraCosts} onChange={setExtraCosts} isTrip={selectedType === EntryType.TRIP} />
 
         {/* Fornecedor */}
         <View style={styles.card}>

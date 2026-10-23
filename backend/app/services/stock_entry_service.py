@@ -361,6 +361,7 @@ class StockEntryService:
 
             # Criar entrada (o fornecedor do cadastro é a fonte do nome exibido)
             entry_dict = entry_data.model_dump(exclude_unset=True)
+            extra_costs = entry_dict.pop('extra_costs', None) or []
             entry_dict['supplier_id'] = default_supplier.id
             entry_dict['supplier_name'] = default_supplier.name
             entry_dict['total_cost'] = Decimal('0.00')  # Será calculado depois
@@ -412,6 +413,7 @@ class StockEntryService:
             # Atualizar total_cost da entrada
             entry.total_cost = total_cost
             await self.db.flush()
+            await self._add_entry_costs(entry, extra_costs, tenant_id)
             await lot_cost_service.recompute_entries(self.db, [entry.id], tenant_id=tenant_id)
             await self.db.commit()
             await self.db.refresh(entry)
@@ -668,6 +670,29 @@ class StockEntryService:
                 (items_depleted / len(entry.entry_items) * 100) if entry.entry_items else 0, 2
             ),
         }
+
+    async def _add_entry_costs(self, entry: StockEntry, extra_costs, tenant_id: int) -> None:
+        """
+        Cria as despesas informadas junto com a entrada (antes do rateio, na mesma transação).
+        Entrada de viagem: despesa da viagem (rateada entre as entradas dela). Outros tipos: despesa da entrada.
+        """
+        from app.models.expense import Expense
+
+        for c in extra_costs or []:
+            amount = Decimal(str(c["amount"]))
+            description = str(c["description"]).strip()
+            if amount <= 0 or not description:
+                raise ValueError("Custo extra inválido: informe o que foi e um valor maior que zero")
+            of_trip = entry.entry_type == EntryType.TRIP and entry.trip_id is not None
+            self.db.add(Expense(
+                amount=amount,
+                description=description[:200],
+                expense_date=entry.entry_date,
+                tenant_id=tenant_id,
+                trip_id=entry.trip_id if of_trip else None,
+                stock_entry_id=None if of_trip else entry.id,
+            ))
+        await self.db.flush()
 
     async def get_entry_costs(self, entry_id: int, *, tenant_id: int) -> Dict[str, Any]:
         """Detalhamento dos custos do lote (o que explica a diferença entre custo da mercadoria e custo posto)."""
@@ -1796,6 +1821,7 @@ class StockEntryService:
                 print(f"  [Inventory Sync NEW_PRODUCT] Falha sync produto {product.id}: {sync_err}")
             
             await self.db.flush()
+            await self._add_entry_costs(entry, entry_data.get('extra_costs'), tenant_id)
             await lot_cost_service.recompute_entries(self.db, [entry.id], tenant_id=tenant_id)
 
             # 7. Commit de tudo (transação atômica)
@@ -1975,6 +2001,7 @@ class StockEntryService:
                 print(f"  [Inventory Sync NEW_PRODUCT_VARIANTS] Falha sync produto {product.id}: {sync_err}")
             
             await self.db.flush()
+            await self._add_entry_costs(entry, entry_data.get('extra_costs'), tenant_id)
             await lot_cost_service.recompute_entries(self.db, [entry.id], tenant_id=tenant_id)
 
             # 6. Commit de tudo (transação atômica)

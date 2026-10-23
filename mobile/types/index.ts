@@ -710,6 +710,12 @@ export interface StockEntry {
   updated_at: string;
 }
 
+/** Custo da compra lançado junto com a entrada (frete, pedágio...). */
+export interface EntryExtraCostInput {
+  description: string;
+  amount: number;
+}
+
 export interface StockEntryCreate {
   // Código da entrada (pode ser gerado pelo backend). Tornado opcional para não quebrar chamadas existentes.
   entry_code?: string;
@@ -723,6 +729,7 @@ export interface StockEntryCreate {
   invoice_number?: string;
   payment_method?: string;
   notes?: string;
+  extra_costs?: EntryExtraCostInput[];
   items: EntryItem[];
 }
 

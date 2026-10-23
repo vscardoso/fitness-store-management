@@ -13,7 +13,7 @@ from typing import List, Optional
 from datetime import date
 
 from app.core.database import get_db
-from app.schemas.stock_entry import entry_date_not_future, normalize_entry_code
+from app.schemas.stock_entry import EntryExtraCost, entry_date_not_future, normalize_entry_code
 from app.schemas.stock_entry import (
     StockEntryResponse, 
     StockEntryCreate, 
@@ -169,6 +169,7 @@ class StockEntryWithNewProductVariantsRequest(BaseModel):
 
     entry_type: Optional[EntryType] = None
     trip_id: Optional[int] = None
+    extra_costs: List[EntryExtraCost] = Field(default_factory=list)  # frete, pedágio... lançados junto com a entrada
     supplier_name: Optional[str] = None
     supplier_cnpj: Optional[str] = None
     supplier_contact: Optional[str] = None
@@ -277,6 +278,7 @@ async def create_stock_entry_with_new_product(
                 "entry_date": request_data.entry_date,
                 "entry_type": request_data.entry_type,
                 "trip_id": request_data.trip_id,
+                "extra_costs": [c.model_dump() for c in request_data.extra_costs],
                 "supplier_id": request_data.supplier_id,
                 "supplier_name": request_data.supplier_name,
                 "supplier_cnpj": request_data.supplier_cnpj,
@@ -380,6 +382,7 @@ async def create_stock_entry_with_new_product_variants(
                 "entry_date": request_data.entry_date,
                 "entry_type": request_data.entry_type,
                 "trip_id": request_data.trip_id,
+                "extra_costs": [c.model_dump() for c in request_data.extra_costs],
                 "supplier_id": request_data.supplier_id,
                 "supplier_name": request_data.supplier_name,
                 "supplier_cnpj": request_data.supplier_cnpj,
@@ -517,6 +520,7 @@ async def create_stock_entry(
             invoice_number=request_data.invoice_number,
             payment_method=request_data.payment_method,
             notes=request_data.notes
+            ,extra_costs=request_data.extra_costs
         )
 
         service = StockEntryService(db)

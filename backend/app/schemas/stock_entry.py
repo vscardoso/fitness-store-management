@@ -20,6 +20,20 @@ def validate_cpf_cnpj(value):
     return value
 
 
+class EntryExtraCost(BaseModel):
+    """Custo extra informado junto com a entrada (frete, pedágio, almoço da viagem...)."""
+    description: str = Field(..., min_length=1, max_length=200, description="O que foi (ex.: frete)")
+    amount: Decimal = Field(..., gt=0, description="Quanto custou")
+
+    @field_validator("description")
+    @classmethod
+    def _strip_description(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("Diga o que foi essa despesa")
+        return v
+
+
 def entry_date_not_future(value):
     """Entrada pode ser retroativa (compra já feita), mas não no futuro. Tolera 1 dia por causa de fuso horário."""
     from datetime import timedelta
@@ -75,10 +89,14 @@ def normalize_entry_code(value):
 class StockEntryCreate(StockEntryBase):
     """Schema for creating a stock entry.
 
+    `extra_costs`: custos da compra lançados junto com a entrada. Em entrada de viagem viram despesa DA VIAGEM
+    (divididas entre as entradas dela); nos outros tipos viram despesa DESTA entrada. Tudo na mesma transação.
+
     Informe `supplier_id` (fornecedor cadastrado) OU `supplier_name` (texto: o servidor acha o
     cadastro pelo nome ou cria um novo). Se vierem os dois, vale o `supplier_id`.
     """
     supplier_name: Optional[str] = Field(None, min_length=1, max_length=255, description="Nome do fornecedor")
+    extra_costs: List[EntryExtraCost] = Field(default_factory=list, description="Frete, pedágio, almoço da viagem... lançados junto com a entrada")
 
     @model_validator(mode='after')
     def require_supplier(self):
