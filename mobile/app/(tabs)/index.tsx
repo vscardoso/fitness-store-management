@@ -510,7 +510,7 @@ export default function DashboardScreen() {
               <Ionicons name="cash-outline" size={22} color={VALUE_COLORS.positive} />
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <Text style={styles.monthCardLabel}>Lucro Líquido</Text>
+              <Text style={styles.monthCardLabel}>Lucro das vendas</Text>
               <TouchableOpacity onPress={() => setActiveTooltip('lucro-periodo')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
                 <Ionicons name="information-circle-outline" size={11} color="#9CA3AF" />
               </TouchableOpacity>
@@ -519,7 +519,7 @@ export default function DashboardScreen() {
               {formatCurrency(periodProfit)}
             </Text>
             <View style={styles.monthCardFooter}>
-              <Text style={styles.monthCardSubtitle}>{periodMargin.toFixed(0)}% margem</Text>
+              <Text style={styles.monthCardSubtitle}>{periodMargin.toFixed(0)}% do vendido</Text>
               {profitChangePercent !== 0 && (
                 <View style={[
                   styles.changeBadge,
@@ -551,20 +551,26 @@ export default function DashboardScreen() {
             <View style={styles.plSummaryCard}>
               <View style={styles.plSummaryHeader}>
                 <View style={styles.plSummaryTitleRow}>
-                  <Ionicons name="stats-chart-outline" size={18} color="#7C3AED" />
+                  <Ionicons name="stats-chart-outline" size={18} color={brandingColors.primary} />
                   <Text style={styles.plSummaryTitle}>Resultado do Mês</Text>
                 </View>
                 <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
               </View>
               <View style={styles.plSummaryGrid}>
                 <View style={styles.plSummaryItem}>
-                  <Text style={styles.plSummaryLabel}>Receita</Text>
+                  <Text style={styles.plSummaryLabel}>Você vendeu</Text>
                   <Text style={[styles.plSummaryValue, { color: Colors.light.success }]}>
                     {formatCurrency(monthlyResult.revenue)}
                   </Text>
                 </View>
                 <View style={styles.plSummaryItem}>
-                  <Text style={styles.plSummaryLabel}>Despesas</Text>
+                  <Text style={styles.plSummaryLabel}>Custo das peças</Text>
+                  <Text style={[styles.plSummaryValue, { color: Colors.light.error }]}>
+                    -{formatCurrency(Number(monthlyResult.cmv))}
+                  </Text>
+                </View>
+                <View style={styles.plSummaryItem}>
+                  <Text style={styles.plSummaryLabel}>Gastos da loja</Text>
                   <Text style={[styles.plSummaryValue, { color: Colors.light.error }]}>
                     -{formatCurrency(Number(monthlyResult.total_expenses) + Number(monthlyResult.trip_costs))}
                   </Text>
@@ -572,7 +578,7 @@ export default function DashboardScreen() {
                 <View style={[styles.plSummaryItem, styles.plSummaryNet, {
                   backgroundColor: monthlyResult.net_profit >= 0 ? (Colors.light.successLight ?? '#E8F5E9') : '#FFEBEE',
                 }]}>
-                  <Text style={styles.plSummaryLabel}>Lucro Líquido</Text>
+                  <Text style={styles.plSummaryLabel}>Sobrou no mês</Text>
                   <Text style={[styles.plSummaryValue, styles.plSummaryNetValue, {
                     color: monthlyResult.net_profit >= 0 ? Colors.light.success : Colors.light.error,
                   }]}>
@@ -581,10 +587,13 @@ export default function DashboardScreen() {
                   <Text style={[styles.plSummaryMargin, {
                     color: monthlyResult.net_profit >= 0 ? Colors.light.success : Colors.light.error,
                   }]}>
-                    {Number(monthlyResult.net_margin_pct).toFixed(1)}%
+                    {Number(monthlyResult.net_margin_pct).toFixed(0)}% do que vendeu
                   </Text>
                 </View>
               </View>
+              <Text style={{ fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary, paddingHorizontal: 14, paddingBottom: 12 }}>
+                Você vendeu, menos o que custaram as peças (com o frete da compra), menos os gastos da loja (aluguel, luz...), é o que sobrou.
+              </Text>
             </View>
           </TouchableOpacity>
         )}
@@ -644,7 +653,7 @@ export default function DashboardScreen() {
               <View style={styles.chartSummaryDivider} />
               <View style={styles.chartSummaryItem}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                  <Text style={styles.chartSummaryLabel}>Lucro Líquido</Text>
+                  <Text style={styles.chartSummaryLabel}>Lucro das vendas</Text>
                   <TouchableOpacity onPress={() => setActiveTooltip('lucro-periodo')} hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}>
                     <Ionicons name="information-circle-outline" size={10} color="#9CA3AF" />
                   </TouchableOpacity>
@@ -1232,10 +1241,10 @@ export default function DashboardScreen() {
                     <View style={[styles.tooltipIconContainer, { backgroundColor: '#ECFDF5' }]}>
                       <Ionicons name="cash-outline" size={20} color={VALUE_COLORS.positive} />
                     </View>
-                    <Text style={styles.tooltipTitle}>Lucro Líquido</Text>
+                    <Text style={styles.tooltipTitle}>Lucro das vendas</Text>
                   </View>
                   <View style={styles.tooltipDivider} />
-                  <Text style={styles.tooltipText}>{`Faturamento menos o custo de aquisição dos produtos vendidos. É o que realmente sobrou para o negócio após pagar o que custou cada produto.`}</Text>
+                  <Text style={styles.tooltipText}>{`O que sobrou das vendas depois de pagar o custo das peças vendidas (já com o frete e a viagem da compra). Ainda não desconta os gastos da loja, como aluguel e luz. O lucro final do mês está no card Resultado do Mês.`}</Text>
                 </>
               )}
               {activeTooltip === 'cmv' && (

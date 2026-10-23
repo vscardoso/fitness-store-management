@@ -497,7 +497,7 @@ export default function InventoryDashboard() {
                 <View style={styles.statCardWrapper}>
                   <StatCard
                     icon={Number(periodResult.net_profit) >= 0 ? 'happy-outline' : 'sad-outline'}
-                    label="Lucro Líquido"
+                    label="Lucro do mês"
                     value={formatCurrency(Number(periodResult.net_profit))}
                     iconColor={Number(periodResult.net_profit) >= 0 ? Colors.light.success : Colors.light.error}
                     iconBg={Number(periodResult.net_profit) >= 0 ? Colors.light.successLight : Colors.light.errorLight}

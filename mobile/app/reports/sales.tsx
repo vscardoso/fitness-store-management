@@ -346,9 +346,9 @@ export default function SalesReportScreen() {
             <div class="metric-subtitle">${report.total_sales} vendas realizadas</div>
           </div>
           <div class="metric-card secondary">
-            <div class="metric-label">Lucro Líquido</div>
+            <div class="metric-label">Lucro das vendas</div>
             <div class="metric-value">${formatCurrency(report.total_profit)}</div>
-            <div class="metric-subtitle">Margem: ${report.profit_margin.toFixed(1)}%</div>
+            <div class="metric-subtitle">De cada R$ 100 vendidos, R$ ${report.profit_margin.toFixed(0)} de lucro</div>
           </div>
           <div class="metric-card">
             <div class="metric-label">Ticket Médio</div>
