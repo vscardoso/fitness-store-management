@@ -325,9 +325,9 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
             </View>
 
             <View style={styles.entryInfoGrid}>
-              <View style={styles.entryInfoItem}>
+              <View style={styles.entryInfoItemFull}>
                 <Text style={styles.infoLabel}>Código</Text>
-                <Text style={styles.infoValueMono}>{linkedEntry.code}</Text>
+                <Text style={[styles.infoValueMono, styles.entryCode]} selectable>{linkedEntry.code}</Text>
               </View>
               <View style={styles.entryInfoItem}>
                 <Text style={styles.infoLabel}>
@@ -772,6 +772,14 @@ const styles = StyleSheet.create({
   entryInfoItem: {
     flex: 1,
     minWidth: 80,
+  },
+  // Código da entrada é longo (ex.: SAOPAULOGEMEOS-...): ocupa a linha toda e quebra se precisar
+  entryInfoItemFull: {
+    flexBasis: '100%',
+  },
+  entryCode: {
+    alignSelf: 'flex-start',
+    flexShrink: 1,
   },
   fifoTag: {
     flexDirection: 'row',
