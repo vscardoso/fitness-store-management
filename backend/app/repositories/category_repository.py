@@ -68,6 +68,9 @@ class CategoryRepository(BaseRepository[Category, Any, Any]):
                     name, 
                     description, 
                     parent_id,
+                    is_active,
+                    created_at,
+                    updated_at,
                     0 as level,
                     CAST(name AS TEXT) as path,
                     CAST(id AS TEXT) as id_path
@@ -83,6 +86,9 @@ class CategoryRepository(BaseRepository[Category, Any, Any]):
                     c.name, 
                     c.description, 
                     c.parent_id,
+                    c.is_active,
+                    c.created_at,
+                    c.updated_at,
                     ct.level + 1,
                     ct.path || ' > ' || c.name,
                     ct.id_path || '.' || CAST(c.id AS TEXT)
@@ -94,6 +100,9 @@ class CategoryRepository(BaseRepository[Category, Any, Any]):
                 name, 
                 description, 
                 parent_id, 
+                is_active,
+                created_at,
+                updated_at,
                 level, 
                 path,
                 id_path
@@ -114,6 +123,9 @@ class CategoryRepository(BaseRepository[Category, Any, Any]):
                 'name': row.name,
                 'description': row.description,
                 'parent_id': row.parent_id,
+                'is_active': row.is_active,
+                'created_at': row.created_at,
+                'updated_at': row.updated_at,
                 'level': row.level,
                 'path': row.path,
                 'subcategories': []

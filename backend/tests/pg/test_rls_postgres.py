@@ -280,3 +280,6 @@ async def test_arvore_de_categorias_roda_no_postgres(pg):
     async with _sess(admin) as db:
         tree = await CategoryRepository(db).get_hierarchy()
         assert isinstance(tree, list) and tree
+        from app.schemas.category import CategoryWithChildren
+        for node in tree:
+            CategoryWithChildren.model_validate(node)  # o mesmo formato que a rota devolve
