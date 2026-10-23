@@ -45,6 +45,7 @@ import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import EmptyState from '@/components/ui/EmptyState';
 import { useBrandingColors } from '@/store/brandingStore';
 import LotMoneyCard from '@/components/entries/LotMoneyCard';
+import AddVariantModal from '@/components/entries/AddVariantModal';
 import { useAuth } from '@/hooks/useAuth';
 import { EntryType, EntryItemResponse } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
@@ -105,6 +106,8 @@ export default function StockEntryDetailsScreen() {
 
   // Estados
   const [refreshing, setRefreshing] = useState(false);
+  // Lançar outra variação (cor/tamanho) de um produto já cadastrado nesta entrada
+  const [variantTarget, setVariantTarget] = useState<EntryItemResponse | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [successDialog, setSuccessDialog] = useState<{
     visible: boolean;
@@ -511,6 +514,17 @@ export default function StockEntryDetailsScreen() {
                 {hasSales ? 'Corrigir' : 'Editar'}
               </Text>
             </TouchableOpacity>
+            {isManagerRole(user?.role) && item.product_id ? (
+              <TouchableOpacity
+                onPress={() => setVariantTarget(item)}
+                style={[styles.editItemButton, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12' }]}
+                activeOpacity={0.7}
+                accessibilityLabel="Lançar outra variação deste produto"
+              >
+                <Ionicons name="add-circle-outline" size={14} color={brandingColors.primary} />
+                <Text style={[styles.editItemButtonText, { color: brandingColors.primary }]}>Outra variação</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
 
@@ -685,6 +699,16 @@ export default function StockEntryDetailsScreen() {
               <InfoRow label="Observações" value={entry.notes} icon="document-outline" />
             )}
         </View>
+
+        <AddVariantModal
+          visible={!!variantTarget}
+          onClose={() => setVariantTarget(null)}
+          entryId={entryId}
+          productId={Number(variantTarget?.product_id ?? 0)}
+          productName={variantTarget?.product_name ?? ''}
+          suggestedCost={Number(variantTarget?.unit_cost ?? 0)}
+          suggestedPrice={Number(variantTarget?.product_price ?? 0)}
+        />
 
         {/* O dinheiro do lote, em linguagem simples (gastou, voltou, sobrou) */}
         <LotMoneyCard

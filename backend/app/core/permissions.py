@@ -34,7 +34,8 @@ ANY = None  # qualquer método
 RULES: list[tuple[Optional[set], str, UserRole]] = [
     # ── admin ────────────────────────────────────────────────────────────────
     ({"GET"}, r"^/team(/\{user_id\})?$", MANAGER),  # gerente consulta a equipe; só admin altera
-    (ANY, r"^/(audit|team|store|mp-connect)(/|$)", ADMIN),
+    (ANY, r"^/(audit|team|store|mp-connect|error-logs)(/|$)", ADMIN),
+    ({"POST"}, r"^/client-logs$", CASHIER),
     (ANY, r"^/auth/register$", ADMIN),
     (ANY, r"^/notifications/(send|test)(/|$)|^/notifications/inbox/push-now$", ADMIN),
     (ANY, r"^/pdv/(store/setup|cielo-pix/register-webhook)$", ADMIN),

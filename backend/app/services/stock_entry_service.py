@@ -48,6 +48,7 @@ class StockEntryService:
         Returns:
             str: Código único
         """
+        await self._lock_catalog(tenant_id)
         # Verificar se código base já existe
         existing = await self.entry_repo.get_by_code(self.db, base_code, tenant_id=tenant_id)
         if not existing:
@@ -205,6 +206,76 @@ class StockEntryService:
     def _variant_label(size, color, sku) -> str:
         parts = " / ".join(p for p in (size, color) if p) or "variação única"
         return f"{parts} (SKU {sku})" if sku else parts
+
+    async def _lock_catalog(self, tenant_id: int) -> None:
+        """
+        Serializa a criação de produto/variação/entrada DA MESMA LOJA (Postgres): dois acessos ao mesmo tempo
+        passam a esperar um ao outro, e o segundo já enxerga os SKUs e códigos que o primeiro criou.
+        O bloqueio é liberado sozinho no commit/rollback.
+        """
+        from sqlalchemy import text
+
+        if self.db.get_bind().dialect.name != "postgresql":
+            return
+        await self.db.execute(text("SELECT pg_advisory_xact_lock(CAST(:k AS bigint))"), {"k": 7_300_000_000 + int(tenant_id)})
+
+    @staticmethod
+    def _bump_sku(sku: str) -> str:
+        """Próximo SKU livre na sequência: ...-001 vira ...-002 (mantém os zeros); sem número no fim, acrescenta -002."""
+        import re
+
+        m = re.match(r"^(.*?)(\d+)$", sku)
+        if not m:
+            return f"{sku}-002"
+        num = m.group(2)
+        return f"{m.group(1)}{int(num) + 1:0{len(num)}d}"
+
+    async def _resolve_free_skus(self, skus, tenant_id: int) -> list:
+        """
+        Devolve os SKUs prontos para gravar. SKU que já existe na loja (ou repetido no mesmo envio) NÃO derruba
+        a criação: recebe o próximo número livre. Isso acontece quando duas pessoas cadastram produtos parecidos
+        ao mesmo tempo e o app de uma delas ainda não conhecia o SKU da outra. Os ajustes ficam no registro de erros.
+        """
+        from sqlalchemy import select, func
+        from app.models.product_variant import ProductVariant
+        from app.services.error_log_service import record_error
+
+        await self._lock_catalog(tenant_id)
+        wanted = [str(s).strip().upper() if s and str(s).strip() else None for s in skus]
+        cache: dict = {}
+
+        async def taken(cand: str) -> bool:
+            if cand not in cache:
+                row = await self.db.execute(
+                    select(ProductVariant.id).where(
+                        ProductVariant.tenant_id == tenant_id,
+                        ProductVariant.is_active == True,  # noqa: E712
+                        func.upper(ProductVariant.sku) == cand,
+                    ).limit(1)
+                )
+                cache[cand] = row.first() is not None
+            return cache[cand]
+
+        chosen: set = set()
+        out: list = []
+        adjusted = []
+        for w in wanted:
+            if w is None:
+                out.append(None)
+                continue
+            cand = w
+            while cand in chosen or await taken(cand):
+                cand = self._bump_sku(cand)
+            if cand != w:
+                adjusted.append({"pedido": w, "gravado": cand})
+            chosen.add(cand)
+            out.append(cand)
+        if adjusted:
+            await record_error(
+                message=f"SKU ja existia; ajustado automaticamente ({len(adjusted)})", level="info", source="api",
+                error_type="sku_ajustado", detail={"ajustes": adjusted}, tenant_id=tenant_id,
+            )
+        return out
 
     async def _ensure_skus_free(self, skus, tenant_id: int) -> None:
         """Recusa SKU já usado por outra variante ativa da loja (sem diferenciar maiúsculas)."""
@@ -1548,6 +1619,95 @@ class StockEntryService:
         _refreshed = _result.scalar_one_or_none()
         return _refreshed if _refreshed is not None else item
 
+    async def add_variant_to_entry(self, entry_id: int, data: Dict[str, Any], *, tenant_id: int) -> Dict[str, Any]:
+        """
+        Lança numa entrada JÁ EXISTENTE uma peça de OUTRA variação (cor/tamanho) de um produto já cadastrado.
+        Se a variação ainda não existe, ela é criada (SKU gerado e sem repetir); se já existe, só entra na entrada.
+        Tudo numa transação: falhou em qualquer passo, nada fica gravado.
+        """
+        import re
+        import unicodedata
+        from decimal import Decimal
+        from sqlalchemy import select
+        from app.models.product_variant import ProductVariant
+        from app.utils.variant_grid import normalize_color, normalize_size
+
+        await self._lock_catalog(tenant_id)
+        try:
+            entry = await self.entry_repo.get_by_id(self.db, entry_id, tenant_id=tenant_id)
+            if not entry:
+                raise ValueError(f"Entrada {entry_id} não encontrada")
+            product_id = data.get("product_id")
+            product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id) if product_id else None
+            if not product:
+                raise ValueError(f"Produto {product_id} não encontrado")
+
+            color = normalize_color(data.get("color")) or None
+            size = normalize_size(data.get("size")) or None
+            if not color and not size:
+                raise ValueError("Informe a cor ou o tamanho da nova variação")
+            quantity = int(data.get("quantity") or 0)
+            if quantity <= 0:
+                raise ValueError("A quantidade deve ser maior que zero")
+            cost = Decimal(str(data.get("cost_price") if data.get("cost_price") is not None else -1))
+            self._require_cost(cost, f"{product.name} ({color or ''} {size or ''})".strip(), entry.entry_type)
+
+            siblings = (await self.db.execute(
+                select(ProductVariant).where(
+                    ProductVariant.product_id == product.id, ProductVariant.tenant_id == tenant_id
+                ).order_by(ProductVariant.id)
+            )).scalars().all()
+            existing = next((v for v in siblings if (v.color or None) == color and (v.size or None) == size), None)
+
+            created = False
+            if existing is not None:
+                variant = existing
+                if not variant.is_active:
+                    variant.is_active = True
+                    created = True
+            else:
+                active = [v for v in siblings if v.is_active]
+                price = data.get("price")
+                if price is None:
+                    price = (active[0].price if active else None) or product.base_price
+                if price is None or Decimal(str(price)) <= 0:
+                    raise ValueError("Informe o preço de venda da nova variação")
+                sku = (data.get("sku") or "").strip().upper() or None
+                if not sku:
+                    ref = next((v.sku for v in active if v.sku), None)
+                    base_sku = ref.split("-")[0] if ref else f"P{product.id}"
+
+                    def part(text_):
+                        t = unicodedata.normalize("NFD", text_ or "")
+                        return re.sub(r"[^A-Za-z0-9]", "", re.sub(r"[\u0300-\u036f]", "", t)).upper()[:3]
+
+                    sku = "-".join(x for x in (base_sku, part(color), part(size), "001") if x)
+                sku = (await self._resolve_free_skus([sku], tenant_id))[0]
+                variant = ProductVariant(
+                    product_id=product.id, sku=sku, color=color, size=size, price=Decimal(str(price)),
+                    cost_price=cost, tenant_id=tenant_id, is_active=True,
+                )
+                self.db.add(variant)
+                created = True
+            await self.db.flush()
+
+            item = await self.add_item_to_entry(
+                entry_id,
+                {
+                    "product_id": product.id, "variant_id": variant.id, "quantity_received": quantity,
+                    "unit_cost": cost, "notes": f"Variação adicionada à entrada: {color or ''} {size or ''}".strip(),
+                },
+                tenant_id=tenant_id,
+            )
+            return {
+                "item_id": item.id, "entry_id": entry_id, "product_id": product.id, "variant_id": variant.id,
+                "sku": variant.sku, "color": variant.color, "size": variant.size,
+                "quantity_received": quantity, "variant_created": created,
+            }
+        except Exception:
+            await self.db.rollback()
+            raise
+
     async def add_item_to_entry(
         self,
         entry_id: int,
@@ -1713,7 +1873,7 @@ class StockEntryService:
             if not product_data.get('name') or not product_data.get('sku'):
                 raise ValueError("Nome e SKU do produto são obrigatórios")
             
-            await self._ensure_skus_free([product_data['sku']], tenant_id)
+            product_data['sku'] = (await self._resolve_free_skus([product_data['sku']], tenant_id))[0]
 
             # Fornecedor da entrada (cadastro): achado pelo id/nome ou criado
             default_supplier = await self._resolve_supplier(
@@ -1878,7 +2038,8 @@ class StockEntryService:
             if not product_data.get('name') or not product_data.get('category_id'):
                 raise ValueError("Nome e categoria do produto são obrigatórios")
             
-            await self._ensure_skus_free([v.get('sku') for v in variants_data], tenant_id)
+            for _v, _sku in zip(variants_data, await self._resolve_free_skus([v.get('sku') for v in variants_data], tenant_id)):
+                _v['sku'] = _sku
 
             # Fornecedor da entrada (cadastro): achado pelo id/nome ou criado
             default_supplier = await self._resolve_supplier(
@@ -2047,7 +2208,8 @@ class StockEntryService:
             if not any((v.get('quantity') or 0) > 0 for v in variants_data):
                 raise ValueError("Informe a quantidade de ao menos uma variação")
 
-            await self._ensure_skus_free([v.get('sku') for v in variants_data], tenant_id)
+            for _v, _sku in zip(variants_data, await self._resolve_free_skus([v.get('sku') for v in variants_data], tenant_id)):
+                _v['sku'] = _sku
             entry_type = entry.entry_type
             name = product_data['name'].strip()
             for v in variants_data:

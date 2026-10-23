@@ -101,6 +101,27 @@ export async function getStockEntryCosts(id: number): Promise<LotCosts> {
   return response.data;
 }
 
+export interface AddVariantToEntryResult {
+  item_id: number;
+  entry_id: number;
+  product_id: number;
+  variant_id: number;
+  sku: string;
+  color?: string | null;
+  size?: string | null;
+  quantity_received: number;
+  variant_created: boolean;
+}
+
+/** Lança numa entrada existente uma peça de OUTRA variação de um produto já cadastrado (cria a variação se não existir). */
+export async function addVariantToEntry(
+  entryId: number,
+  payload: { product_id: number; color?: string; size?: string; quantity: number; cost_price: number; price?: number; sku?: string }
+): Promise<AddVariantToEntryResult> {
+  const response = await api.post<AddVariantToEntryResult>(`${ENTRIES_ENDPOINT}${entryId}/variants`, payload);
+  return response.data;
+}
+
 export interface LotProfitRow {
   entry_id: number;
   entry_code: string;

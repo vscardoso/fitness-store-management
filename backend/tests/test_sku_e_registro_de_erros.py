@@ -1,0 +1,188 @@
+"""SKU repetido não derruba mais a criação; registro de erros (error_logs) grava sem segredo e sem atrapalhar."""
+import itertools
+from datetime import date
+
+import pytest
+from sqlalchemy import select
+
+from tests.test_lot_costs import _loja_api, _limpa_loja_1, D  # noqa: F401  (fixture autouse)
+
+pytestmark = pytest.mark.asyncio
+_n = itertools.count(1)
+
+
+def test_proximo_sku_na_sequencia():
+    from app.services.stock_entry_service import StockEntryService as S
+    assert S._bump_sku("ALO-CONJUN-001") == "ALO-CONJUN-002"
+    assert S._bump_sku("ALOCONJUN001-MAR-G-001") == "ALOCONJUN001-MAR-G-002"
+    assert S._bump_sku("ABC-099") == "ABC-100"
+    assert S._bump_sku("SEMNUMERO") == "SEMNUMERO-002"
+    assert S._bump_sku("X9") == "X10"
+
+
+def _variants(prefix, n):
+    return [{"sku": f"{prefix}-{c}-001", "color": c, "size": "M", "price": 30, "cost_price": 10, "quantity": 2}
+            for c in ("PRE", "AZU")][:n]
+
+
+async def _criar(test_client, h, cat, nome, prefix, code):
+    return await test_client.post("/api/v1/stock-entries/with-new-product-variants", headers=h, json={
+        "entry_code": code, "entry_date": date.today().isoformat(), "entry_type": "local",
+        "supplier_name": "Fornecedor Teste", "product_name": nome, "product_category_id": cat, "base_price": 30,
+        "variants": _variants(prefix, 2)})
+
+
+async def test_sku_repetido_recebe_o_proximo_numero_em_vez_de_dar_erro(test_client, async_session, test_user):
+    from app.models.product_variant import ProductVariant
+    from app.models.error_log import ErrorLog
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    n = next(_n)
+    prefix = f"CONJ{n}"
+
+    r1 = await _criar(test_client, h, cat, f"Conjunto com manga {n}", prefix, f"E1-{n:04d}")
+    assert r1.status_code in (200, 201), r1.text
+    # segundo cadastro com os MESMOS SKUs (o app dele ainda não conhecia os do primeiro)
+    r2 = await _criar(test_client, h, cat, f"Conjunto sem manga {n}", prefix, f"E2-{n:04d}")
+    assert r2.status_code in (200, 201), r2.text
+
+    skus = [s for (s,) in (await async_session.execute(
+        select(ProductVariant.sku).where(ProductVariant.sku.like(f"{prefix}-%")))).all()]
+    assert sorted(skus) == sorted([f"{prefix}-PRE-001", f"{prefix}-AZU-001", f"{prefix}-PRE-002", f"{prefix}-AZU-002"])
+    assert len(set(skus)) == 4                                   # nenhum SKU duplicado
+
+    ajustes = (await async_session.execute(select(ErrorLog).where(ErrorLog.error_type == "sku_ajustado"))).scalars().all()
+    assert ajustes and ajustes[-1].level == "info"               # o ajuste fica registrado para consulta
+    await async_session.execute(ErrorLog.__table__.delete().where(ErrorLog.error_type == "sku_ajustado"))
+    await async_session.commit()
+
+
+async def test_sku_repetido_dentro_do_mesmo_envio_continua_recusado_pela_validacao(test_client, async_session, test_user):
+    """Dentro do MESMO envio o SKU repetido é erro do formulário (validação), não corrida: continua 422 claro."""
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    n = next(_n)
+    r = await test_client.post("/api/v1/stock-entries/with-new-product-variants", headers=h, json={
+        "entry_code": f"DUP-{n:04d}", "entry_date": date.today().isoformat(), "entry_type": "local",
+        "supplier_name": "Fornecedor Teste", "product_name": f"Duplicado {n}", "product_category_id": cat, "base_price": 30,
+        "variants": [
+            {"sku": f"DUP{n}-001", "color": "Preto", "size": "P", "price": 30, "cost_price": 10, "quantity": 1},
+            {"sku": f"DUP{n}-001", "color": "Preto", "size": "M", "price": 30, "cost_price": 10, "quantity": 1},
+        ]})
+    assert r.status_code == 422 and "SKU repetido" in r.text
+
+
+# ───────────────────────── registro de erros ─────────────────────────
+
+async def test_erro_de_gravacao_vai_para_o_registro_sem_segredo(test_client, async_session, test_user):
+    from app.models.error_log import ErrorLog
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    uid, tid = test_user.id, test_user.tenant_id
+    h = {"Authorization": f"Bearer {token}"}
+    # 400/422 em rota de gravação: despesa com valor inválido
+    r = await test_client.post("/api/v1/expenses", headers=h, json={
+        "amount": "0", "description": "x", "expense_date": date.today().isoformat(), "password": "SENHA-SECRETA-123"})
+    assert r.status_code == 422
+    async_session.expire_all()
+    row = (await async_session.execute(select(ErrorLog).where(ErrorLog.path == "/api/v1/expenses")
+                                       .order_by(ErrorLog.id.desc()).limit(1))).scalar_one()
+    assert row.status_code == 422 and row.method == "POST" and row.source == "api"
+    assert row.user_id == uid and row.tenant_id == tid
+    assert "SENHA-SECRETA-123" not in (row.detail or "") and "SENHA-SECRETA-123" not in row.message
+    await async_session.execute(ErrorLog.__table__.delete().where(ErrorLog.id == row.id))
+    await async_session.commit()
+
+
+async def test_leitura_e_envio_de_erros_do_app(test_client, async_session, test_user):
+    from app.models.error_log import ErrorLog
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    r = await test_client.post("/api/v1/client-logs", headers=h, json={
+        "message": "Tela quebrou ao abrir a entrada", "route": "/entries/9",
+        "context": {"token": "abc123", "passo": "abrir"}, "app_version": "1.0.9"})
+    assert r.status_code == 202, r.text
+    lista = (await test_client.get("/api/v1/error-logs?source=app&limit=5", headers=h)).json()
+    achado = next(x for x in lista if x["mensagem"] == "Tela quebrou ao abrir a entrada")
+    assert achado["origem"] == "app" and achado["rota"] == "/entries/9"
+    assert "abc123" not in (achado["detalhe"] or "") and "abrir" in (achado["detalhe"] or "")
+    await async_session.execute(ErrorLog.__table__.delete().where(ErrorLog.source == "app"))
+    await async_session.commit()
+
+
+async def test_erro_ao_gravar_o_registro_nunca_derruba_a_requisicao(test_client, async_session, test_user, monkeypatch):
+    import app.core.database as db_module
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+
+    def quebrado():
+        raise RuntimeError("banco do log fora do ar")
+
+    monkeypatch.setattr(db_module, "async_session_maker", quebrado)
+    r = await test_client.post("/api/v1/expenses", headers=h, json={
+        "amount": "0", "description": "x", "expense_date": date.today().isoformat()})
+    assert r.status_code == 422                                   # a resposta normal continua saindo
+
+
+async def test_ruido_nao_vai_para_o_registro():
+    from app.services.error_log_service import should_log
+    assert not should_log("GET", "/api/v1/products", 404)         # consulta que não achou
+    assert not should_log("POST", "/api/v1/auth/login", 401)      # senha errada (já tem auditoria)
+    assert not should_log("GET", "/health", 500)
+    assert should_log("POST", "/api/v1/expenses", 400)
+    assert should_log("GET", "/api/v1/products", 500)
+
+
+# ───────────────────────── outra variação numa entrada existente ─────────────────────────
+
+async def test_lancar_outra_variacao_de_produto_ja_cadastrado_numa_entrada(test_client, async_session, test_user):
+    from app.models.entry_item import EntryItem
+    from app.models.product_variant import ProductVariant
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    n = next(_n)
+    r = await _criar(test_client, h, cat, f"Conjunto Pantalona {n}", f"CPA{n}", f"VAR-{n:04d}")
+    assert r.status_code in (200, 201), r.text
+    entry_id = r.json()["id"]
+    pid = (await async_session.execute(select(ProductVariant.product_id).where(ProductVariant.sku == f"CPA{n}-PRE-001"))).scalar_one()
+
+    # faltou 1 peça de uma variação que NÃO existe: Preto G
+    r = await test_client.post(f"/api/v1/stock-entries/{entry_id}/variants", headers=h, json={
+        "product_id": pid, "color": "Preto", "size": "G", "quantity": 1, "cost_price": 10})
+    assert r.status_code == 201, r.text
+    out = r.json()
+    assert out["variant_created"] is True and out["color"] == "Preto" and out["size"] == "G"
+    assert out["sku"].startswith(f"CPA{n}-") and out["sku"].endswith("-001")     # SKU derivado das outras variações
+    v = (await async_session.execute(select(ProductVariant).where(ProductVariant.id == out["variant_id"]))).scalar_one()
+    assert float(v.price) == 30.0 and float(v.cost_price) == 10.0                 # preço herdado das irmãs
+    it = (await async_session.execute(select(EntryItem).where(EntryItem.id == out["item_id"]))).scalar_one()
+    assert it.entry_id == entry_id and it.quantity_received == 1 and it.quantity_remaining == 1
+
+    # a mesma variação de novo: não cria outra, soma uma nova linha de entrada na variação existente
+    r2 = await test_client.post(f"/api/v1/stock-entries/{entry_id}/variants", headers=h, json={
+        "product_id": pid, "color": "Preto", "size": "G", "quantity": 2, "cost_price": 10})
+    assert r2.status_code == 201 and r2.json()["variant_created"] is False
+    assert r2.json()["variant_id"] == out["variant_id"]
+    qtd = (await async_session.execute(select(ProductVariant).where(ProductVariant.product_id == pid))).scalars().all()
+    assert len(qtd) == 3                                                        # P, M(preto/azul) existentes + Preto G
+
+
+async def test_outra_variacao_com_dado_invalido_nao_grava_nada(test_client, async_session, test_user):
+    from app.models.product_variant import ProductVariant
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    n = next(_n)
+    r = await _criar(test_client, h, cat, f"Legging {n}", f"LEG{n}", f"VAR2-{n:04d}")
+    assert r.status_code in (200, 201), r.text
+    entry_id = r.json()["id"]
+    pid = (await async_session.execute(select(ProductVariant.product_id).where(ProductVariant.sku == f"LEG{n}-PRE-001"))).scalar_one()
+    antes = len((await async_session.execute(select(ProductVariant).where(ProductVariant.product_id == pid))).scalars().all())
+
+    sem_custo = await test_client.post(f"/api/v1/stock-entries/{entry_id}/variants", headers=h, json={
+        "product_id": pid, "color": "Rosa", "size": "GG", "quantity": 1, "cost_price": 0})
+    assert sem_custo.status_code == 400                                          # custo é obrigatório
+    sem_nada = await test_client.post(f"/api/v1/stock-entries/{entry_id}/variants", headers=h, json={
+        "product_id": pid, "quantity": 1, "cost_price": 10})
+    assert sem_nada.status_code == 400
+    async_session.expire_all()
+    depois = len((await async_session.execute(select(ProductVariant).where(ProductVariant.product_id == pid))).scalars().all())
+    assert depois == antes                                                       # nada ficou criado pela metade

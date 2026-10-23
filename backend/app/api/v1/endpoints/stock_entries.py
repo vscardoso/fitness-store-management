@@ -1340,6 +1340,38 @@ async def update_entry_item(
         )
 
 
+class AddVariantToEntryRequest(BaseModel):
+    """Peça de outra variação (cor/tamanho) de um produto já cadastrado, lançada numa entrada existente."""
+    product_id: int
+    color: Optional[str] = Field(None, max_length=50)
+    size: Optional[str] = Field(None, max_length=20)
+    quantity: int = Field(..., gt=0)
+    cost_price: float = Field(..., ge=0)
+    price: Optional[float] = Field(None, gt=0, description="Preço de venda (se vazio, usa o das outras variações)")
+    sku: Optional[str] = Field(None, max_length=60, description="Opcional: o servidor gera e não repete")
+
+
+@router.post(
+    "/{entry_id}/variants",
+    summary="Lançar outra variação de um produto numa entrada existente",
+    description="Cria a variação (cor/tamanho) se ainda não existir e lança a quantidade na entrada, numa transação só.",
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_variant_to_entry(
+    entry_id: int,
+    data: AddVariantToEntryRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER, UserRole.SELLER])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    try:
+        return await StockEntryService(db).add_variant_to_entry(entry_id, data.model_dump(), tenant_id=tenant_id)
+    except ValueError as e:
+        msg = str(e)
+        code = status.HTTP_404_NOT_FOUND if "não encontrad" in msg.lower() else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(status_code=code, detail=msg)
+
+
 @router.post(
     "/{entry_id}/items",
     response_model=EntryItemResponse,

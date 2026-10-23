@@ -32,6 +32,7 @@ from .pix_transaction import PixTransaction
 from .label_printer import LabelPrinter, ConnectionType, PrinterProtocol
 from .print_job import PrintJob, PrintJobStatus
 from .whatsapp_cloud import WhatsAppCloudNumber, WhatsAppConversation, WhatsAppMessage
+from .error_log import ErrorLog
 
 __all__ = [
     # Base

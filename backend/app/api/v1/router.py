@@ -21,6 +21,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     public_catalog,
+    error_logs,
     auth,
     audit,
     mp_connect,
@@ -212,6 +213,9 @@ api_router.include_router(suppliers.product_supplier_router)
 
 # Audit Log
 api_router.include_router(audit.router)
+
+# Registro de erros (admin lê; o app envia erros)
+api_router.include_router(error_logs.router)
 
 # PDV — Mercado Pago In-Store (terminais, pagamento QR, webhooks)
 api_router.include_router(pdv.router)

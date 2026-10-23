@@ -11,6 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.exception_handlers import http_exception_handler
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -18,6 +20,7 @@ from app.core.config import settings
 from app.core.database import init_db, close_db, engine
 from app.core.scheduler import start_scheduler, shutdown_scheduler
 from app.api.v1.router import api_router
+from app.services.error_log_service import log_request_error
 from app.middleware.tenant import TenantMiddleware
 from app.admin.auth import AdminAuth
 from app.admin.views import ALL_VIEWS
@@ -227,6 +230,7 @@ async def validation_exception_handler(
     errors = make_json_safe(errors)
 
     logger.error(f"Validation error: {errors}")
+    await log_request_error(request, 422, message="Dados inválidos", extra={"errors": errors})
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
@@ -236,6 +240,13 @@ async def validation_exception_handler(
     )
 
 
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_logging_handler(request: Request, exc: StarletteHTTPException):
+    """Mantém a resposta padrão e registra no error_logs os erros que importam (5xx e 4xx de gravação)."""
+    await log_request_error(request, exc.status_code, exc=exc, message=str(exc.detail))
+    return await http_exception_handler(request, exc)
+
+
 @app.exception_handler(SQLAlchemyError)
 async def sqlalchemy_exception_handler(
     request: Request,
@@ -243,6 +254,7 @@ async def sqlalchemy_exception_handler(
 ):
     """Handle database errors with full detail to ease debugging."""
     logger.error(f"Database error: {str(exc)}", exc_info=True)
+    await log_request_error(request, 500, exc=exc)
     # Sempre retornar o detalhe do erro para diagnóstico em ambiente de dev
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -260,6 +272,7 @@ async def general_exception_handler(
 ):
     """Handle general exceptions."""
     logger.error(f"Unexpected error: {str(exc)}", exc_info=True)
+    await log_request_error(request, 500, exc=exc)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={

@@ -76,6 +76,11 @@ async def pg():
             s.add(Product(id=pid, name=f"Produto {pid}", category_id=tid, tenant_id=tid, base_price=10))
         await s.commit()
 
+    # os dados de teste usam ids fixos: avança as sequências para o app poder inserir sem bater neles
+    async with admin.begin() as conn:
+        for tb in ("stores", "users", "categories", "products"):
+            await conn.execute(text(f"SELECT setval(pg_get_serial_sequence('{tb}', 'id'), (SELECT COALESCE(MAX(id), 1) FROM {tb}) + 100)"))
+
     from scripts.rls_apply import TABLES_SQL, role_statements
     async with admin.begin() as conn:
         tables = [r[0] for r in (await conn.execute(text(TABLES_SQL))).all()]
@@ -255,7 +260,7 @@ async def test_http_login_e_listagem_so_da_propria_loja(client):
     h2 = await _login(client, 2)
     r1 = await client.get("/api/v1/products/", headers=h1)
     r2 = await client.get("/api/v1/products/", headers=h2)
-    assert r1.status_code == 200 and r2.status_code == 200, (r1.text, r2.text)
+    assert r1.status_code == 200 and r2.status_code == 200, (r1.status_code, r1.json().get('detail','')[:140], (r1.json().get('detail','').split('DETAIL')[-1][:300] if 'DETAIL' in r1.json().get('detail','') else r1.json().get('detail','')[-400:]))
     ids1 = sorted(p["id"] for p in (r1.json() if isinstance(r1.json(), list) else r1.json()["items"]))
     ids2 = sorted(p["id"] for p in (r2.json() if isinstance(r2.json(), list) else r2.json()["items"]))
     assert ids1 == [1, 2]
@@ -283,3 +288,44 @@ async def test_arvore_de_categorias_roda_no_postgres(pg):
         from app.schemas.category import CategoryWithChildren
         for node in tree:
             CategoryWithChildren.model_validate(node)  # o mesmo formato que a rota devolve
+
+
+async def test_dois_cadastros_ao_mesmo_tempo_nao_repetem_sku(client, pg, monkeypatch):
+    """O caso real: duas pessoas cadastram produtos com os mesmos SKUs no mesmo instante (Postgres de verdade)."""
+    import asyncio
+    from datetime import date
+    admin, _, _ = pg
+    h1 = await _login(client, 1)
+
+    # Alarga a janela da corrida: depois de conferir os SKUs, cada pedido espera um pouco antes de gravar.
+    # Sem o bloqueio por loja os dois conferem ANTES de qualquer um gravar e criam SKUs repetidos.
+    from app.services.stock_entry_service import StockEntryService
+    original = StockEntryService._resolve_free_skus
+
+    async def devagar(self, skus, tenant_id):
+        out = await original(self, skus, tenant_id)
+        await asyncio.sleep(0.4)
+        return out
+
+    monkeypatch.setattr(StockEntryService, "_resolve_free_skus", devagar)
+
+    def corpo(codigo, nome):
+        return {
+            "entry_code": codigo, "entry_date": date.today().isoformat(), "entry_type": "local",
+            "supplier_name": "Fornecedor Corrida", "product_name": nome, "product_category_id": 1, "base_price": 30,
+            "variants": [
+                {"sku": "RACE-PRE-001", "color": "Preto", "size": "M", "price": 30, "cost_price": 10, "quantity": 2},
+                {"sku": "RACE-AZU-001", "color": "Azul", "size": "M", "price": 30, "cost_price": 10, "quantity": 2},
+            ],
+        }
+
+    r1, r2 = await asyncio.gather(
+        client.post("/api/v1/stock-entries/with-new-product-variants", headers=h1, json=corpo("RACE-A-0001", "Conjunto com manga")),
+        client.post("/api/v1/stock-entries/with-new-product-variants", headers=h1, json=corpo("RACE-B-0001", "Conjunto sem manga")),
+    )
+    assert r1.status_code in (200, 201) and r2.status_code in (200, 201), (r1.status_code, r2.status_code)
+    async with admin.connect() as c:
+        skus = [r[0] for r in (await c.execute(text("SELECT sku FROM product_variants WHERE sku LIKE 'RACE-%' ORDER BY sku"))).all()]
+        codes = [r[0] for r in (await c.execute(text("SELECT entry_code FROM stock_entries WHERE entry_code LIKE 'RACE-%'"))).all()]
+    assert sorted(skus) == ["RACE-AZU-001", "RACE-AZU-002", "RACE-PRE-001", "RACE-PRE-002"], skus
+    assert len(codes) == 2
