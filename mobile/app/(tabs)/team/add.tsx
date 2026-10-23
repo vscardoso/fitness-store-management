@@ -24,6 +24,7 @@ import { createTeamMember, getRoleLabel } from '@/services/teamService';
 import { UserRole, type TeamMemberCreate } from '@/types';
 import { phoneMask } from '@/utils/masks';
 import { capitalizeWords } from '@/utils/format';
+import { useBrandingColors } from '@/store/brandingStore';
 
 type DialogState = {
   visible: boolean;
@@ -38,6 +39,7 @@ type DialogState = {
 const DIALOG_HIDDEN: DialogState = { visible: false, type: 'info', title: '', message: '' };
 
 export default function AddTeamMemberScreen() {
+  const brandingColors = useBrandingColors();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -119,11 +121,11 @@ export default function AddTeamMemberScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
+      <StatusBar barStyle="light-content" backgroundColor={brandingColors.primary} />
       {/* Header com gradiente */}
       <View style={styles.headerContainer}>
         <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
+          colors={[brandingColors.primary, brandingColors.secondary]}
           style={styles.headerGradient}
         >
           <View style={styles.headerContent}>
@@ -164,8 +166,8 @@ export default function AddTeamMemberScreen() {
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderIcon}>
-                <Ionicons name="person-outline" size={20} color={Colors.light.primary} />
+              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }, { backgroundColor: brandingColors.primary + '15' }]}>
+                <Ionicons name="person-outline" size={20} color={brandingColors.primary} />
               </View>
               <Text style={styles.cardTitle}>Informações Pessoais</Text>
             </View>
@@ -217,8 +219,8 @@ export default function AddTeamMemberScreen() {
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderIcon}>
-                <Ionicons name="briefcase-outline" size={20} color={Colors.light.primary} />
+              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }, { backgroundColor: brandingColors.primary + '15' }]}>
+                <Ionicons name="briefcase-outline" size={20} color={brandingColors.primary} />
               </View>
               <Text style={styles.cardTitle}>Função na Loja</Text>
             </View>
@@ -246,8 +248,8 @@ export default function AddTeamMemberScreen() {
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.cardHeader}>
-              <View style={styles.cardHeaderIcon}>
-                <Ionicons name="lock-closed-outline" size={20} color={Colors.light.primary} />
+              <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }, { backgroundColor: brandingColors.primary + '15' }]}>
+                <Ionicons name="lock-closed-outline" size={20} color={brandingColors.primary} />
               </View>
               <Text style={styles.cardTitle}>Senha de Acesso</Text>
             </View>
@@ -297,7 +299,7 @@ export default function AddTeamMemberScreen() {
           <Button
             mode="contained"
             onPress={handleSubmit}
-            style={[styles.button, styles.buttonPrimary]}
+            style={[styles.button, styles.buttonPrimary, { backgroundColor: brandingColors.primary }]}
             loading={createMutation.isPending}
             disabled={createMutation.isPending}
             icon="account-plus"

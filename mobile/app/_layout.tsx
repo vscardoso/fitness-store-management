@@ -68,6 +68,17 @@ const queryClient = new QueryClient({
   },
 });
 
+/** Mistura a cor com branco (amount 0..1) para tons de fundo suaves. */
+function tintColor(hex: string, amount: number): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if (!m) return hex;
+  const n = parseInt(m[1], 16);
+  const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) =>
+    Math.round(c + (255 - c) * amount).toString(16).padStart(2, '0'),
+  );
+  return `#${ch.join('')}`;
+}
+
 export default function RootLayout() {
   const segments = useSegments();
   const router = useRouter();
@@ -88,6 +99,12 @@ export default function RootLayout() {
       primary: brandingColors.primary,
       secondary: brandingColors.secondary,
       tertiary: brandingColors.accent,
+      // Tons derivados: sem eles os componentes do Paper (botão segmentado, chips) ficam no roxo padrão
+      primaryContainer: tintColor(brandingColors.primary, 0.85),
+      secondaryContainer: tintColor(brandingColors.primary, 0.85),
+      onPrimaryContainer: brandingColors.primary,
+      onSecondaryContainer: brandingColors.primary,
+      surfaceTint: brandingColors.primary,
     },
   };
 

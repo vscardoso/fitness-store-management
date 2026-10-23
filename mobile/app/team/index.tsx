@@ -31,6 +31,7 @@ import {
   getRoleColor,
 } from '@/services/teamService';
 import { UserRole, type TeamMember } from '@/types';
+import { useBrandingColors } from '@/store/brandingStore';
 
 type DialogState = {
   visible: boolean;
@@ -45,6 +46,7 @@ type DialogState = {
 const DIALOG_HIDDEN: DialogState = { visible: false, type: 'info', title: '', message: '' };
 
 export default function TeamScreen() {
+  const brandingColors = useBrandingColors();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/more');
   const { user } = useAuth();
@@ -159,8 +161,8 @@ export default function TeamScreen() {
               <View style={styles.nameRow}>
                 <Text style={styles.memberName}>{item.full_name}</Text>
                 {isCurrentUser && (
-                  <View style={styles.youBadge}>
-                    <Text style={styles.youBadgeText}>Você</Text>
+                  <View style={[styles.youBadge, { backgroundColor: brandingColors.primary + '20' }, { backgroundColor: brandingColors.primary + '20' }]}>
+                    <Text style={[styles.youBadgeText, { color: brandingColors.primary }, { color: brandingColors.primary }]}>Você</Text>
                   </View>
                 )}
               </View>
@@ -205,11 +207,11 @@ export default function TeamScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
+      <StatusBar barStyle="light-content" backgroundColor={brandingColors.primary} />
       {/* Header Premium */}
       <View style={styles.headerContainer}>
         <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
+          colors={[brandingColors.primary, brandingColors.secondary]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.headerGradient}
@@ -272,7 +274,7 @@ export default function TeamScreen() {
           <RefreshControl
             refreshing={isRefetching}
             onRefresh={refetch}
-            colors={[Colors.light.primary]}
+            colors={[brandingColors.primary]}
           />
         }
         ListEmptyComponent={

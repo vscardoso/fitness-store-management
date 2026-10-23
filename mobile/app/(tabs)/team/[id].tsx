@@ -33,8 +33,10 @@ import {
 } from '@/services/teamService';
 import { UserRole, type TeamMemberUpdate } from '@/types';
 import { phoneMask } from '@/utils/masks';
+import { useBrandingColors } from '@/store/brandingStore';
 
 export default function TeamMemberDetailScreen() {
+  const brandingColors = useBrandingColors();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
@@ -411,9 +413,9 @@ export default function TeamMemberDetailScreen() {
                       {getRoleLabel(member.role as UserRole)}
                     </Text>
                   </View>
-                  <View style={styles.adminOnlyBadge}>
+                  <View style={[styles.adminOnlyBadge, { backgroundColor: brandingColors.primary + '15' }, { backgroundColor: brandingColors.primary + '15' }]}>
                     <Ionicons name="shield-checkmark" size={14} color="#6366F1" />
-                    <Text style={styles.adminOnlyText}>Apenas Admin</Text>
+                    <Text style={[styles.adminOnlyText, { color: brandingColors.primary }, { color: brandingColors.primary }]}>Apenas Admin</Text>
                   </View>
                 </View>
                 <Text style={styles.roleReadOnlyDescription}>
