@@ -655,6 +655,8 @@ export interface EntryItem {
   unit_cost: number;
   selling_price?: number;
   notes?: string;
+  /** Cria esta variação (cor/tamanho) no produto e lança nela, no lugar de variant_id. */
+  new_variant?: { color?: string; size?: string; price?: number };
 }
 
 export interface EntryItemResponse extends EntryItem {

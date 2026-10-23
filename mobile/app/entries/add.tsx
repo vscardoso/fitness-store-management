@@ -270,6 +270,11 @@ export default function AddStockEntryScreen() {
   const [productSearch, setProductSearch] = useState('');
   // Seletor de variante — aberto quando o produto escolhido tem mais de 1 variante ativa
   const [variantPickerProduct, setVariantPickerProduct] = useState<Product | null>(null);
+  // Produto já cadastrado que ganha uma variação (cor/tamanho) nova nesta compra
+  const [newVariantProduct, setNewVariantProduct] = useState<Product | null>(null);
+  const [newVariantColor, setNewVariantColor] = useState('');
+  const [newVariantSize, setNewVariantSize] = useState('');
+  const [newVariantError, setNewVariantError] = useState('');
   const [selectedItemIndex, setSelectedItemIndex] = useState<number | null>(null);
   const [showCreateTripDialog, setShowCreateTripDialog] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
@@ -937,17 +942,19 @@ export default function AddStockEntryScreen() {
   const handleAddProduct = (product: Product) => {
     // Check if this product is already in the list
     const alreadyAdded = items.some(item => item.product_id === product.id);
-    if (alreadyAdded) {
+    const activeVariants = (product.variants || []).filter(v => v.is_active !== false);
+    // Produto que já está na lista mas tem variações: abre a escolha para lançar OUTRA cor/tamanho dele
+    const hasRealVariants = activeVariants.some(v => v.color || v.size);
+    if (alreadyAdded && !hasRealVariants) {
       showFeedbackDialog('Atenção', 'Este produto já foi adicionado à entrada.', 'warning');
       return;
     }
 
-    const activeVariants = (product.variants || []).filter(v => v.is_active !== false);
-
     // Produto com mais de 1 variante ativa: precisa escolher qual está sendo reabastecida
     // (sem isso, o EntryItem fica sem variant_id e o estoque "some" do card de estoque,
     // que é calculado por variante — só o histórico bruto de entradas mostraria o valor certo)
-    if (activeVariants.length > 1) {
+    // Com cor/tamanho de verdade, sempre mostra a escolha (inclui a opção de criar uma variação nova)
+    if (activeVariants.length > 1 || hasRealVariants) {
       setProductMenuVisible(false);
       setProductSearch('');
       setVariantPickerProduct(product);
@@ -962,7 +969,7 @@ export default function AddStockEntryScreen() {
    * Adiciona um item à entrada, já com o variant_id resolvido
    * (ou undefined quando o produto não tem variante ativa).
    */
-  const addProductItem = (product: Product, variant?: ProductVariant) => {
+  const addProductItem = (product: Product, variant?: ProductVariant, newVariant?: { color?: string; size?: string }) => {
     const unitCost = variant?.cost_price ?? product.cost_price ?? 0;
     const unitPrice = variant?.price ?? product.price ?? 0;
     const costFormatted = formatCostInput(Math.round(unitCost * 100).toString());
@@ -981,6 +988,13 @@ export default function AddStockEntryScreen() {
       unit_cost: unitCost,
       notes: '',
       product: productWithFlag,
+      ...(newVariant
+        ? {
+            new_variant: { color: newVariant.color || undefined, size: newVariant.size || undefined },
+            variant_color: newVariant.color || null,
+            variant_size: newVariant.size || null,
+          }
+        : {}),
     };
 
     setItems([...items, newItem]);
@@ -990,6 +1004,7 @@ export default function AddStockEntryScreen() {
     setProductMenuVisible(false);
     setProductSearch('');
     setVariantPickerProduct(null);
+    setNewVariantProduct(null);
   };
 
   /**
@@ -1211,6 +1226,7 @@ export default function AddStockEntryScreen() {
       items: items.filter(item => item.quantity_received > 0).map(item => ({
         product_id: item.product_id,
         variant_id: item.variant_id ?? undefined,
+        new_variant: item.new_variant,
         quantity_received: item.quantity_received,
         unit_cost: item.unit_cost,
         selling_price: item.product?.price || undefined,
@@ -1973,7 +1989,7 @@ export default function AddStockEntryScreen() {
                 </Text>
                 <ScrollView style={styles.productList}>
                   {(variantPickerProduct?.variants || [])
-                    .filter(v => v.is_active !== false)
+                    .filter(v => v.is_active !== false && !items.some(i => i.variant_id === v.id))
                     .map((variant) => (
                       <TouchableOpacity
                         key={variant.id}
@@ -1994,7 +2010,60 @@ export default function AddStockEntryScreen() {
                         <IconButton icon="plus" size={20} />
                       </TouchableOpacity>
                     ))}
+
+                  {/* Cor ou tamanho que o produto ainda não tem: cria junto com esta entrada */}
+                  <TouchableOpacity
+                    style={[styles.productItem, { borderColor: brandingColors.primary + '55', backgroundColor: brandingColors.primary + '0F' }]}
+                    onPress={() => {
+                      setNewVariantProduct(variantPickerProduct);
+                      setNewVariantColor('');
+                      setNewVariantSize('');
+                      setNewVariantError('');
+                      setVariantPickerProduct(null);
+                    }}
+                  >
+                    <View style={styles.productItemContent}>
+                      <Text style={[styles.productName, { color: brandingColors.primary }]}>Nova variação (outra cor ou tamanho)</Text>
+                      <Text style={styles.productPrice}>Faltou uma cor ou tamanho que ainda não existe? Crie aqui, junto com a entrada.</Text>
+                    </View>
+                    <IconButton icon="plus-circle-outline" size={22} iconColor={brandingColors.primary} />
+                  </TouchableOpacity>
                 </ScrollView>
+              </View>
+            </View>
+          </Modal>
+
+          {/* Variação nova de produto já cadastrado: só cor e tamanho; o servidor cria e já lança */}
+          <Modal visible={!!newVariantProduct} transparent animationType="fade" onRequestClose={() => setNewVariantProduct(null)}>
+            <View style={styles.modalOverlay}>
+              <View style={[styles.modalContent, { paddingBottom: 16 }]}>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Nova variação</Text>
+                  <IconButton icon="close" size={24} onPress={() => setNewVariantProduct(null)} />
+                </View>
+                <Text style={{ paddingHorizontal: 16, color: '#666' }}>
+                  {newVariantProduct?.name}. A variação é criada com o preço das outras e entra nesta compra. Informe a cor, o tamanho ou os dois.
+                </Text>
+                <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
+                  <TextInput label="Cor (ex.: Preto)" value={newVariantColor} onChangeText={setNewVariantColor} mode="outlined" style={{ marginTop: 8 }} />
+                  <TextInput label="Tamanho (ex.: G)" value={newVariantSize} onChangeText={setNewVariantSize} mode="outlined" autoCapitalize="characters" style={{ marginTop: 8 }} />
+                  {!!newVariantError && <Text style={{ color: Colors.light.error, marginTop: 8 }}>{newVariantError}</Text>}
+                  <Button
+                    mode="contained"
+                    style={{ marginTop: 14 }}
+                    onPress={() => {
+                      if (!newVariantColor.trim() && !newVariantSize.trim()) {
+                        setNewVariantError('Informe a cor ou o tamanho.');
+                        return;
+                      }
+                      if (newVariantProduct) {
+                        addProductItem(newVariantProduct, undefined, { color: newVariantColor.trim(), size: newVariantSize.trim() });
+                      }
+                    }}
+                  >
+                    Adicionar à entrada
+                  </Button>
+                </View>
               </View>
             </View>
           </Modal>

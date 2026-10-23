@@ -3,7 +3,7 @@
 from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class EntryItemBase(BaseModel):
@@ -23,6 +23,20 @@ class EntryItemBase(BaseModel):
         return v
 
 
+class NewVariantForItem(BaseModel):
+    """Variação (cor/tamanho) que ainda não existe num produto já cadastrado: criada junto com a entrada."""
+    color: Optional[str] = Field(None, max_length=50)
+    size: Optional[str] = Field(None, max_length=20)
+    price: Optional[Decimal] = Field(None, gt=0, description="Preço de venda (se vazio, usa o das outras variações)")
+    sku: Optional[str] = Field(None, max_length=60, description="Opcional: o servidor gera e não repete")
+
+    @model_validator(mode="after")
+    def _needs_color_or_size(self):
+        if not (self.color or "").strip() and not (self.size or "").strip():
+            raise ValueError("Informe a cor ou o tamanho da nova variação")
+        return self
+
+
 class EntryItemCreate(BaseModel):
     """Schema for creating an entry item (sem entry_id, será definido automaticamente)."""
     product_id: Optional[int] = Field(None, description="ID do produto")
@@ -32,6 +46,9 @@ class EntryItemCreate(BaseModel):
     selling_price: Optional[Decimal] = Field(None, ge=0, description="Preço de venda do produto (atualiza o produto)")
     supplier_id: Optional[int] = Field(None, description="Fornecedor deste item (padrão: fornecedor da entrada)")
     notes: Optional[str] = Field(None, max_length=500, description="Observações")
+    new_variant: Optional[NewVariantForItem] = Field(
+        None, description="Cria esta variação (cor/tamanho) no produto e lança nela; use no lugar de variant_id"
+    )
 
     @field_validator('quantity_received')
     @classmethod

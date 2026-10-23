@@ -231,3 +231,57 @@ async def test_produto_simples_com_sku_repetido_recebe_o_proximo_numero(test_cli
     skus = sorted(s for (s,) in (await async_session.execute(
         select(ProductVariant.sku).where(ProductVariant.sku.like(f"SIMP{n}-%")))).all())
     assert skus == [f"SIMP{n}-PRE-G-001", f"SIMP{n}-PRE-G-002"]
+
+
+# ───────────────────── nova entrada de produto existente com variação nova ─────────────────────
+
+async def test_nova_entrada_de_produto_existente_cria_a_variacao_que_faltava(test_client, async_session, test_user):
+    from app.models.entry_item import EntryItem
+    from app.models.product_variant import ProductVariant
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    n = next(_n)
+    r = await _criar(test_client, h, cat, f"Top Alo {n}", f"TOP{n}", f"T1-{n:04d}")
+    assert r.status_code in (200, 201), r.text
+    pid = (await async_session.execute(select(ProductVariant.product_id).where(ProductVariant.sku == f"TOP{n}-PRE-001"))).scalar_one()
+    var_preto = (await async_session.execute(select(ProductVariant.id).where(ProductVariant.sku == f"TOP{n}-PRE-001"))).scalar_one()
+
+    # compra NOVA do mesmo produto: 2 peças da variação existente + 1 de uma cor que ainda não existe
+    r2 = await test_client.post("/api/v1/stock-entries/", headers=h, json={
+        "entry_code": f"T2-{n:04d}", "entry_date": date.today().isoformat(), "entry_type": "local",
+        "supplier_name": "Fornecedor Teste",
+        "items": [
+            {"product_id": pid, "variant_id": var_preto, "quantity_received": 2, "unit_cost": "10.00"},
+            {"product_id": pid, "quantity_received": 1, "unit_cost": "12.00",
+             "new_variant": {"color": "Rosa", "size": "M"}},
+        ]})
+    assert r2.status_code == 201, r2.text
+    entry2 = r2.json()["id"]
+    async_session.expire_all()
+    rosa = (await async_session.execute(select(ProductVariant).where(
+        ProductVariant.product_id == pid, ProductVariant.color == "Rosa"))).scalar_one()
+    assert rosa.sku.startswith(f"TOP{n}-") and float(rosa.price) == 30.0 and float(rosa.cost_price) == 12.0
+    itens = (await async_session.execute(select(EntryItem).where(EntryItem.entry_id == entry2))).scalars().all()
+    assert sorted((i.variant_id, i.quantity_received) for i in itens) == sorted([(var_preto, 2), (rosa.id, 1)])
+
+    # repetir a mesma variação nova numa terceira compra reaproveita a que já foi criada (não duplica)
+    r3 = await test_client.post("/api/v1/stock-entries/", headers=h, json={
+        "entry_code": f"T3-{n:04d}", "entry_date": date.today().isoformat(), "entry_type": "local",
+        "supplier_name": "Fornecedor Teste",
+        "items": [{"product_id": pid, "quantity_received": 3, "unit_cost": "12.00",
+                   "new_variant": {"color": "Rosa", "size": "M"}}]})
+    assert r3.status_code == 201, r3.text
+    async_session.expire_all()
+    rosas = (await async_session.execute(select(ProductVariant).where(
+        ProductVariant.product_id == pid, ProductVariant.color == "Rosa"))).scalars().all()
+    assert len(rosas) == 1
+
+
+async def test_variacao_nova_sem_cor_e_sem_tamanho_e_recusada(test_client, async_session, test_user):
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    r = await test_client.post("/api/v1/stock-entries/", headers=h, json={
+        "entry_code": f"VV-{next(_n):04d}", "entry_date": date.today().isoformat(), "entry_type": "local",
+        "supplier_name": "Fornecedor Teste",
+        "items": [{"product_id": 1, "quantity_received": 1, "unit_cost": "10.00", "new_variant": {}}]})
+    assert r.status_code == 422

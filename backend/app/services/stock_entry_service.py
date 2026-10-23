@@ -333,6 +333,18 @@ class StockEntryService:
                 if 'quantity_remaining' not in item_dict:
                     item_dict['quantity_remaining'] = item_dict['quantity_received']
 
+                # Variação nova (cor/tamanho que ainda não existe) pedida junto com a entrada
+                new_variant = item_dict.pop('new_variant', None)
+                if new_variant and not item_dict.get('variant_id'):
+                    from app.utils.variant_grid import normalize_color, normalize_size
+                    variant, _created = await self._get_or_create_variant(
+                        product, normalize_color(new_variant.get('color')) or None,
+                        normalize_size(new_variant.get('size')) or None,
+                        price=new_variant.get('price'), cost=item_dict.get('unit_cost'),
+                        sku=new_variant.get('sku'), tenant_id=tenant_id,
+                    )
+                    item_dict['variant_id'] = variant.id
+
                 # Se variant_id não veio no payload, auto-vincula quando o
                 # produto tem exatamente 1 variante ativa (senão o estoque
                 # fica órfão: invisível na soma por variante usada em
@@ -1588,17 +1600,61 @@ class StockEntryService:
         _refreshed = _result.scalar_one_or_none()
         return _refreshed if _refreshed is not None else item
 
-    async def add_variant_to_entry(self, entry_id: int, data: Dict[str, Any], *, tenant_id: int) -> Dict[str, Any]:
+    async def _get_or_create_variant(self, product, color, size, *, price, cost, sku, tenant_id: int):
         """
-        Lança numa entrada JÁ EXISTENTE uma peça de OUTRA variação (cor/tamanho) de um produto já cadastrado.
-        Se a variação ainda não existe, ela é criada (SKU gerado e sem repetir); se já existe, só entra na entrada.
-        Tudo numa transação: falhou em qualquer passo, nada fica gravado.
+        Devolve (variação, criada) da combinação cor/tamanho do produto: reaproveita a que existe (reativando se
+        estava inativa) ou cria uma nova, com SKU derivado das irmãs e sem repetir.
         """
         import re
         import unicodedata
         from decimal import Decimal
         from sqlalchemy import select
         from app.models.product_variant import ProductVariant
+
+        siblings = (await self.db.execute(
+            select(ProductVariant).where(
+                ProductVariant.product_id == product.id, ProductVariant.tenant_id == tenant_id
+            ).order_by(ProductVariant.id)
+        )).scalars().all()
+        existing = next((v for v in siblings if (v.color or None) == color and (v.size or None) == size), None)
+        if existing is not None:
+            created = False
+            if not existing.is_active:
+                existing.is_active = True
+                created = True
+            return existing, created
+
+        active = [v for v in siblings if v.is_active]
+        if price is None:
+            price = (active[0].price if active else None) or product.base_price
+        if price is None or Decimal(str(price)) <= 0:
+            raise ValueError("Informe o preço de venda da nova variação")
+        sku = (sku or "").strip().upper() or None
+        if not sku:
+            ref = next((v.sku for v in active if v.sku), None)
+            base_sku = ref.split("-")[0] if ref else f"P{product.id}"
+
+            def part(text_):
+                t = unicodedata.normalize("NFD", text_ or "")
+                return re.sub(r"[^A-Za-z0-9]", "", re.sub(r"[\u0300-\u036f]", "", t)).upper()[:3]
+
+            sku = "-".join(x for x in (base_sku, part(color), part(size), "001") if x)
+        sku = (await self._resolve_free_skus([sku], tenant_id))[0]
+        variant = ProductVariant(
+            product_id=product.id, sku=sku, color=color, size=size, price=Decimal(str(price)),
+            cost_price=cost, tenant_id=tenant_id, is_active=True,
+        )
+        self.db.add(variant)
+        await self.db.flush()
+        return variant, True
+
+    async def add_variant_to_entry(self, entry_id: int, data: Dict[str, Any], *, tenant_id: int) -> Dict[str, Any]:
+        """
+        Lança numa entrada JÁ EXISTENTE uma peça de OUTRA variação (cor/tamanho) de um produto já cadastrado.
+        Se a variação ainda não existe, ela é criada (SKU gerado e sem repetir); se já existe, só entra na entrada.
+        Tudo numa transação: falhou em qualquer passo, nada fica gravado.
+        """
+        from decimal import Decimal
         from app.utils.variant_grid import normalize_color, normalize_size
 
         await self._lock_catalog(tenant_id)
@@ -1621,43 +1677,9 @@ class StockEntryService:
             cost = Decimal(str(data.get("cost_price") if data.get("cost_price") is not None else -1))
             self._require_cost(cost, f"{product.name} ({color or ''} {size or ''})".strip(), entry.entry_type)
 
-            siblings = (await self.db.execute(
-                select(ProductVariant).where(
-                    ProductVariant.product_id == product.id, ProductVariant.tenant_id == tenant_id
-                ).order_by(ProductVariant.id)
-            )).scalars().all()
-            existing = next((v for v in siblings if (v.color or None) == color and (v.size or None) == size), None)
-
-            created = False
-            if existing is not None:
-                variant = existing
-                if not variant.is_active:
-                    variant.is_active = True
-                    created = True
-            else:
-                active = [v for v in siblings if v.is_active]
-                price = data.get("price")
-                if price is None:
-                    price = (active[0].price if active else None) or product.base_price
-                if price is None or Decimal(str(price)) <= 0:
-                    raise ValueError("Informe o preço de venda da nova variação")
-                sku = (data.get("sku") or "").strip().upper() or None
-                if not sku:
-                    ref = next((v.sku for v in active if v.sku), None)
-                    base_sku = ref.split("-")[0] if ref else f"P{product.id}"
-
-                    def part(text_):
-                        t = unicodedata.normalize("NFD", text_ or "")
-                        return re.sub(r"[^A-Za-z0-9]", "", re.sub(r"[\u0300-\u036f]", "", t)).upper()[:3]
-
-                    sku = "-".join(x for x in (base_sku, part(color), part(size), "001") if x)
-                sku = (await self._resolve_free_skus([sku], tenant_id))[0]
-                variant = ProductVariant(
-                    product_id=product.id, sku=sku, color=color, size=size, price=Decimal(str(price)),
-                    cost_price=cost, tenant_id=tenant_id, is_active=True,
-                )
-                self.db.add(variant)
-                created = True
+            variant, created = await self._get_or_create_variant(
+                product, color, size, price=data.get("price"), cost=cost, sku=data.get("sku"), tenant_id=tenant_id
+            )
             await self.db.flush()
 
             item = await self.add_item_to_entry(
