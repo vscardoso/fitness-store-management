@@ -361,3 +361,11 @@ async def test_data_da_entrada_pode_ser_retroativa_mas_nao_futura():
     assert entry_date_not_future(today_brazil()) == today_brazil()
     with pytest.raises(ValueError):
         entry_date_not_future(today_brazil() + timedelta(days=10))
+
+
+async def test_codigo_da_entrada_troca_espacos_por_traco():
+    from app.schemas.stock_entry import normalize_entry_code
+    assert normalize_entry_code("entrada sp 22") == "ENTRADA-SP-22"
+    assert normalize_entry_code("  Entrada   SP  22  ") == "ENTRADA-SP-22"
+    assert normalize_entry_code("ENTRADA-001") == "ENTRADA-001"
+    assert normalize_entry_code(None) is None

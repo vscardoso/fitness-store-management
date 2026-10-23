@@ -13,7 +13,7 @@ from typing import List, Optional
 from datetime import date
 
 from app.core.database import get_db
-from app.schemas.stock_entry import entry_date_not_future
+from app.schemas.stock_entry import entry_date_not_future, normalize_entry_code
 from app.schemas.stock_entry import (
     StockEntryResponse, 
     StockEntryCreate, 
@@ -179,7 +179,7 @@ class StockEntryWithNewProductVariantsRequest(BaseModel):
     @field_validator("entry_code", mode="before")
     @classmethod
     def uppercase_entry_code(cls, v):
-        return v.strip().upper() if isinstance(v, str) else v
+        return normalize_entry_code(v)
 
     @field_validator("product_gender", mode="before")
     @classmethod
@@ -637,7 +637,7 @@ async def check_entry_code(
     """
     try:
         service = StockEntryService(db)
-        exists = await service.check_code_exists(entry_code.strip().upper(), tenant_id)
+        exists = await service.check_code_exists(normalize_entry_code(entry_code), tenant_id)
 
         return {
             "exists": exists,

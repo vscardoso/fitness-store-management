@@ -65,8 +65,11 @@ class StockEntryBase(BaseModel):
 
 
 def normalize_entry_code(value):
-    """Código da entrada é sempre em MAIÚSCULAS e sem espaços nas pontas."""
-    return value.strip().upper() if isinstance(value, str) else value
+    """Código da entrada: MAIÚSCULAS, sem espaço nas pontas, e cada espaço no meio vira traço (ENTRADA SP 22 -> ENTRADA-SP-22)."""
+    if not isinstance(value, str):
+        return value
+    import re
+    return re.sub(r"\s+", "-", value.strip()).upper()
 
 
 class StockEntryCreate(StockEntryBase):

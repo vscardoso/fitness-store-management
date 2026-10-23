@@ -49,6 +49,7 @@ import { getProductVariants } from '@/services/productVariantService';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { formatCurrency } from '@/utils/format';
 import { cnpjMask, dateMask, isValidDate, phoneMask } from '@/utils/masks';
+import { cleanEntryCode, formatEntryCodeInput } from '@/utils/entryCode';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { EntryType, StockEntryCreate, EntryItem, Product, ProductVariant, Supplier } from '@/types';
@@ -721,13 +722,13 @@ export default function AddStockEntryScreen() {
     }
 
     // Resetar se campo estiver vazio
-    if (!entryCode.trim()) {
+    if (!cleanEntryCode(entryCode)) {
       setCodeValidationStatus('idle');
       return;
     }
 
     // Validar tamanho mínimo
-    if (entryCode.trim().length < 5) {
+    if (cleanEntryCode(entryCode).length < 5) {
       setCodeValidationStatus('idle');
       return;
     }
@@ -736,7 +737,7 @@ export default function AddStockEntryScreen() {
     setCodeValidationStatus('checking');
     codeCheckTimeoutRef.current = setTimeout(async () => {
       try {
-        const result = await checkEntryCode(entryCode.trim());
+        const result = await checkEntryCode(cleanEntryCode(entryCode));
         setCodeValidationStatus(result.exists ? 'invalid' : 'valid');
       } catch (error) {
         // Em caso de erro, assumir que está válido para não bloquear o usuário
@@ -791,7 +792,7 @@ export default function AddStockEntryScreen() {
       return createStockEntryWithNewProduct(
         productData,
         {
-          entry_code: entryCode.trim(),
+          entry_code: cleanEntryCode(entryCode),
           entry_date: computeEntryDateISO(),
           entry_type: selectedType as 'trip' | 'online' | 'local',
           trip_id: selectedType === EntryType.TRIP ? tripId : undefined,
@@ -858,7 +859,7 @@ export default function AddStockEntryScreen() {
       return createStockEntryWithNewProductVariants(
         { ...atomicData, variants: variantsWithCurrentData },
         {
-          entry_code: entryCode.trim(),
+          entry_code: cleanEntryCode(entryCode),
           entry_date: computeEntryDateISO(),
           entry_type: selectedType,
           trip_id: selectedType === EntryType.TRIP ? tripId : undefined,
@@ -1057,7 +1058,7 @@ export default function AddStockEntryScreen() {
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!entryCode.trim()) {
+    if (!cleanEntryCode(entryCode)) {
       newErrors.entryCode = 'Código da entrada é obrigatório';
     }
 
@@ -1072,7 +1073,7 @@ export default function AddStockEntryScreen() {
       }
     }
 
-    if (entryCode.trim().length < 5) {
+    if (cleanEntryCode(entryCode).length < 5) {
       newErrors.entryCode = 'Código deve ter no mínimo 5 caracteres';
     }
 
@@ -1188,7 +1189,7 @@ export default function AddStockEntryScreen() {
 
     // Modo TRADICIONAL: usar endpoint normal
     const entryData: StockEntryCreate = {
-      entry_code: entryCode.trim(),
+      entry_code: cleanEntryCode(entryCode),
       entry_date: computeEntryDateISO(),
       entry_type: selectedType,
       trip_id: selectedType === EntryType.TRIP ? tripId : undefined,
@@ -1594,9 +1595,13 @@ export default function AddStockEntryScreen() {
             <TextInput
               label="Código da Entrada *"
               value={entryCode}
-              onChangeText={(text) => setEntryCode(text.toUpperCase())}
+              onChangeText={(text) => {
+                setEntryCode(formatEntryCodeInput(text));
+                // o aviso de "mínimo 5 caracteres" some assim que a pessoa volta a digitar
+                if (errors.entryCode) setErrors({ ...errors, entryCode: '' });
+              }}
               mode="outlined"
-              placeholder="Ex: ENTRADA-001 (mín. 5 caracteres)"
+              placeholder="Ex: ENTRADA-SP-22 (espaço vira traço)"
               maxLength={50}
               autoCapitalize="characters"
               error={!!errors.entryCode || codeValidationStatus === 'invalid'}

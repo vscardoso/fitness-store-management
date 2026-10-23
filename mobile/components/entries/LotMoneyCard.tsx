@@ -1,5 +1,5 @@
 /**
- * "O dinheiro deste lote": mostra, em linguagem simples, quanto foi gasto, quanto já voltou em vendas
+ * "Quanto rendeu esta entrada": mostra, em linguagem simples, quanto foi gasto, quanto já voltou em vendas
  * e quanto sobrou. Também permite lançar uma despesa deste lote (frete, embalagem...).
  *
  * Regra de texto: nada de termo de contabilidade (CMV, ROI, rateio, margem bruta). A tela precisa
@@ -102,7 +102,7 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
 
   return (
     <View style={styles.card}>
-      <Text style={styles.title}>O dinheiro deste lote</Text>
+      <Text style={styles.title}>Quanto rendeu esta entrada</Text>
       <Text style={styles.subtitle}>Quanto você gastou nesta compra, quanto já voltou em vendas e quanto sobrou.</Text>
 
       {/* 1. Quanto gastou */}
