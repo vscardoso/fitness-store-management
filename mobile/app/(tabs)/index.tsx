@@ -1254,7 +1254,7 @@ export default function DashboardScreen() {
                     <Text style={styles.tooltipTitle}>Lucro Médio</Text>
                   </View>
                   <View style={styles.tooltipDivider} />
-                  <Text style={styles.tooltipText}>{`Margem média de lucro sobre o custo dos produtos vendidos.\n\nEx: 40% = para cada R$ 100 de custo, você lucra R$ 40.`}</Text>
+                  <Text style={styles.tooltipText}>{`Margem de lucro sobre o valor vendido.\n\nEx: 40% = para cada R$ 100 vendidos, R$ 40 são lucro.`}</Text>
                 </>
               )}
               {activeTooltip === 'prejuizo-fifo' && (
