@@ -226,7 +226,7 @@ async def test_rollback_desliga_tudo(pg):
 async def client(pg, monkeypatch):
     import app.core.database as db_module
     import app.middleware.tenant as tenant_module
-    from httpx import AsyncClient
+    from httpx import ASGITransport, AsyncClient
     from app.core.security import get_password_hash
     from app.main import app
     from app.core import rate_limit
@@ -240,7 +240,7 @@ async def client(pg, monkeypatch):
     monkeypatch.setattr(db_module, "async_session_maker", maker)
     monkeypatch.setattr(tenant_module, "async_session_maker", maker)
     rate_limit.reset_all()
-    async with AsyncClient(app=app, base_url="http://test") as c:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
         yield c
 
 

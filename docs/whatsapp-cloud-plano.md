@@ -49,6 +49,20 @@ No PC do Victor, o token e o App Secret são guardados em dois arquivos locais (
 3. **Meta (PC/Victor):** configurar o webhook no painel e testar com o número de teste da Meta e o celular pessoal.
 4. Depois: caixa de entrada no app (sem aba nova; entrada pelo menu Mais), aviso no celular, bot.
 
+## Estado (2026-10-23)
+
+Base pronta e testada só com eventos simulados (nenhuma mensagem real da Meta ainda):
+
+- Tabelas `whatsapp_cloud_numbers` (número da Meta -> loja), `whatsapp_conversations` (contato x número; chave = telefone normalizado ou `u:` + BSUID) e `whatsapp_messages` (`wamid` único). Migração `20261023_whatsapp_cloud`, aditiva, testada no Postgres (upgrade, downgrade, upgrade; schema igual ao do modelo).
+- `GET /webhooks/whatsapp-cloud`: devolve `hub.challenge` se `hub.verify_token` bater; senão 403 (também 403 com o token vazio no servidor).
+- `POST /webhooks/whatsapp-cloud`: sem App Secret configurado = 503; assinatura errada, ausente ou corpo adulterado = 403 e nada gravado; JSON inválido = 400. Grava tudo numa transação; erro no meio = 500 e nada gravado (a Meta reenvia). Mensagem repetida é ignorada; entregas simultâneas da mesma mensagem (testado no Postgres, 5 ao mesmo tempo) gravam uma vez. Número sem loja vinculada: 200 e ignora.
+- Celular com e sem o 9 é a mesma conversa; fixo não ganha 9. Contato só com BSUID vira conversa `u:<bsuid>` e recebe o telefone quando ele aparecer. **Não verificado:** nome exato dos campos de BSUID no webhook da Meta (o código aceita `contacts[].user_id`, `messages[].from_user_id` e `messages[].user_id`).
+- Status de entrega (sent < delivered < read) só avança; failed guarda o erro e não desfaz delivered/read; status de mensagem que não foi enviada pelo app é ignorado.
+- Vincular o número à loja: `backend/scripts/wa_cloud_vincular_numero.py` (simula por padrão, `--apply` grava; recusa número de outra loja).
+- O container de produção só recebe as variáveis listadas em `deploy/docker-compose.prod.yml` (já estão lá).
+
+Falta: envio (texto dentro da janela de 24 h, gravado só depois que a Meta aceitar), baixar mídia, caixa de entrada no app, aviso no celular, bot.
+
 ## Regras que valem aqui
 
 - Nada de envio, mensagem ou etiqueta em cliente real sem consultar o Victor. Todo teste primeiro pelo celular pessoal dele (o número pessoal NÃO fica neste repositório público).

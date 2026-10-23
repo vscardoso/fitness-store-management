@@ -37,6 +37,15 @@ services:
       # PIX nunca em mock em produção (o mock sempre aprova). Sem MP_ACCESS_TOKEN o PIX falha (seguro), não aprova de mentira.
       PIX_PROVIDER: ${PIX_PROVIDER:-mercadopago}
       MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
+      # O container só recebe o que está listado aqui (--env-file só preenche os ${...}).
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # WhatsApp oficial (Cloud API). Vazio = webhook recusa tudo. Ver docs/whatsapp-cloud-plano.md
+      WHATSAPP_CLOUD_ACCESS_TOKEN: ${WHATSAPP_CLOUD_ACCESS_TOKEN:-}
+      WHATSAPP_CLOUD_APP_SECRET: ${WHATSAPP_CLOUD_APP_SECRET:-}
+      WHATSAPP_CLOUD_VERIFY_TOKEN: ${WHATSAPP_CLOUD_VERIFY_TOKEN:-}
+      WHATSAPP_CLOUD_PHONE_NUMBER_ID: ${WHATSAPP_CLOUD_PHONE_NUMBER_ID:-}
+      WHATSAPP_CLOUD_WABA_ID: ${WHATSAPP_CLOUD_WABA_ID:-}
+      WHATSAPP_CLOUD_API_VERSION: ${WHATSAPP_CLOUD_API_VERSION:-v23.0}
     ports:
       - "127.0.0.1:8000:8000"
     volumes:

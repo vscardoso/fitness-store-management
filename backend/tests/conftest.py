@@ -4,7 +4,7 @@ Configuração compartilhada para testes
 import pytest
 import asyncio
 from typing import Generator, AsyncGenerator
-from httpx import AsyncClient
+from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -164,7 +164,7 @@ async def test_client(async_session: AsyncSession, test_engine) -> AsyncGenerato
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_current_tenant_id] = override_get_current_tenant_id
     
-    async with AsyncClient(app=app, base_url="http://test") as client:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         yield client
     
     # Restore original session makers

@@ -252,3 +252,10 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 - Teste real: e-mail do Gmail para `suporte@` chegou na caixa (19:54). Falta provar SPF e DKIM PASS no envio.
 - **Para o e-mail automático do app (Resend)**: só pode existir UM registro SPF, então juntar `include:` dos dois provedores. Registros de ZeptoMail que o Zoho sugere (bounce-zem, 22154326._domainkey) não são usados.
 
+## WhatsApp oficial, Cloud API da Meta (2026-10-23)
+
+- Plano, variáveis (só nomes) e estado em `docs/whatsapp-cloud-plano.md`; divisão de trabalho entre as sessões em `docs/COORDENACAO.md`.
+- Webhook `GET/POST /webhooks/whatsapp-cloud` (`app/webhooks/whatsapp_cloud.py` + `app/services/whatsapp_cloud_service.py`), tabelas `whatsapp_cloud_numbers`, `whatsapp_conversations`, `whatsapp_messages` (migração `20261023_whatsapp_cloud`). A loja vem do `phone_number_id` do evento: vincular com `backend/scripts/wa_cloud_vincular_numero.py`. O webhook antigo `/webhooks/whatsapp` (bot Baileys) é outro.
+- Testes: `tests/test_whatsapp_cloud.py` (SQLite) e `tests/pg/test_whatsapp_cloud_postgres.py` (Postgres local, `TEST_PG_URL`).
+- Variável nova de ambiente em produção precisa ser listada em `deploy/docker-compose.prod.yml` (`environment:`); só gravar no `.env.prod` não basta.
+- Testes num ambiente limpo: `SECRET_KEY=<qualquer, 32+ caracteres> DATABASE_URL=sqlite:///./test.db ENVIRONMENT=test pytest ...` (com `sqlite+aiosqlite://` o engine de teste quebra).

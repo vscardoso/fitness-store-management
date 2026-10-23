@@ -22,6 +22,7 @@ from app.middleware.tenant import TenantMiddleware
 from app.admin.auth import AdminAuth
 from app.admin.views import ALL_VIEWS
 from app.webhooks.whatsapp import router as whatsapp_router
+from app.webhooks.whatsapp_cloud import router as whatsapp_cloud_router
 from sqladmin import Admin
 from starlette.middleware.sessions import SessionMiddleware
 
@@ -145,6 +146,8 @@ apply_permission_matrix(app)
 
 # Webhook WhatsApp (fora do prefixo /api/v1)
 app.include_router(whatsapp_router)
+# WhatsApp oficial (Cloud API da Meta), também fora do prefixo
+app.include_router(whatsapp_cloud_router)
 
 
 # ============================================================================

@@ -31,6 +31,7 @@ from .pdv_terminal import PDVTerminal
 from .pix_transaction import PixTransaction
 from .label_printer import LabelPrinter, ConnectionType, PrinterProtocol
 from .print_job import PrintJob, PrintJobStatus
+from .whatsapp_cloud import WhatsAppCloudNumber, WhatsAppConversation, WhatsAppMessage
 
 __all__ = [
     # Base
@@ -131,4 +132,9 @@ __all__ = [
     "PrinterProtocol",
     "PrintJob",
     "PrintJobStatus",
+
+    # WhatsApp oficial (Cloud API da Meta)
+    "WhatsAppCloudNumber",
+    "WhatsAppConversation",
+    "WhatsAppMessage",
 ]

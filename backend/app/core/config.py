@@ -163,6 +163,14 @@ class Settings(BaseSettings):
     MP_CLIENT_SECRET: str = ""
     FRONTEND_URL: str = "exp://localhost:8081"  # deep link do app mobile
 
+    # WhatsApp oficial (Cloud API da Meta). Valores só no .env.prod do VPS; ver docs/whatsapp-cloud-plano.md
+    WHATSAPP_CLOUD_ACCESS_TOKEN: str = ""
+    WHATSAPP_CLOUD_APP_SECRET: str = ""    # valida X-Hub-Signature-256; vazio = webhook recusa tudo
+    WHATSAPP_CLOUD_VERIFY_TOKEN: str = ""  # vazio = verificação do webhook recusada
+    WHATSAPP_CLOUD_PHONE_NUMBER_ID: str = ""
+    WHATSAPP_CLOUD_WABA_ID: str = ""
+    WHATSAPP_CLOUD_API_VERSION: str = "v23.0"
+
 
 # Singleton instance
 settings = Settings()
