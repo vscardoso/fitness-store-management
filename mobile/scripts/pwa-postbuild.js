@@ -26,7 +26,14 @@ if (!iconFont) {
   console.error('PWA: fonte Ionicons nao encontrada em dist/assets');
   process.exit(1);
 }
+// Versão deste build (commit do GitHub; local = hora). O app compara com /version.json para avisar/atualizar sozinho.
+const BUILD_ID = (process.env.GITHUB_SHA || String(Date.now())).slice(0, 12);
+fs.writeFileSync(
+  path.join(__dirname, '..', 'dist', 'version.json'),
+  JSON.stringify({ build: BUILD_ID, builtAt: new Date().toISOString() }),
+);
 const tags = `
+    <script>window.__APP_BUILD__=${JSON.stringify(BUILD_ID)};</script>
     <link rel="preload" href="${iconFont}" as="font" type="font/ttf" crossorigin />
     <style id="pwa-fill">
       /* No iPhone instalado, 100% de altura deixava uma faixa branca embaixo: prende o app nas 4 bordas */
@@ -51,4 +58,4 @@ html = html
            '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no, viewport-fit=cover" />')
   .replace('</head>', tags + '\n  </head>');
 fs.writeFileSync(file, html);
-console.log('PWA: tags injetadas em dist/index.html');
+console.log('PWA: tags injetadas em dist/index.html (build ' + BUILD_ID + ')');

@@ -31,6 +31,7 @@ import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { setForceLogoutCallback, setInvalidateQueriesCallback } from '@/services/api';
 import GlobalConfirmModalHost, { installGlobalAlertOverride } from '@/components/ui/GlobalConfirmModal';
+import UpdateBanner from '@/components/layout/UpdateBanner';
 
 // TEMP: Sentry desabilitado por conflito de versão
 // Sentry.init({
@@ -175,6 +176,9 @@ export default function RootLayout() {
                     gestureEnabled: true,
                   }}
                 />
+
+                {/* Aviso de versão nova (só no app web) */}
+                <UpdateBanner />
 
                 {/* Global Loading Overlay */}
                 <LoadingOverlay />
