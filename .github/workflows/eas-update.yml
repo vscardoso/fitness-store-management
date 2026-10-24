@@ -5,6 +5,8 @@ on:
     branches: [main]
     paths:
       - 'mobile/**'
+      - '.github/workflows/eas-update.yml'
+  workflow_dispatch:
 
 jobs:
   update:
@@ -28,7 +30,12 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      # A mensagem do commit entra por variável de ambiente, nunca colada no comando:
+      # aspas na mensagem quebravam o comando (e permitiriam executar código no CI).
       - name: Publicar EAS Update
-        run: npx eas-cli update --channel preview --non-interactive --message "${{ github.event.head_commit.message }}"
+        run: |
+          MSG="$(printf '%s' "$COMMIT_MESSAGE" | head -n 1 | cut -c1-200)"
+          npx eas-cli update --channel preview --non-interactive --message "$MSG"
         env:
           EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
