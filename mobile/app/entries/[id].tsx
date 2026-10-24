@@ -768,7 +768,7 @@ export default function StockEntryDetailsScreen() {
           {lotAnalytics && (
             <StatCard
               label="Lucro do lote (previsto)"
-              value={formatCurrency(lotAnalytics.potential_profit_total)}
+              value={`${lotAnalytics.potential_margin_pct.toFixed(0)}%`}
               icon="wallet-outline"
               valueColor={lotAnalytics.potential_profit_total >= 0 ? Colors.light.success : Colors.light.error}
             />
