@@ -24,8 +24,8 @@ router = APIRouter(prefix="/store", tags=["Loja"])
 LOGO_MAX_SIDE = 512  # px; o logo aparece em ~40-120 px, o original de vários MB atrasava a tela
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 MAX_LOGO_SIZE = 5 * 1024 * 1024  # 5 MB
-DEFAULT_PRIMARY_COLOR = "#667eea"
-DEFAULT_SECONDARY_COLOR = "#764ba2"
+DEFAULT_PRIMARY_COLOR = "#7C3AED"  # violeta Provador
+DEFAULT_SECONDARY_COLOR = "#DB2777"  # magenta Provador
 DEFAULT_ACCENT_COLOR = "#10B981"
 
 def _optimize_logo(contents: bytes) -> bytes:

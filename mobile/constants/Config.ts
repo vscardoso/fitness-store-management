@@ -90,7 +90,7 @@ export const SENTRY_CONFIG = {
 
 // Configurações do app
 export const APP_CONFIG = {
-  APP_NAME: 'Fitness Store',
+  APP_NAME: 'Provador',
   VERSION: '1.0.1',
 };
 

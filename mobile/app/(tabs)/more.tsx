@@ -288,7 +288,7 @@ export default function MoreScreen() {
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.version}>Versão 1.0.0 · Fitness Store Management</Text>
+        <Text style={styles.version}>Versão 1.0.0 · Provador</Text>
       </ScrollView>
 
       {/* Dialog de Logout */}

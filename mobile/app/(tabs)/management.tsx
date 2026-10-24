@@ -194,7 +194,7 @@ export default function ManagementScreen() {
       <Animated.View style={headerAnimStyle}>
         <PageHeader
           title="Gestão"
-          subtitle={user?.store_name || 'Fitness Store Management'}
+          subtitle={user?.store_name || 'Provador'}
         />
       </Animated.View>
 

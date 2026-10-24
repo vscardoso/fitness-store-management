@@ -18,8 +18,8 @@ from app.core.security import get_password_hash, create_access_token, create_ref
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_PRIMARY_COLOR = "#667eea"
-DEFAULT_SECONDARY_COLOR = "#764ba2"
+DEFAULT_PRIMARY_COLOR = "#7C3AED"  # violeta Provador
+DEFAULT_SECONDARY_COLOR = "#DB2777"  # magenta Provador
 DEFAULT_ACCENT_COLOR = "#10B981"
 
 

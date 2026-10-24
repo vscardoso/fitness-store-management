@@ -257,7 +257,7 @@ export default function ReportsScreen() {
             </LinearGradient>
           </TouchableOpacity>
 
-          <Text style={styles.version}>Versão 1.0.1 • Fitness Store Management</Text>
+          <Text style={styles.version}>Versão 1.0.1 • Provador</Text>
         </ScrollView>
       </Animated.View>
     </View>

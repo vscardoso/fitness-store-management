@@ -6,10 +6,11 @@
 
 export default {
   expo: {
-    name: "Fitness Store",
+    name: "Provador",
     slug: "fitness-store-mobile",
     version: "1.0.0",
     orientation: "portrait",
+    icon: "./assets/icon.png",
     userInterfaceStyle: "automatic",
     assetBundlePatterns: ["**/*"],
 
@@ -35,12 +36,14 @@ export default {
       ],
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
-        backgroundColor: "#ffffff"
+        backgroundImage: "./assets/adaptive-icon-background.png",
+        backgroundColor: "#7C3AED"
       }
     },
 
     web: {
-      bundler: "metro"
+      bundler: "metro",
+      favicon: "./assets/favicon.png"
     },
 
     scheme: "fitness-store",
@@ -72,8 +75,8 @@ export default {
       [
         "expo-notifications",
         {
-          icon: "./assets/icon.png",
-          color: "#ffffff",
+          icon: "./assets/notification-icon.png",
+          color: "#7C3AED",
           sounds: []
         }
       ]

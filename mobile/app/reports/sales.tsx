@@ -31,12 +31,17 @@ import PeriodFilter from '@/components/PeriodFilter';
 import type { PeriodFilterValue } from '@/components/PeriodFilter';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import PageHeader from '@/components/layout/PageHeader';
-import { useBrandingColors } from '@/store/brandingStore';
+import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+
+/** Texto do usuário dentro do HTML do PDF. */
+const escapeHtml = (v: string) =>
+  v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export default function SalesReportScreen() {
   const { goBack } = useBackToList('/(tabs)/more');
   const brandingColors = useBrandingColors();
+  const storeName = useBrandingStore((s) => s.branding.name);
   const [period, setPeriod] = useState<PeriodFilterType>('this_month');
   const [isExporting, setIsExporting] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
@@ -236,7 +241,7 @@ export default function SalesReportScreen() {
             margin-bottom: 40px;
           }
           .metric-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, ${brandingColors.primary} 0%, ${brandingColors.secondary} 100%);
             padding: 24px;
             border-radius: 12px;
             color: #fff;
@@ -333,7 +338,7 @@ export default function SalesReportScreen() {
       </head>
       <body>
         <div class="header">
-          <div class="logo">Fitness Store</div>
+          <div class="logo">${escapeHtml(storeName || 'Provador')}</div>
           <div class="report-title">Relatório de Vendas</div>
           <div class="period">${periodLabels[period]}</div>
           <div class="date">Gerado em ${currentDate}</div>
@@ -397,7 +402,7 @@ export default function SalesReportScreen() {
         </div>
 
         <div class="footer">
-          <div>Sistema de Gestão Fitness Store Management</div>
+          <div>Gerado pelo Provador</div>
           <div style="margin-top: 4px;">© 2026 Todos os direitos reservados</div>
         </div>
       </body>

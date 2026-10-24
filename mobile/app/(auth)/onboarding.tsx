@@ -1,14 +1,21 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+/**
+ * Apresentação do Provador (primeiro acesso).
+ *
+ * O passo atual é estado da tela (não rolagem de lista): o botão Continuar só troca o índice,
+ * o que funciona igual no navegador, no Android e no iPhone. Deslizar o dedo também troca de passo
+ * (onTouchStart/onTouchEnd; o PanResponder perdia o gesto depois da troca de conteúdo no navegador).
+ */
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
-  useWindowDimensions,
-  FlatList,
-  ViewToken,
   Animated,
   TouchableOpacity,
   StatusBar,
   AccessibilityInfo,
+  GestureResponderEvent,
+  Platform,
+  ScrollView,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -16,655 +23,286 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { router } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ProvadorLogo } from '@/components/branding/ProvadorLogo';
+import { BRAND, BRAND_GRADIENT } from '@/constants/Brand';
 
-// Distância máxima (px) do atraso escalonado dos destaques; limitada à metade da largura
-const HIGHLIGHT_STAGGER_PX = 28;
+const ONBOARDING_COMPLETED_KEY = '@fitness_store:onboarding_completed';
+const SWIPE_MIN_DX = 50;
 
-interface IntroSlide {
+interface Step {
   id: string;
+  icon: keyof typeof Ionicons.glyphMap;
   kicker: string;
   title: string;
   description: string;
-  icon: keyof typeof Ionicons.glyphMap;
-  palette: [string, string];
   highlights: string[];
 }
 
-const ONBOARDING_COMPLETED_KEY = '@fitness_store:onboarding_completed';
-
-const INTRO_SLIDES: IntroSlide[] = [
+const STEPS: Step[] = [
   {
-    id: 'store',
-    kicker: 'GESTÃO CENTRALIZADA',
-    title: 'Sua operacao em uma unica plataforma',
+    id: 'loja',
+    icon: 'shirt-outline',
+    kicker: 'SUA LOJA NUM LUGAR SÓ',
+    title: 'Feito para loja de moda fitness',
     description:
-      'Produtos, estoque e vendas conectados para voce trabalhar com clareza e velocidade.',
-    icon: 'storefront-outline',
-    palette: ['#1A1F36', '#243B6B'],
-    highlights: ['Catalogo e estoque integrados', 'Multiusuario por loja', 'Fluxo sem retrabalho'],
+      'Produtos com tamanho e cor, estoque, vendas e clientes conectados. Use no celular ou no computador.',
+    highlights: ['Grade de tamanhos e cores', 'Estoque que baixa sozinho na venda', 'Equipe com acesso por função'],
   },
   {
-    id: 'pos',
-    kicker: 'PDV PROFISSIONAL',
-    title: 'Venda rapido, com controle real de estoque',
+    id: 'venda',
+    icon: 'bag-handle-outline',
+    kicker: 'VENDA SEM COMPLICAÇÃO',
+    title: 'No balcão ou na casa da cliente',
     description:
-      'Scanner, carrinho inteligente e validações em tempo real para atendimento sem erro.',
-    icon: 'flash-outline',
-    palette: ['#0F3B2E', '#1A6A52'],
-    highlights: ['Escaneamento e busca ágil', 'Pagamentos mistos', 'Sincronização imediata'],
+      'Leia o código da peça, monte o carrinho e receba em dinheiro, PIX ou cartão. Mande peças para a cliente provar em casa e registre o que ela ficou.',
+    highlights: ['Caixa com leitor de código', 'Envio condicional para provar em casa', 'Troca e devolução registradas'],
   },
   {
-    id: 'insights',
-    kicker: 'INTELIGÊNCIA DE NEGÓCIO',
-    title: 'Decida melhor com dados acionáveis',
+    id: 'lucro',
+    icon: 'trending-up-outline',
+    kicker: 'DINHEIRO NA MÃO',
+    title: 'Saiba quanto cada compra rendeu',
     description:
-      'Dashboards e alertas objetivos para antecipar ruptura e aumentar margem.',
-    icon: 'stats-chart-outline',
-    palette: ['#3B1F1A', '#A14123'],
-    highlights: ['Alertas de estoque baixo', 'Histórico de vendas completo', 'Visão diária de performance'],
+      'Veja o lucro de cada lote de mercadoria, já com frete e gastos da viagem, e receba aviso antes de faltar peça.',
+    highlights: ['Lucro por lote de compra', 'Aviso de estoque baixo', 'Resultado do mês em linguagem simples'],
   },
 ];
 
 export default function OnboardingScreen() {
-  // Largura reativa (evita valor 0 lido no carregamento do módulo no web) e nunca menor que 1,
-  // para que todo inputRange de animação continue válido.
-  const { width: windowWidth } = useWindowDimensions();
-  const SCREEN_WIDTH = Math.max(windowWidth, 1);
-
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [reduceMotionEnabled, setReduceMotionEnabled] = useState(false);
-  const flatListRef = useRef<FlatList<IntroSlide>>(null);
-  const scrollX = useRef(new Animated.Value(0)).current;
-  const introProgress = useRef(new Animated.Value(0)).current;
-  const ctaPulse = useRef(new Animated.Value(1)).current;
-  const ambientProgress = useRef(new Animated.Value(0)).current;
-
-  const isLast = currentIndex === INTRO_SLIDES.length - 1;
+  const [showIntro, setShowIntro] = useState(true);
+  const [index, setIndex] = useState(0);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const enter = useRef(new Animated.Value(1)).current;
+  const direction = useRef(1);
+  const step = STEPS[index];
+  const isLast = index === STEPS.length - 1;
 
   useEffect(() => {
-    let mounted = true;
-
-    AccessibilityInfo.isReduceMotionEnabled()
-      .then((enabled) => {
-        if (mounted) {
-          setReduceMotionEnabled(enabled);
-        }
-      })
-      .catch(() => {});
-
-    const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotionEnabled);
-
-    return () => {
-      mounted = false;
-      subscription.remove();
-    };
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', setReduceMotion);
+    return () => sub.remove();
   }, []);
 
   useEffect(() => {
-    if (reduceMotionEnabled) {
-      introProgress.setValue(1);
+    if (reduceMotion) {
+      enter.setValue(1);
       return;
     }
+    enter.setValue(0);
+    Animated.timing(enter, { toValue: 1, duration: 280, useNativeDriver: true }).start();
+  }, [index, reduceMotion, enter]);
 
-    introProgress.setValue(0);
-    Animated.timing(introProgress, {
-      toValue: 1,
-      duration: 800,
-      useNativeDriver: true,
-    }).start();
-  }, [introProgress, reduceMotionEnabled]);
-
-  useEffect(() => {
-    if (reduceMotionEnabled) {
-      ctaPulse.stopAnimation();
-      ctaPulse.setValue(1);
-      return;
-    }
-
-    ctaPulse.setValue(1);
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(ctaPulse, {
-          toValue: 1.06,
-          duration: 650,
-          useNativeDriver: true,
-        }),
-        Animated.timing(ctaPulse, {
-          toValue: 1,
-          duration: 650,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    pulseLoop.start();
-
-    return () => {
-      pulseLoop.stop();
-    };
-  }, [ctaPulse, currentIndex, reduceMotionEnabled]);
-
-  useEffect(() => {
-    if (reduceMotionEnabled) {
-      ambientProgress.setValue(0.5);
-      return;
-    }
-
-    ambientProgress.setValue(0);
-    const ambientLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(ambientProgress, {
-          toValue: 1,
-          duration: 2600,
-          useNativeDriver: true,
-        }),
-        Animated.timing(ambientProgress, {
-          toValue: 0,
-          duration: 2600,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-
-    ambientLoop.start();
-
-    return () => {
-      ambientLoop.stop();
-    };
-  }, [ambientProgress, reduceMotionEnabled]);
-
-  const cinematicOpacity = reduceMotionEnabled ? 1 : introProgress;
-  const cinematicTranslateY = reduceMotionEnabled
-    ? 0
-    : introProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [28, 0],
-      });
-
-  const cinematicPanelTranslateY = reduceMotionEnabled
-    ? 0
-    : introProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [36, 0],
-      });
-
-  const cinematicScale = reduceMotionEnabled
-    ? 1
-    : introProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0.95, 1],
-      });
-
-  const ambientTopTranslateY = reduceMotionEnabled
-    ? 0
-    : ambientProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [-12, 12],
-      });
-
-  const ambientTopScale = reduceMotionEnabled
-    ? 1
-    : ambientProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [0.95, 1.06],
-      });
-
-  const ambientBottomTranslateY = reduceMotionEnabled
-    ? 0
-    : ambientProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [10, -10],
-      });
-
-  const ambientBottomScale = reduceMotionEnabled
-    ? 1
-    : ambientProgress.interpolate({
-        inputRange: [0, 1],
-        outputRange: [1.04, 0.96],
-      });
-
-  const ctaGradient = useMemo<[string, string]>(() => INTRO_SLIDES[currentIndex].palette, [currentIndex]);
-
-  const finishOnboarding = async () => {
-    await AsyncStorage.setItem(ONBOARDING_COMPLETED_KEY, 'true');
-    router.replace('/(auth)/login');
+  const goTo = (next: number) => {
+    if (next < 0 || next >= STEPS.length || next === index) return;
+    direction.current = next > index ? 1 : -1;
+    setIndex(next);
   };
 
-  const handleNext = () => {
-    if (isLast) {
-      void finishOnboarding();
-      return;
+  const finish = async (route: '/(auth)/login' | '/(auth)/signup') => {
+    try {
+      await AsyncStorage.setItem(ONBOARDING_COMPLETED_KEY, 'true');
+    } finally {
+      router.replace(route);
     }
-    flatListRef.current?.scrollToIndex({ index: currentIndex + 1, animated: true });
   };
 
-  const handleViewableItemsChanged = useRef(
-    ({ viewableItems }: { viewableItems: ViewToken[] }) => {
-      if (viewableItems.length > 0 && typeof viewableItems[0].index === 'number') {
-        setCurrentIndex(viewableItems[0].index);
-      }
-    }
-  ).current;
-
-  const renderSlide = ({ item, index }: { item: IntroSlide; index: number }) => {
-    const inputRange = [
-      (index - 1) * SCREEN_WIDTH,
-      index * SCREEN_WIDTH,
-      (index + 1) * SCREEN_WIDTH,
-    ];
-
-    const cardOpacity = scrollX.interpolate({
-      inputRange,
-      outputRange: [0.55, 1, 0.55],
-      extrapolate: 'clamp',
-    });
-
-    const cardScale = scrollX.interpolate({
-      inputRange,
-      outputRange: [0.95, 1, 0.95],
-      extrapolate: 'clamp',
-    });
-
-    const cardGlowOpacity = reduceMotionEnabled
-      ? (index === currentIndex ? 0.22 : 0.08)
-      : scrollX.interpolate({
-          inputRange,
-          outputRange: [0.08, 0.25, 0.08],
-          extrapolate: 'clamp',
-        });
-
-    const iconTranslateY = reduceMotionEnabled
-      ? 0
-      : scrollX.interpolate({
-          inputRange,
-          outputRange: [16, 0, -16],
-          extrapolate: 'clamp',
-        });
-
-    const titleTranslateY = reduceMotionEnabled
-      ? 0
-      : scrollX.interpolate({
-          inputRange,
-          outputRange: [20, 0, -20],
-          extrapolate: 'clamp',
-        });
-
-    const descriptionTranslateY = reduceMotionEnabled
-      ? 0
-      : scrollX.interpolate({
-          inputRange,
-          outputRange: [14, 0, -14],
-          extrapolate: 'clamp',
-        });
-
-    return (
-      <View style={[styles.slide, { width: SCREEN_WIDTH }]}>
-        <View style={styles.slideGradient}>
-          <Animated.View
-            style={[
-              styles.backShapeTop,
-              {
-                transform: [{ translateY: ambientTopTranslateY }, { scale: ambientTopScale }],
-              },
-            ]}
-          />
-          <Animated.View
-            style={[
-              styles.backShapeBottom,
-              {
-                transform: [{ translateY: ambientBottomTranslateY }, { scale: ambientBottomScale }],
-              },
-            ]}
-          />
-
-          <Animated.View style={[styles.contentCard, { opacity: cardOpacity, transform: [{ scale: cardScale }] }]}>
-            <Animated.View style={[styles.cardGlow, { opacity: cardGlowOpacity }]} pointerEvents="none" />
-
-            <Animated.View style={{ transform: [{ translateY: iconTranslateY }] }}>
-              <View style={styles.iconWrap}>
-                <Ionicons name={item.icon} size={30} color="#fff" />
-              </View>
-            </Animated.View>
-
-            <Text style={styles.kicker}>{item.kicker}</Text>
-            <Animated.View style={{ transform: [{ translateY: titleTranslateY }] }}>
-              <Text style={styles.title}>{item.title}</Text>
-            </Animated.View>
-            <Animated.View style={{ transform: [{ translateY: descriptionTranslateY }] }}>
-              <Text style={styles.description}>{item.description}</Text>
-            </Animated.View>
-
-            <View style={styles.highlightsWrap}>
-              {item.highlights.map((h, idx) => {
-                const staggerInputRange = [
-                  (index - 1) * SCREEN_WIDTH,
-                  index * SCREEN_WIDTH + Math.min(idx * HIGHLIGHT_STAGGER_PX, SCREEN_WIDTH / 2),
-                  (index + 1) * SCREEN_WIDTH,
-                ];
-
-                const highlightOpacity = reduceMotionEnabled
-                  ? 1
-                  : scrollX.interpolate({
-                      inputRange: staggerInputRange,
-                      outputRange: [0.05, 1, 0.15],
-                      extrapolate: 'clamp',
-                    });
-
-                const highlightTranslateY = reduceMotionEnabled
-                  ? 0
-                  : scrollX.interpolate({
-                      inputRange: staggerInputRange,
-                      outputRange: [12, 0, -8],
-                      extrapolate: 'clamp',
-                    });
-
-                return (
-                  <Animated.View
-                    key={`${item.id}-${idx}`}
-                    style={[
-                      styles.highlightRow,
-                      {
-                        opacity: highlightOpacity,
-                        transform: [{ translateY: highlightTranslateY }],
-                      },
-                    ]}
-                  >
-                    <Ionicons name="checkmark-circle" size={18} color="#EAF8EE" />
-                    <Text style={styles.highlightText}>{h}</Text>
-                  </Animated.View>
-                );
-              })}
-            </View>
-          </Animated.View>
-        </View>
-      </View>
-    );
+  // Deslizar o dedo: compara onde o toque começou e onde terminou
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const pointOf = (e: GestureResponderEvent) => {
+    const t = e.nativeEvent.changedTouches?.[0] ?? e.nativeEvent;
+    return { x: t.pageX, y: t.pageY };
   };
+  const onTouchStart = (e: GestureResponderEvent) => {
+    touchStart.current = pointOf(e);
+  };
+  const onTouchEnd = (e: GestureResponderEvent) => {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!start) return;
+    const end = pointOf(e);
+    const dx = end.x - start.x;
+    if (Math.abs(dx) < SWIPE_MIN_DX || Math.abs(dx) < Math.abs(end.y - start.y) * 1.5) return;
+    goTo(dx < 0 ? index + 1 : index - 1);
+  };
+
+  const translateX = enter.interpolate({ inputRange: [0, 1], outputRange: [24 * direction.current, 0] });
+
+  if (showIntro) {
+    return <BrandIntro reduceMotion={reduceMotion} onStart={() => setShowIntro(false)} onLogin={() => finish('/(auth)/login')} />;
+  }
 
   return (
-    <View style={styles.container}>
+    <LinearGradient colors={BRAND_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.fill}>
       <StatusBar barStyle="light-content" />
-
-      <View style={styles.backgroundLayer} pointerEvents="none">
-        {INTRO_SLIDES.map((slide, i) => {
-          const inputRange = [(i - 1) * SCREEN_WIDTH, i * SCREEN_WIDTH, (i + 1) * SCREEN_WIDTH];
-          const opacity = reduceMotionEnabled
-            ? (i === currentIndex ? 1 : 0)
-            : scrollX.interpolate({
-                inputRange,
-                outputRange: [0, 1, 0],
-                extrapolate: 'clamp',
-              });
-
-          return (
-            <Animated.View key={`bg-${slide.id}`} style={[styles.absoluteFill, { opacity }]}>
-              <LinearGradient
-                colors={slide.palette}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.absoluteFill}
-              />
-            </Animated.View>
-          );
-        })}
-      </View>
-
-      <Animated.FlatList
-        style={{ opacity: cinematicOpacity, transform: [{ translateY: cinematicTranslateY }, { scale: cinematicScale }] }}
-        ref={flatListRef}
-        data={INTRO_SLIDES}
-        renderItem={renderSlide}
-        keyExtractor={(item) => item.id}
-        horizontal
-        pagingEnabled
-        bounces={false}
-        showsHorizontalScrollIndicator={false}
-        scrollEventThrottle={16}
-        onScroll={Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], {
-          useNativeDriver: true,
-        })}
-        onViewableItemsChanged={handleViewableItemsChanged}
-        viewabilityConfig={{ itemVisiblePercentThreshold: 60 }}
-      />
-
-      <Animated.View style={{ opacity: cinematicOpacity, transform: [{ translateY: cinematicTranslateY }] }}>
-        <SafeAreaView edges={['top']} style={styles.topActions}>
-          <TouchableOpacity style={styles.skipChip} onPress={finishOnboarding} activeOpacity={0.8}>
-            <Text style={styles.skipText}>Pular</Text>
-          </TouchableOpacity>
-        </SafeAreaView>
-      </Animated.View>
-
-      <Animated.View style={{ opacity: cinematicOpacity, transform: [{ translateY: cinematicPanelTranslateY }] }}>
-      <SafeAreaView edges={['bottom']} style={styles.bottomPanel}>
-        <View style={styles.dotsRow}>
-          {INTRO_SLIDES.map((_, i) => {
-            const inputRange = [(i - 1) * SCREEN_WIDTH, i * SCREEN_WIDTH, (i + 1) * SCREEN_WIDTH];
-            const scaleX = reduceMotionEnabled
-              ? (i === currentIndex ? 3.25 : 1)
-              : scrollX.interpolate({
-                  inputRange,
-                  outputRange: [1, 3.25, 1],
-                  extrapolate: 'clamp',
-                });
-            const opacity = reduceMotionEnabled
-              ? (i === currentIndex ? 1 : 0.35)
-              : scrollX.interpolate({
-                  inputRange,
-                  outputRange: [0.35, 1, 0.35],
-                  extrapolate: 'clamp',
-                });
-
-            return <Animated.View key={`dot-${i}`} style={[styles.dot, { opacity, transform: [{ scaleX }] }]} />;
-          })}
+      <SafeAreaView style={styles.fill} edges={['top', 'bottom']}>
+        <View style={styles.topBar}>
+          <ProvadorLogo size={40} variant="mark" color="#FFFFFF" withName nameColor="#FFFFFF" />
+          {!isLast && (
+            <TouchableOpacity onPress={() => finish('/(auth)/login')} hitSlop={12} accessibilityRole="button">
+              <Text style={styles.skip}>Pular</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
-        <View style={styles.actionsRow}>
-          <TouchableOpacity style={styles.secondaryBtn} onPress={finishOnboarding} activeOpacity={0.88}>
-            <Text style={styles.secondaryBtnText}>Ja tenho conta</Text>
+        <View style={[styles.fill, styles.swipeArea]} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+          <Animated.View style={[styles.content, { opacity: enter, transform: [{ translateX }] }]}>
+            <View style={styles.iconWrap}>
+              <Ionicons name={step.icon} size={34} color="#FFFFFF" />
+            </View>
+            <Text style={styles.kicker}>{step.kicker}</Text>
+            <Text style={styles.title} accessibilityRole="header">{step.title}</Text>
+            <Text style={styles.description}>{step.description}</Text>
+
+            <View style={styles.card}>
+              {step.highlights.map((h) => (
+                <View key={h} style={styles.highlight}>
+                  <View style={styles.check}>
+                    <Ionicons name="checkmark" size={14} color={BRAND.violet} />
+                  </View>
+                  <Text style={styles.highlightText}>{h}</Text>
+                </View>
+              ))}
+            </View>
+          </Animated.View>
+        </ScrollView>
+        </View>
+
+        <View style={styles.footer}>
+          <View style={styles.dots} accessibilityLabel={`Passo ${index + 1} de ${STEPS.length}`}>
+            {STEPS.map((s, i) => (
+              <TouchableOpacity key={s.id} onPress={() => goTo(i)} hitSlop={8} accessibilityRole="button" accessibilityLabel={`Ir para o passo ${i + 1}`}>
+                <View style={[styles.dot, i === index && styles.dotActive]} />
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            activeOpacity={0.88}
+            onPress={() => (isLast ? finish('/(auth)/signup') : goTo(index + 1))}
+            accessibilityRole="button"
+          >
+            <Text style={styles.primaryText}>{isLast ? 'Criar minha conta' : 'Continuar'}</Text>
+            <Ionicons name="arrow-forward" size={18} color={BRAND.violet} />
           </TouchableOpacity>
 
-          <Animated.View style={[styles.primaryBtnWrap, { transform: [{ scale: ctaPulse }] }]}> 
-            <TouchableOpacity style={styles.primaryBtn} onPress={handleNext} activeOpacity={0.9}>
-              <LinearGradient
-                colors={ctaGradient}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.primaryBtnGradient}
-              >
-                <Text style={styles.primaryBtnText}>{isLast ? 'Entrar no app' : 'Continuar'}</Text>
-                <Ionicons name={isLast ? 'rocket-outline' : 'arrow-forward'} size={18} color="#fff" />
-              </LinearGradient>
-            </TouchableOpacity>
-          </Animated.View>
+          <TouchableOpacity style={styles.secondaryBtn} onPress={() => finish('/(auth)/login')} accessibilityRole="button">
+            <Text style={styles.secondaryText}>Já tenho conta</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
-      </Animated.View>
-    </View>
+    </LinearGradient>
+  );
+}
+
+/** Abertura da marca: primeira coisa que a pessoa vê no primeiro acesso. */
+function BrandIntro({ reduceMotion, onStart, onLogin }: { reduceMotion: boolean; onStart: () => void; onLogin: () => void }) {
+  const appear = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+  const rise = useRef(new Animated.Value(reduceMotion ? 1 : 0)).current;
+
+  useEffect(() => {
+    if (reduceMotion) return;
+    Animated.sequence([
+      Animated.spring(appear, { toValue: 1, friction: 7, tension: 50, useNativeDriver: true }),
+      Animated.timing(rise, { toValue: 1, duration: 380, useNativeDriver: true }),
+    ]).start();
+  }, [appear, rise, reduceMotion]);
+
+  const logoScale = appear.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] });
+  const textY = rise.interpolate({ inputRange: [0, 1], outputRange: [16, 0] });
+
+  return (
+    <LinearGradient colors={[BRAND.ink, '#3B1470', BRAND.violet, BRAND.magenta]} locations={[0, 0.35, 0.72, 1]} start={{ x: 0.2, y: 0 }} end={{ x: 0.8, y: 1 }} style={styles.fill}>
+      <StatusBar barStyle="light-content" />
+      <SafeAreaView style={styles.fill} edges={['top', 'bottom']}>
+        <View style={styles.introCenter}>
+          <Animated.View style={[styles.introGlow, { opacity: appear, transform: [{ scale: logoScale }] }]}>
+            <ProvadorLogo size={132} variant="icon" />
+          </Animated.View>
+          <Animated.View style={{ alignItems: 'center', opacity: rise, transform: [{ translateY: textY }] }}>
+            <Text style={styles.introName} accessibilityRole="header">{BRAND.name}</Text>
+            <Text style={styles.introTagline}>{BRAND.tagline}</Text>
+          </Animated.View>
+        </View>
+        <Animated.View style={[styles.footer, { opacity: rise }]}>
+          <TouchableOpacity style={styles.primaryBtn} activeOpacity={0.88} onPress={onStart} accessibilityRole="button">
+            <Text style={styles.primaryText}>Começar</Text>
+            <Ionicons name="arrow-forward" size={18} color={BRAND.violet} />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.secondaryBtn} onPress={onLogin} accessibilityRole="button">
+            <Text style={styles.secondaryText}>Já tenho conta</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </SafeAreaView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0E1324',
+  introCenter: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 28 },
+  introGlow: {
+    borderRadius: 40,
+    shadowColor: BRAND.magenta,
+    shadowOpacity: 0.55,
+    shadowRadius: 36,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 16,
   },
-  absoluteFill: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  backgroundLayer: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  slide: {
-    flex: 1,
-  },
-  slideGradient: {
-    flex: 1,
-    justifyContent: 'center',
+  introName: { color: '#FFFFFF', fontSize: 46, fontWeight: '800', letterSpacing: -1.2 },
+  introTagline: { color: 'rgba(255,255,255,0.88)', fontSize: 17, marginTop: 6, textAlign: 'center' },
+  fill: { flex: 1 },
+  // No navegador, o gesto horizontal é do app: sem isso, deslizar para a direita volta a página
+  swipeArea: Platform.OS === 'web' ? ({ touchAction: 'pan-y' } as object) : {},
+  topBar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 22,
-    paddingTop: 96,
-    paddingBottom: 186,
+    justifyContent: 'space-between',
+    paddingHorizontal: 24,
+    paddingTop: 12,
   },
-  backShapeTop: {
-    position: 'absolute',
-    top: -60,
-    right: -30,
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-  },
-  backShapeBottom: {
-    position: 'absolute',
-    bottom: 110,
-    left: -35,
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-  },
-  contentCard: {
-    width: '100%',
-    borderRadius: 28,
-    backgroundColor: 'rgba(6, 10, 20, 0.32)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.22)',
-    paddingHorizontal: 20,
-    paddingVertical: 24,
-    overflow: 'hidden',
-  },
-  cardGlow: {
-    position: 'absolute',
-    top: -80,
-    left: '18%',
-    width: 230,
-    height: 230,
-    borderRadius: 120,
-    backgroundColor: 'rgba(255,255,255,0.28)',
-  },
+  skip: { color: '#FFFFFF', fontSize: 15, fontWeight: '600', opacity: 0.9 },
+  scroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 24 },
+  content: { width: '100%', maxWidth: 440, alignSelf: 'center' },
   iconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 18,
-  },
-  kicker: {
-    color: 'rgba(255,255,255,0.76)',
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.2,
-    marginBottom: 8,
-  },
-  title: {
-    color: '#fff',
-    fontSize: 31,
-    lineHeight: 36,
-    fontWeight: '800',
-    letterSpacing: -0.8,
-    marginBottom: 14,
-  },
-  description: {
-    color: 'rgba(255,255,255,0.9)',
-    fontSize: 15,
-    lineHeight: 22,
-    marginBottom: 18,
-  },
-  highlightsWrap: {
-    gap: 10,
-    marginTop: 2,
-  },
-  highlightRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  highlightText: {
-    color: '#F4FAF6',
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  topActions: {
-    position: 'absolute',
-    top: 0,
-    right: 16,
-    zIndex: 5,
-  },
-  skipChip: {
-    marginTop: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 999,
-    backgroundColor: 'rgba(6,10,20,0.3)',
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.18)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  skipText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: '700',
-  },
-  bottomPanel: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingHorizontal: 16,
-    paddingBottom: 8,
-    gap: 14,
-  },
-  dotsRow: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    borderColor: 'rgba(255,255,255,0.3)',
     alignItems: 'center',
-    gap: 8,
+    justifyContent: 'center',
+    marginBottom: 20,
   },
-  dot: {
-    height: 8,
-    borderRadius: 99,
-    backgroundColor: '#fff',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'stretch',
-  },
-  secondaryBtn: {
-    flex: 1,
-    minHeight: 52,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.55)',
-    backgroundColor: 'rgba(9,13,24,0.28)',
+  kicker: { color: 'rgba(255,255,255,0.85)', fontSize: 12, fontWeight: '800', letterSpacing: 1.2, marginBottom: 8 },
+  title: { color: '#FFFFFF', fontSize: 32, lineHeight: 38, fontWeight: '800', letterSpacing: -0.5, marginBottom: 12 },
+  description: { color: 'rgba(255,255,255,0.92)', fontSize: 16, lineHeight: 24, marginBottom: 24 },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 18, gap: 14 },
+  highlight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  check: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#EDE9FE',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  secondaryBtnText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  primaryBtnWrap: {
-    flex: 1.3,
-  },
+  highlightText: { flex: 1, color: BRAND.ink, fontSize: 15, fontWeight: '600' },
+  footer: { paddingHorizontal: 24, paddingBottom: 16, gap: 12, width: '100%', maxWidth: 488, alignSelf: 'center' },
+  dots: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 4 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: 'rgba(255,255,255,0.4)' },
+  dotActive: { width: 24, backgroundColor: '#FFFFFF' },
   primaryBtn: {
+    height: 54,
     borderRadius: 16,
-    overflow: 'hidden',
-  },
-  primaryBtnGradient: {
-    minHeight: 52,
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
-  primaryBtnText: {
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: '800',
-    letterSpacing: 0.1,
-  },
+  primaryText: { color: BRAND.violet, fontSize: 17, fontWeight: '800' },
+  secondaryBtn: { height: 48, alignItems: 'center', justifyContent: 'center' },
+  secondaryText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
 });

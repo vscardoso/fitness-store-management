@@ -324,7 +324,7 @@ export default function DashboardScreen() {
       <Animated.View style={headerAnimStyle}>
         <PageHeader
           title={`${getGreeting()}, ${user?.full_name?.split(' ')[0] || 'Usuário'}!`}
-          subtitle={user?.store_name || 'Fitness Store'}
+          subtitle={user?.store_name || 'Provador'}
           leftVisual={
             logoUri ? (
               <Image source={{ uri: logoUri }} style={styles.headerStoreLogoImage} resizeMode="cover" />

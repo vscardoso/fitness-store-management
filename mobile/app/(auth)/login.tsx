@@ -24,12 +24,9 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useAuth } from '@/hooks/useAuth';
 import { Colors, theme } from '@/constants/Colors';
-import { FitFlowLogo } from '@/components/branding/FitFlowLogo';
+import { ProvadorLogo } from '@/components/branding/ProvadorLogo';
+import { BRAND } from '@/constants/Brand';
 
-const APP_NAME = 'Store Management';
-const APP_TAGLINE = 'Gestão inteligente para lojas';
-const APP_PRIMARY = '#667eea';
-const APP_SECONDARY = '#764ba2';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -100,8 +97,8 @@ export default function LoginScreen() {
     }
   };
 
-  const primary = APP_PRIMARY;
-  const secondary = APP_SECONDARY;
+  const primary = BRAND.violet;
+  const secondary = BRAND.magenta;
 
   return (
     <LinearGradient
@@ -122,9 +119,9 @@ export default function LoginScreen() {
           >
             {/* Branding */}
             <Animated.View style={[styles.brandingSection, logoStyle]}>
-              <FitFlowLogo size={120} variant="icon" />
-              <Text style={styles.storeName}>{APP_NAME}</Text>
-              <Text style={styles.tagline}>{APP_TAGLINE}</Text>
+              <ProvadorLogo size={112} variant="icon" />
+              <Text style={styles.storeName}>{BRAND.name}</Text>
+              <Text style={styles.tagline}>{BRAND.tagline}</Text>
             </Animated.View>
 
             {/* Formulário */}
@@ -212,7 +209,7 @@ export default function LoginScreen() {
               </View>
             </Animated.View>
 
-            <Text style={styles.version}>Versão 1.0.0 · {APP_NAME}</Text>
+            <Text style={styles.version}>Versão 1.0.0 · {BRAND.name}</Text>
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>

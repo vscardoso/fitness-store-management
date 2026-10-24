@@ -25,10 +25,10 @@ export const Colors = {
     warningLight: '#FEF3C7',
     info: '#3B82F6',
     infoLight: '#DBEAFE',
-    primary: '#667eea',
-    primaryLight: '#E0E7FF',
-    secondary: '#764ba2',
-    secondaryLight: '#F3E8FF',
+    primary: '#7C3AED',      // violeta Provador (constants/Brand.ts)
+    primaryLight: '#EDE9FE',
+    secondary: '#DB2777',    // magenta Provador
+    secondaryLight: '#FCE7F3',
     // Novos tokens
     textSecondary: '#6B7280',
     textTertiary: '#9CA3AF',
@@ -54,10 +54,10 @@ export const Colors = {
     warningLight: '#78350F',
     info: '#3B82F6',
     infoLight: '#1E3A8A',
-    primary: '#818CF8',
-    primaryLight: '#312E81',
-    secondary: '#A78BFA',
-    secondaryLight: '#4C1D95',
+    primary: '#A78BFA',
+    primaryLight: '#4C1D95',
+    secondary: '#F472B6',
+    secondaryLight: '#831843',
     // Novos tokens
     textSecondary: '#9CA3AF',
     textTertiary: '#6B7280',
@@ -155,10 +155,10 @@ export type ValueColorType = keyof typeof VALUE_COLORS;
 
 // Paletas de branding pré-definidas
 export const PRESET_THEMES = [
-  { name: 'Roxo Padrão',    primary: '#667eea', secondary: '#764ba2', accent: '#10B981' },
+  { name: 'Provador',       primary: '#7C3AED', secondary: '#DB2777', accent: '#10B981' },
   { name: 'Azul Oceano',    primary: '#0EA5E9', secondary: '#0284C7', accent: '#F59E0B' },
-  { name: 'Verde Fitness',  primary: '#10B981', secondary: '#059669', accent: '#667eea' },
+  { name: 'Verde Fitness',  primary: '#10B981', secondary: '#059669', accent: '#7C3AED' },
   { name: 'Laranja Energia',primary: '#F97316', secondary: '#EA580C', accent: '#0EA5E9' },
   { name: 'Rosa Vibrante',  primary: '#EC4899', secondary: '#DB2777', accent: '#8B5CF6' },
-  { name: 'Cinza Neutro',   primary: '#374151', secondary: '#1F2937', accent: '#667eea' },
+  { name: 'Cinza Neutro',   primary: '#374151', secondary: '#1F2937', accent: '#7C3AED' },
 ] as const;

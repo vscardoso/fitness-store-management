@@ -75,12 +75,12 @@ class Store(BaseModel):
     )
     primary_color: Mapped[str] = mapped_column(
         String(7),
-        default="#667eea",
+        default="#7C3AED",
         comment="Cor principal (hex)"
     )
     secondary_color: Mapped[str] = mapped_column(
         String(7),
-        default="#764ba2",
+        default="#DB2777",
         comment="Cor secundária (hex)"
     )
     accent_color: Mapped[str] = mapped_column(
