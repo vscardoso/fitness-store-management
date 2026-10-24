@@ -3,7 +3,7 @@
  * Balão de dica animado com seta apontando para o elemento alvo
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { TUTORIAL_COLORS, TutorialStepPosition } from '@/constants/tutorials';
+import { useBrandingColors } from '@/store/brandingStore';
 
 // Altura estimada do tooltip (para cálculos de posicionamento)
 const ESTIMATED_TOOLTIP_HEIGHT = 220;
@@ -55,6 +56,8 @@ export function TutorialTooltip({
   isFirstStep = false,
   isLastStep = false,
 }: TutorialTooltipProps) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   // Dimensões reativas: acompanham resize/rotação (antes eram fixas no carregamento do módulo)
   const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = useWindowDimensions();
   const opacity = useRef(new Animated.Value(0)).current;
@@ -219,7 +222,7 @@ export function TutorialTooltip({
         <View style={styles.buttons}>
           {!isFirstStep && onPrevious && (
             <TouchableOpacity style={styles.secondaryButton} onPress={onPrevious}>
-              <Ionicons name="arrow-back" size={18} color={TUTORIAL_COLORS.accent} />
+              <Ionicons name="arrow-back" size={18} color={brandingColors.primary} />
               <Text style={styles.secondaryButtonText}>Voltar</Text>
             </TouchableOpacity>
           )}
@@ -246,7 +249,7 @@ export function TutorialTooltip({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     position: 'absolute',
     zIndex: 1001,
@@ -288,7 +291,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   stepIndicator: {
-    backgroundColor: TUTORIAL_COLORS.accent + '15',
+    backgroundColor: brand + '15',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -296,7 +299,7 @@ const styles = StyleSheet.create({
   stepText: {
     fontSize: 12,
     fontWeight: '600',
-    color: TUTORIAL_COLORS.accent,
+    color: brand,
   },
   title: {
     fontSize: 18,
@@ -323,7 +326,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5E7EB',
   },
   dotActive: {
-    backgroundColor: TUTORIAL_COLORS.accent,
+    backgroundColor: brand,
     width: 20,
   },
   dotCompleted: {
@@ -337,7 +340,7 @@ const styles = StyleSheet.create({
   primaryButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: TUTORIAL_COLORS.accent,
+    backgroundColor: brand,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 10,
@@ -356,7 +359,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   secondaryButtonText: {
-    color: TUTORIAL_COLORS.accent,
+    color: brand,
     fontWeight: '500',
     fontSize: 14,
   },

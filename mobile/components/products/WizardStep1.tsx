@@ -5,7 +5,7 @@
  * Reutiliza lógica do useAIScanner via useProductWizard
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -46,6 +46,7 @@ export default function WizardStep1({
   const categories = Array.isArray(categoriesProp) ? categoriesProp : [];
   const { state } = wizard;
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const router = useRouter();
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   const [isSavingToGallery, setIsSavingToGallery] = useState(false);
@@ -551,7 +552,7 @@ export default function WizardStep1({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
@@ -585,7 +586,7 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   methodButtonActive: {
-    borderColor: Colors.light.primary,
+    borderColor: brand,
   },
   methodButtonGradient: {
     paddingVertical: theme.spacing.lg,
@@ -602,7 +603,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   methodButtonContentActive: {
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
   },
   methodButtonText: {
     fontSize: 14,
@@ -613,7 +614,7 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   methodButtonTextManual: {
-    color: Colors.light.primary,
+    color: brand,
   },
   methodButtonSubtext: {
     fontSize: 11,
@@ -773,7 +774,7 @@ const styles = StyleSheet.create({
   },
   previewCategory: {
     fontSize: 13,
-    color: Colors.light.primary,
+    color: brand,
     fontWeight: '500',
   },
   // Duplicates Card
@@ -842,7 +843,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
     paddingHorizontal: 12,
     paddingVertical: 8,
     borderRadius: 20,
@@ -853,7 +854,7 @@ const styles = StyleSheet.create({
   duplicateActionText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.light.primary,
+    color: brand,
   },
   // Confirmação inline de quantidade
   inlineConfirm: {

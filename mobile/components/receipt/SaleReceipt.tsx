@@ -4,6 +4,7 @@ import { Text, Card } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { formatCurrency, formatDateTime } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import type { SaleWithDetails, PaymentMethod } from '@/types';
 
 interface SaleReceiptProps {
@@ -34,6 +35,7 @@ const getPaymentMethodLabel = (method: PaymentMethod | string): string => {
 };
 
 export const SaleReceipt = forwardRef<View, SaleReceiptProps>(({ sale, storeName, change }, ref) => {
+  const brandingColors = useBrandingColors();
   return (
     <View ref={ref} collapsable={false} style={styles.receiptContainer}>
       <Card style={styles.detailsCard}>
@@ -41,8 +43,8 @@ export const SaleReceipt = forwardRef<View, SaleReceiptProps>(({ sale, storeName
           {/* Nome da Loja */}
           {storeName && (
             <View style={styles.storeNameContainer}>
-              <Ionicons name="storefront" size={20} color={Colors.light.primary} />
-              <Text variant="titleMedium" style={styles.storeName}>
+              <Ionicons name="storefront" size={20} color={brandingColors.primary} />
+              <Text variant="titleMedium" style={[styles.storeName, { color: brandingColors.primary }]}>
                 {storeName}
               </Text>
             </View>
@@ -53,7 +55,7 @@ export const SaleReceipt = forwardRef<View, SaleReceiptProps>(({ sale, storeName
             <Text variant="labelMedium" style={styles.label}>
               Número da Venda
             </Text>
-            <Text variant="headlineMedium" style={styles.saleNumber}>
+            <Text variant="headlineMedium" style={[styles.saleNumber, { color: brandingColors.primary }]}>
               {sale.sale_number}
             </Text>
           </View>
@@ -228,7 +230,6 @@ const styles = StyleSheet.create({
   },
   storeName: {
     fontWeight: '600',
-    color: Colors.light.primary,
   },
   saleNumberContainer: {
     alignItems: 'center',
@@ -236,7 +237,6 @@ const styles = StyleSheet.create({
   },
   saleNumber: {
     fontWeight: 'bold',
-    color: Colors.light.primary,
     marginTop: 4,
     letterSpacing: 1,
   },

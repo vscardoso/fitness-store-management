@@ -2,12 +2,13 @@
  * StatusStepper - Visual stepper showing shipment progress
  * PENDING → SENT → PARTIAL_RETURN/IN_ANALYSIS → COMPLETED
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ShipmentStatus } from '@/types/conditional';
 import { Colors } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface Step {
   key: string;
@@ -42,6 +43,8 @@ interface StatusStepperProps {
 }
 
 export default function StatusStepper({ status }: StatusStepperProps) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   // Find current step
   const currentStepIndex = STEPS.findIndex((step) =>
     step.statuses.includes(status)
@@ -67,7 +70,7 @@ export default function StatusStepper({ status }: StatusStepperProps) {
                 <Ionicons
                   name={step.icon as any}
                   size={16}
-                  color={isActive ? Colors.light.primary : Colors.light.textSecondary}
+                  color={isActive ? brandingColors.primary : Colors.light.textSecondary}
                 />
               </View>
               <Text
@@ -97,7 +100,7 @@ export default function StatusStepper({ status }: StatusStepperProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -119,12 +122,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   stepCircleActive: {
-    backgroundColor: Colors.light.primary + '15',
-    borderColor: Colors.light.primary,
+    backgroundColor: brand + '15',
+    borderColor: brand,
   },
   stepCircleCurrent: {
-    backgroundColor: Colors.light.primary,
-    borderColor: Colors.light.primary,
+    backgroundColor: brand,
+    borderColor: brand,
   },
   stepLabel: {
     fontSize: 11,
@@ -137,7 +140,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   stepLabelCurrent: {
-    color: Colors.light.primary,
+    color: brand,
     fontWeight: '700',
   },
   connector: {
@@ -148,7 +151,7 @@ const styles = StyleSheet.create({
     marginBottom: 32,
   },
   connectorActive: {
-    backgroundColor: Colors.light.primary,
+    backgroundColor: brand,
   },
   cancelledContainer: {
     flexDirection: 'row',

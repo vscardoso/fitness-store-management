@@ -4,7 +4,7 @@
  * Implementação sem SVG para evitar dependências adicionais
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -13,6 +13,7 @@ import {
   TouchableWithoutFeedback,
 } from 'react-native';
 import { TUTORIAL_COLORS } from '@/constants/tutorials';
+import { useBrandingColors } from '@/store/brandingStore';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -34,6 +35,8 @@ export function TutorialSpotlight({
   onPress,
   children,
 }: TutorialSpotlightProps) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const opacity = useRef(new Animated.Value(0)).current;
   const pulseScale = useRef(new Animated.Value(1)).current;
 
@@ -164,7 +167,7 @@ export function TutorialSpotlight({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 1000,
@@ -181,7 +184,7 @@ const styles = StyleSheet.create({
   spotlightHole: {
     position: 'absolute',
     borderWidth: 3,
-    borderColor: TUTORIAL_COLORS.accent,
+    borderColor: brand,
     backgroundColor: 'transparent',
   },
 });

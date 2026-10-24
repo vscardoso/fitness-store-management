@@ -12,7 +12,7 @@
  *  - Botão "Igualar todos" para propagar o preço base
  */
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -35,7 +35,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
 import { Text, TextInput, Switch, Button } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import AppButton from '@/components/ui/AppButton';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
@@ -303,6 +303,7 @@ export default function VariantBuilderInline({
   // ─────────────────────────────────────────────────────────
 
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
 
   return (
     <View style={styles.root}>
@@ -852,7 +853,7 @@ export default function VariantBuilderInline({
 // Styles
 // ─────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   root: {},
 
   // ── Toggle ──────────────────────────────────────────────
@@ -886,7 +887,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   toggleIconBoxActive: {
-    backgroundColor: Colors.light.primary,
+    backgroundColor: brand,
   },
   toggleTitle: {
     fontSize: 15,
@@ -894,7 +895,7 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
   },
   toggleTitleActive: {
-    color: Colors.light.primary,
+    color: brand,
   },
   toggleSubtitle: {
     fontSize: 12,
@@ -926,7 +927,7 @@ const styles = StyleSheet.create({
     width: 3,
     height: 14,
     borderRadius: 2,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: brand,
   },
   sectionLabel: {
     fontSize: 11,
@@ -935,7 +936,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   countBadge: {
-    backgroundColor: Colors.light.primary,
+    backgroundColor: brand,
     borderRadius: 10,
     minWidth: 20,
     height: 20,
@@ -978,8 +979,8 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   sizeChipSelected: {
-    borderColor: Colors.light.primary,
-    shadowColor: Colors.light.primary,
+    borderColor: brand,
+    shadowColor: brand,
     shadowOpacity: 0.2,
     shadowRadius: 6,
     elevation: 3,
@@ -1120,7 +1121,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
     borderRadius: 20,
     paddingHorizontal: 10,
     paddingVertical: 4,
@@ -1128,7 +1129,7 @@ const styles = StyleSheet.create({
   variantCountText: {
     fontSize: 12,
     fontWeight: '700',
-    color: Colors.light.primary,
+    color: brand,
   },
   equalizeBtn: {
     flexDirection: 'row',
@@ -1195,7 +1196,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.card,
   },
   colorGroupSizeChipSelected: {
-    borderColor: Colors.light.primary,
+    borderColor: brand,
   },
   colorGroupSizeText: {
     fontSize: 11,
@@ -1229,9 +1230,9 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   variantCardCustom: {
-    borderColor: Colors.light.primary,
-    backgroundColor: Colors.light.primary + '08',
-    shadowColor: Colors.light.primary,
+    borderColor: brand,
+    backgroundColor: brand + '08',
+    shadowColor: brand,
     shadowOpacity: 0.15,
     shadowRadius: 6,
     elevation: 3,
@@ -1244,7 +1245,7 @@ const styles = StyleSheet.create({
     marginBottom: 5,
   },
   variantCardSizeBadgeCustom: {
-    backgroundColor: Colors.light.primary + '20',
+    backgroundColor: brand + '20',
   },
   variantCardSizeText: {
     fontSize: 13,
@@ -1252,7 +1253,7 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
   },
   variantCardSizeTextCustom: {
-    color: Colors.light.primary,
+    color: brand,
   },
   variantCardPrice: {
     fontSize: 11,
@@ -1260,7 +1261,7 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
   },
   variantCardPriceCustom: {
-    color: Colors.light.primary,
+    color: VALUE_COLORS.neutral,
     fontWeight: '700',
   },
   variantCardCustomBadge: {
@@ -1310,7 +1311,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: Colors.light.primary + '12',
+    backgroundColor: brand + '12',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,

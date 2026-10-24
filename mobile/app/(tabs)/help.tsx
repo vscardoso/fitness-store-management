@@ -15,12 +15,14 @@ import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import PageHeader from '@/components/layout/PageHeader';
 import { useTutorialContext } from '@/contexts/TutorialContext';
-import { TUTORIAL_LIST, TUTORIAL_COLORS } from '@/constants/tutorials';
+import { TUTORIAL_LIST } from '@/constants/tutorials';
 import useBackToList from '@/hooks/useBackToList';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getProducts } from '@/services/productService';
+import { useBrandingColors } from '@/store/brandingStore';
 
 export default function HelpScreen() {
+  const brandingColors = useBrandingColors();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/more');
   const {
@@ -144,7 +146,7 @@ export default function HelpScreen() {
               <Ionicons
                 name="play-circle"
                 size={28}
-                color={isCompleted ? '#10B981' : TUTORIAL_COLORS.accent}
+                color={isCompleted ? '#10B981' : brandingColors.primary}
               />
             </TouchableOpacity>
           );

@@ -1,9 +1,11 @@
+import { useMemo } from 'react';
 import { View, StyleSheet, Text } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingStore } from '@/store/brandingStore';
 import type { Product } from '@/types';
 import { formatCurrency } from '@/utils/format';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface QRCodePayload {
   id?: number;
@@ -30,6 +32,8 @@ export default function ProductQRCode({
   showLabel = true,
   payload,
 }: ProductQRCodeProps) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const { branding } = useBrandingStore();
 
   const encodedId = payload?.id ?? product.id;
@@ -86,7 +90,7 @@ export default function ProductQRCode({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     alignItems: 'center',
   },
@@ -121,6 +125,6 @@ const styles = StyleSheet.create({
   price: {
     fontSize: theme.fontSize.lg,
     fontWeight: theme.fontWeight.bold,
-    color: Colors.light.primary,
+    color: VALUE_COLORS.neutral,
   },
 });

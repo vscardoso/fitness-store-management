@@ -7,6 +7,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/Colors';
 import type { VariantGrid } from '@/types/productVariant';
 import { buildVariantMatrix, type CellStatus } from '@/utils/variantMatrix';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface Props {
   grid: VariantGrid;
@@ -24,6 +25,8 @@ const STATUS_COLORS: Record<CellStatus, { fg: string; bg: string }> = {
 };
 
 export function VariantStockMatrix({ grid }: Props) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const m = useMemo(() => buildVariantMatrix(grid), [grid]);
   const [availWidth, setAvailWidth] = useState(0);
 
@@ -105,7 +108,7 @@ export function VariantStockMatrix({ grid }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   summary: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 10 },
   summaryText: { fontSize: 13, fontWeight: '600', color: Colors.light.text },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
@@ -119,7 +122,7 @@ const styles = StyleSheet.create({
   cellText: { fontSize: 13, fontWeight: '700' },
   noCell: { color: Colors.light.textTertiary, fontSize: 16 },
   totalCell: { fontSize: 13, fontWeight: '700', color: Colors.light.text, textAlign: 'center' },
-  grandTotal: { color: Colors.light.primary },
+  grandTotal: { color: brand },
 });
 
 export default VariantStockMatrix;

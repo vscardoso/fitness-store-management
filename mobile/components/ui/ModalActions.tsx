@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Button } from 'react-native-paper';
 import { Colors } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface ModalActionsProps {
   onCancel: () => void;
@@ -21,9 +22,10 @@ export default function ModalActions({
   confirmText = 'Confirmar',
   loading = false,
   disabled = false,
-  confirmColor = Colors.light.primary,
+  confirmColor,
   cancelDisabled = false,
 }: ModalActionsProps) {
+  const brandingColors = useBrandingColors();
   return (
     <View style={styles.container}>
       <Button
@@ -38,7 +40,7 @@ export default function ModalActions({
         mode="contained"
         onPress={onConfirm}
         style={styles.button}
-        buttonColor={confirmColor}
+        buttonColor={confirmColor ?? brandingColors.primary}
         loading={loading}
         disabled={loading || disabled}
       >

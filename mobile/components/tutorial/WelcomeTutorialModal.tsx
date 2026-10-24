@@ -4,7 +4,7 @@
  * Oferece ao usuário a opção de fazer o tour pelo app
  */
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import {
   View,
   Text,
@@ -17,8 +17,8 @@ import {
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Colors } from '@/constants/Colors';
 import { TUTORIAL_COLORS } from '@/constants/tutorials';
+import { useBrandingColors } from '@/store/brandingStore';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -35,6 +35,8 @@ export function WelcomeTutorialModal({
   onDismiss,
   userName,
 }: WelcomeTutorialModalProps) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -112,7 +114,7 @@ export function WelcomeTutorialModal({
         >
           {/* Header com gradiente */}
           <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
+            colors={[brandingColors.primary, brandingColors.secondary]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.header}
@@ -200,6 +202,8 @@ function FeatureItem({
   color: string;
   text: string;
 }) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   return (
     <View style={styles.featureItem}>
       <View style={[styles.featureIcon, { backgroundColor: color + '15' }]}>
@@ -210,7 +214,7 @@ function FeatureItem({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   overlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.6)',
@@ -295,7 +299,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: TUTORIAL_COLORS.accent,
+    backgroundColor: brand,
     paddingVertical: 14,
     paddingHorizontal: 24,
     borderRadius: 12,

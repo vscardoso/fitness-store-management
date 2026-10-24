@@ -9,12 +9,14 @@ import { useRouter } from 'expo-router';
 import { Notification, NOTIFICATION_COLORS } from '../../types/notification';
 import { useNotificationStore } from '../../store/notificationStore';
 import { Colors } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface NotificationBannerProps {
   notification: Notification;
 }
 
 export function NotificationBanner({ notification }: NotificationBannerProps) {
+  const brandingColors = useBrandingColors();
   const router = useRouter();
   const { dismissNotification, markAsRead, config } = useNotificationStore();
   const slideAnim = React.useRef(new Animated.Value(-100)).current;
@@ -63,7 +65,7 @@ export function NotificationBanner({ notification }: NotificationBannerProps) {
   };
 
   // Fallback evita strings inválidas como "undefined20" quando o tipo é desconhecido
-  const color = NOTIFICATION_COLORS[notification.type] ?? Colors.light.primary;
+  const color = NOTIFICATION_COLORS[notification.type] ?? brandingColors.primary;
   const hasActions = notification.actions && notification.actions.length > 0;
 
   return (

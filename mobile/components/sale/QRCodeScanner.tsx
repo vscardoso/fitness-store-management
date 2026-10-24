@@ -11,7 +11,7 @@
  * 5. Adiciona ao carrinho
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -23,11 +23,12 @@ import {
 import { Text, Button, Card } from 'react-native-paper';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { Colors, theme } from '@/constants/Colors';
+import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { getProductById, getProductBySku } from '@/services/productService';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { Product } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface QRCodeScannerProps {
   visible: boolean;
@@ -52,6 +53,8 @@ export default function QRCodeScanner({
   onProductScanned,
   getCartQuantity,
 }: QRCodeScannerProps) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const [permission, requestPermission] = useCameraPermissions();
   const [blockedDialogVisible, setBlockedDialogVisible] = useState(false);
   const [scanned, setScanned] = useState(false);
@@ -170,7 +173,7 @@ export default function QRCodeScanner({
   if (!permission) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
+        <ActivityIndicator size="large" color={brandingColors.primary} />
       </View>
     );
   }
@@ -336,7 +339,7 @@ export default function QRCodeScanner({
                         onPress={() => setQuantity(Math.max(1, quantity - 1))}
                         disabled={quantity <= 1}
                       >
-                        <Ionicons name="remove" size={24} color={quantity <= 1 ? Colors.light.textTertiary : Colors.light.primary} />
+                        <Ionicons name="remove" size={24} color={quantity <= 1 ? Colors.light.textTertiary : brandingColors.primary} />
                       </TouchableOpacity>
                       <Text style={[styles.quantityValue, outOfStock && styles.quantityValueEmpty]}>{quantity}</Text>
                       <TouchableOpacity
@@ -344,7 +347,7 @@ export default function QRCodeScanner({
                         onPress={() => !atLimit && setQuantity(quantity + 1)}
                         disabled={atLimit}
                       >
-                        <Ionicons name="add" size={24} color={atLimit ? Colors.light.textTertiary : Colors.light.primary} />
+                        <Ionicons name="add" size={24} color={atLimit ? Colors.light.textTertiary : brandingColors.primary} />
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -391,7 +394,7 @@ export default function QRCodeScanner({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#000',
@@ -594,7 +597,7 @@ const styles = StyleSheet.create({
   productPrice: {
     fontSize: theme.fontSize.xxl,
     fontWeight: '800',
-    color: Colors.light.primary,
+    color: VALUE_COLORS.neutral,
   },
 
   // Quantidade
@@ -647,7 +650,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.light.primary + '20',
+    backgroundColor: brand + '20',
     justifyContent: 'center',
     alignItems: 'center',
   },

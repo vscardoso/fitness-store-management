@@ -18,6 +18,7 @@ import {
   type SizeOption,
   type ColorOption,
 } from '@/types/productVariant';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface VariantSelectorProps {
   // Seleção atual
@@ -51,6 +52,8 @@ export function VariantSelector({
   allowCustomColor = true,
   disabled = false,
 }: VariantSelectorProps) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const toggleSize = (size: string) => {
     if (disabled) return;
     
@@ -194,7 +197,7 @@ export function VariantSelector({
       
       {/* Contador de variantes */}
       <View style={styles.counter}>
-        <Ionicons name="layers-outline" size={18} color={Colors.light.primary} />
+        <Ionicons name="layers-outline" size={18} color={brandingColors.primary} />
         <Text style={styles.counterText}>
           {variantCount} {variantCount === 1 ? 'variação' : 'variações'} selecionada{variantCount !== 1 ? 's' : ''}
         </Text>
@@ -220,6 +223,8 @@ export function VariantPriceEditor({
   onPriceChange,
   disabled = false,
 }: VariantPriceEditorProps) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   if (variants.length <= 1) {
     return null;
   }
@@ -255,7 +260,7 @@ export function VariantPriceEditor({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     backgroundColor: '#fff',
     borderRadius: 12,
@@ -292,7 +297,7 @@ const styles = StyleSheet.create({
   
   actionText: {
     fontSize: 14,
-    color: Colors.light.primary,
+    color: brand,
     fontWeight: '500',
   },
   
@@ -316,7 +321,7 @@ const styles = StyleSheet.create({
   },
   
   chipSelected: {
-    backgroundColor: Colors.light.primary,
+    backgroundColor: brand,
   },
   
   chipText: {
@@ -350,14 +355,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 8,
     paddingVertical: theme.spacing.sm,
-    backgroundColor: Colors.light.primary + '10',
+    backgroundColor: brand + '10',
     borderRadius: 8,
     marginTop: theme.spacing.sm,
   },
   
   counterText: {
     fontSize: 14,
-    color: Colors.light.primary,
+    color: brand,
     fontWeight: '500',
   },
   

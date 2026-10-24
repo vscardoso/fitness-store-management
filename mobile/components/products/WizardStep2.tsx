@@ -47,6 +47,7 @@ export default function WizardStep2({
   const categories = Array.isArray(categoriesProp) ? categoriesProp : [];
   const { state } = wizard;
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
   // Refs para navegação entre campos
   const nameRef = useRef<RNTextInput>(null);
@@ -580,7 +581,7 @@ export default function WizardStep2({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   // Cards
   card: {
     borderRadius: 16,
@@ -598,7 +599,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -631,20 +632,20 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 8,
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: Colors.light.primary + '30',
+    borderColor: brand + '30',
     marginTop: 6,
   },
 
   // SKU preview for variants
   variantSkuPreview: {
-    backgroundColor: Colors.light.primary + '08',
+    backgroundColor: brand + '08',
     borderRadius: 10,
     borderWidth: 1,
-    borderColor: Colors.light.primary + '25',
+    borderColor: brand + '25',
     padding: 10,
     marginBottom: 12,
     gap: 8,
@@ -657,7 +658,7 @@ const styles = StyleSheet.create({
   variantSkuPreviewTitle: {
     fontSize: 11,
     fontWeight: '700',
-    color: Colors.light.primary,
+    color: brand,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
@@ -679,9 +680,9 @@ const styles = StyleSheet.create({
   variantSkuCode: {
     fontSize: 11,
     fontFamily: 'monospace',
-    color: Colors.light.primary,
+    color: brand,
     fontWeight: '700',
-    backgroundColor: Colors.light.primary + '12',
+    backgroundColor: brand + '12',
     borderRadius: 6,
     paddingHorizontal: 7,
     paddingVertical: 2,

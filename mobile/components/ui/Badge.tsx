@@ -2,6 +2,7 @@ import { View, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 import { BADGE } from '@/constants/tokens';
 
 type BadgeVariant = 'success' | 'warning' | 'error' | 'info' | 'primary' | 'neutral';
@@ -20,7 +21,7 @@ const VARIANT_COLORS: Record<BadgeVariant, { color: string; bg: string }> = {
   warning: { color: Colors.light.warning,   bg: Colors.light.warningLight },
   error:   { color: Colors.light.error,     bg: Colors.light.errorLight   },
   info:    { color: Colors.light.info,      bg: Colors.light.infoLight    },
-  primary: { color: Colors.light.primary,   bg: Colors.light.primaryLight },
+  primary: { color: Colors.light.primary,   bg: Colors.light.primaryLight }, // trocado pela cor da loja no componente
   neutral: { color: Colors.light.textSecondary, bg: Colors.light.backgroundSecondary },
 };
 
@@ -31,7 +32,10 @@ export default function Badge({
   icon,
   uppercase = false,
 }: BadgeProps) {
-  const { color, bg } = VARIANT_COLORS[variant];
+  const brandingColors = useBrandingColors();
+  const { color, bg } = variant === 'primary'
+    ? { color: brandingColors.primary, bg: brandingColors.primary + '20' }
+    : VARIANT_COLORS[variant];
   const tok = BADGE[size];
 
   return (

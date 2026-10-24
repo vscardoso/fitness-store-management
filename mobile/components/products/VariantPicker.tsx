@@ -2,7 +2,7 @@
  * Componente para seleção de variante na tela de venda
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -17,6 +17,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
 import { formatVariantLabel } from '@/services/productVariantService';
 import type { ProductVariant, VariantGrid } from '@/types/productVariant';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface VariantPickerProps {
   visible: boolean;
@@ -35,6 +36,8 @@ export function VariantPicker({
   onClose,
   title = 'Selecionar Variação',
 }: VariantPickerProps) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const [selectedColor, setSelectedColor] = useState<string | null>(null);
   const [selectedSize, setSelectedSize] = useState<string | null>(null);
   
@@ -238,6 +241,8 @@ interface VariantBadgeProps {
 }
 
 export function VariantBadge({ variant, onPress, compact = false }: VariantBadgeProps) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   if (!variant) {
     return null;
   }
@@ -258,10 +263,10 @@ export function VariantBadge({ variant, onPress, compact = false }: VariantBadge
       onPress={onPress}
       disabled={!onPress}
     >
-      <Ionicons name="layers-outline" size={14} color={Colors.light.primary} />
+      <Ionicons name="layers-outline" size={14} color={brandingColors.primary} />
       <Text style={styles.badgeText}>{label}</Text>
       {onPress && (
-        <Ionicons name="chevron-down" size={14} color={Colors.light.primary} />
+        <Ionicons name="chevron-down" size={14} color={brandingColors.primary} />
       )}
     </TouchableOpacity>
   );
@@ -269,7 +274,7 @@ export function VariantBadge({ variant, onPress, compact = false }: VariantBadge
 
 const { height } = Dimensions.get('window');
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   // Modal
   modalOverlay: {
     flex: 1,
@@ -334,7 +339,7 @@ const styles = StyleSheet.create({
   },
   
   optionChipSelected: {
-    backgroundColor: Colors.light.primary,
+    backgroundColor: brand,
   },
   
   optionChipDisabled: {
@@ -353,9 +358,9 @@ const styles = StyleSheet.create({
   // Selected Card
   selectedCard: {
     marginTop: theme.spacing.md,
-    backgroundColor: Colors.light.primary + '10',
+    backgroundColor: brand + '10',
     borderWidth: 1,
-    borderColor: Colors.light.primary + '30',
+    borderColor: brand + '30',
   },
   
   selectedCardNoStock: {
@@ -444,7 +449,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -452,7 +457,7 @@ const styles = StyleSheet.create({
   
   badgeText: {
     fontSize: 12,
-    color: Colors.light.primary,
+    color: brand,
     fontWeight: '500',
   },
   

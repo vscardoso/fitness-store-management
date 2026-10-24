@@ -2,6 +2,7 @@ import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Text } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface ActionButton {
   icon: keyof typeof Ionicons.glyphMap;
@@ -22,6 +23,7 @@ export default function ActionButtons({
   actions,
   layout = 'horizontal',
 }: ActionButtonsProps) {
+  const brandingColors = useBrandingColors();
   return (
     <View style={[styles.container, layout === 'vertical' && styles.vertical]}>
       {actions.map((action, index) => (
@@ -31,7 +33,7 @@ export default function ActionButtons({
           disabled={action.disabled}
           style={[
             styles.button,
-            { backgroundColor: action.color || Colors.light.primary },
+            { backgroundColor: action.color || brandingColors.primary },
             layout === 'vertical' && styles.buttonVertical,
             action.disabled && styles.buttonDisabled,
           ]}

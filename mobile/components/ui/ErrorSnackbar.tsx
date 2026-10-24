@@ -13,6 +13,7 @@ import { Animated, StyleSheet, View, Pressable } from 'react-native';
 import { Text, IconButton } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 export type ErrorSeverity = 'error' | 'warning' | 'info' | 'success';
 
@@ -35,6 +36,7 @@ export default function ErrorSnackbar({
   onRetry,
   actionLabel = 'Tentar novamente',
 }: ErrorSnackbarProps) {
+  const brandingColors = useBrandingColors();
   const translateY = useRef(new Animated.Value(100)).current;
   const opacity = useRef(new Animated.Value(0)).current;
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -108,7 +110,7 @@ export default function ErrorSnackbar({
         };
       case 'info':
         return {
-          backgroundColor: Colors.light.primary,
+          backgroundColor: brandingColors.primary,
           icon: 'information-circle' as const,
           iconColor: '#fff',
         };

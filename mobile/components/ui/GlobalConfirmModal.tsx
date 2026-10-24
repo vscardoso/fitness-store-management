@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Alert, StyleSheet, View } from 'react-native';
 import { Modal, Portal, Text, Button } from 'react-native-paper';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 type AlertButton = {
   text?: string;
@@ -43,12 +44,13 @@ export function installGlobalAlertOverride() {
   isOverrideInstalled = true;
 }
 
-function buttonColor(style?: AlertButton['style']) {
+function buttonColor(brand: string, style?: AlertButton['style']) {
   if (style === 'destructive') return Colors.light.error;
-  return Colors.light.primary;
+  return brand;
 }
 
 export default function GlobalConfirmModalHost() {
+  const brandingColors = useBrandingColors();
   const [payload, setPayload] = useState<AlertPayload | null>(null);
 
   useEffect(() => {
@@ -91,7 +93,7 @@ export default function GlobalConfirmModalHost() {
               <Button
                 key={`${action.text ?? 'btn'}-${index}`}
                 mode={action.style === 'cancel' ? 'outlined' : 'contained'}
-                buttonColor={action.style === 'cancel' ? Colors.light.card : buttonColor(action.style)}
+                buttonColor={action.style === 'cancel' ? Colors.light.card : buttonColor(brandingColors.primary, action.style)}
                 textColor={action.style === 'cancel' ? Colors.light.text : '#fff'}
                 style={styles.button}
                 onPress={() => {

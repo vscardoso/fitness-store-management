@@ -3,16 +3,19 @@
  * Loading ultra criativo com órbitas, partículas e efeitos visuais
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface CreativeSpinnerProps {
   size?: number;
 }
 
 export function CreativeSpinner({ size = 100 }: CreativeSpinnerProps) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary, brandingColors.secondary), [brandingColors.primary, brandingColors.secondary]);
   // Animações
   const orbitRotate = useRef(new Animated.Value(0)).current;
   const orbit2Rotate = useRef(new Animated.Value(0)).current;
@@ -137,7 +140,7 @@ export function CreativeSpinner({ size = 100 }: CreativeSpinnerProps) {
             width: size * 1.4,
             height: size * 1.4,
             borderRadius: size * 0.7,
-            borderColor: Colors.light.primary,
+            borderColor: brandingColors.primary,
             transform: [{ scale: waveScale }],
             opacity: waveOpacity,
           },
@@ -160,7 +163,7 @@ export function CreativeSpinner({ size = 100 }: CreativeSpinnerProps) {
           ]}
         >
           <LinearGradient
-            colors={[Colors.light.primary, Colors.light.secondary]}
+            colors={[brandingColors.primary, brandingColors.secondary]}
             style={styles.particleDot}
           />
         </Animated.View>
@@ -210,7 +213,7 @@ export function CreativeSpinner({ size = 100 }: CreativeSpinnerProps) {
         ]}
       >
         <LinearGradient
-          colors={[Colors.light.primary, Colors.light.secondary]}
+          colors={[brandingColors.primary, brandingColors.secondary]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={[StyleSheet.absoluteFillObject, { borderRadius: size * 0.15 }]}
@@ -221,7 +224,7 @@ export function CreativeSpinner({ size = 100 }: CreativeSpinnerProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string, brand2: string) => StyleSheet.create({
   container: {
     justifyContent: 'center',
     alignItems: 'center',
@@ -240,7 +243,7 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    shadowColor: Colors.light.primary,
+    shadowColor: brand,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 6,
@@ -257,7 +260,7 @@ const styles = StyleSheet.create({
     height: 12,
     borderRadius: 6,
     backgroundColor: '#fff',
-    shadowColor: Colors.light.primary,
+    shadowColor: brand,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 1,
     shadowRadius: 8,
@@ -267,13 +270,13 @@ const styles = StyleSheet.create({
     top: 0,
     left: '50%',
     marginLeft: -6,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: brand,
   },
   orbitDot2: {
     bottom: 0,
     left: '50%',
     marginLeft: -6,
-    backgroundColor: Colors.light.secondary,
+    backgroundColor: brand2,
   },
   orbitDot3: {
     left: 0,
@@ -297,7 +300,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: Colors.light.primary,
+    shadowColor: brand,
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.8,
     shadowRadius: 20,
@@ -308,6 +311,6 @@ const styles = StyleSheet.create({
     width: '200%',
     height: '200%',
     borderRadius: 9999,
-    backgroundColor: Colors.light.primary + '20',
+    backgroundColor: brand + '20',
   },
 });

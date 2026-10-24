@@ -2,6 +2,7 @@ import { View, StyleSheet, StatusBar } from 'react-native';
 import { Text } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface ListHeaderProps {
   /** Título da tela */
@@ -23,13 +24,14 @@ export default function ListHeader({
   pluralLabel = 'itens',
   showCount = true,
 }: ListHeaderProps) {
+  const brandingColors = useBrandingColors();
   const countLabel = count === 1 ? singularLabel : pluralLabel;
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
+      <StatusBar barStyle="light-content" backgroundColor={brandingColors.primary} />
       <LinearGradient
-        colors={[Colors.light.primary, Colors.light.secondary]}
+        colors={[brandingColors.primary, brandingColors.secondary]}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={styles.gradient}

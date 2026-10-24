@@ -2,13 +2,14 @@
  * ShipmentTimeline - Event timeline showing shipment history
  * Displays chronological events with dates and details
  */
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import type { ConditionalShipment } from '@/types/conditional';
 import { Colors } from '@/constants/Colors';
 import { formatDate } from '@/utils/format';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface TimelineEvent {
   date: string;
@@ -24,6 +25,8 @@ interface ShipmentTimelineProps {
 }
 
 export default function ShipmentTimeline({ shipment }: ShipmentTimelineProps) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   // Build timeline events based on shipment data
   const events: TimelineEvent[] = [];
 
@@ -48,7 +51,7 @@ export default function ShipmentTimeline({ shipment }: ShipmentTimelineProps) {
       label: 'Enviado ao Cliente',
       details: details.join(', ') || undefined,
       icon: 'send',
-      color: Colors.light.primary,
+      color: brandingColors.primary,
       isCompleted: true,
     });
   } else {
@@ -151,7 +154,7 @@ export default function ShipmentTimeline({ shipment }: ShipmentTimelineProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     paddingVertical: 16,
   },
@@ -185,7 +188,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   timelineLineActive: {
-    backgroundColor: Colors.light.primary,
+    backgroundColor: brand,
   },
   eventContent: {
     flex: 1,

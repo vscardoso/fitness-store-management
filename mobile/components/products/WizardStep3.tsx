@@ -37,6 +37,7 @@ const QUICK_QTY_OPTIONS = [1, 5, 10];
 export default function WizardStep3({ wizard }: WizardStep3Props) {
   const { state } = wizard;
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary, brandingColors.secondary), [brandingColors.primary, brandingColors.secondary]);
   const visual = useMemo(
     () => ({
       primarySoft: `${brandingColors.primary}10`,
@@ -600,7 +601,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string, brand2: string) => StyleSheet.create({
   scrollView: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
@@ -622,11 +623,11 @@ const styles = StyleSheet.create({
   successTitle: {
     fontSize: 22,
     fontWeight: '700',
-    color: Colors.light.primary,
+    color: brand,
     marginBottom: theme.spacing.sm,
   },
   pendingTitle: {
-    color: Colors.light.primary,
+    color: brand,
   },
   pendingSubtitle: {
     fontSize: 13,
@@ -638,7 +639,7 @@ const styles = StyleSheet.create({
   },
   variantCountLabel: {
     fontSize: 12,
-    color: Colors.light.primary,
+    color: brand,
     fontWeight: '600',
     marginTop: 6,
   },
@@ -675,7 +676,7 @@ const styles = StyleSheet.create({
   productPrice: {
     fontSize: 15,
     fontWeight: '700',
-    color: Colors.light.primary,
+    color: VALUE_COLORS.neutral,
   },
 
   // Aviso de estoque
@@ -705,16 +706,16 @@ const styles = StyleSheet.create({
   optionCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.light.primary + '08',
+    backgroundColor: brand + '08',
     borderWidth: 2,
-    borderColor: Colors.light.primary,
+    borderColor: brand,
     borderRadius: 16,
     padding: theme.spacing.md,
     gap: theme.spacing.md,
   },
   optionCardSecondary: {
-    backgroundColor: Colors.light.secondary + '08',
-    borderColor: Colors.light.secondary,
+    backgroundColor: brand2 + '08',
+    borderColor: brand2,
   },
   optionCardOutline: {
     backgroundColor: Colors.light.card,
@@ -733,12 +734,12 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    backgroundColor: Colors.light.primary + '20',
+    backgroundColor: brand + '20',
     alignItems: 'center',
     justifyContent: 'center',
   },
   optionIconContainerSecondary: {
-    backgroundColor: Colors.light.secondary + '20',
+    backgroundColor: brand2 + '20',
   },
   optionIconContainerOutline: {
     backgroundColor: Colors.light.backgroundSecondary,
@@ -831,7 +832,7 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   modalHeader: {
-    backgroundColor: Colors.light.primary + '10',
+    backgroundColor: brand + '10',
     padding: theme.spacing.lg,
     alignItems: 'center',
   },
@@ -839,7 +840,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: Colors.light.primary + '20',
+    backgroundColor: brand + '20',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: theme.spacing.md,
@@ -876,16 +877,16 @@ const styles = StyleSheet.create({
   quickButton: {
     flex: 1,
     paddingVertical: 12,
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
     borderRadius: 10,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: Colors.light.primary + '30',
+    borderColor: brand + '30',
   },
   quickButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: Colors.light.primary,
+    color: brand,
   },
   modalHint: {
     flexDirection: 'row',
@@ -958,7 +959,7 @@ const styles = StyleSheet.create({
   },
   variantPrice: {
     fontSize: 12,
-    color: Colors.light.primary,
+    color: VALUE_COLORS.neutral,
     fontWeight: '500',
     marginTop: 2,
   },
@@ -969,15 +970,15 @@ const styles = StyleSheet.create({
   variantQuickButton: {
     paddingHorizontal: 8,
     paddingVertical: 6,
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: Colors.light.primary + '30',
+    borderColor: brand + '30',
   },
   variantQuickButtonText: {
     fontSize: 13,
     fontWeight: '600',
-    color: Colors.light.primary,
+    color: brand,
   },
   variantQtyWrap: {
     flexDirection: 'row',

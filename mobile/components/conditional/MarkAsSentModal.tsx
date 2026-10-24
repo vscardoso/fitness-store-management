@@ -8,12 +8,13 @@
  * - Dicas contextuais
  * - Validação visual
  */
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import { TextInput, IconButton } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import BottomSheet from '@/components/ui/BottomSheet';
 import { Colors } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface MarkAsSentModalProps {
   visible: boolean;
@@ -28,6 +29,8 @@ export default function MarkAsSentModal({
   onConfirm,
   loading = false,
 }: MarkAsSentModalProps) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const [carrier, setCarrier] = useState('');
   const [trackingCode, setTrackingCode] = useState('');
   const [notes, setNotes] = useState('');
@@ -67,7 +70,7 @@ export default function MarkAsSentModal({
       {/* Info Banner */}
       <View style={styles.infoBanner}>
         <View style={styles.infoBannerIcon}>
-          <Ionicons name="information-circle" size={24} color={Colors.light.primary} />
+          <Ionicons name="information-circle" size={24} color={brandingColors.primary} />
         </View>
         <View style={styles.infoBannerContent}>
           <Text style={styles.infoBannerTitle}>O que acontece agora?</Text>
@@ -91,7 +94,7 @@ export default function MarkAsSentModal({
           style={styles.input}
           placeholder="Ex: Correios, Jadlog, Transportadora X..."
           outlineColor={Colors.light.border}
-          activeOutlineColor={Colors.light.primary}
+          activeOutlineColor={brandingColors.primary}
           left={<TextInput.Icon icon="truck" />}
         />
       </View>
@@ -110,7 +113,7 @@ export default function MarkAsSentModal({
           style={styles.input}
           placeholder="Ex: BR123456789BR"
           outlineColor={Colors.light.border}
-          activeOutlineColor={Colors.light.primary}
+          activeOutlineColor={brandingColors.primary}
           autoCapitalize="characters"
           left={<TextInput.Icon icon="barcode" />}
         />
@@ -135,7 +138,7 @@ export default function MarkAsSentModal({
           style={styles.input}
           placeholder="Informações adicionais sobre o envio..."
           outlineColor={Colors.light.border}
-          activeOutlineColor={Colors.light.primary}
+          activeOutlineColor={brandingColors.primary}
         />
       </View>
 
@@ -143,11 +146,11 @@ export default function MarkAsSentModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   // Info Banner
   infoBanner: {
     flexDirection: 'row',
-    backgroundColor: Colors.light.primary + '12',
+    backgroundColor: brand + '12',
     borderRadius: 12,
     padding: 14,
     marginBottom: 20,

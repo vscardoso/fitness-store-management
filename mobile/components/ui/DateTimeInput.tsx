@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { View, StyleSheet, Platform, Modal, TouchableOpacity } from 'react-native';
 import { TextInput, HelperText, Button } from 'react-native-paper';
 import { Text } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface DateTimeInputProps {
   label: string;
@@ -29,6 +30,8 @@ export default function DateTimeInput({
   disabled = false,
   modern = false,
 }: DateTimeInputProps) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const [isPickerVisible, setPickerVisible] = useState(false);
   const [tempDate, setTempDate] = useState<Date | undefined>(value);
   const [currentMode, setCurrentMode] = useState<'date' | 'time'>(
@@ -140,7 +143,7 @@ export default function DateTimeInput({
               <Button onPress={handleCancel} textColor={Colors.light.text}>
                 Cancelar
               </Button>
-              <Button onPress={handleIOSConfirm} textColor={Colors.light.primary}>
+              <Button onPress={handleIOSConfirm} textColor={brandingColors.primary}>
                 Confirmar
               </Button>
             </View>
@@ -179,7 +182,7 @@ export default function DateTimeInput({
             <Ionicons
               name={mode === 'time' ? 'time-outline' : 'calendar-outline'}
               size={18}
-              color={Colors.light.primary}
+              color={brandingColors.primary}
             />
           </View>
           <View style={styles.modernTextWrap}>
@@ -214,7 +217,7 @@ export default function DateTimeInput({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     marginBottom: 8,
   },
@@ -242,7 +245,7 @@ const styles = StyleSheet.create({
     width: 34,
     height: 34,
     borderRadius: 17,
-    backgroundColor: Colors.light.primary + '14',
+    backgroundColor: brand + '14',
     alignItems: 'center',
     justifyContent: 'center',
   },

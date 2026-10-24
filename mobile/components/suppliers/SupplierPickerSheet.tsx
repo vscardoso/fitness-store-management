@@ -116,12 +116,12 @@ export default function SupplierPickerSheet({
         key={supplier.id}
         style={[
           styles.supplierRow,
-          isSelected && { backgroundColor: Colors.light.primaryLight },
+          isSelected && { backgroundColor: brandingColors.primary + '20' },
         ]}
         onPress={() => handleSelect(supplier)}
         activeOpacity={0.75}
       >
-        <View style={[styles.supplierIcon, { backgroundColor: Colors.light.primaryLight }]}>
+        <View style={[styles.supplierIcon, { backgroundColor: brandingColors.primary + '20' }]}>
           <Ionicons name="business" size={18} color={brandingColors.primary} />
         </View>
         <View style={styles.supplierInfo}>
@@ -216,7 +216,7 @@ export default function SupplierPickerSheet({
           {allowNone && <TouchableOpacity
             style={[
               styles.supplierRow,
-              selectedSupplierId === null && { backgroundColor: Colors.light.primaryLight },
+              selectedSupplierId === null && { backgroundColor: brandingColors.primary + '20' },
             ]}
             onPress={() => handleSelect(null)}
             activeOpacity={0.75}

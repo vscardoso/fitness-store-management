@@ -14,6 +14,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import BottomSheet from '@/components/ui/BottomSheet';
 import { Colors } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface ItemStatusModalProps {
   visible: boolean;
@@ -36,6 +37,8 @@ export default function ItemStatusModal({
   unitPrice,
   loading = false,
 }: ItemStatusModalProps) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const [quantity, setQuantity] = useState('');
   const [notes, setNotes] = useState('');
 
@@ -203,7 +206,7 @@ export default function ItemStatusModal({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   // Header Icon
   headerIcon: {
     width: 88,
@@ -266,7 +269,7 @@ const styles = StyleSheet.create({
   },
   fieldMax: {
     fontSize: 12,
-    color: Colors.light.primary,
+    color: brand,
     fontWeight: '500',
     marginLeft: 'auto',
   },

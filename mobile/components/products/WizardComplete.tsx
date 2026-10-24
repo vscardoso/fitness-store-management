@@ -6,7 +6,7 @@
  * - Produto com variantes: mostra grade de variações com SKU e preço de cada uma
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { Text, Card } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -28,6 +28,7 @@ const MAX_VARIANTS_VISIBLE = 6;
 export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) {
   const router = useRouter();
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const { state, resetWizard } = wizard;
   const { createdProduct, linkedEntry } = state;
   const [showAllVariants, setShowAllVariants] = useState(false);
@@ -455,7 +456,7 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   scrollView: {
     flex: 1,
   },
@@ -518,7 +519,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -532,7 +533,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 12,
@@ -540,7 +541,7 @@ const styles = StyleSheet.create({
   variantBadgeText: {
     fontSize: 11,
     fontWeight: '600',
-    color: Colors.light.primary,
+    color: brand,
   },
   productName: {
     fontSize: 18,
@@ -625,7 +626,7 @@ const styles = StyleSheet.create({
   priceValueHighlight: {
     fontSize: 16,
     fontWeight: '700',
-    color: Colors.light.primary,
+    color: VALUE_COLORS.neutral,
   },
   markupValue: {
     fontSize: 14,
@@ -669,14 +670,14 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   colorChip: {
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
     paddingHorizontal: 10,
     paddingVertical: 5,
     borderRadius: 20,
   },
   colorChipText: {
     fontSize: 12,
-    color: Colors.light.primary,
+    color: brand,
     fontWeight: '600',
   },
   sizeChip: {
@@ -742,7 +743,7 @@ const styles = StyleSheet.create({
   variantPrice: {
     fontSize: 14,
     fontWeight: '700',
-    color: Colors.light.primary,
+    color: VALUE_COLORS.neutral,
   },
   variantMarkup: {
     fontSize: 11,

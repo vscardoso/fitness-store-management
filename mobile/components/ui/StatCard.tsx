@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface StatCardProps {
   label: string;
@@ -22,7 +23,8 @@ export default function StatCard({
   suffix,
   index = 0,
 }: StatCardProps) {
-  const color = valueColor ?? Colors.light.primary;
+  const brandingColors = useBrandingColors();
+  const color = valueColor ?? brandingColors.primary;
 
   const opacity = useSharedValue(0);
   const translateY = useSharedValue(12);
