@@ -558,3 +558,23 @@ async def test_api_criar_entrada_com_desconto_e_frete_juntos(test_client, async_
         "entry_code": f"DESC-{next(_seq):04d}", "entry_type": "local", "discount_amount": "-1",
         "items": [{"product_id": p.id, "variant_id": v.id, "quantity_received": 1, "unit_cost": "10.00"}]})
     assert r.status_code == 422
+
+
+async def test_api_excluir_desconto_devolve_o_custo_original(test_client, async_session, test_user):
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    p, v = await _produto(async_session, t_id, cat, "Blusa")
+    lote = await _lote(async_session, t_id, [(v, p, 10, 10)])
+    lote_id = lote.id
+    await async_session.commit()
+    assert (await test_client.put(f"/api/v1/stock-entries/{lote_id}", headers=h, json={"discount_amount": 20})).status_code == 200
+    async_session.expire_all()
+    (_, extra, posto), = await _extras(async_session, lote_id)
+    assert extra == D("-2.0000") and posto == D("8.0000")
+    r = await test_client.put(f"/api/v1/stock-entries/{lote_id}", headers=h, json={"discount_amount": 0})   # lixeira do app
+    assert r.status_code == 200 and float(r.json()["discount_amount"]) == 0.0
+    async_session.expire_all()
+    (_, extra, posto), = await _extras(async_session, lote_id)
+    assert extra == D("0") and posto == D("10.00")
+    c = (await test_client.get(f"/api/v1/stock-entries/{lote_id}/costs", headers=h)).json()
+    assert c["discount_amount"] == 0.0 and c["total_investment"] == 100.0

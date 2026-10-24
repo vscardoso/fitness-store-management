@@ -7,6 +7,7 @@
  */
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ActivityIndicator, ScrollView } from 'react-native';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { TextInput } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -39,6 +40,7 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
   const [amount, setAmount] = useState('');
   const [formError, setFormError] = useState('');
   const [discountOpen, setDiscountOpen] = useState(false);
+  const [confirmRemoveDiscount, setConfirmRemoveDiscount] = useState(false);
   const [discountText, setDiscountText] = useState('');
 
   const analytics = useQuery({ queryKey: ['lot-analytics', entryId], queryFn: () => getStockEntryAnalytics(entryId) });
@@ -75,6 +77,7 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
     mutationFn: (value: number) => updateStockEntry(entryId, { discount_amount: value }),
     onSuccess: () => {
       setDiscountOpen(false);
+      setConfirmRemoveDiscount(false);
       setFormError('');
       refreshAll();
     },
@@ -145,12 +148,22 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
         </View>
       ))}
       {discount > 0 && (
-        <Row
-          label="Desconto do fornecedor"
-          value={-discount}
-          valueColor={VALUE_COLORS.positive}
-          hint="Valor que o fornecedor abateu no fim da compra. Ele diminui o custo de cada peça."
-        />
+        <View>
+          <View style={styles.row}>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Desconto do fornecedor</Text>
+            <Text style={[styles.rowValue, { color: VALUE_COLORS.positive }]}>{formatCurrency(-discount)}</Text>
+            {canEdit && (
+              <TouchableOpacity
+                onPress={() => setConfirmRemoveDiscount(true)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityLabel="Excluir desconto do fornecedor"
+              >
+                <Ionicons name="trash-outline" size={18} color={Colors.light.textSecondary} style={{ marginLeft: 10 }} />
+              </TouchableOpacity>
+            )}
+          </View>
+          <Text style={styles.hint}>Valor que o fornecedor abateu no fim da compra. Ele diminui o custo de cada peça.</Text>
+        </View>
       )}
       <View style={[styles.row, styles.totalRow]}>
         <Text style={[styles.rowLabel, styles.bold]}>Total gasto neste lote</Text>
@@ -246,6 +259,17 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
           </Text>
         </View>
       )}
+
+      <ConfirmDialog
+        visible={confirmRemoveDiscount}
+        type="warning"
+        title="Excluir desconto do fornecedor?"
+        message={`O desconto de ${formatCurrency(discount)} sai desta entrada e o custo de cada peça volta a subir. Peças já vendidas mantêm o custo da venda.`}
+        confirmText="Excluir desconto"
+        cancelText="Cancelar"
+        onConfirm={() => discountMutation.mutate(0)}
+        onCancel={() => setConfirmRemoveDiscount(false)}
+      />
 
       <Modal visible={discountOpen} transparent animationType="fade" onRequestClose={() => setDiscountOpen(false)}>
         <View style={styles.modalBackdrop}>

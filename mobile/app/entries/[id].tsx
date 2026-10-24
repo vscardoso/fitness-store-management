@@ -752,11 +752,27 @@ export default function StockEntryDetailsScreen() {
         {/* KPIs */}
         <View style={styles.statsGrid}>
           <StatCard
-            label="Total gasto"
+            label="Custo total do lote"
             value={formatCurrency(lotAnalytics?.total_investment ?? entry.total_invested ?? entry.total_cost)}
             icon="cash-outline"
             valueColor={Colors.light.text}
           />
+          {lotAnalytics && (
+            <StatCard
+              label="Markup do lote"
+              value={`${lotAnalytics.markup_pct_total.toFixed(0)}%`}
+              icon="pricetag-outline"
+              valueColor={lotAnalytics.markup_pct_total >= 0 ? Colors.light.success : Colors.light.error}
+            />
+          )}
+          {lotAnalytics && (
+            <StatCard
+              label="Lucro do lote (previsto)"
+              value={formatCurrency(lotAnalytics.potential_profit_total)}
+              icon="wallet-outline"
+              valueColor={lotAnalytics.potential_profit_total >= 0 ? Colors.light.success : Colors.light.error}
+            />
+          )}
           <StatCard
             label="Total Items"
             value={`${entry.total_items} (${entry.total_quantity} un)`}
