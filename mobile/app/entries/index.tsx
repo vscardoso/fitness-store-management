@@ -41,7 +41,7 @@ import FAB from '@/components/FAB';
 import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import useBackToList from '@/hooks/useBackToList';
-import { getStockEntries, getStockEntriesStats, addItemToEntry, addNewProductToEntry } from '@/services/stockEntryService';
+import { getStockEntries, getStockEntriesStats, addItemToEntry, addNewProductToEntry, getStockEntryById } from '@/services/stockEntryService';
 import { takePendingProductImage } from '@/services/pendingProductImage';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { formatCurrency, formatDate } from '@/utils/format';
@@ -51,6 +51,7 @@ import { StockEntry, EntryType } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
 import type { Supplier } from '@/types';
+import { takePresetEntry } from '@/utils/presetEntry';
 
 const PAGE_SIZE = 20;
 
@@ -128,6 +129,23 @@ export default function StockEntriesScreen() {
   // Fornecedor do produto que está sendo lançado numa entrada existente (null = o da entrada)
   const [linkSupplier, setLinkSupplier] = useState<Supplier | null>(null);
   const [showSupplierPick, setShowSupplierPick] = useState(false);
+
+  // Veio de "Produto novo" dentro de uma entrada: já escolhe essa entrada e pergunta o fornecedor
+  useEffect(() => {
+    if (!isSelectMode) return;
+    const presetId = takePresetEntry();
+    if (!presetId) return;
+    getStockEntryById(presetId)
+      .then((entry) => {
+        setSelectedEntry(entry as any);
+        setLinkSupplier(null);
+        setShowSupplierPick(true);
+      })
+      .catch(() => {
+        // entrada não encontrada: segue o fluxo normal de escolher na lista
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSelectMode]);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [deleteSuccessMessage, setDeleteSuccessMessage] = useState('');
   const [showDeleteSuccessDialog, setShowDeleteSuccessDialog] = useState(false);

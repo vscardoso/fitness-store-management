@@ -61,6 +61,7 @@ import WizardStepper from '@/components/products/WizardStepper';
 import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
 import { logInfo, logError } from '@/services/debugLog';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
+import { clearPresetEntry } from '@/utils/presetEntry';
 
 /**
  * Capitaliza a primeira letra de cada palavra no nome do fornecedor
@@ -93,6 +94,11 @@ export default function AddStockEntryScreen() {
   const headerScale = useSharedValue(0.94);
   const contentOpacity = useSharedValue(0);
   const contentTranslateY = useSharedValue(24);
+
+  // Nova entrada do zero: esquece a entrada pré-escolhida de um "Produto novo" abandonado
+  useEffect(() => {
+    clearPresetEntry();
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -260,6 +266,8 @@ export default function AddStockEntryScreen() {
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<EntryItemForm[]>([]);
   const [itemCosts, setItemCosts] = useState<Record<string, string>>({});
+  // Preço de tabela de cada item (opcional): o custo é o que foi pago; a diferença é o desconto do item
+  const [itemListPrices, setItemListPrices] = useState<Record<string, string>>({});
   const [itemPrices, setItemPrices] = useState<Record<string, string>>({});
 
   // Estado do seletor de fornecedor por item
@@ -1020,6 +1028,32 @@ export default function AddStockEntryScreen() {
     setItems(newItems);
   };
 
+
+  /** Campo opcional de preço de tabela do item e o desconto que ele representa. */
+  const renderListPriceInput = (item: EntryItemForm) => {
+    const list = parseCost(itemListPrices[item.id] || '0');
+    const paid = parseCost(itemCosts[item.id] || '0');
+    return (
+      <View style={styles.itemRow}>
+        <View style={styles.itemInputFull}>
+          <TextInput
+            label="Preço de tabela (R$), opcional"
+            value={itemListPrices[item.id] || ''}
+            onChangeText={(text) => setItemListPrices({ ...itemListPrices, [item.id]: formatCostInput(text) })}
+            keyboardType="decimal-pad"
+            mode="outlined"
+            dense
+            placeholder="Quanto custaria sem desconto"
+          />
+          {list > 0 && paid > 0 && list < paid && <Text style={styles.warningText}>A tabela deve ser maior que o preço pago</Text>}
+          {list > paid && paid > 0 && (
+            <Text style={styles.warningText}>Desconto no item: R$ {(list - paid).toFixed(2).replace('.', ',')} por peça (já está no custo)</Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
   /**
    * Atualizar custo do item
    */
@@ -1237,6 +1271,10 @@ export default function AddStockEntryScreen() {
         selling_price: item.product?.price || undefined,
         notes: item.notes || undefined,
         supplier_id: item.supplier_id ?? undefined,
+        list_unit_cost: (() => {
+          const l = parseCost(itemListPrices[item.id] || '0');
+          return l > item.unit_cost ? l : undefined;
+        })(),
       })),
     };
 
@@ -1341,6 +1379,7 @@ export default function AddStockEntryScreen() {
             )}
           </View>
         </View>
+        {renderListPriceInput(item)}
       </View>
     );
   };
@@ -1419,6 +1458,7 @@ export default function AddStockEntryScreen() {
                 )}
               </View>
             </View>
+            {renderListPriceInput(item)}
             {/* Chip de fornecedor */}
             <TouchableOpacity
               style={[

@@ -22,7 +22,7 @@ export default function SupplierCostsScreen() {
     <View style={styles.container}>
       <PageHeader
         title="Custos"
-        subtitle="Quem vende mais barato"
+        subtitle="Preço pago em cada fornecedor, já com o desconto"
         showBackButton
         onBack={() => router.replace('/suppliers' as any)}
       />

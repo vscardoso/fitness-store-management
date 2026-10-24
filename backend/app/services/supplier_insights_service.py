@@ -91,6 +91,36 @@ class SupplierInsightsService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def _discount_units(self, tenant_id: int) -> Dict[int, float]:
+        """{item da entrada: desconto por peça} só das entradas que têm algum desconto (geral ou de fornecedor).
+        É a mesma conta do rateio do custo, calculada sem gravar: relatórios de fornecedor mostram o preço PAGO."""
+        from app.models.entry_supplier_discount import EntrySupplierDiscount
+        from app.services import lot_cost_service
+        ids = set((await self.db.execute(
+            select(StockEntry.id).where(
+                StockEntry.tenant_id == tenant_id, StockEntry.is_active == True, StockEntry.discount_amount > 0  # noqa: E712
+            )
+        )).scalars().all())
+        ids |= set((await self.db.execute(
+            select(EntrySupplierDiscount.entry_id).where(
+                EntrySupplierDiscount.tenant_id == tenant_id, EntrySupplierDiscount.is_active == True,  # noqa: E712
+                EntrySupplierDiscount.amount > 0,
+            )
+        )).scalars().all())
+        if not ids:
+            return {}
+        calc = await lot_cost_service.recompute_entries(self.db, ids, tenant_id=tenant_id, dry_run=True)
+        out: Dict[int, float] = {}
+        for data in calc.values():
+            for item_id, (_freight, disc) in data.get("items", {}).items():
+                if disc:
+                    out[item_id] = float(disc)
+        return out
+
+    async def paid_cost_history(self, tenant_id: int) -> Dict[tuple, List[tuple]]:
+        """(fornecedor, produto) -> [(data, preço pago médio por peça)], já com os descontos."""
+        return await self._cost_history(tenant_id)
+
     # ------------------------------------------------------------------ ranking
     async def ranking(self, tenant_id: int, days: int = 180) -> Dict[str, Any]:
         """Ranking de fornecedores pelas compras feitas nos últimos `days` dias (0 = todas)."""
@@ -118,6 +148,7 @@ class SupplierInsightsService:
         if since:
             stmt = stmt.where(StockEntry.entry_date >= since)
         rows = (await self.db.execute(stmt)).all()
+        disc_units = await self._discount_units(tenant_id)
 
         agg: Dict[int, Dict[str, Any]] = {}
         item_to_supplier: Dict[int, int] = {}
@@ -128,7 +159,7 @@ class SupplierInsightsService:
                 "products": set(), "entries": set(), "last_purchase": None,
                 "revenue": 0.0, "cogs": 0.0, "units_sold_fifo": 0,
             })
-            c = _f(cost)
+            c = max(_f(cost) - disc_units.get(item_id, 0.0), 0.0)   # preço pago: tabela da compra menos o desconto
             a["purchased_qty"] += recv
             a["purchased_cost"] += recv * c
             a["remaining_qty"] += remaining
@@ -255,7 +286,7 @@ class SupplierInsightsService:
             p = by_product.setdefault(prod_id, {"product_id": prod_id, "product_name": prod_name, "suppliers": []})
             hist = history.get((sup_id, prod_id), [])
             previous = hist[-2][1] if len(hist) >= 2 else None
-            current = _f(last_cost)
+            current = hist[-1][1] if hist else _f(last_cost)   # preço pago na última compra, já com desconto
             change = ((current - previous) / previous * 100) if previous else None
             p["suppliers"].append({
                 "supplier_id": sup_id,
@@ -305,7 +336,7 @@ class SupplierInsightsService:
         """(fornecedor, produto) -> [(data, custo médio ponderado da compra)] em ordem cronológica."""
         rows = (await self.db.execute(
             select(EntryItem.supplier_id, EntryItem.product_id, EntryItem.entry_id, StockEntry.entry_date,
-                   EntryItem.quantity_received, EntryItem.unit_cost)
+                   EntryItem.quantity_received, EntryItem.unit_cost, EntryItem.id)
             .join(StockEntry, StockEntry.id == EntryItem.entry_id)
             .where(
                 EntryItem.tenant_id == tenant_id,
@@ -315,11 +346,12 @@ class SupplierInsightsService:
                 EntryItem.product_id.is_not(None),
             )
         )).all()
+        disc_units = await self._discount_units(tenant_id)
         per_entry: Dict[tuple, Dict[int, list]] = defaultdict(dict)
-        for sup_id, prod_id, entry_id, entry_date, qty, cost in rows:
+        for sup_id, prod_id, entry_id, entry_date, qty, cost, item_id in rows:
             slot = per_entry[(sup_id, prod_id)].setdefault(entry_id, [entry_date, 0, 0.0])
             slot[1] += qty
-            slot[2] += qty * _f(cost)
+            slot[2] += qty * max(_f(cost) - disc_units.get(item_id, 0.0), 0.0)
         out: Dict[tuple, List[tuple]] = {}
         for key, entries in per_entry.items():
             seq = sorted(((d, (t / q) if q else 0.0, eid) for eid, (d, q, t) in entries.items()),
@@ -379,9 +411,11 @@ class SupplierInsightsService:
                    Supplier.is_active == True)  # noqa: E712
         )).all()
         best: Dict[int, Dict[str, Any]] = {}
+        paid_history = await self._cost_history(tenant_id)
         for prod_id, sup_id, cost, count, sup_name, phone in sp_rows:
+            _h = paid_history.get((sup_id, prod_id))
             cand = {"supplier_id": sup_id, "supplier_name": sup_name, "phone": phone,
-                    "last_unit_cost": _f(cost), "purchase_count": count}
+                    "last_unit_cost": _h[-1][1] if _h else _f(cost), "purchase_count": count}
             cur = best.get(prod_id)
             if cur is None or (cand["last_unit_cost"], -cand["purchase_count"]) < (cur["last_unit_cost"], -cur["purchase_count"]):
                 best[prod_id] = cand

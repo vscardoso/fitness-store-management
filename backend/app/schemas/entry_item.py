@@ -45,6 +45,7 @@ class EntryItemCreate(BaseModel):
     unit_cost: Decimal = Field(..., ge=0, description="Custo unitário")
     selling_price: Optional[Decimal] = Field(None, ge=0, description="Preço de venda do produto (atualiza o produto)")
     supplier_id: Optional[int] = Field(None, description="Fornecedor deste item (padrão: fornecedor da entrada)")
+    list_unit_cost: Optional[Decimal] = Field(None, ge=0, description="Preço de tabela por peça (opcional); o pago é unit_cost")
     notes: Optional[str] = Field(None, max_length=500, description="Observações")
     new_variant: Optional[NewVariantForItem] = Field(
         None, description="Cria esta variação (cor/tamanho) no produto e lança nela; use no lugar de variant_id"
@@ -66,6 +67,7 @@ class EntryItemUpdate(BaseModel):
     quantity_remaining: Optional[int] = Field(None, ge=0)
     unit_cost: Optional[Decimal] = Field(None, ge=0)
     sell_price: Optional[Decimal] = Field(None, ge=0, description="Preço de venda do produto")
+    list_unit_cost: Optional[Decimal] = Field(None, ge=0, description="Preço de tabela por peça (0 limpa)")
     notes: Optional[str] = Field(None, max_length=500)
     is_active: Optional[bool] = None
 
@@ -92,6 +94,7 @@ class EntryItemResponse(EntryItemBase):
     variant_id: Optional[int] = Field(None, description="ID da variante do produto")
     supplier_id: Optional[int] = Field(None, description="Fornecedor do item")
     supplier_name: Optional[str] = Field(None, description="Nome do fornecedor do item")
+    list_unit_cost: Optional[Decimal] = Field(None, description="Preço de tabela por peça (informativo)")
     quantity_remaining: int = Field(..., description="Quantidade restante")
     is_active: bool
     created_at: datetime

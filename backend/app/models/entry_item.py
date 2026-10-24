@@ -76,6 +76,14 @@ class EntryItem(BaseModel):
         comment="Custo unitário do produto nesta entrada"
     )
     
+    # Preço de tabela por peça (opcional). unit_cost continua sendo o que foi PAGO (já com o desconto do item);
+    # o desconto do item = tabela - pago, só para mostrar. Nunca entra de novo na conta do custo.
+    list_unit_cost: Mapped[Decimal | None] = mapped_column(
+        Numeric(10, 2),
+        nullable=True,
+        comment="Preço de tabela por peça (informativo); o pago é unit_cost"
+    )
+
     # Parte do custo do lote (viagem, frete, despesas ligadas ao lote) que cabe a CADA unidade deste item.
     # Calculado por app/services/lot_cost_service.py; nunca digitado à mão.
     extra_unit_cost: Mapped[Decimal] = mapped_column(

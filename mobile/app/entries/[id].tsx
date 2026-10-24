@@ -51,6 +51,8 @@ import { EntryType, EntryItemResponse } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { isManagerRole } from '@/utils/roles';
 import SendToSupplierModal from '@/components/entries/SendToSupplierModal';
+import AddProductToEntryModal from '@/components/entries/AddProductToEntryModal';
+import { setPresetEntry } from '@/utils/presetEntry';
 
 export default function StockEntryDetailsScreen() {
   const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
@@ -108,6 +110,8 @@ export default function StockEntryDetailsScreen() {
   // Estados
   const [refreshing, setRefreshing] = useState(false);
   const [supplierItem, setSupplierItem] = useState<EntryItemResponse | null>(null);
+  const [addProductOpen, setAddProductOpen] = useState(false);
+  const [editListPrice, setEditListPrice] = useState('');
   // Lançar outra variação (cor/tamanho) de um produto já cadastrado nesta entrada
   const [variantTarget, setVariantTarget] = useState<EntryItemResponse | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -194,11 +198,12 @@ export default function StockEntryDetailsScreen() {
    * Mutation: Atualizar item de entrada
    */
   const updateItemMutation = useMutation({
-    mutationFn: (data: { itemId: number; quantity_received?: number; unit_cost?: number; sell_price?: number; notes?: string }) =>
+    mutationFn: (data: { itemId: number; quantity_received?: number; unit_cost?: number; sell_price?: number; list_unit_cost?: number; notes?: string }) =>
       updateEntryItem(data.itemId, {
         quantity_received: data.quantity_received,
         unit_cost: data.unit_cost,
         sell_price: data.sell_price,
+        list_unit_cost: data.list_unit_cost,
         notes: data.notes,
       }),
     onSuccess: async () => {
@@ -323,6 +328,8 @@ export default function StockEntryDetailsScreen() {
 
     setEditQuantity(item.quantity_received.toString());
     setEditCost(costNum > 0 ? costNum.toFixed(2).replace('.', ',') : '');
+    const listNum = parseFloat(String(item.list_unit_cost ?? 0).replace(',', '.')) || 0;
+    setEditListPrice(listNum > 0 ? listNum.toFixed(2).replace('.', ',') : '');
     setEditPrice(priceNum > 0 ? priceNum.toFixed(2).replace('.', ',') : '');
     setEditNotes(item.notes || '');
     setEditItemDialog({ visible: true, item });
@@ -364,12 +371,19 @@ export default function StockEntryDetailsScreen() {
       return;
     }
 
+    const listPrice = unmaskCurrency(editListPrice) || 0;
+    if (listPrice > 0 && listPrice < cost) {
+      setErrorDialog({ visible: true, message: 'O preço de tabela não pode ser menor que o preço pago.' });
+      return;
+    }
+
     // Enviar atualização
     updateItemMutation.mutate({
       itemId: editItemDialog.item.id,
       quantity_received: quantity,
       unit_cost: cost,
       sell_price: price,
+      list_unit_cost: listPrice,
       notes: editNotes.trim() || undefined,
     });
   };
@@ -381,6 +395,7 @@ export default function StockEntryDetailsScreen() {
     setEditItemDialog({ visible: false, item: null });
     setEditQuantity('');
     setEditCost('');
+    setEditListPrice('');
     setEditPrice('');
     setEditNotes('');
   };
@@ -560,6 +575,9 @@ export default function StockEntryDetailsScreen() {
                 ((itemNumbers.discount_unit_cost ?? 0) > 0 ? ` - ${formatCurrency(itemNumbers.discount_unit_cost ?? 0)} de desconto` : '') +
                 ')'
               : ''}
+            {(itemNumbers.item_discount_unit ?? 0) > 0
+              ? ` · Tabela ${formatCurrency(itemNumbers.list_unit_cost ?? 0)}, pago ${formatCurrency(itemNumbers.merchandise_unit_cost)} (${formatCurrency(itemNumbers.item_discount_unit ?? 0)} de desconto no item)`
+              : ''}
             {' · '}Venda {formatCurrency(itemNumbers.sell_price)}
             {' · '}Lucro {formatCurrency(itemNumbers.profit_per_unit)} por peça
             {' · '}Markup {itemNumbers.markup_pct.toFixed(0)}%
@@ -672,6 +690,12 @@ export default function StockEntryDetailsScreen() {
 
   return (
     <View style={styles.container}>
+      <AddProductToEntryModal
+        visible={addProductOpen}
+        entryId={entryId}
+        entrySupplierName={entry.supplier_name}
+        onClose={() => setAddProductOpen(false)}
+      />
       <SendToSupplierModal
         visible={!!supplierItem}
         entryItemId={supplierItem?.id ?? null}
@@ -864,6 +888,31 @@ export default function StockEntryDetailsScreen() {
           <Text style={styles.sectionTitleLarge}>
             Produtos ({entry.entry_items?.length || 0})
           </Text>
+          {isManagerRole(user?.role) && (
+            <View style={styles.itemActionsRow}>
+              <TouchableOpacity
+                onPress={() => setAddProductOpen(true)}
+                style={[styles.editItemButton, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12' }]}
+                activeOpacity={0.7}
+                accessibilityLabel="Adicionar um produto já cadastrado a esta entrada"
+              >
+                <Ionicons name="add-circle-outline" size={14} color={brandingColors.primary} />
+                <Text style={[styles.editItemButtonText, { color: brandingColors.primary }]}>Produto já cadastrado</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => {
+                  setPresetEntry(entryId);
+                  router.push('/products/wizard' as any);
+                }}
+                style={[styles.editItemButton, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12' }]}
+                activeOpacity={0.7}
+                accessibilityLabel="Cadastrar um produto novo e lançar nesta entrada"
+              >
+                <Ionicons name="sparkles-outline" size={14} color={brandingColors.primary} />
+                <Text style={[styles.editItemButtonText, { color: brandingColors.primary }]}>Produto novo</Text>
+              </TouchableOpacity>
+            </View>
+          )}
           {entry.entry_items && entry.entry_items.length > 0 ? (
             entry.entry_items.map(renderProductItem)
           ) : (
@@ -1069,6 +1118,24 @@ export default function StockEntryDetailsScreen() {
               placeholderTextColor={Colors.light.textTertiary}
             />
           </View>
+
+          <Text style={styles.inputLabel}>Preço de tabela (R$), opcional</Text>
+          <View style={styles.nativeInputRow}>
+            <Text style={styles.inputPrefix}>R$</Text>
+            <RNTextInput
+              value={editListPrice}
+              onChangeText={(text) => setEditListPrice(maskCurrencyBR(text))}
+              keyboardType="numeric"
+              style={[styles.nativeInput, { flex: 1, marginBottom: 0, borderWidth: 0 }]}
+              placeholder="Quanto custaria sem o desconto"
+              placeholderTextColor={Colors.light.textTertiary}
+            />
+          </View>
+          {unmaskCurrency(editListPrice) > unmaskCurrency(editCost) && unmaskCurrency(editCost) > 0 && (
+            <Text style={styles.helperWarning}>
+              Desconto no item: {formatCurrency(unmaskCurrency(editListPrice) - unmaskCurrency(editCost))} por peça (já está no preço pago)
+            </Text>
+          )}
 
           <Text style={styles.inputLabel}>Preço de Venda (R$)</Text>
           <View style={styles.nativeInputRow}>

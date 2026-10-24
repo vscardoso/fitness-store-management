@@ -192,3 +192,83 @@ async def test_fornecedor_em_produto_novo_numa_entrada_existente(test_client, as
     assert r.status_code == 400, r.text
     async_session.expire_all()
     assert (await async_session.execute(select(Product).where(Product.name == "Macaquinho Fantasma"))).first() is None
+
+
+# ───────────────────── preço de tabela por item e preço PAGO nos relatórios ─────────────────────
+
+async def _compra(client, h, entry_code, supplier_name, product_id, variant_id, qty, cost, **extra):
+    from datetime import date
+    r = await client.post("/api/v1/stock-entries/", headers=h, json={
+        "entry_date": date.today().isoformat(), "entry_code": entry_code, "entry_type": "local",
+        "supplier_name": supplier_name,
+        "items": [{"product_id": product_id, "variant_id": variant_id, "quantity_received": qty, "unit_cost": cost,
+                   **extra.get("item", {})}],
+        **{k: v for k, v in extra.items() if k != "item"}})
+    assert r.status_code == 201, r.text
+    return r.json()["id"]
+
+
+async def test_preco_de_tabela_no_item_nao_muda_o_custo_e_aparece_na_analise(test_client, async_session, test_user):
+    ids, h = await _entrada_dois_fornecedores(async_session, test_user)
+    p, v = await _produto(async_session, ids.t, ids.cat, "Top Tabela", "90.00")
+    p_id, v_id = p.id, v.id
+    await async_session.commit()
+    e = await _compra(test_client, h, "TABELA-0001", "Forn Tabela", p_id, v_id, 4, 25, item={"list_unit_cost": 30})
+    a = (await test_client.get(f"/api/v1/stock-entries/{e}/analytics", headers=h)).json()
+    c = (await test_client.get(f"/api/v1/stock-entries/{e}/costs", headers=h)).json()
+    item = a["items"][0]
+    assert item["list_unit_cost"] == 30.0 and item["item_discount_unit"] == 5.0
+    assert item["merchandise_unit_cost"] == 25.0 and item["landed_unit_cost"] == 25.0   # o pago já é o custo: nada é abatido de novo
+    assert c["item_discounts_total"] == 20.0 and c["total_investment"] == 100.0
+    # tabela menor que o pago é recusada; tabela igual ao pago não vira desconto
+    from datetime import date
+    r = await test_client.post("/api/v1/stock-entries/", headers=h, json={
+        "entry_date": date.today().isoformat(), "entry_code": "TABELA-0002", "entry_type": "local", "supplier_name": "Forn Tabela",
+        "items": [{"product_id": p_id, "variant_id": v_id, "quantity_received": 1, "unit_cost": 25, "list_unit_cost": 20}]})
+    assert r.status_code in (400, 422), r.text
+    e2 = await _compra(test_client, h, "TABELA-0003", "Forn Tabela", p_id, v_id, 2, 25, item={"list_unit_cost": 25})
+    c2 = (await test_client.get(f"/api/v1/stock-entries/{e2}/costs", headers=h)).json()
+    assert c2["item_discounts_total"] == 0.0
+    # editar o item: põe e tira o preço de tabela sem mexer no custo nem no estoque
+    item_id = a["items"][0]["item_id"]
+    r = await test_client.put(f"/api/v1/stock-entries/entry-items/{item_id}", headers=h, json={"list_unit_cost": 40})
+    assert r.status_code == 200, r.text
+    a = (await test_client.get(f"/api/v1/stock-entries/{e}/analytics", headers=h)).json()
+    assert a["items"][0]["item_discount_unit"] == 15.0 and a["items"][0]["landed_unit_cost"] == 25.0
+    r = await test_client.put(f"/api/v1/stock-entries/entry-items/{item_id}", headers=h, json={"list_unit_cost": 0})
+    assert r.status_code == 200
+    a = (await test_client.get(f"/api/v1/stock-entries/{e}/analytics", headers=h)).json()
+    assert a["items"][0]["list_unit_cost"] is None and a["items"][0]["item_discount_unit"] == 0.0
+
+
+async def test_relatorios_de_fornecedor_mostram_o_preco_pago_com_desconto(test_client, async_session, test_user):
+    ids, h = await _entrada_dois_fornecedores(async_session, test_user)
+    p, v = await _produto(async_session, ids.t, ids.cat, "Short Comparado", "90.00")
+    p_id, v_id = p.id, v.id
+    await async_session.commit()
+    # o banco de teste reaproveita ids: tira vínculos antigos que apontem para este id de produto
+    from sqlalchemy import delete
+    from app.models.supplier_product import SupplierProduct
+    await async_session.execute(delete(SupplierProduct).where(SupplierProduct.product_id == p_id))
+    await async_session.commit()
+    # dois fornecedores vendem o mesmo produto a R$ 10; o Y deu R$ 20 de desconto nas 10 peças (paga R$ 8 por peça)
+    await _compra(test_client, h, "COMP-X-0001", "Forn Comp X", p_id, v_id, 10, 10)
+    ey = await _compra(test_client, h, "COMP-Y-0001", "Forn Comp Y", p_id, v_id, 10, 10)
+    assert (await test_client.put(f"/api/v1/stock-entries/{ey}", headers=h, json={"discount_amount": 20})).status_code == 200
+
+    comp = (await test_client.get("/api/v1/suppliers/cost-comparison", headers=h)).json()
+    prod = next(x for x in comp["products"] if x["product_id"] == p_id)
+    por = {s["supplier_name"]: s for s in prod["suppliers"]}
+    assert por["Forn Comp X"]["last_unit_cost"] == 10.0
+    assert por["Forn Comp Y"]["last_unit_cost"] == 8.0, "a comparação tem que usar o preço PAGO, com o desconto"
+    assert prod["cheapest_supplier_name"] == "Forn Comp Y" and prod["savings_per_unit"] == 2.0
+
+    card = (await test_client.get(f"/api/v1/products/{p_id}/suppliers", headers=h)).json()
+    assert {float(s["last_unit_cost"]) for s in card} == {10.0, 8.0}
+
+    rank = (await test_client.get("/api/v1/suppliers/ranking?days=0", headers=h)).json()
+    y = next(s for s in rank["suppliers"] if s["supplier_name"] == "Forn Comp Y")
+    assert y["purchased_cost"] == 80.0 and y["stock_cost"] == 80.0   # 10 peças a R$ 8 pagos
+    # mesmo assim o estoque e o custo das peças seguem a conta do lote (nada duplicado)
+    a = (await test_client.get(f"/api/v1/stock-entries/{ey}/analytics", headers=h)).json()
+    assert a["items"][0]["landed_unit_cost"] == 8.0 and a["total_investment"] == 80.0

@@ -3,6 +3,7 @@ Endpoints do Catálogo de Fornecedores.
 """
 from typing import List, Optional
 
+from decimal import Decimal
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -159,6 +160,13 @@ async def get_product_suppliers(
     svc = SupplierService(db)
     items = await svc.get_product_suppliers(product_id, tenant_id)
     rows = [_sp_to_response(sp) for sp in items]
+    # preço PAGO na última compra (com o desconto do fornecedor), igual ao da comparação e dos relatórios
+    from app.services.supplier_insights_service import SupplierInsightsService
+    paid = await SupplierInsightsService(db).paid_cost_history(tenant_id)
+    for sp, row in zip(items, rows):
+        hist = paid.get((sp.supplier_id, sp.product_id))
+        if hist:
+            row.last_unit_cost = Decimal(str(round(hist[-1][1], 2)))
     if len(rows) > 1:
         # Selo só quando há diferença real (empate não destaca ninguém)
         costs = [r.last_unit_cost for r in rows]

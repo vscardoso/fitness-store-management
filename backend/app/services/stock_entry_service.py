@@ -377,6 +377,10 @@ class StockEntryService:
                             "informe a variação (variant_id) de cada item da entrada."
                         )
 
+                if item_dict.get('list_unit_cost') is not None:
+                    self._check_list_price(item_dict['list_unit_cost'], item_dict.get('unit_cost'))
+                    if Decimal(str(item_dict['list_unit_cost'])) == Decimal(str(item_dict.get('unit_cost') or 0)):
+                        item_dict['list_unit_cost'] = None  # tabela igual ao pago: sem desconto no item
                 # Fornecedor do item: o informado (validado) ou o padrão da entrada
                 if item_dict.get('supplier_id'):
                     item_supplier = await self._resolve_supplier(item_dict['supplier_id'], None, None, None, tenant_id)
@@ -682,6 +686,8 @@ class StockEntryService:
                 "extra_unit_cost": float(i.extra_unit_cost or 0),
                 "freight_unit_cost": float(breakdown.get(i.id, (Decimal('0'), Decimal('0')))[0]),     # frete e viagem por peça
                 "discount_unit_cost": float(breakdown.get(i.id, (Decimal('0'), Decimal('0')))[1]),    # desconto por peça
+                "list_unit_cost": float(i.list_unit_cost) if i.list_unit_cost is not None else None,    # preço de tabela (opcional)
+                "item_discount_unit": float(max(Decimal(str(i.list_unit_cost)) - i.unit_cost, Decimal('0'))) if i.list_unit_cost is not None else 0.0,
                 "landed_unit_cost": float(landed),
                 "sell_price": float(price),
                 "profit_per_unit": float(profit_unit),
@@ -758,6 +764,14 @@ class StockEntryService:
                 stock_entry_id=None if of_trip else entry.id,
             ))
         await self.db.flush()
+
+    @staticmethod
+    def _check_list_price(list_unit_cost, unit_cost) -> None:
+        """Preço de tabela, quando informado, não pode ser menor que o pago (senão o 'desconto' seria negativo)."""
+        if list_unit_cost is None:
+            return
+        if Decimal(str(list_unit_cost)) < Decimal(str(unit_cost or 0)):
+            raise InvalidEntryData("O preço de tabela não pode ser menor que o preço pago")
 
     async def _applied_discount(self, entry, tenant_id: int) -> Decimal:
         """Desconto que REALMENTE entrou no custo das peças (já limitado ao custo delas), para cartões e relatórios
@@ -848,6 +862,12 @@ class StockEntryService:
             "lot_expenses_total": float(own),
             "discount_amount": float(total_discount),          # geral + por fornecedor
             "general_discount": float(entry.discount_amount or 0),
+            # desconto negociado no preço de cada peça: já está no custo pago, só é mostrado (não é abatido de novo)
+            "item_discounts_total": float(sum(
+                (Decimal(str(i.quantity_received)) * max(Decimal(str(i.list_unit_cost)) - i.unit_cost, Decimal('0'))
+                 for i in entry.entry_items if i.is_active and i.list_unit_cost is not None),
+                Decimal('0'),
+            )),
             "suppliers": suppliers_info,
             "extra_costs_total": float(extra_total),
             "total_investment": float(merchandise + extra_total),
@@ -1553,6 +1573,16 @@ class StockEntryService:
                     _variant.cost_price = Decimal(str(new_unit_cost))
                     await self.db.flush()
 
+        # Preço de tabela (0 ou igual ao pago limpa o desconto do item)
+        if 'list_unit_cost' in item_data and item_data['list_unit_cost'] is not None:
+            _new_list = Decimal(str(item_data['list_unit_cost']))
+            _paid = Decimal(str(update_data.get('unit_cost', old_unit_cost)))
+            if _new_list == 0 or _new_list == _paid:
+                update_data['list_unit_cost'] = None
+            else:
+                self._check_list_price(_new_list, _paid)
+                update_data['list_unit_cost'] = _new_list
+
         # Atualizar notes se fornecido
         if 'notes' in item_data and item_data['notes'] is not None:
             update_data['notes'] = item_data['notes']
@@ -1852,6 +1882,10 @@ class StockEntryService:
                 )
             default_variant = active_variants[0] if active_variants else None
 
+        self._check_list_price(item_data.get('list_unit_cost'), unit_cost)
+        _list = item_data.get('list_unit_cost')
+        if _list is not None and Decimal(str(_list)) == Decimal(str(unit_cost)):
+            _list = None
         # Fornecedor do item: o informado (validado na loja) ou o fornecedor da entrada
         item_supplier_id = entry.supplier_id
         if item_data.get('supplier_id') or item_data.get('supplier_name'):
@@ -1867,6 +1901,7 @@ class StockEntryService:
             product_id=product_id,
             variant_id=default_variant.id if default_variant else None,
             supplier_id=item_supplier_id,
+            list_unit_cost=Decimal(str(_list)) if _list is not None else None,
             quantity_received=quantity_received,
             quantity_remaining=quantity_received,  # Novo, então todo estoque está disponível
             unit_cost=Decimal(str(unit_cost)),

@@ -93,6 +93,10 @@ export interface LotItemNumbers {
   extra_unit_cost: number;
   /** Parte do custo que é frete e viagem, por peça. */
   freight_unit_cost?: number;
+  /** Preço de tabela por peça (opcional); o pago é o custo da mercadoria. */
+  list_unit_cost?: number | null;
+  /** Desconto negociado no preço da peça (tabela - pago); já está no custo, só é mostrado. */
+  item_discount_unit?: number;
   /** Parte do custo que o desconto do fornecedor tirou, por peça. */
   discount_unit_cost?: number;
   landed_unit_cost: number;
@@ -122,6 +126,8 @@ export interface LotCosts {
   discount_amount: number;
   /** Parte que vale para todos os itens da entrada. */
   general_discount?: number;
+  /** Soma dos descontos negociados nos preços das peças (já dentro do custo pago). */
+  item_discounts_total?: number;
   /** Fornecedores da entrada, com a mercadoria e o desconto de cada um. */
   suppliers?: Array<{ supplier_id: number; name: string; merchandise: number; discount: number }>;
   extra_costs_total: number;
@@ -370,6 +376,8 @@ export async function updateEntryItem(
     quantity_received?: number;
     unit_cost?: number;
     sell_price?: number;
+    /** Preço de tabela por peça; 0 limpa. */
+    list_unit_cost?: number;
     notes?: string;
   }
 ): Promise<{
@@ -417,6 +425,8 @@ export async function addItemToEntry(
     notes?: string;
     /** Fornecedor deste item (padrão: o da entrada). */
     supplier_id?: number | null;
+    /** Preço de tabela por peça (opcional). */
+    list_unit_cost?: number;
   }
 ): Promise<{
   id: number;

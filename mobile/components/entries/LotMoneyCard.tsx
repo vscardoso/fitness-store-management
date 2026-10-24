@@ -173,6 +173,15 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
           onRemove={() => setRemoveTarget({ supplierId: s.supplier_id, label: `o desconto de ${s.name}`, amount: s.discount })}
         />
       ))}
+      {(c.item_discounts_total ?? 0) > 0 && (
+        <View>
+          <View style={styles.row}>
+            <Text style={[styles.rowLabel, { flex: 1 }]}>Desconto negociado nos preços das peças</Text>
+            <Text style={[styles.rowValue, { color: VALUE_COLORS.positive }]}>{formatCurrency(c.item_discounts_total ?? 0)}</Text>
+          </View>
+          <Text style={styles.hint}>Diferença entre o preço de tabela e o que você pagou. Já está no valor pago pela mercadoria, por isso não é abatido de novo no total.</Text>
+        </View>
+      )}
       {supplierList.length > 1 && (
         <View style={{ marginTop: 6 }}>
           <Text style={[styles.rowLabel, styles.bold]}>Quanto cada fornecedor custou</Text>
