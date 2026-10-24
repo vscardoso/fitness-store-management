@@ -88,7 +88,7 @@ export default function SupplierRestockScreen() {
                 key={c.days}
                 onPress={() => setCover(c.days)}
                 activeOpacity={0.8}
-                style={[styles.period, active && { backgroundColor: Colors.light.primaryLight, borderColor: brandingColors.primary }]}
+                style={[styles.period, active && { backgroundColor: brandingColors.primary + '20', borderColor: brandingColors.primary }]}
               >
                 <Text style={[styles.periodText, active && { color: brandingColors.primary }]}>{c.label}</Text>
               </TouchableOpacity>

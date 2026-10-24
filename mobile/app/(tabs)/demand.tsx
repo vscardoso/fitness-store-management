@@ -2,7 +2,7 @@
  * Tela de Demanda Wishlist — produtos mais desejados pelos clientes.
  * Exclusiva para vendedora/admin. Acessível via Menu.
  */
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -26,6 +26,7 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function DemandScreen() {
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const {
     data: items = [],
     isLoading,
@@ -82,7 +83,7 @@ export default function DemandScreen() {
       <View style={styles.container}>
         <PageHeader title="Demanda Wishlist" subtitle="Carregando..." />
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={brandingColors.primary} />
         </View>
       </View>
     );
@@ -148,7 +149,7 @@ export default function DemandScreen() {
           <RefreshControl
             refreshing={isRefetching}
             onRefresh={refetch}
-            colors={[Colors.light.primary]}
+            colors={[brandingColors.primary]}
           />
         }
         ListHeaderComponent={
@@ -168,7 +169,7 @@ export default function DemandScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
@@ -281,7 +282,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: theme.borderRadius.full,
-    backgroundColor: `${Colors.light.primary}15`,
+    backgroundColor: `${brand}15`,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,

@@ -41,7 +41,7 @@ const getCategoryIcon = (name: string): keyof typeof Ionicons.glyphMap => {
 
 // ── Cores para ícones de categorias (ciclo) ──
 const CATEGORY_COLORS = [
-  '#6366F1', '#10B981', '#F59E0B', '#EF4444',
+  Colors.light.primary, '#10B981', '#F59E0B', '#EF4444',
   '#3B82F6', '#EC4899', '#8B5CF6', '#06B6D4',
 ];
 

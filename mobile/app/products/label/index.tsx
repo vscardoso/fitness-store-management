@@ -3,7 +3,7 @@
  * aproveitando a folha inteira sem desperdício.
  */
 
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -29,7 +29,7 @@ import LabelProductPickerModal, { type PickedItem } from '@/components/labels/La
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
-import { Colors } from '@/constants/Colors';
+import { Colors, VALUE_COLORS } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { useBrandingColors } from '@/store/brandingStore';
 
@@ -79,6 +79,7 @@ export default function LabelStudioScreen() {
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/products');
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const viewShotRef = useRef<ViewShot>(null);
 
   const headerOpacity = useSharedValue(0);
@@ -540,7 +541,7 @@ export default function LabelStudioScreen() {
                     style={[styles.qtyBtn, item.quantity <= 0 && styles.qtyBtnDisabled]}
                     disabled={item.quantity <= 0}
                   >
-                    <Ionicons name="remove" size={16} color={item.quantity <= 0 ? Colors.light.textTertiary : Colors.light.primary} />
+                    <Ionicons name="remove" size={16} color={item.quantity <= 0 ? Colors.light.textTertiary : brandingColors.primary} />
                   </TouchableOpacity>
                   <Text style={[styles.qtyValue, item.quantity === 0 && styles.qtyZero]}>
                     {item.quantity}
@@ -549,7 +550,7 @@ export default function LabelStudioScreen() {
                     onPress={() => changeQty(item.key, 1)}
                     style={styles.qtyBtn}
                   >
-                    <Ionicons name="add" size={16} color={Colors.light.primary} />
+                    <Ionicons name="add" size={16} color={brandingColors.primary} />
                   </TouchableOpacity>
 
                   <TouchableOpacity
@@ -723,7 +724,7 @@ export default function LabelStudioScreen() {
 
 // ─── Estilos ─────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
   scrollWrap: { flex: 1 },
   scroll: { flex: 1 },
@@ -907,7 +908,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8,
     backgroundColor: Colors.light.backgroundSecondary,
   },
-  actionBtnText: { fontSize: 12, fontWeight: '600', color: Colors.light.primary },
+  actionBtnText: { fontSize: 12, fontWeight: '600', color: brand },
 
   itemRow: {
     flexDirection: 'row',
@@ -920,12 +921,12 @@ const styles = StyleSheet.create({
   itemInfo: { flex: 1 },
   itemName: { fontSize: 14, fontWeight: '600', color: Colors.light.text },
   itemMeta: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 },
-  itemPrice: { fontSize: 13, color: Colors.light.primary, fontWeight: '600' },
+  itemPrice: { fontSize: 13, color: VALUE_COLORS.neutral, fontWeight: '600' },
   itemStock: { fontSize: 12, color: Colors.light.textSecondary },
   itemControls: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   qtyBtn: {
     width: 32, height: 32, borderRadius: 16,
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
     alignItems: 'center', justifyContent: 'center',
   },
   qtyBtnDisabled: { backgroundColor: Colors.light.backgroundSecondary },

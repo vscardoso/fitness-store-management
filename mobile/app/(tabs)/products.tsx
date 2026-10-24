@@ -262,7 +262,7 @@ export default function ProductsScreen() {
         />
 
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={brandingColors.primary} />
           <Text style={styles.loadingText}>Carregando produtos...</Text>
         </View>
       </View>
@@ -431,7 +431,7 @@ export default function ProductsScreen() {
             <RefreshControl
               refreshing={isRefetching}
               onRefresh={refetch}
-              colors={[Colors.light.primary]}
+              colors={[brandingColors.primary]}
             />
           }
           onEndReached={() => {
@@ -443,7 +443,7 @@ export default function ProductsScreen() {
           ListFooterComponent={
             isFetchingNextPage ? (
               <View style={styles.loadingMore}>
-                <ActivityIndicator size="small" color={Colors.light.primary} />
+                <ActivityIndicator size="small" color={brandingColors.primary} />
                 <Text style={styles.loadingMoreText}>Carregando mais...</Text>
               </View>
             ) : null

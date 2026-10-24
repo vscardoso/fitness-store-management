@@ -286,7 +286,7 @@ export default function SaleDetailsScreen() {
         {sale.payments.length > 0 && (
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="wallet-outline" size={17} color={Colors.light.primary} />
+              <Ionicons name="wallet-outline" size={17} color={brandingColors.primary} />
               <Text style={styles.sectionTitle}>
                 {sale.payments.length === 1 ? 'Pagamento' : 'Pagamentos'}
               </Text>
@@ -296,7 +296,7 @@ export default function SaleDetailsScreen() {
                 {i > 0 && <View style={styles.itemDivider} />}
                 <View style={styles.paymentRow}>
                   <View style={styles.paymentIconWrap}>
-                    <Ionicons name={(paymentIcon[p.method] ?? 'cash') as any} size={18} color={Colors.light.primary} />
+                    <Ionicons name={(paymentIcon[p.method] ?? 'cash') as any} size={18} color={brandingColors.primary} />
                   </View>
                   <View style={styles.paymentMethodInfo}>
                     <Text style={styles.paymentMethodLabel}>{paymentLabel[p.method] || p.method}</Text>
@@ -346,7 +346,7 @@ export default function SaleDetailsScreen() {
         {/* ── ITENS + TOTAIS (card unificado) ──────────────────── */}
         <View style={styles.card}>
           <View style={styles.sectionHeader}>
-            <Ionicons name="list-outline" size={17} color={Colors.light.primary} />
+            <Ionicons name="list-outline" size={17} color={brandingColors.primary} />
             <Text style={styles.sectionTitle}>
               Itens ({sale.items.length})
             </Text>
@@ -449,14 +449,14 @@ export default function SaleDetailsScreen() {
         {(sale.customer_id || sale.seller_name || sale.seller_id) && (
           <View style={styles.card}>
             <View style={styles.sectionHeader}>
-              <Ionicons name="people-outline" size={17} color={Colors.light.primary} />
+              <Ionicons name="people-outline" size={17} color={brandingColors.primary} />
               <Text style={styles.sectionTitle}>Envolvidos</Text>
             </View>
 
             {sale.customer_id && (
               <View style={styles.personRow}>
                 <View style={styles.personAvatar}>
-                  <Ionicons name="person" size={17} color={Colors.light.primary} />
+                  <Ionicons name="person" size={17} color={brandingColors.primary} />
                 </View>
                 <View style={styles.personInfo}>
                   <Text style={styles.personLabel}>CLIENTE</Text>

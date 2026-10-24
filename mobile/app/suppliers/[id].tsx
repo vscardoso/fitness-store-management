@@ -3,7 +3,7 @@
  * Exibe dados de contato + lista de produtos comprados
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -29,6 +29,7 @@ export default function SupplierDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const supplierId = id ? parseInt(id) : NaN;
   const isValidId = !isNaN(supplierId) && supplierId > 0;
 
@@ -298,7 +299,7 @@ export default function SupplierDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
@@ -354,7 +355,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   countBadge: {
-    backgroundColor: Colors.light.primaryLight,
+    backgroundColor: brand + '20',
     paddingHorizontal: 10,
     paddingVertical: 3,
     borderRadius: 12,
@@ -409,7 +410,7 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: theme.borderRadius.md,
-    backgroundColor: Colors.light.primaryLight,
+    backgroundColor: brand + '20',
     alignItems: 'center',
     justifyContent: 'center',
   },

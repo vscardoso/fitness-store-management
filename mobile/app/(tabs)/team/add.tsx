@@ -3,7 +3,7 @@
  * Formulário para adicionar novo membro à equipe
  */
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -41,6 +41,7 @@ const DIALOG_HIDDEN: DialogState = { visible: false, type: 'info', title: '', me
 
 export default function AddTeamMemberScreen() {
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -350,7 +351,7 @@ export default function AddTeamMemberScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
@@ -439,7 +440,7 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
@@ -485,6 +486,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   buttonPrimary: {
-    backgroundColor: Colors.light.primary,
+    backgroundColor: brand,
   },
 });

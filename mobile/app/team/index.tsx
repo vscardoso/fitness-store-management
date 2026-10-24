@@ -3,7 +3,7 @@
  * Lista e gerencia membros da equipe (usuários da loja)
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -47,6 +47,7 @@ const DIALOG_HIDDEN: DialogState = { visible: false, type: 'info', title: '', me
 
 export default function TeamScreen() {
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/more');
   const { user } = useAuth();
@@ -307,7 +308,7 @@ export default function TeamScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
@@ -421,7 +422,7 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
   },
   youBadge: {
-    backgroundColor: Colors.light.primary + '20',
+    backgroundColor: brand + '20',
     paddingHorizontal: theme.spacing.xs,
     paddingVertical: 2,
     borderRadius: theme.borderRadius.md,
@@ -429,7 +430,7 @@ const styles = StyleSheet.create({
   youBadgeText: {
     fontSize: theme.fontSize.xxs,
     fontWeight: '600',
-    color: Colors.light.primary,
+    color: brand,
   },
   memberEmail: {
     fontSize: theme.fontSize.sm,

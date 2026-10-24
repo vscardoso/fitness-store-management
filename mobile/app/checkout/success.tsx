@@ -216,7 +216,7 @@ export default function CheckoutSuccessScreen() {
           onBack={() => router.replace('/(tabs)')}
         />
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={brandingColors.primary} />
           <Text style={styles.loadingText}>
             Carregando detalhes da venda...
           </Text>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { Text, TextInput, Button } from 'react-native-paper';
 import * as ImagePicker from 'expo-image-picker';
@@ -10,8 +10,11 @@ import { useBrandingStore } from '@/store/brandingStore';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import useBackToList from '@/hooks/useBackToList';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useBrandingColors } from '@/store/brandingStore';
 
 export default function BrandingScreen() {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/more');
   const { branding, applyPreset, uploadLogoToServer, saveToServer, fetchFromServer, setBranding } = useBrandingStore();
@@ -223,7 +226,7 @@ export default function BrandingScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
   content: { padding: theme.spacing.md, gap: theme.spacing.lg, paddingBottom: 40 },
   section: {
@@ -249,7 +252,7 @@ const styles = StyleSheet.create({
   logoEditBadge: {
     position: 'absolute', bottom: 0, right: 0,
     width: 28, height: 28, borderRadius: 14,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: brand,
     alignItems: 'center', justifyContent: 'center',
     borderWidth: 2, borderColor: '#fff',
   },
@@ -260,7 +263,7 @@ const styles = StyleSheet.create({
     padding: theme.spacing.sm, borderRadius: theme.borderRadius.lg,
     borderWidth: 1.5, borderColor: Colors.light.border,
   },
-  presetActive: { borderColor: Colors.light.primary, backgroundColor: Colors.light.primaryLight },
+  presetActive: { borderColor: brand, backgroundColor: brand + '20' },
   presetColors: { flexDirection: 'row', gap: 4 },
   presetDot: { width: 14, height: 14, borderRadius: 7 },
   presetName: { flex: 1, fontSize: theme.fontSize.md, color: Colors.light.text },

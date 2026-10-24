@@ -29,6 +29,7 @@ export default function StockLossRegisterScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const params = useLocalSearchParams<{
     shipmentId: string;
     itemId: string;
@@ -549,7 +550,7 @@ export default function StockLossRegisterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.background,
@@ -755,7 +756,7 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.light.border,
   },
   productResultItemSelected: {
-    backgroundColor: Colors.light.primary + '10',
+    backgroundColor: brand + '10',
   },
   productResultName: {
     fontSize: theme.fontSize.sm,

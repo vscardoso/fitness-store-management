@@ -40,11 +40,12 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function RankCard({ row, onPress }: { row: SupplierRankingRow; onPress: () => void }) {
+  const brandingColors = useBrandingColors();
   const rating = RATING[row.rating] ?? RATING.sem_dados;
   return (
     <TouchableOpacity style={styles.card} activeOpacity={0.8} onPress={onPress}>
       <View style={styles.cardTop}>
-        <View style={[styles.position, { backgroundColor: row.position <= 3 && !row.low_data ? Colors.light.primaryLight : Colors.light.backgroundSecondary }]}>
+        <View style={[styles.position, { backgroundColor: row.position <= 3 && !row.low_data ? brandingColors.primary + '20' : Colors.light.backgroundSecondary }]}>
           <Text style={styles.positionText}>{row.position}º</Text>
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -106,7 +107,7 @@ export default function SupplierRankingScreen() {
                 key={p.days}
                 onPress={() => setDays(p.days)}
                 activeOpacity={0.8}
-                style={[styles.period, active && { backgroundColor: Colors.light.primaryLight, borderColor: brandingColors.primary }]}
+                style={[styles.period, active && { backgroundColor: brandingColors.primary + '20', borderColor: brandingColors.primary }]}
               >
                 <Text style={[styles.periodText, active && { color: brandingColors.primary }]}>{p.label}</Text>
               </TouchableOpacity>

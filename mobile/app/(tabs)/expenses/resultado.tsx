@@ -14,6 +14,7 @@ import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import type { MonthlyResult, ExpenseByCategoryItem } from '@/types/expense';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useBrandingColors } from '@/store/brandingStore';
 
 const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -21,6 +22,7 @@ const MONTHS = [
 ];
 
 export default function MonthlyResultScreen() {
+  const brandingColors = useBrandingColors();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
   const [month, setMonth] = useState(now.getMonth() + 1);
@@ -50,19 +52,19 @@ export default function MonthlyResultScreen() {
       {/* Navegação de mês */}
       <View style={styles.monthNav}>
         <TouchableOpacity onPress={prevMonth} style={styles.navBtn}>
-          <Ionicons name="chevron-back" size={24} color={Colors.light.primary} />
+          <Ionicons name="chevron-back" size={24} color={brandingColors.primary} />
         </TouchableOpacity>
         <Text style={styles.monthLabel}>
           {MONTHS[month - 1]} {year}
         </Text>
         <TouchableOpacity onPress={nextMonth} style={styles.navBtn} disabled={!canGoNext}>
-          <Ionicons name="chevron-forward" size={24} color={canGoNext ? Colors.light.primary : Colors.light.border} />
+          <Ionicons name="chevron-forward" size={24} color={canGoNext ? brandingColors.primary : Colors.light.border} />
         </TouchableOpacity>
       </View>
 
       {isLoading ? (
         <View style={styles.loading}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={brandingColors.primary} />
         </View>
       ) : data ? (
         <ScrollView contentContainerStyle={styles.content}>
@@ -75,6 +77,7 @@ export default function MonthlyResultScreen() {
 }
 
 function PLCard({ data }: { data: MonthlyResult }) {
+  const brandingColors = useBrandingColors();
   const netPositive = data.net_profit >= 0;
   return (
     <View style={styles.plCard}>
@@ -82,7 +85,7 @@ function PLCard({ data }: { data: MonthlyResult }) {
         <PLRow label="Quanto você vendeu" hint="Tudo que os clientes pagaram neste mês." value={data.revenue} color={Colors.light.success} icon="trending-up" />
         <PLRow label="Quanto custaram as peças vendidas" hint="O que você pagou por elas, já com a parte do frete e da viagem de cada compra." value={-data.cmv} color={Colors.light.warning} icon="cube-outline" isNegative />
         <View style={styles.divider} />
-        <PLRow label="Sobrou das vendas" hint="Vendas menos o custo das peças." value={data.gross_profit} color={Colors.light.primary} icon="analytics-outline" bold />
+        <PLRow label="Sobrou das vendas" hint="Vendas menos o custo das peças." value={data.gross_profit} color={data.gross_profit >= 0 ? Colors.light.success : Colors.light.error} icon="analytics-outline" bold />
         <Text style={styles.marginLabel}>De cada R$ 100 vendidos, R$ {Number(data.gross_margin_pct).toFixed(0)} sobraram depois de pagar as peças.</Text>
         <PLRow label="Gastos da loja" hint="Aluguel, luz, salários e outros gastos do mês. Frete e viagem de compras não entram aqui: já estão no custo das peças." value={-data.total_expenses} color={Colors.light.error} icon="receipt-outline" isNegative />
         {data.trip_costs > 0 && (

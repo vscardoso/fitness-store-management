@@ -137,7 +137,7 @@ export default function EditExpenseScreen() {
       <View style={styles.container}>
         <PageHeader title="Editar Despesa" showBackButton onBack={() => router.back()} />
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.light.primary} />
+          <ActivityIndicator size="large" color={brandingColors.primary} />
           <Text style={styles.loadingText}>Carregando despesa...</Text>
         </View>
       </View>
@@ -166,7 +166,7 @@ export default function EditExpenseScreen() {
           {/* Valor e Descrição */}
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <Ionicons name="receipt-outline" size={20} color={Colors.light.primary} />
+              <Ionicons name="receipt-outline" size={20} color={brandingColors.primary} />
               <Text style={styles.cardTitle}>Dados da Despesa</Text>
             </View>
             <View style={styles.cardContent}>
@@ -211,7 +211,7 @@ export default function EditExpenseScreen() {
           {/* Categoria */}
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <Ionicons name="list-outline" size={20} color={Colors.light.primary} />
+              <Ionicons name="list-outline" size={20} color={brandingColors.primary} />
               <Text style={styles.cardTitle}>Categoria</Text>
             </View>
             <View style={styles.cardContent}>
@@ -247,7 +247,7 @@ export default function EditExpenseScreen() {
           {/* Recorrência */}
           <View style={styles.card}>
             <View style={styles.cardHeader}>
-              <Ionicons name="repeat-outline" size={20} color={Colors.light.primary} />
+              <Ionicons name="repeat-outline" size={20} color={brandingColors.primary} />
               <Text style={styles.cardTitle}>Recorrência</Text>
             </View>
             <View style={styles.cardContent}>
@@ -259,7 +259,7 @@ export default function EditExpenseScreen() {
                 <Switch
                   value={isRecurring}
                   onValueChange={setIsRecurring}
-                  color={Colors.light.primary}
+                  color={brandingColors.primary}
                 />
               </View>
               {isRecurring && (

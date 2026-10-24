@@ -3,7 +3,7 @@
  * Visualizar e editar detalhes de um membro da equipe
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -37,6 +37,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 
 export default function TeamMemberDetailScreen() {
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
@@ -414,7 +415,7 @@ export default function TeamMemberDetailScreen() {
                     </Text>
                   </View>
                   <View style={[styles.adminOnlyBadge, { backgroundColor: brandingColors.primary + '15' }]}>
-                    <Ionicons name="shield-checkmark" size={14} color="#6366F1" />
+                    <Ionicons name="shield-checkmark" size={14} color={brandingColors.primary} />
                     <Text style={[styles.adminOnlyText, { color: brandingColors.primary }]}>Apenas Admin</Text>
                   </View>
                 </View>
@@ -606,7 +607,7 @@ export default function TeamMemberDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
@@ -720,7 +721,7 @@ const styles = StyleSheet.create({
   adminOnlyBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#6366F115',
+    backgroundColor: brand + '15',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -729,7 +730,7 @@ const styles = StyleSheet.create({
   adminOnlyText: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#6366F1',
+    color: brand,
   },
   roleReadOnlyDescription: {
     fontSize: 13,

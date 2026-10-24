@@ -93,7 +93,7 @@ export default function SuppliersIndexScreen() {
       onPress={() => router.push(`/suppliers/${item.id}` as any)}
       activeOpacity={0.75}
     >
-      <View style={[styles.cardIcon, { backgroundColor: Colors.light.primaryLight }]}>
+      <View style={[styles.cardIcon, { backgroundColor: brandingColors.primary + '20' }]}>
         <Ionicons name="business" size={22} color={brandingColors.primary} />
       </View>
       <View style={styles.cardContent}>

@@ -43,6 +43,7 @@ export default function SaleScreen() {
   const { user } = useAuth();
   const cart = useCart();
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const [scannerVisible, setScannerVisible] = useState(false);
   const [customerModalVisible, setCustomerModalVisible] = useState(false);
   const [productModalVisible, setProductModalVisible] = useState(false);
@@ -828,7 +829,7 @@ export default function SaleScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
@@ -1178,7 +1179,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.md,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: Colors.light.primary,
+    borderColor: brand,
   },
   discountTypeBtn: {
     paddingHorizontal: 10,
@@ -1186,12 +1187,12 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
   },
   discountTypeBtnActive: {
-    backgroundColor: Colors.light.primary,
+    backgroundColor: brand,
   },
   discountTypeBtnText: {
     fontSize: theme.fontSize.xs,
     fontWeight: '600',
-    color: Colors.light.primary,
+    color: brand,
   },
   discountTypeBtnTextActive: {
     color: '#fff',

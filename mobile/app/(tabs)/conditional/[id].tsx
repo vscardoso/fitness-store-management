@@ -85,6 +85,7 @@ export default function ConditionalShipmentDetailsScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
 
   const shipmentId = id ? parseInt(id) : NaN;
   const isValidId = !isNaN(shipmentId) && shipmentId > 0;
@@ -624,7 +625,7 @@ export default function ConditionalShipmentDetailsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
+      <StatusBar barStyle="light-content" backgroundColor={brandingColors.primary} />
       <Animated.View
         style={{
           opacity: headerAnim,
@@ -657,7 +658,7 @@ export default function ConditionalShipmentDetailsScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={onRefresh}
-              colors={[Colors.light.primary]}
+              colors={[brandingColors.primary]}
             />
           }
         >
@@ -1416,7 +1417,7 @@ export default function ConditionalShipmentDetailsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.background,
@@ -1587,7 +1588,7 @@ const styles = StyleSheet.create({
     borderRadius: theme.borderRadius.md,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.light.primary + '15',
+    backgroundColor: brand + '15',
   },
   sectionTitle: {
     fontSize: theme.fontSize.base,
@@ -2317,7 +2318,7 @@ const styles = StyleSheet.create({
   progressText: {
     fontSize: 14,
     fontWeight: '600',
-    color: Colors.light.primary,
+    color: brand,
     flex: 1,
   },
   stepsContainer: {
@@ -2343,7 +2344,7 @@ const styles = StyleSheet.create({
   stepNumber: {
     fontSize: 14,
     fontWeight: '700',
-    color: Colors.light.primary,
+    color: brand,
     width: 20,
   },
   stepText: {
@@ -2514,7 +2515,7 @@ const styles = StyleSheet.create({
   },
   itemVariant: {
     fontSize: 12,
-    color: Colors.light.primary,
+    color: brand,
     fontWeight: '600',
     marginTop: 2,
     marginBottom: 2,

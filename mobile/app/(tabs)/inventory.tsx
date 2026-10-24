@@ -10,7 +10,7 @@
  * - Gráficos: entradas por mês
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -40,6 +40,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { EntryType } from '@/types';
 import PageHeader from '@/components/layout/PageHeader';
 import { useTutorialContext } from '@/components/tutorial';
+import { useBrandingColors } from '@/store/brandingStore';
 
 const PERIOD_DAYS_OPTIONS = [
   { value: 7, label: '7 dias' },
@@ -62,7 +63,9 @@ interface StatCardProps {
 }
 
 function StatCard({ icon, label, value, trend, iconColor, iconBg, onPress }: StatCardProps) {
-  const resolvedIconColor = iconColor || Colors.light.primary;
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
+  const resolvedIconColor = iconColor || brandingColors.primary;
   const resolvedIconBg = iconBg || `${resolvedIconColor}14`;
 
   return (
@@ -121,6 +124,8 @@ interface AlertCardProps {
 }
 
 function AlertCard({ type, title, message, onPress }: AlertCardProps) {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const config = {
     warning: {
       icon: 'warning' as keyof typeof Ionicons.glyphMap,
@@ -161,6 +166,8 @@ function AlertCard({ type, title, message, onPress }: AlertCardProps) {
 }
 
 export default function InventoryDashboard() {
+  const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const router = useRouter();
   const { user } = useAuth();
   const { startTutorial } = useTutorialContext();
@@ -374,8 +381,8 @@ export default function InventoryDashboard() {
                 icon="layers-outline"
                 label="Unidades em Estoque"
                 value={metrics.totalQuantity.toLocaleString('pt-BR')}
-                iconColor={Colors.light.primary}
-                iconBg={Colors.light.primaryLight}
+                iconColor={brandingColors.primary}
+                iconBg={brandingColors.primary + '20'}
                 onPress={() => router.push('/(tabs)/products')}
               />
             </View>
@@ -477,8 +484,8 @@ export default function InventoryDashboard() {
                     icon="layers-outline"
                     label="Unidades Vendidas"
                     value={periodResult.units_sold.toLocaleString('pt-BR')}
-                    iconColor={Colors.light.primary}
-                    iconBg={Colors.light.primaryLight}
+                    iconColor={brandingColors.primary}
+                    iconBg={brandingColors.primary + '20'}
                     onPress={() => router.push('/reports/sales')}
                   />
                 </View>
@@ -609,7 +616,7 @@ export default function InventoryDashboard() {
                   const barColor = progressPercentage > 0.7 
                     ? Colors.light.success
                     : progressPercentage > 0.4
-                    ? Colors.light.primary
+                    ? brandingColors.primary
                     : Colors.light.warning;
 
                   return (
@@ -768,7 +775,7 @@ export default function InventoryDashboard() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
@@ -816,8 +823,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   periodFilterChipActive: {
-    backgroundColor: Colors.light.primary,
-    borderColor: Colors.light.primary,
+    backgroundColor: brand,
+    borderColor: brand,
   },
   periodFilterChipText: {
     fontSize: 13,
@@ -949,11 +956,11 @@ const styles = StyleSheet.create({
   seeAllText: {
     fontSize: theme.fontSize.sm,
     fontWeight: '600',
-    color: Colors.light.primary,
+    color: brand,
   },
   addEntryButton: {
     marginTop: 16,
-    backgroundColor: Colors.light.primary,
+    backgroundColor: brand,
     borderRadius: theme.borderRadius.lg,
     paddingVertical: 10,
     paddingHorizontal: 20,
@@ -1015,7 +1022,7 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
   },
   shareChip: {
-    backgroundColor: Colors.light.primaryLight,
+    backgroundColor: brand + '20',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
@@ -1023,7 +1030,7 @@ const styles = StyleSheet.create({
   shareText: {
     fontSize: 12,
     fontWeight: '700',
-    color: Colors.light.primary,
+    color: brand,
   },
   chartBarContainerImproved: {
     height: 12,

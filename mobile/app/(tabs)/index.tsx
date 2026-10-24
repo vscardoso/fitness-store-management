@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -62,6 +62,7 @@ export default function DashboardScreen() {
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilterValue>('this_month');
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const logoUri = useBrandingStore((state) => state.branding.logoUri);
   const dashboardRefreshTick = useUIStore((s) => s.dashboardRefreshTick);
 
@@ -468,7 +469,7 @@ export default function DashboardScreen() {
             activeOpacity={0.7}
             onPress={() => router.push('/reports/sales-period' as any)}
           >
-            <View style={[styles.monthCardIcon, { backgroundColor: '#EEF2FF' }]}>
+            <View style={[styles.monthCardIcon, { backgroundColor: brandingColors.primary + '15' }]}>
               <Ionicons name="wallet-outline" size={22} color={brandingColors.primary} />
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
@@ -1199,7 +1200,7 @@ export default function DashboardScreen() {
               {activeTooltip === 'capital' && (
                 <>
                   <View style={styles.tooltipHeader}>
-                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#EEF2FF' }]}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: brandingColors.primary + '15' }]}>
                       <Ionicons name="cube-outline" size={20} color={brandingColors.primary} />
                     </View>
                     <Text style={styles.tooltipTitle}>Capital Investido</Text>
@@ -1241,7 +1242,7 @@ export default function DashboardScreen() {
               {activeTooltip === 'faturamento' && (
                 <>
                   <View style={styles.tooltipHeader}>
-                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#EEF2FF' }]}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: brandingColors.primary + '15' }]}>
                       <Ionicons name="wallet-outline" size={20} color={brandingColors.primary} />
                     </View>
                     <Text style={styles.tooltipTitle}>Faturamento</Text>
@@ -1277,7 +1278,7 @@ export default function DashboardScreen() {
               {activeTooltip === 'giro' && (
                 <>
                   <View style={styles.tooltipHeader}>
-                    <View style={[styles.tooltipIconContainer, { backgroundColor: '#EEF2FF' }]}>
+                    <View style={[styles.tooltipIconContainer, { backgroundColor: brandingColors.primary + '15' }]}>
                       <Ionicons name="sync-outline" size={20} color={brandingColors.primary} />
                     </View>
                     <Text style={styles.tooltipTitle}>Giro de Estoque</Text>
@@ -1482,7 +1483,7 @@ export default function DashboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#F3F4F6',
@@ -1936,7 +1937,7 @@ const styles = StyleSheet.create({
   },
   stockItemPeriodHint: {
     fontSize: 11,
-    color: '#6366F1',
+    color: brand,
     marginTop: 2,
     fontWeight: '500',
   },
@@ -2113,7 +2114,7 @@ const styles = StyleSheet.create({
   },
   seeAllText: {
     fontSize: 14,
-    color: '#6366F1',
+    color: brand,
     fontWeight: '600',
   },
   recentCard: {
@@ -2143,7 +2144,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: '#EEF2FF',
+    backgroundColor: brand + '15',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -2182,7 +2183,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   emptyButton: {
-    backgroundColor: '#6366F1',
+    backgroundColor: brand,
     paddingHorizontal: 20,
     paddingVertical: 10,
     borderRadius: 8,
@@ -2713,7 +2714,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#CBD5E1',
   },
   yoyBarHCurr: {
-    backgroundColor: '#6366F1',
+    backgroundColor: brand,
   },
   yoyBarHValue: {
     width: 64,

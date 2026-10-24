@@ -53,6 +53,7 @@ interface SummaryStripProps {
 
 function SummaryStrip({ counts }: SummaryStripProps) {
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const pendingColor = counts.pending > 0 ? Colors.light.warning : Colors.light.textTertiary;
   const overdueColor = counts.overdue > 0 ? Colors.light.error : Colors.light.textTertiary;
 
@@ -94,6 +95,7 @@ export default function ConditionalShipmentsScreen() {
   const { user } = useAuth();
   const { startTutorial } = useTutorialContext();
   const brandingColors = useBrandingColors();
+  const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const queryClient = useQueryClient();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState<FilterType>('all');
@@ -421,7 +423,7 @@ export default function ConditionalShipmentsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (brand: string) => StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.light.background,
@@ -524,8 +526,8 @@ const styles = StyleSheet.create({
     ...theme.shadows.sm,
   },
   filterButtonActive: {
-    backgroundColor: Colors.light.primary + '15',
-    borderColor: Colors.light.primary,
+    backgroundColor: brand + '15',
+    borderColor: brand,
   },
   filterButtonActiveDanger: {
     backgroundColor: Colors.light.error + '12',
@@ -544,7 +546,7 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   filterButtonTextActive: {
-    color: Colors.light.primary,
+    color: brand,
   },
   filterButtonTextDanger: {
     color: Colors.light.error,

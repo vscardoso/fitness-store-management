@@ -51,6 +51,7 @@ import type {
   ShipmentItemStatus,
 } from '@/types/conditional';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useBrandingColors } from '@/store/brandingStore';
 
 interface ProcessingItem {
   id: number;
@@ -62,6 +63,7 @@ interface ProcessingItem {
 }
 
 export default function ConditionalShipmentDetailsScreen() {
+  const brandingColors = useBrandingColors();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -388,7 +390,7 @@ export default function ConditionalShipmentDetailsScreen() {
   if (isLoading || !shipment) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color={Colors.light.primary} />
+        <ActivityIndicator size="large" color={brandingColors.primary} />
         <Text style={{ marginTop: 16, color: '#666' }}>Carregando envio...</Text>
       </View>
     );
@@ -396,7 +398,7 @@ export default function ConditionalShipmentDetailsScreen() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor={Colors.light.primary} />
+      <StatusBar barStyle="light-content" backgroundColor={brandingColors.primary} />
       <DetailHeader
         title="Envio Condicional"
         entityName={`#${shipment.id}`}
@@ -411,7 +413,7 @@ export default function ConditionalShipmentDetailsScreen() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
-            colors={[Colors.light.primary]}
+            colors={[brandingColors.primary]}
           />
         }
       >
@@ -455,7 +457,7 @@ export default function ConditionalShipmentDetailsScreen() {
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.sectionHeader}>
-              <Ionicons name="person-outline" size={20} color={Colors.light.primary} />
+              <Ionicons name="person-outline" size={20} color={brandingColors.primary} />
               <Text variant="titleMedium" style={styles.sectionTitle}>
                 Cliente
               </Text>
@@ -479,7 +481,7 @@ export default function ConditionalShipmentDetailsScreen() {
           <Surface style={styles.summaryCard} elevation={2}>
             <View style={{ overflow: 'hidden', flex: 1 }}>
               <View style={styles.summaryHeader}>
-                <Ionicons name="calculator-outline" size={24} color={Colors.light.primary} />
+                <Ionicons name="calculator-outline" size={24} color={brandingColors.primary} />
                 <Text variant="titleMedium" style={styles.summaryTitle}>
                   Resumo Financeiro
                 </Text>
@@ -633,7 +635,7 @@ export default function ConditionalShipmentDetailsScreen() {
               onPress={() => setMarkAsSentModalVisible(true)}
               style={styles.actionButton}
               icon="send"
-              buttonColor={Colors.light.primary}
+              buttonColor={brandingColors.primary}
             >
               Marcar como Enviado
             </Button>

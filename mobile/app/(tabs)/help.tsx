@@ -20,6 +20,7 @@ import useBackToList from '@/hooks/useBackToList';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getProducts } from '@/services/productService';
 import { useBrandingColors } from '@/store/brandingStore';
+import { Colors } from '@/constants/Colors';
 
 export default function HelpScreen() {
   const brandingColors = useBrandingColors();
@@ -118,13 +119,13 @@ export default function HelpScreen() {
               <View
                 style={[
                   styles.tutorialIcon,
-                  { backgroundColor: isCompleted ? '#ECFDF5' : '#EEF2FF' },
+                  { backgroundColor: isCompleted ? '#ECFDF5' : brandingColors.primary + '15' },
                 ]}
               >
                 <Ionicons
                   name={tutorial.icon as any}
                   size={24}
-                  color={isCompleted ? '#10B981' : '#6366F1'}
+                  color={isCompleted ? '#10B981' : brandingColors.primary}
                 />
               </View>
               <View style={styles.tutorialContent}>

@@ -343,7 +343,7 @@ export default function TripDetailsScreen() {
                 </View>
                 <View style={styles.analyticsCell}>
                   <Text style={styles.analyticsCellLabel}>Sell-through</Text>
-                  <Text style={[styles.analyticsCellValue, { color: Colors.light.primary }]}>
+                  <Text style={[styles.analyticsCellValue, { color: brandingColors.primary }]}>
                     {(analytics.sell_through_rate ?? 0).toFixed(1)}%
                   </Text>
                 </View>

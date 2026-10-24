@@ -28,6 +28,7 @@ interface MenuItemProps {
 }
 
 function MenuItem({ icon, title, subtitle, onPress, badge, iconColor, iconBg }: MenuItemProps) {
+  const brandingColors = useBrandingColors();
   return (
     <TouchableOpacity
       style={styles.menuItem}
@@ -35,7 +36,7 @@ function MenuItem({ icon, title, subtitle, onPress, badge, iconColor, iconBg }: 
       activeOpacity={0.7}
     >
       <View style={[styles.menuIconContainer, { backgroundColor: iconBg || Colors.light.backgroundSecondary }]}>
-        <Ionicons name={icon} size={22} color={iconColor || Colors.light.primary} />
+        <Ionicons name={icon} size={22} color={iconColor || brandingColors.primary} />
       </View>
       <View style={styles.menuItemContent}>
         <Text style={styles.menuItemTitle}>{title}</Text>
@@ -163,7 +164,7 @@ export default function MoreScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Gestão</Text>
           <View style={styles.menuCard}>
-            <MenuItem icon="cube-outline" title="Produtos" subtitle="Catálogo e gerenciamento" onPress={() => router.push('/(tabs)/products')} iconColor={Colors.light.primary} iconBg={Colors.light.primaryLight} />
+            <MenuItem icon="cube-outline" title="Produtos" subtitle="Catálogo e gerenciamento" onPress={() => router.push('/(tabs)/products')} iconColor={brandingColors.primary} iconBg={brandingColors.primary + '20'} />
             <MenuItem icon="people-outline" title="Clientes" subtitle="Gerenciar clientes e fidelidade" onPress={() => router.push('/(tabs)/customers')} iconColor={Colors.light.info} iconBg={Colors.light.infoLight} />
             {isManager && <MenuItem icon="layers-outline" title="Entradas" subtitle="Compras e controle de entradas" onPress={() => router.push('/entries')} iconColor="#9333EA" iconBg="#F3E8FF" />}
             {isManager && <MenuItem icon="business-outline" title="Fornecedores" subtitle="Catálogo de fornecedores" onPress={() => router.push('/suppliers' as any)} iconColor="#F97316" iconBg="#FFEDD5" />}
@@ -266,7 +267,7 @@ export default function MoreScreen() {
           <Text style={styles.sectionTitle}>Configurações</Text>
           <View style={styles.menuCard}>
             {isAdminRole(user?.role) && (
-              <MenuItem icon="color-palette-outline" title="Identidade da Loja" subtitle="Cores, logo e personalização" onPress={() => router.push('/settings/branding')} iconColor="#667eea" iconBg="#E0E7FF" />
+              <MenuItem icon="color-palette-outline" title="Identidade da Loja" subtitle="Cores, logo e personalização" onPress={() => router.push('/settings/branding')} iconColor={brandingColors.primary} iconBg="#E0E7FF" />
             )}
             {isAdminRole(user?.role) && (
               <MenuItem icon="people-outline" title="Gerenciar Equipe" subtitle="Usuários e permissões da loja" onPress={() => router.push('/team')} iconColor="#8B5CF6" iconBg="#EDE9FE" />
@@ -274,7 +275,7 @@ export default function MoreScreen() {
             {isAdminRole(user?.role) && (
               <MenuItem icon="cash-outline" title="Descontos de Pagamento" subtitle="Configure descontos por forma de pagamento" onPress={() => router.push('/settings/payment-discounts')} iconColor="#10B981" iconBg="#D1FAE5" />
             )}
-            <MenuItem icon="person-circle-outline" title="Meu Perfil" subtitle="Dados pessoais e preferências" onPress={() => showDev('Meu Perfil')} iconColor={Colors.light.primary} iconBg={Colors.light.primaryLight} />
+            <MenuItem icon="person-circle-outline" title="Meu Perfil" subtitle="Dados pessoais e preferências" onPress={() => showDev('Meu Perfil')} iconColor={brandingColors.primary} iconBg={brandingColors.primary + '20'} />
             <MenuItem icon="notifications-outline" title="Notificações" subtitle="Alertas e lembretes" onPress={() => router.push('/notifications' as any)} badge={unreadAlerts > 0 ? String(unreadAlerts) : undefined} iconColor="#F97316" iconBg="#FFEDD5" />
             <MenuItem icon="help-circle-outline" title="Ajuda e Tutoriais" subtitle="Aprenda a usar o app" onPress={() => router.push('/help')} iconColor="#06B6D4" iconBg="#CFFAFE" />
           </View>
