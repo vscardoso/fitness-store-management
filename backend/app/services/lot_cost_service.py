@@ -85,10 +85,14 @@ async def entry_own_costs(db: AsyncSession, entry_id: int) -> Decimal:
     return Decimal(str(total))
 
 
-async def recompute_entries(db: AsyncSession, entry_ids: Iterable[int], *, tenant_id: Optional[int] = None) -> dict[int, dict]:
+async def recompute_entries(
+    db: AsyncSession, entry_ids: Iterable[int], *, tenant_id: Optional[int] = None, dry_run: bool = False
+) -> dict[int, dict]:
     """
     Recalcula o rateio dos lotes informados e dos outros lotes das mesmas viagens (a fatia de cada um
-    depende do total dos irmãos). Só mexe em extra_unit_cost; não faz commit.
+    depende do total dos irmãos). Só mexe em extra_unit_cost; não faz commit. Com `dry_run=True` só calcula
+    (não grava), para os relatórios mostrarem de onde vem o custo de cada peça.
+    Cada lote devolve também "items": {item_id: (frete_por_peca, desconto_por_peca)} com extra = frete - desconto.
     Devolve {entry_id: {"base": mercadoria, "trip_share": fatia da viagem, "own": despesas do lote, "extra": total}}.
     """
     ids = {int(i) for i in entry_ids if i is not None}
@@ -135,7 +139,7 @@ async def recompute_entries(db: AsyncSession, entry_ids: Iterable[int], *, tenan
         own = await entry_own_costs(db, entry.id) if entry.is_active else ZERO
         # Desconto do fornecedor abate o custo das peças; nunca passa da mercadoria (custo não fica negativo)
         general = min(Decimal(str(entry.discount_amount or 0)), entry_base) if entry.is_active else ZERO
-        pool = trip_share + own - general
+        freight_gross = trip_share + own   # viagem + despesas do lote (sempre >= 0)
 
         items = (await db.execute(
             select(EntryItem).where(EntryItem.entry_id == entry.id, EntryItem.is_active == True)  # noqa: E712
@@ -143,7 +147,7 @@ async def recompute_entries(db: AsyncSession, entry_ids: Iterable[int], *, tenan
         total_units = sum(i.quantity_received for i in items)
 
         # Desconto de cada fornecedor: só nos itens dele (item sem fornecedor próprio usa o da entrada)
-        def _sup(i):
+        def _sup(i, entry=entry):
             return i.supplier_id or entry.supplier_id
 
         base_by_sup: dict = {}
@@ -152,23 +156,32 @@ async def recompute_entries(db: AsyncSession, entry_ids: Iterable[int], *, tenan
         sup_disc: dict = {}
         if entry.is_active:
             for sid, amount in sup_discounts.get(entry.id, {}).items():
-                sup_disc[sid] = min(amount, base_by_sup.get(sid, ZERO))   # nunca passa da mercadoria dele
+                base_s = base_by_sup.get(sid, ZERO)
+                # o desconto geral já tirou a parte proporcional das peças dele: o dele só vai até o que sobrou
+                general_share = general * base_s / entry_base if entry_base > 0 else ZERO
+                sup_disc[sid] = max(ZERO, min(amount, base_s - general_share))
         sup_total = sum(sup_disc.values(), ZERO)
         discount = general + sup_total
-        extra_total = pool - sup_total
+        extra_total = freight_gross - discount
 
+        breakdown: dict[int, tuple[Decimal, Decimal]] = {}
         for item in items:
+            # frete e viagem: proporcional ao custo de cada item (ou igual por peça se a mercadoria custa zero)
             if entry_base > 0:
-                new_extra = item.unit_cost * pool / entry_base
-            elif total_units > 0:  # lote com mercadoria de custo zero: divide igualmente por unidade
-                new_extra = pool / Decimal(total_units)
+                freight_raw = item.unit_cost * freight_gross / entry_base
+                disc_raw = item.unit_cost * general / entry_base
+            elif total_units > 0:
+                freight_raw = freight_gross / Decimal(total_units)
+                disc_raw = ZERO
             else:
-                new_extra = ZERO
+                freight_raw = disc_raw = ZERO
             sid = _sup(item)
             if sup_disc.get(sid) and base_by_sup.get(sid, ZERO) > 0:
-                new_extra -= item.unit_cost * sup_disc[sid] / base_by_sup[sid]
-            new_extra = _q4(new_extra)
-            if Decimal(str(item.extra_unit_cost or 0)) != new_extra:
+                disc_raw += item.unit_cost * sup_disc[sid] / base_by_sup[sid]
+            freight_unit, discount_unit = _q4(freight_raw), _q4(disc_raw)
+            new_extra = freight_unit - discount_unit      # extra = frete - desconto, exato (sem outro arredondamento)
+            breakdown[item.id] = (freight_unit, discount_unit)
+            if not dry_run and Decimal(str(item.extra_unit_cost or 0)) != new_extra:
                 item.extra_unit_cost = new_extra
         result[entry.id] = {
             "base": entry_base,
@@ -176,8 +189,12 @@ async def recompute_entries(db: AsyncSession, entry_ids: Iterable[int], *, tenan
             "own": own,
             "discount": discount,
             "extra": extra_total,
+            "items": breakdown,
+            "general_applied": general,
+            "supplier_applied": dict(sup_disc),   # {fornecedor: desconto realmente aplicado}
         }
-    await db.flush()
+    if not dry_run:
+        await db.flush()
     return result
 
 

@@ -91,6 +91,10 @@ export interface LotItemNumbers {
   quantity_received: number;
   merchandise_unit_cost: number;
   extra_unit_cost: number;
+  /** Parte do custo que é frete e viagem, por peça. */
+  freight_unit_cost?: number;
+  /** Parte do custo que o desconto do fornecedor tirou, por peça. */
+  discount_unit_cost?: number;
   landed_unit_cost: number;
   sell_price: number;
   profit_per_unit: number;
@@ -411,6 +415,8 @@ export async function addItemToEntry(
     unit_cost: number;
     selling_price?: number;
     notes?: string;
+    /** Fornecedor deste item (padrão: o da entrada). */
+    supplier_id?: number | null;
   }
 ): Promise<{
   id: number;
@@ -434,6 +440,8 @@ export interface NewProductForEntry {
   product_gender?: string;
   product_material?: string;
   base_price: number;
+  /** Fornecedor deste produto (padrão: o da entrada). */
+  supplier_id?: number | null;
   variants: Array<{
     sku?: string | null;
     size?: string | null;

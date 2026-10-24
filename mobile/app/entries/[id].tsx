@@ -552,8 +552,13 @@ export default function StockEntryDetailsScreen() {
         {itemNumbers && (
           <Text style={{ fontSize: 12, lineHeight: 18, color: Colors.light.textSecondary, marginBottom: 8 }}>
             Custo {formatCurrency(itemNumbers.landed_unit_cost)}
-            {itemNumbers.extra_unit_cost > 0
-              ? ` (${formatCurrency(itemNumbers.merchandise_unit_cost)} + ${formatCurrency(itemNumbers.extra_unit_cost)} de frete e viagem)`
+            {(itemNumbers.freight_unit_cost ?? Math.max(itemNumbers.extra_unit_cost, 0)) > 0 || (itemNumbers.discount_unit_cost ?? 0) > 0
+              ? ` (${formatCurrency(itemNumbers.merchandise_unit_cost)} da peça` +
+                ((itemNumbers.freight_unit_cost ?? Math.max(itemNumbers.extra_unit_cost, 0)) > 0
+                  ? ` + ${formatCurrency(itemNumbers.freight_unit_cost ?? itemNumbers.extra_unit_cost)} de frete e viagem`
+                  : '') +
+                ((itemNumbers.discount_unit_cost ?? 0) > 0 ? ` - ${formatCurrency(itemNumbers.discount_unit_cost ?? 0)} de desconto` : '') +
+                ')'
               : ''}
             {' · '}Venda {formatCurrency(itemNumbers.sell_price)}
             {' · '}Lucro {formatCurrency(itemNumbers.profit_per_unit)} por peça

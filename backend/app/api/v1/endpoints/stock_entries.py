@@ -126,6 +126,8 @@ class NewProductForEntryRequest(BaseModel):
     product_material: Optional[str] = None
     base_price: float
     variants: List[NewVariantInput] = Field(..., min_length=1)
+    supplier_id: Optional[int] = Field(None, description="Fornecedor deste produto (padrão: o da entrada)")
+    supplier_name: Optional[str] = Field(None, description="Nome do fornecedor (acha ou cria o cadastro)")
 
     @field_validator("product_gender", mode="before")
     @classmethod
@@ -446,6 +448,8 @@ async def add_new_product_to_entry(
                 "base_price": request_data.base_price,
             },
             variants_data=[v.model_dump() for v in request_data.variants],
+            supplier_id=request_data.supplier_id,
+            supplier_name=request_data.supplier_name,
             tenant_id=tenant_id,
         )
     except ValueError as e:

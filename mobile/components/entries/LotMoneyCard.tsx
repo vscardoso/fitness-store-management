@@ -173,6 +173,21 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
           onRemove={() => setRemoveTarget({ supplierId: s.supplier_id, label: `o desconto de ${s.name}`, amount: s.discount })}
         />
       ))}
+      {supplierList.length > 1 && (
+        <View style={{ marginTop: 6 }}>
+          <Text style={[styles.rowLabel, styles.bold]}>Quanto cada fornecedor custou</Text>
+          {supplierList.map((s) => (
+            <View key={s.supplier_id} style={styles.row}>
+              <Text style={[styles.rowLabel, { flex: 1 }]} numberOfLines={2}>
+                {s.name}
+                {s.discount > 0 ? ` (${formatCurrency(s.merchandise)} - ${formatCurrency(s.discount)} de desconto)` : ''}
+              </Text>
+              <Text style={styles.rowValue}>{formatCurrency(s.merchandise - s.discount)}</Text>
+            </View>
+          ))}
+          <Text style={styles.hint}>Mercadoria de cada fornecedor já com o desconto dele. Frete e viagem entram à parte, nas linhas acima.</Text>
+        </View>
+      )}
       <View style={[styles.row, styles.totalRow]}>
         <Text style={[styles.rowLabel, styles.bold]}>Total gasto neste lote</Text>
         <Text style={[styles.rowValue, styles.bold]}>{formatCurrency(c.total_investment)}</Text>

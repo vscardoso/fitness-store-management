@@ -69,7 +69,7 @@ async def _entrada_dois_fornecedores(db, test_user):
                    unit_cost=D("20"), supplier_id=sb.id, tenant_id=t_id)
     db.add_all([ia, ib])
     await db.flush()
-    ids = SimpleNamespace(t=t_id, entry=e.id, p=p.id, va=va.id, vb=vb.id, ia=ia.id, ib=ib.id, sa=sa.id, sb=sb.id)
+    ids = SimpleNamespace(t=t_id, cat=cat, entry=e.id, p=p.id, va=va.id, vb=vb.id, ia=ia.id, ib=ib.id, sa=sa.id, sb=sb.id)
     await db.commit()
     return ids, {"Authorization": f"Bearer {token}"}
 
@@ -146,7 +146,7 @@ async def test_desconto_invalido_e_recusado_e_nada_muda(test_client, async_sessi
     ids, h = await _entrada_dois_fornecedores(async_session, test_user)
     antes = await _fifo_snapshot(async_session, ids)
     r = await _put(test_client, h, ids.entry, {"supplier_discounts": [{"supplier_id": ids.sa, "amount": 101}]})
-    assert r.status_code == 400 and "mercadoria" in r.json()["detail"]
+    assert r.status_code == 400 and "custo das peças" in r.json()["detail"]
     r = await _put(test_client, h, ids.entry, {"supplier_discounts": [{"supplier_id": 999999, "amount": 5}]})
     assert r.status_code == 400 and "não tem itens" in r.json()["detail"]
     r = await _put(test_client, h, ids.entry, {"supplier_discounts": [{"supplier_id": ids.sa, "amount": -1}]})

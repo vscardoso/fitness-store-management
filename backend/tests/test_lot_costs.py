@@ -51,8 +51,9 @@ async def _limpa_loja_1(async_session):
     from app.models.product_variant import ProductVariant
     from app.models.stock_entry import StockEntry
     from app.models.trip import Trip
+    from app.models.inventory import Inventory
 
-    modelos = [Expense, EntryItem, StockEntry, Trip, ProductVariant, Product, Category]
+    modelos = [Inventory, Expense, EntryItem, StockEntry, Trip, ProductVariant, Product, Category]
     antes = {}
     for m in modelos:
         antes[m] = (await async_session.execute(select(func.coalesce(func.max(m.id), 0)))).scalar()

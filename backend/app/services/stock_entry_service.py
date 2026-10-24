@@ -631,7 +631,7 @@ class StockEntryService:
         trip_travel_cost = Decimal('0.00')
         trip_cost_share = Decimal('0.00')
         own_costs = await lot_cost_service.entry_own_costs(self.db, entry.id)
-        discount = await lot_cost_service.entry_total_discount(self.db, entry)
+        discount = await self._applied_discount(entry, tenant_id)
         if entry.trip_id and entry.trip:
             trip_travel_cost = await lot_cost_service.trip_cost_pool(self.db, entry.trip)
             trip_cost_share = max(extra_total - own_costs + discount, Decimal('0.00'))
@@ -663,6 +663,9 @@ class StockEntryService:
 
         # Antes de vender: o que a entrada inteira rende pelos preços de hoje, e por peça (custo posto x preço)
         items_view = []
+        # Conta de cada peça (frete e viagem, desconto): calculada sem gravar, igual ao rateio que grava o custo
+        _calc = await lot_cost_service.recompute_entries(self.db, [entry.id], tenant_id=tenant_id, dry_run=True)
+        breakdown = (_calc.get(entry.id) or {}).get("items", {})
         potential_revenue_total = Decimal('0.00')
         for i in entry.entry_items:
             if not i.is_active:
@@ -677,6 +680,8 @@ class StockEntryService:
                 "quantity_received": i.quantity_received,
                 "merchandise_unit_cost": float(i.unit_cost),
                 "extra_unit_cost": float(i.extra_unit_cost or 0),
+                "freight_unit_cost": float(breakdown.get(i.id, (Decimal('0'), Decimal('0')))[0]),     # frete e viagem por peça
+                "discount_unit_cost": float(breakdown.get(i.id, (Decimal('0'), Decimal('0')))[1]),    # desconto por peça
                 "landed_unit_cost": float(landed),
                 "sell_price": float(price),
                 "profit_per_unit": float(profit_unit),
@@ -754,6 +759,12 @@ class StockEntryService:
             ))
         await self.db.flush()
 
+    async def _applied_discount(self, entry, tenant_id: int) -> Decimal:
+        """Desconto que REALMENTE entrou no custo das peças (já limitado ao custo delas), para cartões e relatórios
+        mostrarem o mesmo número que o estoque usa."""
+        out = (await lot_cost_service.recompute_entries(self.db, [entry.id], tenant_id=tenant_id, dry_run=True)).get(entry.id, {})
+        return Decimal(str(out.get("discount", 0)))
+
     async def get_entry_costs(self, entry_id: int, *, tenant_id: int) -> Dict[str, Any]:
         """Detalhamento dos custos do lote (o que explica a diferença entre custo da mercadoria e custo posto)."""
         from sqlalchemy import select
@@ -778,11 +789,12 @@ class StockEntryService:
         )).scalars().all()
         own = sum((e.amount for e in rows), Decimal('0.00'))
 
-        total_discount = await lot_cost_service.entry_total_discount(self.db, entry)
+        total_discount = await self._applied_discount(entry, tenant_id)
 
         # Fornecedores da entrada (mercadoria e desconto de cada um) para o app mostrar um desconto por fornecedor
         from app.models.supplier import Supplier
-        sup_disc = (await lot_cost_service.supplier_discounts_by_entry(self.db, [entry.id])).get(entry.id, {})
+        _applied = (await lot_cost_service.recompute_entries(self.db, [entry.id], tenant_id=tenant_id, dry_run=True)).get(entry.id, {})
+        sup_disc = _applied.get("supplier_applied", {})
         merch_by_sup: Dict[Any, Decimal] = {}
         for i in entry.entry_items:
             if i.is_active:
@@ -997,8 +1009,13 @@ class StockEntryService:
             sid, amount = it['supplier_id'], Decimal(str(it['amount']))
             if sid not in valid:
                 raise InvalidEntryData("Este fornecedor não tem itens nesta entrada")
-            if amount > merch.get(sid, Decimal('0')):
-                raise InvalidEntryData("O desconto do fornecedor não pode passar do valor da mercadoria dele")
+            total_merch = sum(merch.values(), Decimal('0'))
+            general_share = (Decimal(str(entry.discount_amount or 0)) * merch.get(sid, Decimal('0')) / total_merch) if total_merch else Decimal('0')
+            available = merch.get(sid, Decimal('0')) - min(general_share, merch.get(sid, Decimal('0')))
+            if amount > available:
+                raise InvalidEntryData(
+                    f"O desconto desse fornecedor passa do custo das peças dele (R$ {available:.2f} disponíveis depois do desconto geral)"
+                )
             row = existing.get(sid)
             if row:
                 row.amount = amount
@@ -1835,11 +1852,21 @@ class StockEntryService:
                 )
             default_variant = active_variants[0] if active_variants else None
 
+        # Fornecedor do item: o informado (validado na loja) ou o fornecedor da entrada
+        item_supplier_id = entry.supplier_id
+        if item_data.get('supplier_id') or item_data.get('supplier_name'):
+            item_supplier = await self._resolve_supplier(
+                item_data.get('supplier_id'), item_data.get('supplier_name'), None, None, tenant_id
+            )
+            if item_supplier is not None:
+                item_supplier_id = item_supplier.id
+
         # Criar item da entrada
         new_item = EntryItem(
             entry_id=entry_id,
             product_id=product_id,
             variant_id=default_variant.id if default_variant else None,
+            supplier_id=item_supplier_id,
             quantity_received=quantity_received,
             quantity_remaining=quantity_received,  # Novo, então todo estoque está disponível
             unit_cost=Decimal(str(unit_cost)),
@@ -1850,6 +1877,11 @@ class StockEntryService:
 
         self.db.add(new_item)
         await self.db.flush()
+        if item_supplier_id:
+            await self._apply_supplier_links(
+                {(item_supplier_id, product_id): (quantity_received, Decimal(str(quantity_received)) * Decimal(str(unit_cost)))},
+                entry.entry_date, tenant_id,
+            )
 
         # Atualizar produto com preço se fornecido
         selling_price = item_data.get('selling_price')
@@ -2237,9 +2269,12 @@ class StockEntryService:
         variants_data: List[Dict[str, Any]],
         *,
         tenant_id: int,
+        supplier_id: Optional[int] = None,
+        supplier_name: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Cria um NOVO produto (com variações) e o lança numa entrada JÁ EXISTENTE, tudo numa transação.
+        O fornecedor do produto é o informado (supplier_id ou supplier_name) ou, sem isso, o da entrada.
 
         Produto simples = 1 variação. Só variações com quantidade > 0 entram na entrada, mas todas
         são criadas. Se qualquer passo falhar, nada é gravado (rollback): o produto não existe
@@ -2286,7 +2321,11 @@ class StockEntryService:
             }, tenant_id=tenant_id)
             await self.db.flush()
 
-            supplier_id = entry.supplier_id
+            if supplier_id or supplier_name:
+                chosen = await self._resolve_supplier(supplier_id, supplier_name, None, None, tenant_id)
+                supplier_id = chosen.id if chosen else entry.supplier_id
+            else:
+                supplier_id = entry.supplier_id
             added_cost = Decimal('0')
             acc: dict = {}
             for v in variants_data:

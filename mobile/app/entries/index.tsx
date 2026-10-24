@@ -49,6 +49,8 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { StockEntry, EntryType } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
+import type { Supplier } from '@/types';
 
 const PAGE_SIZE = 20;
 
@@ -123,6 +125,9 @@ export default function StockEntriesScreen() {
   // Estados para diálogos
   const [showLinkDialog, setShowLinkDialog] = useState(false);
   const [selectedEntry, setSelectedEntry] = useState<StockEntry | null>(null);
+  // Fornecedor do produto que está sendo lançado numa entrada existente (null = o da entrada)
+  const [linkSupplier, setLinkSupplier] = useState<Supplier | null>(null);
+  const [showSupplierPick, setShowSupplierPick] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [deleteSuccessMessage, setDeleteSuccessMessage] = useState('');
   const [showDeleteSuccessDialog, setShowDeleteSuccessDialog] = useState(false);
@@ -137,7 +142,7 @@ export default function StockEntriesScreen() {
 
       // ── Produto NOVO (wizard): cria produto + lança na entrada numa transação só ──
       if (productData.newProduct) {
-        const created = await addNewProductToEntry(entryId, productData.newProduct);
+        const created = await addNewProductToEntry(entryId, { ...productData.newProduct, supplier_id: productData.supplier_id ?? undefined });
         const imageUri = takePendingProductImage();
         if (imageUri) {
           try {
@@ -162,6 +167,7 @@ export default function StockEntriesScreen() {
                 unit_cost: v.cost_price || 0,
                 selling_price: v.price || 0,
                 notes: `Variante: ${[v.color, v.size].filter(Boolean).join(' / ') || v.sku} (via catálogo)`,
+                supplier_id: productData.supplier_id ?? undefined,
               })
             )
         );
@@ -174,6 +180,7 @@ export default function StockEntriesScreen() {
         quantity_received: productData.quantity || 1,
         unit_cost: productData.cost_price || 0,
         selling_price: productData.price || 0,
+        supplier_id: productData.supplier_id ?? undefined,
         notes: productData.quantity > 1
           ? `Adicionado via catálogo (${productData.quantity} un)`
           : 'Adicionado via catálogo',
@@ -378,9 +385,10 @@ export default function StockEntriesScreen() {
    */
   const handleEntryPress = (entry: StockEntry) => {
     if (isSelectMode) {
-      // Modo de seleção: mostrar dialog para vincular produto
+      // Modo de seleção: primeiro pergunta de qual fornecedor é o produto, depois confirma o vínculo
       setSelectedEntry(entry);
-      setShowLinkDialog(true);
+      setLinkSupplier(null);
+      setShowSupplierPick(true);
     } else {
       // Modo normal: navegar para detalhes
       router.push({ pathname: `/entries/${entry.id}`, params: { from: '/(tabs)/entries' } });
@@ -394,7 +402,7 @@ export default function StockEntriesScreen() {
     if (selectedEntry && productToLink) {
       linkMutation.mutate({
         entryId: selectedEntry.id,
-        productData: productToLink,
+        productData: { ...productToLink, supplier_id: linkSupplier?.id ?? null },
       });
     }
   };
@@ -820,12 +828,29 @@ export default function StockEntriesScreen() {
           </View>
         )}
 
+        {/* Fornecedor do produto lançado nesta entrada (pode ser diferente do fornecedor da entrada) */}
+        <SupplierPickerSheet
+          visible={showSupplierPick}
+          onClose={() => {
+            setShowSupplierPick(false);
+            setSelectedEntry(null);
+          }}
+          onSelect={(supplier: Supplier | null) => {
+            setLinkSupplier(supplier);
+            setShowSupplierPick(false);
+            setShowLinkDialog(true);
+          }}
+          selectedSupplierId={linkSupplier?.id}
+          noneLabel={`Usar o fornecedor da entrada${selectedEntry?.supplier_name ? ` (${selectedEntry.supplier_name})` : ''}`}
+        />
+
         {/* Dialog de confirmação de vinculação */}
         <ConfirmDialog
           visible={showLinkDialog}
           title="Vincular Produto"
           message={`Deseja adicionar "${productToLink?.name}" à entrada ${selectedEntry?.entry_code}?`}
           details={
+            [`Fornecedor: ${linkSupplier?.name ?? selectedEntry?.supplier_name ?? 'o da entrada'}`].concat(
             productToLink?.isVariantProduct && Array.isArray(productToLink?.variants)
               ? [
                   ...productToLink.variants
@@ -838,7 +863,7 @@ export default function StockEntriesScreen() {
                   `Custo unitário: R$ ${Number(productToLink?.cost_price || 0).toFixed(2)}`,
                   `Preço de venda: R$ ${Number(productToLink?.price || 0).toFixed(2)}`,
                   `Custo total: R$ ${(Number(productToLink?.cost_price || 0) * (productToLink?.quantity || 1)).toFixed(2)}`,
-                ]
+                ])
           }
           confirmText="Vincular"
           cancelText="Cancelar"
