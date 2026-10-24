@@ -23,7 +23,7 @@ from app.schemas.stock_entry import (
     StockEntryWithItems
 )
 from app.schemas.entry_item import EntryItemCreate, EntryItemResponse, EntryItemUpdate
-from app.services.stock_entry_service import StockEntryService
+from app.services.stock_entry_service import StockEntryService, InvalidEntryData
 from app.api.deps import get_current_active_user, require_role, get_current_tenant_id
 from app.models.user import User, UserRole
 from app.models.stock_entry import EntryType
@@ -1170,6 +1170,9 @@ async def update_stock_entry(
         
         return entry
     
+    except InvalidEntryData as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

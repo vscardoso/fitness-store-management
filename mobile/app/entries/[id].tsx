@@ -517,17 +517,24 @@ export default function StockEntryDetailsScreen() {
                 {hasSales ? 'Corrigir' : 'Editar'}
               </Text>
             </TouchableOpacity>
-            {isManagerRole(user?.role) && item.quantity_remaining > 0 && (
+          </View>
+        </View>
+
+        {/* Ações do item: linha própria, quebra em duas linhas em telas estreitas */}
+        {isManagerRole(user?.role) && (item.quantity_remaining > 0 || item.product_id) && (
+          <View style={styles.itemActionsRow}>
+            {item.quantity_remaining > 0 && (
               <TouchableOpacity
                 onPress={() => setSupplierItem(item)}
                 style={[styles.editItemButton, { borderColor: Colors.light.border, backgroundColor: Colors.light.backgroundSecondary }]}
                 activeOpacity={0.7}
+                accessibilityLabel="Devolver peças deste item ao fornecedor"
               >
                 <Ionicons name="return-down-back-outline" size={14} color={Colors.light.textSecondary} />
                 <Text style={[styles.editItemButtonText, { color: Colors.light.textSecondary }]}>Devolver ao fornecedor</Text>
               </TouchableOpacity>
             )}
-            {isManagerRole(user?.role) && item.product_id ? (
+            {item.product_id ? (
               <TouchableOpacity
                 onPress={() => setVariantTarget(item)}
                 style={[styles.editItemButton, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12' }]}
@@ -539,7 +546,7 @@ export default function StockEntryDetailsScreen() {
               </TouchableOpacity>
             ) : null}
           </View>
-        </View>
+        )}
 
         {/* Custo com frete, preço, lucro e markup desta peça */}
         {itemNumbers && (
@@ -1266,6 +1273,12 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: theme.spacing.md,
     gap: theme.spacing.sm,
+  },
+  itemActionsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: theme.spacing.xs,
+    marginBottom: theme.spacing.md,
   },
   productHeaderRight: {
     flexDirection: 'column',

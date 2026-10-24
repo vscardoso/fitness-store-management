@@ -34,6 +34,7 @@ from .print_job import PrintJob, PrintJobStatus
 from .whatsapp_cloud import WhatsAppCloudNumber, WhatsAppConversation, WhatsAppMessage
 from .error_log import ErrorLog
 from .supplier_return import SupplierReturn
+from .entry_supplier_discount import EntrySupplierDiscount
 
 __all__ = [
     # Base

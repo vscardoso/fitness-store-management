@@ -4,7 +4,9 @@ Custo por lote: rateio do custo da viagem e das despesas de lote entre as peças
 Regra (a mesma explicada ao lojista):
 - custo da viagem = custos de viagem (combustível, alimentação, pedágio, hotel, outros) + despesas ligadas à viagem;
 - cada lote da viagem recebe uma fatia proporcional ao custo de mercadoria dele;
-- o custo do lote = fatia da viagem + despesas ligadas ao lote - desconto do fornecedor (stock_entries.discount_amount);
+- o custo do lote = fatia da viagem + despesas ligadas ao lote - descontos;
+- desconto GERAL (stock_entries.discount_amount) vale para todos os itens; desconto de UM fornecedor
+  (entry_supplier_discounts) vale só para os itens daquele fornecedor, proporcional ao custo de cada um;
 - dentro do lote, o custo é dividido entre os itens proporcional ao custo de mercadoria de cada um;
 - cada unidade guarda a sua parte em entry_items.extra_unit_cost; o custo posto no estoque é
   unit_cost + extra_unit_cost, e é ele que o FIFO grava na venda (CMV), o valor do estoque e o lucro usam.
@@ -19,6 +21,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.entry_item import EntryItem
+from app.models.entry_supplier_discount import EntrySupplierDiscount
 from app.models.expense import Expense
 from app.models.stock_entry import StockEntry
 from app.models.trip import Trip
@@ -50,6 +53,27 @@ async def trip_cost_pool(db: AsyncSession, trip: Trip) -> Decimal:
         .where(Expense.trip_id == trip.id, Expense.is_active == True)  # noqa: E712
     )).scalar() or 0
     return Decimal(str(trip.travel_cost_total or 0)) + Decimal(str(extra))
+
+
+async def supplier_discounts_by_entry(db: AsyncSession, entry_ids: list[int]) -> dict[int, dict[int, Decimal]]:
+    """{entry_id: {supplier_id: valor}} dos descontos por fornecedor."""
+    if not entry_ids:
+        return {}
+    rows = (await db.execute(
+        select(EntrySupplierDiscount).where(
+            EntrySupplierDiscount.entry_id.in_(entry_ids), EntrySupplierDiscount.is_active == True  # noqa: E712
+        )
+    )).scalars().all()
+    out: dict[int, dict[int, Decimal]] = {}
+    for r in rows:
+        out.setdefault(r.entry_id, {})[r.supplier_id] = Decimal(str(r.amount or 0))
+    return out
+
+
+async def entry_total_discount(db: AsyncSession, entry: StockEntry) -> Decimal:
+    """Desconto total da entrada: geral + soma dos descontos por fornecedor."""
+    d = await supplier_discounts_by_entry(db, [entry.id])
+    return Decimal(str(entry.discount_amount or 0)) + sum(d.get(entry.id, {}).values(), ZERO)
 
 
 async def entry_own_costs(db: AsyncSession, entry_id: int) -> Decimal:
@@ -89,6 +113,7 @@ async def recompute_entries(db: AsyncSession, entry_ids: Iterable[int], *, tenan
         return {}
 
     base = await _entry_base_totals(db, list(entries))
+    sup_discounts = await supplier_discounts_by_entry(db, list(entries))
 
     trips: dict[int, Trip] = {}
     pools: dict[int, Decimal] = {}
@@ -109,22 +134,40 @@ async def recompute_entries(db: AsyncSession, entry_ids: Iterable[int], *, tenan
             trip_share = pools[entry.trip_id] * entry_base / base_by_trip[entry.trip_id]
         own = await entry_own_costs(db, entry.id) if entry.is_active else ZERO
         # Desconto do fornecedor abate o custo das peças; nunca passa da mercadoria (custo não fica negativo)
-        discount = min(Decimal(str(entry.discount_amount or 0)), entry_base) if entry.is_active else ZERO
-        extra_total = trip_share + own - discount
+        general = min(Decimal(str(entry.discount_amount or 0)), entry_base) if entry.is_active else ZERO
+        pool = trip_share + own - general
 
         items = (await db.execute(
             select(EntryItem).where(EntryItem.entry_id == entry.id, EntryItem.is_active == True)  # noqa: E712
         )).scalars().all()
         total_units = sum(i.quantity_received for i in items)
+
+        # Desconto de cada fornecedor: só nos itens dele (item sem fornecedor próprio usa o da entrada)
+        def _sup(i):
+            return i.supplier_id or entry.supplier_id
+
+        base_by_sup: dict = {}
+        for i in items:
+            base_by_sup[_sup(i)] = base_by_sup.get(_sup(i), ZERO) + Decimal(i.quantity_received) * i.unit_cost
+        sup_disc: dict = {}
+        if entry.is_active:
+            for sid, amount in sup_discounts.get(entry.id, {}).items():
+                sup_disc[sid] = min(amount, base_by_sup.get(sid, ZERO))   # nunca passa da mercadoria dele
+        sup_total = sum(sup_disc.values(), ZERO)
+        discount = general + sup_total
+        extra_total = pool - sup_total
+
         for item in items:
-            if extra_total == 0:
-                new_extra = ZERO
-            elif entry_base > 0:
-                new_extra = _q4(item.unit_cost * extra_total / entry_base)
+            if entry_base > 0:
+                new_extra = item.unit_cost * pool / entry_base
             elif total_units > 0:  # lote com mercadoria de custo zero: divide igualmente por unidade
-                new_extra = _q4(extra_total / Decimal(total_units))
+                new_extra = pool / Decimal(total_units)
             else:
                 new_extra = ZERO
+            sid = _sup(item)
+            if sup_disc.get(sid) and base_by_sup.get(sid, ZERO) > 0:
+                new_extra -= item.unit_cost * sup_disc[sid] / base_by_sup[sid]
+            new_extra = _q4(new_extra)
             if Decimal(str(item.extra_unit_cost or 0)) != new_extra:
                 item.extra_unit_cost = new_extra
         result[entry.id] = {

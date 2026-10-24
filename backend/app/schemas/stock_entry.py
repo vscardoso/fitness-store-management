@@ -111,6 +111,12 @@ class StockEntryCreate(StockEntryBase):
         return normalize_entry_code(v)
 
 
+class SupplierDiscountIn(BaseModel):
+    """Desconto de um fornecedor da entrada (valor 0 remove)."""
+    supplier_id: int
+    amount: Decimal = Field(..., ge=0)
+
+
 class StockEntryUpdate(BaseModel):
     """Schema for updating a stock entry."""
     entry_code: Optional[str] = Field(None, min_length=5, max_length=50)
@@ -134,6 +140,9 @@ class StockEntryUpdate(BaseModel):
     invoice_number: Optional[str] = Field(None, max_length=100)
     payment_method: Optional[str] = Field(None, max_length=50)
     discount_amount: Optional[Decimal] = Field(None, ge=0)
+    supplier_discounts: Optional[List[SupplierDiscountIn]] = Field(
+        None, description="Desconto por fornecedor da entrada (substitui o valor de cada fornecedor informado)"
+    )
     notes: Optional[str] = Field(None, max_length=1000)
     is_active: Optional[bool] = None
 

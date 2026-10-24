@@ -87,8 +87,9 @@ export const useBrandingStore = create<BrandingState>()(
               initialSyncAttempted: true,
               branding: {
                 name: remote.name,
-                tagline: remote.tagline ?? state.branding.tagline,
-                logoUri: remote.logo_url ?? state.branding.logoUri,
+                // O servidor manda: loja sem logo/slogan não herda o da loja anterior guardado no aparelho
+                tagline: remote.tagline ?? DEFAULT_BRANDING.tagline,
+                logoUri: remote.logo_url ?? null,
                 primaryColor: remote.primary_color,
                 secondaryColor: remote.secondary_color,
                 accentColor: remote.accent_color,
@@ -119,8 +120,8 @@ export const useBrandingStore = create<BrandingState>()(
           branding: {
             ...state.branding,
             name: remote.name,
-            tagline: remote.tagline ?? state.branding.tagline,
-            logoUri: remote.logo_url ?? state.branding.logoUri,
+            tagline: remote.tagline ?? DEFAULT_BRANDING.tagline,
+            logoUri: remote.logo_url ?? null,
             primaryColor: remote.primary_color,
             secondaryColor: remote.secondary_color,
             accentColor: remote.accent_color,

@@ -4,11 +4,13 @@ Serviço de gerenciamento de entradas de estoque (StockEntry).
 from typing import List, Optional, Dict, Any
 from decimal import Decimal
 from datetime import datetime
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timezone import now_brazil, today_brazil
 from app.models.stock_entry import StockEntry, EntryType
 from app.models.entry_item import EntryItem
+from app.models.entry_supplier_discount import EntrySupplierDiscount
 from app.services import lot_cost_service, sku_service
 from app.repositories.stock_entry_repository import StockEntryRepository
 from app.repositories.entry_item_repository import EntryItemRepository
@@ -18,6 +20,10 @@ from app.repositories.inventory_repository import InventoryRepository
 from app.schemas.stock_entry import StockEntryCreate, StockEntryUpdate
 from app.schemas.entry_item import EntryItemCreate
 from app.services.inventory_service import InventoryService
+
+
+class InvalidEntryData(ValueError):
+    """Dado da entrada recusado (vira 400 na API, diferente de entrada não encontrada)."""
 
 
 class StockEntryService:
@@ -625,7 +631,7 @@ class StockEntryService:
         trip_travel_cost = Decimal('0.00')
         trip_cost_share = Decimal('0.00')
         own_costs = await lot_cost_service.entry_own_costs(self.db, entry.id)
-        discount = Decimal(str(entry.discount_amount or 0))
+        discount = await lot_cost_service.entry_total_discount(self.db, entry)
         if entry.trip_id and entry.trip:
             trip_travel_cost = await lot_cost_service.trip_cost_pool(self.db, entry.trip)
             trip_cost_share = max(extra_total - own_costs + discount, Decimal('0.00'))
@@ -772,12 +778,31 @@ class StockEntryService:
         )).scalars().all()
         own = sum((e.amount for e in rows), Decimal('0.00'))
 
+        total_discount = await lot_cost_service.entry_total_discount(self.db, entry)
+
+        # Fornecedores da entrada (mercadoria e desconto de cada um) para o app mostrar um desconto por fornecedor
+        from app.models.supplier import Supplier
+        sup_disc = (await lot_cost_service.supplier_discounts_by_entry(self.db, [entry.id])).get(entry.id, {})
+        merch_by_sup: Dict[Any, Decimal] = {}
+        for i in entry.entry_items:
+            if i.is_active:
+                sid = i.supplier_id or entry.supplier_id
+                merch_by_sup[sid] = merch_by_sup.get(sid, Decimal('0')) + i.total_cost
+        ids = [s for s in merch_by_sup if s]
+        names = {}
+        if ids:
+            names = {s.id: s.name for s in (await self.db.execute(select(Supplier).where(Supplier.id.in_(ids)))).scalars().all()}
+        suppliers_info = [
+            {"supplier_id": sid, "name": names.get(sid) or entry.supplier_name, "merchandise": float(m),
+             "discount": float(sup_disc.get(sid, 0))}
+            for sid, m in merch_by_sup.items()
+        ]
         trip_info = None
         trip_share = Decimal('0.00')
         if entry.trip_id and entry.trip:
             trip = entry.trip
             pool = await lot_cost_service.trip_cost_pool(self.db, trip)
-            trip_share = max(extra_total - own + Decimal(str(entry.discount_amount or 0)), Decimal('0.00'))
+            trip_share = max(extra_total - own + total_discount, Decimal('0.00'))
             trip_rows = (await self.db.execute(
                 select(Expense).where(
                     Expense.trip_id == trip.id, Expense.is_active == True, Expense.tenant_id == tenant_id  # noqa: E712
@@ -809,7 +834,9 @@ class StockEntryService:
                 for e in rows
             ],
             "lot_expenses_total": float(own),
-            "discount_amount": float(entry.discount_amount or 0),
+            "discount_amount": float(total_discount),          # geral + por fornecedor
+            "general_discount": float(entry.discount_amount or 0),
+            "suppliers": suppliers_info,
             "extra_costs_total": float(extra_total),
             "total_investment": float(merchandise + extra_total),
             "cost_increase_pct": float(extra_total / merchandise * 100) if merchandise > 0 else 0.0,
@@ -955,6 +982,32 @@ class StockEntryService:
         
         return updated
     
+    async def _set_supplier_discounts(self, entry_id: int, items: list, tenant_id: int) -> None:
+        """Define o desconto de cada fornecedor da entrada (valor 0 remove). Só aceita fornecedor que tem item na entrada."""
+        entry = await self.entry_repo.get_by_id(self.db, entry_id, include_items=True, tenant_id=tenant_id)
+        valid = {i.supplier_id or entry.supplier_id for i in entry.entry_items if i.is_active}
+        merch = {}
+        for i in entry.entry_items:
+            if i.is_active:
+                sid = i.supplier_id or entry.supplier_id
+                merch[sid] = merch.get(sid, Decimal('0')) + i.total_cost
+        existing = {r.supplier_id: r for r in (await self.db.execute(
+            select(EntrySupplierDiscount).where(EntrySupplierDiscount.entry_id == entry_id))).scalars().all()}
+        for it in items:
+            sid, amount = it['supplier_id'], Decimal(str(it['amount']))
+            if sid not in valid:
+                raise InvalidEntryData("Este fornecedor não tem itens nesta entrada")
+            if amount > merch.get(sid, Decimal('0')):
+                raise InvalidEntryData("O desconto do fornecedor não pode passar do valor da mercadoria dele")
+            row = existing.get(sid)
+            if row:
+                row.amount = amount
+                row.is_active = amount > 0
+            elif amount > 0:
+                self.db.add(EntrySupplierDiscount(entry_id=entry_id, supplier_id=sid, amount=amount,
+                                                   tenant_id=tenant_id, is_active=True))
+        await self.db.flush()
+
     async def update_entry(
         self, 
         entry_id: int, 
@@ -995,7 +1048,10 @@ class StockEntryService:
         # Atualizar
         old_trip_id = entry.trip_id
         entry_dict = entry_data.model_dump(exclude_unset=True)
+        supplier_discounts = entry_dict.pop('supplier_discounts', None)
         updated = await self.entry_repo.update(self.db, entry_id, entry_dict, tenant_id=tenant_id)
+        if supplier_discounts is not None:
+            await self._set_supplier_discounts(entry_id, supplier_discounts, tenant_id)
 
         # Mudou de viagem (ou saiu dela): refaz o rateio do lote e dos lotes da viagem antiga
         await lot_cost_service.recompute_entries(self.db, [entry_id], tenant_id=tenant_id)

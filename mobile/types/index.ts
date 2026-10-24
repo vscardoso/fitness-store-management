@@ -732,6 +732,8 @@ export interface StockEntryCreate {
   invoice_number?: string;
   payment_method?: string;
   discount_amount?: number;
+  /** Desconto de cada fornecedor da entrada (valor 0 remove). */
+  supplier_discounts?: Array<{ supplier_id: number; amount: number }>;
   notes?: string;
   extra_costs?: EntryExtraCostInput[];
   items: EntryItem[];

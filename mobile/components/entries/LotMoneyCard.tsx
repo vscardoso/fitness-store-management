@@ -17,6 +17,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { getStockEntryAnalytics, getStockEntryCosts } from '@/services/stockEntryService';
 import { createExpense, deleteExpense } from '@/services/expenseService';
 import { updateStockEntry } from '@/services/stockEntryService';
+import type { StockEntryCreate } from '@/types';
 import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
@@ -40,7 +41,9 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
   const [amount, setAmount] = useState('');
   const [formError, setFormError] = useState('');
   const [discountOpen, setDiscountOpen] = useState(false);
-  const [confirmRemoveDiscount, setConfirmRemoveDiscount] = useState(false);
+  // Desconto que a lixeira vai excluir (geral ou de um fornecedor) e fornecedor escolhido no formulário
+  const [removeTarget, setRemoveTarget] = useState<null | { supplierId?: number; label: string; amount: number }>(null);
+  const [discountSupplierId, setDiscountSupplierId] = useState<number | null>(null);
   const [discountText, setDiscountText] = useState('');
 
   const analytics = useQuery({ queryKey: ['lot-analytics', entryId], queryFn: () => getStockEntryAnalytics(entryId) });
@@ -74,10 +77,10 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
   });
 
   const discountMutation = useMutation({
-    mutationFn: (value: number) => updateStockEntry(entryId, { discount_amount: value }),
+    mutationFn: (body: Partial<StockEntryCreate>) => updateStockEntry(entryId, body),
     onSuccess: () => {
       setDiscountOpen(false);
-      setConfirmRemoveDiscount(false);
+      setRemoveTarget(null);
       setFormError('');
       refreshAll();
     },
@@ -104,6 +107,10 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
   const perPieceBase = received > 0 ? c.merchandise_cost / received : 0;
   const perPieceFull = received > 0 ? c.total_investment / received : 0;
   const discount = c.discount_amount || 0;
+  const generalDiscount = c.general_discount ?? c.discount_amount ?? 0;
+  const supplierList = c.suppliers || [];
+  const multiSupplier = supplierList.length > 1;
+  const supplierName = (id?: number | null) => supplierList.find((s) => s.supplier_id === id)?.name || 'fornecedor';
   const hasExtra = c.extra_costs_total !== 0;
   const hasSales = a.total_quantity_sold > 0;
   const recovered = Math.max(0, Math.min(100, a.recovered_pct));
@@ -147,24 +154,25 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
           )}
         </View>
       ))}
-      {discount > 0 && (
-        <View>
-          <View style={styles.row}>
-            <Text style={[styles.rowLabel, { flex: 1 }]}>Desconto do fornecedor</Text>
-            <Text style={[styles.rowValue, { color: VALUE_COLORS.positive }]}>{formatCurrency(-discount)}</Text>
-            {canEdit && (
-              <TouchableOpacity
-                onPress={() => setConfirmRemoveDiscount(true)}
-                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                accessibilityLabel="Excluir desconto do fornecedor"
-              >
-                <Ionicons name="trash-outline" size={18} color={Colors.light.textSecondary} style={{ marginLeft: 10 }} />
-              </TouchableOpacity>
-            )}
-          </View>
-          <Text style={styles.hint}>Valor que o fornecedor abateu no fim da compra. Ele diminui o custo de cada peça.</Text>
-        </View>
+      {generalDiscount > 0 && (
+        <DiscountRow
+          label={multiSupplier ? 'Desconto geral da entrada' : 'Desconto do fornecedor'}
+          amount={generalDiscount}
+          canEdit={canEdit}
+          hint="Valor que o fornecedor abateu no fim da compra. Ele diminui o custo de cada peça."
+          onRemove={() => setRemoveTarget({ label: 'o desconto geral', amount: generalDiscount })}
+        />
       )}
+      {supplierList.filter((s) => s.discount > 0).map((s) => (
+        <DiscountRow
+          key={s.supplier_id}
+          label={`Desconto de ${s.name}`}
+          amount={s.discount}
+          canEdit={canEdit}
+          hint={multiSupplier ? `Vale só para as peças de ${s.name}.` : undefined}
+          onRemove={() => setRemoveTarget({ supplierId: s.supplier_id, label: `o desconto de ${s.name}`, amount: s.discount })}
+        />
+      ))}
       <View style={[styles.row, styles.totalRow]}>
         <Text style={[styles.rowLabel, styles.bold]}>Total gasto neste lote</Text>
         <Text style={[styles.rowValue, styles.bold]}>{formatCurrency(c.total_investment)}</Text>
@@ -189,14 +197,18 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
         <TouchableOpacity
           style={[styles.addButton, { borderColor: brand.primary }]}
           onPress={() => {
-            setDiscountText(discount > 0 ? maskCurrencyBR(String(Math.round(discount * 100))) : '');
+            // Com vários fornecedores o desconto é de um fornecedor por vez; com um só, vale para a entrada
+            const first = multiSupplier ? supplierList[0] : null;
+            setDiscountSupplierId(first ? first.supplier_id : null);
+            const current = first ? first.discount : generalDiscount;
+            setDiscountText(current > 0 ? maskCurrencyBR(String(Math.round(current * 100))) : '');
             setFormError('');
             setDiscountOpen(true);
           }}
         >
           <Ionicons name="pricetag-outline" size={18} color={brand.primary} />
           <Text style={[styles.addButtonText, { color: brand.primary }]}>
-            {discount > 0 ? 'Alterar desconto do fornecedor' : 'Informar desconto do fornecedor'}
+            {discount > 0 ? 'Alterar desconto do fornecedor' : multiSupplier ? 'Informar desconto de um fornecedor' : 'Informar desconto do fornecedor'}
           </Text>
         </TouchableOpacity>
       )}
@@ -261,14 +273,23 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
       )}
 
       <ConfirmDialog
-        visible={confirmRemoveDiscount}
+        visible={!!removeTarget}
         type="warning"
-        title="Excluir desconto do fornecedor?"
-        message={`O desconto de ${formatCurrency(discount)} sai desta entrada e o custo de cada peça volta a subir. Peças já vendidas mantêm o custo da venda.`}
+        title="Excluir desconto?"
+        message={`Excluir ${removeTarget?.label ?? 'o desconto'} (${formatCurrency(removeTarget?.amount ?? 0)})? O custo das peças ${
+          removeTarget?.supplierId ? 'desse fornecedor ' : ''
+        }volta a subir. Peças já vendidas mantêm o custo da venda.`}
         confirmText="Excluir desconto"
         cancelText="Cancelar"
-        onConfirm={() => discountMutation.mutate(0)}
-        onCancel={() => setConfirmRemoveDiscount(false)}
+        onConfirm={() =>
+          removeTarget &&
+          discountMutation.mutate(
+            removeTarget.supplierId
+              ? { supplier_discounts: [{ supplier_id: removeTarget.supplierId, amount: 0 }] }
+              : { discount_amount: 0 },
+          )
+        }
+        onCancel={() => setRemoveTarget(null)}
       />
 
       <Modal visible={discountOpen} transparent animationType="fade" onRequestClose={() => setDiscountOpen(false)}>
@@ -276,11 +297,36 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Desconto do fornecedor</Text>
             <Text style={styles.note}>
-              Se o fornecedor abateu um valor no fim da compra, informe o total do desconto. Ele reduz o custo de cada peça deste lote e
-              aumenta o seu lucro. Para tirar o desconto, deixe em branco.
+              {multiSupplier
+                ? 'Esta entrada tem mais de um fornecedor. Escolha qual deles deu o desconto: ele reduz só o custo das peças desse fornecedor. '
+                : 'Se o fornecedor abateu um valor no fim da compra, informe o total do desconto. Ele reduz o custo de cada peça deste lote e aumenta o seu lucro. '}
+              Para tirar o desconto, deixe em branco.
             </Text>
+            {multiSupplier && (
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
+                {supplierList.map((s) => {
+                  const selected = discountSupplierId === s.supplier_id;
+                  return (
+                    <TouchableOpacity
+                      key={s.supplier_id}
+                      onPress={() => {
+                        setDiscountSupplierId(s.supplier_id);
+                        setDiscountText(s.discount > 0 ? maskCurrencyBR(String(Math.round(s.discount * 100))) : '');
+                      }}
+                      style={[
+                        styles.cancelButton,
+                        { flex: 0, paddingHorizontal: 12, paddingVertical: 8 },
+                        selected && { borderColor: brand.primary, backgroundColor: brand.primary + '14' },
+                      ]}
+                    >
+                      <Text style={[styles.cancelText, selected && { color: brand.primary }]}>{s.name}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
             <TextInput
-              label="Quanto foi o desconto?"
+              label={multiSupplier ? `Desconto de ${supplierName(discountSupplierId)}` : 'Quanto foi o desconto?'}
               value={discountText}
               onChangeText={(t) => setDiscountText(maskCurrencyBR(t))}
               mode="outlined"
@@ -296,7 +342,17 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.saveButton, { backgroundColor: brand.primary }, discountMutation.isPending && { opacity: 0.6 }]}
-                onPress={() => discountMutation.mutate(unmaskCurrency(discountText) || 0)}
+                onPress={() => {
+                  const value = unmaskCurrency(discountText) || 0;
+                  if (multiSupplier) {
+                    if (discountSupplierId === null) return setFormError('Escolha o fornecedor.');
+                    const merchandise = supplierList.find((s) => s.supplier_id === discountSupplierId)?.merchandise ?? 0;
+                    if (value > merchandise) return setFormError('O desconto não pode passar do valor da mercadoria desse fornecedor.');
+                    discountMutation.mutate({ supplier_discounts: [{ supplier_id: discountSupplierId, amount: value }] });
+                  } else {
+                    discountMutation.mutate({ discount_amount: value });
+                  }
+                }}
                 disabled={discountMutation.isPending}
               >
                 <Text style={styles.saveText}>{discountMutation.isPending ? 'Salvando...' : 'Salvar'}</Text>
@@ -349,6 +405,35 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
           </View>
         </View>
       </Modal>
+    </View>
+  );
+}
+
+function DiscountRow({
+  label,
+  amount,
+  hint,
+  canEdit,
+  onRemove,
+}: {
+  label: string;
+  amount: number;
+  hint?: string;
+  canEdit: boolean;
+  onRemove: () => void;
+}) {
+  return (
+    <View>
+      <View style={styles.row}>
+        <Text style={[styles.rowLabel, { flex: 1 }]}>{label}</Text>
+        <Text style={[styles.rowValue, { color: VALUE_COLORS.positive }]}>{formatCurrency(-amount)}</Text>
+        {canEdit && (
+          <TouchableOpacity onPress={onRemove} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel={`Excluir ${label}`}>
+            <Ionicons name="trash-outline" size={18} color={Colors.light.textSecondary} style={{ marginLeft: 10 }} />
+          </TouchableOpacity>
+        )}
+      </View>
+      {!!hint && <Text style={styles.hint}>{hint}</Text>}
     </View>
   );
 }

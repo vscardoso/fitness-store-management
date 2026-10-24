@@ -6,7 +6,7 @@ Dinheiro e estoque:
 - enviar uma peça que ESTÁ no estoque tira ela do estoque (from_stock); uma peça com defeito vinda de cliente
   já está fora do estoque (não volta ao devolver ao cliente);
 - fornecedor TROCA: entra uma peça nova pelo mesmo custo da mercadoria (entrada do tipo "devolução");
-- fornecedor CREDITA em dinheiro: o valor vira desconto na entrada de origem (abate o custo das peças dela);
+- fornecedor CREDITA em dinheiro: o valor vira desconto DAQUELE fornecedor na entrada de origem (abate só o custo das peças dele);
 - fornecedor RECUSA: se a peça estava no estoque ela volta; se era defeito, o prejuízo fica com a loja.
 """
 from datetime import date, datetime, timezone
@@ -134,7 +134,19 @@ class SupplierReturnService:
                 if amount <= 0:
                     raise ValueError("Informe o valor que o fornecedor creditou.")
                 sr.credit_amount = amount
-                entry.discount_amount = Decimal(str(entry.discount_amount or 0)) + amount
+                if sr.supplier_id:
+                    from app.models.entry_supplier_discount import EntrySupplierDiscount
+                    row = (await self.db.execute(select(EntrySupplierDiscount).where(
+                        EntrySupplierDiscount.entry_id == entry.id,
+                        EntrySupplierDiscount.supplier_id == sr.supplier_id))).scalar_one_or_none()
+                    if row:
+                        row.amount = Decimal(str(row.amount or 0)) + amount
+                        row.is_active = True
+                    else:
+                        self.db.add(EntrySupplierDiscount(entry_id=entry.id, supplier_id=sr.supplier_id, amount=amount,
+                                                           tenant_id=tenant_id, is_active=True))
+                else:
+                    entry.discount_amount = Decimal(str(entry.discount_amount or 0)) + amount
                 await self.db.flush()
                 await lot_cost_service.recompute_entries(self.db, [entry.id], tenant_id=tenant_id)
             elif outcome == "rejected":

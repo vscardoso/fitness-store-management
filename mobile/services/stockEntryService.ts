@@ -114,7 +114,12 @@ export interface LotCosts {
   };
   lot_expenses: Array<{ id: number; description: string; amount: number; date: string }>;
   lot_expenses_total: number;
+  /** Desconto total (geral + por fornecedor). */
   discount_amount: number;
+  /** Parte que vale para todos os itens da entrada. */
+  general_discount?: number;
+  /** Fornecedores da entrada, com a mercadoria e o desconto de cada um. */
+  suppliers?: Array<{ supplier_id: number; name: string; merchandise: number; discount: number }>;
   extra_costs_total: number;
   total_investment: number;
   cost_increase_pct: number;
