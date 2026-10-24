@@ -32,6 +32,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { setForceLogoutCallback, setInvalidateQueriesCallback } from '@/services/api';
 import GlobalConfirmModalHost, { installGlobalAlertOverride } from '@/components/ui/GlobalConfirmModal';
 import UpdateBanner from '@/components/layout/UpdateBanner';
+import { registerQueryClient } from '@/utils/queryCache';
 
 // TEMP: Sentry desabilitado por conflito de versão
 // Sentry.init({
@@ -68,6 +69,8 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+registerQueryClient(queryClient);
 
 /** Mistura a cor com branco (amount 0..1) para tons de fundo suaves. */
 function tintColor(hex: string, amount: number): string {

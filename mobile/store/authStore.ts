@@ -14,6 +14,7 @@ import { getUser, clearAuthData } from '@/services/storage';
 import { useCartStore } from './cartStore';
 import { useNotificationStore } from './notificationStore';
 import { useBrandingStore } from './brandingStore';
+import { clearQueryCache } from '@/utils/queryCache';
 
 const SESSION_STORAGE_KEYS = [
   'auth-storage',
@@ -77,6 +78,7 @@ export const useAuthStore = create<AuthState>()(
         
         try {
           const user = await authService.login(credentials);
+          clearQueryCache(); // dados da loja/conta anterior não podem aparecer na loja nova
 
           // Estrategia agressiva: sempre tenta hidratar branding do banco antes de marcar sessao autenticada.
           await useBrandingStore.getState().fetchFromServer();
@@ -114,6 +116,7 @@ export const useAuthStore = create<AuthState>()(
         
         try {
           const user = await authService.signup(signupData);
+          clearQueryCache();
 
           // Garantir branding do tenant recem-criado aplicado ainda no fluxo de autenticacao.
           await useBrandingStore.getState().fetchFromServer();
@@ -150,6 +153,7 @@ export const useAuthStore = create<AuthState>()(
         // TEMP: Sentry desabilitado
         // Sentry.Native.setUser(null);
         
+        clearQueryCache();
         // Limpar estado imediatamente
         set({
           user: null,
@@ -179,6 +183,7 @@ export const useAuthStore = create<AuthState>()(
         // TEMP: Sentry desabilitado
         // Sentry.Native.setUser(null);
 
+        clearQueryCache();
         // Limpar estado imediatamente
         set({
           user: null,
