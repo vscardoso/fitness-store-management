@@ -59,6 +59,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     start_scheduler()
     logger.info("Background scheduler started")
 
+    # Só em desenvolvimento: tira do DEBUG_LOG.txt os erros já sanados (sem rodar testes; ver scripts/limpar_debug_log.py)
+    if settings.ENVIRONMENT == "development":
+        try:
+            import subprocess
+            import sys as _sys
+
+            _script = Path(__file__).resolve().parent.parent / "scripts" / "limpar_debug_log.py"
+            if _script.exists():
+                subprocess.Popen(
+                    [_sys.executable, str(_script), "limpar", "--auto"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                )
+        except Exception as exc:  # a limpeza do trace nunca atrapalha o start
+            logger.warning("Limpeza do DEBUG_LOG ignorada: %s", exc)
+
     yield
 
     # Shutdown

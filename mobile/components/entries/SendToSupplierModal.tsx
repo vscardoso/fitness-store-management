@@ -1,11 +1,11 @@
 /** Devolve ao fornecedor peças deste item da entrada (ex.: compra em condicional que não vendeu). */
-import React, { useState } from 'react';
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { StyleSheet, Text } from 'react-native';
 import { TextInput } from 'react-native-paper';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
-import { Colors } from '@/constants/Colors';
-import { useBrandingColors } from '@/store/brandingStore';
+import BottomSheet from '@/components/ui/BottomSheet';
+import { Colors, theme } from '@/constants/Colors';
 import { createSupplierReturn } from '@/services/supplierReturnService';
 import { parseApiError } from '@/utils/apiError';
 
@@ -18,11 +18,18 @@ interface Props {
 }
 
 export default function SendToSupplierModal({ visible, entryItemId, productLabel, remaining, onClose }: Props) {
-  const brand = useBrandingColors();
   const qc = useQueryClient();
   const [qty, setQty] = useState('1');
   const [reason, setReason] = useState('Compra em condicional: devolver ao fornecedor');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (visible) {
+      setQty('1');
+      setReason('Compra em condicional: devolver ao fornecedor');
+      setError('');
+    }
+  }, [visible]);
 
   const send = useMutation({
     mutationFn: () => createSupplierReturn({ entry_item_id: entryItemId!, quantity: parseInt(qty, 10), reason: reason.trim() }),
@@ -45,43 +52,37 @@ export default function SendToSupplierModal({ visible, entryItemId, productLabel
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          <Text style={styles.title}>Devolver ao fornecedor</Text>
-          <Text style={styles.note}>
-            {productLabel}. As peças saem do estoque até o fornecedor responder. Se ele recusar, elas voltam. Acompanhe em Fornecedores,
-            aba Devoluções.
-          </Text>
-          <TextInput mode="outlined" label={`Quantas peças (até ${remaining})`} value={qty} onChangeText={(t) => setQty(t.replace(/[^0-9]/g, ''))} keyboardType="numeric" style={styles.input} />
-          <TextInput mode="outlined" label="Motivo" value={reason} onChangeText={setReason} style={styles.input} />
-          {!!error && <Text style={styles.error}>{error}</Text>}
-          <View style={styles.buttons}>
-            <TouchableOpacity style={styles.cancel} onPress={onClose}>
-              <Text style={{ color: Colors.light.text, fontWeight: '600' }}>Cancelar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.save, { backgroundColor: brand.primary }, send.isPending && { opacity: 0.6 }]}
-              onPress={submit}
-              disabled={send.isPending}
-            >
-              <Text style={{ color: '#fff', fontWeight: '700' }}>{send.isPending ? 'Enviando...' : 'Enviar'}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </View>
-    </Modal>
+    <BottomSheet
+      visible={visible}
+      onDismiss={onClose}
+      title="Devolver ao fornecedor"
+      subtitle={productLabel}
+      icon="return-down-back-outline"
+      dismissOnBackdrop={!send.isPending}
+      actions={[
+        { label: 'Cancelar', onPress: onClose, variant: 'secondary', disabled: send.isPending },
+        { label: 'Enviar', onPress: submit, variant: 'primary', loading: send.isPending, disabled: send.isPending },
+      ]}
+    >
+      <Text style={styles.note}>
+        As peças saem do estoque até o fornecedor responder. Se ele recusar, elas voltam. Acompanhe em Fornecedores, aba Devoluções.
+      </Text>
+      <TextInput
+        mode="outlined"
+        label={`Quantas peças (até ${remaining})`}
+        value={qty}
+        onChangeText={(t) => setQty(t.replace(/[^0-9]/g, ''))}
+        keyboardType="numeric"
+        style={styles.input}
+      />
+      <TextInput mode="outlined" label="Motivo" value={reason} onChangeText={setReason} style={styles.input} />
+      {!!error && <Text style={styles.error}>{error}</Text>}
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20 },
-  card: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 18 },
-  title: { fontSize: 18, fontWeight: '700', color: Colors.light.text },
-  note: { fontSize: 13, lineHeight: 19, color: Colors.light.textSecondary, marginTop: 6 },
-  input: { marginTop: 12, backgroundColor: Colors.light.card },
-  error: { color: Colors.light.error, marginTop: 10, fontSize: 13 },
-  buttons: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  cancel: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: Colors.light.border },
-  save: { flex: 1, alignItems: 'center', paddingVertical: 12, borderRadius: 12 },
+  note: { fontSize: 13, lineHeight: 19, color: Colors.light.textSecondary },
+  input: { marginTop: theme.spacing.md, backgroundColor: Colors.light.card },
+  error: { color: Colors.light.error, marginTop: theme.spacing.md, fontSize: 13 },
 });

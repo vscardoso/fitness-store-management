@@ -11,7 +11,7 @@
  * - FAB para nova entrada
  */
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -129,6 +129,7 @@ export default function StockEntriesScreen() {
   // Fornecedor do produto que está sendo lançado numa entrada existente (null = o da entrada)
   const [linkSupplier, setLinkSupplier] = useState<Supplier | null>(null);
   const [showSupplierPick, setShowSupplierPick] = useState(false);
+  const supplierPickedRef = useRef(false);
 
   // Veio de "Produto novo" dentro de uma entrada: já escolhe essa entrada e pergunta o fornecedor
   useEffect(() => {
@@ -849,11 +850,18 @@ export default function StockEntriesScreen() {
         {/* Fornecedor do produto lançado nesta entrada (pode ser diferente do fornecedor da entrada) */}
         <SupplierPickerSheet
           visible={showSupplierPick}
+          // O seletor chama onSelect e DEPOIS onClose: só cancela o vínculo se fechou sem escolher
+          // (antes o onClose apagava a entrada logo após a escolha e o diálogo dizia "entrada undefined").
           onClose={() => {
             setShowSupplierPick(false);
+            if (supplierPickedRef.current) {
+              supplierPickedRef.current = false;
+              return;
+            }
             setSelectedEntry(null);
           }}
           onSelect={(supplier: Supplier | null) => {
+            supplierPickedRef.current = true;
             setLinkSupplier(supplier);
             setShowSupplierPick(false);
             setShowLinkDialog(true);
@@ -910,7 +918,7 @@ export default function StockEntriesScreen() {
                   createdEntryId: String(selectedEntry.id),
                   createdEntryCode: selectedEntry.entry_code || '',
                   createdEntryQuantity: String(productToLink?.quantity || 1),
-                  createdEntrySupplier: selectedEntry.supplier_name || '',
+                  createdEntrySupplier: linkSupplier?.name ?? selectedEntry.supplier_name ?? '',
                   // Para variantes, passar produto completo; para simples, reconstruir
                   createdProductData: productToLink?._fullProductData
                     ? (createdProductId

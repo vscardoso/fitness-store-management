@@ -3,12 +3,12 @@
  * já cadastrado (ex.: faltou 1 unidade do Preto G). Se a variação não existe, o servidor cria; tudo de uma vez.
  */
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView } from 'react-native';
+import { Text, StyleSheet } from 'react-native';
 import { TextInput } from 'react-native-paper';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 
+import BottomSheet from '@/components/ui/BottomSheet';
 import { Colors, VALUE_COLORS } from '@/constants/Colors';
-import { useBrandingColors } from '@/store/brandingStore';
 import { addVariantToEntry } from '@/services/stockEntryService';
 import { parseApiError } from '@/utils/apiError';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
@@ -26,7 +26,6 @@ interface Props {
 }
 
 export default function AddVariantModal({ visible, onClose, entryId, productId, productName, suggestedCost, suggestedPrice }: Props) {
-  const brand = useBrandingColors();
   const queryClient = useQueryClient();
   const [color, setColor] = useState('');
   const [size, setSize] = useState('');
@@ -78,68 +77,58 @@ export default function AddVariantModal({ visible, onClose, entryId, productId, 
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <View style={styles.backdrop}>
-        <View style={styles.card}>
-          <ScrollView keyboardShouldPersistTaps="handled">
-            <Text style={styles.title}>Outra variação deste produto</Text>
-            <Text style={styles.product} numberOfLines={2}>{productName}</Text>
-            <Text style={styles.help}>
-              Use quando faltou lançar uma peça de outra cor ou tamanho deste produto. Se essa variação ainda não existe, o app cria e já
-              lança na entrada. Se já existe, só soma a quantidade.
-            </Text>
+    <BottomSheet
+      visible={visible}
+      onDismiss={onClose}
+      title="Outra variação deste produto"
+      subtitle={productName}
+      icon="color-palette-outline"
+      dismissOnBackdrop={!mutation.isPending}
+      actions={
+        done
+          ? [{ label: 'Fechar', onPress: onClose, variant: 'primary' }]
+          : [
+              { label: 'Cancelar', onPress: onClose, variant: 'secondary', disabled: mutation.isPending },
+              { label: 'Lançar na entrada', onPress: submit, variant: 'primary', loading: mutation.isPending, disabled: mutation.isPending },
+            ]
+      }
+    >
+      <Text style={styles.help}>
+        Use quando faltou lançar uma peça de outra cor ou tamanho deste produto. Se essa variação ainda não existe, o app cria e já lança na
+        entrada. Se já existe, só soma a quantidade.
+      </Text>
 
-            {done ? (
-              <>
-                <Text style={styles.success}>{done}</Text>
-                <TouchableOpacity style={[styles.save, { backgroundColor: brand.primary }]} onPress={onClose}>
-                  <Text style={styles.saveText}>Fechar</Text>
-                </TouchableOpacity>
-              </>
-            ) : (
-              <>
-                <TextInput label="Cor (ex.: Preto)" value={color} onChangeText={setColor} mode="outlined" style={styles.input} />
-                <TextInput label="Tamanho (ex.: G)" value={size} onChangeText={setSize} mode="outlined" autoCapitalize="characters" style={styles.input} />
-                <TextInput label="Quantidade" value={quantity} onChangeText={(t) => setQuantity(t.replace(/\D/g, ''))} mode="outlined" keyboardType="numeric" style={styles.input} />
-                <TextInput
-                  label="Quanto custou cada peça?"
-                  value={cost}
-                  onChangeText={(t) => setCost(maskCurrencyBR(t))}
-                  mode="outlined"
-                  keyboardType="numeric"
-                  placeholder="0,00"
-                  left={<TextInput.Affix text="R$" />}
-                  style={styles.input}
-                />
-                <TextInput
-                  label="Preço de venda (se vazio, igual às outras)"
-                  value={price}
-                  onChangeText={(t) => setPrice(maskCurrencyBR(t))}
-                  mode="outlined"
-                  keyboardType="numeric"
-                  placeholder="0,00"
-                  left={<TextInput.Affix text="R$" />}
-                  style={styles.input}
-                />
-                {!!error && <Text style={styles.error}>{error}</Text>}
-                <View style={styles.buttons}>
-                  <TouchableOpacity style={styles.cancel} onPress={onClose}>
-                    <Text style={styles.cancelText}>Cancelar</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.save, { backgroundColor: brand.primary, flex: 1 }, mutation.isPending && { opacity: 0.6 }]}
-                    onPress={submit}
-                    disabled={mutation.isPending}
-                  >
-                    <Text style={styles.saveText}>{mutation.isPending ? 'Lançando...' : 'Lançar na entrada'}</Text>
-                  </TouchableOpacity>
-                </View>
-              </>
-            )}
-          </ScrollView>
-        </View>
-      </View>
-    </Modal>
+      {done ? (
+        <Text style={styles.success}>{done}</Text>
+      ) : (
+        <>
+          <TextInput label="Cor (ex.: Preto)" value={color} onChangeText={setColor} mode="outlined" style={styles.input} />
+          <TextInput label="Tamanho (ex.: G)" value={size} onChangeText={setSize} mode="outlined" autoCapitalize="characters" style={styles.input} />
+          <TextInput label="Quantidade" value={quantity} onChangeText={(t) => setQuantity(t.replace(/\D/g, ''))} mode="outlined" keyboardType="numeric" style={styles.input} />
+          <TextInput
+            label="Quanto custou cada peça?"
+            value={cost}
+            onChangeText={(t) => setCost(maskCurrencyBR(t))}
+            mode="outlined"
+            keyboardType="numeric"
+            placeholder="0,00"
+            left={<TextInput.Affix text="R$" />}
+            style={styles.input}
+          />
+          <TextInput
+            label="Preço de venda (se vazio, igual às outras)"
+            value={price}
+            onChangeText={(t) => setPrice(maskCurrencyBR(t))}
+            mode="outlined"
+            keyboardType="numeric"
+            placeholder="0,00"
+            left={<TextInput.Affix text="R$" />}
+            style={styles.input}
+          />
+          {!!error && <Text style={styles.error}>{error}</Text>}
+        </>
+      )}
+    </BottomSheet>
   );
 }
 

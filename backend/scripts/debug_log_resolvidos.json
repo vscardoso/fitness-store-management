@@ -1,0 +1,195 @@
+[
+  {
+    "assinatura": "Não foi possível validar as credenciais",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "401 por sessão expirada ou token ausente: é o comportamento esperado; o app volta ao login (commit 6690ced, 22/10/2026)."
+  },
+  {
+    "assinatura": "Refresh token inválido",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Sessão antiga recusada de propósito; o app volta ao login."
+  },
+  {
+    "assinatura": "Sessão expirada por inatividade",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Política de sessão funcionando (expira por inatividade)."
+  },
+  {
+    "assinatura": "Email ou senha incorretos",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Login recusado corretamente (senha ou e-mail digitado errado)."
+  },
+  {
+    "assinatura": "necessário fornecer ao menos um item",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Regra de negócio recusando entrada sem item, como deve."
+  },
+  {
+    "assinatura": "Não é possível deletar viagem com",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Regra de negócio: viagem com entradas não pode ser apagada."
+  },
+  {
+    "assinatura": "Não é possível excluir entrada com produtos já vendidos",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Regra de negócio: entrada com venda faz parte do histórico."
+  },
+  {
+    "assinatura": "Não é possível remover",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Correção de item recusando tirar mais peças do que ainda existem, como deve."
+  },
+  {
+    "assinatura": "Este envio já foi finalizado",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Regra de negócio do envio condicional."
+  },
+  {
+    "assinatura": "não permite processamento de devolução",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Regra de negócio do envio condicional."
+  },
+  {
+    "assinatura": "variações: informe a variação",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Validação: produto com várias variações exige dizer qual (evita estoque órfão)."
+  },
+  {
+    "assinatura": "Order MP não encontrada",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Venda de teste sem ordem no Mercado Pago; recusa correta."
+  },
+  {
+    "assinatura": "Estoque não encontrado para produto",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Corrigido: produto sem linha de estoque devolve 0 (commit a7dd7d8, 21/10/2026)."
+  },
+  {
+    "assinatura": "Method Not Allowed",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "O app não chama mais PATCH /products (busca no código em 24/10/2026)."
+  },
+  {
+    "assinatura": "Expected UploadFile",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Upload de imagem na web mandava [object Object]; corrigido com o Blob (commit 8d293a3, 23/10/2026)."
+  },
+  {
+    "assinatura": "no such table: refresh_tokens",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "RefreshToken não estava importado em models/__init__ (commit e3837f4, 22/10/2026)."
+  },
+  {
+    "assinatura": "pix_transactions.provider",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Banco SQLite local antigo, sem a coluna; a coluna existe no modelo e é criada em banco novo."
+  },
+  {
+    "assinatura": "Input should be 'cash'",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Payload antigo mandava CASH em maiúsculas; o schema exige minúsculas (cash)."
+  },
+  {
+    "assinatura": "fifo-costs - Network Error",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Falha de rede do aparelho no momento; sem erro de código."
+  },
+  {
+    "assinatura": "GET /products/catalog",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Rota removida junto com o catálogo global (commit 62eb53a); o app não chama mais (catalogService.ts é código morto)."
+  },
+  {
+    "assinatura": "products/incomplete",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24",
+    "nota": "Rota removida junto com o catálogo global (commit 62eb53a); nada no app chama mais."
+  },
+  {
+    "assinatura": "GET /pdv/pending-sales",
+    "prova_teste": "tests/test_rotas_do_debug_log.py::test_pdv_vendas_pendentes_nao_da_500",
+    "nota": "500 por coluna c.name e token ':' no SQL."
+  },
+  {
+    "assinatura": "GET /trips/{id}/analytics",
+    "prova_teste": "tests/test_rotas_do_debug_log.py::test_analytics_da_viagem_nao_da_500",
+    "nota": "500 por token ':' no SQL."
+  },
+  {
+    "assinatura": "DELETE /products/{id}",
+    "prova_teste": "tests/test_rotas_do_debug_log.py::test_excluir_produto_sem_venda_nao_da_500",
+    "nota": "500 por erro de sintaxe no SQL; produto com venda segue sendo recusado."
+  },
+  {
+    "assinatura": "entry-items/{id}/correct",
+    "prova_teste": "tests/test_rotas_do_debug_log.py::test_corrigir_item_da_entrada_nao_da_500",
+    "nota": "500 por atributo e argumento errados na correção de item."
+  },
+  {
+    "assinatura": "GET /conditional-shipments/",
+    "prova_teste": "tests/test_rotas_do_debug_log.py::test_caixa_de_notificacoes_e_envios_condicionais_respondem",
+    "nota": "500 por coluna inexistente na lista de envios."
+  },
+  {
+    "assinatura": "POST /conditional-shipments/",
+    "nota": "Coluna entry_items.supplier_id inexistente no SQLite local antigo; a migração 20261021_entry_supplier e o _ensure_sqlite_columns criam a coluna (ver CLAUDE.md, Fornecedores Fase 1).",
+    "resolvido_manual": true,
+    "resolvido_em": "2026-10-24"
+  },
+  {
+    "assinatura": "unread-count",
+    "prova_teste": "tests/test_rotas_do_debug_log.py::test_caixa_de_notificacoes_e_envios_condicionais_respondem",
+    "nota": "Rota antiga /notifications/unread-count; a caixa de alertas usa /notifications/inbox/unread-count."
+  },
+  {
+    "assinatura": "POST /products/ -",
+    "prova_teste": "tests/test_rotas_do_debug_log.py::test_criar_produto_nao_da_500",
+    "nota": "500 por ProductVariant sem atributo barcode."
+  },
+  {
+    "assinatura": "skipEntry - erro ao criar produto virtual",
+    "prova_teste": "tests/test_rotas_do_debug_log.py::test_criar_produto_nao_da_500",
+    "nota": "Mesmo erro de ProductVariant.barcode, visto pelo assistente de produto."
+  },
+  {
+    "assinatura": "products/grouped",
+    "prova_teste": "tests/test_rotas_do_debug_log.py::test_produtos_agrupados_respondem_no_limite_permitido",
+    "nota": "422 porque o app pedia limit acima de 500; o limite da rota é 500."
+  },
+  {
+    "assinatura": "Mercado Pago",
+    "nota": "ABERTO: credenciais do Mercado Pago recusadas (live/sandbox). PDV com PIX do Mercado Pago nunca foi testado de verdade."
+  },
+  {
+    "assinatura": "Cielo",
+    "nota": "ABERTO: credenciais da Cielo recusadas (Invalid Client). Integração com maquininha nunca foi testada de verdade."
+  },
+  {
+    "assinatura": "pdv/terminal/start - N | greenlet_spawn",
+    "nota": "ABERTO: erro de greenlet (IO em lugar inesperado) ao iniciar pagamento na maquininha; investigar."
+  },
+  {
+    "assinatura": "pdv/pix/start - N | Erro interno do servidor",
+    "nota": "ABERTO: 500 genérico ao iniciar PIX; investigar junto com as credenciais."
+  }
+]

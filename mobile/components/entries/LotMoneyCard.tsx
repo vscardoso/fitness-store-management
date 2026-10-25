@@ -6,8 +6,9 @@
  * ser entendida por quem quer entender o dinheiro, não a contabilidade.
  */
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import BottomSheet from '@/components/ui/BottomSheet';
 import { TextInput } from 'react-native-paper';
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -303,7 +304,7 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
         message={`Excluir ${removeTarget?.label ?? 'o desconto'} (${formatCurrency(removeTarget?.amount ?? 0)})? O custo das peças ${
           removeTarget?.supplierId ? 'desse fornecedor ' : ''
         }volta a subir. Peças já vendidas mantêm o custo da venda.`}
-        confirmText="Excluir desconto"
+        confirmText="Excluir"
         cancelText="Cancelar"
         onConfirm={() =>
           removeTarget &&
@@ -316,119 +317,115 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
         onCancel={() => setRemoveTarget(null)}
       />
 
-      <Modal visible={discountOpen} transparent animationType="fade" onRequestClose={() => setDiscountOpen(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Desconto do fornecedor</Text>
-            <Text style={styles.note}>
-              {multiSupplier
-                ? 'Esta entrada tem mais de um fornecedor. Escolha qual deles deu o desconto: ele reduz só o custo das peças desse fornecedor. '
-                : 'Se o fornecedor abateu um valor no fim da compra, informe o total do desconto. Ele reduz o custo de cada peça deste lote e aumenta o seu lucro. '}
-              Para tirar o desconto, deixe em branco.
-            </Text>
-            {multiSupplier && (
-              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 }}>
-                {supplierList.map((s) => {
-                  const selected = discountSupplierId === s.supplier_id;
-                  return (
-                    <TouchableOpacity
-                      key={s.supplier_id}
-                      onPress={() => {
-                        setDiscountSupplierId(s.supplier_id);
-                        setDiscountText(s.discount > 0 ? maskCurrencyBR(String(Math.round(s.discount * 100))) : '');
-                      }}
-                      style={[
-                        styles.cancelButton,
-                        { flex: 0, paddingHorizontal: 12, paddingVertical: 8 },
-                        selected && { borderColor: brand.primary, backgroundColor: brand.primary + '14' },
-                      ]}
-                    >
-                      <Text style={[styles.cancelText, selected && { color: brand.primary }]}>{s.name}</Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            )}
-            <TextInput
-              label={multiSupplier ? `Desconto de ${supplierName(discountSupplierId)}` : 'Quanto foi o desconto?'}
-              value={discountText}
-              onChangeText={(t) => setDiscountText(maskCurrencyBR(t))}
-              mode="outlined"
-              keyboardType="numeric"
-              placeholder="0,00"
-              left={<TextInput.Affix text="R$" />}
-              style={styles.input}
-            />
-            {!!formError && <Text style={styles.error}>{formError}</Text>}
-            <View style={styles.modalButtons}>
-              <TouchableOpacity style={styles.cancelButton} onPress={() => { setDiscountOpen(false); setFormError(''); }}>
-                <Text style={styles.cancelText}>Cancelar</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.saveButton, { backgroundColor: brand.primary }, discountMutation.isPending && { opacity: 0.6 }]}
-                onPress={() => {
-                  const value = unmaskCurrency(discountText) || 0;
-                  if (multiSupplier) {
-                    if (discountSupplierId === null) return setFormError('Escolha o fornecedor.');
-                    const merchandise = supplierList.find((s) => s.supplier_id === discountSupplierId)?.merchandise ?? 0;
-                    if (value > merchandise) return setFormError('O desconto não pode passar do valor da mercadoria desse fornecedor.');
-                    discountMutation.mutate({ supplier_discounts: [{ supplier_id: discountSupplierId, amount: value }] });
-                  } else {
-                    discountMutation.mutate({ discount_amount: value });
-                  }
-                }}
-                disabled={discountMutation.isPending}
-              >
-                <Text style={styles.saveText}>{discountMutation.isPending ? 'Salvando...' : 'Salvar'}</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal visible={formOpen} transparent animationType="fade" onRequestClose={() => setFormOpen(false)}>
-        <View style={styles.modalBackdrop}>
-          <View style={styles.modalCard}>
-            <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={styles.modalTitle}>Despesa deste lote</Text>
-              <Text style={styles.note}>
-                Use para gastos desta compra: frete, embalagem, taxa, sacola. O valor soma no custo das peças deste lote e só pesa no
-                resultado do mês quando as peças forem vendidas. Para aluguel, luz e outros gastos da loja, use a tela Despesas.
-              </Text>
-              <TextInput
-                label="O que foi? (ex.: frete)"
-                value={description}
-                onChangeText={setDescription}
-                mode="outlined"
-                style={styles.input}
-              />
-              <TextInput
-                label="Quanto custou?"
-                value={amount}
-                onChangeText={(t) => setAmount(maskCurrencyBR(t))}
-                mode="outlined"
-                keyboardType="numeric"
-                placeholder="0,00"
-                left={<TextInput.Affix text="R$" />}
-                style={styles.input}
-              />
-              {!!formError && <Text style={styles.error}>{formError}</Text>}
-              <View style={styles.modalButtons}>
-                <TouchableOpacity style={styles.cancelButton} onPress={() => { setFormOpen(false); setFormError(''); }}>
-                  <Text style={styles.cancelText}>Cancelar</Text>
-                </TouchableOpacity>
+      <BottomSheet
+        visible={discountOpen}
+        onDismiss={() => { setDiscountOpen(false); setFormError(''); }}
+        title="Desconto do fornecedor"
+        subtitle={multiSupplier ? 'Escolha qual fornecedor deu o desconto' : 'Abate o custo de cada peça desta entrada'}
+        icon="pricetag-outline"
+        dismissOnBackdrop={!discountMutation.isPending}
+        actions={[
+          { label: 'Cancelar', onPress: () => { setDiscountOpen(false); setFormError(''); }, variant: 'secondary', disabled: discountMutation.isPending },
+          {
+            label: 'Salvar',
+            variant: 'primary',
+            loading: discountMutation.isPending,
+            disabled: discountMutation.isPending,
+            onPress: () => {
+              const value = unmaskCurrency(discountText) || 0;
+              if (multiSupplier) {
+                if (discountSupplierId === null) return setFormError('Escolha o fornecedor.');
+                const merchandise = supplierList.find((s) => s.supplier_id === discountSupplierId)?.merchandise ?? 0;
+                if (value > merchandise) return setFormError('O desconto não pode passar do valor da mercadoria desse fornecedor.');
+                discountMutation.mutate({ supplier_discounts: [{ supplier_id: discountSupplierId, amount: value }] });
+              } else {
+                discountMutation.mutate({ discount_amount: value });
+              }
+            },
+          },
+        ]}
+      >
+        <Text style={styles.note}>
+          {multiSupplier
+            ? 'O desconto reduz só o custo das peças do fornecedor escolhido. '
+            : 'Se o fornecedor abateu um valor no fim da compra, informe o total do desconto. Ele reduz o custo de cada peça deste lote e aumenta o seu lucro. '}
+          Para tirar o desconto, deixe em branco.
+        </Text>
+        {multiSupplier && (
+          <View style={styles.chipRow}>
+            {supplierList.map((s) => {
+              const selected = discountSupplierId === s.supplier_id;
+              return (
                 <TouchableOpacity
-                  style={[styles.saveButton, { backgroundColor: brand.primary }, addMutation.isPending && { opacity: 0.6 }]}
-                  onPress={submit}
-                  disabled={addMutation.isPending}
+                  key={s.supplier_id}
+                  onPress={() => {
+                    setDiscountSupplierId(s.supplier_id);
+                    setDiscountText(s.discount > 0 ? maskCurrencyBR(String(Math.round(s.discount * 100))) : '');
+                    setFormError('');
+                  }}
+                  activeOpacity={0.75}
+                  style={[
+                    styles.supplierChip,
+                    selected && { borderColor: brand.primary, backgroundColor: brand.primary + '14' },
+                  ]}
                 >
-                  <Text style={styles.saveText}>{addMutation.isPending ? 'Salvando...' : 'Salvar'}</Text>
+                  <Ionicons name="business" size={14} color={selected ? brand.primary : Colors.light.textSecondary} />
+                  <Text style={[styles.supplierChipText, selected && { color: brand.primary, fontWeight: '700' }]} numberOfLines={1}>
+                    {s.name}
+                  </Text>
                 </TouchableOpacity>
-              </View>
-            </ScrollView>
+              );
+            })}
           </View>
-        </View>
-      </Modal>
+        )}
+        <TextInput
+          label={multiSupplier ? `Desconto de ${supplierName(discountSupplierId)}` : 'Quanto foi o desconto?'}
+          value={discountText}
+          onChangeText={(t) => setDiscountText(maskCurrencyBR(t))}
+          mode="outlined"
+          keyboardType="numeric"
+          placeholder="0,00"
+          left={<TextInput.Affix text="R$" />}
+          style={styles.input}
+        />
+        {!!formError && <Text style={styles.error}>{formError}</Text>}
+      </BottomSheet>
+
+      <BottomSheet
+        visible={formOpen}
+        onDismiss={() => { setFormOpen(false); setFormError(''); }}
+        title="Despesa deste lote"
+        subtitle="Frete, embalagem, taxa, sacola"
+        icon="receipt-outline"
+        dismissOnBackdrop={!addMutation.isPending}
+        actions={[
+          { label: 'Cancelar', onPress: () => { setFormOpen(false); setFormError(''); }, variant: 'secondary', disabled: addMutation.isPending },
+          { label: 'Salvar', onPress: submit, variant: 'primary', loading: addMutation.isPending, disabled: addMutation.isPending },
+        ]}
+      >
+        <Text style={styles.note}>
+          Use para gastos desta compra. O valor soma no custo das peças deste lote e só pesa no resultado do mês quando as peças forem
+          vendidas. Para aluguel, luz e outros gastos da loja, use a tela Despesas.
+        </Text>
+        <TextInput
+          label="O que foi? (ex.: frete)"
+          value={description}
+          onChangeText={setDescription}
+          mode="outlined"
+          style={styles.input}
+        />
+        <TextInput
+          label="Quanto custou?"
+          value={amount}
+          onChangeText={(t) => setAmount(maskCurrencyBR(t))}
+          mode="outlined"
+          keyboardType="numeric"
+          placeholder="0,00"
+          left={<TextInput.Affix text="R$" />}
+          style={styles.input}
+        />
+        {!!formError && <Text style={styles.error}>{formError}</Text>}
+      </BottomSheet>
     </View>
   );
 }
@@ -516,6 +513,20 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   addButtonText: { fontSize: 14, fontWeight: '600' },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+  supplierChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+    maxWidth: '100%',
+  },
+  supplierChipText: { fontSize: 13, color: Colors.light.text, flexShrink: 1 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: 20 },
   modalCard: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 18, maxHeight: '90%' },
   modalTitle: { fontSize: 18, fontWeight: '700', color: Colors.light.text },

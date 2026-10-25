@@ -620,11 +620,11 @@ export default function StockEntryDetailsScreen() {
         {/* Footer: custo + total */}
         <View style={styles.productFooter}>
           <View style={styles.productFooterItem}>
-            <Text style={styles.productMetricLabel}>CUSTO UNIT.</Text>
+            <Text style={styles.productMetricLabel}>PAGO POR PEÇA</Text>
             <Text style={[styles.productMetricValue, { color: VALUE_COLORS.neutral }]}>{formatCurrency(item.unit_cost)}</Text>
           </View>
           <View style={[styles.productFooterItem, { alignItems: 'flex-end' }]}>
-            <Text style={styles.productMetricLabel}>TOTAL</Text>
+            <Text style={styles.productMetricLabel}>TOTAL PAGO</Text>
             <Text style={[styles.productMetricValue, { color: VALUE_COLORS.negative, flexShrink: 0 }]}>{formatCurrency(item.total_cost)}</Text>
           </View>
         </View>
@@ -693,6 +693,7 @@ export default function StockEntryDetailsScreen() {
       <AddProductToEntryModal
         visible={addProductOpen}
         entryId={entryId}
+        entryCode={entry.entry_code}
         entrySupplierName={entry.supplier_name}
         onClose={() => setAddProductOpen(false)}
       />
