@@ -6,7 +6,9 @@
 
 import React, { useEffect, useState } from 'react';
 import { useTutorialContext } from '@/contexts/TutorialContext';
+import { useSegments } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
+import { LEGAL_FREE_ROUTES } from '@/components/legal/LegalGate';
 import { TutorialSpotlight } from './TutorialSpotlight';
 import { TutorialTooltip } from './TutorialTooltip';
 import { WelcomeTutorialModal } from './WelcomeTutorialModal';
@@ -31,9 +33,16 @@ export function TutorialOverlay() {
 
   const user = useAuthStore((state) => state.user);
   const [showWelcome, setShowWelcome] = useState(false);
+  // Não abre por cima do aceite dos termos nem das telas sem login
+  const segments = useSegments();
+  const onLegalOrAuth = LEGAL_FREE_ROUTES.has((segments[0] as string) ?? '');
 
   // Mostrar modal de boas-vindas para novos usuários
   useEffect(() => {
+    if (onLegalOrAuth) {
+      setShowWelcome(false);
+      return;
+    }
     if (user && !welcomeShown && !tutorialDismissed) {
       // Delay para o app carregar completamente
       const timer = setTimeout(() => {
@@ -41,7 +50,7 @@ export function TutorialOverlay() {
       }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [user, welcomeShown, tutorialDismissed]);
+  }, [user, welcomeShown, tutorialDismissed, onLegalOrAuth]);
 
   const tutorial = getCurrentTutorial();
   const currentStep = getCurrentStep();

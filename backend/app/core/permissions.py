@@ -36,6 +36,7 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     ({"GET"}, r"^/team(/\{user_id\})?$", MANAGER),  # gerente consulta a equipe; só admin altera
     (ANY, r"^/(audit|team|store|mp-connect|error-logs)(/|$)", ADMIN),
     ({"POST"}, r"^/client-logs$", CASHIER),
+    ({"GET", "POST"}, r"^/legal/(status|accept)$", CASHIER),  # todo usuário aceita os próprios termos
     (ANY, r"^/auth/register$", ADMIN),
     (ANY, r"^/notifications/(send|test)(/|$)|^/notifications/inbox/push-now$", ADMIN),
     (ANY, r"^/pdv/(store/setup|cielo-pix/register-webhook)$", ADMIN),

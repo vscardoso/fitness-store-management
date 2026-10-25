@@ -24,7 +24,7 @@ def check(label, cond, extra=""):
 
 pw = "Qa!" + secrets.token_hex(6)
 em = f"qa.logo{secrets.token_hex(2)}@example.com"
-c.post(B + "/auth/signup", json={"full_name": "QA Logo", "email": em, "password": pw, "store_name": "Loja Logo", "plan": "pro"})
+c.post(B + "/auth/signup", json={"full_name": "QA Logo", "email": em, "password": pw, "store_name": "Loja Logo", "plan": "pro", "accept_terms": True, "terms_version": c.get(B + "/legal/current").json()["version"]})
 H = {"Authorization": "Bearer " + c.post(B + "/auth/login", json={"email": em, "password": pw}).json()["access_token"]}
 
 

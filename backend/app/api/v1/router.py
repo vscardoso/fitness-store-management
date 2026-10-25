@@ -21,6 +21,7 @@ from fastapi import APIRouter
 
 from app.api.v1.endpoints import (
     public_catalog,
+    legal,
     error_logs,
     auth,
     audit,
@@ -220,6 +221,9 @@ api_router.include_router(audit.router)
 
 # Registro de erros (admin lê; o app envia erros)
 api_router.include_router(error_logs.router)
+
+# Termos de Uso e Política de Privacidade (versão pública, situação e aceite)
+api_router.include_router(legal.router)
 
 # PDV — Mercado Pago In-Store (terminais, pagamento QR, webhooks)
 api_router.include_router(pdv.router)

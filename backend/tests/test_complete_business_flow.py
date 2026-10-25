@@ -51,6 +51,7 @@ from app.repositories.inventory_repository import InventoryRepository
 
 # Schemas
 from app.schemas.signup import SignupRequest
+from app.core.legal import LEGAL_VERSION
 from app.schemas.product import ProductCreate
 from app.schemas.customer import CustomerCreate
 from app.schemas.trip import TripCreate
@@ -97,6 +98,8 @@ async def test_complete_business_flow(db: AsyncSession):
         store_name="Fitness Pro",
         store_slug="fitness-pro",
         plan="pro",
+        accept_terms=True,
+        terms_version=LEGAL_VERSION,
 
         # Address data
         zip_code="01310-100",

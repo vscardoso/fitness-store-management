@@ -34,6 +34,10 @@ class SignupRequest(BaseModel):
     
     # Subscription plan (opcional, default: trial)
     plan: Optional[str] = Field("trial", description="Plano inicial: trial, free, pro, enterprise")
+
+    # Termos de Uso e Política de Privacidade (obrigatório; versão em GET /legal/current)
+    accept_terms: bool = Field(False, description="Aceitou os Termos de Uso e a Política de Privacidade")
+    terms_version: Optional[str] = Field(None, max_length=20, description="Versão dos termos que a pessoa leu")
     
     @validator('password')
     def validate_password(cls, v):

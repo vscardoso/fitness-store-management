@@ -85,7 +85,9 @@ class E2ECompleteTest:
             "password": self.user_password,
             "full_name": f"Usuário Teste E2E {datetime.now().strftime('%H%M%S')}",
             "store_name": f"Loja Teste E2E {datetime.now().strftime('%H%M%S')}",
-            "phone": "11987654321"
+            "phone": "11987654321",
+            "accept_terms": True,
+            "terms_version": requests.get(f"{BASE_URL}/legal/current").json()["version"],
         }
         
         print_test(f"Criando usuário: {self.user_email}")

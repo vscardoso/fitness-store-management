@@ -69,6 +69,10 @@ export interface SignupData {
   secondary_color?: string;
   accent_color?: string;
   plan?: string;
+
+  // Termos de Uso e Política de Privacidade (obrigatório no servidor)
+  accept_terms: boolean;
+  terms_version: string;
   
   // Address data
   zip_code: string;

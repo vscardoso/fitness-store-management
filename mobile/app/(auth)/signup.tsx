@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   StyleSheet,
@@ -19,7 +19,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import AppButton from '@/components/ui/AppButton';
 import { Colors, theme } from '@/constants/Colors';
-import { useBrandingStore, useBrandingColors } from '@/store/brandingStore';
+import { useBrandingColors } from '@/store/brandingStore';
 import { useSignupDraftStore } from '@/store/signupDraftStore';
 
 interface SignupForm {
@@ -39,7 +39,6 @@ interface FormErrors {
 }
 
 export default function SignupScreen() {
-  const { fetchFromServer } = useBrandingStore();
   const brandingColors = useBrandingColors();
 
   const [loading, setLoading] = useState(false);
@@ -56,10 +55,6 @@ export default function SignupScreen() {
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
-
-  useEffect(() => {
-    fetchFromServer().catch(() => {});
-  }, []);
 
   // Calcular força da senha em tempo real
   const passwordStrength = useMemo(() => {
@@ -78,7 +73,12 @@ export default function SignupScreen() {
     return { score: score / 6, label: 'Forte', color: '#4caf50' };
   }, [form.password]);
 
+  // Marca o campo como tocado já ao digitar: se só marcasse ao perder o foco, a mensagem que aparece
+  // empurrava o botão no meio do clique e o primeiro toque em "Continuar Cadastro" se perdia.
+  const markTouched = (field: string) => setTouched((t) => (t[field] ? t : { ...t, [field]: true }));
+
   const validateField = (field: keyof SignupForm, value: string) => {
+    markTouched(field);
     const newErrors = { ...errors };
     
     switch (field) {
@@ -239,7 +239,7 @@ export default function SignupScreen() {
                 setForm({ ...form, fullName: text });
                 validateField('fullName', text);
               }}
-              onBlur={() => setTouched({ ...touched, fullName: true })}
+              onBlur={() => markTouched('fullName')}
               mode="outlined"
               error={touched.fullName && !!errors.fullName}
               autoCapitalize="words"
@@ -267,7 +267,7 @@ export default function SignupScreen() {
                 setForm({ ...form, email: text });
                 validateField('email', text);
               }}
-              onBlur={() => setTouched({ ...touched, email: true })}
+              onBlur={() => markTouched('email')}
               mode="outlined"
               error={touched.email && !!errors.email}
               keyboardType="email-address"
@@ -304,7 +304,7 @@ export default function SignupScreen() {
                 setForm({ ...form, phone: formatted });
                 validateField('phone', formatted);
               }}
-              onBlur={() => setTouched({ ...touched, phone: true })}
+              onBlur={() => markTouched('phone')}
               mode="outlined"
               error={touched.phone && !!errors.phone}
               keyboardType="phone-pad"
@@ -330,7 +330,7 @@ export default function SignupScreen() {
                 validateField('password', text);
                 if (form.confirmPassword) validateField('confirmPassword', form.confirmPassword);
               }}
-              onBlur={() => setTouched({ ...touched, password: true })}
+              onBlur={() => markTouched('password')}
               mode="outlined"
               error={touched.password && !!errors.password}
               secureTextEntry={!showPassword}
@@ -372,7 +372,7 @@ export default function SignupScreen() {
                 setForm({ ...form, confirmPassword: text });
                 validateField('confirmPassword', text);
               }}
-              onBlur={() => setTouched({ ...touched, confirmPassword: true })}
+              onBlur={() => markTouched('confirmPassword')}
               mode="outlined"
               error={touched.confirmPassword && !!errors.confirmPassword}
               secureTextEntry={!showConfirmPassword}

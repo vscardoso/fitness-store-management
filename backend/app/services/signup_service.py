@@ -15,6 +15,8 @@ from app.models import Store, User, Subscription
 from app.models.user import UserRole
 from app.schemas.signup import SignupRequest, SignupResponse
 from app.core.security import get_password_hash, create_access_token, create_refresh_token
+from app.core.legal import LEGAL_VERSION
+from app.services.legal_service import record_acceptance
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +38,7 @@ class SignupService:
     def __init__(self, db: AsyncSession):
         self.db = db
     
-    async def signup(self, signup_data: SignupRequest) -> SignupResponse:
+    async def signup(self, signup_data: SignupRequest, ip: Optional[str] = None, user_agent: Optional[str] = None) -> SignupResponse:
         """
         Complete signup flow with atomic transaction
         
@@ -50,6 +52,12 @@ class SignupService:
             ValueError: If email/slug already exists or validation fails
             IntegrityError: If database constraints are violated
         """
+        # 0. Termos: sem aceite da versão atual o cadastro não começa
+        if not signup_data.accept_terms:
+            raise ValueError("Para criar a conta, aceite os Termos de Uso e a Política de Privacidade.")
+        if signup_data.terms_version != LEGAL_VERSION:
+            raise ValueError("Os termos foram atualizados. Abra a versão atual e aceite de novo.")
+
         # 1. Validate email uniqueness
         await self._validate_email_unique(signup_data.email)
         
@@ -99,6 +107,12 @@ class SignupService:
                 role=UserRole.ADMIN  # First user is always admin/owner
             )
             
+            # 7. Aceite dos termos na mesma transação (tudo ou nada)
+            await record_acceptance(
+                self.db, user_id=user.id, tenant_id=store.id, version=signup_data.terms_version,
+                channel="signup", ip=ip, user_agent=user_agent,
+            )
+
             # Commit transaction
             await self.db.commit()
             

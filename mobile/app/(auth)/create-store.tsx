@@ -24,6 +24,8 @@ import { useSignupDraftStore } from '@/store/signupDraftStore';
 import type { SignupData } from '@/types';
 import { Colors, PRESET_THEMES, theme } from '@/constants/Colors';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { TermsCheckbox } from '@/components/legal/TermsCheckbox';
+import { LEGAL_VERSION } from '@/constants/legal';
 
 type BrandingPreset = (typeof PRESET_THEMES)[number];
 
@@ -46,6 +48,7 @@ interface FormErrors {
   neighborhood?: string;
   city?: string;
   state?: string;
+  terms?: string;
 }
 
 interface ViaCEPResponse {
@@ -86,6 +89,7 @@ export default function CreateStoreScreen() {
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
+  const [acceptTerms, setAcceptTerms] = useState(false);
 
   const pickLogo = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -180,6 +184,7 @@ export default function CreateStoreScreen() {
     if (!form.neighborhood.trim()) newErrors.neighborhood = 'Bairro é obrigatório';
     if (!form.city.trim()) newErrors.city = 'Cidade é obrigatória';
     if (!form.state.trim()) newErrors.state = 'Estado é obrigatório';
+    if (!acceptTerms) newErrors.terms = 'Para criar a conta, aceite os Termos de Uso e a Política de Privacidade.';
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -210,6 +215,8 @@ export default function CreateStoreScreen() {
         secondary_color: selectedPreset.secondary,
         accent_color: selectedPreset.accent,
         plan: 'trial',
+        accept_terms: acceptTerms,
+        terms_version: LEGAL_VERSION,
         zip_code: form.cep.replace(/\D/g, ''),
         street: form.street.trim(),
         number: form.number.trim(),
@@ -460,6 +467,18 @@ export default function CreateStoreScreen() {
                   </View>
                 </View>
 
+                <View style={styles.terms}>
+                  <TermsCheckbox
+                    checked={acceptTerms}
+                    onChange={(v) => {
+                      setAcceptTerms(v);
+                      if (v) setErrors((prev) => ({ ...prev, terms: undefined }));
+                    }}
+                    color={brandingColors.primary}
+                    error={errors.terms}
+                  />
+                </View>
+
                 <AppButton
                   variant="primary"
                   size="lg"
@@ -481,6 +500,7 @@ export default function CreateStoreScreen() {
 }
 
 const styles = StyleSheet.create({
+  terms: { marginTop: 8, marginBottom: 16 },
   gradient: {
     flex: 1,
   },

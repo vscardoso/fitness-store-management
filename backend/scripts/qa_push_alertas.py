@@ -47,7 +47,7 @@ def check(label, cond, extra=""):
 
 def loja(nome):
     em = f"qa.pu{secrets.token_hex(2)}@example.com"
-    c.post(B + "/auth/signup", json={"full_name": nome, "email": em, "password": pw, "store_name": nome, "plan": "pro"})
+    c.post(B + "/auth/signup", json={"full_name": nome, "email": em, "password": pw, "store_name": nome, "plan": "pro", "accept_terms": True, "terms_version": c.get(B + "/legal/current").json()["version"]})
     H = {"Authorization": "Bearer " + c.post(B + "/auth/login", json={"email": em, "password": pw}).json()["access_token"]}
     cat = c.post(B + "/categories/", json={"name": "Moda"}, headers=H).json()
     return H, cat

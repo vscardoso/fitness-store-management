@@ -142,12 +142,14 @@ async def test_cors_preflight_headers_do_app_e_negacao():
 
 async def test_signup_ignora_plano_pago_do_cliente(test_client, async_session):
     from sqlalchemy import select
+    from app.core.legal import LEGAL_VERSION
     from app.models.store import Store
     from app.models.user import User
 
     r = await test_client.post("/api/v1/auth/signup", json={
         "full_name": "Dona da Loja", "email": "dona.plano@example.com", "password": "Senha1234",
         "store_name": "Loja Plano Teste", "plan": "enterprise",
+        "accept_terms": True, "terms_version": LEGAL_VERSION,
     })
     assert r.status_code == 201, r.text
     body = r.json()

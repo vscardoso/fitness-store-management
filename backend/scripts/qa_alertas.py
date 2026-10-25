@@ -8,7 +8,7 @@ c = httpx.Client(timeout=60)
 T = str(datetime.date.today())
 pw = "Qa!" + secrets.token_hex(6)
 em = f"qa.al{secrets.token_hex(2)}@example.com"
-c.post(B + "/auth/signup", json={"full_name": "QA Alertas", "email": em, "password": pw, "store_name": "Loja Alertas", "plan": "pro"})
+c.post(B + "/auth/signup", json={"full_name": "QA Alertas", "email": em, "password": pw, "store_name": "Loja Alertas", "plan": "pro", "accept_terms": True, "terms_version": c.get(B + "/legal/current").json()["version"]})
 H = {"Authorization": "Bearer " + c.post(B + "/auth/login", json={"email": em, "password": pw}).json()["access_token"]}
 cat = c.post(B + "/categories/", json={"name": "Moda"}, headers=H).json()
 falhas = []
@@ -97,7 +97,7 @@ check("marcar todas como lidas", r.status_code == 200 and unread() == 0, str(r.s
 
 # 8) isolamento entre lojas
 em2 = f"qa.al{secrets.token_hex(2)}@example.com"
-c.post(B + "/auth/signup", json={"full_name": "Outra Loja", "email": em2, "password": pw, "store_name": "Outra", "plan": "pro"})
+c.post(B + "/auth/signup", json={"full_name": "Outra Loja", "email": em2, "password": pw, "store_name": "Outra", "plan": "pro", "accept_terms": True, "terms_version": c.get(B + "/legal/current").json()["version"]})
 H2 = {"Authorization": "Bearer " + c.post(B + "/auth/login", json={"email": em2, "password": pw}).json()["access_token"]}
 check("outra loja nao ve os alertas desta", c.get(B + "/notifications/inbox", headers=H2).json() == [])
 

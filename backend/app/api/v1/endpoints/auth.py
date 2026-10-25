@@ -2,7 +2,7 @@
 Endpoints de autenticação e autorização.
 """
 import logging
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -18,6 +18,7 @@ from app.schemas.signup import (
 )
 from app.services.auth_service import AuthService
 from app.services.signup_service import SignupService
+from app.services.legal_service import client_ip
 from app.api.deps import get_current_active_user, require_role
 from app.core import rate_limit
 from app.services.team_limit import ensure_can_add_user
@@ -321,6 +322,7 @@ async def refresh_token(
 )
 async def signup(
     signup_data: SignupRequest,
+    request: Request,
     db: AsyncSession = Depends(get_db_unscoped)
 ):
     """
@@ -344,7 +346,11 @@ async def signup(
     signup_service = SignupService(db)
     
     try:
-        response = await signup_service.signup(signup_data)
+        response = await signup_service.signup(
+            signup_data,
+            ip=client_ip(request.headers, request.client.host if request.client else None),
+            user_agent=request.headers.get("user-agent"),
+        )
         return response
     except ValueError as e:
         raise HTTPException(

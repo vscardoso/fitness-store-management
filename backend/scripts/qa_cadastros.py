@@ -7,7 +7,7 @@ c = httpx.Client(timeout=60)
 T = str(datetime.date.today())
 pw = "Qa!" + secrets.token_hex(6)
 em = f"qa.cd{secrets.token_hex(2)}@example.com"
-c.post(B + "/auth/signup", json={"full_name": "QA Cadastros", "email": em, "password": pw, "store_name": "Loja Cadastros", "plan": "pro"})
+c.post(B + "/auth/signup", json={"full_name": "QA Cadastros", "email": em, "password": pw, "store_name": "Loja Cadastros", "plan": "pro", "accept_terms": True, "terms_version": c.get(B + "/legal/current").json()["version"]})
 H = {"Authorization": "Bearer " + c.post(B + "/auth/login", json={"email": em, "password": pw}).json()["access_token"]}
 cat = c.post(B + "/categories/", json={"name": "Moda"}, headers=H).json()
 falhas = []

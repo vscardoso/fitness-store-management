@@ -23,7 +23,7 @@ check("health", r.status_code == 200 and r.json().get("environment") == "product
 
 pw = "Sm!" + secrets.token_hex(8)
 em = f"smoke.{secrets.token_hex(3)}@example.com"
-r = c.post(BASE + "/auth/signup", json={"full_name": "Smoke Teste", "email": em, "password": pw, "store_name": f"Zz Teste Smoke {secrets.token_hex(2)}", "plan": "pro"})
+r = c.post(BASE + "/auth/signup", json={"full_name": "Smoke Teste", "email": em, "password": pw, "store_name": f"Zz Teste Smoke {secrets.token_hex(2)}", "plan": "pro", "accept_terms": True, "terms_version": c.get(BASE + "/legal/current").json()["version"]})
 check("cadastro da loja", r.status_code in (200, 201), f"{r.status_code} {r.text[:120]}")
 r = c.post(BASE + "/auth/login", json={"email": em, "password": pw})
 check("login", r.status_code == 200 and "access_token" in r.json(), str(r.status_code))

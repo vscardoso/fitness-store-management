@@ -32,6 +32,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { setForceLogoutCallback, setInvalidateQueriesCallback } from '@/services/api';
 import GlobalConfirmModalHost, { installGlobalAlertOverride } from '@/components/ui/GlobalConfirmModal';
 import UpdateBanner from '@/components/layout/UpdateBanner';
+import { LegalGate } from '@/components/legal/LegalGate';
 import { registerQueryClient } from '@/utils/queryCache';
 
 // TEMP: Sentry desabilitado por conflito de versão
@@ -179,6 +180,9 @@ export default function RootLayout() {
                     gestureEnabled: true,
                   }}
                 />
+
+                {/* Termos: quem não aceitou a versão atual vai para a tela de aceite */}
+                <LegalGate />
 
                 {/* Aviso de versão nova (só no app web) */}
                 <UpdateBanner />
