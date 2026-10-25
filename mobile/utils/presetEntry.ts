@@ -14,6 +14,12 @@ export function clearPresetEntry(): void {
   preset = null;
 }
 
+/** Olha a entrada pré-escolhida (se ainda valer) SEM esquecer; o passo 3 do assistente usa para mostrar o destino. */
+export function peekPresetEntry(): number | null {
+  if (!preset || Date.now() - preset.at > TTL_MS) return null;
+  return preset.entryId;
+}
+
 /** Devolve a entrada pré-escolhida (se ainda valer) e esquece. */
 export function takePresetEntry(): number | null {
   const p = preset;

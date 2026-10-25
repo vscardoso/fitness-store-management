@@ -22,7 +22,8 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import { formatCurrency } from '@/utils/format';
-import { getStockEntries } from '@/services/stockEntryService';
+import { getStockEntries, getStockEntryById } from '@/services/stockEntryService';
+import { clearPresetEntry, peekPresetEntry } from '@/utils/presetEntry';
 import type { StockEntry } from '@/types';
 import { useBrandingColors } from '@/store/brandingStore';
 import { logError } from '@/services/debugLog';
@@ -88,6 +89,20 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
   // 'new' = nova entrada, 'existing' = entrada existente
   const [variantQtyMode, setVariantQtyMode] = useState<'new' | 'existing'>('new');
   const [variantQtys, setVariantQtys] = useState<Record<number, string>>({});
+
+  // Veio de "Produto novo" dentro de uma entrada: o destino já está decidido, não precisa escolher de novo
+  const [presetEntryId, setPresetEntryId] = useState<number | null>(() => peekPresetEntry());
+  const [presetEntry, setPresetEntry] = useState<{ code: string; supplier?: string } | null>(null);
+  useEffect(() => {
+    if (!presetEntryId) return;
+    getStockEntryById(presetEntryId)
+      .then((e) => setPresetEntry({ code: e.entry_code, supplier: e.supplier_name }))
+      .catch(() => {
+        // entrada sumiu ou sem acesso: volta às opções normais
+        clearPresetEntry();
+        setPresetEntryId(null);
+      });
+  }, [presetEntryId]);
 
   // Estado para verificar se existem entradas
   const [hasExistingEntries, setHasExistingEntries] = useState<boolean | null>(null);
@@ -277,13 +292,50 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
           color={isPending ? brandingColors.secondary : brandingColors.primary}
         />
         <Text style={[styles.stockWarningText, { color: isPending ? brandingColors.secondary : brandingColors.primary }]}>
-          {isPending
+          {isPending && presetEntryId
+            ? 'Produto ainda não foi criado: ele só é gravado quando você lançar na entrada abaixo'
+            : isPending
             ? 'Produto ainda não foi criado — escolha uma entrada abaixo para concluir o cadastro'
             : 'Estoque atual: 0 unidades — vincule a uma entrada para rastreabilidade FIFO'}
         </Text>
       </View>
 
-      {/* Options */}
+      {/* Veio de uma entrada: destino já escolhido */}
+      {presetEntryId ? (
+        <View style={styles.optionsContainer}>
+          <TouchableOpacity
+            style={[styles.optionCard, { backgroundColor: visual.primarySoft, borderColor: visual.primaryBorder }]}
+            onPress={handleExistingEntryPress}
+            activeOpacity={0.8}
+            accessibilityLabel="Lançar este produto na entrada escolhida"
+          >
+            <View style={[styles.optionIconContainer, { backgroundColor: visual.primaryStrong }]}>
+              <Ionicons name="link" size={28} color={brandingColors.primary} />
+            </View>
+            <View style={styles.optionContent}>
+              <Text style={styles.optionTitle}>Lançar na entrada {(presetEntry?.code ?? '').replace(/-/g, '‑')}</Text>
+              <Text style={styles.optionDescription}>
+                {presetEntry?.supplier ? `Fornecedor da entrada: ${presetEntry.supplier}` : 'A entrada que você escolheu antes'}
+              </Text>
+              <Text style={styles.optionHint}>Você escolheu esta entrada ao tocar em Produto novo</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={24} color={brandingColors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              clearPresetEntry();
+              setPresetEntryId(null);
+              setPresetEntry(null);
+            }}
+            activeOpacity={0.7}
+            style={{ alignSelf: 'center', paddingVertical: 8 }}
+          >
+            <Text style={{ color: brandingColors.primary, fontWeight: '600', fontSize: 13 }}>
+              Usar outra entrada ou criar uma entrada nova
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
       <View style={styles.optionsContainer}>
         {/* Nova Entrada - Recomendado */}
         <TouchableOpacity
@@ -356,6 +408,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
           </View>
         )}
       </View>
+      )}
 
       {/* Info Card */}
       <View style={styles.infoCard}>
@@ -524,7 +577,11 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
                 />
               </View>
               <Text style={styles.modalTitle}>
-                {quantityMode === 'existing' ? 'Entrada Existente' : 'Nova Entrada'}
+                {quantityMode === 'existing'
+                  ? presetEntryId && presetEntry
+                    ? `Lançar na entrada ${presetEntry.code.replace(/-/g, '‑')}`
+                    : 'Entrada Existente'
+                  : 'Nova Entrada'}
               </Text>
               <Text style={styles.modalSubtitle}>
                 {quantityMode === 'existing'
@@ -575,7 +632,9 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
                 <Ionicons name="information-circle" size={16} color={brandingColors.secondary} />
                 <Text style={[styles.modalHintText, { color: brandingColors.secondary }]}>
                   {quantityMode === 'existing'
-                    ? 'Você será levado para selecionar a entrada existente'
+                    ? presetEntryId
+                      ? 'Em seguida você confirma de qual fornecedor é este produto'
+                      : 'Você será levado para selecionar a entrada existente'
                     : 'Você será levado para criar a entrada de estoque'}
                 </Text>
               </View>
