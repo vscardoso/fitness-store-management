@@ -35,6 +35,8 @@ class ProductVariant(BaseModel):
         UniqueConstraint('product_id', 'size', 'color', name='uq_variant_product_size_color'),
         # Código curto da etiqueta (#0001...): único por loja; nulo em variação de catálogo (sem SKU)
         UniqueConstraint('tenant_id', 'short_code', name='uq_variant_tenant_short_code'),
+        # Número da variação dentro do produto (o -1 de "#101-1"): sobe de 1 em 1 e nunca é reaproveitado
+        UniqueConstraint('product_id', 'variant_number', name='uq_variant_product_number'),
         # REMOVIDA: UniqueConstraint('tenant_id', 'sku')
         # Validação de SKU única feita no nível da aplicação (service/repository)
         # Isso permite múltiplos SKU null (produtos do catálogo)
@@ -66,6 +68,25 @@ class ProductVariant(BaseModel):
         index=True,
         comment="Código curto da etiqueta, por loja (sem repetir nem reaproveitar)"
     )
+
+    # Código da etiqueta "#101-1": número do produto (cópia de products.code_number) e da variação nele.
+    product_code: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+        comment="Número do produto na etiqueta (cópia de products.code_number)"
+    )
+    variant_number: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        comment="Número da variação dentro do produto (1, 2, 3...)"
+    )
+
+    @property
+    def display_code(self) -> str | None:
+        """O que está impresso na etiqueta, ex.: '#101-1' (None se a variação ainda não foi numerada)."""
+        from app.utils.variant_code import format_variant_code
+        return format_variant_code(self.product_code, self.variant_number)
 
     # Variações
     size: Mapped[str | None] = mapped_column(

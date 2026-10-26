@@ -1,8 +1,9 @@
 """
-Numera com o código curto da etiqueta (#0001...) as variações que ainda não têm número.
+Numera com o código da etiqueta as variações que ainda não têm: o antigo por variação (#0123) e o novo
+"#produto-variação" (ex.: #101-1: produto 101, variação 1 dele).
 
-Por loja, em ordem de criação (data de criação, depois id); só variações com SKU (as de catálogo ficam
-sem número). Continua de onde o contador da loja parou e nunca mexe em variação que já tem número
+Por loja, em ordem de criação; só variações com SKU (as de catálogo ficam sem número). Produto novo ganha
+o próximo número de produto; as variações dele recebem 1, 2, 3... na ordem da grade. Continua de onde o contador da loja parou e nunca mexe em variação que já tem número
 nem no SKU. Idempotente: rodar de novo não muda nada.
 
 Uso (a partir de backend/, ou dentro do container do backend):
@@ -26,7 +27,12 @@ from app.core.rls import bypass_on  # noqa: E402
 from app.models.product import Product  # noqa: E402
 from app.models.product_variant import ProductVariant  # noqa: E402
 from app.models.store import Store  # noqa: E402
-from app.services.short_code_service import format_short_code, reserve  # noqa: E402
+from app.services.short_code_service import (  # noqa: E402
+    assign_product_codes,
+    format_short_code,
+    format_variant_code,
+    reserve,
+)
 
 
 async def main(apply: bool, only_store: int | None) -> int:
@@ -47,23 +53,39 @@ async def main(apply: bool, only_store: int | None) -> int:
                        ProductVariant.sku.is_not(None))
                 .order_by(ProductVariant.created_at, ProductVariant.id)
             )).all()
-            if not pending:
-                print(f"Loja {store_id} ({store_name}): nada a numerar")
-                continue
-            first = await db.run_sync(lambda s: reserve(s.connection(), store_id, len(pending)))
-            print(f"Loja {store_id} ({store_name}): {len(pending)} variações, de {format_short_code(first)} a {format_short_code(first + len(pending) - 1)}")
-            for i, (v, pname) in enumerate(pending[:5]):
-                print(f"  {format_short_code(first + i)}  {pname} {v.color or ''} {v.size or ''} (SKU {v.sku})")
-            if len(pending) > 5:
-                print(f"  ... e mais {len(pending) - 5}")
-            if apply:
+            if pending:
+                first = await db.run_sync(lambda s: reserve(s.connection(), store_id, len(pending)))
+                print(f"Loja {store_id} ({store_name}): {len(pending)} variações sem número antigo (#0123), de {format_short_code(first)} a {format_short_code(first + len(pending) - 1)}")
                 for i, (v, _) in enumerate(pending):
                     v.short_code = first + i
+
+            # Código da etiqueta "#produto-variação": só variações com SKU que ainda não têm
+            to_code = (await db.execute(
+                select(ProductVariant)
+                .where(ProductVariant.tenant_id == store_id,
+                       ProductVariant.variant_number.is_(None),
+                       ProductVariant.sku.is_not(None))
+                .order_by(ProductVariant.product_id, ProductVariant.id)
+            )).scalars().all()
+            if to_code:
+                n = await db.run_sync(lambda s: assign_product_codes(s.connection(), to_code))
+                products = {v.product_id for v in to_code}
+                print(f"Loja {store_id} ({store_name}): {n} variações de {len(products)} produtos ganham o código produto-variação")
+                names = {pid: name for pid, name in (await db.execute(
+                    select(Product.id, Product.name).where(Product.id.in_(products)))).all()}
+                for v in sorted(to_code, key=lambda x: (x.product_code or 0, x.variant_number or 0))[:6]:
+                    print(f"  {format_variant_code(v.product_code, v.variant_number)}  {names.get(v.product_id, '')} {v.color or ''} {v.size or ''} (SKU {v.sku})")
+                if len(to_code) > 6:
+                    print(f"  ... e mais {len(to_code) - 6}")
+            if not pending and not to_code:
+                print(f"Loja {store_id} ({store_name}): nada a numerar")
+                continue
+            if apply:
                 await db.commit()
                 print("  Gravado.")
             else:
-                await db.rollback()  # devolve a reserva do contador
-            total += len(pending)
+                await db.rollback()  # devolve a reserva dos contadores
+            total += max(len(pending), len(to_code))
     print(("Gravadas" if apply else "Simulação: seriam numeradas") + f" {total} variações." + ("" if apply else " Nada gravado (use --apply)."))
     return 0
 

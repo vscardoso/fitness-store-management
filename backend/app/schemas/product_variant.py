@@ -4,7 +4,7 @@ Schemas para variantes de produto.
 from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, computed_field, field_validator, model_validator
 
 from app.utils.variant_grid import normalize_size, normalize_color
 
@@ -66,7 +66,15 @@ class ProductVariantResponse(ProductVariantBase):
     updated_at: datetime
     current_stock: Optional[int] = Field(None, description="Estoque atual")
     variant_label: Optional[str] = Field(None, description="Label formatado (cor · tamanho)")
-    short_code: Optional[int] = Field(None, description="Código curto da etiqueta, por loja (mostrar como #0123)")
+    short_code: Optional[int] = Field(None, description="Código curto antigo por variação (#0123); a etiqueta mostra display_code")
+    product_code: Optional[int] = None
+    variant_number: Optional[int] = None
+
+    @computed_field(description="Código da etiqueta: produto e variação, ex.: #101-1")
+    @property
+    def display_code(self) -> Optional[str]:
+        from app.utils.variant_code import format_variant_code
+        return format_variant_code(self.product_code, self.variant_number)
     
     class Config:
         from_attributes = True
@@ -94,6 +102,14 @@ class ProductVariantMinimal(BaseModel):
     price: Decimal
     current_stock: Optional[int] = None
     short_code: Optional[int] = None
+    product_code: Optional[int] = None
+    variant_number: Optional[int] = None
+
+    @computed_field(description="Código da etiqueta: produto e variação, ex.: #101-1")
+    @property
+    def display_code(self) -> Optional[str]:
+        from app.utils.variant_code import format_variant_code
+        return format_variant_code(self.product_code, self.variant_number)
     
     class Config:
         from_attributes = True

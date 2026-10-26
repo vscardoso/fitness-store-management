@@ -279,7 +279,10 @@ class ProductVariantService:
     
     async def get_variant_by_short_code(self, code: str, tenant_id: int) -> Optional[ProductVariant]:
         """Busca pelo código da etiqueta: aceita 'PV#0123' (QR), '#0123', '0123' ou '123'."""
-        from app.services.short_code_service import parse_short_code
+        from app.services.short_code_service import parse_short_code, parse_variant_code
+        pair = parse_variant_code(code)
+        if pair is not None:
+            return await self.variant_repo.get_by_variant_code(self.db, pair[0], pair[1], tenant_id)
         n = parse_short_code(code)
         if n is None:
             return None

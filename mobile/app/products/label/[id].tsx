@@ -32,7 +32,7 @@ import { Colors, theme } from '@/constants/Colors';
 import type { ProductVariant } from '@/types/productVariant';
 import { useBrandingColors } from '@/store/brandingStore';
 import { printTagLabels, TAG_LABELS_PER_A4, type TagLabelLayout } from '@/services/labelService';
-import { formatShortCode } from '@/utils/shortCode';
+import { variantCodeText } from '@/utils/shortCode';
 
 interface LabelFormat {
   id: string;
@@ -62,7 +62,7 @@ interface LabelItem {
   data: LabelData;
   stock: number;
   quantity: number;
-  shortCode?: number | null;
+  shortCode?: string | null;
 }
 
 interface FormatMetrics {
@@ -153,9 +153,11 @@ export default function ProductLabelScreen() {
       const hasMatchingPreselected =
         preselectedVariantId != null && variantList.some((variant) => variant.id === preselectedVariantId);
 
-      // ordem da grade = ordem do código curto (P, M, G...); sem código vai pro fim
+      // ordem da grade = ordem do código da etiqueta (#101-1, #101-2...); sem código vai pro fim
+      const BIG = Number.MAX_SAFE_INTEGER;
       const ordered = [...variantList].sort(
-        (a, b) => (a.short_code ?? Number.MAX_SAFE_INTEGER) - (b.short_code ?? Number.MAX_SAFE_INTEGER),
+        (a, b) =>
+          (a.variant_number ?? BIG) - (b.variant_number ?? BIG) || (a.short_code ?? BIG) - (b.short_code ?? BIG),
       );
       setItems(ordered.map(v => ({
         key: `variant-${v.id}`,
@@ -170,7 +172,7 @@ export default function ProductLabelScreen() {
           color: v.color || undefined,
         },
         stock: v.current_stock ?? 0,
-        shortCode: v.short_code,
+        shortCode: variantCodeText(v),
         quantity: hasMatchingPreselected
           ? (v.id === preselectedVariantId ? 1 : 0)
           : 1,
@@ -635,7 +637,7 @@ export default function ProductLabelScreen() {
                     <Text style={styles.variantRowName} numberOfLines={1}>{item.label}</Text>
                     {item.shortCode != null && (
                       <Text style={[styles.shortCodePill, { color: brandingColors.primary, backgroundColor: brandingColors.primary + '12' }]}>
-                        {formatShortCode(item.shortCode)}
+                        {item.shortCode}
                       </Text>
                     )}
                   </View>

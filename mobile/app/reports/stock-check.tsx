@@ -30,7 +30,7 @@ import useBackToList from '@/hooks/useBackToList';
 import { useAuthStore } from '@/store/authStore';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getStockCheck, type StockCheckRow } from '@/services/stockCheckService';
-import { formatShortCode } from '@/utils/shortCode';
+import { variantCodeText } from '@/utils/shortCode';
 
 type Counts = Record<number, string>;
 
@@ -98,7 +98,7 @@ export default function StockCheckScreen() {
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
     return rows.filter((r) => {
-      if (q && !`${r.product_name} ${r.color ?? ''} ${r.size ?? ''} ${r.sku ?? ''} ${formatShortCode(r.short_code) ?? ''}`.toLowerCase().includes(q)) return false;
+      if (q && !`${r.product_name} ${r.color ?? ''} ${r.size ?? ''} ${r.sku ?? ''} ${variantCodeText(r) ?? ''}`.toLowerCase().includes(q)) return false;
       if (onlyDiffs) {
         const d = diffOf(r, counts);
         return d !== null && d !== 0;
@@ -152,7 +152,7 @@ export default function StockCheckScreen() {
         body += `<tr class="prod"><td colspan="${withResult ? 5 : 4}">${esc(r.product_name)} <span class="cat">${esc(r.category_name)}</span></td></tr>`;
       }
       const d = diffOf(r, counts);
-      const code = formatShortCode(r.short_code) ?? r.sku ?? '';
+      const code = variantCodeText(r) ?? r.sku ?? '';
       if (withResult) {
         const counted = counts[r.variant_id] ?? '';
         const cls = d === null ? '' : d === 0 ? 'ok' : d < 0 ? 'falta' : 'sobra';
@@ -315,7 +315,7 @@ export default function StockCheckScreen() {
               </View>
               {g.rows.map((r) => {
                 const d = diffOf(r, counts);
-                const code = formatShortCode(r.short_code);
+                const code = variantCodeText(r);
                 return (
                   <View key={r.variant_id} style={styles.row}>
                     <View style={{ flex: 1, minWidth: 0 }}>

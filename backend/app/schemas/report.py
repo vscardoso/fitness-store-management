@@ -25,6 +25,7 @@ class TopProduct(BaseModel):
     variant_color: str | None = None
     variant_label: str | None = None
     variant_short_code: int | None = None
+    variant_display_code: str | None = None
     quantity_sold: int
     revenue: float
     profit: float

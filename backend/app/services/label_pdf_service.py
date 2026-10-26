@@ -23,7 +23,6 @@ from reportlab.lib.utils import simpleSplit
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 
-from app.services.short_code_service import format_short_code, qr_payload
 
 BOLD, REGULAR = "Helvetica-Bold", "Helvetica"
 ZONES = (15, 13, 11, 21)  # proporção das faixas (somam 60)
@@ -36,7 +35,8 @@ class LabelData:
     color: Optional[str]
     size: Optional[str]
     price: Optional[Decimal]
-    short_code: int
+    code: str      # o que está escrito na etiqueta, ex.: '#101-1'
+    qr: str        # o que o QR leva, ex.: 'PV#101-1'
 
 
 def format_price(value: Optional[Decimal]) -> str:
@@ -128,12 +128,12 @@ def draw_label(c: canvas.Canvas, x: float, y: float, w: float, h: float, d: Labe
     # 4. QR (esquerda) e código curto (direita)
     zone_h = ZONES[3] * unit
     qr_size = min(17 * mm, zone_h - 2 * mm)
-    widget = QrCodeWidget(qr_payload(d.short_code), barLevel="M", barBorder=1)
+    widget = QrCodeWidget(d.qr, barLevel="M", barBorder=1)
     bx1, by1, bx2, by2 = widget.getBounds()
     drawing = Drawing(qr_size, qr_size, transform=[qr_size / (bx2 - bx1), 0, 0, qr_size / (by2 - by1), 0, 0])
     drawing.add(widget)
     renderPDF.draw(drawing, c, x + pad - 0.6 * mm, z4 - zone_h + (zone_h - qr_size) / 2)
-    code = format_short_code(d.short_code)
+    code = d.code
     code_w = inner_w - qr_size - 2 * mm
     cs = _fit(code, BOLD, 19.8, code_w, 10)
     mid = z4 - zone_h / 2

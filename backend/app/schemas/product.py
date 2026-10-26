@@ -118,7 +118,15 @@ class ProductVariantMinimalResponse(BaseModel):
     cost_price: Optional[Decimal] = None
     is_active: bool = True
     current_stock: Optional[int] = None
-    short_code: Optional[int] = None  # código da etiqueta (#0123)
+    short_code: Optional[int] = None  # código antigo por variação (#0123)
+    product_code: Optional[int] = None
+    variant_number: Optional[int] = None
+
+    @computed_field(description="Código da etiqueta: produto e variação, ex.: #101-1")
+    @property
+    def display_code(self) -> Optional[str]:
+        from app.utils.variant_code import format_variant_code
+        return format_variant_code(self.product_code, self.variant_number)
 
     class Config:
         from_attributes = True

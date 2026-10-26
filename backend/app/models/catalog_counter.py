@@ -12,3 +12,5 @@ class CatalogCounter(BaseModel):
     # Próximo número a entregar. A linha fica travada até o fim da transação (UPDATE),
     # então duas criações ao mesmo tempo nunca pegam o mesmo número; rollback devolve o número.
     next_short_code = Column(Integer, nullable=False, default=1)
+    # Próximo número de PRODUTO (o 101 de "#101-1"). Mesma trava e mesma regra do contador acima.
+    next_product_code = Column(Integer, nullable=False, default=1, server_default="1")

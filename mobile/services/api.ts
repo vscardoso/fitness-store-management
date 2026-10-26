@@ -8,6 +8,7 @@ import axios, { AxiosError, AxiosRequestConfig, AxiosResponse } from 'axios';
 import { API_CONFIG } from '@/constants/Config';
 import { getAccessToken, getRefreshToken, saveAccessToken, saveRefreshToken, clearAuthData } from './storage';
 import { loadingManager } from './loadingManager';
+import { OFFLINE_ERROR, friendlyFromText, safeMessage, validationMessage } from '@/utils/friendlyError';
 import { logError } from './debugLog';
 import type { ApiError } from '@/types';
 
@@ -270,11 +271,9 @@ api.interceptors.response.use(
     
     // Erro de rede (sem resposta do servidor)
     if (!error.response) {
-      const networkError = error.code === 'ECONNABORTED' 
-        ? 'Tempo de conexão esgotado. Verifique sua internet.'
-        : error.code === 'ERR_NETWORK'
-        ? 'Erro de rede. Verifique se o servidor está rodando em ' + API_CONFIG.BASE_URL
-        : 'Não foi possível conectar ao servidor. Verifique sua conexão.';
+      const networkError = error.code === 'ECONNABORTED'
+        ? 'A conexão demorou demais. Verifique sua internet e tente de novo.'
+        : OFFLINE_ERROR;
       
       // TEMP: Sentry desabilitado
       // Sentry.Native.captureException(error, {
@@ -354,7 +353,7 @@ api.interceptors.response.use(
       }
 
       // Demais casos: retornar erro sem encerrar sessão
-      return Promise.reject(new Error(detail || 'Acesso não autorizado'));
+      return Promise.reject(new Error(safeMessage(detail, 'Você não tem permissão para esta ação.')));
     }
     
     // TEMP: Sentry desabilitado
@@ -375,10 +374,16 @@ api.interceptors.response.use(
     
     // Retornar erro formatado (preserva status no objeto para detecção nos catch dos serviços)
     const rawDetail = error.response?.data?.detail as any;
+    const httpStatus = error.response?.status ?? 0;
+    // Nunca mostra SQL, lista de campos crua nem "Request failed...": frase clara em português
     const errorMessage = typeof rawDetail === 'string'
-      ? rawDetail
-      : (() => { try { return JSON.stringify(rawDetail); } catch { return 'Erro ao comunicar com o servidor'; } })();
-    const formattedError = new Error(errorMessage || 'Erro ao comunicar com o servidor');
+      ? safeMessage(rawDetail)
+      : Array.isArray(rawDetail)
+      ? validationMessage(rawDetail)
+      : httpStatus >= 500
+      ? friendlyFromText(null)
+      : 'Não foi possível concluir. Confira os dados e tente de novo.';
+    const formattedError = new Error(errorMessage);
     (formattedError as any).status = error.response?.status;
     return Promise.reject(formattedError);
   }

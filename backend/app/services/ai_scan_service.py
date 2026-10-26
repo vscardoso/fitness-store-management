@@ -23,6 +23,22 @@ from app.schemas.ai import ProductScanResult, DuplicateMatch
 logger = logging.getLogger(__name__)
 
 
+
+def _clip(text, limit: int):
+    """Corta o texto no limite do campo sem cortar palavra no meio (o cadastro tem tamanho máximo por campo)."""
+    if text is None:
+        return None
+    text = str(text).strip()
+    if len(text) <= limit:
+        return text
+    cut = text[:limit]
+    for sep in (", ", "; ", " - ", " "):
+        i = cut.rfind(sep)
+        if i >= limit // 2:
+            return cut[:i].rstrip(" ,;-")
+    return cut.rstrip(" ,;-")
+
+
 class AIScanService:
     """Serviço para análise de imagens de produtos com IA."""
 
@@ -106,7 +122,7 @@ Esta é uma loja FITNESS com foco principal em **roupas femininas**, mas também
   "color": "Nome comercial da cor principal ou null",
   "size": "PP|P|M|G|GG|XGG ou 34-44 ou null se não identificável",
   "gender": "feminino|masculino|unissex",
-  "material": "Material principal ou composição completa",
+  "material": "Material principal ou composição, curto (máximo 60 caracteres)",
   "suggested_category": "Nome EXATO da categoria da lista acima",
   "detected_barcode": "código ou null",
   "estimated_cost_price": 45.00,
@@ -455,13 +471,13 @@ Responda APENAS com o JSON, sem texto adicional."""
             warnings.append(f"Encontrados {len(duplicates)} produtos similares")
 
         return ProductScanResult(
-            name=ai_data.get("name", "Produto sem nome"),
+            name=_clip(ai_data.get("name", "Produto sem nome"), 255),
             description=ai_data.get("description"),
-            brand=ai_data.get("brand"),
-            color=ai_data.get("color"),
-            size=ai_data.get("size"),
-            gender=ai_data.get("gender"),
-            material=ai_data.get("material"),
+            brand=_clip(ai_data.get("brand"), 100),
+            color=_clip(ai_data.get("color"), 50),
+            size=_clip(ai_data.get("size"), 20),
+            gender=_clip(ai_data.get("gender"), 20),
+            material=_clip(ai_data.get("material"), 100),
             suggested_category=category_name,
             suggested_category_id=category_id,
             suggested_sku=suggested_sku,

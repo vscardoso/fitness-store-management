@@ -233,7 +233,10 @@ export interface ProductVariant {
   cost_price?: number;
   current_stock: number;
   is_active?: boolean;
-  short_code?: number | null; // código curto da etiqueta (#0123)
+  short_code?: number | null; // código antigo por variação (#0123)
+  display_code?: string | null; // código da etiqueta: produto e variação (#101-1)
+  product_code?: number | null;
+  variant_number?: number | null;
 }
 
 export interface ProductGrouped {

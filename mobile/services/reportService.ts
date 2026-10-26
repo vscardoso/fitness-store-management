@@ -19,6 +19,7 @@ export interface TopProduct {
   variant_color?: string | null;
   variant_label?: string | null;
   variant_short_code?: number | null;
+  variant_display_code?: string | null;
   quantity_sold: number;
   revenue: number;
   profit: number;

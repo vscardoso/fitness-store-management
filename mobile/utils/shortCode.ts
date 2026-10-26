@@ -11,3 +11,12 @@ export function parseShortCode(text: string): number | null {
   const n = Number(m[1]);
   return n > 0 ? n : null;
 }
+
+/**
+ * Código que está impresso na etiqueta: "#101-1" (produto 101, variação 1). Variação ainda não numerada
+ * no formato novo cai no código antigo (#0123), que continua achando a peça.
+ */
+export function variantCodeText(v?: { display_code?: string | null; short_code?: number | null } | null): string | null {
+  if (!v) return null;
+  return v.display_code ?? formatShortCode(v.short_code);
+}

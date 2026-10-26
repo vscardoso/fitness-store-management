@@ -1,5 +1,6 @@
 import Toast from "react-native-toast-message";
 import { AxiosError } from "axios";
+import { OFFLINE_ERROR, GENERIC_ERROR, safeMessage, validationMessage } from "@/utils/friendlyError";
 
 interface ApiErrorBody {
   detail?: string | { msg: string }[];
@@ -10,19 +11,19 @@ export function parseApiError(error: unknown): string {
   if (error instanceof AxiosError) {
     const data = error.response?.data as ApiErrorBody | undefined;
     if (data?.detail) {
-      if (typeof data.detail === "string") return data.detail;
-      if (Array.isArray(data.detail)) return data.detail.map((d) => d.msg).join(", ");
+      if (typeof data.detail === "string") return safeMessage(data.detail);
+      if (Array.isArray(data.detail)) return validationMessage(data.detail);
     }
-    if (data?.message) return data.message;
+    if (data?.message) return safeMessage(data.message);
     if (error.response?.status === 401) return "Sessão expirada. Faça login novamente.";
     if (error.response?.status === 403) return "Você não tem permissão para esta ação.";
-    if (error.response?.status === 404) return "Recurso não encontrado.";
-    if (error.response?.status === 422) return "Dados inválidos. Verifique os campos.";
-    if (error.response?.status === 500) return "Erro interno no servidor. Tente novamente.";
-    if (error.code === "ERR_NETWORK" || error.code === "ECONNABORTED") return "Sem conexão com o servidor.";
+    if (error.response?.status === 404) return "Não encontramos o que você procurou.";
+    if (error.response?.status === 422) return "Confira os campos e tente de novo.";
+    if (error.response?.status === 500) return GENERIC_ERROR;
+    if (error.code === "ERR_NETWORK" || error.code === "ECONNABORTED") return OFFLINE_ERROR;
   }
-  if (error instanceof Error) return error.message;
-  return "Ocorreu um erro inesperado.";
+  if (error instanceof Error) return safeMessage(error.message);
+  return GENERIC_ERROR;
 }
 
 export function showApiError(error: unknown, title = "Erro") {

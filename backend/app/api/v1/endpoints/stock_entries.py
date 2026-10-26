@@ -40,15 +40,15 @@ class StockEntryCreateRequest(StockEntryCreate):
 class StockEntryWithNewProductRequest(StockEntryCreate):
     """Request para criar entrada com um NOVO produto e item em transação única."""
     # Dados do novo produto
-    product_name: str
+    product_name: str = Field(..., max_length=255)
     product_sku: str
     product_barcode: Optional[str] = None
     product_description: Optional[str] = None
-    product_brand: Optional[str] = None
+    product_brand: Optional[str] = Field(None, max_length=100)
     product_color: Optional[str] = None
     product_size: Optional[str] = None
-    product_gender: Optional[str] = None
-    product_material: Optional[str] = None
+    product_gender: Optional[str] = Field(None, max_length=20)
+    product_material: Optional[str] = Field(None, max_length=100)
     product_category_id: int
     product_cost_price: Optional[float] = None
     product_price: float
@@ -118,12 +118,12 @@ class NewVariantInput(BaseModel):
 
 class NewProductForEntryRequest(BaseModel):
     """Produto NOVO (simples = 1 variação) para lançar numa entrada já existente, numa transação só."""
-    product_name: str
+    product_name: str = Field(..., max_length=255)
     product_description: Optional[str] = None
-    product_brand: Optional[str] = None
+    product_brand: Optional[str] = Field(None, max_length=100)
     product_category_id: int
-    product_gender: Optional[str] = None
-    product_material: Optional[str] = None
+    product_gender: Optional[str] = Field(None, max_length=20)
+    product_material: Optional[str] = Field(None, max_length=100)
     base_price: float
     variants: List[NewVariantInput] = Field(..., min_length=1)
     supplier_id: Optional[int] = Field(None, description="Fornecedor deste produto (padrão: o da entrada)")
@@ -150,13 +150,13 @@ class VariantItem(BaseModel):
 class StockEntryWithNewProductVariantsRequest(BaseModel):
     """Request para criar entrada com um NOVO produto com variantes em transação única."""
     # Dados do produto pai
-    product_name: str
+    product_name: str = Field(..., max_length=255)
     product_barcode: Optional[str] = None
     product_description: Optional[str] = None
-    product_brand: Optional[str] = None
+    product_brand: Optional[str] = Field(None, max_length=100)
     product_category_id: int
-    product_gender: Optional[str] = None
-    product_material: Optional[str] = None
+    product_gender: Optional[str] = Field(None, max_length=20)
+    product_material: Optional[str] = Field(None, max_length=100)
     base_price: float
     
     # Dados das variantes

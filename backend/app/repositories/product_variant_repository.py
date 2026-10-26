@@ -77,6 +77,26 @@ class ProductVariantRepository(BaseRepository[ProductVariant, ProductVariantCrea
         )
         return result.scalar_one_or_none()
 
+    async def get_by_variant_code(self, db: AsyncSession, product_code: int, variant_number: int, tenant_id: int) -> Optional[ProductVariant]:
+        """Busca variante pelo código da etiqueta '#101-1' (produto 101, variação 1) dentro da loja."""
+        result = await db.execute(
+            select(ProductVariant)
+            .options(
+                selectinload(ProductVariant.product).selectinload(Product.category),
+                selectinload(ProductVariant.inventory),
+                selectinload(ProductVariant.entry_items),
+            )
+            .where(
+                and_(
+                    ProductVariant.product_code == product_code,
+                    ProductVariant.variant_number == variant_number,
+                    ProductVariant.tenant_id == tenant_id,
+                    ProductVariant.is_active == True,
+                )
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_product(
         self,
         db: AsyncSession,

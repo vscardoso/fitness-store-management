@@ -438,6 +438,7 @@ export default function WizardStep2({
                 label="Material"
                 value={(formData as any).material || ''}
                 onChangeText={(text) => updateField('material', capitalizeWords(text))}
+                maxLength={100}
                 autoCapitalize="words"
                 mode="outlined"
                 style={styles.input}

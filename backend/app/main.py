@@ -21,6 +21,7 @@ from app.core.database import init_db, close_db, engine
 from app.core.scheduler import start_scheduler, shutdown_scheduler
 from app.api.v1.router import api_router
 from app.services.error_log_service import log_request_error
+from app.core.friendly_errors import GENERIC, friendly_from_text, is_technical
 from app.middleware.tenant import TenantMiddleware
 from app.admin.auth import AdminAuth
 from app.admin.views import ALL_VIEWS
@@ -217,6 +218,23 @@ async def log_requests(request: Request, call_next):
 
 
 # Exception Handlers
+def _validation_sentence(err: dict) -> str:
+    """Uma frase clara para um erro de validação do Pydantic (ex.: 'Material: no máximo 100 letras')."""
+    from app.core.friendly_errors import field_label
+    loc = [str(p) for p in (err.get("loc") or []) if p not in ("body", "query", "path")]
+    campo = field_label(loc[-1]) if loc else "Campo"
+    kind, ctx = err.get("type", ""), err.get("ctx") or {}
+    if kind == "string_too_long":
+        return f"{campo}: no máximo {ctx.get('max_length')} letras"
+    if kind == "string_too_short" or kind == "missing":
+        return f"{campo}: preencha este campo"
+    if kind in ("greater_than", "greater_than_equal"):
+        return f"{campo}: valor menor que o permitido"
+    if kind in ("less_than", "less_than_equal"):
+        return f"{campo}: valor maior que o permitido"
+    return f"{campo}: valor inválido"
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(
     request: Request,
@@ -250,7 +268,7 @@ async def validation_exception_handler(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={
             "detail": errors,
-            "message": "Erro de validação nos dados enviados"
+            "message": "Confira os campos: " + "; ".join(_validation_sentence(e) for e in errors[:3])
         }
     )
 
@@ -259,6 +277,13 @@ async def validation_exception_handler(
 async def http_exception_logging_handler(request: Request, exc: StarletteHTTPException):
     """Mantém a resposta padrão e registra no error_logs os erros que importam (5xx e 4xx de gravação)."""
     await log_request_error(request, exc.status_code, exc=exc, message=str(exc.detail))
+    # Erro técnico (SQL, driver) nunca vai para a tela da lojista: o original fica no registro de erros
+    if exc.status_code >= 500 or (isinstance(exc.detail, str) and is_technical(exc.detail)):
+        exc = StarletteHTTPException(
+            status_code=exc.status_code,
+            detail=friendly_from_text(str(exc.detail)),
+            headers=getattr(exc, "headers", None),
+        )
     return await http_exception_handler(request, exc)
 
 
@@ -267,15 +292,15 @@ async def sqlalchemy_exception_handler(
     request: Request,
     exc: SQLAlchemyError
 ):
-    """Handle database errors with full detail to ease debugging."""
+    """Erro de banco: o detalhe técnico vai para o registro de erros; a lojista recebe uma frase clara."""
     logger.error(f"Database error: {str(exc)}", exc_info=True)
     await log_request_error(request, 500, exc=exc)
-    # Sempre retornar o detalhe do erro para diagnóstico em ambiente de dev
+    friendly = friendly_from_text(str(exc))
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
-            "detail": str(exc),
-            "message": str(exc) if settings.DEBUG else "Erro no banco de dados"
+            "detail": friendly,
+            "message": str(exc) if settings.DEBUG else friendly,
         }
     )
 
@@ -291,8 +316,8 @@ async def general_exception_handler(
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
-            "detail": "Erro interno do servidor",
-            "message": str(exc) if settings.DEBUG else "Ocorreu um erro inesperado"
+            "detail": GENERIC,
+            "message": str(exc) if settings.DEBUG else GENERIC,
         }
     )
 

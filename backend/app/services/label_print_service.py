@@ -9,7 +9,7 @@ from app.models.entry_item import EntryItem
 from app.models.product_variant import ProductVariant
 from app.models.stock_entry import StockEntry
 from app.services.label_pdf_service import LabelData
-from app.services.short_code_service import ensure_codes
+from app.services.short_code_service import ensure_codes, format_short_code, qr_payload, format_variant_code, variant_qr_payload
 
 MAX_LABELS = 600
 
@@ -45,7 +45,9 @@ async def _build(db: AsyncSession, tenant_id: int, wanted: List[Tuple[int, int]]
     for vid, qty in wanted:
         v = variants[vid]
         d = LabelData(name=v.product.name if v.product else "", color=v.color, size=v.size,
-                      price=v.price, short_code=v.short_code)
+                      price=v.price,
+                      code=format_variant_code(v.product_code, v.variant_number) or format_short_code(v.short_code),
+                      qr=(variant_qr_payload(v.product_code, v.variant_number) if v.product_code and v.variant_number else qr_payload(v.short_code)))
         out.extend([d] * qty)
     return out
 

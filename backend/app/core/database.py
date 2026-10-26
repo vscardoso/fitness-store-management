@@ -187,7 +187,9 @@ _SQLITE_EXTRA_COLUMNS = {
     "sale_returns": [("exchange_sale_id", "INTEGER"), ("net_amount", "NUMERIC(10,2)"), ("settlement_method", "VARCHAR(20)")],
     "return_items": [("restock", "BOOLEAN NOT NULL DEFAULT 1"), ("replacement_variant_id", "INTEGER")],
     "app_notifications": [("push_sent", "BOOLEAN NOT NULL DEFAULT 0")],
-    "product_variants": [("short_code", "INTEGER")],
+    "product_variants": [("short_code", "INTEGER"), ("product_code", "INTEGER"), ("variant_number", "INTEGER")],
+    "products": [("code_number", "INTEGER")],
+    "catalog_counters": [("next_product_code", "INTEGER NOT NULL DEFAULT 1")],
 }
 
 

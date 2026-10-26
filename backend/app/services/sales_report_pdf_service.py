@@ -122,8 +122,8 @@ def build_sales_report_pdf(report: Any) -> bytes:
     for i, p in enumerate(get("top_products") or [], 1):
         g = (lambda k: p[k]) if isinstance(p, dict) else (lambda k: getattr(p, k))
         label = g("variant_label") or " · ".join(x for x in (g("variant_color"), g("variant_size")) if x)
-        code = g("variant_short_code")
-        label = " ".join(x for x in (label, f"#{int(code):04d}" if code else "") if x)
+        code = g("variant_display_code") or (f"#{int(g('variant_short_code')):04d}" if g("variant_short_code") else "")
+        label = " ".join(x for x in (label, code) if x)
         name = _esc(g("product_name")) + (f"<br/><font size=7 color='grey'>{_esc(label)}</font>" if label else "")
         top.append([str(i), Paragraph(name, body), str(g("quantity_sold")), brl(g("revenue")), brl(g("profit"))])
     if len(top) == 1:

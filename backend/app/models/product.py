@@ -37,6 +37,10 @@ class Product(BaseModel):
     - image_url (imagem principal)
     """
     __tablename__ = "products"
+    __table_args__ = (
+        # Número do produto na etiqueta (o 101 de "#101-1"): único por loja, nulo até o produto ter variação com SKU
+        UniqueConstraint('tenant_id', 'code_number', name='uq_product_tenant_code_number'),
+    )
     
     name: Mapped[str] = mapped_column(
         String(255), 
@@ -44,6 +48,13 @@ class Product(BaseModel):
         comment="Product name"
     )
     
+    code_number: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+        comment="Número do produto na etiqueta, por loja (sem repetir nem reaproveitar)"
+    )
+
     description: Mapped[str | None] = mapped_column(
         Text,
         comment="Product description"

@@ -16,7 +16,10 @@ export interface ProductVariant {
   updated_at: string;
   current_stock?: number;
   variant_label?: string;
-  short_code?: number | null; // código curto da etiqueta (#0123), único na loja
+  short_code?: number | null; // código antigo por variação (#0123), único na loja
+  display_code?: string | null; // código da etiqueta: produto e variação (#101-1)
+  product_code?: number | null;
+  variant_number?: number | null;
 }
 
 export interface ProductVariantWithProduct extends ProductVariant {
@@ -35,6 +38,7 @@ export interface ProductVariantMinimal {
   price: number;
   current_stock?: number;
   short_code?: number | null;
+  display_code?: string | null;
 }
 
 export interface ProductWithVariants {

@@ -147,12 +147,15 @@ async def test_script_numera_as_antigas_em_ordem_de_criacao(async_session, test_
 
     db = async_session
     t, c = await _loja(db)
-    _, vs = await _produto(db, t, c, grade=(("Preto", "P"), ("Preto", "M")))
-    _, ws = await _produto(db, t, c)
+    p1, vs = await _produto(db, t, c, grade=(("Preto", "P"), ("Preto", "M")))
+    p2, ws = await _produto(db, t, c)
     await db.commit()
     ids = [v.id for v in vs + ws]
     for v in vs + ws:  # simula variações de antes do código existir
         v.short_code = None
+        v.product_code = None
+        v.variant_number = None
+    await db.execute(Product.__table__.update().where(Product.id.in_([p1.id, p2.id])).values(code_number=None))
     await db.execute(CatalogCounter.__table__.delete().where(CatalogCounter.tenant_id == t))
     await db.commit()
 
@@ -166,6 +169,9 @@ async def test_script_numera_as_antigas_em_ordem_de_criacao(async_session, test_
     db.expire_all()
     rows = (await db.execute(select(ProductVariant.id, ProductVariant.short_code).where(ProductVariant.id.in_(ids)).order_by(ProductVariant.id))).all()
     assert [r.short_code for r in rows] == [1, 2, 3]
+    codes = (await db.execute(select(ProductVariant.id, ProductVariant.product_code, ProductVariant.variant_number)
+                              .where(ProductVariant.id.in_(ids)).order_by(ProductVariant.id))).all()
+    assert [(r.product_code, r.variant_number) for r in codes] == [(1, 1), (1, 2), (2, 1)]   # produto 1: P=1, M=2; produto 2: 1
     await script.main(apply=True, only_store=t)  # idempotente
     db.expire_all()
     again = (await db.execute(select(ProductVariant.short_code).where(ProductVariant.id.in_(ids)).order_by(ProductVariant.id))).scalars().all()
@@ -213,19 +219,28 @@ async def test_busca_pelo_codigo_so_na_propria_loja(test_client, async_session):
 
 # ── PDF ───────────────────────────────────────────────────────────────────────
 
+def _run_pdf_tool(cmd: list, content: bytes, tail: tuple = ()) -> str:
+    """Grava o PDF e chama a ferramenta (poppler). Fecha o arquivo antes: no Windows ele não abre duas vezes."""
+    import os
+    fd, path = tempfile.mkstemp(suffix=".pdf")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(content)
+        return subprocess.run([*cmd, path, *tail], capture_output=True, text=True, check=True).stdout
+    finally:
+        os.remove(path)
+
+
 def _pdf_text(content: bytes) -> str:
-    with tempfile.NamedTemporaryFile(suffix=".pdf") as f:
-        f.write(content)
-        f.flush()
-        return subprocess.run(["pdftotext", "-layout", f.name, "-"], capture_output=True, text=True, check=True).stdout
+    return _run_pdf_tool(["pdftotext", "-layout"], content, ("-",))
 
 
 def _pages(content: bytes) -> int:
-    with tempfile.NamedTemporaryFile(suffix=".pdf") as f:
-        f.write(content)
-        f.flush()
-        info = subprocess.run(["pdfinfo", f.name], capture_output=True, text=True, check=True).stdout
-    return int(next(line.split()[-1] for line in info.splitlines() if line.startswith("Pages:")))
+    try:
+        info = _run_pdf_tool(["pdfinfo"], content)
+        return int(next(line.split()[-1] for line in info.splitlines() if line.startswith("Pages:")))
+    except FileNotFoundError:  # sem pdfinfo (Windows): uma quebra de página (FF) por página, via pdftotext
+        return _run_pdf_tool(["pdftotext"], content, ("-",)).count(chr(12))
 
 
 async def test_pdf_das_pecas(test_client, async_session):
@@ -242,8 +257,8 @@ async def test_pdf_das_pecas(test_client, async_session):
         assert r.headers["content-type"] == "application/pdf" and r.content.startswith(b"%PDF")
         assert _pages(r.content) == 2  # 13 etiquetas, 12 por folha
         text = _pdf_text(r.content)
-        m, gg = format_short_code(vs[0].short_code), format_short_code(vs[1].short_code)
-        assert {m, gg} == {"#0001", "#0002"}
+        m, gg = vs[0].display_code, vs[1].display_code
+        assert {m, gg} == {"#001-1", "#001-2"}      # produto 1 da loja; variações 1 e 2 (Preto antes de Verde na grade)
         assert text.count(m) == 3 and text.count(gg) == 10
         assert "R$ 89,90" in text and "Verde Militar" in text and "Legging Cirrê" in text
         for proibido in ("SKU-", "Entrada", "custo", "Custo"):
@@ -312,6 +327,60 @@ async def test_pdf_da_entrada_uma_por_peca_e_numera_antigas(test_client, async_s
         num = (await db.execute(select(ProductVariant.short_code).where(ProductVariant.id == v1_id))).scalar_one()
         assert num == 3  # numerada agora e gravada (1 e 2 já eram da grade)
         text = _pdf_text(r.content)
-        assert text.count("#0001") == 2 and text.count("#0003") == 3
+        assert text.count("#001-1") == 2 and text.count("#001-2") == 3
         r = await test_client.post("/api/v1/labels/pdf/entry/999999", json={}, headers=h)
         assert r.status_code == 400
+
+
+async def test_codigo_produto_variacao_numera_e_incrementa(async_session):
+    """#101-1: produto numerado por loja, variações 1, 2, 3 dentro do produto; nova variação continua a contagem."""
+    from app.services.short_code_service import format_variant_code, parse_variant_code, variant_qr_payload
+    assert format_variant_code(101, 1) == "#101-1" and format_variant_code(7, 12) == "#007-12" and format_variant_code(None, 1) is None
+    assert variant_qr_payload(101, 2) == "PV#101-2"
+    for s in ("PV#101-1", "pv#101-1", "#101-1", "101-1", " # 101 - 1 ", "007-2"):
+        assert parse_variant_code(s) in ((101, 1), (7, 2)), s
+    for s in ("", None, "101", "#0123", "101-", "-1", "0-1", "101-0", "a-b"):
+        assert parse_variant_code(s) is None, s
+
+    db = async_session
+    t, c = await _loja(db)
+    p1, a = await _produto(db, t, c, nome="Top Um", grade=(("Preto", "M"), ("Preto", "P"), ("Rosa", "G")))
+    p2, b = await _produto(db, t, c, nome="Top Dois", grade=(("Azul", "M"),))
+    await db.commit()
+    assert [v.display_code for v in sorted(a, key=lambda v: v.variant_number)] == ["#001-1", "#001-2", "#001-3"]
+    assert [v.size for v in sorted(a, key=lambda v: v.variant_number)][:2] == ["P", "M"]   # grade: P antes de M
+    assert b[0].display_code == "#002-1"
+    await db.refresh(p1)
+    await db.refresh(p2)
+    assert p1.code_number == 1 and p2.code_number == 2
+
+    novo = ProductVariant(product_id=p1.id, sku=f"NOVO-{t}", color="Verde", size="GG", price=D("50"), tenant_id=t)
+    db.add(novo)
+    await db.commit()
+    assert novo.display_code == "#001-4"                       # continua a contagem do produto
+    outro = ProductVariant(product_id=p2.id, sku=f"NOVO2-{t}", color="Verde", size="M", price=D("50"), tenant_id=t)
+    db.add(outro)
+    await db.commit()
+    assert outro.display_code == "#002-2"                      # produto 2 tem a sua contagem
+
+    novo.is_active = False
+    await db.commit()
+    again = ProductVariant(product_id=p1.id, sku=f"NOVO3-{t}", color="Verde", size="XG", price=D("50"), tenant_id=t)
+    db.add(again)
+    await db.commit()
+    assert again.display_code == "#001-5"                      # variação desativada não devolve o número
+
+
+async def test_busca_pelo_codigo_do_produto_e_variacao(test_client, async_session):
+    _sem_override()
+    db = async_session
+    t, c = await _loja(db)
+    p, vs = await _produto(db, t, c, nome="Busca Código", grade=(("Preto", "P"), ("Preto", "M")))
+    await db.commit()
+    h = await _user(db, t, UserRole.SELLER)
+    alvo = next(v for v in vs if v.display_code == "#001-2")
+    for code in ("PV%23001-2", "%23001-2", "001-2", "1-2"):
+        r = await test_client.get(f"/api/v1/product-variants/short-code/{code}", headers=h)
+        assert r.status_code == 200, (code, r.text)
+        assert r.json()["id"] == alvo.id and r.json()["display_code"] == "#001-2"
+    assert (await test_client.get("/api/v1/product-variants/short-code/001-9", headers=h)).status_code == 404

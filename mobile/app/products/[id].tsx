@@ -22,7 +22,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getProductById, deleteProduct, updateProduct } from '@/services/productService';
 import { getProductStock } from '@/services/inventoryService';
 import { getProductVariants, getVariantGrid, formatVariantLabel, deleteVariant } from '@/services/productVariantService';
-import { formatShortCode } from '@/utils/shortCode';
+import { variantCodeText } from '@/utils/shortCode';
 import VariantKeepModal from '@/components/products/VariantKeepModal';
 import { VariantStockMatrix } from '@/components/products/VariantStockMatrix';
 import { formatCurrency, formatDate } from '@/utils/format';
@@ -536,7 +536,7 @@ export default function ProductDetailsScreen() {
 
                       {/* SKU */}
                       <Text style={styles.variantCardSku} numberOfLines={1}>
-                        {variant.short_code != null ? `${formatShortCode(variant.short_code)} · ` : ''}{variant.sku}
+                        {variantCodeText(variant) ? `${variantCodeText(variant)} · ` : ''}{variant.sku}
                       </Text>
 
                       {/* Preço */}

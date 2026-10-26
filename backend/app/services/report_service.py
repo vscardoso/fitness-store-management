@@ -10,6 +10,7 @@ from app.models.sale import Sale, SaleItem, PaymentMethod, SaleStatus
 from app.models.sale_return import SaleReturn
 from app.models.category import Category
 from app.models.user import User
+from app.utils.variant_code import format_variant_code
 from app.models.product import Product
 from app.models.product_variant import ProductVariant
 from app.models.customer import Customer
@@ -142,6 +143,8 @@ class ReportService:
             Product.name.label("product_name"),
             ProductVariant.sku.label("variant_sku"),
             ProductVariant.short_code.label("variant_short_code"),
+            ProductVariant.product_code.label("variant_product_code"),
+            ProductVariant.variant_number.label("variant_number"),
             ProductVariant.size.label("variant_size"),
             ProductVariant.color.label("variant_color"),
             func.sum(SaleItem.quantity).label("quantity_sold"),
@@ -157,6 +160,8 @@ class ReportService:
             Product.name,
             ProductVariant.sku,
             ProductVariant.short_code,
+            ProductVariant.product_code,
+            ProductVariant.variant_number,
             ProductVariant.size,
             ProductVariant.color,
         )\
@@ -189,6 +194,7 @@ class ReportService:
                 variant_color=row.variant_color,
                 variant_label=variant_label,
                 variant_short_code=row.variant_short_code,
+                variant_display_code=format_variant_code(row.variant_product_code, row.variant_number),
                 quantity_sold=row.quantity_sold,
                 revenue=revenue,
                 profit=profit,

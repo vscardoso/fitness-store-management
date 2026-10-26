@@ -10,8 +10,10 @@ export interface StockCheckRow {
   color: string | null;
   size: string | null;
   sku: string | null;
-  /** Número curto da etiqueta (#0123), quando a variação já foi numerada. */
+  /** Número antigo por variação (#0123). */
   short_code: number | null;
+  /** Código da etiqueta (#101-1), quando a variação já foi numerada. */
+  display_code?: string | null;
   system_quantity: number;
 }
 

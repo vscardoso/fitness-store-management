@@ -79,7 +79,8 @@ class StockCheckService:
                 "color": v.color,
                 "size": v.size,
                 "sku": v.sku,
-                "short_code": v.short_code,   # número curto da etiqueta (#0123), quando a variação já foi numerada
+                "short_code": v.short_code,   # número antigo por variação (#0123)
+                "display_code": v.display_code,   # código da etiqueta (#101-1), quando a variação já foi numerada
                 "system_quantity": qty,
             })
         out.sort(key=lambda r: (

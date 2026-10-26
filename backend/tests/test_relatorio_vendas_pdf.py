@@ -6,6 +6,20 @@ from tests.test_lot_costs import _loja_api, _limpa_loja_1, D  # noqa: F401  (fix
 pytestmark = pytest.mark.asyncio
 
 
+@pytest.fixture(autouse=True)
+async def _limpa_vendas(async_session):
+    """Banco de teste compartilhado: apaga as vendas criadas aqui (ids reaproveitados confundem outros testes de FIFO)."""
+    from sqlalchemy import delete, func, select
+    from app.models.sale import Payment, Sale, SaleItem
+    modelos = [Payment, SaleItem, Sale]
+    antes = {m: (await async_session.execute(select(func.coalesce(func.max(m.id), 0)))).scalar() for m in modelos}
+    yield
+    await async_session.rollback()
+    for m in modelos:
+        await async_session.execute(delete(m).where(m.id > antes[m]))
+    await async_session.commit()
+
+
 async def test_pdf_do_relatorio_de_vendas(test_client, async_session, test_user):
     t_id, token, cat = await _loja_api(async_session, test_user)
     h = {"Authorization": f"Bearer {token}"}

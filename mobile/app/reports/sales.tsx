@@ -866,9 +866,9 @@ export default function SalesReportScreen() {
                                 </Text>
                               </View>
                             )}
-                            {product.variant_short_code ? (
+                            {product.variant_display_code || product.variant_short_code ? (
                               <View style={styles.codeBadge}>
-                                <Text style={styles.codeBadgeText}>#{String(product.variant_short_code).padStart(4, '0')}</Text>
+                                <Text style={styles.codeBadgeText}>{product.variant_display_code ?? `#${String(product.variant_short_code).padStart(4, '0')}`}</Text>
                               </View>
                             ) : null}
                             {product.variant_sku && (
