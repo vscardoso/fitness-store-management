@@ -5,22 +5,18 @@
  * Exibe um dropdown elegante com opções como "Este Mês", "Últimos 30 dias", etc.
  */
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
-  Modal,
   StyleSheet,
-  Animated,
-  Dimensions,
-  Pressable,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
+import BottomSheet from '@/components/ui/BottomSheet';
 
-const { width } = Dimensions.get('window');
 
 export type PeriodFilterValue =
   | 'this_month'
@@ -89,26 +85,11 @@ export default function PeriodFilter({
 }: PeriodFilterProps) {
   const brandingColors = useBrandingColors();
   const [modalVisible, setModalVisible] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   const selectedOption = PERIOD_OPTIONS.find((opt) => opt.value === value);
 
-  const openModal = () => {
-    setModalVisible(true);
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 200,
-      useNativeDriver: true,
-    }).start();
-  };
-
-  const closeModal = () => {
-    Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 150,
-      useNativeDriver: true,
-    }).start(() => setModalVisible(false));
-  };
+  const openModal = () => setModalVisible(true);
+  const closeModal = () => setModalVisible(false);
 
   const handleSelect = (optionValue: PeriodFilterValue) => {
     onChange(optionValue);
@@ -137,79 +118,41 @@ export default function PeriodFilter({
         />
       </TouchableOpacity>
 
-      <Modal
+      <BottomSheet
         visible={modalVisible}
-        transparent
-        animationType="none"
-        onRequestClose={closeModal}
+        onDismiss={closeModal}
+        title="Selecionar período"
+        subtitle="Escolha de quando mostrar os números"
+        icon="calendar-outline"
       >
-        <Pressable style={styles.overlay} onPress={closeModal}>
-          <Animated.View
-            style={[
-              styles.modalContainer,
-              {
-                opacity: fadeAnim,
-                transform: [
-                  {
-                    scale: fadeAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.95, 1],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <Pressable style={styles.modalContent} onPress={() => {}}>
-              <View style={styles.modalHeader}>
-                <Text style={styles.modalTitle}>Selecionar Período</Text>
-                <TouchableOpacity onPress={closeModal} style={styles.closeButton}>
-                  <Ionicons name="close" size={24} color={Colors.light.textSecondary} />
-                </TouchableOpacity>
+        {PERIOD_OPTIONS.map((option) => {
+          const isSelected = option.value === value;
+          return (
+            <TouchableOpacity
+              key={option.value}
+              style={[
+                styles.optionItem,
+                styles.optionItemBorder,
+                isSelected && { backgroundColor: brandingColors.primary + '12', borderColor: brandingColors.primary + '55' },
+              ]}
+              onPress={() => handleSelect(option.value)}
+              activeOpacity={0.7}
+            >
+              <View style={styles.optionContent}>
+                <Text style={[styles.optionLabel, isSelected && { color: brandingColors.primary, fontWeight: '700' }]}>
+                  {option.label}
+                </Text>
+                <Text style={styles.optionDescription}>{option.description}</Text>
               </View>
-
-              <View style={styles.optionsList}>
-                {PERIOD_OPTIONS.map((option, index) => {
-                  const isSelected = option.value === value;
-                  const isLast = index === PERIOD_OPTIONS.length - 1;
-
-                  return (
-                    <TouchableOpacity
-                      key={option.value}
-                      style={[
-                        styles.optionItem,
-                        isSelected && { backgroundColor: brandingColors.primary + '12' },
-                        !isLast && styles.optionItemBorder,
-                      ]}
-                      onPress={() => handleSelect(option.value)}
-                      activeOpacity={0.6}
-                    >
-                      <View style={styles.optionContent}>
-                        <Text
-                          style={[
-                            styles.optionLabel,
-                            isSelected && { color: brandingColors.primary, fontWeight: '600' },
-                          ]}
-                        >
-                          {option.label}
-                        </Text>
-                        <Text style={styles.optionDescription}>
-                          {option.description}
-                        </Text>
-                      </View>
-                      {isSelected && (
-                        <View style={[styles.checkIcon, { backgroundColor: brandingColors.primary }]}>
-                          <Ionicons name="checkmark" size={20} color="#fff" />
-                        </View>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </Pressable>
-          </Animated.View>
-        </Pressable>
-      </Modal>
+              {isSelected && (
+                <View style={[styles.checkIcon, { backgroundColor: brandingColors.primary }]}>
+                  <Ionicons name="checkmark" size={18} color="#fff" />
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </BottomSheet>
     </>
   );
 }
@@ -239,48 +182,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
 
-  // Modal
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContainer: {
-    width: width - 40,
-    maxWidth: 380,
-  },
-  modalContent: {
-    backgroundColor: Colors.light.card,
-    borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.25,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-
-  // Header
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.backgroundSecondary,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.light.text,
-  },
-  closeButton: {
-    padding: 4,
-  },
-
   // Options list
   optionsList: {
     paddingVertical: 8,
@@ -288,12 +189,14 @@ const styles = StyleSheet.create({
   optionItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 8,
+    borderRadius: 12,
   },
   optionItemBorder: {
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
   },
   optionItemSelected: {},
   optionContent: {
