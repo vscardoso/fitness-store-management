@@ -182,11 +182,25 @@ export interface ColorGroup {
 // ──────────────────────────────────────────────
 export const COLOR_GROUPS: ColorGroup[] = [
   {
+    label: 'Básicas',
+    colors: [
+      { label: 'Preto', value: 'Preto', hex: '#000000' },
+      { label: 'Branco', value: 'Branco', hex: '#FFFFFF' },
+      { label: 'Cinza', value: 'Cinza', hex: '#9E9E9E' },
+      { label: 'Azul', value: 'Azul', hex: '#1E5BD8' },
+      { label: 'Vermelho', value: 'Vermelho', hex: '#C00000' },
+      { label: 'Verde', value: 'Verde', hex: '#1E9E4A' },
+      { label: 'Amarelo', value: 'Amarelo', hex: '#FFD700' },
+      { label: 'Rosa', value: 'Rosa', hex: '#F06292' },
+      { label: 'Roxo', value: 'Roxo', hex: '#6A0DAD' },
+      { label: 'Laranja', value: 'Laranja', hex: '#FF8C00' },
+      { label: 'Marrom', value: 'Marrom', hex: '#7B4A2D' },
+    ],
+  },
+  {
     label: 'Neutros',
     colors: [
-      { label: 'Branco',       value: 'Branco',       hex: '#FFFFFF' },
       { label: 'Off-White',    value: 'Off-White',    hex: '#F5F5F0' },
-      { label: 'Preto',        value: 'Preto',        hex: '#000000' },
       { label: 'Cinza Claro',  value: 'Cinza Claro',  hex: '#D3D3D3' },
       { label: 'Cinza Médio',  value: 'Cinza Médio',  hex: '#A9A9A9' },
       { label: 'Cinza Escuro', value: 'Cinza Escuro', hex: '#4F4F4F' },
@@ -224,7 +238,6 @@ export const COLOR_GROUPS: ColorGroup[] = [
   {
     label: 'Vermelhos e Rosados',
     colors: [
-      { label: 'Vermelho',       value: 'Vermelho',        hex: '#C00000' },
       { label: 'Verm. Escuro',   value: 'Vermelho Escuro', hex: '#8B0000' },
       { label: 'Vinho',          value: 'Vinho',           hex: '#722F37' },
       { label: 'Bordô',          value: 'Bordô',           hex: '#800020' },
@@ -266,7 +279,6 @@ export const COLOR_GROUPS: ColorGroup[] = [
     label: 'Amarelos e Terrosos',
     colors: [
       { label: 'Am. Claro',      value: 'Amarelo Claro',  hex: '#FFF9C4' },
-      { label: 'Amarelo',        value: 'Amarelo',        hex: '#FFD700' },
       { label: 'Mostarda',       value: 'Mostarda',       hex: '#C9A227' },
       { label: 'Ocre',           value: 'Ocre',           hex: '#CC7722' },
       { label: 'Caramelo',       value: 'Caramelo',       hex: '#AF6F09' },
@@ -285,7 +297,6 @@ export const COLOR_GROUPS: ColorGroup[] = [
     colors: [
       { label: 'Lilás',        value: 'Lilás',        hex: '#C8A2C8' },
       { label: 'Lavanda',       value: 'Lavanda',       hex: '#E6E6FA' },
-      { label: 'Roxo',          value: 'Roxo',          hex: '#6A0DAD' },
       { label: 'Roxo Escuro',   value: 'Roxo Escuro',   hex: '#4B0082' },
       { label: 'Uva', value: 'Uva', hex: '#6F2DA8' },
       { label: 'Berinjela', value: 'Berinjela', hex: '#5B3256' },
@@ -295,7 +306,6 @@ export const COLOR_GROUPS: ColorGroup[] = [
   {
     label: 'Laranjas',
     colors: [
-      { label: 'Laranja',        value: 'Laranja',           hex: '#FF8C00' },
       { label: 'Queimado',       value: 'Laranja Queimado',  hex: '#CC5500' },
       { label: 'Coral',          value: 'Coral',             hex: '#FF7F50' },
       { label: 'Laranja Neon', value: 'Laranja Neon', hex: '#FF6700' },
