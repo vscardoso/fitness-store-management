@@ -12,6 +12,9 @@ import { getAccessToken } from '@/services/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/Colors';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { getLastRoute } from '@/utils/lastRoute';
+import { restoreQueryCache } from '@/utils/queryPersist';
+import { getQueryClient } from '@/utils/queryCache';
 
 const ONBOARDING_COMPLETED_KEY = '@fitness_store:onboarding_completed';
 
@@ -61,7 +64,8 @@ export default function Index() {
     );
   }
 
-  if (user && (brandingHydrating || (!brandingSynced && !initialSyncAttempted))) {
+  // Só espera o que está guardado no aparelho; o servidor atualiza as cores por trás (esperar a rede deixava a abertura lenta)
+  if (user && brandingHydrating) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' }}>
         <ActivityIndicator size="large" color={brandingColors.primary} />
@@ -71,7 +75,10 @@ export default function Index() {
 
   // Redirecionar baseado em autenticação
   if (user) {
-    return <Redirect href="/(tabs)" />;
+    const qc = getQueryClient();
+    if (qc) restoreQueryCache(qc, user.id);
+    const last = getLastRoute();
+    return <Redirect href={(last ?? '/(tabs)') as any} />;
   }
 
   // Primeira vez? Mostrar onboarding

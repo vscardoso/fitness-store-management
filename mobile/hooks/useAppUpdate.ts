@@ -1,19 +1,32 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
+import { useIsMutating } from '@tanstack/react-query';
 
-import { AUTO_RELOAD_AFTER_HIDDEN_MS, hasNewVersion, shouldAutoReload } from '@/utils/appUpdate';
+import { loadingManager } from '@/services/loadingManager';
+import {
+  AUTO_RELOAD_AFTER_HIDDEN_MS,
+  IDLE_CHECK_EVERY_MS,
+  canReloadNow,
+  hasNewVersion,
+  shouldAutoReload,
+} from '@/utils/appUpdate';
 
 const CHECK_EVERY_MS = 5 * 60 * 1000;
 
 /**
  * Só no app web: confere de tempos em tempos se há versão nova publicada. Quando há:
- * - volta de ficar escondido por mais de 1 minuto: recarrega sozinho;
+ * - volta de ficar escondido por mais de 1 minuto: recarrega sozinho (se nada estiver sendo gravado);
+ * - parado (sem gravar nada, sem digitar e fora de venda/cadastro/edição): recarrega sozinho;
  * - em uso: devolve updateAvailable para mostrar o aviso "Atualizar".
  */
 export function useAppUpdate() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const hiddenAt = useRef<number | null>(null);
   const availableRef = useRef(false);
+  const mutating = useIsMutating();
+  const mutatingRef = useRef(0);
+  const lastInputAt = useRef(Date.now());
+  mutatingRef.current = mutating;
 
   const reload = useCallback(() => {
     if (typeof window !== 'undefined') window.location.reload();
@@ -44,15 +57,41 @@ export function useAppUpdate() {
       }
       const hiddenFor = hiddenAt.current ? Date.now() - hiddenAt.current : 0;
       hiddenAt.current = null;
-      if (shouldAutoReload(availableRef.current, hiddenFor)) {
+      if (shouldAutoReload(availableRef.current, hiddenFor) && mutatingRef.current === 0 && loadingManager.getRequestCount() === 0) {
         reload();
         return;
       }
       check();
     };
     document.addEventListener('visibilitychange', onVisibility);
+
+    // Parado de verdade: nenhuma gravação, ninguém digitando, fora das telas de venda/cadastro/edição
+    const touch = () => {
+      lastInputAt.current = Date.now();
+    };
+    const inputEvents = ['pointerdown', 'keydown', 'input', 'touchstart'];
+    inputEvents.forEach((e) => document.addEventListener(e, touch, true));
+    const idleTimer = setInterval(() => {
+      if (!availableRef.current) return;
+      const active = document.activeElement as HTMLElement | null;
+      const typing = !!active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA' || active.isContentEditable);
+      if (
+        canReloadNow({
+          mutating: mutatingRef.current,
+          requests: loadingManager.getRequestCount(),
+          msSinceInput: Date.now() - lastInputAt.current,
+          pathname: window.location.pathname,
+          typing,
+          visible: document.visibilityState === 'visible',
+        })
+      ) {
+        reload();
+      }
+    }, IDLE_CHECK_EVERY_MS);
     return () => {
       clearInterval(timer);
+      clearInterval(idleTimer);
+      inputEvents.forEach((e) => document.removeEventListener(e, touch, true));
       document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [check, reload]);
