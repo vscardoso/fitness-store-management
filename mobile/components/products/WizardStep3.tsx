@@ -28,6 +28,7 @@ import type { StockEntry } from '@/types';
 import { useBrandingColors } from '@/store/brandingStore';
 import { logError } from '@/services/debugLog';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import BottomSheet from '@/components/ui/BottomSheet';
 
 interface WizardStep3Props {
   wizard: UseProductWizardReturn;
@@ -86,6 +87,8 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
 
   // Modal para Nova Entrada — modo variantes
   const [variantQtyModalVisible, setVariantQtyModalVisible] = useState(false);
+  // Variações sem quantidade: pergunta antes se é para deixar de cadastrá-las (elas não entram no sistema)
+  const [emptyVariantsAsk, setEmptyVariantsAsk] = useState<{ labels: string[]; qtys: Record<number, number> } | null>(null);
   // 'new' = nova entrada, 'existing' = entrada existente
   const [variantQtyMode, setVariantQtyMode] = useState<'new' | 'existing'>('new');
   const [variantQtys, setVariantQtys] = useState<Record<number, string>>({});
@@ -177,6 +180,16 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
       qtys[v.id] = parseInt(variantQtys[v.id] ?? '0') || 0;
     });
 
+    const empty = productVariants.filter((v: any) => !qtys[v.id]);
+    const filled = productVariants.length - empty.length;
+    if (filled > 0 && empty.length > 0) {
+      setEmptyVariantsAsk({ labels: empty.map((v: any) => getVariantLabel(v)), qtys });
+      return;
+    }
+    launchVariants(qtys);
+  };
+
+  const launchVariants = (qtys: Record<number, number>) => {
     if (variantQtyMode === 'existing') {
       wizard.goToExistingEntryWithVariants(qtys);
     } else {
@@ -545,6 +558,39 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
       </Modal>
 
       {/* Modal de Quantidade Unificado (produto sem variantes) */}
+      <BottomSheet
+        visible={!!emptyVariantsAsk}
+        onDismiss={() => setEmptyVariantsAsk(null)}
+        title="Variações sem quantidade"
+        subtitle={`${emptyVariantsAsk?.labels.length ?? 0} variação(ões) estão com quantidade 0`}
+        icon="alert-circle-outline"
+        actions={[
+          {
+            label: 'Voltar e preencher',
+            variant: 'secondary',
+            onPress: () => {
+              setEmptyVariantsAsk(null);
+              setVariantQtyModalVisible(true);
+            },
+          },
+          {
+            label: 'Não cadastrar essas',
+            onPress: () => {
+              const ask = emptyVariantsAsk;
+              setEmptyVariantsAsk(null);
+              if (ask) launchVariants(ask.qtys);
+            },
+          },
+        ]}
+      >
+        <Text style={{ fontSize: 14, lineHeight: 20, color: Colors.light.textSecondary, marginBottom: 10 }}>
+          Variação sem quantidade não entra no estoque, então ela não será cadastrada. Se você tem essas peças, volte e preencha a quantidade.
+        </Text>
+        {emptyVariantsAsk?.labels.map((label) => (
+          <Text key={label} style={{ fontSize: 14, fontWeight: '700', color: Colors.light.text, paddingVertical: 3 }}>• {label}</Text>
+        ))}
+      </BottomSheet>
+
       <Modal
         visible={quantityModalVisible}
         transparent
