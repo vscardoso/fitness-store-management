@@ -26,6 +26,22 @@ router = APIRouter(prefix="/reports", tags=["Relatórios"])
 
 
 @router.get(
+    "/stock-check",
+    summary="Conferência de estoque",
+    description="Lista cada variação com a quantidade do sistema (sem custo nem preço), para conferir com a contagem física.",
+)
+async def get_stock_check_report(
+    category_id: int | None = Query(None, description="Só uma categoria"),
+    only_in_stock: bool = Query(False, description="Só variações com estoque no sistema"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    from app.services.stock_check_service import StockCheckService
+    return await StockCheckService(db).report(tenant_id=tenant_id, category_id=category_id, only_in_stock=only_in_stock)
+
+
+@router.get(
     "/sales",
     response_model=SalesReportResponse,
     summary="Relatório de vendas",

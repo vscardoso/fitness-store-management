@@ -191,6 +191,7 @@ export default function MoreScreen() {
           <Text style={styles.sectionTitle}>Relatórios</Text>
           <View style={styles.menuCard}>
             <MenuItem icon="bar-chart-outline" title="Vendas" subtitle="Relatório de vendas e faturamento" onPress={() => router.push('/reports/sales')} iconColor={Colors.light.success} iconBg={Colors.light.successLight} />
+            <MenuItem icon="checkbox-outline" title="Conferência de Estoque" subtitle="Compare o sistema com a contagem das prateleiras" onPress={() => router.push('/reports/stock-check' as any)} iconColor="#0EA5E9" iconBg="#E0F2FE" />
             <MenuItem icon="layers-outline" title="Lucro por Lote" subtitle="Quanto gastou, vendeu e sobrou em cada compra" onPress={() => router.push('/reports/lots' as any)} iconColor="#10B981" iconBg="#D1FAE5" />
             <MenuItem icon="trending-up" title="Produtos Mais Vendidos" subtitle="Ranking e análise de performance" onPress={() => router.push('/reports/top-products')} iconColor="#EC4899" iconBg="#FCE7F3" />
             <MenuItem icon="calendar-outline" title="Histórico" subtitle="Vendas, entradas e movimentações" onPress={() => router.push('/reports/history')} iconColor="#8B5CF6" iconBg="#EDE9FE" />
