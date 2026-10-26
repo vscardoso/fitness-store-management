@@ -3,7 +3,7 @@
  * Análise completa de vendas, lucro, margem e breakdown
  */
 import { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, Platform } from 'react-native';
 import { useFocusEffect } from 'expo-router';
 import Animated, {
   useSharedValue,
@@ -498,6 +498,19 @@ export default function SalesReportScreen() {
       const csvContent = '﻿' + [header, ...rows].join('\n') + '\n' + summary;
 
       const fileName = `relatorio-vendas-${period}-${Date.now()}.csv`;
+      if (Platform.OS === 'web') {
+        // No navegador/PWA não há sistema de arquivos do app: baixa o CSV direto
+        const url = URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8' }));
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+        setShowSuccessDialog(true);
+        return;
+      }
       const filePath = `${FileSystem.documentDirectory}${fileName}`;
 
       await FileSystem.writeAsStringAsync(filePath, csvContent, {
@@ -535,6 +548,12 @@ export default function SalesReportScreen() {
 
       // Gerar HTML
       const html = generateHTMLContent();
+
+      // No navegador/PWA abre a impressão (Salvar como PDF); no celular gera o arquivo e compartilha
+      if (Platform.OS === 'web') {
+        await Print.printAsync({ html });
+        return;
+      }
 
       // Gerar PDF
       const { uri } = await Print.printToFileAsync({
