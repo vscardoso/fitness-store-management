@@ -415,6 +415,18 @@ export default function StockEntriesScreen() {
   };
 
   /**
+   * O resumo do cadastro só lista as variações que de fato entraram na entrada: variação sem quantidade
+   * não é criada no servidor, então não pode aparecer como "criada" (dava "5 variações" para 3 unidades).
+   */
+  const onlyLaunchedVariants = (data: any) => {
+    const sent = productToLink?.newProduct?.variants ?? productToLink?.variants;
+    if (!Array.isArray(sent) || !Array.isArray(data?.variants)) return data;
+    const skus = new Set(sent.filter((v: any) => Number(v?.quantity ?? 1) > 0).map((v: any) => v?.sku).filter(Boolean));
+    if (skus.size === 0) return data;
+    return { ...data, variants: data.variants.filter((v: any) => !v?.sku || skus.has(v.sku)) };
+  };
+
+  /**
    * Confirmar vinculação do produto
    */
   const confirmLinkProduct = () => {
@@ -922,8 +934,8 @@ export default function StockEntriesScreen() {
                   // Para variantes, passar produto completo; para simples, reconstruir
                   createdProductData: productToLink?._fullProductData
                     ? (createdProductId
-                        ? JSON.stringify({ ...JSON.parse(productToLink._fullProductData), id: createdProductId, _atomicVariants: undefined, _virtual: undefined })
-                        : productToLink._fullProductData)
+                        ? JSON.stringify(onlyLaunchedVariants({ ...JSON.parse(productToLink._fullProductData), id: createdProductId, _atomicVariants: undefined, _virtual: undefined }))
+                        : JSON.stringify(onlyLaunchedVariants(JSON.parse(productToLink._fullProductData))))
                     : JSON.stringify({
                         id: createdProductId ?? productToLink?.id,
                         name: productToLink?.name,
