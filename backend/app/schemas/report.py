@@ -24,6 +24,7 @@ class TopProduct(BaseModel):
     variant_size: str | None = None
     variant_color: str | None = None
     variant_label: str | None = None
+    variant_short_code: int | None = None
     quantity_sold: int
     revenue: float
     profit: float
@@ -37,6 +38,42 @@ class PeriodComparison(BaseModel):
     difference: float
     percentage_change: float
     is_growth: bool
+    previous_sales: int = 0
+    previous_profit: float = 0
+    previous_start: Optional[datetime] = None
+    previous_end: Optional[datetime] = None
+
+
+class DaySales(BaseModel):
+    """Vendas de um dia"""
+    date: str
+    revenue: float
+    sales: int
+    profit: float
+
+
+class WeekdaySales(BaseModel):
+    """Vendas somadas por dia da semana (0 = segunda)"""
+    weekday: int
+    revenue: float
+    sales: int
+
+
+class CategorySales(BaseModel):
+    category: str
+    pieces: int
+    revenue: float
+    profit: float
+    percentage: float
+
+
+class SellerSales(BaseModel):
+    seller_id: int
+    seller_name: str
+    sales: int
+    revenue: float
+    average_ticket: float
+    percentage: float
 
 
 class SalesReportResponse(BaseModel):
@@ -60,6 +97,20 @@ class SalesReportResponse(BaseModel):
 
     # Comparação
     comparison: Optional[PeriodComparison] = None
+
+    # Detalhes (todos opcionais: o app antigo ignora)
+    pieces_sold: int = 0
+    discount_total: float = 0
+    sales_with_customer: int = 0
+    sales_without_customer: int = 0
+    returns_count: int = 0
+    returns_total: float = 0
+    cancelled_count: int = 0
+    cancelled_total: float = 0
+    daily: List[DaySales] = Field(default_factory=list)
+    by_weekday: List[WeekdaySales] = Field(default_factory=list)
+    by_category: List[CategorySales] = Field(default_factory=list)
+    by_seller: List[SellerSales] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 

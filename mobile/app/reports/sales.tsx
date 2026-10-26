@@ -89,6 +89,32 @@ export default function SalesReportScreen() {
     return pieces.length > 0 ? pieces.join(' • ') : null;
   };
 
+
+  const WEEKDAYS = ['Segunda', 'Terça', 'Quarta', 'Quinta', 'Sexta', 'Sábado', 'Domingo'];
+  const dayLabel = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  const monthLabel = (key: string) => `${key.slice(5, 7)}/${key.slice(0, 4)}`;
+  const daily = report?.daily ?? [];
+  const dayBarsByMonth = daily.length > 62;
+  const dayBars: { key: string; label: string; revenue: number; sales: number }[] = (() => {
+    if (!dayBarsByMonth) return daily.map((d) => ({ key: d.date, label: dayLabel(d.date), revenue: d.revenue, sales: d.sales }));
+    const byMonth = new Map<string, { revenue: number; sales: number }>();
+    daily.forEach((d) => {
+      const k = d.date.slice(0, 7);
+      const cur = byMonth.get(k) || { revenue: 0, sales: 0 };
+      byMonth.set(k, { revenue: cur.revenue + d.revenue, sales: cur.sales + d.sales });
+    });
+    return Array.from(byMonth.entries()).map(([k, v]) => ({ key: k, label: monthLabel(k), revenue: v.revenue, sales: v.sales }));
+  })();
+  const dayBarsMax = Math.max(1, ...dayBars.map((d) => d.revenue));
+  const bestDay = dayBars.length > 0 ? dayBars.reduce((a, b) => (b.revenue > a.revenue ? b : a)) : null;
+  const bestDayKey = bestDay?.key;
+  const weekdayRows = report?.by_weekday ?? [];
+  const weekdayMax = Math.max(1, ...weekdayRows.map((w) => w.revenue));
+  const bestWeekday = weekdayRows.length > 0 ? weekdayRows.reduce((a, b) => (b.revenue > a.revenue ? b : a)).weekday : -1;
+  const daysLabel = report?.comparison?.previous_start && report?.comparison?.previous_end
+    ? `${Math.round((new Date(report.comparison.previous_end).getTime() - new Date(report.comparison.previous_start).getTime()) / 86400000) + 1} dias`
+    : 'dias';
+
   const headerAnimStyle  = useAnimatedStyle(() => ({
     opacity: headerOpacity.value,
     transform: [{ scale: headerScale.value }],
@@ -694,6 +720,93 @@ export default function SalesReportScreen() {
                 </View>
               </View>
 
+              {report.comparison && report.comparison.previous_total > 0 && (
+                <View style={styles.compareRow}>
+                  <Ionicons
+                    name={report.comparison.is_growth ? 'trending-up' : 'trending-down'}
+                    size={16}
+                    color={report.comparison.is_growth ? VALUE_COLORS.positive : VALUE_COLORS.negative}
+                  />
+                  <Text style={styles.compareText}>
+                    {report.comparison.is_growth ? 'Vendeu ' : 'Vendeu '}
+                    <Text style={{ fontWeight: '800', color: report.comparison.is_growth ? VALUE_COLORS.positive : VALUE_COLORS.negative }}>
+                      {Math.abs(report.comparison.percentage_change).toFixed(0)}% {report.comparison.is_growth ? 'a mais' : 'a menos'}
+                    </Text>
+                    {' '}que nos {daysLabel} anteriores ({formatCurrency(report.comparison.previous_total)}, {report.comparison.previous_sales} vendas)
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.sectionCard}>
+                <View style={styles.cardHeader}>
+                  <View style={[styles.sectionIconWrap, { backgroundColor: brandingColors.primary + '12' }]}>
+                    <Ionicons name="stats-chart-outline" size={16} color={brandingColors.primary} />
+                  </View>
+                  <Text style={styles.cardTitle}>Resumo do período</Text>
+                </View>
+                {[
+                  ['Peças vendidas', `${report.pieces_sold ?? 0} un`],
+                  ['Peças por venda', report.total_sales > 0 ? ((report.pieces_sold ?? 0) / report.total_sales).toFixed(1) : '0'],
+                  ['Descontos dados', formatCurrency(report.discount_total ?? 0)],
+                  ['Vendas com cliente cadastrado', `${report.sales_with_customer ?? 0} de ${report.total_sales}`],
+                  ['Devoluções e trocas', `${report.returns_count ?? 0} (${formatCurrency(report.returns_total ?? 0)})`],
+                  ['Vendas canceladas (não contam acima)', `${report.cancelled_count ?? 0} (${formatCurrency(report.cancelled_total ?? 0)})`],
+                ].map(([label, value]) => (
+                  <View key={label} style={styles.kvRow}>
+                    <Text style={styles.kvLabel}>{label}</Text>
+                    <Text style={styles.kvValue}>{value}</Text>
+                  </View>
+                ))}
+              </View>
+
+              {dayBars.length > 1 && (
+                <View style={styles.sectionCard}>
+                  <View style={styles.cardHeader}>
+                    <View style={[styles.sectionIconWrap, { backgroundColor: brandingColors.primary + '12' }]}>
+                      <Ionicons name="calendar-outline" size={16} color={brandingColors.primary} />
+                    </View>
+                    <Text style={styles.cardTitle}>{dayBarsByMonth ? 'Mês a mês' : 'Dia a dia'}</Text>
+                  </View>
+                  <View style={styles.barsArea}>
+                    {dayBars.map((d) => (
+                      <View key={d.key} style={styles.barCol}>
+                        <View style={[styles.bar, { height: Math.max(3, (d.revenue / dayBarsMax) * 90), backgroundColor: d.key === bestDayKey ? VALUE_COLORS.positive : brandingColors.primary }]} />
+                      </View>
+                    ))}
+                  </View>
+                  <View style={styles.barsLegend}>
+                    <Text style={styles.kvLabel}>{dayBars[0].label}</Text>
+                    <Text style={styles.kvLabel}>{dayBars[dayBars.length - 1].label}</Text>
+                  </View>
+                  {bestDay && (
+                    <Text style={styles.sectionNote}>
+                      Melhor {dayBarsByMonth ? 'mês' : 'dia'} (barra verde): {bestDay.label}, {formatCurrency(bestDay.revenue)} em {bestDay.sales} vendas.
+                    </Text>
+                  )}
+                </View>
+              )}
+
+              {weekdayRows.some((w) => w.revenue > 0) && (
+                <View style={styles.sectionCard}>
+                  <View style={styles.cardHeader}>
+                    <View style={[styles.sectionIconWrap, { backgroundColor: VALUE_COLORS.warning + '18' }]}>
+                      <Ionicons name="today-outline" size={16} color={VALUE_COLORS.warning} />
+                    </View>
+                    <Text style={styles.cardTitle}>Vendas por dia da semana</Text>
+                  </View>
+                  {weekdayRows.map((w) => (
+                    <View key={w.weekday} style={styles.hbarRow}>
+                      <Text style={styles.hbarLabel}>{WEEKDAYS[w.weekday]}</Text>
+                      <View style={styles.hbarTrack}>
+                        <View style={[styles.hbarFill, { width: `${Math.max(2, (w.revenue / weekdayMax) * 100)}%`, backgroundColor: w.weekday === bestWeekday ? VALUE_COLORS.positive : brandingColors.primary }]} />
+                      </View>
+                      <Text style={styles.hbarValue}>{formatCurrency(w.revenue)}</Text>
+                    </View>
+                  ))}
+                  <Text style={styles.sectionNote}>Soma de todas as semanas do período. Verde é o dia que mais vendeu.</Text>
+                </View>
+              )}
+
               <View style={styles.sectionCard}>
                 <View style={styles.cardHeader}>
                   <View style={[styles.sectionIconWrap, { backgroundColor: brandingColors.primary + '12' }]}>
@@ -753,6 +866,11 @@ export default function SalesReportScreen() {
                                 </Text>
                               </View>
                             )}
+                            {product.variant_short_code ? (
+                              <View style={styles.codeBadge}>
+                                <Text style={styles.codeBadgeText}>#{String(product.variant_short_code).padStart(4, '0')}</Text>
+                              </View>
+                            ) : null}
                             {product.variant_sku && (
                               <View style={styles.skuBadge}>
                                 <Text style={styles.skuBadgeText} numberOfLines={1}>SKU {product.variant_sku}</Text>
@@ -772,6 +890,49 @@ export default function SalesReportScreen() {
                   ))
                 )}
               </View>
+
+              {(report.by_category?.length ?? 0) > 0 && (
+                <View style={styles.sectionCard}>
+                  <View style={styles.cardHeader}>
+                    <View style={[styles.sectionIconWrap, { backgroundColor: brandingColors.primary + '12' }]}>
+                      <Ionicons name="pricetags-outline" size={16} color={brandingColors.primary} />
+                    </View>
+                    <Text style={styles.cardTitle}>Vendas por categoria</Text>
+                  </View>
+                  {report.by_category!.map((c) => (
+                    <View key={c.category} style={styles.catRow}>
+                      <View style={styles.catTop}>
+                        <Text style={styles.catName} numberOfLines={1}>{c.category}</Text>
+                        <Text style={styles.catValue}>{formatCurrency(c.revenue)}</Text>
+                      </View>
+                      <View style={styles.hbarTrack}>
+                        <View style={[styles.hbarFill, { width: `${Math.max(2, c.percentage)}%`, backgroundColor: brandingColors.primary }]} />
+                      </View>
+                      <Text style={styles.catMeta}>{c.pieces} peças · {c.percentage.toFixed(0)}% da receita · lucro {formatCurrency(c.profit)}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+
+              {(report.by_seller?.length ?? 0) > 0 && (
+                <View style={styles.sectionCard}>
+                  <View style={styles.cardHeader}>
+                    <View style={[styles.sectionIconWrap, { backgroundColor: Colors.light.info + '18' }]}>
+                      <Ionicons name="people-outline" size={16} color={Colors.light.info} />
+                    </View>
+                    <Text style={styles.cardTitle}>Vendas por vendedor</Text>
+                  </View>
+                  {report.by_seller!.map((v) => (
+                    <View key={v.seller_id} style={styles.catRow}>
+                      <View style={styles.catTop}>
+                        <Text style={styles.catName} numberOfLines={1}>{v.seller_name}</Text>
+                        <Text style={styles.catValue}>{formatCurrency(v.revenue)}</Text>
+                      </View>
+                      <Text style={styles.catMeta}>{v.sales} vendas · ticket médio {formatCurrency(v.average_ticket)} · {v.percentage.toFixed(0)}% do total</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
             </>
           )}
         </ScrollView>
@@ -825,6 +986,33 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.xxl,
     gap: theme.spacing.sm,
   },
+  compareRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.xs,
+  },
+  compareText: { flex: 1, fontSize: theme.fontSize.sm, color: Colors.light.textSecondary, lineHeight: 19 },
+  kvRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 7, gap: 12 },
+  kvLabel: { flexShrink: 1, fontSize: theme.fontSize.sm, color: Colors.light.textSecondary },
+  kvValue: { fontSize: theme.fontSize.sm, fontWeight: '700', color: Colors.light.text },
+  barsArea: { flexDirection: 'row', alignItems: 'flex-end', gap: 2, height: 96, marginTop: 4 },
+  barCol: { flex: 1, justifyContent: 'flex-end' },
+  bar: { width: '100%', borderRadius: 2 },
+  barsLegend: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
+  sectionNote: { marginTop: 8, fontSize: 12, color: Colors.light.textSecondary, lineHeight: 17 },
+  hbarRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  hbarLabel: { width: 62, fontSize: 12, color: Colors.light.textSecondary },
+  hbarTrack: { flex: 1, height: 8, borderRadius: 4, backgroundColor: Colors.light.backgroundSecondary, overflow: 'hidden' },
+  hbarFill: { height: 8, borderRadius: 4 },
+  hbarValue: { width: 84, textAlign: 'right', fontSize: 12, fontWeight: '700', color: Colors.light.text },
+  catRow: { paddingVertical: 7, gap: 4 },
+  catTop: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
+  catName: { flex: 1, fontSize: theme.fontSize.sm, fontWeight: '700', color: Colors.light.text },
+  catValue: { fontSize: theme.fontSize.sm, fontWeight: '700', color: Colors.light.text },
+  catMeta: { fontSize: 12, color: Colors.light.textSecondary },
+  codeBadge: { backgroundColor: Colors.light.backgroundSecondary, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
+  codeBadgeText: { fontSize: 11, fontWeight: '700', color: Colors.light.text },
   periodContainer: {
     alignItems: 'flex-start',
   },

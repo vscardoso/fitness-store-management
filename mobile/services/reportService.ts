@@ -18,11 +18,29 @@ export interface TopProduct {
   variant_size?: string | null;
   variant_color?: string | null;
   variant_label?: string | null;
+  variant_short_code?: number | null;
   quantity_sold: number;
   revenue: number;
   profit: number;
   margin: number;
 }
+
+export interface PeriodComparison {
+  current_total: number;
+  previous_total: number;
+  difference: number;
+  percentage_change: number;
+  is_growth: boolean;
+  previous_sales: number;
+  previous_profit: number;
+  previous_start?: string | null;
+  previous_end?: string | null;
+}
+
+export interface DaySales { date: string; revenue: number; sales: number; profit: number }
+export interface WeekdaySales { weekday: number; revenue: number; sales: number }
+export interface CategorySales { category: string; pieces: number; revenue: number; profit: number; percentage: number }
+export interface SellerSales { seller_id: number; seller_name: string; sales: number; revenue: number; average_ticket: number; percentage: number }
 
 export interface SalesReport {
   period: string;
@@ -36,6 +54,19 @@ export interface SalesReport {
   profit_margin: number;
   payment_breakdown: PaymentBreakdown[];
   top_products: TopProduct[];
+  comparison?: PeriodComparison | null;
+  pieces_sold?: number;
+  discount_total?: number;
+  sales_with_customer?: number;
+  sales_without_customer?: number;
+  returns_count?: number;
+  returns_total?: number;
+  cancelled_count?: number;
+  cancelled_total?: number;
+  daily?: DaySales[];
+  by_weekday?: WeekdaySales[];
+  by_category?: CategorySales[];
+  by_seller?: SellerSales[];
 }
 
 export interface CashFlowReport {
