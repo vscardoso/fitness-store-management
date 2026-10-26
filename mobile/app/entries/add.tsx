@@ -16,7 +16,6 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Modal,
   Text,
 } from 'react-native';
 import {
@@ -56,6 +55,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { EntryType, StockEntryCreate, EntryItem, Product, ProductVariant, Supplier } from '@/types';
 import type { WizardStep } from '@/types/wizard';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import BottomSheet from '@/components/ui/BottomSheet';
 import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
 import WizardStepper from '@/components/products/WizardStepper';
 import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
@@ -1946,187 +1946,139 @@ export default function AddStockEntryScreen() {
             <HelperText type="error">{errors.items}</HelperText>
           )}
 
-          {/* Modal de Produtos */}
-          <Modal
+          {/* Produtos: escolher o que está entrando */}
+          <BottomSheet
             visible={productMenuVisible}
-            transparent
-            animationType="slide"
-            onRequestClose={() => {
+            onDismiss={() => {
               setProductMenuVisible(false);
               setProductSearch('');
             }}
+            title="Adicionar produto"
+            subtitle="Escolha o produto que está chegando"
+            icon="cube-outline"
           >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Adicionar Produto</Text>
-                  <IconButton
-                    icon="close"
-                    size={24}
-                    onPress={() => {
-                      setProductMenuVisible(false);
-                      setProductSearch('');
-                    }}
-                  />
-                </View>
+            <TextInput
+              placeholder="Buscar produto..."
+              value={productSearch}
+              onChangeText={setProductSearch}
+              mode="outlined"
+              dense
+              left={<TextInput.Icon icon="magnify" />}
+              style={{ marginBottom: 10 }}
+            />
 
-                <TextInput
-                  placeholder="Buscar produto..."
-                  value={productSearch}
-                  onChangeText={setProductSearch}
-                  mode="outlined"
-                  left={<TextInput.Icon icon="magnify" />}
-                  style={styles.searchInput}
-                />
-
-                {isLoadingProducts ? (
-                  <View style={styles.loadingContainer}>
-                    <Text style={styles.loadingText}>Carregando produtos...</Text>
-                  </View>
-                ) : (
-                  <ScrollView style={styles.productList}>
-                    {filteredProducts.map((product: Product) => (
-                      <TouchableOpacity
-                        key={`${product.is_catalog ? 'cat' : 'act'}-${product.id}`}
-                        style={styles.productItem}
-                        onPress={() => handleAddProduct(product)}
-                      >
-                        <View style={styles.productItemContent}>
-                          <View style={styles.productItemHeader}>
-                            <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
-                            {product.is_catalog && (
-                              <View style={styles.catalogBadge}>
-                                <Text style={styles.catalogBadgeText}>Catálogo</Text>
-                              </View>
-                            )}
-                          </View>
-                          <Text style={styles.productPrice}>
-                            Custo: {formatCurrency(product.cost_price || 0)}
-                          </Text>
-                          {product.sku && (
-                            <Text style={styles.productSku}>SKU: {product.sku}</Text>
-                          )}
-                        </View>
-                        <IconButton icon="plus" size={20} />
-                      </TouchableOpacity>
-                    ))}
-                    {filteredProducts.length === 0 && (
-                      <View style={styles.emptyState}>
-                        <Ionicons name="cube-outline" size={48} color={Colors.light.textSecondary} />
-                        <Text style={styles.emptyText}>
-                          Nenhum produto encontrado
-                        </Text>
-                        <Text style={styles.emptySubtext}>
-                          Tente buscar por outro termo
-                        </Text>
-                      </View>
-                    )}
-                  </ScrollView>
-                )}
-              </View>
-            </View>
-          </Modal>
-
-          {/* Modal de escolha de variante — produto tem mais de 1 variante ativa */}
-          <Modal
-            visible={!!variantPickerProduct}
-            transparent
-            animationType="slide"
-            onRequestClose={() => setVariantPickerProduct(null)}
-          >
-            <View style={styles.modalOverlay}>
-              <View style={styles.modalContent}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Qual variante?</Text>
-                  <IconButton
-                    icon="close"
-                    size={24}
-                    onPress={() => setVariantPickerProduct(null)}
-                  />
-                </View>
-                <Text style={{ paddingHorizontal: 16, marginBottom: 8, color: '#666' }}>
-                  {variantPickerProduct?.name} tem mais de uma variação — escolha qual está recebendo estoque.
-                </Text>
-                <ScrollView style={styles.productList}>
-                  {(variantPickerProduct?.variants || [])
-                    .filter(v => v.is_active !== false && !items.some(i => i.variant_id === v.id))
-                    .map((variant) => (
-                      <TouchableOpacity
-                        key={variant.id}
-                        style={styles.productItem}
-                        onPress={() => variantPickerProduct && addProductItem(variantPickerProduct, variant)}
-                      >
-                        <View style={styles.productItemContent}>
-                          <Text style={styles.productName} numberOfLines={1}>
-                            {[variant.color, variant.size].filter(Boolean).join(' · ') || 'Variação padrão'}
-                          </Text>
-                          <Text style={styles.productPrice}>
-                            Custo: {formatCurrency(variant.cost_price || 0)} · Estoque atual: {variant.current_stock}
-                          </Text>
-                          {variant.sku && (
-                            <Text style={styles.productSku}>SKU: {variant.sku}</Text>
-                          )}
-                        </View>
-                        <IconButton icon="plus" size={20} />
-                      </TouchableOpacity>
-                    ))}
-
-                  {/* Cor ou tamanho que o produto ainda não tem: cria junto com esta entrada */}
+            {isLoadingProducts ? (
+              <Text style={styles.variantSheetHint}>Carregando produtos...</Text>
+            ) : (
+              <>
+                {filteredProducts.map((product: Product) => (
                   <TouchableOpacity
-                    style={[styles.productItem, { borderColor: brandingColors.primary + '55', backgroundColor: brandingColors.primary + '0F' }]}
-                    onPress={() => {
-                      setNewVariantProduct(variantPickerProduct);
-                      setNewVariantColor('');
-                      setNewVariantSize('');
-                      setNewVariantError('');
-                      setVariantPickerProduct(null);
-                    }}
+                    key={`${product.is_catalog ? 'cat' : 'act'}-${product.id}`}
+                    style={styles.variantSheetRow}
+                    activeOpacity={0.8}
+                    onPress={() => handleAddProduct(product)}
                   >
-                    <View style={styles.productItemContent}>
-                      <Text style={[styles.productName, { color: brandingColors.primary }]}>Nova variação (outra cor ou tamanho)</Text>
-                      <Text style={styles.productPrice}>Faltou uma cor ou tamanho que ainda não existe? Crie aqui, junto com a entrada.</Text>
+                    <View style={{ flex: 1, minWidth: 0 }}>
+                      <Text style={styles.variantSheetName} numberOfLines={2}>{product.name}</Text>
+                      <Text style={styles.variantSheetMeta}>
+                        Custo {formatCurrency(product.cost_price || 0)}{product.is_catalog ? ' · Catálogo' : ''}
+                      </Text>
                     </View>
-                    <IconButton icon="plus-circle-outline" size={22} iconColor={brandingColors.primary} />
+                    <Ionicons name="add-circle-outline" size={24} color={brandingColors.primary} />
                   </TouchableOpacity>
-                </ScrollView>
+                ))}
+                {filteredProducts.length === 0 && (
+                  <View style={styles.emptyState}>
+                    <Ionicons name="cube-outline" size={40} color={Colors.light.textSecondary} />
+                    <Text style={styles.emptyText}>Nenhum produto encontrado</Text>
+                    <Text style={styles.emptySubtext}>Tente buscar por outro termo</Text>
+                  </View>
+                )}
+              </>
+            )}
+          </BottomSheet>
+
+          {/* Escolha da variação: produto tem mais de 1 variação ativa */}
+          <BottomSheet
+            visible={!!variantPickerProduct}
+            onDismiss={() => setVariantPickerProduct(null)}
+            title="Qual variação?"
+            subtitle={variantPickerProduct?.name}
+            icon="layers-outline"
+          >
+            <Text style={styles.variantSheetHint}>Escolha qual cor e tamanho está recebendo estoque nesta entrada.</Text>
+            {(variantPickerProduct?.variants || [])
+              .filter(v => v.is_active !== false && !items.some(i => i.variant_id === v.id))
+              .map((variant) => (
+                <TouchableOpacity
+                  key={variant.id}
+                  style={styles.variantSheetRow}
+                  activeOpacity={0.8}
+                  onPress={() => variantPickerProduct && addProductItem(variantPickerProduct, variant)}
+                >
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.variantSheetName} numberOfLines={1}>
+                      {[variant.color, variant.size].filter(Boolean).join(' · ') || 'Variação padrão'}
+                    </Text>
+                    <Text style={styles.variantSheetMeta}>
+                      Custo {formatCurrency(variant.cost_price || 0)} · No estoque: {variant.current_stock}
+                    </Text>
+                  </View>
+                  <Ionicons name="add-circle-outline" size={24} color={brandingColors.primary} />
+                </TouchableOpacity>
+              ))}
+
+            {/* Cor ou tamanho que o produto ainda não tem: cria junto com esta entrada */}
+            <TouchableOpacity
+              style={[styles.variantSheetRow, { borderColor: brandingColors.primary + '55', backgroundColor: brandingColors.primary + '0F' }]}
+              activeOpacity={0.8}
+              onPress={() => {
+                setNewVariantProduct(variantPickerProduct);
+                setNewVariantColor('');
+                setNewVariantSize('');
+                setNewVariantError('');
+                setVariantPickerProduct(null);
+              }}
+            >
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={[styles.variantSheetName, { color: brandingColors.primary }]}>Nova variação (outra cor ou tamanho)</Text>
+                <Text style={styles.variantSheetMeta}>Faltou uma cor ou tamanho que ainda não existe? Crie aqui, junto com a entrada.</Text>
               </View>
-            </View>
-          </Modal>
+              <Ionicons name="sparkles-outline" size={22} color={brandingColors.primary} />
+            </TouchableOpacity>
+          </BottomSheet>
 
           {/* Variação nova de produto já cadastrado: só cor e tamanho; o servidor cria e já lança */}
-          <Modal visible={!!newVariantProduct} transparent animationType="fade" onRequestClose={() => setNewVariantProduct(null)}>
-            <View style={styles.modalOverlay}>
-              <View style={[styles.modalContent, { paddingBottom: 16 }]}>
-                <View style={styles.modalHeader}>
-                  <Text style={styles.modalTitle}>Nova variação</Text>
-                  <IconButton icon="close" size={24} onPress={() => setNewVariantProduct(null)} />
-                </View>
-                <Text style={{ paddingHorizontal: 16, color: '#666' }}>
-                  {newVariantProduct?.name}. A variação é criada com o preço das outras e entra nesta compra. Informe a cor, o tamanho ou os dois.
-                </Text>
-                <View style={{ paddingHorizontal: 16, paddingTop: 8 }}>
-                  <TextInput label="Cor (ex.: Preto)" value={newVariantColor} onChangeText={setNewVariantColor} mode="outlined" style={{ marginTop: 8 }} />
-                  <TextInput label="Tamanho (ex.: G)" value={newVariantSize} onChangeText={setNewVariantSize} mode="outlined" autoCapitalize="characters" style={{ marginTop: 8 }} />
-                  {!!newVariantError && <Text style={{ color: Colors.light.error, marginTop: 8 }}>{newVariantError}</Text>}
-                  <Button
-                    mode="contained"
-                    style={{ marginTop: 14 }}
-                    onPress={() => {
-                      if (!newVariantColor.trim() && !newVariantSize.trim()) {
-                        setNewVariantError('Informe a cor ou o tamanho.');
-                        return;
-                      }
-                      if (newVariantProduct) {
-                        addProductItem(newVariantProduct, undefined, { color: newVariantColor.trim(), size: newVariantSize.trim() });
-                      }
-                    }}
-                  >
-                    Adicionar à entrada
-                  </Button>
-                </View>
-              </View>
-            </View>
-          </Modal>
+          <BottomSheet
+            visible={!!newVariantProduct}
+            onDismiss={() => setNewVariantProduct(null)}
+            title="Nova variação"
+            subtitle={newVariantProduct?.name}
+            icon="sparkles-outline"
+            actions={[
+              { label: 'Cancelar', variant: 'secondary', onPress: () => setNewVariantProduct(null) },
+              {
+                label: 'Adicionar à entrada',
+                icon: 'checkmark-circle-outline',
+                onPress: () => {
+                  if (!newVariantColor.trim() && !newVariantSize.trim()) {
+                    setNewVariantError('Informe a cor ou o tamanho.');
+                    return;
+                  }
+                  if (newVariantProduct) {
+                    addProductItem(newVariantProduct, undefined, { color: newVariantColor.trim(), size: newVariantSize.trim() });
+                  }
+                },
+              },
+            ]}
+          >
+            <Text style={styles.variantSheetHint}>
+              A variação é criada com o preço das outras e entra nesta compra. Informe a cor, o tamanho ou os dois.
+            </Text>
+            <TextInput label="Cor (ex.: Preto)" value={newVariantColor} onChangeText={setNewVariantColor} mode="outlined" style={{ marginTop: 6 }} />
+            <TextInput label="Tamanho (ex.: G)" value={newVariantSize} onChangeText={setNewVariantSize} mode="outlined" autoCapitalize="characters" style={{ marginTop: 10 }} />
+            {!!newVariantError && <Text style={{ color: Colors.light.error, marginTop: 8 }}>{newVariantError}</Text>}
+          </BottomSheet>
 
           {/* Lista de Items - agrupada por produto com variantes */}
           {getGroupedItems().map(({ key, indices }) => renderProductGroupCard(key, indices))}
@@ -2514,6 +2466,20 @@ export default function AddStockEntryScreen() {
 }
 
 const styles = StyleSheet.create({
+  variantSheetHint: { fontSize: 14, lineHeight: 20, color: Colors.light.textSecondary, marginBottom: 10 },
+  variantSheetRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    marginBottom: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+  },
+  variantSheetName: { fontSize: 15, fontWeight: '700', color: Colors.light.text },
+  variantSheetMeta: { fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary, marginTop: 2 },
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,
@@ -2678,41 +2644,6 @@ const styles = StyleSheet.create({
   selectButtonText: {
     fontSize: 16,
     color: Colors.light.text,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '80%',
-    paddingBottom: 20,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: Colors.light.text,
-  },
-  searchInput: {
-    marginHorizontal: 16,
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  productList: {
-    maxHeight: 400,
   },
   productItem: {
     flexDirection: 'row',
