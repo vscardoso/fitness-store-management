@@ -21,6 +21,7 @@ import * as FileSystem from 'expo-file-system/legacy';
 import useBackToList from '@/hooks/useBackToList';
 import {
   getSalesReport,
+  openSalesReportPdfWeb,
   PeriodFilter as PeriodFilterType,
   type TopProduct,
 } from '@/services/reportService';
@@ -549,9 +550,10 @@ export default function SalesReportScreen() {
       // Gerar HTML
       const html = generateHTMLContent();
 
-      // No navegador/PWA abre a impressão (Salvar como PDF); no celular gera o arquivo e compartilha
+      // No navegador/PWA o PDF vem do servidor; no celular gera o arquivo e compartilha
       if (Platform.OS === 'web') {
-        await Print.printAsync({ html });
+        await openSalesReportPdfWeb(period);
+        setShowSuccessDialog(true);
         return;
       }
 

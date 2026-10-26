@@ -82,6 +82,31 @@ async def get_sales_report(
 
 
 @router.get(
+    "/sales/pdf",
+    summary="Relatório de vendas em PDF",
+    description="Mesmo conteúdo do relatório de vendas, em PDF gerado no servidor (usado pelo app web, que não tem arquivo local).",
+)
+async def get_sales_report_pdf(
+    period: str = Query("this_month", description="Período: this_month, last_30_days, last_2_months, last_3_months, last_6_months, this_year"),
+    seller_id: int | None = Query(None, description="Filtrar por vendedor (opcional)"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    from fastapi import Response
+    from app.services.sales_report_pdf_service import build_sales_report_pdf
+
+    if current_user.role.value == "SELLER":
+        seller_id = current_user.id
+    report = await ReportService().get_sales_report(db=db, tenant_id=tenant_id, period=period, seller_id=seller_id)
+    return Response(
+        content=build_sales_report_pdf(report),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="relatorio-vendas-{period}.pdf"', "Cache-Control": "no-store"},
+    )
+
+
+@router.get(
     "/cash-flow",
     response_model=CashFlowReportResponse,
     summary="Relatório de fluxo de caixa",

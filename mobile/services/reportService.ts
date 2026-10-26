@@ -232,3 +232,37 @@ export const getHistory = async (
   const response = await api.get(`/reports/history?${params.toString()}`);
   return response.data;
 };
+
+/**
+ * Web (inclusive o app instalado no iPhone): PDF gerado no servidor, porque o navegador não tem
+ * impressão confiável nem arquivo local. Tenta o compartilhar do aparelho; se não der, abre ou baixa.
+ */
+export async function openSalesReportPdfWeb(period: string): Promise<void> {
+  const res = await api.get(`/reports/sales/pdf?period=${period}`, {
+    responseType: 'blob',
+    headers: { 'X-Loading-Message': 'Gerando PDF...' },
+  });
+  const filename = `relatorio-vendas-${period}.pdf`;
+  const blob = new Blob([res.data], { type: 'application/pdf' });
+  try {
+    const file = new File([blob], filename, { type: 'application/pdf' });
+    const nav: any = navigator;
+    if (nav.canShare && nav.canShare({ files: [file] })) {
+      await nav.share({ files: [file], title: 'Relatório de Vendas' });
+      return;
+    }
+  } catch (e: any) {
+    if (e?.name === 'AbortError') return; // a pessoa fechou o compartilhar
+  }
+  const href = URL.createObjectURL(blob);
+  const win = window.open(href, '_blank');
+  if (!win) {
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+  setTimeout(() => URL.revokeObjectURL(href), 60_000);
+}
