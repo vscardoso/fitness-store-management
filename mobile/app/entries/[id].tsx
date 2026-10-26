@@ -111,6 +111,7 @@ export default function StockEntryDetailsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [supplierItem, setSupplierItem] = useState<EntryItemResponse | null>(null);
   const [addProductOpen, setAddProductOpen] = useState(false);
+  const [itemsQuery, setItemsQuery] = useState('');
   const [itemsView, setItemsView] = useState<'original' | 'az' | 'zerados' | 'agrupar'>('original');
   const [editListPrice, setEditListPrice] = useState('');
   // Lançar outra variação (cor/tamanho) de um produto já cadastrado nesta entrada
@@ -916,6 +917,17 @@ export default function StockEntryDetailsScreen() {
             </View>
           )}
           {entry.entry_items && entry.entry_items.length > 1 && (
+            <RNTextInput
+              value={itemsQuery}
+              onChangeText={setItemsQuery}
+              placeholder="Pesquisar produto, cor, tamanho ou código"
+              placeholderTextColor={Colors.light.textTertiary}
+              autoCorrect={false}
+              clearButtonMode="while-editing"
+              style={styles.itemsSearch}
+            />
+          )}
+          {entry.entry_items && entry.entry_items.length > 1 && (
             <View style={styles.itemsViewRow}>
               {([
                 ['original', 'Ordem de entrada'],
@@ -941,7 +953,14 @@ export default function StockEntryDetailsScreen() {
           )}
           {entry.entry_items && entry.entry_items.length > 0 ? (
             (() => {
-              const all = entry.entry_items;
+              const fold = (t: string) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+              const q = fold(itemsQuery.trim());
+              const all = q
+                ? entry.entry_items.filter(i => fold(`${i.product_name} ${i.variant_label || ''} ${i.product_sku || ''}`).includes(q))
+                : entry.entry_items;
+              if (all.length === 0) {
+                return <Text style={styles.itemsViewInfo}>Nenhum produto encontrado para "{itemsQuery.trim()}".</Text>;
+              }
               const byName = (a: EntryItemResponse, b: EntryItemResponse) =>
                 (a.product_name || '').localeCompare(b.product_name || '', 'pt-BR', { sensitivity: 'base' }) ||
                 (a.variant_label || '').localeCompare(b.variant_label || '', 'pt-BR', { numeric: true, sensitivity: 'base' });
@@ -1390,6 +1409,7 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 16,
   },
+  itemsSearch: { height: 44, borderWidth: 1, borderColor: Colors.light.border, borderRadius: 10, paddingHorizontal: 12, fontSize: 14, color: Colors.light.text, backgroundColor: Colors.light.background, marginBottom: 10 },
   itemsViewRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
   itemsViewChip: { minHeight: 40, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: Colors.light.border },
   itemsViewChipText: { fontSize: 13, color: Colors.light.text },

@@ -2155,7 +2155,12 @@ class StockEntryService:
             # Validar dados do produto
             if not product_data.get('name') or not product_data.get('category_id'):
                 raise ValueError("Nome e categoria do produto são obrigatórios")
-            
+
+            # Variação sem quantidade não existe: não é criada (senão ficaria zerada, sem nunca ter entrado)
+            variants_data[:] = [v for v in variants_data if (v.get('quantity') or 0) > 0]
+            if not variants_data:
+                raise ValueError("Informe a quantidade de ao menos uma variação")
+
             for _v, _sku in zip(variants_data, await self._resolve_free_skus([v.get('sku') for v in variants_data], tenant_id)):
                 _v['sku'] = _sku
 
@@ -2311,8 +2316,8 @@ class StockEntryService:
         Cria um NOVO produto (com variações) e o lança numa entrada JÁ EXISTENTE, tudo numa transação.
         O fornecedor do produto é o informado (supplier_id ou supplier_name) ou, sem isso, o da entrada.
 
-        Produto simples = 1 variação. Só variações com quantidade > 0 entram na entrada, mas todas
-        são criadas. Se qualquer passo falhar, nada é gravado (rollback): o produto não existe
+        Produto simples = 1 variação. Variação com quantidade 0 não é criada
+        (nunca fica variação zerada sem entrada). Se qualquer passo falhar, nada é gravado (rollback): o produto não existe
         enquanto a entrada não o contiver.
         """
         from decimal import Decimal
@@ -2329,6 +2334,8 @@ class StockEntryService:
                 raise ValueError("Informe ao menos uma variação")
             if not any((v.get('quantity') or 0) > 0 for v in variants_data):
                 raise ValueError("Informe a quantidade de ao menos uma variação")
+            # Variação sem quantidade não existe: não é criada (senão ficaria zerada, sem nunca ter entrado)
+            variants_data[:] = [v for v in variants_data if (v.get('quantity') or 0) > 0]
 
             for _v, _sku in zip(variants_data, await self._resolve_free_skus([v.get('sku') for v in variants_data], tenant_id)):
                 _v['sku'] = _sku
