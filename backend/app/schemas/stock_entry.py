@@ -227,6 +227,12 @@ class StockEntryWithItems(StockEntryResponse):
     """Schema for stock entry with full items list."""
     entry_items: List["EntryItemResponse"] = Field(default_factory=list, description="Lista de itens da entrada")
 
+    @field_validator("entry_items")
+    @classmethod
+    def _so_itens_ativos(cls, v):
+        """Item excluído (soft delete) não aparece na entrada."""
+        return [i for i in v if getattr(i, "is_active", True)]
+
     @computed_field(description="Resumo por fornecedor: itens, quantidade e custo")
     @property
     def suppliers_summary(self) -> List[dict]:

@@ -38,7 +38,7 @@ import Badge from '@/components/ui/Badge';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import BottomSheet from '@/components/ui/BottomSheet';
 import useBackToList from '@/hooks/useBackToList';
-import { getStockEntryById, deleteStockEntry, updateEntryItem, correctEntryItem, getStockEntryAnalytics } from '@/services/stockEntryService';
+import { getStockEntryById, deleteStockEntry, updateEntryItem, deleteEntryItem, correctEntryItem, getStockEntryAnalytics } from '@/services/stockEntryService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { toBRNumber, maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
@@ -111,6 +111,7 @@ export default function StockEntryDetailsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [supplierItem, setSupplierItem] = useState<EntryItemResponse | null>(null);
   const [addProductOpen, setAddProductOpen] = useState(false);
+  const [deleteItemTarget, setDeleteItemTarget] = useState<EntryItemResponse | null>(null);
   const [itemsQuery, setItemsQuery] = useState('');
   const [itemsView, setItemsView] = useState<'original' | 'az' | 'zerados' | 'agrupar'>('original');
   const [editListPrice, setEditListPrice] = useState('');
@@ -231,6 +232,28 @@ export default function StockEntryDetailsScreen() {
         visible: true,
         message: errorMessage,
       });
+    },
+  });
+
+  const deleteItemMutation = useMutation({
+    mutationFn: (itemId: number) => deleteEntryItem(itemId),
+    onSuccess: async () => {
+      const name = deleteItemTarget?.product_name;
+      setDeleteItemTarget(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['stock-entry', entryId] }),
+        queryClient.invalidateQueries({ queryKey: ['lot-analytics', entryId] }),
+        queryClient.invalidateQueries({ queryKey: ['lot-costs', entryId] }),
+        queryClient.invalidateQueries({ queryKey: ['stock-entries'] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+        queryClient.invalidateQueries({ queryKey: ['grouped-products'] }),
+        queryClient.invalidateQueries({ queryKey: ['active-products'] }),
+      ]);
+      setSuccessDialog({ visible: true, message: `${name || 'Produto'} foi excluído da entrada.` });
+    },
+    onError: (error: any) => {
+      setDeleteItemTarget(null);
+      setErrorDialog({ visible: true, message: error.message || 'Não foi possível excluir o produto.' });
     },
   });
 
@@ -540,6 +563,17 @@ export default function StockEntryDetailsScreen() {
         {/* Ações do item: linha própria, quebra em duas linhas em telas estreitas */}
         {isManagerRole(user?.role) && (item.quantity_remaining > 0 || item.product_id) && (
           <View style={styles.itemActionsRow}>
+            {!hasSales && (entry?.entry_items?.length ?? 0) > 1 && (
+              <TouchableOpacity
+                onPress={() => setDeleteItemTarget(item)}
+                style={[styles.editItemButton, { borderColor: Colors.light.error + '40', backgroundColor: Colors.light.error + '12' }]}
+                activeOpacity={0.7}
+                accessibilityLabel="Excluir este produto da entrada"
+              >
+                <Ionicons name="trash-outline" size={14} color={Colors.light.error} />
+                <Text style={[styles.editItemButtonText, { color: Colors.light.error }]}>Excluir</Text>
+              </TouchableOpacity>
+            )}
             {item.quantity_remaining > 0 && (
               <TouchableOpacity
                 onPress={() => setSupplierItem(item)}
@@ -1126,6 +1160,19 @@ export default function StockEntryDetailsScreen() {
           type="danger"
           icon="trash"
           loading={deleteMutation.isPending}
+        />
+
+        <ConfirmDialog
+          visible={!!deleteItemTarget}
+          title="Excluir produto da entrada?"
+          message={`${deleteItemTarget?.product_name || ''}${deleteItemTarget?.variant_label ? ' (' + deleteItemTarget.variant_label + ')' : ''}: nenhuma peça foi vendida, então ele sai desta entrada e do estoque.`}
+          confirmText="Sim, excluir"
+          cancelText="Cancelar"
+          onConfirm={() => deleteItemTarget && deleteItemMutation.mutate(deleteItemTarget.id)}
+          onCancel={() => setDeleteItemTarget(null)}
+          type="danger"
+          icon="trash"
+          loading={deleteItemMutation.isPending}
         />
 
         {/* Dialog de Sucesso - Edição de Item */}

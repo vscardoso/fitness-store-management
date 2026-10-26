@@ -365,6 +365,20 @@ export async function getStockEntriesStats(): Promise<{
 }
 
 /**
+ * Excluir um produto da entrada. O servidor só aceita se nenhuma peça foi vendida ou reservada.
+ */
+export async function deleteEntryItem(itemId: number): Promise<{
+  item_id: number;
+  entry_id: number;
+  quantity_removed: number;
+  variant_removed: boolean;
+  product_removed: boolean;
+}> {
+  const response = await api.delete(`${ENTRIES_ENDPOINT}entry-items/${itemId}`);
+  return response.data;
+}
+
+/**
  * Atualizar item de entrada (quantity_received, unit_cost, sell_price, notes)
  * VALIDAÇÃO: Bloqueia edição se o item já teve vendas (rastreabilidade FIFO)
  * Recalcula inventário automaticamente quando quantidade muda

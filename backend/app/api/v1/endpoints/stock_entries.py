@@ -1354,6 +1354,29 @@ async def update_entry_item(
         )
 
 
+@router.delete(
+    "/entry-items/{item_id}",
+    summary="Excluir um produto da entrada",
+    description="Só é permitido se nenhuma peça do item foi vendida ou reservada. Refaz o estoque e o custo do lote.",
+)
+async def delete_entry_item(
+    item_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    try:
+        result = await StockEntryService(db).delete_entry_item(item_id, tenant_id=tenant_id)
+        await AuditService.log(db, "ENTRY_ITEM_DELETED",
+            tenant_id=tenant_id, user_id=current_user.id, user_email=current_user.email,
+            entity="entry_item", entity_id=item_id,
+        )
+        return result
+    except ValueError as e:
+        code = status.HTTP_404_NOT_FOUND if "não encontrad" in str(e).lower() else status.HTTP_400_BAD_REQUEST
+        raise HTTPException(status_code=code, detail=str(e))
+
+
 class AddVariantToEntryRequest(BaseModel):
     """Peça de outra variação (cor/tamanho) de um produto já cadastrado, lançada numa entrada existente."""
     product_id: int

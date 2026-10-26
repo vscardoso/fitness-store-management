@@ -1706,6 +1706,109 @@ class StockEntryService:
         _refreshed = _result.scalar_one_or_none()
         return _refreshed if _refreshed is not None else item
 
+    async def delete_entry_item(self, item_id: int, *, tenant_id: int) -> dict:
+        """
+        Exclui (soft delete) UM produto de uma entrada, só se nenhuma peça dele foi vendida ou reservada.
+
+        - O item some da entrada e o estoque derivado é refeito pelo FIFO; custo do lote e total da entrada
+          são recalculados. Peças já vendidas mantêm o custo da venda (aqui não há nenhuma).
+        - A variação que só existia por causa desse item é desativada (senão ficaria zerada sem nunca ter
+          entrado); o produto some se ficar sem nenhuma variação ativa e sem outra entrada.
+        - A entrada precisa ficar com ao menos um produto (para apagar tudo, exclua a entrada).
+        """
+        from sqlalchemy import select, func
+        from app.models.product import Product
+        from app.models.product_variant import ProductVariant
+
+        item = await self.item_repo.get_by_id(self.db, item_id, include_relations=True)
+        if not item or not item.is_active:
+            raise ValueError(f"EntryItem {item_id} não encontrado")
+        if item.tenant_id != tenant_id:
+            raise ValueError(f"EntryItem {item_id} não encontrado")
+        if item.quantity_sold > 0:
+            raise ValueError(
+                f"Não é possível excluir: este produto já teve {item.quantity_sold} unidade(s) vendida(s) ou reservada(s). "
+                f"A rastreabilidade FIFO exige manter o histórico."
+            )
+
+        entry = await self.entry_repo.get_by_id(self.db, item.entry_id, include_items=True, tenant_id=tenant_id)
+        if not entry:
+            raise ValueError(f"Entrada {item.entry_id} não encontrada")
+        if sum(1 for i in entry.entry_items if i.is_active) <= 1:
+            raise ValueError("Este é o único produto da entrada. Para apagar tudo, exclua a entrada.")
+
+        try:
+            product_id = item.product_id
+            variant_id = item.variant_id
+            if not product_id and item.variant is not None:
+                product_id = item.variant.product_id
+
+            item.is_active = False
+            await self.db.flush()
+
+            removed_variant = False
+            removed_product = False
+            if variant_id:
+                other_items = (await self.db.execute(
+                    select(func.count(EntryItem.id)).where(
+                        EntryItem.variant_id == variant_id,
+                        EntryItem.id != item.id,
+                        EntryItem.tenant_id == tenant_id,
+                    )
+                )).scalar() or 0
+                if other_items == 0:
+                    variant = (await self.db.execute(
+                        select(ProductVariant).where(ProductVariant.id == variant_id, ProductVariant.tenant_id == tenant_id)
+                    )).scalar_one_or_none()
+                    if variant is not None and variant.is_active:
+                        variant.is_active = False
+                        if variant.sku and not variant.sku.endswith(f'_del_{variant.id}'):
+                            variant.sku = f'{variant.sku}_del_{variant.id}'
+                        removed_variant = True
+                        await self.db.flush()
+
+            if product_id:
+                active_variants = (await self.db.execute(
+                    select(func.count(ProductVariant.id)).where(
+                        ProductVariant.product_id == product_id,
+                        ProductVariant.is_active == True,
+                    )
+                )).scalar() or 0
+                other_product_items = (await self.db.execute(
+                    select(func.count(EntryItem.id)).where(
+                        EntryItem.product_id == product_id,
+                        EntryItem.id != item.id,
+                        EntryItem.tenant_id == tenant_id,
+                    )
+                )).scalar() or 0
+                if removed_variant and active_variants == 0 and other_product_items == 0:
+                    product = (await self.db.execute(
+                        select(Product).where(Product.id == product_id, Product.tenant_id == tenant_id)
+                    )).scalar_one_or_none()
+                    if product is not None and product.is_active:
+                        product.is_active = False
+                        removed_product = True
+
+                await InventoryService(self.db).rebuild_product_from_fifo(product_id, tenant_id=tenant_id)
+
+            entry.total_cost = sum(
+                (i.quantity_received * i.unit_cost for i in entry.entry_items if i.is_active and i.id != item.id),
+                Decimal('0.00'),
+            )
+            await self.db.flush()
+            await lot_cost_service.recompute_entries(self.db, [item.entry_id], tenant_id=tenant_id)
+            await self.db.commit()
+            return {
+                "item_id": item_id,
+                "entry_id": item.entry_id,
+                "quantity_removed": item.quantity_received,
+                "variant_removed": removed_variant,
+                "product_removed": removed_product,
+            }
+        except Exception:
+            await self.db.rollback()
+            raise
+
     async def _get_or_create_variant(self, product, color, size, *, price, cost, sku, tenant_id: int):
         """
         Devolve (variação, criada) da combinação cor/tamanho do produto: reaproveita a que existe (reativando se
