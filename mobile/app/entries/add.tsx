@@ -1037,17 +1037,17 @@ export default function AddStockEntryScreen() {
       <View style={styles.itemRow}>
         <View style={styles.itemInputFull}>
           <TextInput
-            label="Preço de tabela (R$), opcional"
+            label="Preço cheio do fornecedor (R$), opcional"
             value={itemListPrices[item.id] || ''}
             onChangeText={(text) => setItemListPrices({ ...itemListPrices, [item.id]: formatCostInput(text) })}
             keyboardType="decimal-pad"
             mode="outlined"
             dense
-            placeholder="Quanto custaria sem desconto"
+            placeholder="Só se houve desconto: preço antes dele"
           />
-          {list > 0 && paid > 0 && list < paid && <Text style={styles.warningText}>A tabela deve ser maior que o preço pago</Text>}
+          {list > 0 && paid > 0 && list < paid && <Text style={styles.warningText}>O preço cheio deve ser maior que o preço pago</Text>}
           {list > paid && paid > 0 && (
-            <Text style={styles.warningText}>Desconto no item: R$ {(list - paid).toFixed(2).replace('.', ',')} por peça (já está no custo)</Text>
+            <Text style={styles.warningText}>O fornecedor deu R$ {(list - paid).toFixed(2).replace('.', ',')} de desconto por peça. O custo é o preço pago.</Text>
           )}
         </View>
       </View>

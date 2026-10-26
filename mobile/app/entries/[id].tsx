@@ -1120,7 +1120,7 @@ export default function StockEntryDetailsScreen() {
             />
           </View>
 
-          <Text style={styles.inputLabel}>Preço de tabela (R$), opcional</Text>
+          <Text style={styles.inputLabel}>Preço cheio do fornecedor (R$), opcional</Text>
           <View style={styles.nativeInputRow}>
             <Text style={styles.inputPrefix}>R$</Text>
             <RNTextInput
@@ -1128,13 +1128,13 @@ export default function StockEntryDetailsScreen() {
               onChangeText={(text) => setEditListPrice(maskCurrencyBR(text))}
               keyboardType="numeric"
               style={[styles.nativeInput, { flex: 1, marginBottom: 0, borderWidth: 0 }]}
-              placeholder="Quanto custaria sem o desconto"
+              placeholder="Só se houve desconto: preço antes dele"
               placeholderTextColor={Colors.light.textTertiary}
             />
           </View>
           {unmaskCurrency(editListPrice) > unmaskCurrency(editCost) && unmaskCurrency(editCost) > 0 && (
             <Text style={styles.helperWarning}>
-              Desconto no item: {formatCurrency(unmaskCurrency(editListPrice) - unmaskCurrency(editCost))} por peça (já está no preço pago)
+              O fornecedor deu {formatCurrency(unmaskCurrency(editListPrice) - unmaskCurrency(editCost))} de desconto por peça. O custo é o preço pago.
             </Text>
           )}
 

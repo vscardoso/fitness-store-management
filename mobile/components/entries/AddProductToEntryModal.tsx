@@ -246,15 +246,18 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
             />
             <TextInput
               mode="outlined"
-              label="Preço de tabela (opcional)"
+              label="Preço cheio do fornecedor (opcional)"
               value={listPrice}
               onChangeText={(t) => setListPrice(maskCurrencyBR(t))}
               keyboardType="numeric"
               left={<TextInput.Affix text="R$" />}
               style={styles.input}
             />
+            <Text style={styles.note}>
+              Só preencha se o fornecedor deu desconto: é o preço dele antes do desconto. Não é o seu preço de venda.
+            </Text>
             {list > paid && paid > 0 && (
-              <Text style={styles.note}>Desconto no item: {formatCurrency(list - paid)} por peça (já está no preço pago).</Text>
+              <Text style={styles.note}>O fornecedor deu {formatCurrency(list - paid)} de desconto por peça. Você paga {formatCurrency(paid)} em cada.</Text>
             )}
             <TouchableOpacity
               style={[styles.row, { marginTop: theme.spacing.md }]}
