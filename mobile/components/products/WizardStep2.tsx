@@ -24,6 +24,7 @@ import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import type { Category } from '@/types';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
 import { GenderToggle } from '@/components/ui/GenderToggle';
+import { SizePicker } from '@/components/ui/SizePicker';
 import { normalizeGender } from '@/utils/gender';
 import VariantBuilderInline from '@/components/products/VariantBuilderInline';
 import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
@@ -56,7 +57,6 @@ export default function WizardStep2({
   const saleRef = useRef<RNTextInput>(null);
   const brandRef = useRef<RNTextInput>(null);
   const colorRef = useRef<RNTextInput>(null);
-  const sizeRef = useRef<RNTextInput>(null);
   const materialRef = useRef<RNTextInput>(null);
   const descRef = useRef<RNTextInput>(null);
 
@@ -460,21 +460,13 @@ export default function WizardStep2({
                   style={[styles.input, styles.halfInput]}
                   left={<TextInput.Icon icon="palette" />}
                   returnKeyType="next"
-                  onSubmitEditing={() => sizeRef.current?.focus()}
-                  blurOnSubmit={false}
-                />
-                <TextInput
-                  ref={sizeRef}
-                  label="Tamanho"
-                  value={formData.size || ''}
-                  onChangeText={(text) => updateField('size', text.toUpperCase())}
-                  mode="outlined"
-                  style={[styles.input, styles.halfInput]}
-                  autoCapitalize="characters"
-                  left={<TextInput.Icon icon="ruler" />}
-                  returnKeyType="next"
                   onSubmitEditing={() => descRef.current?.focus()}
                   blurOnSubmit={false}
+                />
+                <SizePicker
+                  value={formData.size || ''}
+                  onChange={(next) => updateField('size', next)}
+                  style={[styles.input, styles.halfInput]}
                 />
               </View>
               )}

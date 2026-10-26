@@ -32,6 +32,7 @@ import type { ProductUpdate } from '@/types';
 import { formatPriceInput, formatPriceDisplay, formatMoneyDisplay } from '@/utils/priceFormatter';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { GenderToggle } from '@/components/ui/GenderToggle';
+import { SizePicker } from '@/components/ui/SizePicker';
 import { normalizeGender } from '@/utils/gender';
 
 export default function EditProductScreen() {
@@ -569,13 +570,7 @@ export default function EditProductScreen() {
 
                 <View style={styles.inputHalf}>
                   <Text style={styles.inputLabel}>Tamanho</Text>
-                  <TextInput
-                    value={size}
-                    onChangeText={setSize}
-                    style={styles.input}
-                    placeholder="PP, P, M, G, GG"
-                    placeholderTextColor={Colors.light.textTertiary}
-                  />
+                  <SizePicker value={size} onChange={setSize} variant="plain" plainStyle={styles.input} plainTextStyle={styles.selectText} />
                 </View>
               </View>
             )}
@@ -837,16 +832,12 @@ export default function EditProductScreen() {
                       <View style={styles.variantPriceRow}>
                         <View style={styles.variantInputHalf}>
                           <Text style={styles.inputLabel}>Tamanho</Text>
-                          <TextInput
+                          <SizePicker
                             value={edit.size}
-                            onChangeText={text => setVariantEdits(prev => ({
-                              ...prev,
-                              [variant.id]: { ...prev[variant.id], size: text },
-                            }))}
-                            style={styles.variantInput}
-                            autoCapitalize="characters"
-                            placeholder="P, M, P/M, ÚNICO"
-                            placeholderTextColor={Colors.light.textTertiary}
+                            onChange={sz => setVariantEdits(prev => ({ ...prev, [variant.id]: { ...prev[variant.id], size: sz } }))}
+                            variant="plain"
+                            plainStyle={styles.variantInput}
+                            plainTextStyle={styles.selectText}
                           />
                         </View>
                         <View style={styles.variantInputHalf}>
@@ -864,21 +855,6 @@ export default function EditProductScreen() {
                           />
                         </View>
                       </View>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingBottom: 8 }}>
-                        {['ÚNICO', 'PP', 'P', 'P/M', 'M', 'M/G', 'G', 'G/GG', 'GG', 'XG'].map(sz => (
-                          <TouchableOpacity
-                            key={sz}
-                            onPress={() => setVariantEdits(prev => ({ ...prev, [variant.id]: { ...prev[variant.id], size: sz } }))}
-                            style={{
-                              paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1,
-                              borderColor: edit.size.trim().toUpperCase() === sz ? brandingColors.primary : Colors.light.border,
-                              backgroundColor: edit.size.trim().toUpperCase() === sz ? brandingColors.primary + '20' : 'transparent',
-                            }}
-                          >
-                            <Text style={{ fontSize: 12, color: Colors.light.text }}>{sz}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
                       <Text style={styles.inputLabel}>SKU</Text>
                       <TextInput
                         value={edit.sku}
