@@ -218,7 +218,41 @@ Responda APENAS com o JSON, sem texto adicional."""
                     raise
                 logger.warning(f"Gemini {model} indisponível, tentando o próximo modelo: {text[:160]}")
                 last_error = e
+        # Todos os modelos Gemini sem cota: último recurso é o GLM da Z.ai (plano grátis, fila pode atrasar)
+        if settings.ZAI_API_KEY:
+            try:
+                return self._call_zai(image_bytes, media_type, prompt)
+            except Exception as e:  # noqa: BLE001
+                logger.warning(f"Z.ai também falhou: {str(e)[:160]}")
         raise last_error  # type: ignore[misc]
+
+    def _call_zai(self, image_bytes: bytes, media_type: str, prompt: str) -> str:
+        import httpx
+        image_data = base64.standard_b64encode(image_bytes).decode("utf-8")
+        payload = {
+            "model": settings.ZAI_MODEL,
+            "messages": [{
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{image_data}"}},
+                ],
+            }],
+        }
+        last = ""
+        for attempt in range(5):
+            r = httpx.post(
+                f"{settings.ZAI_BASE_URL}/chat/completions",
+                headers={"Authorization": f"Bearer {settings.ZAI_API_KEY}"},
+                json=payload, timeout=40.0,
+            )
+            if r.status_code == 200:
+                return r.json()["choices"][0]["message"]["content"]
+            last = f"{r.status_code} {r.text[:120]}"
+            if r.status_code != 429:  # 429 = fila do plano grátis: espera e tenta de novo
+                break
+            time.sleep(3)
+        raise RuntimeError(f"Z.ai: {last}")
 
     def _call_openai(self, image_bytes: bytes, media_type: str, prompt: str) -> str:
         try:

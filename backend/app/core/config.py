@@ -130,6 +130,10 @@ class Settings(BaseSettings):
     GEMINI_FALLBACK_MODELS: str = "gemini-3.7-flash,gemini-3.8-flash,gemini-3-flash-preview,gemini-3.1-flash-lite,gemini-2.5-flash-lite"
 
     # OpenAI (fallback)
+    # Z.ai (GLM com visão, plano grátis): reserva quando todos os modelos Gemini estouram a cota
+    ZAI_API_KEY: str = ""
+    ZAI_MODEL: str = "glm-4.6v-flash"
+    ZAI_BASE_URL: str = "https://api.z.ai/api/paas/v4"
     OPENAI_API_KEY: str = ""
     OPENAI_MODEL: str = "gpt-4o"
     OPENAI_MAX_TOKENS: int = 2048

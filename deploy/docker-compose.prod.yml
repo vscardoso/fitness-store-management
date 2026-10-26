@@ -39,6 +39,7 @@ services:
       MP_ACCESS_TOKEN: ${MP_ACCESS_TOKEN:-}
       # O container só recebe o que está listado aqui (--env-file só preenche os ${...}).
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      ZAI_API_KEY: ${ZAI_API_KEY:-}
       # WhatsApp oficial (Cloud API). Vazio = webhook recusa tudo. Ver docs/whatsapp-cloud-plano.md
       WHATSAPP_CLOUD_ACCESS_TOKEN: ${WHATSAPP_CLOUD_ACCESS_TOKEN:-}
       WHATSAPP_CLOUD_APP_SECRET: ${WHATSAPP_CLOUD_APP_SECRET:-}
