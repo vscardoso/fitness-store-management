@@ -74,3 +74,19 @@ def test_product_with_variants_detects_duplicate_after_normalization():
                 {"sku": "B", "size": "p ", "color": "preto", "price": 10},
             ],
         )
+
+
+def test_tamanhos_compostos_e_unico():
+    from app.utils.variant_grid import normalize_size, sort_sizes
+    assert normalize_size("p/m") == "P/M"
+    assert normalize_size("P / M") == "P/M"
+    assert normalize_size("m-g") == "M/G"
+    assert normalize_size("g\gg") == "G/GG"
+    assert normalize_size("S/M") == "P/M"
+    assert normalize_size("unico") == "ÚNICO"
+    assert normalize_size("Único") == "ÚNICO"
+    assert normalize_size("38-40") == "38/40"
+    # duplo fica entre os dois tamanhos que junta
+    assert sort_sizes(["G", "GG", "G/GG", "P", "M/G", "ÚNICO", "P/M", "M", "38", "PP"]) == [
+        "ÚNICO", "PP", "P", "P/M", "M", "M/G", "G", "G/GG", "GG", "38",
+    ]

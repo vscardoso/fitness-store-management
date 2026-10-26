@@ -127,7 +127,8 @@ export function generateVariantSku(
   }
   
   if (size) {
-    sku += `-${size.toUpperCase()}`;
+    // "P/M" vira "P-M" e "ÚNICO" vira "UNICO": SKU só com letras, números e hífen
+    sku += `-${size.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, '-')}`;
   }
   
   if (counter && counter > 1) {

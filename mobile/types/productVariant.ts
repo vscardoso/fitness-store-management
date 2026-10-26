@@ -143,7 +143,15 @@ export const DEFAULT_SIZES: SizeOption[] = [
   { label: 'GG', value: 'GG' },
   { label: 'XG', value: 'XG' },
   { label: 'XGG', value: 'XGG' },
+  // Peças que servem em dois tamanhos e peça de tamanho único (o servidor guarda "ÚNICO" e "P/M")
+  { label: 'ÚNICO', value: 'ÚNICO' },
+  { label: 'P/M', value: 'P/M' },
+  { label: 'M/G', value: 'M/G' },
+  { label: 'G/GG', value: 'G/GG' },
 ];
+
+/** Tamanhos que o "Selecionar todos" marca (grade normal; ÚNICO e duplos são escolhidos à mão). */
+export const GRID_SIZE_VALUES = ['PP', 'P', 'M', 'G', 'GG', 'XG', 'XGG'];
 
 // Tamanhos numéricos para calçados
 export const SHOE_SIZES: SizeOption[] = [

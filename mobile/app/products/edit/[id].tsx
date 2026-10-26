@@ -159,14 +159,18 @@ export default function EditProductScreen() {
     sku: string;
     price: string;
     cost_price: string;
+    size: string;
+    color: string;
   }>>({});
 
   // Inicializar edits quando variantes carregam
   useEffect(() => {
     if (variants && variants.length > 0) {
-      const initial: Record<number, { sku: string; price: string; cost_price: string }> = {};
+      const initial: Record<number, { sku: string; price: string; cost_price: string; size: string; color: string }> = {};
       variants.forEach(v => {
         initial[v.id] = {
+          size: v.size ?? '',
+          color: v.color ?? '',
           sku: v.sku,
           price: (Number(v.price) || 0).toFixed(2),
           cost_price: (Number((v as any).cost_price) || 0).toFixed(2),
@@ -277,12 +281,19 @@ export default function EditProductScreen() {
       const newPrice = parseFloat(edit.price.replace(',', '.'));
       const newCost = parseFloat(edit.cost_price?.replace(',', '.') ?? '0');
       const origCost = Number((v as any).cost_price) || 0;
+      const sizeChanged = (edit.size ?? '').trim() !== (v.size ?? '');
+      const colorChanged = (edit.color ?? '').trim() !== (v.color ?? '');
       const hasChange =
+        sizeChanged ||
+        colorChanged ||
         edit.sku !== v.sku ||
         Math.abs(newPrice - v.price) > 0.001 ||
         (!isNaN(newCost) && Math.abs(newCost - origCost) > 0.001);
       if (hasChange) {
         await updateVariant(v.id, {
+          // só manda tamanho/cor quando mudou e não ficou vazio (o servidor normaliza: "p / m" vira "P/M")
+          ...(sizeChanged && edit.size.trim() ? { size: edit.size.trim() } : {}),
+          ...(colorChanged && edit.color.trim() ? { color: edit.color.trim() } : {}),
           sku: edit.sku.trim().toUpperCase(),
           price: isNaN(newPrice) ? v.price : newPrice,
           cost_price: isNaN(newCost) ? undefined : newCost,
@@ -807,12 +818,14 @@ export default function EditProductScreen() {
               <View style={styles.fifoInfoPanel}>
                 <Ionicons name="layers" size={16} color={Colors.light.info} />
                 <Text style={styles.fifoInfoText}>
-                  Edite o SKU, custo e preço de venda de cada variação.
+                  Edite tamanho, cor, SKU, custo e preço de venda de cada variação.
                 </Text>
               </View>
 
               {[...(variants ?? [])].sort((a, b) => a.id - b.id).map(variant => {
                 const edit = variantEdits[variant.id] ?? {
+                  size: variant.size ?? '',
+                  color: variant.color ?? '',
                   sku: variant.sku,
                   price: (Number(variant.price) || 0).toFixed(2),
                   cost_price: (Number((variant as any).cost_price) || 0).toFixed(2),
@@ -865,6 +878,51 @@ export default function EditProductScreen() {
 
                     {/* Campos de edição */}
                     <View style={styles.variantFields}>
+                      <View style={styles.variantPriceRow}>
+                        <View style={styles.variantInputHalf}>
+                          <Text style={styles.inputLabel}>Tamanho</Text>
+                          <TextInput
+                            value={edit.size}
+                            onChangeText={text => setVariantEdits(prev => ({
+                              ...prev,
+                              [variant.id]: { ...prev[variant.id], size: text },
+                            }))}
+                            style={styles.variantInput}
+                            autoCapitalize="characters"
+                            placeholder="P, M, P/M, ÚNICO"
+                            placeholderTextColor={Colors.light.textTertiary}
+                          />
+                        </View>
+                        <View style={styles.variantInputHalf}>
+                          <Text style={styles.inputLabel}>Cor</Text>
+                          <TextInput
+                            value={edit.color}
+                            onChangeText={text => setVariantEdits(prev => ({
+                              ...prev,
+                              [variant.id]: { ...prev[variant.id], color: text },
+                            }))}
+                            style={styles.variantInput}
+                            autoCapitalize="words"
+                            placeholder="Cor"
+                            placeholderTextColor={Colors.light.textTertiary}
+                          />
+                        </View>
+                      </View>
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingBottom: 8 }}>
+                        {['ÚNICO', 'PP', 'P', 'P/M', 'M', 'M/G', 'G', 'G/GG', 'GG', 'XG'].map(sz => (
+                          <TouchableOpacity
+                            key={sz}
+                            onPress={() => setVariantEdits(prev => ({ ...prev, [variant.id]: { ...prev[variant.id], size: sz } }))}
+                            style={{
+                              paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1,
+                              borderColor: edit.size.trim().toUpperCase() === sz ? brandingColors.primary : Colors.light.border,
+                              backgroundColor: edit.size.trim().toUpperCase() === sz ? brandingColors.primary + '20' : 'transparent',
+                            }}
+                          >
+                            <Text style={{ fontSize: 12, color: Colors.light.text }}>{sz}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
                       <Text style={styles.inputLabel}>SKU</Text>
                       <TextInput
                         value={edit.sku}

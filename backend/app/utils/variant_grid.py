@@ -42,6 +42,10 @@ def normalize_size(value: Optional[str]) -> Optional[str]:
     if not cleaned:
         return None
     key = _strip_accents_upper(cleaned)
+    # Tamanho composto ("p / m", "m-g", "G\GG") vira "P/M", "M/G", "G/GG"; cada parte segue os apelidos (S/M -> P/M)
+    parts = [p.strip() for p in re.split(r"\s*[/\\-]\s*", key) if p.strip()]
+    if len(parts) > 1:
+        return "/".join("ÚNICO" if _SIZE_ALIASES.get(p, p) == "UNICO" else _SIZE_ALIASES.get(p, p) for p in parts)
     key = _SIZE_ALIASES.get(key, key)
     if key == "UNICO":
         return "ÚNICO"
@@ -69,6 +73,10 @@ def size_sort_key(size: Optional[str]):
     key = _SIZE_ALIASES.get(key, key)
     if key in _ALPHA_RANK:
         return (0, _ALPHA_RANK[key], "")
+    # P/M, M/G, G/GG ficam entre os dois tamanhos que juntam (P < P/M < M)
+    parts = [_SIZE_ALIASES.get(p, p) for p in key.split("/")]
+    if len(parts) > 1 and all(p in _ALPHA_RANK for p in parts):
+        return (0, sum(_ALPHA_RANK[p] for p in parts) / len(parts), "")
     match = re.fullmatch(r"(\d+)(?:[/-](\d+))?", key)
     if match:
         return (1, int(match.group(1)), match.group(2) or "")

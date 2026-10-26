@@ -41,6 +41,7 @@ import AppButton from '@/components/ui/AppButton';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import {
   DEFAULT_SIZES,
+  GRID_SIZE_VALUES,
   DEFAULT_COLORS,
   COLOR_GROUPS,
   type SizeOption,
@@ -161,7 +162,7 @@ export default function VariantBuilderInline({
 
   const selectAllSizes = () => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-    const all = DEFAULT_SIZES.map(s => s.value);
+    const all = [...GRID_SIZE_VALUES];
     onSizesChange(all);
     if (Object.keys(colorSizes).length > 0) {
       const updated: Record<string, string[]> = {};
