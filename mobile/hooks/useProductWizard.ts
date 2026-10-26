@@ -98,7 +98,7 @@ const INITIAL_STATE: WizardState = {
   scanResult: null,
   isAnalyzing: false,
   analyzeError: null,
-  productData: {},
+  productData: { gender: 'Feminino' },
   duplicates: [],
   isEditing: false,
   validationErrors: {},
@@ -395,7 +395,7 @@ export function useProductWizard() {
       capturedImage: null,
       scanResult: null,
       analyzeError: null,
-      productData: {},
+      productData: { gender: 'Feminino' },
       duplicates: [],
     }));
   }, []);

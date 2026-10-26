@@ -31,8 +31,8 @@ import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import type { ProductUpdate } from '@/types';
 import { formatPriceInput, formatPriceDisplay, formatMoneyDisplay } from '@/utils/priceFormatter';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
-import { Menu } from 'react-native-paper';
-import { GENDER_OPTIONS, normalizeGender } from '@/utils/gender';
+import { GenderToggle } from '@/components/ui/GenderToggle';
+import { normalizeGender } from '@/utils/gender';
 
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -60,7 +60,6 @@ export default function EditProductScreen() {
   const [description, setDescription] = useState('');
   const [brand, setBrand] = useState('');
   const [gender, setGender] = useState('');
-  const [genderMenuVisible, setGenderMenuVisible] = useState(false);
   const [color, setColor] = useState('');
   const [size, setSize] = useState('');
   const [categoryId, setCategoryId] = useState<number | undefined>();
@@ -552,50 +551,7 @@ export default function EditProductScreen() {
             />
 
             <Text style={styles.inputLabel}>Gênero</Text>
-            <Menu
-              visible={genderMenuVisible}
-              onDismiss={() => setGenderMenuVisible(false)}
-              anchorPosition="bottom"
-              anchor={
-                <TouchableOpacity
-                  style={[styles.input, styles.selectInput]}
-                  activeOpacity={0.8}
-                  onPress={() => setGenderMenuVisible(true)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Gênero: ${gender || 'não selecionado'}`}
-                >
-                  <Text style={gender ? styles.selectText : styles.selectPlaceholder}>
-                    {gender || 'Selecione o gênero'}
-                  </Text>
-                  <Ionicons
-                    name={genderMenuVisible ? 'chevron-up' : 'chevron-down'}
-                    size={20}
-                    color={Colors.light.textTertiary}
-                  />
-                </TouchableOpacity>
-              }
-            >
-              {GENDER_OPTIONS.map((option) => (
-                <Menu.Item
-                  key={option}
-                  title={option}
-                  leadingIcon={option === gender ? 'check' : undefined}
-                  onPress={() => {
-                    setGender(option);
-                    setGenderMenuVisible(false);
-                  }}
-                />
-              ))}
-              {gender ? (
-                <Menu.Item
-                  title="Limpar"
-                  onPress={() => {
-                    setGender('');
-                    setGenderMenuVisible(false);
-                  }}
-                />
-              ) : null}
-            </Menu>
+            <GenderToggle value={gender} onChange={setGender} style={{ marginBottom: 12 }} />
 
             {/* Cor e Tamanho só no produto quando NÃO há variantes (cada variante tem os seus) */}
             {!hasVariants && (

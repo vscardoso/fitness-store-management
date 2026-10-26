@@ -23,8 +23,8 @@ import { useBrandingColors } from '@/store/brandingStore';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import type { Category } from '@/types';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
-import { SelectField } from '@/components/ui/SelectField';
-import { GENDER_OPTIONS, normalizeGender } from '@/utils/gender';
+import { GenderToggle } from '@/components/ui/GenderToggle';
+import { normalizeGender } from '@/utils/gender';
 import VariantBuilderInline from '@/components/products/VariantBuilderInline';
 import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
 import { getActiveProducts } from '@/services/productService';
@@ -426,30 +426,26 @@ export default function WizardStep2({
                 blurOnSubmit={false}
               />
 
-              <View style={styles.row}>
-                <SelectField
-                  label="Gênero"
+              <View style={styles.input}>
+                <Text style={{ fontSize: 12, marginBottom: 4, color: Colors.light.textSecondary }}>Gênero</Text>
+                <GenderToggle
                   value={(formData as any).gender || ''}
-                  options={GENDER_OPTIONS}
-                  onChange={(next) => updateField('gender', next ?? '')}
-                  icon="account-outline"
-                  allowClear
-                  style={[styles.input, styles.halfInput]}
-                />
-                <TextInput
-                  ref={materialRef}
-                  label="Material"
-                  value={(formData as any).material || ''}
-                  onChangeText={(text) => updateField('material', capitalizeWords(text))}
-                  autoCapitalize="words"
-                  mode="outlined"
-                  style={[styles.input, styles.halfInput]}
-                  left={<TextInput.Icon icon="layers-outline" />}
-                  returnKeyType="next"
-                  onSubmitEditing={() => colorRef.current?.focus()}
-                  blurOnSubmit={false}
+                  onChange={(next) => updateField('gender', next)}
                 />
               </View>
+              <TextInput
+                ref={materialRef}
+                label="Material"
+                value={(formData as any).material || ''}
+                onChangeText={(text) => updateField('material', capitalizeWords(text))}
+                autoCapitalize="words"
+                mode="outlined"
+                style={styles.input}
+                left={<TextInput.Icon icon="layers-outline" />}
+                returnKeyType="next"
+                onSubmitEditing={() => colorRef.current?.focus()}
+                blurOnSubmit={false}
+              />
 
               {/* Cor e Tamanho — oculto quando variantes estão ativas */}
               {!state.hasVariants && (

@@ -21,7 +21,7 @@ import {
 import { Text } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useCategories } from '@/hooks';
@@ -206,6 +206,26 @@ export default function ProductWizardScreen() {
     return () => backHandler.remove();
   }, [state.isDirty, state.currentStep]);
 
+  // iOS: no resumo o gesto de voltar (arrastar da borda) fica desligado
+  const navigation = useNavigation();
+  useEffect(() => {
+    navigation.setOptions({ gestureEnabled: state.currentStep !== 'complete' });
+  }, [navigation, state.currentStep]);
+
+  const leaveSummary = useCallback(() => {
+    wizard.resetWizard();
+    router.replace('/(tabs)' as any);
+  }, [wizard]);
+
+  // No navegador, o botão Voltar do próprio navegador também não pode reabrir um passo anterior
+  useEffect(() => {
+    if (state.currentStep !== 'complete' || Platform.OS !== 'web' || typeof window === 'undefined') return;
+    window.history.pushState({ wizardSummary: true }, '');
+    const onPop = () => leaveSummary();
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [state.currentStep, leaveSummary]);
+
   const handleBack = useCallback(async () => {
     // Back sempre volta para o passo anterior do fluxo.
     if (state.currentStep === 'identify') {
@@ -230,14 +250,16 @@ export default function ProductWizardScreen() {
       return;
     }
 
-    // Se está no Step 4 (complete), volta para Step 3
+    // Resumo: o produto e a entrada já foram gravados, então voltar NUNCA reabre o passo anterior
+    // (daria a impressão de poder refazer ou duplicar). Sai do assistente e vai para o início.
     if (state.currentStep === 'complete') {
-      wizard.goToStep('entry');
+      leaveSummary();
       return;
     }
   }, [state.currentStep, wizard, goBack]);
 
   const handleStepPress = useCallback((targetStep: 'identify' | 'confirm' | 'entry' | 'complete') => {
+    if (state.currentStep === 'complete') return;
     if (targetStep === state.currentStep) {
       // Refresh explícito do Step 3 para reidratar contexto sem reset destrutivo.
       if (targetStep === 'entry') {
