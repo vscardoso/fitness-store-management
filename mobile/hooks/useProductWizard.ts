@@ -9,6 +9,7 @@
  * INDEPENDENTE do useAIScanner - gerencia seu próprio estado
  */
 
+import { clearWizardCompleted } from '@/utils/wizardGuard';
 import { useState, useCallback } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import { requestCameraPermissionFriendly, requestGalleryPermissionFriendly } from '@/utils/permissions';
@@ -1218,6 +1219,7 @@ export function useProductWizard() {
   // ============================================
 
   const resetWizard = useCallback(() => {
+    clearWizardCompleted();
     _wizardCreatedProductBackup = null;
     setState(INITIAL_STATE);
   }, []);

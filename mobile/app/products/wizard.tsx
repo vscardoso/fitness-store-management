@@ -22,6 +22,7 @@ import { Text } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
+import { clearWizardCompleted, markWizardCompleted, wasWizardJustCompleted } from '@/utils/wizardGuard';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useCategories } from '@/hooks';
@@ -213,9 +214,28 @@ export default function ProductWizardScreen() {
   }, [navigation, state.currentStep]);
 
   const leaveSummary = useCallback(() => {
+    clearWizardCompleted();
     wizard.resetWizard();
     router.replace('/(tabs)' as any);
   }, [wizard]);
+
+  // Chegou no resumo: daqui em diante voltar nunca reabre um passo anterior (nem pelo gesto do iPhone, que
+  // recria a tela num passo antigo, sempre com os dados desse passo na rota). Tela aberta de novo "do zero"
+  // (menu, botão Novo produto) é outro cadastro e segue normal.
+  useEffect(() => {
+    if (state.currentStep === 'complete') markWizardCompleted();
+  }, [state.currentStep]);
+
+  useEffect(() => {
+    if (!wasWizardJustCompleted()) return;
+    if (params.restoreStep || params.restoreProductData) {
+      clearWizardCompleted();
+      wizard.resetWizard();
+      router.replace('/(tabs)' as any);
+    } else if (state.currentStep !== 'complete') {
+      clearWizardCompleted(); // abriu o cadastro do zero: é um produto novo
+    }
+  }, []);
 
   // No navegador, o botão Voltar do próprio navegador também não pode reabrir um passo anterior
   useEffect(() => {
