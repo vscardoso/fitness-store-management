@@ -191,18 +191,34 @@ Responda APENAS com o JSON, sem texto adicional."""
             raise RuntimeError("google-genai não instalado. Execute: pip install google-genai")
 
         client = genai.Client(api_key=settings.GEMINI_API_KEY)
-        response = client.models.generate_content(
-            model=settings.GEMINI_MODEL,
-            contents=[
-                types.Part.from_bytes(data=image_bytes, mime_type=media_type),
-                prompt,
-            ],
-            config=types.GenerateContentConfig(
-                # Limita o raciocínio interno — scan de produto não precisa de deep thinking
-                thinking_config=types.ThinkingConfig(thinking_budget=512),
-            ),
-        )
-        return response.text
+        # A cota do plano grátis é por modelo: se um estourar (429), estiver sobrecarregado (503)
+        # ou for aposentado (404), tenta o próximo da lista.
+        models = [settings.GEMINI_MODEL] + [
+            m.strip() for m in settings.GEMINI_FALLBACK_MODELS.split(",")
+            if m.strip() and m.strip() != settings.GEMINI_MODEL
+        ]
+        last_error: Optional[Exception] = None
+        for model in models:
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=[
+                        types.Part.from_bytes(data=image_bytes, mime_type=media_type),
+                        prompt,
+                    ],
+                    config=types.GenerateContentConfig(
+                        # Limita o raciocínio interno — scan de produto não precisa de deep thinking
+                        thinking_config=types.ThinkingConfig(thinking_budget=512),
+                    ),
+                )
+                return response.text
+            except Exception as e:  # noqa: BLE001
+                text = str(e)
+                if not any(code in text for code in ("429", "503", "404", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "NOT_FOUND")):
+                    raise
+                logger.warning(f"Gemini {model} indisponível, tentando o próximo modelo: {text[:160]}")
+                last_error = e
+        raise last_error  # type: ignore[misc]
 
     def _call_openai(self, image_bytes: bytes, media_type: str, prompt: str) -> str:
         try:

@@ -126,6 +126,8 @@ class Settings(BaseSettings):
     # Google Gemini
     GEMINI_API_KEY: str = ""
     GEMINI_MODEL: str = "gemini-3.5-flash"
+    # Modelos tentados em ordem quando o principal estoura a cota (cota grátis é por modelo)
+    GEMINI_FALLBACK_MODELS: str = "gemini-3.7-flash,gemini-3.8-flash,gemini-3-flash-preview,gemini-3.1-flash-lite,gemini-2.5-flash-lite"
 
     # OpenAI (fallback)
     OPENAI_API_KEY: str = ""
