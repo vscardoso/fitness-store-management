@@ -6,7 +6,7 @@
  * Mudou qualquer texto? Troque LEGAL_VERSION aqui e em backend/app/core/legal.py
  * (o teste backend/tests/test_legal.py confere): todo usuário aceita de novo no próximo login.
  */
-export const LEGAL_VERSION = '2026-10-25';
+export const LEGAL_VERSION = '2026-10-26';
 
 export const LEGAL_COMPANY = {
   name: '[RAZÃO SOCIAL]',
@@ -28,7 +28,8 @@ export const TERMS: LegalSection[] = [
   {
     title: '1. Quem somos e o que é o Provador',
     paragraphs: [
-      `O Provador é um sistema de gestão para lojas de moda fitness, oferecido por ${C.name}, inscrita no CNPJ ${C.document}, com endereço em ${C.address} ("Provador", "nós").`,
+      `O Provador é um sistema de gestão e de relacionamento com clientes (CRM) para lojas de moda fitness, oferecido como serviço pela internet (SaaS) por ${C.name}, inscrita no CNPJ ${C.document}, com endereço em ${C.address} ("Provador", "nós").`,
+      'Quem usa o Provador é a loja e a sua equipe. Os clientes da loja não acessam o Provador, não têm conta nele e não recebem nada do Provador.',
       'Com ele a loja cadastra produtos com tamanho e cor, controla estoque, registra vendas, clientes, envios condicionais, trocas, fornecedores, despesas e acompanha o resultado do negócio, pelo celular ou pelo computador.',
       'Ao criar uma conta ou continuar usando o Provador, você declara que leu e concorda com estes Termos de Uso e com a Política de Privacidade.',
     ],
@@ -59,7 +60,7 @@ export const TERMS: LegalSection[] = [
     paragraphs: [
       'Os dados dos clientes, fornecedores e da equipe que a loja cadastra pertencem à loja. A loja é a controladora desses dados e é responsável por ter uma base legal para tratá-los e por informar seus clientes, como pede a Lei Geral de Proteção de Dados (LGPD).',
       'O Provador trata esses dados apenas para prestar o serviço à loja, seguindo as instruções da loja, como operador. Cada loja só enxerga os próprios dados.',
-      'Mensagens a clientes (por exemplo, pelo WhatsApp, quando a loja conectar o seu número) são de responsabilidade da loja, que deve respeitar a vontade do cliente de receber ou não mensagens.',
+      'O Provador não entra em contato com os clientes da loja: não envia mensagens, ofertas nem cobranças a eles. Se a loja usar uma integração opcional com um canal próprio dela (por exemplo, o WhatsApp da loja), as mensagens são enviadas pela loja, em nome dela, e são de responsabilidade dela, que deve respeitar a vontade do cliente de receber ou não mensagens.',
     ],
   },
   {
@@ -102,7 +103,7 @@ export const PRIVACY: LegalSection[] = [
     title: '1. Sobre esta política',
     paragraphs: [
       `Esta política explica como ${C.name} (CNPJ ${C.document}), responsável pelo Provador, trata dados pessoais, de acordo com a Lei Geral de Proteção de Dados (Lei 13.709/2018).`,
-      'Ela vale para quem usa o Provador (donos de loja e suas equipes) e explica também como tratamos os dados que as lojas cadastram sobre seus clientes.',
+      'Ela vale para quem usa o Provador: a loja e a sua equipe. Os clientes da loja não usam o Provador; esta política explica também como guardamos os dados que a loja cadastra sobre eles no CRM.',
     ],
   },
   {
@@ -111,14 +112,14 @@ export const PRIVACY: LegalSection[] = [
       'Da sua conta: nome, e-mail, telefone, senha (guardada de forma cifrada, nunca em texto), função na loja e registros de acesso, como data, endereço IP e navegador, incluindo o registro do aceite destes termos.',
       'Da loja: nome, endereço, logo, cores e configurações.',
       'Cadastrados pela loja: clientes (nome, e-mail, telefone, CPF, data de nascimento, endereço, histórico de compras, pontos de fidelidade e se aceitou receber ofertas), fornecedores (nome, CPF ou CNPJ e contato), produtos, fotos, vendas, estoque e despesas.',
-      'Quando a loja conecta o WhatsApp oficial: as mensagens trocadas com os clientes nesse número.',
+      'Se a loja conectar o WhatsApp da própria loja (integração opcional): as mensagens trocadas nesse número, guardadas para a loja consultar no CRM.',
     ],
   },
   {
     title: '3. Para que usamos',
     paragraphs: [
       'Para prestar o serviço contratado (executar o contrato), manter a sua conta segura e prevenir fraudes (legítimo interesse), cumprir obrigações legais e falar com você sobre a sua conta.',
-      'Não vendemos dados pessoais e não usamos os dados dos clientes da loja para nenhum fim próprio.',
+      'Não vendemos dados pessoais, não entramos em contato com os clientes da loja e não usamos os dados deles para nenhum fim próprio.',
     ],
   },
   {

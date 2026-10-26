@@ -5,4 +5,4 @@ Os textos ficam no app (mobile/constants/legal.ts), publicados em /termos e /pri
 Mudou o texto? Troque a versão AQUI e lá (tests/test_legal.py confere que são iguais):
 todo usuário precisa aceitar de novo no próximo login.
 """
-LEGAL_VERSION = "2026-10-25"
+LEGAL_VERSION = "2026-10-26"
