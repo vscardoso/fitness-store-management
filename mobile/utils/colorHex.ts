@@ -17,6 +17,13 @@ const BASE: Record<string, string> = {
   marrom: '#92400e', brown: '#92400e', caramelo: '#b45f06', chocolate: '#5a3a22',
   bege: '#d4b896', beige: '#d4b896', nude: '#e0b9a0', creme: '#f3e8c8', areia: '#d8c7a0',
   dourado: '#d4af37', prata: '#c0c0c0',
+  mescla: '#b8b8b8', salmao: '#fa8072', salmão: '#fa8072', menta: '#a8e6cf', limao: '#bfff00', limão: '#bfff00',
+  musgo: '#4a5d23', jade: '#00a86b', abacate: '#568203', bandeira: '#009c3b', cobalto: '#0047ab', jeans: '#5b7da6',
+  piscina: '#2bb3d6', ceu: '#87ceeb', céu: '#87ceeb', blush: '#de98ab', rose: '#e8a598', rosê: '#e8a598',
+  chiclete: '#ff8fb1', cereja: '#9b111e', marsala: '#955251', uva: '#6f2da8', berinjela: '#5b3256',
+  pessego: '#ffcba4', pêssego: '#ffcba4', tangerina: '#f28500', canario: '#ffef00', canário: '#ffef00',
+  cobre: '#b87333', bronze: '#cd7f32', telha: '#b5502d', cappuccino: '#a9876a', cafe: '#4b3621', café: '#4b3621',
+  cacau: '#3d2314', marfim: '#fffff0', champanhe: '#f7e7ce', neon: '#39ff14',
 };
 
 const CLARO = new Set(['claro', 'clara', 'light', 'bebe', 'bebê', 'pastel']);

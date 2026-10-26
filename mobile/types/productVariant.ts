@@ -178,7 +178,7 @@ export interface ColorGroup {
 }
 
 // ──────────────────────────────────────────────
-// Paleta profissional de 48 cores agrupadas
+// Paleta de cores agrupadas (moda fitness: mesclas, neons, rosados, terrosos e estampas)
 // ──────────────────────────────────────────────
 export const COLOR_GROUPS: ColorGroup[] = [
   {
@@ -194,6 +194,14 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { label: 'Bege',         value: 'Bege',         hex: '#D9C7A3' },
       { label: 'Nude',         value: 'Nude',         hex: '#E3C7B5' },
       { label: 'Areia',        value: 'Areia',        hex: '#CDB79E' },
+      { label: 'Cinza Mescla', value: 'Cinza Mescla', hex: '#B8B8B8' },
+      { label: 'Grafite', value: 'Grafite', hex: '#383838' },
+      { label: 'Creme', value: 'Creme', hex: '#F3E8C8' },
+      { label: 'Marfim', value: 'Marfim', hex: '#FFFFF0' },
+      { label: 'Champanhe', value: 'Champanhe', hex: '#F7E7CE' },
+      { label: 'Cappuccino', value: 'Cappuccino', hex: '#A9876A' },
+      { label: 'Café', value: 'Café', hex: '#4B3621' },
+      { label: 'Cacau', value: 'Cacau', hex: '#3D2314' },
     ],
   },
   {
@@ -207,6 +215,10 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { label: 'Azul Petróleo', value: 'Azul Petróleo', hex: '#003F5C' },
       { label: 'Turquesa',      value: 'Turquesa',      hex: '#40E0D0' },
       { label: 'Tiffany',       value: 'Tiffany',       hex: '#81D8D0' },
+      { label: 'Azul Céu', value: 'Azul Céu', hex: '#87CEEB' },
+      { label: 'Azul Jeans', value: 'Azul Jeans', hex: '#5B7DA6' },
+      { label: 'Azul Piscina', value: 'Azul Piscina', hex: '#2BB3D6' },
+      { label: 'Cobalto', value: 'Cobalto', hex: '#0047AB' },
     ],
   },
   {
@@ -220,6 +232,16 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { label: 'Rosa Médio',     value: 'Rosa Médio',      hex: '#E75480' },
       { label: 'Pink',           value: 'Pink',            hex: '#FF1493' },
       { label: 'Goiaba',         value: 'Goiaba',          hex: '#FF6F61' },
+      { label: 'Rosa Bebê', value: 'Rosa Bebê', hex: '#F8C8DC' },
+      { label: 'Rosa Chiclete', value: 'Rosa Chiclete', hex: '#FF8FB1' },
+      { label: 'Rosa Neon', value: 'Rosa Neon', hex: '#FF2E93' },
+      { label: 'Rosa Antigo', value: 'Rosa Antigo', hex: '#C08081' },
+      { label: 'Blush', value: 'Blush', hex: '#DE98AB' },
+      { label: 'Rosê', value: 'Rosê', hex: '#E8A598' },
+      { label: 'Salmão', value: 'Salmão', hex: '#FA8072' },
+      { label: 'Marsala', value: 'Marsala', hex: '#955251' },
+      { label: 'Cereja', value: 'Cereja', hex: '#9B111E' },
+      { label: 'Fúcsia', value: 'Fúcsia', hex: '#C71585' },
     ],
   },
   {
@@ -231,6 +253,13 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { label: 'Esmeralda',      value: 'Esmeralda',      hex: '#2E8B57' },
       { label: 'Verde Água',     value: 'Verde Água',     hex: '#00BFA6' },
       { label: 'Verde Neon',     value: 'Verde Neon',     hex: '#39FF14' },
+      { label: 'Verde Menta', value: 'Verde Menta', hex: '#A8E6CF' },
+      { label: 'Verde Bandeira', value: 'Verde Bandeira', hex: '#009C3B' },
+      { label: 'Verde Musgo', value: 'Verde Musgo', hex: '#4A5D23' },
+      { label: 'Verde Limão', value: 'Verde Limão', hex: '#BFFF00' },
+      { label: 'Verde Abacate', value: 'Verde Abacate', hex: '#568203' },
+      { label: 'Verde Escuro', value: 'Verde Escuro', hex: '#006400' },
+      { label: 'Verde Jade', value: 'Verde Jade', hex: '#00A86B' },
     ],
   },
   {
@@ -243,6 +272,12 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { label: 'Caramelo',       value: 'Caramelo',       hex: '#AF6F09' },
       { label: 'Marrom Claro',   value: 'Marrom Claro',   hex: '#A0522D' },
       { label: 'Marrom Escuro',  value: 'Marrom Escuro',  hex: '#5C4033' },
+      { label: 'Amarelo Neon', value: 'Amarelo Neon', hex: '#E6FF00' },
+      { label: 'Canário', value: 'Canário', hex: '#FFEF00' },
+      { label: 'Terracota', value: 'Terracota', hex: '#C2653F' },
+      { label: 'Telha', value: 'Telha', hex: '#B5502D' },
+      { label: 'Cobre', value: 'Cobre', hex: '#B87333' },
+      { label: 'Bronze', value: 'Bronze', hex: '#CD7F32' },
     ],
   },
   {
@@ -252,6 +287,9 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { label: 'Lavanda',       value: 'Lavanda',       hex: '#E6E6FA' },
       { label: 'Roxo',          value: 'Roxo',          hex: '#6A0DAD' },
       { label: 'Roxo Escuro',   value: 'Roxo Escuro',   hex: '#4B0082' },
+      { label: 'Uva', value: 'Uva', hex: '#6F2DA8' },
+      { label: 'Berinjela', value: 'Berinjela', hex: '#5B3256' },
+      { label: 'Violeta', value: 'Violeta', hex: '#8F00FF' },
     ],
   },
   {
@@ -260,6 +298,9 @@ export const COLOR_GROUPS: ColorGroup[] = [
       { label: 'Laranja',        value: 'Laranja',           hex: '#FF8C00' },
       { label: 'Queimado',       value: 'Laranja Queimado',  hex: '#CC5500' },
       { label: 'Coral',          value: 'Coral',             hex: '#FF7F50' },
+      { label: 'Laranja Neon', value: 'Laranja Neon', hex: '#FF6700' },
+      { label: 'Pêssego', value: 'Pêssego', hex: '#FFCBA4' },
+      { label: 'Tangerina', value: 'Tangerina', hex: '#F28500' },
     ],
   },
   {
@@ -267,6 +308,23 @@ export const COLOR_GROUPS: ColorGroup[] = [
     colors: [
       { label: 'Prata',   value: 'Prata',   hex: '#C0C0C0' },
       { label: 'Dourado', value: 'Dourado', hex: '#D4AF37' },
+      { label: 'Rose Gold', value: 'Rose Gold', hex: '#B76E79' },
+    ],
+  },
+  {
+    label: 'Estampas',
+    colors: [
+      { label: 'Estampado', value: 'Estampado', hex: '#A78BFA' },
+      { label: 'Onça', value: 'Onça', hex: '#C68E3F' },
+      { label: 'Zebra', value: 'Zebra', hex: '#E5E5E5' },
+      { label: 'Floral', value: 'Floral', hex: '#E58FB0' },
+      { label: 'Tie Dye', value: 'Tie Dye', hex: '#9B7EDE' },
+      { label: 'Listrado', value: 'Listrado', hex: '#6B7280' },
+      { label: 'Xadrez', value: 'Xadrez', hex: '#8B5E3C' },
+      { label: 'Camuflado', value: 'Camuflado', hex: '#6B705C' },
+      { label: 'Preto e Branco', value: 'Preto e Branco', hex: '#7A7A7A' },
+      { label: 'Colorido', value: 'Colorido', hex: '#FF8C42' },
+      { label: 'Degradê', value: 'Degradê', hex: '#B388EB' },
     ],
   },
 ];

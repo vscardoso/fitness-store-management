@@ -33,6 +33,7 @@ if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 import { Text, TextInput, Switch, Button } from 'react-native-paper';
+import { colorNameToHex } from '@/utils/colorHex';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
@@ -199,6 +200,17 @@ export default function VariantBuilderInline({
       }
     }
   }, [selectedColors, onColorsChange, colorSizes, onColorSizesChange, selectedSizes]);
+
+  const [customColor, setCustomColor] = useState('');
+  const addCustomColor = useCallback(() => {
+    const name = customColor.trim().replace(/\s+/g, ' ').split(' ').map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    if (!name) return;
+    const known = DEFAULT_COLORS.find((x) => x.value.toLowerCase() === name.toLowerCase() || x.label.toLowerCase() === name.toLowerCase());
+    const value = known ? known.value : name;
+    if (!selectedColors.some((x) => x.toLowerCase() === value.toLowerCase())) toggleColor(value);
+    setCustomColor('');
+  }, [customColor, selectedColors, toggleColor]);
+
 
   // ── Tamanhos por cor ─────────────────────────────────────
 
@@ -450,7 +462,7 @@ export default function VariantBuilderInline({
                     >
                       <View style={[
                         styles.selectedColorPillDot,
-                        { backgroundColor: colorDef?.hex || '#9CA3AF' },
+                        { backgroundColor: colorDef?.hex || colorNameToHex(colorValue) || '#9CA3AF' },
                       ]} />
                       <Text style={styles.selectedColorPillText}>{colorValue}</Text>
                       <Ionicons name="close-circle" size={13} color="#9CA3AF" />
@@ -497,12 +509,38 @@ export default function VariantBuilderInline({
                               )}
                             </View>
                           </View>
+                          <Text style={styles.colorSwatchName} numberOfLines={2}>{c.label}</Text>
                         </TouchableOpacity>
                       );
                     })}
                   </View>
                 </View>
               ))}
+            </View>
+
+            {/* Outra cor: qualquer nome que não esteja na paleta */}
+            <View style={styles.customColorRow}>
+              <TextInput
+                value={customColor}
+                onChangeText={setCustomColor}
+                label="Outra cor"
+                placeholder="Ex.: Verde Cítrico"
+                mode="outlined"
+                dense
+                autoCapitalize="words"
+                maxLength={50}
+                style={{ flex: 1 }}
+                returnKeyType="done"
+                onSubmitEditing={addCustomColor}
+              />
+              <TouchableOpacity
+                onPress={addCustomColor}
+                disabled={!customColor.trim()}
+                activeOpacity={0.8}
+                style={[styles.customColorButton, { backgroundColor: brandingColors.primary }, !customColor.trim() && { opacity: 0.4 }]}
+              >
+                <Text style={styles.customColorButtonText}>Adicionar</Text>
+              </TouchableOpacity>
             </View>
           </View>
 
@@ -1015,7 +1053,30 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   colorSwatchWrapper: {
     alignItems: 'center',
+    width: 58,
+    marginBottom: 4,
   },
+  colorSwatchName: {
+    fontSize: 10,
+    lineHeight: 12,
+    textAlign: 'center',
+    color: Colors.light.textSecondary,
+    marginTop: 1,
+  },
+  customColorRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 12,
+  },
+  customColorButton: {
+    paddingHorizontal: 16,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  customColorButtonText: { color: '#fff', fontWeight: '700' },
   colorSwatchRing: {
     width: 42,
     height: 42,
