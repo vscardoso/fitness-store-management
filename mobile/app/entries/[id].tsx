@@ -111,6 +111,7 @@ export default function StockEntryDetailsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [supplierItem, setSupplierItem] = useState<EntryItemResponse | null>(null);
   const [addProductOpen, setAddProductOpen] = useState(false);
+  const [itemsView, setItemsView] = useState<'original' | 'az' | 'zerados' | 'agrupar'>('original');
   const [editListPrice, setEditListPrice] = useState('');
   // Lançar outra variação (cor/tamanho) de um produto já cadastrado nesta entrada
   const [variantTarget, setVariantTarget] = useState<EntryItemResponse | null>(null);
@@ -914,8 +915,72 @@ export default function StockEntryDetailsScreen() {
               </TouchableOpacity>
             </View>
           )}
+          {entry.entry_items && entry.entry_items.length > 1 && (
+            <View style={styles.itemsViewRow}>
+              {([
+                ['original', 'Ordem de entrada'],
+                ['az', 'A a Z'],
+                ['zerados', 'Zerados'],
+                ['agrupar', 'Agrupar por produto'],
+              ] as const).map(([key, label]) => {
+                const active = itemsView === key;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    onPress={() => setItemsView(key)}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Mostrar produtos: ${label}`}
+                    style={[styles.itemsViewChip, active && { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary + '18' }]}
+                  >
+                    <Text style={[styles.itemsViewChipText, active && { color: brandingColors.primary, fontWeight: '700' }]}>{label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
           {entry.entry_items && entry.entry_items.length > 0 ? (
-            entry.entry_items.map(renderProductItem)
+            (() => {
+              const all = entry.entry_items;
+              const byName = (a: EntryItemResponse, b: EntryItemResponse) =>
+                (a.product_name || '').localeCompare(b.product_name || '', 'pt-BR', { sensitivity: 'base' }) ||
+                (a.variant_label || '').localeCompare(b.variant_label || '', 'pt-BR', { numeric: true, sensitivity: 'base' });
+              if (itemsView === 'az') return [...all].sort(byName).map(renderProductItem);
+              if (itemsView === 'zerados') {
+                const zero = all.filter(i => i.quantity_remaining === 0).sort(byName);
+                return (
+                  <>
+                    <Text style={styles.itemsViewInfo}>
+                      {zero.length === 0 ? 'Nenhum item zerado nesta entrada.' : `${zero.length} item(ns) zerado(s) de ${all.length}.`}
+                    </Text>
+                    {zero.map(renderProductItem)}
+                  </>
+                );
+              }
+              if (itemsView === 'agrupar') {
+                const groups = new Map<string, EntryItemResponse[]>();
+                [...all].sort(byName).forEach(i => {
+                  const key = i.product_id ? `p${i.product_id}` : `n${i.product_name}`;
+                  groups.set(key, [...(groups.get(key) || []), i]);
+                });
+                return Array.from(groups.entries()).map(([key, list]) => {
+                  const rest = list.reduce((t, i) => t + i.quantity_remaining, 0);
+                  const bought = list.reduce((t, i) => t + i.quantity_received, 0);
+                  return (
+                    <View key={key} style={{ marginBottom: 8 }}>
+                      <View style={styles.groupHeader}>
+                        <Text style={styles.groupTitle} numberOfLines={2}>{list[0].product_name}</Text>
+                        <Text style={[styles.groupInfo, rest === 0 && { color: Colors.light.error }]}>
+                          {rest === 0 ? 'Zerado' : `Restam ${rest} de ${bought} un`} · {list.length} item(ns)
+                        </Text>
+                      </View>
+                      {list.map(renderProductItem)}
+                    </View>
+                  );
+                });
+              }
+              return all.map(renderProductItem);
+            })()
           ) : (
             <EmptyState
               icon="cube-outline"
@@ -1325,6 +1390,13 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: 16,
   },
+  itemsViewRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  itemsViewChip: { minHeight: 40, paddingHorizontal: 12, justifyContent: 'center', borderRadius: 10, borderWidth: 1, borderColor: Colors.light.border },
+  itemsViewChipText: { fontSize: 13, color: Colors.light.text },
+  itemsViewInfo: { fontSize: 13, color: Colors.light.textSecondary, marginBottom: 8 },
+  groupHeader: { paddingVertical: 8, paddingHorizontal: 4, marginBottom: 4 },
+  groupTitle: { fontSize: 15, fontWeight: '700', color: Colors.light.text },
+  groupInfo: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 },
   sectionTitleLarge: {
     fontSize: 18,
     fontWeight: '700',
