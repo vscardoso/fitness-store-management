@@ -207,6 +207,34 @@ async def get_variant_by_sku(
 
 
 @router.get(
+    "/short-code/{code}",
+    response_model=ProductVariantWithProductResponse,
+    summary="Buscar variante pelo código da etiqueta",
+)
+async def get_variant_by_short_code(
+    code: str,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Busca pelo código da etiqueta: 'PV#0123' (lido do QR), '#0123', '0123' ou '123'."""
+    service = ProductVariantService(db)
+    variant = await service.get_variant_by_short_code(code, tenant_id)
+    if not variant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Nenhuma peça com esse código nesta loja")
+    return ProductVariantWithProductResponse(
+        **variant.__dict__,
+        current_stock=variant.get_current_stock(),
+        variant_label=variant.get_variant_label(),
+        product_name=variant.product.name if variant.product else None,
+        product_brand=variant.product.brand if variant.product else None,
+        product_image_url=variant.product.image_url if variant.product else None,
+        category_id=variant.product.category_id if variant.product else None,
+        category_name=variant.product.category.name if variant.product and variant.product.category else None,
+    )
+
+
+@router.get(
     "/product/{product_id}",
     response_model=List[ProductVariantResponse],
     summary="Listar variantes de um produto",

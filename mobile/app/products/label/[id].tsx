@@ -7,7 +7,7 @@ import {
   Text,
 } from 'react-native';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import ViewShot, { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
@@ -31,6 +31,8 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Colors, theme } from '@/constants/Colors';
 import type { ProductVariant } from '@/types/productVariant';
 import { useBrandingColors } from '@/store/brandingStore';
+import { printTagLabels, TAG_LABELS_PER_A4, type TagLabelLayout } from '@/services/labelService';
+import { formatShortCode } from '@/utils/shortCode';
 
 interface LabelFormat {
   id: string;
@@ -60,6 +62,7 @@ interface LabelItem {
   data: LabelData;
   stock: number;
   quantity: number;
+  shortCode?: number | null;
 }
 
 interface FormatMetrics {
@@ -81,6 +84,7 @@ export default function ProductLabelScreen() {
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const { id, variantId } = useLocalSearchParams<{ id: string; variantId?: string }>();
   const viewShotRef = useRef<ViewShot>(null);
+  const queryClient = useQueryClient();
 
   const [formatId,    setFormatId]    = useState('f14');
   const [showPrice,   setShowPrice]   = useState(true);
@@ -90,6 +94,9 @@ export default function ProductLabelScreen() {
   const [initialized, setInitialized] = useState(false);
   const [printDialog, setPrintDialog] = useState(false);
   const [errorDialog, setErrorDialog] = useState(false);
+  const [tagLayout,   setTagLayout]   = useState<TagLabelLayout>('a4');
+  const [tagStart,    setTagStart]    = useState(1);
+  const [tagBusy,     setTagBusy]     = useState(false);
   const [errorMessage, setErrorMessage] = useState('Não foi possível gerar a imagem das etiquetas. Verifique se o preview está visível e tente novamente.');
 
   const base64Encoding =
@@ -146,7 +153,11 @@ export default function ProductLabelScreen() {
       const hasMatchingPreselected =
         preselectedVariantId != null && variantList.some((variant) => variant.id === preselectedVariantId);
 
-      setItems(variantList.map(v => ({
+      // ordem da grade = ordem do código curto (P, M, G...); sem código vai pro fim
+      const ordered = [...variantList].sort(
+        (a, b) => (a.short_code ?? Number.MAX_SAFE_INTEGER) - (b.short_code ?? Number.MAX_SAFE_INTEGER),
+      );
+      setItems(ordered.map(v => ({
         key: `variant-${v.id}`,
         label: formatVariantLabel(v),
         data: {
@@ -159,6 +170,7 @@ export default function ProductLabelScreen() {
           color: v.color || undefined,
         },
         stock: v.current_stock ?? 0,
+        shortCode: v.short_code,
         quantity: hasMatchingPreselected
           ? (v.id === preselectedVariantId ? 1 : 0)
           : 1,
@@ -286,6 +298,27 @@ export default function ProductLabelScreen() {
       setErrorDialog(true);
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  const tagItems = items
+    .filter((i) => i.quantity > 0 && i.data.variantId != null)
+    .map((i) => ({ variantId: i.data.variantId as number, quantity: i.quantity }));
+  const tagTotal = tagItems.reduce((sum, i) => sum + i.quantity, 0);
+  const tagSheets = tagTotal > 0 ? Math.ceil((tagTotal + tagStart - 1) / TAG_LABELS_PER_A4) : 0;
+
+  const handleTagPdf = async () => {
+    if (tagTotal === 0 || tagBusy) return;
+    setTagBusy(true);
+    try {
+      await printTagLabels(tagItems, { layout: tagLayout, startPosition: tagLayout === 'a4' ? tagStart : 1 });
+      // códigos novos podem ter sido criados agora
+      queryClient.invalidateQueries({ queryKey: ['product-variants', id] });
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error, 'Não foi possível gerar o PDF das etiquetas.'));
+      setErrorDialog(true);
+    } finally {
+      setTagBusy(false);
     }
   };
 
@@ -598,7 +631,14 @@ export default function ProductLabelScreen() {
             {items.map((item, idx) => (
               <View key={item.key} style={[styles.variantRow, idx < items.length - 1 && styles.variantRowBorder]}>
                 <View style={styles.variantRowInfo}>
-                  <Text style={styles.variantRowName} numberOfLines={1}>{item.label}</Text>
+                  <View style={styles.variantRowTitle}>
+                    <Text style={styles.variantRowName} numberOfLines={1}>{item.label}</Text>
+                    {item.shortCode != null && (
+                      <Text style={[styles.shortCodePill, { color: brandingColors.primary, backgroundColor: brandingColors.primary + '12' }]}>
+                        {formatShortCode(item.shortCode)}
+                      </Text>
+                    )}
+                  </View>
                   {item.stock > 0 && (
                     <Text style={styles.variantRowStock}>{item.stock} em estoque</Text>
                   )}
@@ -634,6 +674,94 @@ export default function ProductLabelScreen() {
                   </Text>
                 </View>
               </View>
+            )}
+          </View>
+        </View>
+
+        {/* Adesivo do verso da tag (PDF gerado no servidor) */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Ionicons name="pricetags-outline" size={20} color={brandingColors.primary} />
+            <Text style={styles.cardTitle}>Adesivo do verso da tag (50×60)</Text>
+            {tagLayout === 'a4' && tagSheets > 0 && (
+              <View style={[styles.sheetChip, { backgroundColor: brandingColors.primary + '15' }]}>
+                <Ionicons name="document-text-outline" size={13} color={brandingColors.primary} />
+                <Text style={[styles.sheetChipText, { color: brandingColors.primary }]}>{tagSheets} folha{tagSheets !== 1 ? 's' : ''}</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.cardContent}>
+            <Text style={styles.tagHint}>
+              Nome, cor, tamanho, preço e o código da peça com QR. Sem custo, fornecedor ou entrada.
+            </Text>
+
+            <Text style={styles.configLabel}>Onde imprimir</Text>
+            <View style={styles.tagLayoutRow}>
+              {([
+                { id: 'a4', title: 'Folha A4', sub: '12 por folha · impressora comum', icon: 'document-outline' },
+                { id: 'roll', title: 'Rolo', sub: '1 por página · térmica', icon: 'receipt-outline' },
+              ] as const).map((opt) => {
+                const selected = tagLayout === opt.id;
+                return (
+                  <TouchableOpacity
+                    key={opt.id}
+                    style={[styles.tagLayoutCard, selected && { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary + '12' }]}
+                    onPress={() => setTagLayout(opt.id)}
+                    activeOpacity={0.75}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected }}
+                  >
+                    <Ionicons name={opt.icon} size={18} color={selected ? brandingColors.primary : Colors.light.textSecondary} />
+                    <Text style={[styles.formatCardMain, selected && { color: brandingColors.primary }]}>{opt.title}</Text>
+                    <Text style={styles.formatCardSub}>{opt.sub}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {tagLayout === 'a4' && (
+              <>
+                <Text style={styles.configLabel}>Começar na posição</Text>
+                <Text style={styles.tagHint}>Folha já usada? Toque na primeira etiqueta livre.</Text>
+                <View style={styles.tagSheetGrid}>
+                  {Array.from({ length: TAG_LABELS_PER_A4 }, (_, i) => i + 1).map((pos) => {
+                    const used = pos < tagStart;
+                    const selected = pos === tagStart;
+                    return (
+                      <TouchableOpacity
+                        key={pos}
+                        style={[
+                          styles.tagSheetCell,
+                          used && styles.tagSheetCellUsed,
+                          selected && { borderColor: brandingColors.primary, backgroundColor: brandingColors.primary + '18' },
+                        ]}
+                        onPress={() => setTagStart(pos)}
+                        accessibilityLabel={`Começar na posição ${pos}`}
+                      >
+                        <Text style={[styles.tagSheetCellText, used && styles.tagSheetCellTextUsed, selected && { color: brandingColors.primary }]}>
+                          {used ? 'usada' : pos}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+
+            {items.length > 0 && items.every((i) => i.data.variantId == null) ? (
+              <Text style={styles.tagWarn}>Este produto ainda não tem peça cadastrada (sem variação): dê entrada no estoque antes.</Text>
+            ) : (
+              <TouchableOpacity
+                style={[styles.tagButton, { backgroundColor: brandingColors.primary }, (tagTotal === 0 || tagBusy) && styles.footerActionDisabled]}
+                onPress={handleTagPdf}
+                disabled={tagTotal === 0 || tagBusy}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="print-outline" size={18} color="#fff" />
+                <Text style={styles.tagButtonText}>
+                  {tagBusy ? 'Gerando...' : tagTotal > 0 ? `Gerar PDF (${tagTotal} etiqueta${tagTotal !== 1 ? 's' : ''})` : 'Escolha as quantidades acima'}
+                </Text>
+              </TouchableOpacity>
             )}
           </View>
         </View>
@@ -766,6 +894,33 @@ const createStyles = (brand: string) => StyleSheet.create({
   // Scroll
   scroll: { flex: 1 },
   content: { padding: 16, paddingBottom: 100, gap: 14 },
+
+  // Adesivo do verso da tag
+  tagHint: { fontSize: 13, color: Colors.light.textSecondary, lineHeight: 18 },
+  tagLayoutRow: { flexDirection: 'row', gap: 8 },
+  tagLayoutCard: {
+    flex: 1, gap: 4, padding: 12, borderRadius: 12, borderWidth: 1.5,
+    borderColor: Colors.light.border, backgroundColor: Colors.light.backgroundSecondary,
+  },
+  tagSheetGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10, maxWidth: 240 },
+  tagSheetCell: {
+    width: 72, height: 40, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.light.border,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff',
+  },
+  tagSheetCellUsed: { backgroundColor: Colors.light.backgroundSecondary, borderStyle: 'dashed' },
+  tagSheetCellText: { fontSize: 13, fontWeight: '700', color: Colors.light.text },
+  tagSheetCellTextUsed: { fontSize: 11, fontWeight: '500', color: Colors.light.textTertiary },
+  tagButton: {
+    marginTop: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: 8, paddingVertical: 14, borderRadius: 12,
+  },
+  tagButtonText: { color: '#fff', fontSize: 15, fontWeight: '700' },
+  tagWarn: { marginTop: 14, fontSize: 13, color: Colors.light.warning, lineHeight: 18 },
+  variantRowTitle: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  shortCodePill: {
+    fontSize: 11, fontWeight: '700', fontFamily: 'monospace',
+    paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, overflow: 'hidden',
+  },
 
   // Card
   card: {
@@ -901,7 +1056,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     borderBottomColor: Colors.light.border,
   },
   variantRowInfo: { flex: 1 },
-  variantRowName: { fontSize: 15, fontWeight: '600', color: Colors.light.text },
+  variantRowName: { flexShrink: 1, fontSize: 15, fontWeight: '600', color: Colors.light.text },
   variantRowStock: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 },
 
   // Qty control

@@ -33,6 +33,7 @@ from app.models.base import BaseModel
 # Importar todos os modelos para garantir que estejam no metadata do create_all
 import app.models.refresh_token  # noqa: F401 — estende Base diretamente
 import app.models.audit_log       # noqa: F401 — estende Base diretamente
+import app.services.short_code_service  # noqa: F401  (registra o número da etiqueta em variação nova)
 
 logger = logging.getLogger(__name__)
 
@@ -186,6 +187,7 @@ _SQLITE_EXTRA_COLUMNS = {
     "sale_returns": [("exchange_sale_id", "INTEGER"), ("net_amount", "NUMERIC(10,2)"), ("settlement_method", "VARCHAR(20)")],
     "return_items": [("restock", "BOOLEAN NOT NULL DEFAULT 1"), ("replacement_variant_id", "INTEGER")],
     "app_notifications": [("push_sent", "BOOLEAN NOT NULL DEFAULT 0")],
+    "product_variants": [("short_code", "INTEGER")],
 }
 
 

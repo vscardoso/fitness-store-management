@@ -33,6 +33,7 @@ from .label_printer import LabelPrinter, ConnectionType, PrinterProtocol
 from .print_job import PrintJob, PrintJobStatus
 from .whatsapp_cloud import WhatsAppCloudNumber, WhatsAppConversation, WhatsAppMessage
 from .legal_acceptance import LegalAcceptance
+from .catalog_counter import CatalogCounter
 from .error_log import ErrorLog
 from .supplier_return import SupplierReturn
 from .entry_supplier_discount import EntrySupplierDiscount
@@ -140,6 +141,7 @@ __all__ = [
     # WhatsApp oficial (Cloud API da Meta)
     "WhatsAppCloudNumber",
     "LegalAcceptance",
+    "CatalogCounter",
     "WhatsAppConversation",
     "WhatsAppMessage",
 ]

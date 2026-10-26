@@ -233,6 +233,7 @@ export interface ProductVariant {
   cost_price?: number;
   current_stock: number;
   is_active?: boolean;
+  short_code?: number | null; // código curto da etiqueta (#0123)
 }
 
 export interface ProductGrouped {

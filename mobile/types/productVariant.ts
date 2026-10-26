@@ -16,6 +16,7 @@ export interface ProductVariant {
   updated_at: string;
   current_stock?: number;
   variant_label?: string;
+  short_code?: number | null; // código curto da etiqueta (#0123), único na loja
 }
 
 export interface ProductVariantWithProduct extends ProductVariant {
@@ -33,6 +34,7 @@ export interface ProductVariantMinimal {
   color: string | null;
   price: number;
   current_stock?: number;
+  short_code?: number | null;
 }
 
 export interface ProductWithVariants {

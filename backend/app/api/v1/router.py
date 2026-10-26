@@ -22,6 +22,7 @@ from fastapi import APIRouter
 from app.api.v1.endpoints import (
     public_catalog,
     legal,
+    labels,
     error_logs,
     auth,
     audit,
@@ -224,6 +225,9 @@ api_router.include_router(error_logs.router)
 
 # Termos de Uso e Política de Privacidade (versão pública, situação e aceite)
 api_router.include_router(legal.router)
+
+# Etiqueta do verso em PDF (folha A4 ou rolo)
+api_router.include_router(labels.router)
 
 # PDV — Mercado Pago In-Store (terminais, pagamento QR, webhooks)
 api_router.include_router(pdv.router)

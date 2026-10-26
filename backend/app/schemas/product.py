@@ -118,6 +118,7 @@ class ProductVariantMinimalResponse(BaseModel):
     cost_price: Optional[Decimal] = None
     is_active: bool = True
     current_stock: Optional[int] = None
+    short_code: Optional[int] = None  # código da etiqueta (#0123)
 
     class Config:
         from_attributes = True

@@ -66,6 +66,7 @@ class ProductVariantResponse(ProductVariantBase):
     updated_at: datetime
     current_stock: Optional[int] = Field(None, description="Estoque atual")
     variant_label: Optional[str] = Field(None, description="Label formatado (cor · tamanho)")
+    short_code: Optional[int] = Field(None, description="Código curto da etiqueta, por loja (mostrar como #0123)")
     
     class Config:
         from_attributes = True
@@ -92,6 +93,7 @@ class ProductVariantMinimal(BaseModel):
     color: Optional[str] = None
     price: Decimal
     current_stock: Optional[int] = None
+    short_code: Optional[int] = None
     
     class Config:
         from_attributes = True

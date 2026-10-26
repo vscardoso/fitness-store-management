@@ -44,7 +44,7 @@ class ProductVariantRepository(BaseRepository[ProductVariant, ProductVariantCrea
         result = await db.execute(
             select(ProductVariant)
             .options(
-                selectinload(ProductVariant.product),
+                selectinload(ProductVariant.product).selectinload(Product.category),
                 selectinload(ProductVariant.inventory),
                 selectinload(ProductVariant.entry_items),
             )
@@ -58,6 +58,25 @@ class ProductVariantRepository(BaseRepository[ProductVariant, ProductVariantCrea
         )
         return result.scalar_one_or_none()
     
+    async def get_by_short_code(self, db: AsyncSession, short_code: int, tenant_id: int) -> Optional[ProductVariant]:
+        """Busca variante pelo código curto da etiqueta (#0123) dentro da loja."""
+        result = await db.execute(
+            select(ProductVariant)
+            .options(
+                selectinload(ProductVariant.product).selectinload(Product.category),
+                selectinload(ProductVariant.inventory),
+                selectinload(ProductVariant.entry_items),
+            )
+            .where(
+                and_(
+                    ProductVariant.short_code == short_code,
+                    ProductVariant.tenant_id == tenant_id,
+                    ProductVariant.is_active == True,
+                )
+            )
+        )
+        return result.scalar_one_or_none()
+
     async def get_by_product(
         self,
         db: AsyncSession,
@@ -167,7 +186,7 @@ class ProductVariantRepository(BaseRepository[ProductVariant, ProductVariantCrea
         result = await db.execute(
             select(ProductVariant)
             .options(
-                selectinload(ProductVariant.product),
+                selectinload(ProductVariant.product).selectinload(Product.category),
                 selectinload(ProductVariant.entry_items),
             )
             .where(
@@ -247,7 +266,7 @@ class ProductVariantRepository(BaseRepository[ProductVariant, ProductVariantCrea
         result = await db.execute(
             select(ProductVariant)
             .options(
-                selectinload(ProductVariant.product),
+                selectinload(ProductVariant.product).selectinload(Product.category),
                 selectinload(ProductVariant.inventory),
                 selectinload(ProductVariant.entry_items),
             )
@@ -283,7 +302,7 @@ class ProductVariantRepository(BaseRepository[ProductVariant, ProductVariantCrea
         query = (
             select(ProductVariant)
             .options(
-                selectinload(ProductVariant.product),
+                selectinload(ProductVariant.product).selectinload(Product.category),
                 selectinload(ProductVariant.inventory),
             )
             .join(Inventory, ProductVariant.id == Inventory.variant_id)

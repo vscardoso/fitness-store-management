@@ -33,6 +33,8 @@ class ProductVariant(BaseModel):
     __tablename__ = "product_variants"
     __table_args__ = (
         UniqueConstraint('product_id', 'size', 'color', name='uq_variant_product_size_color'),
+        # Código curto da etiqueta (#0001...): único por loja; nulo em variação de catálogo (sem SKU)
+        UniqueConstraint('tenant_id', 'short_code', name='uq_variant_tenant_short_code'),
         # REMOVIDA: UniqueConstraint('tenant_id', 'sku')
         # Validação de SKU única feita no nível da aplicação (service/repository)
         # Isso permite múltiplos SKU null (produtos do catálogo)
@@ -56,6 +58,15 @@ class ProductVariant(BaseModel):
         comment="Stock Keeping Unit (único por tenant, null para catálogo)"
     )
     
+    # Código curto da etiqueta, por loja, em ordem de criação (#0001, #0002...).
+    # Atribuído sozinho ao gravar variação nova com SKU (app/services/short_code_service.py).
+    short_code: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+        comment="Código curto da etiqueta, por loja (sem repetir nem reaproveitar)"
+    )
+
     # Variações
     size: Mapped[str | None] = mapped_column(
         String(20),

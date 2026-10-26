@@ -277,6 +277,14 @@ class ProductVariantService:
         """Busca uma variante por SKU."""
         return await self.variant_repo.get_by_sku(self.db, sku, tenant_id)
     
+    async def get_variant_by_short_code(self, code: str, tenant_id: int) -> Optional[ProductVariant]:
+        """Busca pelo código da etiqueta: aceita 'PV#0123' (QR), '#0123', '0123' ou '123'."""
+        from app.services.short_code_service import parse_short_code
+        n = parse_short_code(code)
+        if n is None:
+            return None
+        return await self.variant_repo.get_by_short_code(self.db, n, tenant_id)
+
     async def get_product_variants(
         self,
         product_id: int,
