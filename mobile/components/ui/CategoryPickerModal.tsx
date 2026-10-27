@@ -11,6 +11,7 @@ import {
   Text,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import SheetHeader from '@/components/ui/SheetHeader';
 import { Colors, theme } from '@/constants/Colors';
 import { useCreateCategory } from '@/hooks/useCategories';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
@@ -256,29 +257,12 @@ export default function CategoryPickerModal({
       <Animated.View
         style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}
       >
-        {/* Handle */}
-        <View style={styles.handle} />
-
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={[styles.headerIcon, { backgroundColor: brandingColors.primary + '15' }]}>
-            <Ionicons name="grid-outline" size={20} color={brandingColors.primary} />
-          </View>
-          <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>Selecionar Categoria</Text>
-            <Text style={styles.headerSub}>
-              {filteredCategories.length}{' '}
-              {filteredCategories.length === 1 ? 'categoria disponível' : 'categorias disponíveis'}
-            </Text>
-          </View>
-          <TouchableOpacity
-            onPress={handleDismiss}
-            style={styles.closeBtn}
-            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-          >
-            <Ionicons name="close" size={20} color={Colors.light.textSecondary} />
-          </TouchableOpacity>
-        </View>
+        <SheetHeader
+          title="Selecionar categoria"
+          subtitle={`${filteredCategories.length} ${filteredCategories.length === 1 ? 'categoria disponível' : 'categorias disponíveis'}`}
+          icon="grid-outline"
+          onClose={handleDismiss}
+        />
 
         {/* Busca */}
         <View style={styles.searchRow}>
@@ -455,6 +439,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingBottom: 32,
+    overflow: 'hidden',
     elevation: 24,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
@@ -462,52 +447,8 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
   },
 
-  handle: {
-    width: 40,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: Colors.light.border,
-    alignSelf: 'center',
-    marginTop: 12,
-    marginBottom: 4,
-  },
 
   // ── Header ──
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
-  },
-  headerIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerText: {
-    flex: 1,
-    gap: 2,
-  },
-  headerTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.light.text,
-  },
-  headerSub: {
-    fontSize: 12,
-    color: Colors.light.textSecondary,
-  },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: Colors.light.backgroundSecondary,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
 
   // ── Busca ──
   searchRow: {

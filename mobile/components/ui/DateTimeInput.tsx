@@ -1,11 +1,12 @@
 import React, { useState, useMemo } from 'react';
-import { View, StyleSheet, Platform, Modal, TouchableOpacity } from 'react-native';
-import { TextInput, HelperText, Button } from 'react-native-paper';
+import { View, StyleSheet, Platform, TouchableOpacity } from 'react-native';
+import { TextInput, HelperText } from 'react-native-paper';
 import { Text } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
+import BottomSheet from '@/components/ui/BottomSheet';
 
 interface DateTimeInputProps {
   label: string;
@@ -127,41 +128,29 @@ export default function DateTimeInput({
     if (!isPickerVisible) return null;
 
     return (
-      <Modal
+      <BottomSheet
         visible={isPickerVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={handleCancel}
+        onDismiss={handleCancel}
+        title={label || (mode === 'time' ? 'Escolher horário' : 'Escolher data')}
+        icon={mode === 'time' ? 'time-outline' : 'calendar-outline'}
+        actions={[
+          { label: 'Cancelar', variant: 'secondary', onPress: handleCancel },
+          { label: 'Confirmar', icon: 'checkmark-circle-outline', onPress: handleIOSConfirm },
+        ]}
       >
-        <TouchableOpacity
-          style={styles.modalOverlay}
-          activeOpacity={1}
-          onPress={handleCancel}
-        >
-          <View style={styles.modalContent}>
-            <View style={styles.pickerHeader}>
-              <Button onPress={handleCancel} textColor={Colors.light.text}>
-                Cancelar
-              </Button>
-              <Button onPress={handleIOSConfirm} textColor={brandingColors.primary}>
-                Confirmar
-              </Button>
-            </View>
-            <DateTimePicker
-              value={tempDate || new Date()}
-              mode={mode === 'datetime' ? 'datetime' : mode}
-              is24Hour={true}
-              onChange={handleDateChange}
-              minimumDate={minimumDate}
-              maximumDate={maximumDate}
-              display="spinner"
-              themeVariant="light"
-              locale="pt-BR"
-              style={styles.iosPicker}
-            />
-          </View>
-        </TouchableOpacity>
-      </Modal>
+        <DateTimePicker
+          value={tempDate || new Date()}
+          mode={mode === 'datetime' ? 'datetime' : mode}
+          is24Hour={true}
+          onChange={handleDateChange}
+          minimumDate={minimumDate}
+          maximumDate={maximumDate}
+          display="spinner"
+          themeVariant="light"
+          locale="pt-BR"
+          style={styles.iosPicker}
+        />
+      </BottomSheet>
     );
   };
 
@@ -269,27 +258,6 @@ const createStyles = (brand: string) => StyleSheet.create({
     fontWeight: '500',
   },
   // iOS Modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: Colors.light.overlay,
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: Colors.light.background,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingBottom: Platform.OS === 'ios' ? 34 : 16,
-  },
-  pickerHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
-    backgroundColor: Colors.light.backgroundSecondary,
-  },
   iosPicker: {
     backgroundColor: Colors.light.background,
     height: 260,

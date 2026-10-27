@@ -8,9 +8,6 @@ import {
   StyleSheet,
   Text,
   TouchableOpacity,
-  Modal,
-  ScrollView,
-  Dimensions,
 } from 'react-native';
 import { Chip, Button, Card } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -18,6 +15,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { formatVariantLabel } from '@/services/productVariantService';
 import type { ProductVariant, VariantGrid } from '@/types/productVariant';
 import { useBrandingColors } from '@/store/brandingStore';
+import BottomSheet from '@/components/ui/BottomSheet';
 
 interface VariantPickerProps {
   visible: boolean;
@@ -75,162 +73,138 @@ export function VariantPicker({
   };
   
   return (
-    <Modal
+    <BottomSheet
       visible={visible}
-      animationType="slide"
-      transparent={true}
-      onRequestClose={onClose}
+      onDismiss={onClose}
+      title={title}
+      icon="color-palette-outline"
+      actions={[
+        { label: 'Cancelar', variant: 'secondary', onPress: onClose },
+        {
+          label: 'Confirmar',
+          icon: 'checkmark-circle-outline',
+          onPress: handleConfirm,
+          disabled: !selectedVariant || !hasStock,
+        },
+      ]}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          {/* Header */}
-          <View style={styles.header}>
-            <Text style={styles.title}>{title}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={Colors.light.text} />
-            </TouchableOpacity>
+        {/* Seleção de Cor */}
+        {colors.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Cor</Text>
+            <View style={styles.optionsRow}>
+              {colors.map(color => {
+                const isSelected = selectedColor === color;
+                const hasVariantsWithColor = variants.some(
+                  v => v.color === color && (!selectedSize || v.size === selectedSize)
+                );
+                
+                return (
+                  <Chip
+                    key={color}
+                    selected={isSelected}
+                    onPress={() => setSelectedColor(isSelected ? null : color)}
+                    style={[
+                      styles.optionChip,
+                      isSelected && styles.optionChipSelected,
+                      !hasVariantsWithColor && styles.optionChipDisabled,
+                    ]}
+                    textStyle={[
+                      styles.optionChipText,
+                      isSelected && styles.optionChipTextSelected,
+                    ]}
+                    disabled={!hasVariantsWithColor}
+                  >
+                    {color}
+                  </Chip>
+                );
+              })}
+            </View>
           </View>
-          
-          <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-            {/* Seleção de Cor */}
-            {colors.length > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Cor</Text>
-                <View style={styles.optionsRow}>
-                  {colors.map(color => {
-                    const isSelected = selectedColor === color;
-                    const hasVariantsWithColor = variants.some(
-                      v => v.color === color && (!selectedSize || v.size === selectedSize)
-                    );
-                    
-                    return (
-                      <Chip
-                        key={color}
-                        selected={isSelected}
-                        onPress={() => setSelectedColor(isSelected ? null : color)}
-                        style={[
-                          styles.optionChip,
-                          isSelected && styles.optionChipSelected,
-                          !hasVariantsWithColor && styles.optionChipDisabled,
-                        ]}
-                        textStyle={[
-                          styles.optionChipText,
-                          isSelected && styles.optionChipTextSelected,
-                        ]}
-                        disabled={!hasVariantsWithColor}
-                      >
-                        {color}
-                      </Chip>
-                    );
-                  })}
+        )}
+        
+        {/* Seleção de Tamanho */}
+        {sizes.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Tamanho</Text>
+            <View style={styles.optionsRow}>
+              {sizes.map(size => {
+                const isSelected = selectedSize === size;
+                const hasVariantsWithSize = variants.some(
+                  v => v.size === size && (!selectedColor || v.color === selectedColor)
+                );
+                
+                return (
+                  <Chip
+                    key={size}
+                    selected={isSelected}
+                    onPress={() => setSelectedSize(isSelected ? null : size)}
+                    style={[
+                      styles.optionChip,
+                      isSelected && styles.optionChipSelected,
+                      !hasVariantsWithSize && styles.optionChipDisabled,
+                    ]}
+                    textStyle={[
+                      styles.optionChipText,
+                      isSelected && styles.optionChipTextSelected,
+                    ]}
+                    disabled={!hasVariantsWithSize}
+                  >
+                    {size}
+                  </Chip>
+                );
+              })}
+            </View>
+          </View>
+        )}
+        
+        {/* Info da variante selecionada */}
+        {selectedVariant && (
+          <Card style={[styles.selectedCard, !hasStock && styles.selectedCardNoStock]}>
+            <View style={styles.selectedInfo}>
+              <View style={styles.selectedHeader}>
+                <Text style={styles.selectedLabel}>Selecionado:</Text>
+                <Text style={styles.selectedVariant}>
+                  {formatVariantLabel(selectedVariant)}
+                </Text>
+              </View>
+              
+              <View style={styles.selectedDetails}>
+                <View style={styles.selectedDetail}>
+                  <Text style={styles.selectedDetailLabel}>SKU:</Text>
+                  <Text style={styles.selectedDetailValue}>{selectedVariant.sku}</Text>
+                </View>
+                
+                <View style={styles.selectedDetail}>
+                  <Text style={styles.selectedDetailLabel}>Preço:</Text>
+                  <Text style={styles.selectedDetailValue}>
+                    R$ {Number(selectedVariant.price).toFixed(2)}
+                  </Text>
+                </View>
+                
+                <View style={styles.selectedDetail}>
+                  <Text style={styles.selectedDetailLabel}>Estoque:</Text>
+                  <Text style={[
+                    styles.selectedDetailValue,
+                    !hasStock && styles.noStockText,
+                  ]}>
+                    {stock} unidades
+                  </Text>
                 </View>
               </View>
-            )}
-            
-            {/* Seleção de Tamanho */}
-            {sizes.length > 0 && (
-              <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Tamanho</Text>
-                <View style={styles.optionsRow}>
-                  {sizes.map(size => {
-                    const isSelected = selectedSize === size;
-                    const hasVariantsWithSize = variants.some(
-                      v => v.size === size && (!selectedColor || v.color === selectedColor)
-                    );
-                    
-                    return (
-                      <Chip
-                        key={size}
-                        selected={isSelected}
-                        onPress={() => setSelectedSize(isSelected ? null : size)}
-                        style={[
-                          styles.optionChip,
-                          isSelected && styles.optionChipSelected,
-                          !hasVariantsWithSize && styles.optionChipDisabled,
-                        ]}
-                        textStyle={[
-                          styles.optionChipText,
-                          isSelected && styles.optionChipTextSelected,
-                        ]}
-                        disabled={!hasVariantsWithSize}
-                      >
-                        {size}
-                      </Chip>
-                    );
-                  })}
+              
+              {!hasStock && (
+                <View style={styles.noStockWarning}>
+                  <Ionicons name="alert-circle" size={16} color={Colors.light.error} />
+                  <Text style={styles.noStockWarningText}>
+                    Produto sem estoque
+                  </Text>
                 </View>
-              </View>
-            )}
-            
-            {/* Info da variante selecionada */}
-            {selectedVariant && (
-              <Card style={[styles.selectedCard, !hasStock && styles.selectedCardNoStock]}>
-                <View style={styles.selectedInfo}>
-                  <View style={styles.selectedHeader}>
-                    <Text style={styles.selectedLabel}>Selecionado:</Text>
-                    <Text style={styles.selectedVariant}>
-                      {formatVariantLabel(selectedVariant)}
-                    </Text>
-                  </View>
-                  
-                  <View style={styles.selectedDetails}>
-                    <View style={styles.selectedDetail}>
-                      <Text style={styles.selectedDetailLabel}>SKU:</Text>
-                      <Text style={styles.selectedDetailValue}>{selectedVariant.sku}</Text>
-                    </View>
-                    
-                    <View style={styles.selectedDetail}>
-                      <Text style={styles.selectedDetailLabel}>Preço:</Text>
-                      <Text style={styles.selectedDetailValue}>
-                        R$ {Number(selectedVariant.price).toFixed(2)}
-                      </Text>
-                    </View>
-                    
-                    <View style={styles.selectedDetail}>
-                      <Text style={styles.selectedDetailLabel}>Estoque:</Text>
-                      <Text style={[
-                        styles.selectedDetailValue,
-                        !hasStock && styles.noStockText,
-                      ]}>
-                        {stock} unidades
-                      </Text>
-                    </View>
-                  </View>
-                  
-                  {!hasStock && (
-                    <View style={styles.noStockWarning}>
-                      <Ionicons name="alert-circle" size={16} color={Colors.light.error} />
-                      <Text style={styles.noStockWarningText}>
-                        Produto sem estoque
-                      </Text>
-                    </View>
-                  )}
-                </View>
-              </Card>
-            )}
-          </ScrollView>
-          
-          {/* Footer */}
-          <View style={styles.footer}>
-            <Button
-              mode="outlined"
-              onPress={onClose}
-              style={styles.footerButton}
-            >
-              Cancelar
-            </Button>
-            <Button
-              mode="contained"
-              onPress={handleConfirm}
-              style={styles.footerButton}
-              disabled={!selectedVariant || !hasStock}
-            >
-              Confirmar
-            </Button>
-          </View>
-        </View>
-      </View>
-    </Modal>
+              )}
+            </View>
+          </Card>
+        )}
+    </BottomSheet>
   );
 }
 
@@ -272,47 +246,7 @@ export function VariantBadge({ variant, onPress, compact = false }: VariantBadge
   );
 }
 
-const { height } = Dimensions.get('window');
-
 const createStyles = (brand: string) => StyleSheet.create({
-  // Modal
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    maxHeight: height * 0.7,
-  },
-  
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.light.border,
-  },
-  
-  title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.light.text,
-  },
-  
-  closeButton: {
-    padding: 4,
-  },
-  
-  body: {
-    padding: theme.spacing.md,
-    maxHeight: height * 0.5,
-  },
-  
   // Sections
   section: {
     marginBottom: theme.spacing.lg,

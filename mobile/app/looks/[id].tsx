@@ -6,10 +6,6 @@ import {
   RefreshControl,
   Image,
   TouchableOpacity,
-  Modal,
-  FlatList,
-  TextInput,
-  Text as RNText,
 } from 'react-native';
 import { Text, Button, Card } from 'react-native-paper';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
@@ -18,9 +14,9 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
 import { getLook, deleteLook } from '@/services/lookService';
 import { createShipment } from '@/services/conditionalService';
-import { getCustomers } from '@/services/customerService';
 import { Colors, theme } from '@/constants/Colors';
 import { getImageUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
@@ -35,7 +31,6 @@ export default function LookDetailScreen() {
   const lookId = parseInt(id, 10);
 
   const [customerModalVisible, setCustomerModalVisible] = useState(false);
-  const [customerSearch, setCustomerSearch] = useState('');
 
   type DialogState = {
     visible: boolean;
@@ -59,12 +54,6 @@ export default function LookDetailScreen() {
     queryKey: ['look', lookId],
     queryFn: () => getLook(lookId),
     enabled: !!lookId,
-  });
-
-  const { data: customers = [] } = useQuery({
-    queryKey: ['customers-for-conditional'],
-    queryFn: () => getCustomers({ limit: 200 }),
-    enabled: customerModalVisible,
   });
 
   useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
@@ -128,11 +117,6 @@ export default function LookDetailScreen() {
       onCancel: () => setDialog(DIALOG_HIDDEN),
     });
   };
-
-  const filteredCustomers = customers.filter((c) =>
-    c.full_name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-    c.phone.includes(customerSearch)
-  );
 
   if (isLoading) {
     return (
@@ -228,71 +212,15 @@ export default function LookDetailScreen() {
         )}
       </ScrollView>
 
-      {/* Modal: Selecionar Cliente */}
-      <Modal
+      {/* Selecionar cliente (mesmo painel da venda) */}
+      <CustomerSelectionModal
         visible={customerModalVisible}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setCustomerModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Selecionar Cliente</Text>
-              <TouchableOpacity onPress={() => setCustomerModalVisible(false)}>
-                <Ionicons name="close" size={24} color={Colors.light.text} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.searchContainer}>
-              <Ionicons name="search" size={18} color={Colors.light.textSecondary} />
-              <TextInput
-                style={styles.searchInput}
-                placeholder="Buscar por nome ou telefone..."
-                placeholderTextColor={Colors.light.textTertiary}
-                value={customerSearch}
-                onChangeText={setCustomerSearch}
-                autoFocus
-              />
-            </View>
-
-            {conditionalMutation.isPending && (
-              <View style={styles.loadingOverlay}>
-                <ActivityIndicator size="large" color={Colors.light.primary} />
-                <Text style={styles.loadingText}>Criando condicional...</Text>
-              </View>
-            )}
-
-            <FlatList
-              data={filteredCustomers}
-              keyExtractor={(c) => String(c.id)}
-              renderItem={({ item: customer }) => (
-                <TouchableOpacity
-                  style={styles.customerItem}
-                  onPress={() => handleSelectCustomer(customer)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.customerAvatar}>
-                    <Ionicons name="person" size={20} color={Colors.light.primary} />
-                  </View>
-                  <View style={styles.customerInfo}>
-                    <RNText style={styles.customerName}>{customer.full_name}</RNText>
-                    <RNText style={styles.customerPhone}>{customer.phone}</RNText>
-                  </View>
-                  <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
-                </TouchableOpacity>
-              )}
-              ItemSeparatorComponent={() => <View style={styles.separator} />}
-              ListEmptyComponent={
-                <View style={styles.emptyCustomers}>
-                  <Text style={styles.emptyCustomersText}>Nenhum cliente encontrado</Text>
-                </View>
-              }
-              style={styles.customerList}
-            />
-          </View>
-        </View>
-      </Modal>
+        onDismiss={() => setCustomerModalVisible(false)}
+        onSelectCustomer={handleSelectCustomer}
+        title="Quem vai levar o look?"
+        subtitle="Escolha a cliente do envio condicional"
+        dismissLabel="Cancelar"
+      />
 
       <ConfirmDialog
         visible={dialog.visible}

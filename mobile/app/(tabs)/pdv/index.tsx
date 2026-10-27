@@ -14,7 +14,6 @@ import {
   FlatList,
   TouchableOpacity,
   RefreshControl,
-  Modal,
   Image,
   Share,
 } from 'react-native';
@@ -30,6 +29,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import BottomSheet from '@/components/ui/BottomSheet';
 import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
@@ -195,74 +195,54 @@ function QRModal({
   };
 
   return (
-    <Modal
+    <BottomSheet
       visible={state.visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
+      onDismiss={onClose}
+      title="QR Code PIX"
+      subtitle={state.sale?.sale_number ? `Venda #${state.sale.sale_number}` : undefined}
+      icon="qr-code-outline"
+      actions={[
+        { label: 'Fechar', variant: 'secondary', onPress: onClose },
+        {
+          label: confirming ? 'Confirmando…' : 'Confirmar recebimento',
+          icon: 'checkmark-circle-outline',
+          onPress: onConfirm,
+          disabled: confirming || state.loading,
+          loading: confirming,
+        },
+      ]}
     >
-      <View style={styles.modalOverlay}>
-        <View style={styles.modalSheet}>
-          <View style={styles.modalHandle} />
+      {state.sale && (
+        <Text style={styles.modalAmount}>{formatCurrency(state.sale.total_amount)}</Text>
+      )}
 
-          <Text style={styles.modalTitle}>QR Code PIX</Text>
-          {state.sale && (
-            <Text style={styles.modalAmount}>{formatCurrency(state.sale.total_amount)}</Text>
-          )}
-          {state.sale?.sale_number && (
-            <Text style={styles.modalSaleNum}>Venda #{state.sale.sale_number}</Text>
-          )}
-
-          {state.loading ? (
-            <View style={styles.modalQRPlaceholder}>
-              <ActivityIndicator size="large" color={C.primary} />
-              <Text style={styles.modalLoadingText}>Carregando QR Code...</Text>
-            </View>
-          ) : state.qr_code_base64 ? (
-            <Image
-              source={{ uri: `data:image/png;base64,${state.qr_code_base64}` }}
-              style={styles.modalQRImage}
-              resizeMode="contain"
-            />
-          ) : (
-            <View style={styles.modalQRPlaceholder}>
-              <Ionicons name="qr-code-outline" size={64} color={C.textSecondary} />
-              <Text style={styles.modalLoadingText}>QR Code indisponível</Text>
-            </View>
-          )}
-
-          {!!state.qr_code && !state.loading && (
-            <TouchableOpacity style={styles.copyRow} onPress={handleCopy} activeOpacity={0.7}>
-              <Ionicons name="copy-outline" size={14} color={C.textSecondary} />
-              <Text style={styles.copyText} numberOfLines={1} ellipsizeMode="middle">
-                {state.qr_code.substring(0, 40)}…
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          <View style={styles.modalActions}>
-            <TouchableOpacity
-              style={[styles.modalBtn, styles.modalBtnPrimary, { backgroundColor: brandingColors.primary }, confirming && styles.btnDisabled]}
-              onPress={onConfirm}
-              disabled={confirming || state.loading}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="checkmark-circle-outline" size={18} color="#fff" />
-              <Text style={styles.modalBtnPrimaryText}>
-                {confirming ? 'Confirmando…' : 'Confirmar Recebimento'}
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.modalBtn, styles.modalBtnOutlined]}
-              onPress={onClose}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.modalBtnOutlinedText}>Fechar</Text>
-            </TouchableOpacity>
-          </View>
+      {state.loading ? (
+        <View style={styles.modalQRPlaceholder}>
+          <ActivityIndicator size="large" color={C.primary} />
+          <Text style={styles.modalLoadingText}>Carregando QR Code...</Text>
         </View>
-      </View>
-    </Modal>
+      ) : state.qr_code_base64 ? (
+        <Image
+          source={{ uri: `data:image/png;base64,${state.qr_code_base64}` }}
+          style={styles.modalQRImage}
+          resizeMode="contain"
+        />
+      ) : (
+        <View style={styles.modalQRPlaceholder}>
+          <Ionicons name="qr-code-outline" size={64} color={C.textSecondary} />
+          <Text style={styles.modalLoadingText}>QR Code indisponível</Text>
+        </View>
+      )}
+
+      {!!state.qr_code && !state.loading && (
+        <TouchableOpacity style={styles.copyRow} onPress={handleCopy} activeOpacity={0.7}>
+          <Ionicons name="copy-outline" size={14} color={C.textSecondary} />
+          <Text style={styles.copyText} numberOfLines={1} ellipsizeMode="middle">
+            {state.qr_code.substring(0, 40)}…
+          </Text>
+        </TouchableOpacity>
+      )}
+    </BottomSheet>
   );
 }
 
@@ -579,42 +559,11 @@ const styles = StyleSheet.create({
   },
 
   // ── QR Modal ──
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalSheet: {
-    backgroundColor: C.background,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.sm,
-    paddingBottom: 40,
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-  },
-  modalHandle: {
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: C.border,
-    marginBottom: theme.spacing.xs,
-  },
-  modalTitle: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: '700',
-    color: C.text,
-  },
   modalAmount: {
     fontSize: 30,
     fontWeight: '800',
     color: C.text,
     letterSpacing: -0.5,
-  },
-  modalSaleNum: {
-    fontSize: 13,
-    color: C.textSecondary,
   },
   modalQRImage: {
     width: 220,
@@ -648,37 +597,6 @@ const styles = StyleSheet.create({
   copyText: {
     flex: 1,
     fontSize: 11,
-    color: C.textSecondary,
-  },
-  modalActions: {
-    width: '100%',
-    gap: 8,
-    marginTop: theme.spacing.xs,
-  },
-  modalBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    height: 52,
-    borderRadius: theme.borderRadius.xl,
-  },
-  modalBtnPrimary: {
-    backgroundColor: C.primary,
-  },
-  modalBtnPrimaryText: {
-    color: '#fff',
-    fontSize: theme.fontSize.base,
-    fontWeight: '700',
-  },
-  modalBtnOutlined: {
-    borderWidth: 1,
-    borderColor: C.border,
-    backgroundColor: C.card,
-  },
-  modalBtnOutlinedText: {
-    fontSize: theme.fontSize.base,
-    fontWeight: '600',
     color: C.textSecondary,
   },
 });

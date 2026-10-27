@@ -2,10 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
-  Modal,
   TouchableOpacity,
-  FlatList,
-  Pressable,
   TextInput,
   Text,
 } from 'react-native';
@@ -16,6 +13,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { formatPhone, formatCurrency } from '@/utils/format';
 import { getCustomers } from '@/services/customerService';
 import EmptyState from '@/components/ui/EmptyState';
+import BottomSheet from '@/components/ui/BottomSheet';
 import type { Customer } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
@@ -23,12 +21,19 @@ interface CustomerSelectionModalProps {
   visible: boolean;
   onDismiss: () => void;
   onSelectCustomer: (customer: Customer) => void;
+  title?: string;
+  subtitle?: string;
+  /** Texto do botão de baixo (padrão: continuar sem cliente) */
+  dismissLabel?: string;
 }
 
 export default function CustomerSelectionModal({
   visible,
   onDismiss,
   onSelectCustomer,
+  title = 'Selecionar cliente',
+  subtitle = 'Opcional: você pode vender sem cliente',
+  dismissLabel = 'Continuar sem cliente',
 }: CustomerSelectionModalProps) {
   const brandingColors = useBrandingColors();
   const [searchQuery, setSearchQuery] = useState('');
@@ -47,7 +52,7 @@ export default function CustomerSelectionModal({
     if (visible) setSearchQuery('');
   }, [visible]);
 
-  const filteredCustomers = customers?.filter((customer: Customer) => {
+  const filteredCustomers = (customers ?? []).filter((customer: Customer) => {
     const search = searchQuery.toLowerCase();
     return (
       customer.full_name.toLowerCase().includes(search) ||
@@ -98,140 +103,77 @@ export default function CustomerSelectionModal({
   );
 
   return (
-    <Modal
+    <BottomSheet
       visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onDismiss}
-      statusBarTranslucent
+      onDismiss={onDismiss}
+      title={title}
+      subtitle={subtitle}
+      icon="people-outline"
+      actions={[{ label: dismissLabel, variant: 'secondary', onPress: onDismiss }]}
     >
-      <Pressable style={styles.modalOverlay} onPress={onDismiss}>
-        <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+      {/* Search Bar nativo */}
+      <View style={styles.searchContainer}>
+        <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} style={styles.searchIcon} />
+        <TextInput
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          placeholder="Buscar por nome, telefone, email..."
+          placeholderTextColor={Colors.light.textTertiary}
+          style={styles.searchInput}
+          returnKeyType="search"
+          autoCorrect={false}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity
+            onPress={() => setSearchQuery('')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
+          </TouchableOpacity>
+        )}
+      </View>
 
-          {/* Header */}
-          <View style={styles.header}>
-            <View style={styles.headerLeft}>
-              <View style={[styles.headerIcon, { backgroundColor: brandingColors.primary + '15' }]}>
-                <Ionicons name="people" size={18} color={brandingColors.primary} />
-              </View>
-              <Text style={styles.title}>Selecionar Cliente</Text>
-            </View>
-            <TouchableOpacity onPress={onDismiss} style={styles.closeButton} activeOpacity={0.7}>
-              <Ionicons name="close" size={20} color={Colors.light.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Search Bar nativo */}
-          <View style={styles.searchContainer}>
-            <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} style={styles.searchIcon} />
-            <TextInput
-              value={searchQuery}
-              onChangeText={setSearchQuery}
-              placeholder="Buscar por nome, telefone, email..."
-              placeholderTextColor={Colors.light.textTertiary}
-              style={styles.searchInput}
-              returnKeyType="search"
-              autoCorrect={false}
-            />
-            {searchQuery.length > 0 && (
-              <TouchableOpacity
-                onPress={() => setSearchQuery('')}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {/* Lista */}
-          {isLoading ? (
-            <View style={styles.centerContainer}>
-              <ActivityIndicator size="large" color={brandingColors.primary} />
-              <Text style={styles.loadingText}>Carregando clientes...</Text>
-            </View>
-          ) : isError ? (
+      {/* Lista */}
+      {isLoading ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color={brandingColors.primary} />
+          <Text style={styles.loadingText}>Carregando clientes...</Text>
+        </View>
+      ) : isError ? (
+        <EmptyState
+          icon="alert-circle-outline"
+          title="Erro ao carregar clientes"
+          description="Verifique sua conexão e tente novamente"
+        />
+      ) : (
+        <View style={styles.listContent}>
+          {filteredCustomers.length === 0 ? (
             <EmptyState
-              icon="alert-circle-outline"
-              title="Erro ao carregar clientes"
-              description="Verifique sua conexão e tente novamente"
-            />
-          ) : (
-            <FlatList
-              data={filteredCustomers}
-              renderItem={renderCustomer}
-              keyExtractor={(item) => item.id.toString()}
-              contentContainerStyle={styles.listContent}
-              showsVerticalScrollIndicator={false}
-              ListEmptyComponent={
-                <EmptyState
-                  icon="people-outline"
-                  title={searchQuery ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}
-                  description={
-                    searchQuery
-                      ? 'Tente outro termo de busca'
-                      : 'Cadastre clientes para vinculá-los às vendas'
-                  }
-                />
+              icon="people-outline"
+              title={searchQuery ? 'Nenhum cliente encontrado' : 'Nenhum cliente cadastrado'}
+              description={
+                searchQuery
+                  ? 'Tente outro termo de busca'
+                  : 'Cadastre clientes para vinculá-los às vendas'
               }
             />
+          ) : (
+            filteredCustomers.slice(0, 60).map((item) => (
+              <React.Fragment key={item.id}>{renderCustomer({ item } as any)}</React.Fragment>
+            ))
           )}
-
-          {/* Footer */}
-          <View style={styles.footer}>
-            <TouchableOpacity style={styles.continueButton} onPress={onDismiss} activeOpacity={0.7}>
-              <Text style={styles.continueButtonText}>Continuar sem cliente</Text>
-            </TouchableOpacity>
-          </View>
-
-        </Pressable>
-      </Pressable>
-    </Modal>
+          {filteredCustomers.length > 60 && (
+            <Text style={styles.loadingText}>Mostrando 60 de {(filteredCustomers ?? []).length}. Digite o nome para achar os outros.</Text>
+          )}
+        </View>
+      )}
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: Colors.light.background,
-    borderTopLeftRadius: theme.borderRadius.xxl,
-    borderTopRightRadius: theme.borderRadius.xxl,
-    maxHeight: '82%',
-    paddingBottom: theme.spacing.md,
-  },
 
   // Header
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.md,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-  },
-  headerIcon: {
-    width: 32, height: 32, borderRadius: theme.borderRadius.md,
-    justifyContent: 'center', alignItems: 'center',
-  },
-  title: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: '700',
-    color: Colors.light.text,
-  },
-  closeButton: {
-    width: 36, height: 36,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: Colors.light.backgroundSecondary,
-    justifyContent: 'center', alignItems: 'center',
-  },
 
   // Search
   searchContainer: {
@@ -270,7 +212,6 @@ const styles = StyleSheet.create({
 
   // List
   listContent: {
-    paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.md,
     gap: theme.spacing.xs,
   },
@@ -324,20 +265,5 @@ const styles = StyleSheet.create({
   },
 
   // Footer
-  footer: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.light.border,
-  },
-  continueButton: {
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  continueButtonText: {
-    fontSize: theme.fontSize.sm,
-    color: Colors.light.textSecondary,
-    fontWeight: '500',
-  },
 });
 
