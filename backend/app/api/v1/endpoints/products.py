@@ -283,6 +283,10 @@ async def list_products(
         else:
             products = await product_repo.get_multi(db, skip=skip, limit=limit, tenant_id=tenant_id)
 
+        # Busca e categoria devolvem tudo que combina: o corte da página vem aqui (com 2.600 produtos a busca levava 19 s)
+        if search or category_id:
+            products = list(products)[skip: skip + limit]
+
         # Construir responses — mostrar todos os produtos do tenant (incluindo sem estoque)
         responses = []
         for product in products:

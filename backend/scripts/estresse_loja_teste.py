@@ -57,6 +57,11 @@ def chamar(nome, metodo, url, **kw):
     for tentativa in range(4):  # servidor reiniciando (deploy): espera e tenta de novo, como um cliente bem feito
         try:
             r = client.request(metodo, url, **kw)
+            if r.status_code in (502, 503, 504) and tentativa < 3:
+                with lock:
+                    erros[f"{nome}: {r.status_code} (tentativa {tentativa + 1}, servidor reiniciando)"] += 1
+                time.sleep(8)
+                continue
             break
         except (httpx.ConnectError, httpx.RemoteProtocolError, httpx.ReadError) as e:
             with lock:
@@ -302,7 +307,7 @@ if __name__ == "__main__":
     with ThreadPoolExecutor(WORKERS) as ex:
         list(ex.map(lambda ig: uma_entrada(ig[0] + 1, ig[1], cats, forn), enumerate(grupos)))
     print(f"cadastro terminou em {time.time() - t0:.0f}s", flush=True)
-    reposicoes(cats, forn)
+    reposicoes(cats, forn, int(os.environ.get("REPOS", "150")))
     leituras()
     relatorio()
     print(f"\ntempo total {time.time() - t0:.0f}s")

@@ -373,3 +373,19 @@ async def test_valor_enorme_no_banco_vira_422_com_frase_clara(monkeypatch):
     assert r.status_code == 422 and b"grande demais" in r.body
     r = await m.sqlalchemy_exception_handler(None, DataError("INSERT", {}, Exception("outro problema qualquer")))
     assert r.status_code == 500
+
+
+async def test_busca_de_produtos_respeita_limite_e_pagina(test_client, async_session, test_user):
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    for i in range(5):
+        r = await test_client.post("/api/v1/stock-entries/with-new-product-variants", headers=h, json={
+            "product_name": f"Pagina Teste {i}", "product_category_id": cat, "base_price": 30, "supplier_name": "F",
+            "variants": [{"sku": f"PGT-{i}", "price": 30, "cost_price": 10, "quantity": 1}],
+            "entry_code": f"PGT-ENT-{i}", "entry_type": "local", "entry_date": "2026-10-01"})
+        assert r.status_code == 201, r.text
+    a = (await test_client.get("/api/v1/products?search=Pagina Teste&limit=2&skip=0", headers=h)).json()
+    b = (await test_client.get("/api/v1/products?search=Pagina Teste&limit=2&skip=2", headers=h)).json()
+    c = (await test_client.get("/api/v1/products?search=Pagina Teste&limit=2&skip=4", headers=h)).json()
+    assert len(a) == 2 and len(b) == 2 and len(c) == 1
+    assert len({p["id"] for p in a + b + c}) == 5

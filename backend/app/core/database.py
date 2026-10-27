@@ -68,12 +68,18 @@ if _is_postgres:
     ASYNC_DATABASE_URL = _base.replace("postgresql://", "postgresql+asyncpg://", 1)
 
     if _ssl_env == "disable":
+        # Banco local (docker, sem SSL): conexões reaproveitadas. Com NullPool cada sessão abria uma conexão nova
+        # (autenticação SCRAM a cada vez, várias por pedido) e todo pedido gastava ~250 ms só nisso.
+        # O RLS usa set_config local da transação, então nada vaza entre pedidos numa conexão reaproveitada.
         engine = create_async_engine(
             ASYNC_DATABASE_URL,
             echo=settings.DEBUG,
-            poolclass=NullPool,
+            pool_size=10,
+            max_overflow=10,
+            pool_pre_ping=True,
+            pool_recycle=1800,
         )
-        logger.info("PostgreSQL driver: asyncpg, SSL: DISABLED")
+        logger.info("PostgreSQL driver: asyncpg, SSL: DISABLED, pool 10+10")
     else:
         # Python ssl.SSLContext — asyncpg usa ssl nativo Python (não libpq).
         # Isso é necessário porque sslmode=require via libpq falha com o proxy
