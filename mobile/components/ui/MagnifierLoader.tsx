@@ -7,7 +7,7 @@
  *   import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
  */
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleProp, View, ViewStyle } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 import Animated, {
@@ -25,6 +25,8 @@ export interface MagnifierLoaderProps {
   size?: 'small' | 'large' | number;
   /** Cor da lupa. Padrão: cor primária da loja. */
   color?: string;
+  /** Só o carregamento global usa: lupas grandes das telas somem enquanto ele aparece (não ficam duas lupas) */
+  alwaysShow?: boolean;
   /** false pausa e esconde, como no ActivityIndicator */
   animating?: boolean;
   /** Mesmo comportamento do ActivityIndicator */
@@ -33,6 +35,8 @@ export interface MagnifierLoaderProps {
 }
 
 const SIZE_SMALL = 20;
+import { loadingManager } from '@/services/loadingManager';
+
 const SIZE_LARGE = 40;
 const LOOP_MS = 1600;
 
@@ -41,11 +45,17 @@ export function MagnifierLoader({
   color,
   animating = true,
   hidesWhenStopped = true,
+  alwaysShow = false,
   style,
 }: MagnifierLoaderProps) {
   const branding = useBrandingColors();
   const stroke = color ?? branding.primary;
   const px = typeof size === 'number' ? size : size === 'large' ? SIZE_LARGE : SIZE_SMALL;
+
+  // Lupa grande de tela enquanto o carregamento global (véu + lupa) está aparecendo = duas lupas uma sobre a outra
+  const [globalLoading, setGlobalLoading] = useState(() => loadingManager.getState().isLoading);
+  useEffect(() => (alwaysShow ? undefined : loadingManager.subscribe((st) => setGlobalLoading(st.isLoading))), [alwaysShow]);
+  const duplicated = !alwaysShow && px >= 36 && globalLoading;
 
   // Fase da órbita (0..1). A lupa percorre um círculo pequeno enquanto o brilho gira na lente.
   const phase = useSharedValue(0);
@@ -77,7 +87,7 @@ export function MagnifierLoader({
     transform: [{ rotate: `${phase.value * 360}deg` }],
   }));
 
-  if (!animating && hidesWhenStopped) return null;
+  if ((!animating && hidesWhenStopped) || duplicated) return null;
 
   // Desenho em viewBox 48x48: lente centrada em (20,20), cabo na diagonal
   const strokeWidth = px <= 24 ? 5 : 4;

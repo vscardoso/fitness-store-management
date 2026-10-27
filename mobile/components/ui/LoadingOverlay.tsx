@@ -81,7 +81,7 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
       <View style={styles.blocker} pointerEvents="auto">
         <Animated.View style={[StyleSheet.absoluteFillObject, styles.veil, veilStyle]} pointerEvents="none" />
         <Animated.View style={[styles.card, cardStyle]}>
-          <MagnifierLoader size={44} />
+          <MagnifierLoader size={44} alwaysShow />
           {displayMessage ? (
             <Text style={styles.message} numberOfLines={2}>
               {displayMessage}
