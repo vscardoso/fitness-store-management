@@ -356,3 +356,9 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 - `tests/conftest.py` zera os contadores a cada teste (`_zera_limites_de_tentativas`). Testes: `tests/test_limites_de_tentativas.py` (4 falham com o limite desligado). O app não repete 429 e mostra a frase do servidor.
 - Verificado também (pedido do Victor): lucro do carrinho do PDV com itens aparece para gerente/admin ("Lucro estimado R$ 144,80 (69,0%)") e não aparece para vendedora, no navegador e em iPhone EMULADO (Playwright "iPhone 13"); aparelho físico NÃO testado.
 
+
+## Proteção contra abuso e ataques (2026-10-27)
+- **nginx** (arquivos em `deploy/protecao/`, aplicar com `aplicar.sh` no VPS; faz backup do original em `/root/nginx-backup-original`, testa com `nginx -t` e desfaz se falhar): limite por IP (API 25 req/s com rajada de 80; login/cadastro/esqueci a senha 6 por minuto; scanner de IA 12 por minuto; arquivos do app 40 req/s), máximo de conexões por IP, `429` ao estourar, timeouts contra conexão lenta, `server_tokens off`, caminhos de varredura (`.env`, `.git`, `.php`, `wp-*`, `phpmyadmin`...) fechados com `444`, `X-Forwarded-For` do cliente não é repassado (era forjável).
+- **fail2ban**: jaulas `nginx-limit-req` (20 estouros em 60 s = 15 min de ban) e `provador-scan` (3 caminhos de varredura em 10 min = 1 h), além do `sshd`. `ignoreip` com os IPs do Victor (179.221.151.26 e .58); se o IP dele mudar e ele for bloqueado: `fail2ban-client unban <ip>`.
+- **App**: login, cadastro, esqueci a senha, checagens de e-mail e scanner de IA já tinham limite em memória (`app/core/rate_limit.py`). É por processo: com 2 workers cada um conta separado (trocar por Redis ou tabela antes de subir o segundo worker).
+- Testado em produção: 12 chamadas paralelas normais = 200; 12 logins seguidos = 5x401 e depois 429; 400 pedidos de uma vez = 46 a 62 passam e o resto leva 429, backend continua saudável.

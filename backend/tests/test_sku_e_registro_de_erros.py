@@ -338,14 +338,16 @@ async def test_um_produto_com_defeito_nao_derruba_a_lista_de_produtos(test_clien
             "variants": [{"sku": f"FB-{nome[:3].upper()}", "price": 50, "cost_price": 20, "quantity": 1}],
             "entry_code": f"FALLB-{nome[:3].upper()}", "entry_type": "local", "entry_date": "2026-10-01"})
         assert r.status_code == 201, r.text
-    original = ep.build_product_response
+    original = ep.build_product_responses
 
-    async def quebra_um(product, *a, **kw):
-        if product.name == "Defeituoso Alfa":
-            raise ValueError("dado estranho")
-        return await original(product, *a, **kw)
+    async def quebra_um(products, *a, **kw):
+        resps = await original(products, *a, **kw)
+        for r in resps:
+            if r["name"] == "Defeituoso Alfa":
+                r["created_at"] = "isto nao e uma data"
+        return resps
 
-    monkeypatch.setattr(ep, "build_product_response", quebra_um)
+    monkeypatch.setattr(ep, "build_product_responses", quebra_um)
     lista = await test_client.get("/api/v1/products?limit=1000", headers=h)
     assert lista.status_code == 200, lista.text
     nomes = [p["name"] for p in lista.json()]

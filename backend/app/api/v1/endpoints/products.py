@@ -56,6 +56,95 @@ async def get_category_data(db: AsyncSession, category_id: int) -> dict | None:
     return None
 
 
+async def build_product_responses(
+    products: list,
+    db: AsyncSession,
+    tenant_id: int,
+) -> list[dict]:
+    """Monta a resposta completa de VÁRIOS produtos com 3 consultas no total (categorias, estoque mínimo e
+    variações com estoque FIFO), não importa quantos produtos sejam. Antes eram 4 consultas POR produto."""
+    from datetime import datetime
+    from sqlalchemy import bindparam
+
+    if not products:
+        return []
+    pids = [p.id for p in products]
+    cat_ids = sorted({p.category_id for p in products if p.category_id})
+
+    categories: dict = {}
+    if cat_ids:
+        rows = (await db.execute(
+            text("SELECT id, name, description, parent_id, is_active, created_at, updated_at FROM categories WHERE id IN :ids").bindparams(bindparam("ids", expanding=True)),
+            {"ids": cat_ids},
+        )).fetchall()
+        categories = {r[0]: {"id": r[0], "name": r[1], "description": r[2], "parent_id": r[3], "is_active": r[4],
+                             "created_at": r[5], "updated_at": r[6]} for r in rows}
+
+    min_stock: dict = {}
+    for pid, ms in (await db.execute(
+        text("SELECT product_id, min_stock FROM inventory WHERE product_id IN :ids AND tenant_id = :tid ORDER BY id DESC").bindparams(bindparam("ids", expanding=True)),
+        {"ids": pids, "tid": tenant_id},
+    )).fetchall():
+        min_stock[pid] = ms  # ORDER BY id DESC: o registro mais antigo vence, como o LIMIT 1 de antes
+
+    variants_by_product: dict = {}
+    for v in (await db.execute(
+        text("""
+            SELECT pv.product_id, pv.id, pv.sku, pv.size, pv.color, pv.price, pv.cost_price, pv.is_active,
+                   COALESCE(SUM(CASE WHEN se.is_active = true THEN ei.quantity_remaining ELSE 0 END), 0) AS current_stock
+            FROM product_variants pv
+            LEFT JOIN entry_items ei ON ei.variant_id = pv.id AND ei.is_active = true
+            LEFT JOIN stock_entries se ON se.id = ei.entry_id
+            WHERE pv.product_id IN :ids AND pv.tenant_id = :tid AND pv.is_active = true
+            GROUP BY pv.id
+            ORDER BY pv.product_id, pv.size, pv.color
+        """).bindparams(bindparam("ids", expanding=True)),
+        {"ids": pids, "tid": tenant_id},
+    )).fetchall():
+        variants_by_product.setdefault(v[0], []).append({
+            "id": v[1], "sku": v[2], "size": v[3], "color": v[4],
+            "price": float(v[5]) if v[5] else 0.0,
+            "cost_price": float(v[6]) if v[6] else None,
+            "is_active": v[7],
+            "current_stock": int(v[8]) if v[8] is not None else 0,
+        })
+
+    out = []
+    for product in products:
+        variants_list = variants_by_product.get(product.id, [])
+        first = min(variants_list, key=lambda x: x["id"]) if variants_list else None  # a variação mais antiga representa o produto
+        out.append({
+            "id": product.id,
+            "name": product.name,
+            "description": product.description,
+            "sku": first["sku"] if first else f"PROD-{product.id}",
+            "price": first["price"] if first and first["price"] else (float(product.base_price) if product.base_price else 1.0),
+            "cost_price": first["cost_price"] if first else None,
+            "category_id": product.category_id,
+            "category": categories.get(product.category_id) if product.category_id else None,
+            "brand": product.brand,
+            "color": first["color"] if first else None,
+            "size": first["size"] if first else None,
+            "gender": product.gender,
+            "material": product.material,
+            "is_digital": product.is_digital,
+            "is_activewear": product.is_activewear,
+            "is_catalog": product.is_catalog,
+            "is_active": product.is_active,
+            "image_url": product.image_url,
+            "created_at": product.created_at or datetime.utcnow(),
+            "updated_at": product.updated_at or datetime.utcnow(),
+            # estoque do produto = soma FIFO das variações (fonte de verdade)
+            "current_stock": sum(v["current_stock"] for v in variants_list),
+            "min_stock_threshold": min_stock.get(product.id),
+            "entry_items": [],
+            "variants": variants_list,
+            "variant_count": len(variants_list),
+            "base_price": float(product.base_price) if product.base_price else None,
+        })
+    return out
+
+
 async def build_product_response(
     product: Product,
     db: AsyncSession,
@@ -63,97 +152,8 @@ async def build_product_response(
     tenant_id: int,
     include_entries: bool = False
 ) -> dict:
-    """Constrói o response completo de um produto usando SQL direto."""
-    from sqlalchemy import select
-    from datetime import datetime
-    
-    # Categoria via SQL direto
-    category_data = None
-    if product.category_id:
-        category_data = await get_category_data(db, product.category_id)
-
-    # min_stock_threshold vem da tabela inventory
-    inv_result = await db.execute(
-        text("SELECT min_stock FROM inventory WHERE product_id = :pid AND tenant_id = :tid LIMIT 1"),
-        {"pid": product.id, "tid": tenant_id}
-    )
-    inv_row = inv_result.fetchone()
-    min_stock_threshold = inv_row[0] if inv_row else None
-
-    # Garantir que created_at e updated_at não sejam None
-    created_at = product.created_at or datetime.utcnow()
-    updated_at = product.updated_at or datetime.utcnow()
-
-    variant_query = text("""
-        SELECT sku, price, cost_price, color, size
-        FROM product_variants
-        WHERE product_id = :pid AND tenant_id = :tid AND is_active = true
-        LIMIT 1
-    """)
-    variant_params = {"pid": product.id, "tid": tenant_id}
-
-    all_variants_query = text("""
-        SELECT
-            pv.id, pv.sku, pv.size, pv.color, pv.price, pv.cost_price, pv.is_active,
-            COALESCE(SUM(CASE WHEN se.is_active = true THEN ei.quantity_remaining ELSE 0 END), 0) as current_stock
-        FROM product_variants pv
-        LEFT JOIN entry_items ei ON ei.variant_id = pv.id AND ei.is_active = true
-        LEFT JOIN stock_entries se ON se.id = ei.entry_id
-        WHERE pv.product_id = :pid AND pv.tenant_id = :tid AND pv.is_active = true
-        GROUP BY pv.id
-        ORDER BY pv.size, pv.color
-    """)
-    all_variants_result = await db.execute(all_variants_query, {"pid": product.id, "tid": tenant_id})
-    
-    variant_result = await db.execute(variant_query, variant_params)
-    variant_row = variant_result.fetchone()
-    
-    all_variant_rows = all_variants_result.fetchall()
-    variants_list = [
-        {
-            "id": v[0],
-            "sku": v[1],
-            "size": v[2],
-            "color": v[3],
-            "price": float(v[4]) if v[4] else 0.0,
-            "cost_price": float(v[5]) if v[5] else None,
-            "is_active": v[6],
-            "current_stock": int(v[7]) if v[7] is not None else 0,
-        }
-        for v in all_variant_rows
-    ]
-
-    # current_stock do produto = soma FIFO de todas as variantes (fonte de verdade)
-    current_stock = sum(v["current_stock"] for v in variants_list)
-
-    return {
-        "id": product.id,
-        "name": product.name,
-        "description": product.description,
-        "sku": variant_row[0] if variant_row else f"PROD-{product.id}",
-        "price": float(variant_row[1]) if variant_row and variant_row[1] else (float(product.base_price) if product.base_price else 1.0),
-        "cost_price": float(variant_row[2]) if variant_row and variant_row[2] else None,
-        "category_id": product.category_id,
-        "category": category_data,
-        "brand": product.brand,
-        "color": variant_row[3] if variant_row else None,
-        "size": variant_row[4] if variant_row else None,
-        "gender": product.gender,
-        "material": product.material,
-        "is_digital": product.is_digital,
-        "is_activewear": product.is_activewear,
-        "is_catalog": product.is_catalog,
-        "is_active": product.is_active,
-        "image_url": product.image_url,
-        "created_at": created_at,
-        "updated_at": updated_at,
-        "current_stock": current_stock,
-        "min_stock_threshold": min_stock_threshold,
-        "entry_items": [],
-        "variants": variants_list,
-        "variant_count": len(variants_list),
-        "base_price": float(product.base_price) if product.base_price else None,
-    }
+    """Resposta completa de UM produto (mesmo montador da lista)."""
+    return (await build_product_responses([product], db, tenant_id))[0]
 
 
 async def enrich_product_with_stock(product, inventory_repo: InventoryRepository):
@@ -168,21 +168,23 @@ async def enrich_product_with_stock(product, inventory_repo: InventoryRepository
     return product
 
 
-async def _build_response_safe(product, db, inventory_repo, tenant_id):
-    """Monta a resposta de UM produto; se ele estiver com dado estranho, registra e pula, em vez de derrubar a lista inteira
-    (um produto ruim antes causava erro 500 na lista de toda a loja)."""
-    try:
-        resp = await build_product_response(product, db, inventory_repo, tenant_id)
-        ProductResponse.model_validate(resp)
-        return resp
-    except Exception as e:  # noqa: BLE001
+async def _build_responses_safe(products, db, inventory_repo, tenant_id):
+    """Monta a resposta de VÁRIOS produtos em lote; produto com dado estranho é registrado e pulado, em vez de
+    derrubar a lista inteira (um produto ruim antes causava erro 500 na lista de toda a loja)."""
+    resps = await build_product_responses(list(products), db, tenant_id)
+    ok = []
+    for product, resp in zip(products, resps):
         try:
-            from app.services.error_log_service import record_error
-            await record_error(message=f"Produto {getattr(product, 'id', '?')} fora do formato na lista; pulado: {str(e)[:200]}",
-                               level="warning", source="api", error_type="produto_invalido", tenant_id=tenant_id)
-        except Exception:  # noqa: BLE001
-            pass
-        return None
+            ProductResponse.model_validate(resp)
+            ok.append(resp)
+        except Exception as e:  # noqa: BLE001
+            try:
+                from app.services.error_log_service import record_error
+                await record_error(message=f"Produto {getattr(product, 'id', '?')} fora do formato na lista; pulado: {str(e)[:200]}",
+                                   level="warning", source="api", error_type="produto_invalido", tenant_id=tenant_id)
+            except Exception:  # noqa: BLE001
+                pass
+    return ok
 
 
 @router.get(
@@ -265,11 +267,7 @@ async def list_products(
             products = result.scalars().all()
             
             # 3. Construir responses completos
-            responses = []
-            for product in products:
-                resp = await _build_response_safe(product, db, inventory_repo, tenant_id)
-                if resp is not None:
-                    responses.append(resp)
+            responses = await _build_responses_safe(products, db, inventory_repo, tenant_id)
             return responses
 
         # LÓGICA ORIGINAL: Listar todos os produtos (sem filtro de estoque)
@@ -288,11 +286,7 @@ async def list_products(
             products = list(products)[skip: skip + limit]
 
         # Construir responses — mostrar todos os produtos do tenant (incluindo sem estoque)
-        responses = []
-        for product in products:
-            resp = await _build_response_safe(product, db, inventory_repo, tenant_id)
-            if resp is not None:
-                responses.append(resp)
+        responses = await _build_responses_safe(products, db, inventory_repo, tenant_id)
         return responses
         
     except Exception as e:
@@ -420,11 +414,7 @@ async def list_active_products(
 
         # Construir responses completos
         inventory_repo = InventoryRepository(db)
-        responses = []
-        for product in products:
-            resp = await _build_response_safe(product, db, inventory_repo, tenant_id)
-            if resp is not None:
-                responses.append(resp)
+        responses = await _build_responses_safe(products, db, inventory_repo, tenant_id)
         return responses
 
     except Exception as e:
