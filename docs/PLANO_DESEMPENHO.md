@@ -84,3 +84,10 @@ Regras: só na loja 1, nunca com deploy em andamento (conferir `git log origin/m
 | 6. Carga | `scripts/carga_degraus.py`. Com 2 workers, 40 usuários simultâneos: 17,4 req/s (era 12,4), mediana 1,5 s (era 2,4 s), 0 erro, sem queda. |
 
 Descoberta: o servidor passou de 12 para 17 req/s e não para 24 porque Postgres, nginx, n8n e WAHA dividem os 2 CPUs. O que ainda pesa é o CPU do Python por pedido (lista de 50 produtos = 83 ms): validação do Pydantic duas vezes e JSON de ~130 KB. Próximo ganho: resposta menor na lista (campos que a tela usa) e uma validação só.
+
+### Atualização (pendências fechadas)
+- **Limitador compartilhado**: tentativas de login, cadastro, esqueci a senha, checagem de e-mail e scanner de IA agora contam em uma tabela do Postgres (`rate_limit_hits`, UNLOGGED), valendo para todos os workers; cai para a memória se o banco falhar. Em produção: 7 logins falhos seguidos = 401 x5 e 429 x2 (contagem exata com 2 workers); teste entre dois processos separados bloqueou a 3ª chamada.
+- **GET /suppliers**: 500 ms para 45 ms e de 11 para 4 consultas (o `selectin` do modelo carregava 6.600 objetos por chamada; a lista usa `noload`).
+- **Vigia**: a cada 6 h o agendador grava no registro de erros (tipo `rota_lenta`) rotas com média acima de 500 ms ou mais de 40 consultas (mínimo 20 chamadas; cada worker vê só os próprios pedidos).
+- **Memória do container**: 2 workers usam cerca de 330 MB de 1 GB; o limite não foi alterado.
+- Armadilha a lembrar: vários modelos usam `lazy="selectin"` (Supplier, SupplierProduct, EntryItem, StockEntry, Trip). Toda lista nova que devolve esses modelos deve usar `noload`/`selectinload` explícito, e o teste de orçamento cobre a contagem de consultas, não de objetos.
