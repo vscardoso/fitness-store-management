@@ -2137,9 +2137,27 @@ export default function AddStockEntryScreen() {
               );
             })()}
             <Divider style={styles.summaryDivider} />
+            {(() => {
+              const discount = Math.min(unmaskCurrency(discountText) || 0, total);
+              if (discount <= 0) return null;
+              return (
+                <>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Mercadoria</Text>
+                    <Text style={styles.summaryValue}>{formatCurrency(total)}</Text>
+                  </View>
+                  <View style={styles.summaryRow}>
+                    <Text style={styles.summaryLabel}>Desconto do fornecedor</Text>
+                    <Text style={[styles.summaryValue, { color: Colors.light.success }]}>- {formatCurrency(discount)}</Text>
+                  </View>
+                </>
+              );
+            })()}
             <View style={styles.summaryRow}>
               <Text style={styles.totalLabel}>Total da Entrada</Text>
-              <Text style={[styles.totalValue, { color: brandingColors.primary }]}>{formatCurrency(total)}</Text>
+              <Text style={[styles.totalValue, { color: brandingColors.primary }]}>
+                {formatCurrency(total - Math.min(unmaskCurrency(discountText) || 0, total))}
+              </Text>
             </View>
           </View>
         )}
