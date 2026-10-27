@@ -147,6 +147,10 @@ export const DEFAULT_SIZES: SizeOption[] = [
   { label: 'GG', value: 'GG' },
   { label: 'XG', value: 'XG' },
   { label: 'XGG', value: 'XGG' },
+  // Plus size (o servidor já ordena G1 < G2 < G3 depois do XGG)
+  { label: 'G1', value: 'G1' },
+  { label: 'G2', value: 'G2' },
+  { label: 'G3', value: 'G3' },
   // Peças que servem em dois tamanhos e peça de tamanho único (o servidor guarda "ÚNICO" e "P/M")
   { label: 'ÚNICO', value: 'ÚNICO' },
   { label: 'P/M', value: 'P/M' },
