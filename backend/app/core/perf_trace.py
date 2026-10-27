@@ -83,6 +83,35 @@ def snapshot(top: int = 25) -> dict:
             "rotas_medidas": len(rows), "mais_pesadas": rows[:top], "lentas_recentes": list(_slow)[-30:][::-1]}
 
 
+# ─── Vigia: avisa no registro de erros quando uma rota está lenta ou fazendo consulta demais ───
+ALERT_MEAN_MS = 500
+ALERT_QUERIES = 40
+ALERT_MIN_CALLS = 20
+
+
+def slow_routes() -> list:
+    """Rotas com amostra suficiente cuja média passa de ALERT_MEAN_MS ou que fazem mais de ALERT_QUERIES consultas."""
+    out = []
+    for key, s in _stats.items():
+        if s["n"] < ALERT_MIN_CALLS:
+            continue
+        mean, queries = s["sum"] / s["n"], s["q_sum"] / s["n"]
+        if mean > ALERT_MEAN_MS or queries > ALERT_QUERIES:
+            out.append({"rota": key, "chamadas": s["n"], "media_ms": round(mean), "consultas_media": round(queries, 1),
+                        "banco_media_ms": round(s["db_sum"] / s["n"])})
+    return sorted(out, key=lambda r: r["media_ms"] * r["chamadas"], reverse=True)
+
+
+async def check_perf_alerts() -> None:
+    """Job do agendador (a cada 6 h): uma linha de aviso por rota problemática. Cada worker só enxerga os próprios pedidos."""
+    from app.services.error_log_service import record_error
+    for r in slow_routes()[:10]:
+        await record_error(
+            message=f"Rota lenta: {r['rota']} média {r['media_ms']} ms, {r['consultas_media']} consultas por chamada ({r['chamadas']} chamadas)",
+            level="warning", source="api", error_type="rota_lenta", detail=r,
+        )
+
+
 class PerfMiddleware:
     """ASGI puro: mede do primeiro byte recebido até o fim da resposta e acrescenta o cabeçalho Server-Timing."""
 

@@ -104,7 +104,7 @@ async def scan_product(
     """
     # cada leitura gasta cota paga/grátis da IA: 15 a cada 10 min por usuário e 60 por dia por loja
     from app.core import rate_limit
-    rate_limit.enforce(
+    await rate_limit.aenforce(
         (f"scan:user:{current_user.id}", 15, 600),
         (f"scan:tenant:{tenant_id}", 60, 86400),
         what="leituras do scanner",

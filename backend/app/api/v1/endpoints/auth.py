@@ -115,7 +115,7 @@ async def login(
         )
 
     ip = rate_limit.client_ip(request)
-    wait = rate_limit.retry_after(ip, credentials.email)
+    wait = await rate_limit.aretry_after(ip, credentials.email)
     if wait:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -130,7 +130,7 @@ async def login(
     )
 
     if not user:
-        rate_limit.register_failure(ip, credentials.email)
+        await rate_limit.aregister_failure(ip, credentials.email)
         await AuditService.log(db, "LOGIN_FAILED",
             user_email=credentials.email,
             ip_address=request.client.host if request.client else None,
@@ -149,7 +149,7 @@ async def login(
             detail="Usuário inativo. Entre em contato com o administrador."
         )
 
-    rate_limit.clear_email(credentials.email)
+    await rate_limit.aclear_email(credentials.email)
 
     # Criar sessão (access_token + refresh_token rastreado no banco)
     try:
@@ -344,7 +344,7 @@ async def signup(
         HTTPException 500: Se erro na transação
     """
     # robô criando lojas em série: 5 cadastros por hora por IP
-    rate_limit.enforce((f"signup:ip:{rate_limit.client_ip(request)}", 5, 3600), what="tentativas de cadastro")
+    await rate_limit.aenforce((f"signup:ip:{rate_limit.client_ip(request)}", 5, 3600), what="tentativas de cadastro")
     signup_service = SignupService(db)
     
     try:
@@ -389,7 +389,7 @@ async def check_email(
         CheckEmailResponse: available (bool) + message
     """
     # responde se o e-mail tem conta: sem limite, serviria para varrer e-mails cadastrados
-    rate_limit.enforce((f"check:ip:{rate_limit.client_ip(http_request)}", 30, 600), what="consultas")
+    await rate_limit.aenforce((f"check:ip:{rate_limit.client_ip(http_request)}", 30, 600), what="consultas")
     signup_service = SignupService(db)
     
     available, message = await signup_service.check_email_available(request.email)
@@ -422,7 +422,7 @@ async def check_slug(
     Returns:
         CheckSlugResponse: available (bool) + suggested_slug + message
     """
-    rate_limit.enforce((f"check:ip:{rate_limit.client_ip(http_request)}", 30, 600), what="consultas")
+    await rate_limit.aenforce((f"check:ip:{rate_limit.client_ip(http_request)}", 30, 600), what="consultas")
     signup_service = SignupService(db)
 
     available, suggested_slug, message = await signup_service.check_slug_available(request.slug)
@@ -453,7 +453,7 @@ async def forgot_password(
     A resposta é sempre a mesma, exista o e-mail ou não (não revela quem tem conta).
     """
     _email_key = str((request or {}).get("email", "")).strip().lower()
-    rate_limit.enforce(
+    await rate_limit.aenforce(
         (f"forgot:ip:{rate_limit.client_ip(http_request)}", 5, 900),
         (f"forgot:email:{_email_key}", 3, 3600),
         what="solicitações de nova senha",

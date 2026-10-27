@@ -161,6 +161,26 @@ async def acquire_leader_lock() -> bool:
 def start_scheduler():
     """Inicia o scheduler com todos os jobs configurados."""
 
+    # Vigia de desempenho: avisa no registro de erros as rotas lentas (a cada 6 horas)
+    from app.core.perf_trace import check_perf_alerts
+    scheduler.add_job(
+        check_perf_alerts,
+        trigger=IntervalTrigger(hours=6),
+        id="check_perf_alerts",
+        name="Avisar rotas lentas",
+        replace_existing=True,
+    )
+
+    # Limpeza das tentativas antigas do limitador compartilhado (a cada 6 horas)
+    from app.core.rate_limit import purge_old_hits
+    scheduler.add_job(
+        purge_old_hits,
+        trigger=IntervalTrigger(hours=6),
+        id="purge_rate_limit_hits",
+        name="Limpar tentativas antigas do limitador",
+        replace_existing=True,
+    )
+
     # Job 1: Verificar SLAs a cada 1 minuto (notifica antes do SLA)
     scheduler.add_job(
         check_sla_notifications_job,

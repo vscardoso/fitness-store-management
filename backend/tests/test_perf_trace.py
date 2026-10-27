@@ -54,3 +54,21 @@ async def test_resposta_traz_server_timing_e_a_rota_aparece_no_resumo(test_clien
 async def test_perf_nao_abre_sem_login(test_client):
     r = await test_client.get("/api/v1/perf")
     assert r.status_code in (401, 403)
+
+
+async def test_vigia_acusa_rota_lenta_e_rota_com_muita_consulta_e_ignora_amostra_pequena(monkeypatch):
+    for _ in range(25):
+        pt.record("GET /lenta", 900, 200, 3, 100)
+        pt.record("GET /muitas", 50, 200, 120, 40)
+        pt.record("GET /boa", 40, 200, 4, 10)
+    for _ in range(3):
+        pt.record("GET /poucas", 5000, 200, 3, 100)  # amostra pequena demais para acusar
+    achadas = {r["rota"] for r in pt.slow_routes()}
+    assert achadas == {"GET /lenta", "GET /muitas"}
+    avisos = []
+
+    async def _grava(**kw):
+        avisos.append(kw)
+    monkeypatch.setattr("app.services.error_log_service.record_error", _grava)
+    await pt.check_perf_alerts()
+    assert len(avisos) == 2 and all(a["error_type"] == "rota_lenta" for a in avisos)

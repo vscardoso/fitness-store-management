@@ -103,3 +103,17 @@ async def test_detalhe_e_fornecedores_do_produto_nao_crescem(test_client, async_
         depois = await _consultas(test_client, h, contador, u)
         assert depois <= antes[u] + FOLGA, f"{u}: {antes[u]} consultas antes e {depois} depois de entrar mais {MUITOS} produtos na loja"
         assert depois <= 14, f"{u}: {depois} consultas"
+
+
+async def test_lista_de_fornecedores_nao_carrega_os_vinculos(test_client, async_session, test_user):
+    """A lista mostra só o cadastro: carregar vínculos e produtos de cada fornecedor custava 6.600 objetos por chamada."""
+    from app.repositories.supplier_repository import SupplierRepository
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    await _cria_produtos(test_client, h, cat, 3)  # cada entrada cria fornecedor e vínculo fornecedor-produto
+    lista = await SupplierRepository().list_active(async_session, tenant_id=t_id)
+    assert lista, "esperava fornecedores"
+    com_vinculo = [s for s in lista if "supplier_products" in s.__dict__ and s.__dict__["supplier_products"]]
+    assert not com_vinculo, "a lista não deve carregar os vínculos (noload)"
+    r = await test_client.get("/api/v1/suppliers", headers=h)
+    assert r.status_code == 200 and r.json()

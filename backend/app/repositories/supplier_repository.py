@@ -5,7 +5,7 @@ from typing import List, Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import noload, selectinload
 
 from app.models.supplier import Supplier
 from app.models.supplier_product import SupplierProduct
@@ -28,6 +28,8 @@ class SupplierRepository(BaseRepository[Supplier, SupplierCreate, SupplierUpdate
     ) -> List[Supplier]:
         stmt = (
             select(Supplier)
+            # a lista só mostra o cadastro: sem isto o selectin do modelo puxava todos os vínculos e produtos (6.600 objetos por chamada)
+            .options(noload(Supplier.supplier_products))
             .where(Supplier.is_active == True)
             .order_by(Supplier.name)
             .offset(skip)
