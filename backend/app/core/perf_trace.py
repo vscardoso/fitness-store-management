@@ -5,6 +5,7 @@ Tudo fica em memória com tamanho fixo: um resumo por rota (contagem, média, m�
 Requisição acima de SLOW_MS também vai para o log do servidor (uma linha curta).
 """
 import logging
+import os
 import re
 import time
 from collections import deque
@@ -78,7 +79,7 @@ def snapshot(top: int = 25) -> dict:
             "consultas_media": round(s["q_sum"] / s["n"], 1), "erros_5xx": s["err"],
         })
     rows.sort(key=lambda r: r["media_ms"] * r["chamadas"], reverse=True)
-    return {"desde": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(_started)),
+    return {"worker": os.getpid(), "desde": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(_started)),
             "rotas_medidas": len(rows), "mais_pesadas": rows[:top], "lentas_recentes": list(_slow)[-30:][::-1]}
 
 

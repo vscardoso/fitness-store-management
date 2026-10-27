@@ -133,6 +133,31 @@ async def send_missed_departure_alert_job():
         logger.error(f"Error in missed departure alert job: {e}", exc_info=True)
 
 
+# ─── Líder entre workers ───────────────────────────────────────────────────
+# Com mais de um worker do uvicorn, só UM pode rodar o agendador (senão cada job rodaria em dobro: lembretes e
+# notificações duplicados). O líder é quem pega um bloqueio de sessão do Postgres e o segura enquanto o processo viver;
+# se ele cair, o bloqueio solta sozinho e o worker que nascer no lugar assume.
+_LEADER_KEY = 7_300_999_001
+_leader_conn = None
+
+
+async def acquire_leader_lock() -> bool:
+    """True se este processo é o líder (roda agendador e preparo do banco). Sem Postgres (testes, SQLite) é sempre líder."""
+    global _leader_conn
+    from sqlalchemy import text
+    from app.core.database import engine
+    if engine.dialect.name != "postgresql":
+        return True
+    conn = await engine.connect()
+    ok = bool((await conn.execute(text("SELECT pg_try_advisory_lock(:k)"), {"k": _LEADER_KEY})).scalar())
+    await conn.commit()  # o bloqueio é da sessão, não da transação: continua valendo
+    if ok:
+        _leader_conn = conn  # fica aberta de propósito; fechar soltaria o bloqueio
+    else:
+        await conn.close()
+    return ok
+
+
 def start_scheduler():
     """Inicia o scheduler com todos os jobs configurados."""
 
@@ -217,6 +242,7 @@ def start_scheduler():
 
 
 def shutdown_scheduler():
-    """Para o scheduler gracefully."""
-    scheduler.shutdown()
+    """Para o scheduler gracefully (só o líder o iniciou)."""
+    if scheduler.running:
+        scheduler.shutdown()
     logger.info("Background scheduler stopped")

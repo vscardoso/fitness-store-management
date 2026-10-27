@@ -1,6 +1,7 @@
 """Main FastAPI application with middleware and exception handlers."""
 
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
@@ -53,12 +54,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """
     # Startup
     logger.info("Starting up application...")
-    await init_db()
-    logger.info("Database initialized")
+    # Vários workers: só o líder prepara o banco e roda o agendador (o entrypoint já aplicou as migrations)
+    from app.core.scheduler import acquire_leader_lock
+    leader = await acquire_leader_lock()
+    if leader:
+        await init_db()
+        logger.info("Database initialized")
 
-    # Start background scheduler
-    start_scheduler()
-    logger.info("Background scheduler started")
+        # Start background scheduler
+        start_scheduler()
+        logger.warning("Worker %s: líder, agendador iniciado", os.getpid())
+    else:
+        logger.warning("Worker %s: seguidor (o agendador roda em outro worker)", os.getpid())
 
     # Só em desenvolvimento: tira do DEBUG_LOG.txt os erros já sanados (sem rodar testes; ver scripts/limpar_debug_log.py)
     if settings.ENVIRONMENT == "development":
