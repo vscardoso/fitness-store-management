@@ -537,9 +537,13 @@ async def update_conditional_shipment(
                 detail=f"Envio #{shipment_id} não encontrado"
             )
 
-        # Atualizar campos fornecidos
-        if update_data.status:
-            shipment.status = update_data.status
+        # Status só muda pelas ações próprias (enviar, processar devolução, cancelar): mudar aqui deixaria
+        # peças reservadas para sempre ou vendidas sem venda.
+        if update_data.status and update_data.status != shipment.status:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Para mudar a situação do envio use as ações Marcar como enviado, Processar devolução ou Cancelar."
+            )
         if update_data.shipping_address:
             shipment.shipping_address = update_data.shipping_address
         if update_data.notes is not None:

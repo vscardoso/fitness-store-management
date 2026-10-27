@@ -10,6 +10,7 @@ import { View, StyleSheet, ScrollView, Animated } from 'react-native';
 import { Portal, Modal, Text, Button, Surface, IconButton } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
+import { useBrandingColors } from '@/store/brandingStore';
 
 export interface ConfirmDialogProps {
   visible: boolean;
@@ -38,6 +39,7 @@ export default function ConfirmDialog({
   icon,
   loading = false,
 }: ConfirmDialogProps) {
+  const brand = useBrandingColors();
   const getTypeConfig = () => {
     switch (type) {
       case 'danger':
@@ -56,10 +58,11 @@ export default function ConfirmDialog({
         };
       case 'info':
         return {
-          color: Colors.light.info,
-          backgroundColor: Colors.light.info + '18',
+          // informativo usa a cor da loja (azul solto destoava do resto do app)
+          color: brand.primary,
+          backgroundColor: brand.primary + '18',
           icon: icon || 'information-circle',
-          confirmButtonColor: Colors.light.info,
+          confirmButtonColor: brand.primary,
         };
       case 'success':
         return {

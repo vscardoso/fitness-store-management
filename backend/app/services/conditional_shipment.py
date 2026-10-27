@@ -63,20 +63,45 @@ class ConditionalShipmentService:
         fifo_service = FIFOService(db)
         product_repo = ProductRepository(db)
 
-        # 1. Validar estoque disponível via FIFO (fonte de verdade)
+        # 0. Cliente, produto e variação precisam existir NA LOJA e combinar entre si
+        customer = await CustomerRepository(db).get(db, shipment_data.customer_id, tenant_id=tenant_id)
+        if not customer or getattr(customer, "is_active", True) is False:
+            raise ValueError("Cliente não encontrado. Escolha um cliente cadastrado.")
         for item in shipment_data.items:
+            product = await product_repo.get(db, item.product_id, tenant_id=tenant_id)
+            if not product or getattr(product, "is_active", True) is False:
+                raise ValueError("Um dos produtos não foi encontrado (pode ter sido excluído).")
+            if item.variant_id:
+                variant = (await db.execute(
+                    select(ProductVariant).where(
+                        ProductVariant.id == item.variant_id,
+                        ProductVariant.product_id == item.product_id,
+                        ProductVariant.tenant_id == tenant_id,
+                        ProductVariant.is_active == True,  # noqa: E712
+                    )
+                )).scalar_one_or_none()
+                if not variant:
+                    raise ValueError(f"A variação escolhida não pertence ao produto {product.name} ou foi desativada.")
+
+        # 1. Validar estoque disponível via FIFO (fonte de verdade). A mesma variação em mais de uma linha
+        # soma: 3 + 3 de uma variação com 4 em estoque não passa, mesmo que cada linha passe sozinha.
+        wanted: dict = {}
+        for item in shipment_data.items:
+            key = (item.product_id, item.variant_id)
+            wanted[key] = wanted.get(key, 0) + item.quantity_sent
+        for (product_id, variant_id), quantity in wanted.items():
             availability = await fifo_service.check_availability(
-                product_id=item.product_id,
-                quantity=item.quantity_sent,
-                variant_id=item.variant_id,
+                product_id=product_id,
+                quantity=quantity,
+                variant_id=variant_id,
                 tenant_id=tenant_id,
             )
             if not availability["available"]:
-                product = await product_repo.get(db, item.product_id, tenant_id=tenant_id)
-                product_name = product.name if product else str(item.product_id)
+                product = await product_repo.get(db, product_id, tenant_id=tenant_id)
+                product_name = product.name if product else str(product_id)
                 raise ValueError(
                     f"Estoque insuficiente para {product_name}. "
-                    f"Disponível: {availability['total_available']}, Solicitado: {item.quantity_sent}"
+                    f"Disponível: {availability['total_available']}, Solicitado: {quantity}"
                 )
 
         # 2. Criar shipment (status PENDING)
@@ -161,6 +186,28 @@ class ConditionalShipmentService:
         # Instanciar service FIFO
         fifo_service = FIFOService(db)
 
+        # Toda peça enviada precisa ter destino (ficou, voltou, danificou ou perdeu). Aceitar menos finalizava o
+        # envio com peças sem destino: nem voltavam ao estoque nem viravam venda.
+        shipment_items = {i.id: i for i in shipment.items}
+        seen_ids = set()
+        for upd in return_data.items:
+            if upd.id not in shipment_items:
+                raise ValueError(f"O item {upd.id} não pertence a este envio.")
+            if upd.id in seen_ids:
+                raise ValueError(f"O item {upd.id} foi informado mais de uma vez.")
+            seen_ids.add(upd.id)
+        for item_id, it in shipment_items.items():
+            upd = next(u for u in return_data.items if u.id == item_id) if item_id in seen_ids else None
+            if upd is None:
+                raise ValueError("Informe o que aconteceu com todas as peças do envio antes de finalizar.")
+            destino = upd.quantity_kept + upd.quantity_returned + upd.quantity_damaged + upd.quantity_lost
+            if destino != it.quantity_sent:
+                falta = it.quantity_sent - destino
+                if falta > 0:
+                    raise ValueError(
+                        f"Faltam {falta} peça(s) sem destino em um dos itens (enviadas {it.quantity_sent}, informadas {destino})."
+                    )
+
         # 2. Atualizar itens e devolver estoque
         total_kept = 0
         total_returned = 0
@@ -170,12 +217,7 @@ class ConditionalShipmentService:
 
         for item_update in return_data.items:
             # Encontrar item correspondente
-            db_item = next(
-                (i for i in shipment.items if i.id == item_update.id),
-                None
-            )
-            if not db_item:
-                continue
+            db_item = shipment_items[item_update.id]
 
             # Validar quantidades
             total_processed = (
@@ -229,6 +271,8 @@ class ConditionalShipmentService:
                     "variant_id": db_item.variant_id,
                     "quantity": item_update.quantity_kept,
                     "unit_price": db_item.unit_price,
+                    "unit_cost": self._fifo_unit_cost(db_item),
+                    "sources": self._kept_sources(db_item, item_update),
                 })
 
             if item_update.quantity_lost > 0:
@@ -239,6 +283,17 @@ class ConditionalShipmentService:
                     db_item=db_item,
                     quantity_lost=item_update.quantity_lost,
                     notes=item_update.notes,
+                )
+            if item_update.quantity_damaged > 0:
+                # A peça danificada não volta ao estoque: o custo dela é prejuízo da loja
+                await self._create_loss_expense(
+                    db=db,
+                    tenant_id=tenant_id,
+                    shipment=shipment,
+                    db_item=db_item,
+                    quantity_lost=item_update.quantity_damaged,
+                    notes=item_update.notes,
+                    kind="Peça danificada",
                 )
         
         # 3. Determinar novo status baseado no resultado
@@ -296,15 +351,20 @@ class ConditionalShipmentService:
         db_item,
         quantity_lost: int,
         notes: str | None,
+        kind: str = "Perda de item",
     ) -> None:
         category = await self._get_or_create_loss_category(db)
         product_name, unit_cost = await self._get_item_loss_cost_context(db, db_item.product_id, db_item.variant_id)
 
+        # O custo real é o da peça que saiu do estoque (FIFO, custo posto); só sem ele usa o cadastro e, por último, o preço
+        fifo_cost = self._fifo_unit_cost(db_item)
+        if fifo_cost > 0:
+            unit_cost = Decimal(str(fifo_cost))
         if unit_cost <= 0:
             unit_cost = Decimal(str(db_item.unit_price))
 
         expense_amount = (unit_cost * Decimal(quantity_lost)).quantize(Decimal("0.01"))
-        description = f"Perda de item em envio condicional #{shipment.id} - {product_name}"
+        description = f"{kind} em envio condicional #{shipment.id} - {product_name}"
 
         expense_notes_parts = [
             f"Cliente: {shipment.customer_id}",
@@ -326,6 +386,36 @@ class ConditionalShipmentService:
             category_id=category.id if category else None,
         )
         db.add(expense)
+
+    @staticmethod
+    def _fifo_unit_cost(db_item) -> float:
+        """Custo médio por peça das fontes FIFO reservadas no envio (0 se não houver)."""
+        sources = (db_item.fifo_sources or {}).get("sources", []) if db_item.fifo_sources else []
+        qty = sum(int(s.get("quantity_taken", 0)) for s in sources)
+        if qty <= 0:
+            return 0.0
+        return sum(int(s.get("quantity_taken", 0)) * float(s.get("unit_cost", 0) or 0) for s in sources) / qty
+
+    @staticmethod
+    def _kept_sources(db_item, item_update) -> list:
+        """Fontes FIFO das peças que ficaram: o que sobra depois de tirar as devolvidas (que reverteram pela frente)."""
+        sources = [dict(s) for s in ((db_item.fifo_sources or {}).get("sources", []) if db_item.fifo_sources else [])]
+        skip = item_update.quantity_returned
+        rest = []
+        for src in sources:
+            take = min(int(src.get("quantity_taken", 0)), skip)
+            skip -= take
+            left = int(src.get("quantity_taken", 0)) - take
+            if left > 0:
+                rest.append({**src, "quantity_taken": left})
+        kept, need = [], item_update.quantity_kept
+        for src in rest:
+            if need <= 0:
+                break
+            q = min(src["quantity_taken"], need)
+            kept.append({**src, "quantity_taken": q})
+            need -= q
+        return kept
 
     async def _get_or_create_loss_category(self, db: AsyncSession) -> ExpenseCategory:
         stmt = select(ExpenseCategory).where(
@@ -443,13 +533,26 @@ class ConditionalShipmentService:
                 variant_id=item_data.get("variant_id"),
                 quantity=item_data["quantity"],
                 unit_price=float(item_data["unit_price"]),
-                unit_cost=0.0,
+                unit_cost=float(item_data.get("unit_cost") or 0.0),
                 subtotal=float(item_subtotal),
                 discount_amount=0.0,
+                sale_sources={"sources": item_data["sources"]} if item_data.get("sources") else None,
                 tenant_id=tenant_id,
                 is_active=True,
             )
             db.add(sale_item)
+
+        # Pagamento confirmado: sem ele a venda aparece "sem pagamento" no caixa e nos relatórios
+        from app.models.sale import Payment
+        db.add(Payment(
+            sale_id=sale.id,
+            amount=float(total_amount),
+            payment_method=sale.payment_method,
+            installments=1,
+            status="confirmed",
+            tenant_id=tenant_id,
+            is_active=True,
+        ))
 
         if commit:
             await db.commit()
@@ -606,7 +709,7 @@ class ConditionalShipmentService:
         if not shipment:
             raise ValueError(f"Envio {shipment_id} não encontrado")
         
-        if shipment.status not in ["PENDING", "SENT"]:
+        if shipment.status not in ["PENDING", "SENT", "OVERDUE"]:
             if shipment.status == "COMPLETED":
                 raise ValueError(
                     "Este envio já foi concluído com venda gerada. "

@@ -7,7 +7,7 @@
  * 3. Entrada - Vincular a entrada de estoque
  */
 
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -214,10 +214,15 @@ export default function ProductWizardScreen() {
   }, [navigation, state.currentStep]);
 
   // Passo antigo do assistente reaparecendo por baixo do resumo (voltar do iPhone): cadastro já concluído, vai para o início
+  const firstFocusRef = useRef(true);
   useFocusEffect(
     useCallback(() => {
+      // A primeira vez que a tela ganha foco é abertura normal (cadastro novo): quem trata é o efeito de montagem
+      if (firstFocusRef.current) {
+        firstFocusRef.current = false;
+        return;
+      }
       if (wasWizardJustCompleted() && !params.returnFromEntry && state.currentStep !== 'complete') {
-        clearWizardCompleted();
         wizard.resetWizard();
         router.replace('/(tabs)' as any);
       }
@@ -225,7 +230,8 @@ export default function ProductWizardScreen() {
   );
 
   const leaveSummary = useCallback(() => {
-    clearWizardCompleted();
+    // A marca de "cadastro concluído" fica: no navegador o histórico ainda volta para telas antigas (passo 3) e elas
+    // se fecham sozinhas lendo essa marca. Ela só some quando se abre um cadastro novo.
     wizard.resetWizard();
     router.replace('/(tabs)' as any);
   }, [wizard]);

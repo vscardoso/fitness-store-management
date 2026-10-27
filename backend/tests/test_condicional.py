@@ -18,6 +18,22 @@ _n = itertools.count(1)
 URL = "/api/v1/conditional-shipments"
 
 
+@pytest.fixture(autouse=True)
+async def _limpa_vendas_e_envios(async_session):
+    """Banco de teste compartilhado: apaga vendas e envios criados aqui (ids reaproveitados confundem outros testes de FIFO)."""
+    from sqlalchemy import delete, func
+    from app.models.conditional_shipment import ConditionalShipment, ConditionalShipmentItem
+    from app.models.expense import Expense
+    from app.models.sale import Payment, Sale, SaleItem
+    modelos = [Payment, SaleItem, Sale, ConditionalShipmentItem, ConditionalShipment, Expense]
+    antes = {m: (await async_session.execute(select(func.coalesce(func.max(m.id), 0)))).scalar() for m in modelos}
+    yield
+    await async_session.rollback()
+    for m in modelos:
+        await async_session.execute(delete(m).where(m.id > antes[m]))
+    await async_session.commit()
+
+
 async def _cenario(db, test_user, *, estoque=10, custo=40, preco="100.00"):
     t_id, token, cat = await _loja_api(db, test_user)
     p, v = await _produto(db, t_id, cat, "Conjunto Condicional", preco)
@@ -231,7 +247,7 @@ async def test_danificada_nao_volta_e_perdida_vira_despesa(test_client, async_se
     assert await _estoque(async_session, ids.v) == 7          # só a devolvida em bom estado voltou
     from app.models.expense import Expense
     gastos = (await async_session.execute(select(Expense).where(Expense.description.like(f"%envio condicional #{s['id']}%")))).scalars().all()
-    assert sum(float(g.amount) for g in gastos) == 80.0       # 2 perdidas x R$ 40
+    assert sum(float(g.amount) for g in gastos) == 120.0      # 2 perdidas + 1 danificada, a R$ 40 de custo
     # a danificada também é prejuízo para a loja e precisa aparecer em algum lugar
     assert sum(float(g.amount) for g in gastos) >= 120.0, "peça danificada sumiu do estoque sem virar perda"
 
