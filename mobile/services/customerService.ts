@@ -99,3 +99,37 @@ export const getCustomerPurchases = async (customerId: number): Promise<any[]> =
     throw error;
   }
 };
+
+// ─── LGPD: direitos do titular ────────────────────────────────────────────────
+
+export interface CustomerAccessEntry {
+  data: string;
+  acao: string;
+  codigo: string;
+  usuario: string | null;
+  ip: string | null;
+}
+
+/** Tudo que a loja guarda sobre o cliente (JSON), para entregar a quem pediu. */
+export const exportCustomerData = async (id: number): Promise<Record<string, any>> => {
+  const { data } = await api.get(`/customers/${id}/export`, {
+    headers: { 'X-Loading-Message': 'Reunindo os dados...' },
+  });
+  return data;
+};
+
+/** Apaga os dados pessoais (não tem volta). O servidor exige a palavra ANONIMIZAR. */
+export const anonymizeCustomer = async (id: number, confirmacao: string): Promise<{ message: string }> => {
+  const { data } = await api.post(`/customers/${id}/anonymize`, { confirmacao }, {
+    headers: { 'X-Loading-Message': 'Anonimizando...' },
+  });
+  return data;
+};
+
+/** Quem abriu, alterou, exportou ou anonimizou o cadastro (só admin). */
+export const getCustomerAccessLog = async (id: number): Promise<CustomerAccessEntry[]> => {
+  const { data } = await api.get<CustomerAccessEntry[]>(`/customers/${id}/access-log`, {
+    headers: { 'X-Skip-Loading': 'true' },
+  });
+  return data;
+};

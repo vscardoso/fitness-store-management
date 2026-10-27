@@ -4,7 +4,7 @@ Modelo de cliente com programa de fidelidade.
 from sqlalchemy import String, Date, Enum as SQLEnum, Numeric, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from enum import Enum
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import List, TYPE_CHECKING
 from .base import BaseModel
@@ -132,6 +132,13 @@ class Customer(BaseModel):
     notes: Mapped[str | None] = mapped_column(
         Text,
         comment="Additional customer notes"
+    )
+
+    # LGPD: quando a loja anonimiza o cliente (pedido do titular), os dados pessoais são apagados e fica só isto
+    anonymized_at: Mapped[datetime | None] = mapped_column(
+        default=None,
+        nullable=True,
+        comment="Quando os dados pessoais foram anonimizados (LGPD)"
     )
     
     # Relacionamentos

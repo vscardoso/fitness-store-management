@@ -15,6 +15,8 @@ Endpoints:
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
 import logging
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
@@ -25,6 +27,8 @@ from app.services.customer_service import CustomerService
 from app.repositories.customer_repository import CustomerRepository
 from app.api.deps import get_current_active_user, get_current_tenant_id
 from app.models.user import User
+from app.core import rate_limit
+from app.services import customer_privacy_service as privacy
 
 
 router = APIRouter(prefix="/customers", tags=["Clientes"])
@@ -125,6 +129,7 @@ async def list_customers(
 )
 async def get_customer(
     customer_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id)
@@ -175,14 +180,17 @@ async def get_customer(
     customer_repo = CustomerRepository(db)
     
     try:
-        customer = await customer_repo.get(db, customer_id)
+        customer = await customer_repo.get(db, customer_id, tenant_id=tenant_id)  # sem a loja, lia cliente de outra loja
         
         if not customer:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Cliente com ID {customer_id} não encontrado"
             )
-        
+
+        # LGPD: registro de quem abriu o cadastro (gravado junto com a resposta pelo get_db)
+        await privacy.log_access(db, "CUSTOMER_VIEWED", tenant_id=tenant_id, user=current_user,
+                                 customer_id=customer_id, ip=rate_limit.client_ip(request))
         return customer
         
     except HTTPException:
@@ -308,6 +316,7 @@ async def create_customer(
 )
 async def update_customer(
     customer_id: int,
+    request: Request,
     customer_data: CustomerUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -373,6 +382,9 @@ async def update_customer(
     
     try:
         customer = await customer_service.update_customer(customer_id, customer_data, tenant_id=tenant_id)
+        await privacy.log_access(db, "CUSTOMER_UPDATED", tenant_id=tenant_id, user=current_user, customer_id=customer_id,
+                                 detail={"campos": sorted(customer_data.model_dump(exclude_unset=True).keys())},
+                                 ip=rate_limit.client_ip(request))
         return customer
         
     except ValueError as e:
@@ -410,6 +422,7 @@ async def update_customer(
 )
 async def delete_customer(
     customer_id: int,
+    request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id)
@@ -448,7 +461,7 @@ async def delete_customer(
     customer_repo = CustomerRepository(db)
     
     try:
-        customer = await customer_repo.get(db, customer_id)
+        customer = await customer_repo.get(db, customer_id, tenant_id=tenant_id)  # sem a loja, lia cliente de outra loja
         
         if not customer:
             raise HTTPException(
@@ -458,6 +471,8 @@ async def delete_customer(
         
         # Soft delete
         await customer_repo.update(db, id=customer_id, obj_in={'is_active': False})
+        await privacy.log_access(db, "CUSTOMER_DELETED", tenant_id=tenant_id, user=current_user,
+                                 customer_id=customer_id, ip=rate_limit.client_ip(request))
         await db.commit()
         
     except HTTPException:
@@ -583,3 +598,85 @@ async def get_customer_purchases(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Erro ao buscar histórico de compras: {str(e)}"
         )
+
+
+# ============================================================================
+# LGPD: exportar, anonimizar e registro de acesso
+# ============================================================================
+
+class AnonymizeRequest(BaseModel):
+    confirmacao: str = Field(..., description='Digite ANONIMIZAR para confirmar (não tem volta)')
+
+
+@router.get(
+    "/{customer_id}/export",
+    summary="Exportar dados do cliente (LGPD)",
+    description="Tudo que a loja guarda sobre o cliente, em JSON, para atender o pedido do titular.",
+)
+async def export_customer_data(
+    customer_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    try:
+        data = await privacy.export_customer(db, tenant_id, customer_id)
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    await privacy.log_access(db, "CUSTOMER_EXPORTED", tenant_id=tenant_id, user=current_user,
+                             customer_id=customer_id, ip=rate_limit.client_ip(request))
+    return JSONResponse(
+        content=data,
+        headers={"Content-Disposition": f'attachment; filename="dados-cliente-{customer_id}.json"'},
+    )
+
+
+@router.post(
+    "/{customer_id}/anonymize",
+    summary="Anonimizar cliente (LGPD)",
+    description="Apaga os dados pessoais do cliente e mantém vendas e estoque. Não tem volta.",
+)
+async def anonymize_customer(
+    customer_id: int,
+    body: AnonymizeRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    if body.confirmacao.strip().upper() != "ANONIMIZAR":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Para confirmar, digite ANONIMIZAR. Esta ação não pode ser desfeita.")
+    try:
+        counts = await privacy.anonymize_customer(db, tenant_id, customer_id)
+        await privacy.log_access(db, "CUSTOMER_ANONYMIZED", tenant_id=tenant_id, user=current_user,
+                                 customer_id=customer_id, detail=counts, ip=rate_limit.client_ip(request))
+        await db.commit()
+    except LookupError as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except privacy.CustomerPrivacyError as e:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return {"success": True, "message": "Dados pessoais apagados. As vendas continuam no relatório sem identificar a pessoa.",
+            "atualizados": counts}
+
+
+@router.get(
+    "/{customer_id}/access-log",
+    summary="Quem acessou o cliente (LGPD)",
+    description="Leituras, alterações, exportações e anonimização do cadastro, da mais recente para a mais antiga.",
+)
+async def customer_access_log(
+    customer_id: int,
+    limit: int = Query(100, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    try:
+        return await privacy.access_log(db, tenant_id, customer_id, limit)
+    except LookupError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+

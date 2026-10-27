@@ -55,6 +55,7 @@ class CustomerResponse(CustomerBase):
     total_spent: Decimal
     total_purchases: int
     is_active: bool
+    anonymized_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

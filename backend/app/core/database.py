@@ -190,6 +190,7 @@ _SQLITE_EXTRA_COLUMNS = {
     "product_variants": [("short_code", "INTEGER"), ("product_code", "INTEGER"), ("variant_number", "INTEGER")],
     "products": [("code_number", "INTEGER")],
     "catalog_counters": [("next_product_code", "INTEGER NOT NULL DEFAULT 1")],
+    "customers": [("anonymized_at", "DATETIME")],
 }
 
 

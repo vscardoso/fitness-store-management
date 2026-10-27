@@ -23,6 +23,9 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { Sale } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import CustomerPrivacyCard from '@/components/customers/CustomerPrivacyCard';
+import { useAuth } from '@/hooks/useAuth';
+import { isAdminRole, isManagerRole } from '@/utils/roles';
 
 export default function CustomerDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -30,6 +33,7 @@ export default function CustomerDetailsScreen() {
   const { goBack } = useBackToList('/(tabs)/customers');
   const queryClient = useQueryClient();
   const brandingColors = useBrandingColors();
+  const { user } = useAuth();
 
   // Validar ID do cliente
   const customerId = id ? parseInt(id as string) : NaN;
@@ -372,7 +376,7 @@ export default function CustomerDetailsScreen() {
 
               <StatCard
                 label="Total Gasto"
-                value={`R$ ${Number(customer.total_spent || 0).toFixed(2)}`}
+                value={formatCurrency(Number(customer.total_spent || 0))}
                 icon="cash"
                 valueColor={Colors.light.success}
               />
@@ -454,6 +458,13 @@ export default function CustomerDetailsScreen() {
               </>
             )}
         </View>
+
+        <CustomerPrivacyCard
+          customerId={customerId}
+          canExport={isManagerRole(user?.role)}
+          isAdmin={isAdminRole(user?.role)}
+          onAnonymized={goBack}
+        />
 
       </ScrollView>
 
