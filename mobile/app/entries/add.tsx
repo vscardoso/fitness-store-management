@@ -30,6 +30,7 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
+import { markWizardCompleted, wasWizardJustCompleted } from '@/utils/wizardGuard';
 import { parseApiError } from '@/utils/apiError';
 import { useFocusEffect } from '@react-navigation/native';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
@@ -218,6 +219,13 @@ export default function AddStockEntryScreen() {
       return null;
     }
   };
+
+  // Cadastro já concluído: esta tela (passo 3) não pode reaparecer ao voltar (gesto do iPhone/navegador)
+  useFocusEffect(
+    useCallback(() => {
+      if (isFromWizard && wasWizardJustCompleted()) router.replace('/(tabs)' as any);
+    }, [isFromWizard, router])
+  );
 
   const goToWizardStep = (targetStep: WizardStep) => {
     if (!isFromWizard) return;
@@ -2337,6 +2345,7 @@ export default function AddStockEntryScreen() {
         onConfirm={() => {
           setShowSuccessDialog(false);
           if (isFromWizard && createdEntryId) {
+            markWizardCompleted();
             const totalQty = items.reduce((sum, i) => sum + i.quantity_received, 0);
             let productData: string | undefined;
             if (params.wizardMode === 'atomic-variants' && params.wizardAtomicVariantsData) {

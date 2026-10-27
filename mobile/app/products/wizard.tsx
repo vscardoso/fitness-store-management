@@ -21,7 +21,7 @@ import {
 import { Text } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useRouter, useLocalSearchParams, useNavigation } from 'expo-router';
+import { useRouter, useLocalSearchParams, useNavigation, useFocusEffect } from 'expo-router';
 import { clearWizardCompleted, markWizardCompleted, wasWizardJustCompleted } from '@/utils/wizardGuard';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -212,6 +212,17 @@ export default function ProductWizardScreen() {
   useEffect(() => {
     navigation.setOptions({ gestureEnabled: state.currentStep !== 'complete' });
   }, [navigation, state.currentStep]);
+
+  // Passo antigo do assistente reaparecendo por baixo do resumo (voltar do iPhone): cadastro já concluído, vai para o início
+  useFocusEffect(
+    useCallback(() => {
+      if (wasWizardJustCompleted() && !params.returnFromEntry && state.currentStep !== 'complete') {
+        clearWizardCompleted();
+        wizard.resetWizard();
+        router.replace('/(tabs)' as any);
+      }
+    }, [params.returnFromEntry, state.currentStep])
+  );
 
   const leaveSummary = useCallback(() => {
     clearWizardCompleted();
