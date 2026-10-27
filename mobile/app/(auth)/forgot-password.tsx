@@ -26,7 +26,7 @@ export default function ForgotPasswordScreen() {
   const [emailError, setEmailError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [tempPassword, setTempPassword] = useState<string | null>(null);
+  const [serverMessage, setServerMessage] = useState('');
   const [error, setError] = useState('');
 
   /**
@@ -63,14 +63,10 @@ export default function ForgotPasswordScreen() {
         email: email.trim().toLowerCase(),
       });
 
+      setServerMessage(response.data?.message || '');
       setSuccess(true);
-
-      // Em desenvolvimento, mostrar a senha temporária
-      if (response.data.temp_password) {
-        setTempPassword(response.data.temp_password);
-      }
     } catch (err: any) {
-      const message = err.response?.data?.detail || 'Erro ao processar solicitação';
+      const message = err?.message || 'Erro ao processar solicitação';
       setError(message);
     } finally {
       setIsLoading(false);
@@ -107,7 +103,7 @@ export default function ForgotPasswordScreen() {
                 Recuperar Senha
               </Text>
               <Text variant="bodyMedium" style={styles.headerSubtitle}>
-                Enviaremos instruções para seu email
+                Veja como voltar a entrar na sua conta
               </Text>
             </View>
           </View>
@@ -167,7 +163,7 @@ export default function ForgotPasswordScreen() {
                     contentStyle={styles.buttonContent}
                     icon="send"
                   >
-                    {isLoading ? 'Enviando...' : 'Recuperar Senha'}
+                    {isLoading ? 'Enviando...' : 'Continuar'}
                   </Button>
                 </View>
               </>
@@ -176,36 +172,17 @@ export default function ForgotPasswordScreen() {
                 {/* Sucesso */}
                 <View style={styles.successContainer}>
                   <View style={styles.successIcon}>
-                    <Ionicons name="checkmark-circle" size={64} color={Colors.light.success} />
+                    <Ionicons name="key-outline" size={64} color={Colors.light.primary} />
                   </View>
 
                   <Text variant="titleLarge" style={styles.successTitle}>
-                    Senha Redefinida!
+                    Como redefinir a senha
                   </Text>
 
                   <Text variant="bodyMedium" style={styles.successText}>
-                    Uma nova senha temporária foi gerada para sua conta.
+                    {serverMessage ||
+                      'Peça ao administrador da sua loja para redefinir sua senha. Se você é o administrador, escreva para suporte@provadorfit.com.br.'}
                   </Text>
-
-                  {/* Mostrar senha temporária (apenas em dev) */}
-                  {tempPassword && (
-                    <Card style={styles.passwordCard}>
-                      <Card.Content>
-                        <Text variant="labelMedium" style={styles.passwordLabel}>
-                          Sua nova senha temporária:
-                        </Text>
-                        <View style={styles.passwordBox}>
-                          <Text variant="headlineMedium" style={styles.passwordText}>
-                            {tempPassword}
-                          </Text>
-                        </View>
-                        <Text variant="bodySmall" style={styles.passwordHint}>
-                          Anote esta senha e use-a para fazer login.
-                          Recomendamos alterá-la após o acesso.
-                        </Text>
-                      </Card.Content>
-                    </Card>
-                  )}
 
                   <Button
                     mode="contained"

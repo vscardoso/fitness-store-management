@@ -439,60 +439,22 @@ async def forgot_password(
     """
     Solicitar recuperação de senha.
 
-    Para MVP: Gera nova senha temporária.
-    Em produção: Enviaria email com link de reset.
-
-    Args:
-        request: {"email": "usuario@email.com"}
-        db: Sessão do banco de dados
-
-    Returns:
-        dict: Mensagem de sucesso (sempre, por segurança)
+    NÃO troca a senha nem devolve senha alguma: a versão antiga gerava uma senha nova e a mandava na resposta,
+    o que deixava qualquer pessoa que soubesse o e-mail entrar na conta. Enquanto não houver e-mail com link de
+    redefinição, a senha é trocada pelo admin da loja (Equipe > redefinir senha) ou pelo suporte.
+    A resposta é sempre a mesma, exista o e-mail ou não (não revela quem tem conta).
     """
-    import secrets
-    import string
-    from app.core.security import get_password_hash
-
-    email = request.get("email", "").strip().lower()
-
+    email = str((request or {}).get("email", "")).strip().lower()
     if not email:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email é obrigatório"
         )
-
-    # Buscar usuário
-    result = await db.execute(
-        select(User).where(User.email == email)
-    )
-    user = result.scalar_one_or_none()
-
-    # Por segurança, sempre retornar sucesso (não revelar se email existe)
-    if not user:
-        logger.info(f"Forgot password requested for non-existent email: {email}")
-        return {
-            "success": True,
-            "message": "Se o email estiver cadastrado, você receberá instruções de recuperação."
-        }
-
-    # Gerar nova senha temporária (8 caracteres alfanuméricos)
-    alphabet = string.ascii_letters + string.digits
-    temp_password = ''.join(secrets.choice(alphabet) for _ in range(8))
-
-    # Atualizar senha no banco
-    user.hashed_password = get_password_hash(temp_password)
-    await db.commit()
-
-    logger.info(f"Password reset for user: {email}")
-
-    # Em produção, enviaria email aqui
-    # await send_password_reset_email(email, temp_password)
-
-    # Para MVP/desenvolvimento, retornar a senha temporária
-    # REMOVER EM PRODUÇÃO - apenas para facilitar testes
+    logger.info("Forgot password requested")
     return {
         "success": True,
-        "message": "Senha temporária gerada com sucesso.",
-        "temp_password": temp_password,  # REMOVER EM PRODUÇÃO
-        "instructions": "Use esta senha temporária para fazer login. Recomendamos alterá-la após o acesso."
+        "message": (
+            "Para redefinir sua senha, peça ao administrador da sua loja (Menu > Equipe > Redefinir senha). "
+            "Se você é o administrador, escreva para suporte@provadorfit.com.br a partir do e-mail cadastrado."
+        ),
     }
