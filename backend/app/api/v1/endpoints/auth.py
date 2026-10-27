@@ -456,7 +456,7 @@ async def forgot_password(
     rate_limit.enforce(
         (f"forgot:ip:{rate_limit.client_ip(http_request)}", 5, 900),
         (f"forgot:email:{_email_key}", 3, 3600),
-        what="pedidos de nova senha",
+        what="solicitações de nova senha",
     )
     email = str((request or {}).get("email", "")).strip().lower()
     if not email:

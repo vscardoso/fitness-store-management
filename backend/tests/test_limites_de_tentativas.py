@@ -31,7 +31,7 @@ async def test_esqueci_a_senha_por_email_e_por_ip(test_client):
     for _ in range(3):
         assert (await test_client.post("/api/v1/auth/forgot-password", json={"email": "alvo@example.com"})).status_code == 200
     r = await test_client.post("/api/v1/auth/forgot-password", json={"email": "alvo@example.com"})
-    assert r.status_code == 429 and "pedidos de nova senha" in r.json()["detail"]
+    assert r.status_code == 429 and "Muitas solicitações de nova senha" in r.json()["detail"]
     # outro e-mail ainda passa até o limite do IP (5 em 15 min)
     assert (await test_client.post("/api/v1/auth/forgot-password", json={"email": "outro@example.com"})).status_code == 200
     r = await test_client.post("/api/v1/auth/forgot-password", json={"email": "terceiro@example.com"})
