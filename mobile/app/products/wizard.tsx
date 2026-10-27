@@ -23,7 +23,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter, useLocalSearchParams, useNavigation, useFocusEffect } from 'expo-router';
 import { trailMark, trailReport } from '@/utils/navTrail';
-import { clearWizardCompleted, markWizardCompleted, wasWizardJustCompleted } from '@/utils/wizardGuard';
+import { clearWizardCompleted, markWizardCompleted, PRODUCT_LIST_ROUTE, wasWizardJustCompleted } from '@/utils/wizardGuard';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useCategories } from '@/hooks';
@@ -214,7 +214,7 @@ export default function ProductWizardScreen() {
     navigation.setOptions({ gestureEnabled: state.currentStep !== 'complete' });
   }, [navigation, state.currentStep]);
 
-  // Passo antigo do assistente reaparecendo por baixo do resumo (voltar do iPhone): cadastro já concluído, vai para o início
+  // Passo antigo do assistente reaparecendo por baixo do resumo (voltar do iPhone): cadastro já concluído, vai para a lista de produtos
   const firstFocusRef = useRef(true);
   useFocusEffect(
     useCallback(() => {
@@ -224,9 +224,9 @@ export default function ProductWizardScreen() {
         return;
       }
       if (wasWizardJustCompleted() && !params.returnFromEntry && state.currentStep !== 'complete') {
-        trailReport(`trava: passo antigo do assistente (${state.currentStep}) reapareceu depois do cadastro concluído; indo para o início`);
+        trailReport(`trava: passo antigo do assistente (${state.currentStep}) reapareceu depois do cadastro concluído; indo para a lista de produtos`);
         wizard.resetWizard();
-        router.replace('/(tabs)' as any);
+        router.replace(PRODUCT_LIST_ROUTE as any);
       }
     }, [params.returnFromEntry, state.currentStep])
   );
@@ -234,9 +234,9 @@ export default function ProductWizardScreen() {
   const leaveSummary = useCallback(() => {
     // A marca de "cadastro concluído" fica: no navegador o histórico ainda volta para telas antigas (passo 3) e elas
     // se fecham sozinhas lendo essa marca. Ela só some quando se abre um cadastro novo.
-    trailReport('voltar no resumo (gesto/botão/navegador): indo para o início');
+    trailReport('voltar no resumo (gesto/botão/navegador): indo para a lista de produtos');
     wizard.resetWizard();
-    router.replace('/(tabs)' as any);
+    router.replace(PRODUCT_LIST_ROUTE as any);
   }, [wizard]);
 
   // Chegou no resumo: daqui em diante voltar nunca reabre um passo anterior (nem pelo gesto do iPhone, que
@@ -254,20 +254,24 @@ export default function ProductWizardScreen() {
     if (params.restoreStep || params.restoreProductData) {
       clearWizardCompleted();
       wizard.resetWizard();
-      router.replace('/(tabs)' as any);
+      router.replace(PRODUCT_LIST_ROUTE as any);
     } else if (state.currentStep !== 'complete') {
       clearWizardCompleted(); // abriu o cadastro do zero: é um produto novo
     }
   }, []);
 
   // No navegador, o botão Voltar do próprio navegador também não pode reabrir um passo anterior
+  // (o iPhone em tela cheia também usa o histórico do navegador: o arrastar da borda dispara este evento)
+  const leaveSummaryRef = useRef(leaveSummary);
+  leaveSummaryRef.current = leaveSummary;
   useEffect(() => {
     if (state.currentStep !== 'complete' || Platform.OS !== 'web' || typeof window === 'undefined') return;
+    // Uma só entrada "sentinela" por chegada ao resumo: o primeiro voltar cai nela e leva para a lista de produtos
     window.history.pushState({ wizardSummary: true }, '');
-    const onPop = () => leaveSummary();
+    const onPop = () => leaveSummaryRef.current();
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
-  }, [state.currentStep, leaveSummary]);
+  }, [state.currentStep]);
 
   const handleBack = useCallback(async () => {
     // Back sempre volta para o passo anterior do fluxo.
@@ -294,7 +298,7 @@ export default function ProductWizardScreen() {
     }
 
     // Resumo: o produto e a entrada já foram gravados, então voltar NUNCA reabre o passo anterior
-    // (daria a impressão de poder refazer ou duplicar). Sai do assistente e vai para o início.
+    // (daria a impressão de poder refazer ou duplicar). Sai do assistente e vai para a lista de produtos.
     if (state.currentStep === 'complete') {
       leaveSummary();
       return;

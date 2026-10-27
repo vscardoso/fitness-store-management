@@ -30,7 +30,7 @@ import {
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { markWizardCompleted, wasWizardJustCompleted } from '@/utils/wizardGuard';
+import { markWizardCompleted, PRODUCT_LIST_ROUTE, wasWizardJustCompleted } from '@/utils/wizardGuard';
 import { trailMark, trailReport } from '@/utils/navTrail';
 import { parseApiError } from '@/utils/apiError';
 import { useFocusEffect } from '@react-navigation/native';
@@ -225,8 +225,8 @@ export default function AddStockEntryScreen() {
   useFocusEffect(
     useCallback(() => {
       if (isFromWizard && wasWizardJustCompleted()) {
-        trailReport('trava: entrada (passo 3) reaberta depois do cadastro concluído; indo para o início');
-        router.replace('/(tabs)' as any);
+        trailReport('trava: entrada (passo 3) reaberta depois do cadastro concluído; indo para a lista de produtos');
+        router.replace(PRODUCT_LIST_ROUTE as any);
       }
     }, [isFromWizard, router])
   );

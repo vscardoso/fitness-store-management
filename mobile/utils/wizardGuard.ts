@@ -18,3 +18,6 @@ export function clearWizardCompleted(): void {
 export function wasWizardJustCompleted(): boolean {
   return completedAt != null && Date.now() - completedAt < EXPIRES_MS;
 }
+
+/** Para onde o cadastro concluído leva ao sair (seta voltar, arrastar do iPhone, botão do navegador, telas antigas). */
+export const PRODUCT_LIST_ROUTE = '/(tabs)/products';

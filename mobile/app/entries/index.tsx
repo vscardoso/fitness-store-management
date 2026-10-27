@@ -43,7 +43,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import useBackToList from '@/hooks/useBackToList';
 import { getStockEntries, getStockEntriesStats, addItemToEntry, addNewProductToEntry, getStockEntryById } from '@/services/stockEntryService';
 import { takePendingProductImage } from '@/services/pendingProductImage';
-import { markWizardCompleted, wasWizardJustCompleted } from '@/utils/wizardGuard';
+import { markWizardCompleted, PRODUCT_LIST_ROUTE, wasWizardJustCompleted } from '@/utils/wizardGuard';
 import { trailMark, trailReport } from '@/utils/navTrail';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { formatCurrency, formatDate } from '@/utils/format';
@@ -323,8 +323,8 @@ export default function StockEntriesScreen() {
   useFocusEffect(
     useCallback(() => {
       if (isFromWizard && wasWizardJustCompleted()) {
-        trailReport('trava: lista de Entradas (Vincular Produto) reaberta depois do cadastro concluído; indo para o início');
-        router.replace('/(tabs)' as any);
+        trailReport('trava: lista de Entradas (Vincular Produto) reaberta depois do cadastro concluído; indo para a lista de produtos');
+        router.replace(PRODUCT_LIST_ROUTE as any);
       }
     }, [isFromWizard, router])
   );
