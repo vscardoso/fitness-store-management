@@ -85,6 +85,7 @@ export interface UseProductWizardReturn {
   setVariantSizes: (sizes: string[]) => void;
   setVariantColors: (colors: string[]) => void;
   setVariantPrice: (key: string, price: number) => void;
+  setVariantQuantities: (patch: Record<string, number>) => void;
   setColorSizes: (colorSizes: Record<string, string[]>) => void;
 
   // Utils
@@ -115,6 +116,7 @@ const INITIAL_STATE: WizardState = {
   variantSizes: [],
   variantColors: [],
   variantPrices: {},
+  variantQuantities: {},
   colorSizes: {},
 };
 
@@ -1336,6 +1338,7 @@ export function useProductWizard() {
             variantSizes: [],
             colorSizes: {},
             variantPrices: {},
+            variantQuantities: {},
           };
         }
         
@@ -1353,6 +1356,12 @@ export function useProductWizard() {
       setState(prev => ({
         ...prev,
         variantPrices: { ...prev.variantPrices, [key]: price },
+      }));
+    }, []),
+    setVariantQuantities: useCallback((patch: Record<string, number>) => {
+      setState(prev => ({
+        ...prev,
+        variantQuantities: { ...(prev.variantQuantities ?? {}), ...patch },
       }));
     }, []),
     setColorSizes: useCallback((colorSizes: Record<string, string[]>) => {

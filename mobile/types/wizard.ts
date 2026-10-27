@@ -62,6 +62,8 @@ export interface WizardState {
   variantSizes: string[];
   variantColors: string[];
   variantPrices: Record<string, number>;
+  /** Quantidade por variação digitada na grade (passo 2): key cor-tamanho (sem cor ou tamanho = vazio) */
+  variantQuantities: Record<string, number>;
   /** Tamanhos específicos por cor — { 'preto': ['M','G'], 'branco': ['PP','P'] } */
   colorSizes: Record<string, string[]>;
 
@@ -195,6 +197,7 @@ export const INITIAL_WIZARD_STATE: WizardState = {
   variantSizes: [],
   variantColors: [],
   variantPrices: {},
+  variantQuantities: {},
   colorSizes: {},
   createdProduct: null,
   entryChoice: null,

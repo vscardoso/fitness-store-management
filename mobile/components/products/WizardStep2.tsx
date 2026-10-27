@@ -506,6 +506,8 @@ export default function WizardStep2({
               costPrice={parseFloat(costPriceStr) || 0}
               variantPrices={state.variantPrices ?? {}}
               onVariantPriceChange={wizard.setVariantPrice}
+              variantQuantities={state.variantQuantities ?? {}}
+              onVariantQuantitiesChange={wizard.setVariantQuantities}
               validationError={state.validationErrors.variants as string | undefined}
             />
           </Card.Content>

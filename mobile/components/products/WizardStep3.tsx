@@ -88,7 +88,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
   // Modal para Nova Entrada — modo variantes
   const [variantQtyModalVisible, setVariantQtyModalVisible] = useState(false);
   // Variações sem quantidade: pergunta antes se é para deixar de cadastrá-las (elas não entram no sistema)
-  const [emptyVariantsAsk, setEmptyVariantsAsk] = useState<{ labels: string[]; qtys: Record<number, number> } | null>(null);
+  const [emptyVariantsAsk, setEmptyVariantsAsk] = useState<{ labels: string[]; qtys: Record<number, number>; mode: 'new' | 'existing' } | null>(null);
   // 'new' = nova entrada, 'existing' = entrada existente
   const [variantQtyMode, setVariantQtyMode] = useState<'new' | 'existing'>('new');
   const [variantQtys, setVariantQtys] = useState<Record<number, string>>({});
@@ -132,10 +132,23 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
 
   // Abre o modal de variantes no modo correto
   const openVariantQtyModal = (mode: 'new' | 'existing') => {
+    // Quantidades já digitadas na grade do passo 2: usa direto, sem abrir o painel de novo
+    const grid = state.variantQuantities ?? {};
     const initial: Record<number, string> = {};
-    productVariants.forEach((v: any) => { initial[v.id] = ''; });
+    const fromGrid: Record<number, number> = {};
+    let anyFromGrid = false;
+    productVariants.forEach((v: any) => {
+      const q = Number(grid[`${v.color || ''}-${v.size || ''}`]) || 0;
+      initial[v.id] = q > 0 ? String(q) : '';
+      fromGrid[v.id] = q;
+      if (q > 0) anyFromGrid = true;
+    });
     setVariantQtys(initial);
     setVariantQtyMode(mode);
+    if (anyFromGrid) {
+      confirmVariantQtys(fromGrid, mode);
+      return;
+    }
     setVariantQtyModalVisible(true);
   };
 
@@ -179,18 +192,22 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
     productVariants.forEach((v: any) => {
       qtys[v.id] = parseInt(variantQtys[v.id] ?? '0') || 0;
     });
+    confirmVariantQtys(qtys, variantQtyMode);
+  };
 
+  // Confere variações sem quantidade (pergunta antes de deixá-las de fora) e segue para a entrada
+  const confirmVariantQtys = (qtys: Record<number, number>, mode: 'new' | 'existing') => {
     const empty = productVariants.filter((v: any) => !qtys[v.id]);
     const filled = productVariants.length - empty.length;
     if (filled > 0 && empty.length > 0) {
-      setEmptyVariantsAsk({ labels: empty.map((v: any) => getVariantLabel(v)), qtys });
+      setEmptyVariantsAsk({ labels: empty.map((v: any) => getVariantLabel(v)), qtys, mode });
       return;
     }
-    launchVariants(qtys);
+    launchVariants(qtys, mode);
   };
 
-  const launchVariants = (qtys: Record<number, number>) => {
-    if (variantQtyMode === 'existing') {
+  const launchVariants = (qtys: Record<number, number>, mode: 'new' | 'existing' = variantQtyMode) => {
+    if (mode === 'existing') {
       wizard.goToExistingEntryWithVariants(qtys);
     } else {
       wizard.goToNewEntryWithVariants(qtys);
@@ -578,7 +595,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
             onPress: () => {
               const ask = emptyVariantsAsk;
               setEmptyVariantsAsk(null);
-              if (ask) launchVariants(ask.qtys);
+              if (ask) launchVariants(ask.qtys, ask.mode);
             },
           },
         ]}

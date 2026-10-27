@@ -26,6 +26,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
+  TextInput as RNTextInput,
 } from 'react-native';
 
 // Habilita LayoutAnimation no Android
@@ -70,6 +71,9 @@ interface VariantBuilderInlineProps {
   /** Overrides de preço por variante — key: `"${color}-${size}"` */
   variantPrices: Record<string, number>;
   onVariantPriceChange: (key: string, price: number) => void;
+  /** Quantidade a lançar por variação: key cor-tamanho (sem cor ou tamanho = vazio) */
+  variantQuantities: Record<string, number>;
+  onVariantQuantitiesChange: (patch: Record<string, number>) => void;
   /** Erro de validação (ex: "Selecione pelo menos um tamanho ou cor") */
   validationError?: string;
 }
@@ -122,6 +126,8 @@ export default function VariantBuilderInline({
   costPrice,
   variantPrices,
   onVariantPriceChange,
+  variantQuantities,
+  onVariantQuantitiesChange,
   validationError,
 }: VariantBuilderInlineProps) {
   // Modal de edição em lote (por cor)
@@ -231,6 +237,23 @@ export default function VariantBuilderInline({
   const hasCustomPrice = useCallback((color: string, size: string): boolean => {
     return variantKey(normalizeColorKey(color), size) in variantPrices;
   }, [variantPrices]);
+
+  // ── Quantidades ───────────────────────────────────────────
+  const qtyKey = (color: string, size: string) => `${normalizeColorKey(color)}-${size === '—' ? '' : size}`;
+  const qtyOf = (color: string, size: string): number => variantQuantities[qtyKey(color, size)] ?? 0;
+  const parseQty = (text: string): number => {
+    const n = parseInt(text.replace(/[^0-9]/g, ''), 10);
+    return Number.isFinite(n) ? Math.min(n, 9999) : 0;
+  };
+  const setQty = (color: string, size: string, text: string) => {
+    onVariantQuantitiesChange({ [qtyKey(color, size)]: parseQty(text) });
+  };
+  const setQtyAll = (color: string, sizes: string[], text: string) => {
+    const v = parseQty(text);
+    const patch: Record<string, number> = {};
+    sizes.forEach((sz) => { patch[qtyKey(color, sz)] = v; });
+    onVariantQuantitiesChange(patch);
+  };
 
   /** Abre o modal de edição em lote para uma cor específica */
   const openBatchEdit = useCallback((color: string) => {
@@ -639,6 +662,21 @@ export default function VariantBuilderInline({
                       </ScrollView>
                     )}
 
+                    {/* Mesma quantidade em todos os tamanhos desta cor */}
+                    <View style={styles.qtyAllRow}>
+                      <Text style={styles.qtyAllLabel}>Quantidade de cada tamanho</Text>
+                      <RNTextInput
+                        style={styles.qtyAllInput}
+                        keyboardType="number-pad"
+                        placeholder="todos"
+                        placeholderTextColor={Colors.light.textTertiary}
+                        maxLength={4}
+                        returnKeyType="done"
+                        onChangeText={(t) => setQtyAll(color, sizes, t)}
+                        accessibilityLabel={`Mesma quantidade em todos os tamanhos de ${color}`}
+                      />
+                    </View>
+
                     {/* Chips de tamanho com preço */}
                     <View style={styles.variantChipsGrid}>
                       {sizes.map(size => {
@@ -661,6 +699,19 @@ export default function VariantBuilderInline({
                             <Text style={[styles.variantCardPrice, isCustom && styles.variantCardPriceCustom, isCustom && { color: brandingColors.primary }]}>
                               {price > 0 ? `R$\u00a0${price.toFixed(2).replace('.', ',')}` : '—'}
                             </Text>
+                            {/* Quantidade a lançar */}
+                            <RNTextInput
+                              style={[styles.variantCardQty, qtyOf(color, size) > 0 && { borderColor: brandingColors.primary, color: brandingColors.primary }]}
+                              value={qtyOf(color, size) > 0 ? String(qtyOf(color, size)) : ''}
+                              onChangeText={(t) => setQty(color, size, t)}
+                              keyboardType="number-pad"
+                              placeholder="Qtd"
+                              placeholderTextColor={Colors.light.textTertiary}
+                              maxLength={4}
+                              returnKeyType="done"
+                              selectTextOnFocus
+                              accessibilityLabel={`Quantidade ${color} ${size}`}
+                            />
                             {/* Indicador de preço personalizado */}
                             {isCustom && (
                               <View style={styles.variantCardCustomBadge}>
@@ -674,6 +725,27 @@ export default function VariantBuilderInline({
                   </View>
                 );
               })}
+
+              {(() => {
+                let pieces = 0;
+                let withQty = 0;
+                let total = 0;
+                (selectedColors.length > 0 ? selectedColors : ['—']).forEach((c) => {
+                  const base = c === '—' ? selectedSizes : (colorSizes[c] ?? selectedSizes);
+                  const szs = base.length > 0 ? base : ['—'];
+                  szs.forEach((sz) => {
+                    total += 1;
+                    const q = qtyOf(c, sz);
+                    if (q > 0) { withQty += 1; pieces += q; }
+                  });
+                });
+                if (pieces === 0) return null;
+                return (
+                  <Text style={styles.qtyTotal}>
+                    {pieces} {pieces === 1 ? 'peça' : 'peças'} · {withQty} de {total} variações com quantidade
+                  </Text>
+                );
+              })()}
 
               <View style={styles.tapHintRow}>
                 <Ionicons name="hand-left-outline" size={11} color={Colors.light.textTertiary} />
@@ -1336,6 +1408,17 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: Colors.light.warning,
   },
 
+  qtyAllRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 },
+  qtyAllLabel: { fontSize: 12, color: Colors.light.textSecondary, flex: 1 },
+  qtyAllInput: {
+    width: 72, height: 34, borderRadius: 10, borderWidth: 1.5, borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card, textAlign: 'center', fontSize: 14, fontWeight: '700', color: Colors.light.text, paddingVertical: 0,
+  },
+  variantCardQty: {
+    marginTop: 6, width: 56, height: 32, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.light.border,
+    backgroundColor: Colors.light.background, textAlign: 'center', fontSize: 14, fontWeight: '700', color: Colors.light.text, paddingVertical: 0,
+  },
+  qtyTotal: { marginTop: 12, fontSize: 13, fontWeight: '700', color: Colors.light.text },
   tapHintRow: {
     flexDirection: 'row',
     alignItems: 'center',
