@@ -19,7 +19,7 @@ config = context.config
 
 # Logging
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    fileConfig(config.config_file_name, disable_existing_loggers=False)  # sem isto o log do app e do uvicorn some depois da partida
 
 logger = logging.getLogger("alembic.env")
 
