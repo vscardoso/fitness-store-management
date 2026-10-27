@@ -343,6 +343,8 @@ async def signup(
         HTTPException 400: Se email/slug já existir ou dados inválidos
         HTTPException 500: Se erro na transação
     """
+    # robô criando lojas em série: 5 cadastros por hora por IP
+    rate_limit.enforce((f"signup:ip:{rate_limit.client_ip(request)}", 5, 3600), what="tentativas de cadastro")
     signup_service = SignupService(db)
     
     try:
@@ -372,6 +374,7 @@ async def signup(
 )
 async def check_email(
     request: CheckEmailRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_db_unscoped)
 ):
     """
@@ -385,6 +388,8 @@ async def check_email(
     Returns:
         CheckEmailResponse: available (bool) + message
     """
+    # responde se o e-mail tem conta: sem limite, serviria para varrer e-mails cadastrados
+    rate_limit.enforce((f"check:ip:{rate_limit.client_ip(http_request)}", 30, 600), what="consultas")
     signup_service = SignupService(db)
     
     available, message = await signup_service.check_email_available(request.email)
@@ -403,6 +408,7 @@ async def check_email(
 )
 async def check_slug(
     request: CheckSlugRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_db_unscoped)
 ):
     """
@@ -416,6 +422,7 @@ async def check_slug(
     Returns:
         CheckSlugResponse: available (bool) + suggested_slug + message
     """
+    rate_limit.enforce((f"check:ip:{rate_limit.client_ip(http_request)}", 30, 600), what="consultas")
     signup_service = SignupService(db)
 
     available, suggested_slug, message = await signup_service.check_slug_available(request.slug)
@@ -434,6 +441,7 @@ async def check_slug(
 )
 async def forgot_password(
     request: dict,
+    http_request: Request,
     db: AsyncSession = Depends(get_db_unscoped)
 ):
     """
@@ -444,6 +452,12 @@ async def forgot_password(
     redefinição, a senha é trocada pelo admin da loja (Equipe > redefinir senha) ou pelo suporte.
     A resposta é sempre a mesma, exista o e-mail ou não (não revela quem tem conta).
     """
+    _email_key = str((request or {}).get("email", "")).strip().lower()
+    rate_limit.enforce(
+        (f"forgot:ip:{rate_limit.client_ip(http_request)}", 5, 900),
+        (f"forgot:email:{_email_key}", 3, 3600),
+        what="pedidos de nova senha",
+    )
     email = str((request or {}).get("email", "")).strip().lower()
     if not email:
         raise HTTPException(

@@ -348,3 +348,11 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 - **Carga de teste** (`backend/scripts/estresse_loja_teste.py`): cria produtos de todos os tipos, entradas, fornecedores e reposições na LOJA 1 (conta teste, marca "Estresse Lab", entradas com nota "ESTRESSE"; a loja 2 é a real, nunca tocar). Rodar dentro do container: `docker exec -w /app -e PYTHONPATH=/app -e REUSE=1 -e BASE_URL=https://api.provadorfit.com.br/api/v1 provador-backend python -u /tmp/estresse_loja_teste.py N`. Usar a URL pública para a guarda de publicação enxergar as gravações; pelo localhost ela fica cega e outro deploy reinicia o backend no meio (aconteceu 3 vezes).
 - **Bugs achados pela carga e corrigidos**: variação sem SKU deixava a lista de produtos da loja inteira em erro 500 (agora gera SKU e a lista pula produto defeituoso); entrada sem data/tipo dava 400 genérico (assume hoje/local); categoria repetida e valor grande demais davam 500 (agora 409 e 422).
 - **Fallbacks**: IA com 14 s por modelo Gemini, Groq como reserva (`GROQ_API_KEY` só no `.env.prod` do VPS e no compose de lá), GET do app repete 1 vez em rede/502/503/504.
+
+## Limite de tentativas (item 2.3, 2026-10-27)
+
+- `app/core/rate_limit.py`: além do login (só falhas), `hit()`/`enforce()` contam TODA chamada numa janela, em memória do processo (um processo no VPS; se escalar, trocar por Redis). Estourou: 429, frase em português ("Muitas ... em pouco tempo. Tente de novo em X minutos.") e `Retry-After`.
+- Limites: `POST /auth/signup` 5/h por IP; `POST /auth/forgot-password` 5 a cada 15 min por IP e 3/h por e-mail; `POST /auth/check-email` e `/check-slug` 30 a cada 10 min por IP (somados; o de e-mail revela se tem conta); `POST /ai/scan-product` 15 a cada 10 min por usuário e 60/dia por loja (cota da IA).
+- `tests/conftest.py` zera os contadores a cada teste (`_zera_limites_de_tentativas`). Testes: `tests/test_limites_de_tentativas.py` (4 falham com o limite desligado). O app não repete 429 e mostra a frase do servidor.
+- Verificado também (pedido do Victor): lucro do carrinho do PDV com itens aparece para gerente/admin ("Lucro estimado R$ 144,80 (69,0%)") e não aparece para vendedora, no navegador e em iPhone EMULADO (Playwright "iPhone 13"); aparelho físico NÃO testado.
+

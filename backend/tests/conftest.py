@@ -19,6 +19,14 @@ from app.core.security import create_access_token
 TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
 
 
+@pytest.fixture(autouse=True)
+def _zera_limites_de_tentativas():
+    """Os limites de tentativas ficam em memória; cada teste começa do zero (todos vêm do mesmo IP)."""
+    from app.core import rate_limit
+    rate_limit.reset_all()
+    yield
+
+
 @pytest.fixture(scope="session")
 def event_loop() -> Generator:
     """Cria event loop para testes assíncronos"""

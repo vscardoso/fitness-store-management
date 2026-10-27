@@ -73,3 +73,47 @@ def reset_all() -> None:
     """Uso em testes."""
     with _lock:
         _failures.clear()
+        _hits.clear()
+
+
+# ─── Limite geral por janela (cadastro, esqueci a senha, scanner de IA) ───────
+# Diferente do login (que conta só falhas), aqui toda chamada conta. Mesmo armazenamento em memória.
+
+_hits: Dict[str, Deque[float]] = defaultdict(deque)
+
+
+def hit(key: str, limit: int, window_seconds: int) -> Optional[int]:
+    """Registra uma chamada. Devolve os segundos de espera se o limite estourou (e não registra), senão None."""
+    now = time.time()
+    with _lock:
+        q = _hits[key]
+        while q and now - q[0] > window_seconds:
+            q.popleft()
+        if len(q) >= limit:
+            return int(window_seconds - (now - q[0])) + 1
+        q.append(now)
+        return None
+
+
+def _wait_text(seconds: int) -> str:
+    if seconds < 90:
+        return "1 minuto"
+    minutes = (seconds + 59) // 60
+    if minutes < 90:
+        return f"{minutes} minutos"
+    hours = (minutes + 59) // 60
+    return f"{hours} horas"
+
+
+def enforce(*checks: tuple[str, int, int], what: str = "tentativas") -> None:
+    """Cada check é (chave, limite, janela em segundos). Estourou algum: 429 com Retry-After e frase clara."""
+    from fastapi import HTTPException, status
+
+    for key, limit, window in checks:
+        wait = hit(key, limit, window)
+        if wait is not None:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Muitas {what} em pouco tempo. Tente de novo em {_wait_text(wait)}.",
+                headers={"Retry-After": str(wait)},
+            )
