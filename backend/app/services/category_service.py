@@ -54,7 +54,8 @@ class CategoryService:
     ) -> Category:
         # Validar categoria pai
         if data.parent_id is not None:
-            parent = await self.category_repo.get(self.db, data.parent_id)
+            # só categoria-mãe da própria loja
+            parent = await self.category_repo.get(self.db, data.parent_id, tenant_id=tenant_id)
             if not parent:
                 raise ValueError(f"Categoria pai com ID {data.parent_id} não encontrada")
 
@@ -81,8 +82,11 @@ class CategoryService:
         self,
         category_id: int,
         data: CategoryUpdate,
+        *,
+        tenant_id: int,
     ) -> Category:
-        category = await self.category_repo.get(self.db, category_id)
+        # sem a loja, um gerente de outra loja renomeava a categoria pelo número
+        category = await self.category_repo.get(self.db, category_id, tenant_id=tenant_id)
         if not category:
             raise LookupError(f"Categoria com ID {category_id} não encontrada")
 
@@ -92,7 +96,7 @@ class CategoryService:
             if update_dict["parent_id"] == category_id:
                 raise ValueError("Categoria não pode ser pai dela mesma")
 
-            parent = await self.category_repo.get(self.db, update_dict["parent_id"])
+            parent = await self.category_repo.get(self.db, update_dict["parent_id"], tenant_id=tenant_id)
             if not parent:
                 raise ValueError(
                     f"Categoria pai com ID {update_dict['parent_id']} não encontrada"
@@ -109,8 +113,8 @@ class CategoryService:
     # Exclusão
     # -------------------------------------------------------------------------
 
-    async def delete_category(self, category_id: int) -> None:
-        category = await self.category_repo.get(self.db, category_id)
+    async def delete_category(self, category_id: int, *, tenant_id: int) -> None:
+        category = await self.category_repo.get(self.db, category_id, tenant_id=tenant_id)
         if not category:
             raise LookupError(f"Categoria com ID {category_id} não encontrada")
 

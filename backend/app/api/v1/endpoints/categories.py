@@ -131,7 +131,7 @@ async def update_category(
     current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
 ):
     try:
-        return await service.update_category(category_id, category_data)
+        return await service.update_category(category_id, category_data, tenant_id=current_user.tenant_id)
     except LookupError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
@@ -158,7 +158,7 @@ async def delete_category(
     current_user: User = Depends(require_role([UserRole.ADMIN])),
 ):
     try:
-        await service.delete_category(category_id)
+        await service.delete_category(category_id, tenant_id=current_user.tenant_id)
     except LookupError as e:
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
