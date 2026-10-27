@@ -72,3 +72,15 @@ Regras: só na loja 1, nunca com deploy em andamento (conferir `git log origin/m
 2. Fase 3 (índices e trigram): ganho grande com risco baixo.
 3. Fase 5 (2 workers), depois de resolver o agendador.
 4. Fase 2 itens 4 e 5, Fase 4 e Fase 6 em rotina.
+
+## Andamento (2026-10-27)
+| Fase | Estado |
+|---|---|
+| 1. Guardrails | Feita em parte: `tests/test_orcamento_consultas.py` (orçamento de consultas por rota, detector de N+1, 10 rotas). Falta o vigia diário do `/perf` e rodar o orçamento no CI. |
+| 2. N+1 | Feitos: lista de produtos em lote (3 consultas, antes 4 por produto), fornecedores do produto só do produto. Faltam: `GET /suppliers` (11 consultas, ~500 ms), `has_stock`, `low-stock`, entradas com vários itens. |
+| 3. Banco | Feita: migração `20261103_indices_desempenho` (índices por loja e trigrama `pg_trgm`). O banco já respondia em poucos ms; o ganho aparece com a loja maior. |
+| 4. Cache | Não iniciada. |
+| 5. Infra | Feita: 2 workers com líder por bloqueio do Postgres (agendador só no líder). Falta o limite de memória 1,5 GB (hoje 330 MB com 2 workers, não é gargalo) e trocar o limitador em memória por um compartilhado. |
+| 6. Carga | `scripts/carga_degraus.py`. Com 2 workers, 40 usuários simultâneos: 17,4 req/s (era 12,4), mediana 1,5 s (era 2,4 s), 0 erro, sem queda. |
+
+Descoberta: o servidor passou de 12 para 17 req/s e não para 24 porque Postgres, nginx, n8n e WAHA dividem os 2 CPUs. O que ainda pesa é o CPU do Python por pedido (lista de 50 produtos = 83 ms): validação do Pydantic duas vezes e JSON de ~130 KB. Próximo ganho: resposta menor na lista (campos que a tela usa) e uma validação só.
