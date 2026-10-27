@@ -22,6 +22,7 @@ import { Text } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter, useLocalSearchParams, useNavigation, useFocusEffect } from 'expo-router';
+import { trailMark, trailReport } from '@/utils/navTrail';
 import { clearWizardCompleted, markWizardCompleted, wasWizardJustCompleted } from '@/utils/wizardGuard';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -223,6 +224,7 @@ export default function ProductWizardScreen() {
         return;
       }
       if (wasWizardJustCompleted() && !params.returnFromEntry && state.currentStep !== 'complete') {
+        trailReport(`trava: passo antigo do assistente (${state.currentStep}) reapareceu depois do cadastro concluído; indo para o início`);
         wizard.resetWizard();
         router.replace('/(tabs)' as any);
       }
@@ -232,6 +234,7 @@ export default function ProductWizardScreen() {
   const leaveSummary = useCallback(() => {
     // A marca de "cadastro concluído" fica: no navegador o histórico ainda volta para telas antigas (passo 3) e elas
     // se fecham sozinhas lendo essa marca. Ela só some quando se abre um cadastro novo.
+    trailReport('voltar no resumo (gesto/botão/navegador): indo para o início');
     wizard.resetWizard();
     router.replace('/(tabs)' as any);
   }, [wizard]);
@@ -240,7 +243,10 @@ export default function ProductWizardScreen() {
   // recria a tela num passo antigo, sempre com os dados desse passo na rota). Tela aberta de novo "do zero"
   // (menu, botão Novo produto) é outro cadastro e segue normal.
   useEffect(() => {
-    if (state.currentStep === 'complete') markWizardCompleted();
+    if (state.currentStep === 'complete') {
+      markWizardCompleted();
+      trailMark('resumo exibido');
+    }
   }, [state.currentStep]);
 
   useEffect(() => {

@@ -285,3 +285,22 @@ async def test_variacao_nova_sem_cor_e_sem_tamanho_e_recusada(test_client, async
         "supplier_name": "Fornecedor Teste",
         "items": [{"product_id": 1, "quantity_received": 1, "unit_cost": "10.00", "new_variant": {}}]})
     assert r.status_code == 422
+
+
+async def test_trilha_de_navegacao_do_app_fica_gravada_em_nivel_info(test_client, async_session, test_user):
+    """O app manda a trilha das últimas telas/gestos quando uma trava de navegação age (depuração do voltar do iPhone)."""
+    from app.models.error_log import ErrorLog
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    trilha = [{"t": 10, "e": "rota", "d": {"p": "/products/wizard"}}, {"t": 900, "e": "popstate"},
+              {"t": 905, "e": "trava: entrada (passo 3) reaberta depois do cadastro concluído; indo para o início"}]
+    r = await test_client.post("/api/v1/client-logs", headers=h, json={
+        "message": "Navegação: trava de teste", "level": "info", "route": "/entries/add",
+        "context": {"trilha": trilha, "plataforma": "web"}})
+    assert r.status_code == 202, r.text
+    lista = (await test_client.get("/api/v1/error-logs?source=app&limit=5", headers=h)).json()
+    achado = next(x for x in lista if x["mensagem"] == "Navegação: trava de teste")
+    assert achado["nivel"] == "info" and achado["rota"] == "/entries/add"
+    assert "popstate" in (achado["detalhe"] or "") and "trava: entrada" in (achado["detalhe"] or "")
+    await async_session.execute(ErrorLog.__table__.delete().where(ErrorLog.source == "app"))
+    await async_session.commit()

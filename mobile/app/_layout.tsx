@@ -33,6 +33,7 @@ import { setForceLogoutCallback, setInvalidateQueriesCallback } from '@/services
 import GlobalConfirmModalHost, { installGlobalAlertOverride } from '@/components/ui/GlobalConfirmModal';
 import UpdateBanner from '@/components/layout/UpdateBanner';
 import { saveLastRoute } from '@/utils/lastRoute';
+import { startHistoryTrail, trailRoute } from '@/utils/navTrail';
 import { startQueryPersist } from '@/utils/queryPersist';
 import { LegalGate } from '@/components/legal/LegalGate';
 import { registerQueryClient } from '@/utils/queryCache';
@@ -93,6 +94,9 @@ export default function RootLayout() {
   const searchParams = useGlobalSearchParams();
   // Guarda os dados das telas principais no aparelho para o app abrir já com eles (os novos chegam por trás)
   useEffect(() => startQueryPersist(queryClient, () => useAuthStore.getState().user?.id), []);
+  // Trilha de navegação (telas e gestos de voltar) para achar o que aconteceu quando algo sai errado
+  useEffect(() => startHistoryTrail(), []);
+  useEffect(() => trailRoute(pathname), [pathname]);
   // Guarda a tela atual: se o app recarregar ou o iPhone fechá-lo, volta para onde estava
   useEffect(() => {
     const qs = Object.entries(searchParams)

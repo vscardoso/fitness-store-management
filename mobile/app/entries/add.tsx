@@ -31,6 +31,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { markWizardCompleted, wasWizardJustCompleted } from '@/utils/wizardGuard';
+import { trailMark, trailReport } from '@/utils/navTrail';
 import { parseApiError } from '@/utils/apiError';
 import { useFocusEffect } from '@react-navigation/native';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
@@ -223,7 +224,10 @@ export default function AddStockEntryScreen() {
   // Cadastro já concluído: esta tela (passo 3) não pode reaparecer ao voltar (gesto do iPhone/navegador)
   useFocusEffect(
     useCallback(() => {
-      if (isFromWizard && wasWizardJustCompleted()) router.replace('/(tabs)' as any);
+      if (isFromWizard && wasWizardJustCompleted()) {
+        trailReport('trava: entrada (passo 3) reaberta depois do cadastro concluído; indo para o início');
+        router.replace('/(tabs)' as any);
+      }
     }, [isFromWizard, router])
   );
 
@@ -2346,6 +2350,7 @@ export default function AddStockEntryScreen() {
           setShowSuccessDialog(false);
           if (isFromWizard && createdEntryId) {
             markWizardCompleted();
+            trailMark('cadastro concluído (entrada nova); abrindo o resumo');
             const totalQty = items.reduce((sum, i) => sum + i.quantity_received, 0);
             let productData: string | undefined;
             if (params.wizardMode === 'atomic-variants' && params.wizardAtomicVariantsData) {

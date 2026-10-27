@@ -44,6 +44,7 @@ import useBackToList from '@/hooks/useBackToList';
 import { getStockEntries, getStockEntriesStats, addItemToEntry, addNewProductToEntry, getStockEntryById } from '@/services/stockEntryService';
 import { takePendingProductImage } from '@/services/pendingProductImage';
 import { markWizardCompleted, wasWizardJustCompleted } from '@/utils/wizardGuard';
+import { trailMark, trailReport } from '@/utils/navTrail';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
@@ -321,7 +322,10 @@ export default function StockEntriesScreen() {
   // senão o mesmo produto seria lançado de novo
   useFocusEffect(
     useCallback(() => {
-      if (isFromWizard && wasWizardJustCompleted()) router.replace('/(tabs)' as any);
+      if (isFromWizard && wasWizardJustCompleted()) {
+        trailReport('trava: lista de Entradas (Vincular Produto) reaberta depois do cadastro concluído; indo para o início');
+        router.replace('/(tabs)' as any);
+      }
     }, [isFromWizard, router])
   );
 
@@ -932,6 +936,7 @@ export default function StockEntriesScreen() {
             setShowSuccessDialog(false);
             if (isFromWizard && selectedEntry) {
               markWizardCompleted();
+              trailMark('cadastro concluído (entrada existente); abrindo o resumo');
               // Retornar ao wizard com dados da entrada vinculada E do produto
               router.replace({
                 pathname: '/products/wizard',
