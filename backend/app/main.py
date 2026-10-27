@@ -212,6 +212,10 @@ from app.core.perf_trace import PerfMiddleware, attach_db_timing
 attach_db_timing()
 app.add_middleware(PerfMiddleware)
 
+# Custo, lucro e margem escondidos das respostas para caixa e vendedor (item 2.2)
+from app.core.cost_mask import CostMaskMiddleware
+app.add_middleware(CostMaskMiddleware)
+
 
 # Request Logging Middleware
 @app.middleware("http")

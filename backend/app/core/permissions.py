@@ -149,10 +149,12 @@ def _make_dependency(by_method: dict[str, UserRole]):
         request: Request,
         current_user: User = Depends(deps.get_current_active_user),
     ) -> None:
+        role = current_user.role if isinstance(current_user.role, UserRole) else UserRole(str(current_user.role).lower())
+        # cost_mask.CostMaskMiddleware esconde custo/lucro/margem da resposta para caixa e vendedor
+        request.state.user_role = role.value
         need = by_method.get(request.method)
         if need is None:
             return
-        role = current_user.role if isinstance(current_user.role, UserRole) else UserRole(str(current_user.role).lower())
         if RANK[role] < RANK[need]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

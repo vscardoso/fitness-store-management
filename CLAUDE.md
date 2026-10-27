@@ -333,3 +333,9 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 - App: cartão "Privacidade (LGPD)" na ficha do cliente (`components/customers/CustomerPrivacyCard.tsx`): exportar baixa o JSON (web) ou compartilha (celular, NÃO testado em aparelho); "Quem acessou" e "Anonimizar" (digitar ANONIMIZAR, erro dentro do formulário) só para admin. Teste no navegador: 15/15. Testes do servidor: `tests/test_lgpd_cliente.py`.
 - Falta do item 2.1: revisão jurídica do texto e dados da empresa nos termos; contato do encarregado.
 
+## Custo escondido para caixa e vendedor (item 2.2, 2026-10-27)
+
+- `app/core/cost_mask.py` (`CostMaskMiddleware`, registrado em `main.py`): para papel caixa ou vendedor, toda chave de custo/lucro/margem (`cost`, `profit`, `margin`, `cmv`, `roi`, `markup`, `investment` como palavra inteira entre `_`, ex.: `cost_price`, `unit_cost`, `total_profit`, `margin_percent`, `average_unit_cost`) vira `null` em QUALQUER resposta JSON, em qualquer profundidade (inclui `sale_sources`/`fifo_sources`). Exceção: `installments_cost`. O papel vem de `request.state.user_role`, gravado pela matriz de permissões (`permissions.permission_matrix`). Campo novo com custo e outro nome precisa seguir o padrão do nome ou entrar na regex.
+- App: o PDV só pede `/products/fifo-costs` (lucro do carrinho) para gerente/admin; detalhe da venda e produto já escondiam o bloco quando o valor vem nulo.
+- Testes: `tests/test_custo_por_papel.py` (falha com o middleware desligado). Navegador: vendedora em produto, venda, condicional e PDV sem custo na tela nem na API; admin continua vendo (10/10).
+

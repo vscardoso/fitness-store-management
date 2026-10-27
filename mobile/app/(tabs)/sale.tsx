@@ -22,6 +22,7 @@ import { haptics } from '@/utils/haptics';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useAuth } from '@/hooks/useAuth';
+import { isManagerRole } from '@/utils/roles';
 import { useCart } from '@/hooks/useCart';
 import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
 import { getCustomerById } from '@/services/customerService';
@@ -108,7 +109,8 @@ export default function SaleScreen() {
   const { data: fifoCosts } = useQuery({
     queryKey: ['fifo-costs', cartProductIds],
     queryFn: () => getFIFOCosts(cartProductIds),
-    enabled: cartProductIds.length > 0,
+    // custo e lucro só para gerente/admin (o servidor recusa e esconde custo para caixa e vendedor)
+    enabled: cartProductIds.length > 0 && isManagerRole(user?.role),
     staleTime: 30000,
   });
 
