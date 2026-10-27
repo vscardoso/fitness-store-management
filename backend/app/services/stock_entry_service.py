@@ -1809,6 +1809,22 @@ class StockEntryService:
             await self.db.rollback()
             raise
 
+    async def _fill_missing_skus(self, product_id: int, variants_data: list, tenant_id: int) -> None:
+        """Variação sem SKU (cliente da API que não manda) recebe um: P{id}-COR-TAM-001, sempre livre. O app já manda o seu."""
+        import re
+        import unicodedata
+
+        def part(text_):
+            t = unicodedata.normalize("NFD", text_ or "")
+            return re.sub(r"[^A-Za-z0-9]", "", re.sub(r"[̀-ͯ]", "", t)).upper()[:3]
+
+        faltam = [v for v in variants_data if not (v.get("sku") or "").strip()]
+        if not faltam:
+            return
+        base = ["-".join(x for x in (f"P{product_id}", part(v.get("color")), part(v.get("size")), "001") if x) for v in faltam]
+        for v, sku in zip(faltam, await self._resolve_free_skus(base, tenant_id)):
+            v["sku"] = sku
+
     async def _get_or_create_variant(self, product, color, size, *, price, cost, sku, tenant_id: int):
         """
         Devolve (variação, criada) da combinação cor/tamanho do produto: reaproveita a que existe (reativando se
@@ -2145,8 +2161,8 @@ class StockEntryService:
             unique_code = await self._generate_unique_entry_code(entry_data['entry_code'], tenant_id=tenant_id)
             entry_dict = StockEntryCreate(
                 entry_code=unique_code,
-                entry_date=entry_data.get('entry_date'),
-                entry_type=entry_data.get('entry_type'),
+                entry_date=entry_data.get('entry_date') or today_brazil(),  # sem data: hoje (o app sempre manda; cliente da API pode esquecer)
+                entry_type=entry_data.get('entry_type') or 'local',
                 trip_id=entry_data.get('trip_id'),
                 supplier_id=default_supplier.id,
                 supplier_name=default_supplier.name,
@@ -2301,6 +2317,7 @@ class StockEntryService:
             # Criar produto pai
             product = await product_repo.create(product_dict, tenant_id=tenant_id)
             await self.db.flush()
+            await self._fill_missing_skus(product.id, variants_data, tenant_id)
             
             # 2. Criar variantes
             created_variants = []
@@ -2323,8 +2340,8 @@ class StockEntryService:
             unique_code = await self._generate_unique_entry_code(entry_data['entry_code'], tenant_id=tenant_id)
             entry_dict = StockEntryCreate(
                 entry_code=unique_code,
-                entry_date=entry_data.get('entry_date'),
-                entry_type=entry_data.get('entry_type'),
+                entry_date=entry_data.get('entry_date') or today_brazil(),  # sem data: hoje (o app sempre manda; cliente da API pode esquecer)
+                entry_type=entry_data.get('entry_type') or 'local',
                 trip_id=entry_data.get('trip_id'),
                 supplier_id=default_supplier.id,
                 supplier_name=default_supplier.name,
@@ -2465,6 +2482,7 @@ class StockEntryService:
                 'is_active': True,
             }, tenant_id=tenant_id)
             await self.db.flush()
+            await self._fill_missing_skus(product.id, variants_data, tenant_id)
 
             if supplier_id or supplier_name:
                 chosen = await self._resolve_supplier(supplier_id, supplier_name, None, None, tenant_id)

@@ -168,6 +168,23 @@ async def enrich_product_with_stock(product, inventory_repo: InventoryRepository
     return product
 
 
+async def _build_response_safe(product, db, inventory_repo, tenant_id):
+    """Monta a resposta de UM produto; se ele estiver com dado estranho, registra e pula, em vez de derrubar a lista inteira
+    (um produto ruim antes causava erro 500 na lista de toda a loja)."""
+    try:
+        resp = await build_product_response(product, db, inventory_repo, tenant_id)
+        ProductResponse.model_validate(resp)
+        return resp
+    except Exception as e:  # noqa: BLE001
+        try:
+            from app.services.error_log_service import record_error
+            await record_error(message=f"Produto {getattr(product, 'id', '?')} fora do formato na lista; pulado: {str(e)[:200]}",
+                               level="warning", source="api", error_type="produto_invalido", tenant_id=tenant_id)
+        except Exception:  # noqa: BLE001
+            pass
+        return None
+
+
 @router.get(
     "/",
     response_model=List[ProductResponse],
@@ -250,8 +267,9 @@ async def list_products(
             # 3. Construir responses completos
             responses = []
             for product in products:
-                resp = await build_product_response(product, db, inventory_repo, tenant_id)
-                responses.append(resp)
+                resp = await _build_response_safe(product, db, inventory_repo, tenant_id)
+                if resp is not None:
+                    responses.append(resp)
             return responses
 
         # LÓGICA ORIGINAL: Listar todos os produtos (sem filtro de estoque)
@@ -268,8 +286,9 @@ async def list_products(
         # Construir responses — mostrar todos os produtos do tenant (incluindo sem estoque)
         responses = []
         for product in products:
-            resp = await build_product_response(product, db, inventory_repo, tenant_id)
-            responses.append(resp)
+            resp = await _build_response_safe(product, db, inventory_repo, tenant_id)
+            if resp is not None:
+                responses.append(resp)
         return responses
         
     except Exception as e:
@@ -399,8 +418,9 @@ async def list_active_products(
         inventory_repo = InventoryRepository(db)
         responses = []
         for product in products:
-            resp = await build_product_response(product, db, inventory_repo, tenant_id)
-            responses.append(resp)
+            resp = await _build_response_safe(product, db, inventory_repo, tenant_id)
+            if resp is not None:
+                responses.append(resp)
         return responses
 
     except Exception as e:

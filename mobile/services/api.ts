@@ -249,8 +249,22 @@ api.interceptors.response.use(
     if (!skipLoading) {
       loadingManager.hide();
     }
-    const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
-    
+    const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean; _retryRead?: boolean };
+
+    // Leitura (GET) que falhou por rede ou 502/503/504 (servidor reiniciando, sinal fraco): tenta de novo uma vez.
+    // Só GET: repetir gravação poderia duplicar venda ou entrada.
+    if (
+      originalRequest &&
+      String(originalRequest.method).toLowerCase() === 'get' &&
+      !originalRequest._retryRead &&
+      error.code !== 'ERR_CANCELED' &&
+      (!error.response || [502, 503, 504].includes(error.response.status))
+    ) {
+      originalRequest._retryRead = true;
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      return api(originalRequest);
+    }
+
     // Log resumido em desenvolvimento
     if (__DEV__) {
       const method = error.config?.method?.toUpperCase();

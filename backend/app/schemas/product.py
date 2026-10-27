@@ -134,6 +134,7 @@ class ProductVariantMinimalResponse(BaseModel):
 
 class ProductResponse(ProductBase):
     """Schema for product response."""
+    sku: Optional[str] = None  # produto sem variação ativa/SKU não pode derrubar a lista inteira com erro 500
     id: int
     is_active: bool
     is_catalog: bool

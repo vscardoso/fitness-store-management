@@ -304,3 +304,49 @@ async def test_trilha_de_navegacao_do_app_fica_gravada_em_nivel_info(test_client
     assert "popstate" in (achado["detalhe"] or "") and "trava: entrada" in (achado["detalhe"] or "")
     await async_session.execute(ErrorLog.__table__.delete().where(ErrorLog.source == "app"))
     await async_session.commit()
+
+
+async def test_produto_sem_sku_recebe_um_e_a_lista_de_produtos_continua_abrindo(test_client, async_session, test_user):
+    """Cliente da API que não manda SKU: a variação ganha um e a lista de produtos da loja não dá erro 500."""
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    corpo = {"product_name": "Legging Sem Sku", "product_category_id": cat, "base_price": 99.9,
+             "variants": [{"size": "M", "color": "Preto", "price": 99.9, "cost_price": 40, "quantity": 2},
+                          {"size": "G", "color": "Preto", "price": 99.9, "cost_price": 40, "quantity": 1}],
+             "supplier_name": "Forn Sem Sku", "entry_code": "SEMSKU-001", "entry_type": "local"}
+    r = await test_client.post("/api/v1/stock-entries/with-new-product-variants", headers=h, json=corpo)
+    assert r.status_code == 201, r.text
+    entry_id = r.json()["id"]
+    outro = {"product_name": "Top Sem Sku", "product_category_id": cat, "base_price": 59.9,
+             "variants": [{"price": 59.9, "cost_price": 20, "quantity": 3}]}
+    r = await test_client.post(f"/api/v1/stock-entries/{entry_id}/with-new-product", headers=h, json=outro)
+    assert r.status_code == 201, r.text
+    lista = await test_client.get("/api/v1/products?limit=1000", headers=h)
+    assert lista.status_code == 200, lista.text
+    meus = [p for p in lista.json() if p["name"] in ("Legging Sem Sku", "Top Sem Sku")]
+    assert len(meus) == 2 and all(p["sku"] for p in meus), [(p["name"], p["sku"], len(p.get("variants") or [])) for p in meus]
+
+
+async def test_um_produto_com_defeito_nao_derruba_a_lista_de_produtos(test_client, async_session, test_user, monkeypatch):
+    """Fallback: se um produto não monta a resposta, a lista segue com os outros e o defeito vai para o registro."""
+    from app.api.v1.endpoints import products as ep
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    for nome in ("Defeituoso Alfa", "Saudavel Beta"):
+        r = await test_client.post("/api/v1/stock-entries/with-new-product-variants", headers=h, json={
+            "product_name": nome, "product_category_id": cat, "base_price": 50, "supplier_name": "Forn X",
+            "variants": [{"sku": f"FB-{nome[:3].upper()}", "price": 50, "cost_price": 20, "quantity": 1}],
+            "entry_code": f"FALLB-{nome[:3].upper()}", "entry_type": "local", "entry_date": "2026-10-01"})
+        assert r.status_code == 201, r.text
+    original = ep.build_product_response
+
+    async def quebra_um(product, *a, **kw):
+        if product.name == "Defeituoso Alfa":
+            raise ValueError("dado estranho")
+        return await original(product, *a, **kw)
+
+    monkeypatch.setattr(ep, "build_product_response", quebra_um)
+    lista = await test_client.get("/api/v1/products?limit=1000", headers=h)
+    assert lista.status_code == 200, lista.text
+    nomes = [p["name"] for p in lista.json()]
+    assert "Saudavel Beta" in nomes and "Defeituoso Alfa" not in nomes
