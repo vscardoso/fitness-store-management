@@ -43,6 +43,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import useBackToList from '@/hooks/useBackToList';
 import { getStockEntries, getStockEntriesStats, addItemToEntry, addNewProductToEntry, getStockEntryById } from '@/services/stockEntryService';
 import { takePendingProductImage } from '@/services/pendingProductImage';
+import { markWizardCompleted, wasWizardJustCompleted } from '@/utils/wizardGuard';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
@@ -315,6 +316,14 @@ export default function StockEntriesScreen() {
     refetchStats();
     refetch();
   }, [params.deleteSuccessMessage, params.deleteSuccessNonce, refetch, refetchStats]);
+
+  // Cadastro de produto já concluído: o modo "Vincular Produto" não pode reaparecer ao voltar (gesto do iPhone),
+  // senão o mesmo produto seria lançado de novo
+  useFocusEffect(
+    useCallback(() => {
+      if (isFromWizard && wasWizardJustCompleted()) router.replace('/(tabs)' as any);
+    }, [isFromWizard, router])
+  );
 
   /**
    * Auto-refresh ao focar na tela
@@ -922,6 +931,7 @@ export default function StockEntriesScreen() {
           onConfirm={() => {
             setShowSuccessDialog(false);
             if (isFromWizard && selectedEntry) {
+              markWizardCompleted();
               // Retornar ao wizard com dados da entrada vinculada E do produto
               router.replace({
                 pathname: '/products/wizard',
