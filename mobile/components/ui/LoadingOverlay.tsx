@@ -1,8 +1,8 @@
 /**
  * LoadingOverlay: carregamento global do app.
  *
- * Mostra a lupa animada (MagnifierLoader) num cartão claro, SEM escurecer a tela.
- * Uma camada transparente bloqueia toques enquanto carrega (evita toque duplo em gravações).
+ * Mostra a lupa animada (MagnifierLoader) num cartão claro sobre um véu branco translúcido: a tela fica
+ * esbranquiçada, mas ainda se enxerga o que está por baixo. O véu também bloqueia toques enquanto carrega (evita toque duplo em gravações).
  * Assinatura do loadingManager (show/hide com mensagem e aviso de demora) preservada.
  */
 
@@ -64,6 +64,10 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
     }
   }, [shouldShow, mounted, cardOpacity, cardScale]);
 
+  const veilStyle = useAnimatedStyle(() => ({
+    opacity: cardOpacity.value,
+  }));
+
   const cardStyle = useAnimatedStyle(() => ({
     opacity: cardOpacity.value,
     transform: [{ scale: cardScale.value }],
@@ -73,8 +77,9 @@ export function LoadingOverlay({ visible, message }: LoadingOverlayProps) {
 
   return (
     <Portal>
-      {/* Camada transparente: bloqueia toques, não escurece */}
+      {/* Véu branco translúcido: esbranquiça a tela sem esconder o conteúdo e bloqueia toques */}
       <View style={styles.blocker} pointerEvents="auto">
+        <Animated.View style={[StyleSheet.absoluteFillObject, styles.veil, veilStyle]} pointerEvents="none" />
         <Animated.View style={[styles.card, cardStyle]}>
           <MagnifierLoader size={44} />
           {displayMessage ? (
@@ -102,6 +107,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'transparent',
     zIndex: 9999,
     elevation: 9999,
+  },
+  veil: {
+    backgroundColor: 'rgba(255, 255, 255, 0.62)',
   },
   card: {
     minWidth: 96,
