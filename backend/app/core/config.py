@@ -129,6 +129,11 @@ class Settings(BaseSettings):
     # Modelos tentados em ordem quando o principal estoura a cota (cota grátis é por modelo)
     GEMINI_FALLBACK_MODELS: str = "gemini-3.8-flash,gemini-3.1-flash-lite,gemini-3.7-flash,gemini-3-flash-preview"
 
+    # Groq (plano grátis, ~1000 pedidos/dia): primeira reserva quando os modelos Gemini falham
+    GROQ_API_KEY: str = ""
+    GROQ_MODEL: str = "qwen/qwen3.8-27b"
+    GROQ_BASE_URL: str = "https://api.groq.com/openai/v1"
+
     # OpenAI (fallback)
     # Z.ai (GLM com visão, plano grátis): reserva quando todos os modelos Gemini estouram a cota
     ZAI_API_KEY: str = ""

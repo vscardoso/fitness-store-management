@@ -24,6 +24,7 @@ from app.api.v1.endpoints import (
     legal,
     labels,
     error_logs,
+    perf,
     auth,
     audit,
     mp_connect,
@@ -222,6 +223,7 @@ api_router.include_router(audit.router)
 
 # Registro de erros (admin lê; o app envia erros)
 api_router.include_router(error_logs.router)
+api_router.include_router(perf.router)
 
 # Termos de Uso e Política de Privacidade (versão pública, situação e aceite)
 api_router.include_router(legal.router)

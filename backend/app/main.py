@@ -207,6 +207,12 @@ if not settings.DEBUG:
     )
 
 
+# Medição de tempo por rota (em memória, sem arquivo): GET /api/v1/perf
+from app.core.perf_trace import PerfMiddleware, attach_db_timing
+attach_db_timing()
+app.add_middleware(PerfMiddleware)
+
+
 # Request Logging Middleware
 @app.middleware("http")
 async def log_requests(request: Request, call_next):

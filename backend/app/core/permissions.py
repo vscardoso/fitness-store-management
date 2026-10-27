@@ -34,7 +34,7 @@ ANY = None  # qualquer método
 RULES: list[tuple[Optional[set], str, UserRole]] = [
     # ── admin ────────────────────────────────────────────────────────────────
     ({"GET"}, r"^/team(/\{user_id\})?$", MANAGER),  # gerente consulta a equipe; só admin altera
-    (ANY, r"^/(audit|team|store|mp-connect|error-logs)(/|$)", ADMIN),
+    (ANY, r"^/(audit|team|store|mp-connect|error-logs|perf)(/|$)", ADMIN),
     ({"POST"}, r"^/client-logs$", CASHIER),
     ({"GET", "POST"}, r"^/legal/(status|accept)$", CASHIER),  # todo usuário aceita os próprios termos
     (ANY, r"^/auth/register$", ADMIN),
