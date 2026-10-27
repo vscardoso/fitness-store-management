@@ -57,7 +57,8 @@ class ConditionalShipment(BaseModel):
     @property
     def is_overdue(self) -> bool:
         """Verifica se o envio está atrasado (só se SENT e passou do deadline)"""
-        if self.deadline and self.status == ShipmentStatus.SENT.value:
+        # OVERDUE é gravado pela listagem quando o prazo vence; continua atrasado até a devolução
+        if self.deadline and self.status in (ShipmentStatus.SENT.value, "OVERDUE"):
             return datetime.utcnow() > self.deadline
         return False
     

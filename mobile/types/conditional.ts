@@ -1,3 +1,4 @@
+import { parseApiDate } from '@/utils/format';
 /**
  * Tipos TypeScript para envios condicionais (try before you buy).
  */
@@ -195,7 +196,7 @@ export const SHIPMENT_STATUS_COLORS: Record<ShipmentStatus, string> = {
  * Ícones para status (Ionicons)
  */
 export const SHIPMENT_STATUS_ICONS: Record<ShipmentStatus, string> = {
-  PENDING: 'clock-outline',
+  PENDING: 'time-outline',
   SENT: 'cube-outline',
   OVERDUE: 'alert-circle-outline',
   RETURNED_NO_SALE: 'return-up-back-outline',
@@ -239,18 +240,39 @@ export function hasAnySale(status: ShipmentStatus): boolean {
 /**
  * Helper: formatar prazo para exibição
  */
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+/** Dias de calendário (no fuso do aparelho) entre hoje e a data: 0 = hoje, 1 = amanhã. */
+function calendarDaysFromToday(date: Date): number {
+  const today = new Date();
+  const a = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  const b = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
+  return Math.round((b - a) / DAY_MS);
+}
+
+function hourText(date: Date): string {
+  return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+}
+
+/**
+ * Helper: formatar prazo para exibição. A data vem da API em UTC sem fuso (parseApiDate).
+ * Passou da hora = atrasado (mesmo que seja hoje); hoje e amanhã mostram a hora.
+ */
 export function formatDeadline(deadline: Date | string): string {
   if (!deadline) return 'Sem prazo';
 
-  const deadlineDate = typeof deadline === 'string' ? new Date(deadline) : deadline;
-  const now = new Date();
-  const diffMs = deadlineDate.getTime() - now.getTime();
-  const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+  const deadlineDate = parseApiDate(deadline);
+  if (isNaN(deadlineDate.getTime())) return 'Sem prazo';
+  const diffMs = deadlineDate.getTime() - Date.now();
 
-  if (daysRemaining === 0) return 'Vence hoje';
-  if (daysRemaining === 1) return 'Vence amanhã';
-  if (daysRemaining < 0) return `${Math.abs(daysRemaining)}d atraso`;
-  return `${daysRemaining}d restantes`;
+  if (diffMs < 0) {
+    const late = Math.floor(-diffMs / DAY_MS);
+    return late >= 1 ? `${late}d de atraso` : 'Atrasado';
+  }
+  const days = calendarDaysFromToday(deadlineDate);
+  if (days <= 0) return `Vence hoje às ${hourText(deadlineDate)}`;
+  if (days === 1) return `Vence amanhã às ${hourText(deadlineDate)}`;
+  return `${days}d restantes`;
 }
 
 /**
@@ -259,18 +281,10 @@ export function formatDeadline(deadline: Date | string): string {
 export function getDeadlineColor(deadline: Date | string | undefined | null): string {
   if (!deadline) return '#4CAF50';
 
-  const deadlineDate = typeof deadline === 'string' ? new Date(deadline) : deadline;
+  const deadlineDate = parseApiDate(deadline);
+  if (isNaN(deadlineDate.getTime())) return '#4CAF50';
 
-  // Validar se a data é válida
-  if (!deadlineDate || isNaN(deadlineDate.getTime())) {
-    return '#4CAF50';
-  }
-
-  const now = new Date();
-  const diffMs = deadlineDate.getTime() - now.getTime();
-  const daysRemaining = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-
-  if (daysRemaining < 0) return '#D32F2F';  // Vermelho (atrasado)
-  if (daysRemaining <= 2) return '#FF9800';  // Laranja (urgente)
+  if (deadlineDate.getTime() < Date.now()) return '#D32F2F';  // Vermelho (atrasado)
+  if (calendarDaysFromToday(deadlineDate) <= 2) return '#FF9800';  // Laranja (urgente)
   return '#4CAF50';  // Verde (ok)
 }

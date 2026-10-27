@@ -413,3 +413,87 @@ async def test_listagem_filtra_por_status_e_cliente(test_client, async_session, 
     assert [x["id"] for x in r.json()] == [b["id"]]
     r = await test_client.get(URL + "/", headers=h, params={"limit": 0})
     assert r.status_code == 422
+
+
+# ───────────────────────── atraso e fidelidade (revisão 27/10) ─────────────────────────
+
+async def test_atrasado_continua_no_filtro_e_no_aviso_depois_de_listar(test_client, async_session, test_user):
+    """A listagem grava OVERDUE quando o prazo vence; antes disso o envio sumia do filtro "Atrasados" e o
+    is_overdue voltava falso (só reconhecia SENT), então o contador de atrasados ficava sempre em 0."""
+    from datetime import datetime, timedelta
+    from app.models.conditional_shipment import ConditionalShipment
+    ids, h = await _cenario(async_session, test_user)
+    cid = await _cliente(test_client, h)
+    s = await _criar(test_client, h, cid, [_item(ids, 1)])
+    await _enviar(test_client, h, s["id"])
+    obj = (await async_session.execute(select(ConditionalShipment).where(ConditionalShipment.id == s["id"]))).scalar_one()
+    obj.deadline = datetime.utcnow() - timedelta(hours=2)
+    await async_session.commit()
+
+    for _ in range(2):  # a 1ª listagem grava OVERDUE; a 2ª tem que continuar mostrando atrasado
+        todos = (await test_client.get(URL + "/", headers=h)).json()
+        meu = next(x for x in todos if x["id"] == s["id"])
+        assert meu["status"] == "OVERDUE"
+        assert meu["is_overdue"] is True
+        atrasados = (await test_client.get(URL + "/", headers=h, params={"is_overdue": "true"})).json()
+        assert s["id"] in [x["id"] for x in atrasados], "envio atrasado sumiu do filtro Atrasados"
+    det = (await test_client.get(f"{URL}/{s['id']}", headers=h)).json()
+    assert det["is_overdue"] is True
+    # atrasado ainda pode ser devolvido normalmente
+    r = await _devolver(test_client, h, s["id"], [_upd(s["items"][0], ret=1)])
+    assert r.status_code == 200, r.text
+    assert r.json()["is_overdue"] is False
+
+
+async def test_venda_do_condicional_soma_pontos_e_total_gasto_da_cliente(test_client, async_session, test_user):
+    """Igual ao PDV: 1 ponto a cada R$ 10, total gasto e nº de compras da cliente."""
+    from app.models.customer import Customer
+    from app.models.sale import Sale
+    ids, h = await _cenario(async_session, test_user, preco="100.00")
+    cid = await _cliente(test_client, h)
+    s = await _criar(test_client, h, cid, [_item(ids, 3)])
+    await _enviar(test_client, h, s["id"])
+    r = await _devolver(test_client, h, s["id"], [_upd(s["items"][0], kept=2, ret=1)], payment_method="pix")
+    assert r.status_code == 200, r.text
+    async_session.expire_all()
+    c = (await async_session.execute(select(Customer).where(Customer.id == cid))).scalar_one()
+    assert float(c.total_spent) == 200.0
+    assert float(c.loyalty_points) == 20.0
+    assert c.total_purchases == 1
+    venda = (await async_session.execute(select(Sale).where(Sale.notes.like(f"%Condicional #{s['id']}%")))).scalar_one()
+    assert float(venda.loyalty_points_earned) == 20.0
+
+
+async def test_devolveu_tudo_nao_mexe_na_fidelidade(test_client, async_session, test_user):
+    from app.models.customer import Customer
+    ids, h = await _cenario(async_session, test_user)
+    cid = await _cliente(test_client, h)
+    s = await _criar(test_client, h, cid, [_item(ids, 2)])
+    await _enviar(test_client, h, s["id"])
+    assert (await _devolver(test_client, h, s["id"], [_upd(s["items"][0], ret=2)])).status_code == 200
+    async_session.expire_all()
+    c = (await async_session.execute(select(Customer).where(Customer.id == cid))).scalar_one()
+    assert float(c.total_spent or 0) == 0 and float(c.loyalty_points or 0) == 0 and (c.total_purchases or 0) == 0
+
+
+async def test_marcar_enviado_guarda_transportadora_rastreio_e_observacao(test_client, async_session, test_user):
+    ids, h = await _cenario(async_session, test_user)
+    cid = await _cliente(test_client, h)
+    s = await _criar(test_client, h, cid, [_item(ids, 1)])
+    r = await test_client.put(f"{URL}/{s['id']}/mark-as-sent", headers=h,
+                              json={"carrier": "Motoboy João", "tracking_code": "BR123", "sent_notes": "Entregar à tarde"})
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["carrier"] == "Motoboy João" and d["tracking_code"] == "BR123"
+    assert "Entregar à tarde" in (d["notes"] or "")
+
+
+async def test_item_mostra_custo_real_da_peca_reservada(test_client, async_session, test_user):
+    """A tela de prejuízo prevê a despesa com este custo; antes vinha o custo do cadastro (aqui vazio) e o app caía
+    no PREÇO de venda, prevendo uma perda maior do que a lançada."""
+    ids, h = await _cenario(async_session, test_user, custo=40, preco="100.00")
+    cid = await _cliente(test_client, h)
+    s = await _criar(test_client, h, cid, [_item(ids, 2)])
+    assert float(s["items"][0]["unit_cost"]) == 40.0
+    det = (await test_client.get(f"{URL}/{s['id']}", headers=h)).json()
+    assert float(det["items"][0]["unit_cost"]) == 40.0

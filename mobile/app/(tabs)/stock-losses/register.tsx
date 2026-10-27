@@ -76,11 +76,18 @@ export default function StockLossRegisterScreen() {
   const remainingToAllocate = Math.max(0, quantitySent - quantityKept - quantityReturned);
 
   const hasDraftContext = shipmentId > 0 && itemId > 0 && !!draftItem;
+
+  // Esta tela fica em outra aba: router.back() saía da aba e caía na Início, longe do envio em processamento
+  const leave = () => {
+    if (shipmentId > 0) router.replace(`/(tabs)/conditional/${shipmentId}` as any);
+    else router.back();
+  };
   const isStandaloneMode = !hasDraftContext;
   const isValid = shipmentId > 0 && itemId > 0 && totalAllocated <= quantitySent;
   const isValidExpenseDate = /^\d{4}-\d{2}-\d{2}$/.test(expenseDate);
 
-  const lostExpenseAmount = parsedLost * unitCost;
+  // no envio condicional a peça danificada também não volta ao estoque: o custo dela vira despesa, como a perdida
+  const lostExpenseAmount = (parsedDamaged + parsedLost) * unitCost;
   const standaloneUnitCost = Number(unitCostInput || selectedProduct?.cost_price || 0);
   const standaloneAmount = parsedLost * standaloneUnitCost;
   const standaloneReady = Boolean(selectedProduct) && parsedLost > 0 && standaloneUnitCost > 0 && isValidExpenseDate;
@@ -246,7 +253,7 @@ export default function StockLossRegisterScreen() {
           title="Registrar Prejuízo"
           subtitle={hasDraftContext ? productName : 'Novo lançamento avulso'}
           showBackButton
-          onBack={() => router.back()}
+          onBack={() => leave()}
         />
       </Animated.View>
 
@@ -465,7 +472,7 @@ export default function StockLossRegisterScreen() {
                 <Text style={styles.impactValue}>{formatCurrency(hasDraftContext ? unitCost : standaloneUnitCost)}</Text>
               </View>
               <View style={styles.impactRow}>
-                <Text style={styles.impactLabel}>Despesa prevista por perda</Text>
+                <Text style={styles.impactLabel}>{hasDraftContext ? 'Despesa prevista (danificadas e perdidas)' : 'Despesa prevista por perda'}</Text>
                 <Text style={[styles.impactValue, styles.impactValueNegative]}>
                   {formatCurrency(hasDraftContext ? lostExpenseAmount : standaloneAmount)}
                 </Text>
@@ -481,7 +488,7 @@ export default function StockLossRegisterScreen() {
             </View>
 
             <View style={styles.actions}>
-              <TouchableOpacity style={styles.secondaryButton} onPress={() => router.back()} activeOpacity={0.75}>
+              <TouchableOpacity style={styles.secondaryButton} onPress={() => leave()} activeOpacity={0.75}>
                 <Text style={styles.secondaryButtonText}>Cancelar</Text>
               </TouchableOpacity>
 
@@ -539,11 +546,11 @@ export default function StockLossRegisterScreen() {
         cancelText=""
         onConfirm={() => {
           setSuccessDialog(false);
-          router.back();
+          leave();
         }}
         onCancel={() => {
           setSuccessDialog(false);
-          router.back();
+          leave();
         }}
       />
     </View>

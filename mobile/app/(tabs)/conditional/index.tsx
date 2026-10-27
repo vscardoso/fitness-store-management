@@ -181,7 +181,8 @@ export default function ConditionalShipmentsScreen() {
     const all = summaryShipments || shipments || [];
     return {
       pending: all.filter(s => s.status === 'PENDING').length,
-      sent: all.filter(s => s.status === 'SENT').length,
+      // com a cliente: enviado no prazo ou já atrasado
+      sent: all.filter(s => s.status === 'SENT' || s.status === 'OVERDUE').length,
       overdue: all.filter(s => s.is_overdue).length,
     };
   }, [summaryShipments, shipments]);
@@ -227,7 +228,7 @@ export default function ConditionalShipmentsScreen() {
                   <Text style={[styles.statusPillText, { color: statusColor }]}>{statusLabel}</Text>
                 </View>
                 <Text style={styles.itemsCountText}>
-                  {item.total_items_sent} {item.total_items_sent === 1 ? 'item' : 'itens'}
+                  {item.total_items_sent} {item.total_items_sent === 1 ? 'peça' : 'peças'}
                 </Text>
               </View>
               {item.deadline && !isFinished && (

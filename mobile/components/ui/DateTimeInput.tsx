@@ -98,11 +98,58 @@ export default function DateTimeInput({
   };
 
   const handlePress = () => {
+    if (Platform.OS === 'web') return; // na web quem abre o seletor é o campo nativo por cima (renderWebInput)
     if (!disabled) {
       setTempDate(value || new Date());
       setCurrentMode(mode === 'datetime' ? 'date' : mode);
       setPickerVisible(true);
     }
+  };
+
+  // Web: o seletor nativo do React Native não existe no navegador. Um <input> de data invisível cobre o campo;
+  // o toque cai nele e abre o seletor do próprio navegador (calendário no computador, roda no celular).
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const toWebValue = (d?: Date) => {
+    if (!d) return '';
+    const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const time = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return mode === 'date' ? date : mode === 'time' ? time : `${date}T${time}`;
+  };
+  const fromWebValue = (text: string): Date | undefined => {
+    if (!text) return undefined;
+    if (mode === 'time') {
+      const [h, m] = text.split(':').map(Number);
+      const base = new Date(value ?? new Date());
+      base.setHours(h, m, 0, 0);
+      return base;
+    }
+    const [datePart, timePart] = text.split('T');
+    const [y, mo, d] = datePart.split('-').map(Number);
+    const [h, mi] = (timePart || (value ? `${value.getHours()}:${value.getMinutes()}` : '0:0')).split(':').map(Number);
+    const out = new Date(y, mo - 1, d, h, mi, 0, 0);
+    return Number.isNaN(out.getTime()) ? undefined : out;
+  };
+  const renderWebInput = () => {
+    if (Platform.OS !== 'web') return null;
+    return React.createElement('input', {
+      type: mode === 'datetime' ? 'datetime-local' : mode,
+      value: toWebValue(value),
+      min: minimumDate ? toWebValue(minimumDate) : undefined,
+      max: maximumDate ? toWebValue(maximumDate) : undefined,
+      disabled,
+      'aria-label': label,
+      onClick: (e: any) => {
+        try { e.currentTarget.showPicker?.(); } catch { /* navegador sem showPicker: o clique já abre */ }
+      },
+      onChange: (e: any) => {
+        const next = fromWebValue(e.target.value);
+        if (next) onChange(next);
+      },
+      style: {
+        position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+        opacity: 0, cursor: disabled ? 'default' : 'pointer', border: 0, padding: 0, margin: 0,
+      },
+    });
   };
 
   // Render Android picker (native modal behavior)
@@ -156,6 +203,7 @@ export default function DateTimeInput({
 
   return (
     <View style={styles.container}>
+      <View style={styles.field}>
       {modern ? (
         <TouchableOpacity
           onPress={handlePress}
@@ -195,13 +243,15 @@ export default function DateTimeInput({
           style={styles.input}
         />
       )}
+      {renderWebInput()}
+      </View>
       {error && (
         <HelperText type="error" visible={!!error}>
           {error}
         </HelperText>
       )}
 
-      {Platform.OS === 'ios' ? renderIOSPicker() : renderAndroidPicker()}
+      {Platform.OS === 'ios' ? renderIOSPicker() : Platform.OS === 'android' ? renderAndroidPicker() : null}
     </View>
   );
 }
@@ -209,6 +259,9 @@ export default function DateTimeInput({
 const createStyles = (brand: string) => StyleSheet.create({
   container: {
     marginBottom: 8,
+  },
+  field: {
+    position: 'relative',
   },
   input: {
     backgroundColor: Colors.light.card,

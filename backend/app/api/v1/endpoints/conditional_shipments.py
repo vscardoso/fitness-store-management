@@ -44,7 +44,10 @@ def _build_item_dict(item_data: dict) -> dict:
         "quantity_pending": db_item.quantity_pending,
         "status": db_item.status,
         "unit_price": db_item.unit_price,
-        "unit_cost": variant.cost_price if variant and variant.cost_price is not None else (product.cost_price if product and product.cost_price is not None else None),
+        # custo real da peça reservada (FIFO, com frete e desconto do lote); é o que vira despesa se danificar ou perder
+        "unit_cost": ConditionalShipmentService._fifo_unit_cost(db_item) or (
+            variant.cost_price if variant and variant.cost_price is not None else (product.cost_price if product and product.cost_price is not None else None)
+        ),
         "notes": db_item.notes,
         "total_value": db_item.total_value,
         "kept_value": db_item.kept_value,
@@ -876,7 +879,8 @@ async def send_periodic_notifications(
         HTTPException 403: Usuário não é ADMIN
     """
     # Verificar se usuário é ADMIN
-    if current_user.role != 'ADMIN':
+    # o papel é o enum UserRole (valor 'admin'); comparar com 'ADMIN' recusava até o administrador
+    if str(getattr(current_user.role, 'value', current_user.role)).lower() != 'admin':
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Apenas administradores podem enviar notificações periódicas"

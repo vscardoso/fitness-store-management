@@ -20,6 +20,7 @@ import { getGroupedProducts } from '@/services/productService';
 import EmptyState from '@/components/ui/EmptyState';
 import type { ProductGrouped, ProductVariant } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { formatVariantLabel } from '@/services/productVariantService';
 
 interface ProductSelectionModalProps {
   visible: boolean;
@@ -137,7 +138,7 @@ export default function ProductSelectionModal({
                     <View style={styles.variantDot} />
                     <View>
                       <Text style={styles.variantLabel}>
-                        {[variant.size, variant.color].filter(Boolean).join(' · ') || 'Único'}
+                        {formatVariantLabel(variant) || 'Único'}
                       </Text>
                       {variant.sku ? (
                         <Text style={styles.variantSku}>SKU: {variant.sku}</Text>

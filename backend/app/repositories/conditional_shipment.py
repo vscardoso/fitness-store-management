@@ -163,11 +163,11 @@ class ConditionalShipmentRepository(
             conditions.append(ConditionalShipment.customer_id == customer_id)
         
         if is_overdue is True:
-            # Atrasados: deadline passou e status ainda é SENT ou PARTIAL_RETURN
+            # Atrasados: deadline passou e o envio ainda está com a cliente (SENT, ou já marcado OVERDUE)
             conditions.append(
                 and_(
                     ConditionalShipment.deadline < datetime.utcnow(),
-                    ConditionalShipment.status.in_(["SENT", "PARTIAL_RETURN"]),
+                    ConditionalShipment.status.in_(["SENT", "OVERDUE", "PARTIAL_RETURN"]),
                 )
             )
         
@@ -279,7 +279,7 @@ class ConditionalShipmentRepository(
                     ConditionalShipment.tenant_id == tenant_id,
                     ConditionalShipment.is_active == True,
                     ConditionalShipment.deadline < now,
-                    ConditionalShipment.status.in_(["SENT", "PARTIAL_RETURN"]),
+                    ConditionalShipment.status.in_(["SENT", "OVERDUE", "PARTIAL_RETURN"]),
                 )
             )
             .options(selectinload(ConditionalShipment.items))

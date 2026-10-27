@@ -201,12 +201,15 @@ class ConditionalShipmentService:
             if upd is None:
                 raise ValueError("Informe o que aconteceu com todas as peças do envio antes de finalizar.")
             destino = upd.quantity_kept + upd.quantity_returned + upd.quantity_damaged + upd.quantity_lost
-            if destino != it.quantity_sent:
-                falta = it.quantity_sent - destino
-                if falta > 0:
-                    raise ValueError(
-                        f"Faltam {falta} peça(s) sem destino em um dos itens (enviadas {it.quantity_sent}, informadas {destino})."
-                    )
+            if destino < it.quantity_sent:
+                raise ValueError(
+                    f"Faltam {it.quantity_sent - destino} peça(s) sem destino em um dos itens (enviadas {it.quantity_sent}, informadas {destino})."
+                )
+            if destino > it.quantity_sent:
+                # recusa ANTES de mexer em qualquer item ou estoque
+                raise ValueError(
+                    f"Item {it.id}: total processado ({destino}) excede quantidade enviada ({it.quantity_sent})"
+                )
 
         # 2. Atualizar itens e devolver estoque
         total_kept = 0
@@ -542,6 +545,16 @@ class ConditionalShipmentService:
             )
             db.add(sale_item)
 
+        # Fidelidade igual à venda do PDV (SaleService): 1 ponto a cada R$ 10, total gasto e nº de compras
+        customer = await CustomerRepository(db).get(db, shipment.customer_id, tenant_id=tenant_id)
+        if customer:
+            total_dec = Decimal(str(total_amount))
+            points = total_dec / Decimal("10")
+            customer.loyalty_points = float(Decimal(str(customer.loyalty_points or 0)) + points)
+            customer.total_spent = float(Decimal(str(customer.total_spent or 0)) + total_dec)
+            customer.total_purchases = (customer.total_purchases or 0) + 1
+            sale.loyalty_points_earned = float(points)
+
         # Pagamento confirmado: sem ele a venda aparece "sem pagamento" no caixa e nos relatórios
         from app.models.sale import Payment
         db.add(Payment(
@@ -632,6 +645,11 @@ class ConditionalShipmentService:
         # Se não tinha departure_datetime, definir como agora
         if not shipment.departure_datetime:
             shipment.departure_datetime = datetime.utcnow()
+
+        if carrier:
+            shipment.carrier = carrier
+        if tracking_code:
+            shipment.tracking_code = tracking_code
 
         # Adicionar informações de envio às notas
         notes_parts = []

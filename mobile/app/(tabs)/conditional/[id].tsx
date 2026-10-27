@@ -29,7 +29,7 @@ import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import MarkAsSentModal from '@/components/conditional/MarkAsSentModal';
 import { getShipment, processReturn, cancelShipment, markAsSent } from '@/services/conditionalService';
-import { formatCurrency, formatDate, formatDateTime } from '@/utils/format';
+import { formatCurrency, formatDate, formatDateTime, formatPhone } from '@/utils/format';
 import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
 import { useConditionalProcessingStore } from '@/store/conditionalProcessingStore';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -96,6 +96,7 @@ export default function ConditionalShipmentDetailsScreen() {
   const initializeShipmentDraft = useConditionalProcessingStore((state) => state.initializeShipmentDraft);
   const updateShipmentItem = useConditionalProcessingStore((state) => state.updateShipmentItem);
   const resetShipmentDraft = useConditionalProcessingStore((state) => state.resetShipmentDraft);
+  const [cancelReasonError, setCancelReasonError] = useState('');
   const [activeModal, setActiveModal] = useState<{
     visible: boolean;
     type: 'cancel' | 'mark_sent' | null;
@@ -175,8 +176,8 @@ export default function ConditionalShipmentDetailsScreen() {
     mutationFn: (data: ProcessReturnDTO) =>
       processReturn(shipmentId, data),
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['conditional-shipment', shipmentId] });
-      queryClient.invalidateQueries({ queryKey: ['conditional-shipments'] });
+      // devolução mexe em estoque, vendas, despesas e cliente: atualiza tudo
+      queryClient.invalidateQueries();
       resetShipmentDraft(shipmentId);
 
       // Verificar se há itens comprados para feedback mais preciso
@@ -232,11 +233,11 @@ export default function ConditionalShipmentDetailsScreen() {
   const cancelMutation = useMutation({
     mutationFn: (reason: string) => cancelShipment(shipmentId, reason),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conditional-shipments'] });
+      queryClient.invalidateQueries(); // o estoque reservado volta
       resetShipmentDraft(shipmentId);
       setSuccessMessage('Envio cancelado com sucesso!');
       setSuccessDialog(true);
-      setTimeout(() => router.back(), 1500);
+      setTimeout(() => router.replace('/(tabs)/conditional'), 1500);
     },
     onError: (error: any) => {
       const message = error?.response?.data?.detail || error?.message || 'Erro ao cancelar envio';
@@ -249,11 +250,10 @@ export default function ConditionalShipmentDetailsScreen() {
    * Mutation: Marcar como enviado
    */
   const markAsSentMutation = useMutation({
-    mutationFn: (data: { carrier?: string; tracking_code?: string }) =>
+    mutationFn: (data: { carrier?: string; tracking_code?: string; sent_notes?: string }) =>
       markAsSent(shipmentId, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conditional-shipments'] });
-      queryClient.invalidateQueries({ queryKey: ['conditional-shipment', shipmentId] });
+      queryClient.invalidateQueries();
       setSuccessMessage('Envio marcado como enviado com sucesso!');
       setSuccessDialog(true);
     },
@@ -308,7 +308,7 @@ export default function ConditionalShipmentDetailsScreen() {
         shipmentId: shipmentId.toString(),
         itemId: item.id.toString(),
         productName: item.product_name || `Produto #${item.product_id}`,
-        variantLabel: [item.variant_size, item.variant_color].filter(Boolean).join(' · '),
+        variantLabel: [item.variant_color, item.variant_size].filter(Boolean).join(' · '),
         quantitySent: item.quantity_sent.toString(),
         unitCost: String(item.unit_cost ?? item.unit_price),
       },
@@ -442,15 +442,15 @@ export default function ConditionalShipmentDetailsScreen() {
 
     const details = [
       `Total da venda: ${formatCurrency(summary.totalKept)}`,
-      `Items comprados: ${summary.keptCount}`,
-      `Items devolvidos: ${summary.returnedCount}`,
+      `Peças compradas: ${summary.keptCount}`,
+      `Peças devolvidas: ${summary.returnedCount}`,
     ];
 
     if (summary.damagedCount > 0) {
-      details.push(`Items danificados: ${summary.damagedCount}`);
+      details.push(`Peças danificadas: ${summary.damagedCount}`);
     }
     if (summary.lostCount > 0) {
-      details.push(`Items perdidos: ${summary.lostCount}`);
+      details.push(`Peças perdidas: ${summary.lostCount}`);
       details.push(`Despesa prevista por perda: ${formatCurrency(summary.totalLossExpense)}`);
     }
     if (summary.keptCount > 0) {
@@ -488,11 +488,12 @@ export default function ConditionalShipmentDetailsScreen() {
   const handleCancelShipment = useCallback(() => {
     const { reason } = activeModal;
 
-    if (!reason || reason.trim() === '') {
-      setErrorMessage('Informe o motivo do cancelamento');
-      setErrorDialog(true);
+    if (!reason || reason.trim().length < 5) {
+      // o servidor exige ao menos 5 caracteres. Aviso dentro do formulário: um diálogo abriria ATRÁS dele
+      setCancelReasonError('Escreva o motivo do cancelamento (pelo menos 5 letras).');
       return;
     }
+    setCancelReasonError('');
 
     setActiveModal({ visible: false, type: null });
 
@@ -512,14 +513,16 @@ export default function ConditionalShipmentDetailsScreen() {
   /**
    * Marcar como enviado
    */
-  const handleMarkAsSent = useCallback(() => {
-    const { carrier, tracking_code } = activeModal;
+  const handleMarkAsSent = useCallback((data: { carrier?: string; tracking_code?: string; sent_notes?: string }) => {
+    // dados chegam direto do modal: ler do estado aqui pegava o valor antigo (vazio) e perdia o que foi digitado
+    const { carrier, tracking_code, sent_notes } = data;
 
     setActiveModal({ visible: false, type: null });
 
     const details = [];
     if (carrier) details.push(`Transportadora: ${carrier}`);
     if (tracking_code) details.push(`Rastreio: ${tracking_code}`);
+    if (sent_notes) details.push(`Observações: ${sent_notes}`);
 
     setConfirmDialog({
       visible: true,
@@ -529,10 +532,10 @@ export default function ConditionalShipmentDetailsScreen() {
       details: details.length > 0 ? details : undefined,
       onConfirm: () => {
         setConfirmDialog({ ...confirmDialog, visible: false });
-        markAsSentMutation.mutate({ carrier, tracking_code });
+        markAsSentMutation.mutate({ carrier, tracking_code, sent_notes });
       },
     });
-  }, [activeModal, markAsSentMutation]);
+  }, [markAsSentMutation]);
 
   useFocusEffect(
     useCallback(() => {
@@ -672,7 +675,7 @@ export default function ConditionalShipmentDetailsScreen() {
               <Text style={styles.statusHeroValue} numberOfLines={1}>{statusLabel}</Text>
             </View>
             <View style={[styles.statusHeroBadge, { backgroundColor: statusColor + '15' }]}>
-              <Text style={[styles.statusHeroBadgeText, { color: statusColor }]}>{shipment.items.length} itens</Text>
+              <Text style={[styles.statusHeroBadgeText, { color: statusColor }]}>{shipment.total_items_sent} {shipment.total_items_sent === 1 ? 'peça' : 'peças'}</Text>
             </View>
           </View>
           {isOverdue && (
@@ -680,14 +683,16 @@ export default function ConditionalShipmentDetailsScreen() {
               <View style={styles.overdueBadge}>
                 <Ionicons name="alert-circle-outline" size={12} color={VALUE_COLORS.negative} />
                 <Text style={styles.overdueBadgeText}>
-                  {overdueDays > 0 ? `${overdueDays} dia(s) de atraso` : 'Atrasado'}
+                  {overdueDays > 0 ? `${overdueDays} ${overdueDays === 1 ? 'dia' : 'dias'} de atraso` : 'Atrasado'}
                 </Text>
               </View>
             </View>
           )}
           <View style={styles.statusHeroMetaRow}>
             <Text style={styles.statusHeroMetaText} numberOfLines={1}>Valor enviado: {formatCurrency(summary.totalSent)}</Text>
-            <Text style={[styles.statusHeroMetaText, { color: deadlineColor }]} numberOfLines={1}>{deadlineText}</Text>
+            {!isFinalStatus(shipment.status) && (
+              <Text style={[styles.statusHeroMetaText, { color: deadlineColor }]} numberOfLines={1}>{deadlineText}</Text>
+            )}
           </View>
         </View>
 
@@ -710,7 +715,7 @@ export default function ConditionalShipmentDetailsScreen() {
                 </View>
                 <Text style={styles.infoBlockPrimary}>{shipment.customer_name || `#${shipment.customer_id}`}</Text>
                 {shipment.customer_phone && (
-                  <Text style={styles.infoBlockSecondary}>{shipment.customer_phone}</Text>
+                  <Text style={styles.infoBlockSecondary}>{formatPhone(shipment.customer_phone)}</Text>
                 )}
               </View>
 
@@ -746,6 +751,10 @@ export default function ConditionalShipmentDetailsScreen() {
                   </View>
                   <Text style={[styles.infoBlockPrimary, { color: deadlineColor, fontWeight: '700' }]}>
                     {deadlineText}
+                  </Text>
+                  <Text style={styles.infoBlockSecondary}>
+                    Devolver até {formatDateTime(shipment.deadline)}
+                    {shipment.departure_datetime && !shipment.sent_at ? ` · Saída prevista ${formatDateTime(shipment.departure_datetime)}` : ''}
                   </Text>
                 </View>
               )}
@@ -817,13 +826,13 @@ export default function ConditionalShipmentDetailsScreen() {
                 {summary.damagedCount > 0 && (
                   <View style={styles.summaryAlert}>
                     <Ionicons name="alert-circle" size={16} color={Colors.light.warning} />
-                    <Text style={styles.summaryAlertText}>{summary.damagedCount} danificado(s)</Text>
+                    <Text style={styles.summaryAlertText}>{summary.damagedCount} {summary.damagedCount === 1 ? 'danificada' : 'danificadas'}</Text>
                   </View>
                 )}
                 {summary.lostCount > 0 && (
                   <View style={styles.summaryAlert}>
                     <Ionicons name="close-circle" size={16} color={Colors.light.error} />
-                    <Text style={styles.summaryAlertText}>{summary.lostCount} perdido(s)</Text>
+                    <Text style={styles.summaryAlertText}>{summary.lostCount} {summary.lostCount === 1 ? 'perdida' : 'perdidas'}</Text>
                   </View>
                 )}
               </View>
@@ -845,10 +854,12 @@ export default function ConditionalShipmentDetailsScreen() {
             </View>
           </View>
 
-          <View style={styles.itemsModuleBadge}>
-            <Ionicons name="sparkles-outline" size={12} color={Colors.light.textSecondary} />
-            <Text style={styles.itemsModuleBadgeText}>Use "Prejuízo do Item" para danos e perdas</Text>
-          </View>
+          {(shipment.status === 'SENT' || shipment.status === 'OVERDUE') && (
+            <View style={styles.itemsModuleBadge}>
+              <Ionicons name="sparkles-outline" size={12} color={Colors.light.textSecondary} />
+              <Text style={styles.itemsModuleBadgeText}>Use "Prejuízo do Item" para danos e perdas</Text>
+            </View>
+          )}
 
           {shipment.items.map((item) => {
             const processing = processingItems[item.id] || {
@@ -879,7 +890,7 @@ export default function ConditionalShipmentDetailsScreen() {
                       </Text>
                       {(item.variant_size || item.variant_color) && (
                         <Text style={styles.itemVariant}>
-                          {[item.variant_size, item.variant_color].filter(Boolean).join(' · ')}
+                          {[item.variant_color, item.variant_size].filter(Boolean).join(' · ')}
                         </Text>
                       )}
                       <View style={styles.itemMetaBadges}>
@@ -897,7 +908,7 @@ export default function ConditionalShipmentDetailsScreen() {
                     </View>
                     <View style={[styles.itemStatusBadge, isItemFullyProcessed ? styles.itemStatusBadgeDone : styles.itemStatusBadgePending]}>
                       <Text style={[styles.itemStatusBadgeText, isItemFullyProcessed ? styles.itemStatusBadgeTextDone : styles.itemStatusBadgeTextPending]}>
-                        {isItemFullyProcessed ? 'Concluido' : `${pendingCount} pendente(s)`}
+                        {isItemFullyProcessed ? 'Concluído' : `${pendingCount} ${pendingCount === 1 ? 'pendente' : 'pendentes'}`}
                       </Text>
                     </View>
                   </View>
@@ -910,10 +921,10 @@ export default function ConditionalShipmentDetailsScreen() {
                           label="Qtd. Comprada"
                           value={processing.quantity_kept.toString()}
                           onChangeText={(text) => {
-                            const num = parseInt(text) || 0;
-                            if (num >= 0 && num <= item.quantity_sent) {
-                              updateItem(item.id, { quantity_kept: num });
-                            }
+                            // só dígitos; nunca passa do que sobra depois das devolvidas, danificadas e perdidas
+                            const max = item.quantity_sent - processing.quantity_returned - processing.quantity_damaged - processing.quantity_lost;
+                            const num = Math.min(Math.max(0, max), parseInt(text.replace(/\D/g, ''), 10) || 0);
+                            updateItem(item.id, { quantity_kept: num });
                           }}
                           keyboardType="numeric"
                           mode="outlined"
@@ -924,10 +935,9 @@ export default function ConditionalShipmentDetailsScreen() {
                           label="Qtd. Devolvida"
                           value={processing.quantity_returned.toString()}
                           onChangeText={(text) => {
-                            const num = parseInt(text) || 0;
-                            if (num >= 0 && num <= item.quantity_sent) {
-                              updateItem(item.id, { quantity_returned: num });
-                            }
+                            const max = item.quantity_sent - processing.quantity_kept - processing.quantity_damaged - processing.quantity_lost;
+                            const num = Math.min(Math.max(0, max), parseInt(text.replace(/\D/g, ''), 10) || 0);
+                            updateItem(item.id, { quantity_returned: num });
                           }}
                           keyboardType="numeric"
                           mode="outlined"
@@ -977,14 +987,14 @@ export default function ConditionalShipmentDetailsScreen() {
                           {processing.quantity_damaged > 0 && (
                             <View style={styles.lossSummaryChipWarning}>
                               <Text style={styles.lossSummaryChipWarningText}>
-                                {processing.quantity_damaged} danificado(s)
+                                {processing.quantity_damaged} {processing.quantity_damaged === 1 ? 'danificada' : 'danificadas'}
                               </Text>
                             </View>
                           )}
                           {processing.quantity_lost > 0 && (
                             <View style={styles.lossSummaryChipDanger}>
                               <Text style={styles.lossSummaryChipDangerText}>
-                                {processing.quantity_lost} perdido(s)
+                                {processing.quantity_lost} {processing.quantity_lost === 1 ? 'perdida' : 'perdidas'}
                               </Text>
                             </View>
                           )}
@@ -1143,7 +1153,7 @@ export default function ConditionalShipmentDetailsScreen() {
                   <Ionicons name="flash-outline" size={18} color={brandingColors.primary} />
                 </View>
                 <Text variant="titleMedium" style={styles.sectionTitle}>
-                  Processamento Concluido
+                  Processamento Concluído
                 </Text>
               </View>
 
@@ -1151,9 +1161,9 @@ export default function ConditionalShipmentDetailsScreen() {
                 <Ionicons name="information-circle" size={24} color={brandingColors.primary} />
                 <View style={{ flex: 1 }}>
                   <Text variant="bodyMedium" style={styles.partialReturnInfoText}>
-                    <Text style={{ fontWeight: '700' }}>Venda parcial já registrada</Text>
+                    <Text style={{ fontWeight: '700' }}>Venda parcial registrada</Text>
                     {'\n'}
-                    Você pode finalizar o envio para processar os itens restantes ou cancelar caso necessário.
+                    {`A cliente ficou com ${shipment.total_items_kept} ${shipment.total_items_kept === 1 ? 'peça' : 'peças'} (${formatCurrency(shipment.total_value_kept)}). O restante voltou ao estoque ou foi lançado como prejuízo.`}
                   </Text>
                 </View>
               </View>
@@ -1327,7 +1337,7 @@ export default function ConditionalShipmentDetailsScreen() {
                       )}
                       <Text style={styles.primaryActionButtonText}>
                         {!isFullyProcessed
-                          ? 'Processar Produtos Primeiro'
+                          ? 'Defina as peças'
                           : (summary.keptCount > 0 ? 'Finalizar e Concluir' : 'Finalizar Devolução')}
                       </Text>
                     </LinearGradient>
@@ -1360,13 +1370,20 @@ export default function ConditionalShipmentDetailsScreen() {
         <TextInput
           label="Motivo do cancelamento *"
           value={activeModal.reason}
-          onChangeText={(text) => setActiveModal({ ...activeModal, reason: text })}
+          onChangeText={(text) => {
+            setActiveModal({ ...activeModal, reason: text });
+            if (cancelReasonError) setCancelReasonError('');
+          }}
+          error={!!cancelReasonError}
           mode="outlined"
           multiline
           numberOfLines={4}
           style={styles.modalInput}
           autoFocus
         />
+        {!!cancelReasonError && (
+          <Text style={styles.cancelReasonError}>{cancelReasonError}</Text>
+        )}
 
       </BottomSheet>
 
@@ -1374,10 +1391,7 @@ export default function ConditionalShipmentDetailsScreen() {
       <MarkAsSentModal
         visible={activeModal.visible && activeModal.type === 'mark_sent'}
         onDismiss={() => setActiveModal({ visible: false, type: null })}
-        onConfirm={(data) => {
-          setActiveModal({ ...activeModal, carrier: data.carrier, tracking_code: data.tracking_code });
-          setTimeout(() => handleMarkAsSent(), 0);
-        }}
+        onConfirm={(data) => handleMarkAsSent(data)}
         loading={markAsSentMutation.isPending}
       />
 
@@ -1402,6 +1416,7 @@ export default function ConditionalShipmentDetailsScreen() {
         message={successMessage}
         onConfirm={() => setSuccessDialog(false)}
         confirmText="OK"
+        cancelText=""
       />
 
       {/* Error Dialog */}
@@ -1412,12 +1427,18 @@ export default function ConditionalShipmentDetailsScreen() {
         message={errorMessage}
         onConfirm={() => setErrorDialog(false)}
         confirmText="OK"
+        cancelText=""
       />
     </View>
   );
 }
 
 const createStyles = (brand: string) => StyleSheet.create({
+  cancelReasonError: {
+    marginTop: 6,
+    fontSize: 13,
+    color: Colors.light.error,
+  },
   container: {
     flex: 1,
     backgroundColor: Colors.light.background,

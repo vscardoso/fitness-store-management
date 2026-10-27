@@ -24,6 +24,8 @@ import { getCustomers } from '@/services/customerService';
 import { searchCep } from '@/services/cepService';
 import type { ProductGrouped, ProductVariant } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { formatCurrency } from '@/utils/format';
+import { cepMask, phoneMask } from '@/utils/masks';
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -65,6 +67,9 @@ export default function CreateConditionalShipmentScreen() {
 
   const [step, setStep] = useState<Step>(1);
   const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
+  const [customerSearch, setCustomerSearch] = useState('');
+  // ids que existiam ao abrir "Cadastrar cliente": a cliente nova que aparecer depois já volta selecionada
+  const customerIdsBeforeAdd = React.useRef<Set<number> | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
   const [notes, setNotes] = useState('');
   const [showProductModal, setShowProductModal] = useState(false);
@@ -142,8 +147,9 @@ export default function CreateConditionalShipmentScreen() {
   // Mutation
   const createMutation = useMutation({
     mutationFn: createShipment,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['conditional-shipments'] });
+    onSuccess: (created) => {
+      // o envio reserva estoque: lista, resumo, produtos e estoque mudam juntos
+      queryClient.invalidateQueries();
       setDialogConfig({
         visible: true,
         title: 'Sucesso',
@@ -151,7 +157,8 @@ export default function CreateConditionalShipmentScreen() {
         type: 'success',
         onConfirm: () => {
           setDialogConfig({ ...dialogConfig, visible: false });
-          router.back();
+          // vai para o envio criado (voltar dependia de onde a tela foi aberta)
+          router.replace(`/(tabs)/conditional/${created.id}`);
         },
       });
     },
@@ -159,7 +166,8 @@ export default function CreateConditionalShipmentScreen() {
       setDialogConfig({
         visible: true,
         title: 'Erro',
-        message: error.response?.data?.detail || 'Erro ao criar envio condicional',
+        // o interceptor do api.ts já entrega a mensagem do servidor em error.message
+        message: error?.message || 'Erro ao criar envio condicional',
         type: 'danger',
         onConfirm: () => setDialogConfig({ ...dialogConfig, visible: false }),
       });
@@ -283,7 +291,7 @@ export default function CreateConditionalShipmentScreen() {
         setNeighborhood(customer.neighborhood || '');
         setCity(customer.city || '');
         setState(customer.state || '');
-        setZipCode(customer.zip_code || '');
+        setZipCode(cepMask(customer.zip_code || ''));
       }
     }
     setStep((prev) => Math.min(4, prev + 1) as Step);
@@ -297,7 +305,7 @@ export default function CreateConditionalShipmentScreen() {
    * Busca automática de CEP ao digitar
    */
   const handleCepChange = async (text: string) => {
-    const masked = text.replace(/^(\d{5})(\d)/, '$1-$2').slice(0, 9);
+    const masked = cepMask(text);
     setZipCode(masked);
 
     // Busca automática quando CEP estiver completo
@@ -353,7 +361,8 @@ export default function CreateConditionalShipmentScreen() {
     if (departureDateTime && returnDateTime) {
       const deadline = calculateDeadline(departureDateTime, returnDateTime);
       // Backend espera dias (mínimo 1)
-      calculatedDeadlineDays = deadline.days > 0 ? deadline.days : 1;
+      // o servidor aceita de 1 a 30 (o prazo real vem de return_datetime)
+      calculatedDeadlineDays = Math.min(30, Math.max(1, deadline.days));
     }
 
     const shipmentData: CreateShipmentDTO = {
@@ -377,6 +386,32 @@ export default function CreateConditionalShipmentScreen() {
   };
 
   const selectedCustomer = customers.find((c) => c.id === selectedCustomerId);
+
+  React.useEffect(() => {
+    const before = customerIdsBeforeAdd.current;
+    if (!before) return;
+    const created = customers.find((c) => !before.has(c.id));
+    if (created) {
+      setSelectedCustomerId(created.id);
+      setCustomerSearch('');
+      customerIdsBeforeAdd.current = null;
+    }
+  }, [customers]);
+
+  const handleAddCustomer = () => {
+    customerIdsBeforeAdd.current = new Set(customers.map((c) => c.id));
+    router.push('/customers/add' as any);
+  };
+
+  const filteredCustomers = useMemo(() => {
+    const term = customerSearch.trim().toLowerCase();
+    if (!term) return customers;
+    const digits = term.replace(/\D/g, '');
+    return customers.filter((c) =>
+      c.full_name.toLowerCase().includes(term) ||
+      (digits.length >= 3 && (c.phone || '').replace(/\D/g, '').includes(digits))
+    );
+  }, [customers, customerSearch]);
   const totalValue = selectedProducts.reduce(
     (sum, p) => sum + p.price * p.quantity_sent,
     0
@@ -422,7 +457,7 @@ export default function CreateConditionalShipmentScreen() {
           <View style={styles.summaryHeroDivider} />
           <View style={styles.summaryHeroCellSmall}>
             <Text style={styles.summaryHeroLabel}>Total</Text>
-            <Text style={styles.summaryHeroValue}>R$ {totalValue.toFixed(2)}</Text>
+            <Text style={styles.summaryHeroValue}>{formatCurrency(totalValue)}</Text>
           </View>
         </View>
         <View style={styles.summaryHeroBadge}>
@@ -496,9 +531,46 @@ export default function CreateConditionalShipmentScreen() {
 
             {loadingCustomers ? (
               <ActivityIndicator style={{ marginTop: 32 }} />
+            ) : customers.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons name="people-outline" size={64} color={Colors.light.textSecondary} />
+                <Text style={styles.emptyStateTitle}>Nenhum cliente cadastrado</Text>
+                <Text style={styles.emptyStateDescription}>
+                  Cadastre a cliente que vai receber as peças. Depois do cadastro ela já volta selecionada aqui.
+                </Text>
+                <TouchableOpacity onPress={handleAddCustomer} style={[styles.addProductButton, styles.emptyStateAction]} activeOpacity={0.8}>
+                  <LinearGradient colors={brandingColors.gradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={styles.primaryActionButtonGradient}>
+                    <Ionicons name="person-add-outline" size={18} color="#fff" />
+                    <Text style={styles.primaryActionButtonText}>Cadastrar cliente</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
             ) : (
               <View style={styles.listContainer}>
-                {customers.map((customer) => {
+                <View style={styles.customerSearchRow}>
+                  <Ionicons name="search-outline" size={18} color={Colors.light.textTertiary} />
+                  <RNTextInput
+                    value={customerSearch}
+                    onChangeText={setCustomerSearch}
+                    placeholder="Buscar por nome ou telefone"
+                    placeholderTextColor={Colors.light.textTertiary}
+                    style={styles.customerSearchInput}
+                    autoCorrect={false}
+                  />
+                  {customerSearch.length > 0 && (
+                    <TouchableOpacity onPress={() => setCustomerSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                      <Ionicons name="close-circle" size={18} color={Colors.light.textTertiary} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+                <TouchableOpacity onPress={handleAddCustomer} style={[styles.newCustomerButton, { borderColor: brandingColors.primary + '55' }]} activeOpacity={0.75}>
+                  <Ionicons name="person-add-outline" size={18} color={brandingColors.primary} />
+                  <Text style={[styles.newCustomerButtonText, { color: brandingColors.primary }]}>Cadastrar nova cliente</Text>
+                </TouchableOpacity>
+                {filteredCustomers.length === 0 && (
+                  <Text style={styles.emptyStateDescription}>Nenhuma cliente encontrada para "{customerSearch}".</Text>
+                )}
+                {filteredCustomers.map((customer) => {
                   const isSelected = selectedCustomerId === customer.id;
                   const initials = customer.full_name
                     .split(' ')
@@ -544,7 +616,7 @@ export default function CreateConditionalShipmentScreen() {
                           </Text>
                           {customer.phone && (
                             <Text style={styles.customerPhone}>
-                              {customer.phone}
+                              {phoneMask(customer.phone)}
                             </Text>
                           )}
                           {customer.city && (
@@ -599,11 +671,11 @@ export default function CreateConditionalShipmentScreen() {
                         </Text>
                         {(product.variant_size || product.variant_color) && (
                           <Text style={styles.selectedProductVariant}>
-                            {[product.variant_size, product.variant_color].filter(Boolean).join(' · ')}
+                            {[product.variant_color, product.variant_size].filter(Boolean).join(' · ')}
                           </Text>
                         )}
                         <Text style={styles.selectedProductPrice}>
-                          R$ {(Number(product.price) || 0).toFixed(2)}
+                          {formatCurrency(Number(product.price) || 0)}
                         </Text>
                       </View>
                       <View style={styles.quantityControls}>
@@ -769,7 +841,7 @@ export default function CreateConditionalShipmentScreen() {
                     <Text style={styles.nativeLabel}>Estado *</Text>
                     <RNTextInput
                       value={state}
-                      onChangeText={setState}
+                      onChangeText={(t) => setState(t.replace(/[^a-zA-Z]/g, '').toUpperCase())}
                       style={styles.nativeInput}
                       placeholder="UF"
                       placeholderTextColor={Colors.light.textTertiary}
@@ -854,7 +926,7 @@ export default function CreateConditionalShipmentScreen() {
                 </Text>
                 {selectedCustomer?.phone && (
                   <Text style={styles.reviewSubvalue}>
-                    {selectedCustomer.phone}
+                    {phoneMask(selectedCustomer.phone)}
                   </Text>
                 )}
               </View>
@@ -874,12 +946,12 @@ export default function CreateConditionalShipmentScreen() {
                       </Text>
                       {(product.variant_size || product.variant_color) && (
                         <Text style={{ fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 }}>
-                          {[product.variant_size, product.variant_color].filter(Boolean).join(' · ')}
+                          {[product.variant_color, product.variant_size].filter(Boolean).join(' · ')}
                         </Text>
                       )}
                     </View>
                     <Text style={styles.reviewProductValue}>
-                      R$ {((Number(product.price) || 0) * product.quantity_sent).toFixed(2)}
+                      {formatCurrency((Number(product.price) || 0) * product.quantity_sent)}
                     </Text>
                   </View>
                 ))}
@@ -887,7 +959,7 @@ export default function CreateConditionalShipmentScreen() {
                 <View style={styles.reviewTotal}>
                   <Text style={styles.reviewTotalLabel}>Valor Total</Text>
                   <Text style={styles.reviewTotalValue}>
-                    R$ {totalValue.toFixed(2)}
+                    {formatCurrency(totalValue)}
                   </Text>
                 </View>
               </View>
@@ -992,6 +1064,7 @@ export default function CreateConditionalShipmentScreen() {
         message={dialogConfig.message}
         type={dialogConfig.type || 'info'}
         confirmText="OK"
+        cancelText=""
         onConfirm={() => {
           if (dialogConfig.onConfirm) {
             dialogConfig.onConfirm();
@@ -1371,6 +1444,42 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: '#999',
     fontSize: 12,
   },
+  emptyStateAction: {
+    marginTop: 24,
+    alignSelf: 'stretch',
+    marginHorizontal: 16,
+  },
+  customerSearchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 14,
+    height: 48,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+  },
+  customerSearchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: Colors.light.text,
+    outlineStyle: 'none',
+  } as any,
+  newCustomerButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    height: 46,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+  },
+  newCustomerButtonText: {
+    fontSize: 15,
+    fontWeight: '700',
+  },
   emptyState: {
     flex: 1,
     justifyContent: 'center',
@@ -1443,11 +1552,12 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
   cepInputNative: {
     flex: 1,
+    minWidth: 0, // no navegador o input tem largura mínima própria e empurrava o botão para fora do cartão
     marginBottom: 0,
   },
   cepSearchButton: {
-    width: 44,
-    height: 44,
+    width: 52,
+    height: 52,
     borderRadius: theme.borderRadius.lg,
     borderWidth: 1,
     borderColor: Colors.light.border,
