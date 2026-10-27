@@ -206,7 +206,11 @@ Responda APENAS com o JSON, sem texto adicional."""
         except ImportError:
             raise RuntimeError("google-genai não instalado. Execute: pip install google-genai")
 
-        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        # Cada modelo tem 14s: um modelo pendurado não pode gastar os 55s inteiros e impedir o próximo da lista
+        client = genai.Client(
+            api_key=settings.GEMINI_API_KEY,
+            http_options=types.HttpOptions(timeout=14_000),
+        )
         # A cota do plano grátis é por modelo: se um estourar (429), estiver sobrecarregado (503)
         # ou for aposentado (404), tenta o próximo da lista.
         models = [settings.GEMINI_MODEL] + [
@@ -230,7 +234,7 @@ Responda APENAS com o JSON, sem texto adicional."""
                 return response.text
             except Exception as e:  # noqa: BLE001
                 text = str(e)
-                if not any(code in text for code in ("429", "503", "404", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "NOT_FOUND")):
+                if not any(code in text for code in ("429", "500", "503", "504", "404", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "NOT_FOUND", "DEADLINE", "imed out", "Timeout")):
                     raise
                 logger.warning(f"Gemini {model} indisponível, tentando o próximo modelo: {text[:160]}")
                 last_error = e
