@@ -1,6 +1,7 @@
 """
 Endpoints de gerenciamento de categorias.
 """
+from sqlalchemy.exc import SQLAlchemyError
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
@@ -45,6 +46,8 @@ async def list_categories(
         return await service.list_categories(
             tenant_id=current_user.tenant_id, skip=skip, limit=limit
         )
+    except SQLAlchemyError:
+        raise  # o tratador global devolve 409/422 com frase clara
     except Exception as e:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -57,6 +60,8 @@ async def list_categories(
 async def get_category_hierarchy(service: CategoryService = Depends(get_service_public)):
     try:
         return await service.get_hierarchy()
+    except SQLAlchemyError:
+        raise  # o tratador global devolve 409/422 com frase clara
     except Exception as e:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -80,6 +85,8 @@ async def get_category(
         return category
     except HTTPException:
         raise
+    except SQLAlchemyError:
+        raise  # o tratador global devolve 409/422 com frase clara
     except Exception as e:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -106,6 +113,8 @@ async def create_category(
         )
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except SQLAlchemyError:
+        raise  # o tratador global devolve 409/422 com frase clara
     except Exception as e:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -127,6 +136,8 @@ async def update_category(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except SQLAlchemyError:
+        raise  # o tratador global devolve 409/422 com frase clara
     except Exception as e:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -152,5 +163,7 @@ async def delete_category(
         raise HTTPException(status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValueError as e:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except SQLAlchemyError:
+        raise  # o tratador global devolve 409/422 com frase clara
     except Exception as e:
         raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

@@ -300,10 +300,18 @@ async def sqlalchemy_exception_handler(
 ):
     """Erro de banco: o detalhe técnico vai para o registro de erros; a lojista recebe uma frase clara."""
     logger.error(f"Database error: {str(exc)}", exc_info=True)
-    await log_request_error(request, 500, exc=exc)
+    # Dado repetido = 409 e valor fora do limite do campo = 422 (o app mostra a frase); só o resto é erro do servidor
+    text_ = str(exc).lower()
+    if "duplicate key" in text_ or "uniqueviolation" in text_ or "unique constraint failed" in text_:
+        code = status.HTTP_409_CONFLICT
+    elif "numeric field overflow" in text_ or "out of range" in text_ or "too long for type" in text_ or "datafielderror" in text_:
+        code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    else:
+        code = status.HTTP_500_INTERNAL_SERVER_ERROR
+    await log_request_error(request, code, exc=exc)
     friendly = friendly_from_text(str(exc))
     return JSONResponse(
-        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        status_code=code,
         content={
             "detail": friendly,
             "message": str(exc) if settings.DEBUG else friendly,

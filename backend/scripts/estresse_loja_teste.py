@@ -20,7 +20,9 @@ import httpx
 from app.core.security import create_access_token
 
 TENANT = 1
-BASE = "http://localhost:8000/api/v1"
+import os
+# BASE_URL=https://api.provadorfit.com.br/api/v1 faz a carga passar pelo nginx (a guarda de publicação então enxerga as gravações)
+BASE = os.environ.get("BASE_URL", "http://localhost:8000/api/v1")
 TOTAL = int(sys.argv[1]) if len(sys.argv) > 1 else 3000
 WORKERS = 4
 random.seed(20261027)
@@ -51,11 +53,20 @@ client = httpx.Client(base_url=BASE, headers=H, timeout=60.0, limits=httpx.Limit
 
 def chamar(nome, metodo, url, **kw):
     t0 = time.perf_counter()
-    try:
-        r = client.request(metodo, url, **kw)
-    except Exception as e:  # noqa: BLE001
-        with lock:
-            erros[f"{nome}: {type(e).__name__}"] += 1
+    r = None
+    for tentativa in range(4):  # servidor reiniciando (deploy): espera e tenta de novo, como um cliente bem feito
+        try:
+            r = client.request(metodo, url, **kw)
+            break
+        except (httpx.ConnectError, httpx.RemoteProtocolError, httpx.ReadError) as e:
+            with lock:
+                erros[f"{nome}: {type(e).__name__} (tentativa {tentativa + 1})"] += 1
+            time.sleep(8)
+        except Exception as e:  # noqa: BLE001
+            with lock:
+                erros[f"{nome}: {type(e).__name__}"] += 1
+            return None
+    if r is None:
         return None
     ms = (time.perf_counter() - t0) * 1000
     with lock:
@@ -85,7 +96,7 @@ MATERIAIS = ["Poliamida", "Algodão", "Suplex", "Poliéster", "Elastano", "Dry F
 GENEROS = ["Feminino", "Feminino", "Feminino", "Masculino", "Unissex", None]
 FORMAS = ["pix", "cartao", "dinheiro", "boleto", "transferencia", None]
 
-N_FORNECEDORES = 45
+N_FORNECEDORES = 45  # com REUSE=1 reaproveita os que já existem
 N_CATEGORIAS = 28
 
 
@@ -162,6 +173,10 @@ def variantes(tipo):
 
 # ---------------------------------------------------------------- fases
 def preparar():
+    if os.environ.get("REUSE") == "1":
+        f = [x["id"] for x in client.get("/suppliers").json() if "Estresse" in x["name"]]
+        c = [x["id"] for x in client.get("/categories/").json() if x["name"].startswith("Estresse")]
+        return f, c
     forn = []
     for i in range(N_FORNECEDORES):
         doc = digitos(14) if i % 3 else (digitos(11) if i % 2 else None)
@@ -197,7 +212,7 @@ def uma_entrada(n_entrada, indices, cats, forn):
     extra = [{"description": random.choice(["Frete", "Pedágio", "Almoço", "Estacionamento"]), "amount": round(random.uniform(10, 300), 2)}
              for _ in range(random.choice([0, 0, 1, 2]))]
     primeiro = corpo_produto(indices[0], cats, forn)
-    corpo = {**primeiro, "supplier_id": forn_id, "entry_code": f"EST-{n_entrada:04d}", "entry_date": data,
+    corpo = {**primeiro, "supplier_id": forn_id, "entry_code": f"EST-{int(time.time()) % 100000:05d}-{n_entrada:03d}", "entry_date": data,
              "entry_type": random.choice(["local", "online"]), "invoice_number": f"NF{digitos(6)}",
              "payment_method": random.choice(FORMAS), "discount_amount": random.choice([0, 0, 0, 10, 50, 120.5]),
              "notes": "ESTRESSE", "extra_costs": extra}
@@ -238,7 +253,7 @@ def reposicoes(cats, forn, quantas=150):
         itens = linhas[e * 6:(e + 1) * 6]
         if not itens:
             break
-        corpo = {"entry_code": f"EST-REP-{e + 1:04d}", "entry_date": time.strftime("%Y-%m-%d"), "entry_type": "local",
+        corpo = {"entry_code": f"EST-REP-{int(time.time()) % 100000:05d}-{e + 1:03d}", "entry_date": time.strftime("%Y-%m-%d"), "entry_type": "local",
                  "supplier_id": random.choice(forn), "invoice_number": f"NF{digitos(6)}", "notes": "ESTRESSE",
                  "discount_amount": random.choice([0, 0, 15]),
                  "items": [{"product_id": pid, "variant_id": vid, "quantity_received": random.randint(1, 15),

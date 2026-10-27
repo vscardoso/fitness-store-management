@@ -350,3 +350,26 @@ async def test_um_produto_com_defeito_nao_derruba_a_lista_de_produtos(test_clien
     assert lista.status_code == 200, lista.text
     nomes = [p["name"] for p in lista.json()]
     assert "Saudavel Beta" in nomes and "Defeituoso Alfa" not in nomes
+
+
+async def test_categoria_repetida_da_409_e_valor_enorme_da_422_com_frase_clara(test_client, async_session, test_user):
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    nome = {"name": "Categoria Dupla Fallback"}
+    assert (await test_client.post("/api/v1/categories/", headers=h, json=nome)).status_code == 201
+    r = await test_client.post("/api/v1/categories/", headers=h, json=nome)
+    assert r.status_code in (400, 409), r.text
+    assert "cadastro igual" in r.text or "já existe" in r.text.lower()
+
+
+async def test_valor_enorme_no_banco_vira_422_com_frase_clara(monkeypatch):
+    import app.main as m
+    from sqlalchemy.exc import DataError
+
+    async def _nada(*a, **k):
+        return None
+    monkeypatch.setattr(m, "log_request_error", _nada)
+    r = await m.sqlalchemy_exception_handler(None, DataError("INSERT", {}, Exception("numeric field overflow")))
+    assert r.status_code == 422 and b"grande demais" in r.body
+    r = await m.sqlalchemy_exception_handler(None, DataError("INSERT", {}, Exception("outro problema qualquer")))
+    assert r.status_code == 500
