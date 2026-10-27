@@ -448,6 +448,35 @@ export default function WizardStep2({
                 blurOnSubmit={false}
               />
 
+            </Card.Content>
+        </Card>
+
+        {/* Card: Variantes */}
+        <Card style={styles.card}>
+          <Card.Content>
+            <VariantBuilderInline
+              hasVariants={state.hasVariants ?? false}
+              onToggle={wizard.setHasVariants}
+              selectedSizes={state.variantSizes ?? []}
+              onSizesChange={wizard.setVariantSizes}
+              selectedColors={state.variantColors ?? []}
+              onColorsChange={wizard.setVariantColors}
+              colorSizes={state.colorSizes ?? {}}
+              onColorSizesChange={wizard.setColorSizes}
+              basePrice={parseFloat(salePriceStr) || 0}
+              costPrice={parseFloat(costPriceStr) || 0}
+              variantPrices={state.variantPrices ?? {}}
+              onVariantPriceChange={wizard.setVariantPrice}
+              variantQuantities={state.variantQuantities ?? {}}
+              onVariantQuantitiesChange={wizard.setVariantQuantities}
+              validationError={state.validationErrors.variants as string | undefined}
+            />
+          </Card.Content>
+        </Card>
+
+        {/* Card: Cor, tamanho e descrição (cor e tamanho só sem grade de variações) */}
+        <Card style={styles.card}>
+          <Card.Content>
               {/* Cor e Tamanho — oculto quando variantes estão ativas */}
               {!state.hasVariants && (
               <View style={styles.row}>
@@ -487,33 +516,8 @@ export default function WizardStep2({
                 onSubmitEditing={() => Keyboard.dismiss()}
                 blurOnSubmit={false}
               />
-            </Card.Content>
-        </Card>
-
-        {/* Card: Variantes */}
-        <Card style={styles.card}>
-          <Card.Content>
-            <VariantBuilderInline
-              hasVariants={state.hasVariants ?? false}
-              onToggle={wizard.setHasVariants}
-              selectedSizes={state.variantSizes ?? []}
-              onSizesChange={wizard.setVariantSizes}
-              selectedColors={state.variantColors ?? []}
-              onColorsChange={wizard.setVariantColors}
-              colorSizes={state.colorSizes ?? {}}
-              onColorSizesChange={wizard.setColorSizes}
-              basePrice={parseFloat(salePriceStr) || 0}
-              costPrice={parseFloat(costPriceStr) || 0}
-              variantPrices={state.variantPrices ?? {}}
-              onVariantPriceChange={wizard.setVariantPrice}
-              variantQuantities={state.variantQuantities ?? {}}
-              onVariantQuantitiesChange={wizard.setVariantQuantities}
-              validationError={state.validationErrors.variants as string | undefined}
-            />
           </Card.Content>
         </Card>
-
-
 
       {/* Footer com botões */}
       <View style={styles.footer}>
