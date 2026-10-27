@@ -17,13 +17,13 @@ import {
   ScrollView,
   TouchableOpacity,
   Text,
+  Keyboard,
 } from 'react-native';
 import {
   TextInput,
   Button,
   HelperText,
   Chip,
-  Menu,
   IconButton,
   Divider,
 } from 'react-native-paper';
@@ -1750,59 +1750,56 @@ export default function AddStockEntryScreen() {
                 <Text style={[styles.addButtonText, { color: brandingColors.primary }]}>Nova Viagem</Text>
               </TouchableOpacity>
             </View>
-            <Menu
+            <TouchableOpacity
+              style={[styles.selectButton, errors.tripId && styles.selectButtonError]}
+              onPress={() => {
+                Keyboard.dismiss();
+                setTripMenuVisible(true);
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.selectButtonText}>
+                {selectedTrip ? `${selectedTrip.trip_code} - ${selectedTrip.destination}` : 'Selecionar viagem'}
+              </Text>
+              <Ionicons name="chevron-down" size={20} color={Colors.light.textSecondary} />
+            </TouchableOpacity>
+
+            <BottomSheet
               visible={tripMenuVisible}
               onDismiss={() => setTripMenuVisible(false)}
-              anchor={
-                <TouchableOpacity
-                  style={[styles.selectButton, errors.tripId && styles.selectButtonError]}
-                  onPress={() => {
-                    if (!tripMenuVisible) {
-                      setTripMenuVisible(true);
-                    }
-                  }}
-                  activeOpacity={0.7}
-                >
-                  <Text style={styles.selectButtonText}>
-                    {selectedTrip ? `${selectedTrip.trip_code} - ${selectedTrip.destination}` : 'Selecionar viagem'}
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color={Colors.light.textSecondary} />
-                </TouchableOpacity>
-              }
+              title="Escolher viagem"
+              subtitle="A que viagem esta compra pertence"
+              icon="airplane-outline"
             >
-              {trips.length === 0 ? (
-                <Menu.Item
+              <TouchableOpacity
+                style={[styles.variantSheetRow, { borderColor: brandingColors.primary + '55', backgroundColor: brandingColors.primary + '0F' }]}
+                activeOpacity={0.8}
+                onPress={() => {
+                  setTripMenuVisible(false);
+                  setShowCreateTripDialog(true);
+                }}
+              >
+                <Text style={[styles.variantSheetName, { color: brandingColors.primary, flex: 1 }]}>Criar nova viagem</Text>
+                <Ionicons name="add-circle-outline" size={22} color={brandingColors.primary} />
+              </TouchableOpacity>
+              {trips.map((trip) => (
+                <TouchableOpacity
+                  key={trip.id}
+                  style={styles.variantSheetRow}
+                  activeOpacity={0.8}
                   onPress={() => {
+                    setTripId(trip.id);
                     setTripMenuVisible(false);
-                    setShowCreateTripDialog(true);
                   }}
-                  title="➕ Criar Nova Viagem"
-                  titleStyle={{ color: brandingColors.primary, fontWeight: '600' }}
-                />
-              ) : (
-                <>
-                  <Menu.Item
-                    onPress={() => {
-                      setTripMenuVisible(false);
-                      setShowCreateTripDialog(true);
-                    }}
-                    title="➕ Criar Nova Viagem"
-                    titleStyle={{ color: brandingColors.primary, fontWeight: '600' }}
-                  />
-                  <Divider />
-                  {trips.map((trip) => (
-                    <Menu.Item
-                      key={trip.id}
-                      onPress={() => {
-                        setTripId(trip.id);
-                        setTripMenuVisible(false);
-                      }}
-                      title={`${trip.trip_code} - ${trip.destination}`}
-                    />
-                  ))}
-                </>
-              )}
-            </Menu>
+                >
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.variantSheetName} numberOfLines={1}>{trip.destination}</Text>
+                    <Text style={styles.variantSheetMeta}>{trip.trip_code}</Text>
+                  </View>
+                  {selectedTrip?.id === trip.id && <Ionicons name="checkmark-circle" size={22} color={brandingColors.primary} />}
+                </TouchableOpacity>
+              ))}
+            </BottomSheet>
             {errors.tripId && (
               <HelperText type="error">{errors.tripId}</HelperText>
             )}
