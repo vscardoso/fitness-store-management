@@ -91,22 +91,26 @@ class SupplierInsightsService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def _discount_units(self, tenant_id: int) -> Dict[int, float]:
+    async def _discount_units(self, tenant_id: int, only_entries: Optional[set] = None) -> Dict[int, float]:
         """{item da entrada: desconto por peça} só das entradas que têm algum desconto (geral ou de fornecedor).
-        É a mesma conta do rateio do custo, calculada sem gravar: relatórios de fornecedor mostram o preço PAGO."""
+        É a mesma conta do rateio do custo, calculada sem gravar: relatórios de fornecedor mostram o preço PAGO.
+        `only_entries`: calcula só destas entradas (consulta de um produto não precisa recalcular a loja inteira)."""
+        if only_entries is not None and not only_entries:
+            return {}
         from app.models.entry_supplier_discount import EntrySupplierDiscount
         from app.services import lot_cost_service
-        ids = set((await self.db.execute(
-            select(StockEntry.id).where(
-                StockEntry.tenant_id == tenant_id, StockEntry.is_active == True, StockEntry.discount_amount > 0  # noqa: E712
-            )
-        )).scalars().all())
-        ids |= set((await self.db.execute(
-            select(EntrySupplierDiscount.entry_id).where(
-                EntrySupplierDiscount.tenant_id == tenant_id, EntrySupplierDiscount.is_active == True,  # noqa: E712
-                EntrySupplierDiscount.amount > 0,
-            )
-        )).scalars().all())
+        q1 = select(StockEntry.id).where(
+            StockEntry.tenant_id == tenant_id, StockEntry.is_active == True, StockEntry.discount_amount > 0  # noqa: E712
+        )
+        q2 = select(EntrySupplierDiscount.entry_id).where(
+            EntrySupplierDiscount.tenant_id == tenant_id, EntrySupplierDiscount.is_active == True,  # noqa: E712
+            EntrySupplierDiscount.amount > 0,
+        )
+        if only_entries is not None:
+            q1 = q1.where(StockEntry.id.in_(only_entries))
+            q2 = q2.where(EntrySupplierDiscount.entry_id.in_(only_entries))
+        ids = set((await self.db.execute(q1)).scalars().all())
+        ids |= set((await self.db.execute(q2)).scalars().all())
         if not ids:
             return {}
         calc = await lot_cost_service.recompute_entries(self.db, ids, tenant_id=tenant_id, dry_run=True)
@@ -117,9 +121,9 @@ class SupplierInsightsService:
                     out[item_id] = float(disc)
         return out
 
-    async def paid_cost_history(self, tenant_id: int) -> Dict[tuple, List[tuple]]:
-        """(fornecedor, produto) -> [(data, preço pago médio por peça)], já com os descontos."""
-        return await self._cost_history(tenant_id)
+    async def paid_cost_history(self, tenant_id: int, product_id: Optional[int] = None) -> Dict[tuple, List[tuple]]:
+        """(fornecedor, produto) -> [(data, preço pago médio por peça)], já com os descontos. `product_id` limita a um produto."""
+        return await self._cost_history(tenant_id, product_id)
 
     # ------------------------------------------------------------------ ranking
     async def ranking(self, tenant_id: int, days: int = 180) -> Dict[str, Any]:
@@ -332,9 +336,9 @@ class SupplierInsightsService:
         increases.sort(key=lambda r: -r["change_pct"])
         return {"products": products, "price_increases": increases}
 
-    async def _cost_history(self, tenant_id: int) -> Dict[tuple, List[tuple]]:
+    async def _cost_history(self, tenant_id: int, product_id: Optional[int] = None) -> Dict[tuple, List[tuple]]:
         """(fornecedor, produto) -> [(data, custo médio ponderado da compra)] em ordem cronológica."""
-        rows = (await self.db.execute(
+        stmt = (
             select(EntryItem.supplier_id, EntryItem.product_id, EntryItem.entry_id, StockEntry.entry_date,
                    EntryItem.quantity_received, EntryItem.unit_cost, EntryItem.id)
             .join(StockEntry, StockEntry.id == EntryItem.entry_id)
@@ -345,8 +349,12 @@ class SupplierInsightsService:
                 EntryItem.supplier_id.is_not(None),
                 EntryItem.product_id.is_not(None),
             )
-        )).all()
-        disc_units = await self._discount_units(tenant_id)
+        )
+        if product_id is not None:
+            stmt = stmt.where(EntryItem.product_id == product_id)
+        rows = (await self.db.execute(stmt)).all()
+        disc_units = await self._discount_units(
+            tenant_id, {r[2] for r in rows} if product_id is not None else None)
         per_entry: Dict[tuple, Dict[int, list]] = defaultdict(dict)
         for sup_id, prod_id, entry_id, entry_date, qty, cost, item_id in rows:
             slot = per_entry[(sup_id, prod_id)].setdefault(entry_id, [entry_date, 0, 0.0])

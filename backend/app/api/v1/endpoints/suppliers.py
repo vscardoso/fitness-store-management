@@ -162,7 +162,7 @@ async def get_product_suppliers(
     rows = [_sp_to_response(sp) for sp in items]
     # preço PAGO na última compra (com o desconto do fornecedor), igual ao da comparação e dos relatórios
     from app.services.supplier_insights_service import SupplierInsightsService
-    paid = await SupplierInsightsService(db).paid_cost_history(tenant_id)
+    paid = await SupplierInsightsService(db).paid_cost_history(tenant_id, product_id)
     for sp, row in zip(items, rows):
         hist = paid.get((sp.supplier_id, sp.product_id))
         if hist:

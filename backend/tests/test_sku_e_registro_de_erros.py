@@ -389,3 +389,27 @@ async def test_busca_de_produtos_respeita_limite_e_pagina(test_client, async_ses
     c = (await test_client.get("/api/v1/products?search=Pagina Teste&limit=2&skip=4", headers=h)).json()
     assert len(a) == 2 and len(b) == 2 and len(c) == 1
     assert len({p["id"] for p in a + b + c}) == 5
+
+
+async def test_historico_de_preco_pago_de_um_produto_bate_com_o_da_loja_inteira(test_client, async_session, test_user):
+    """A rota de fornecedores do produto só calcula o produto; o resultado tem de ser igual ao do cálculo da loja toda."""
+    from app.services.supplier_insights_service import SupplierInsightsService
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    ids = []
+    for i, desc in enumerate((0, 30)):
+        r = await test_client.post("/api/v1/stock-entries/with-new-product-variants", headers=h, json={
+            "product_name": f"Hist Preco {i}", "product_category_id": cat, "base_price": 80, "supplier_name": "Forn Hist",
+            "variants": [{"sku": f"HP-{i}", "price": 80, "cost_price": 40, "quantity": 5}],
+            "entry_code": f"HIST-PRECO-{i}", "entry_type": "local", "entry_date": "2026-10-01", "discount_amount": desc})
+        assert r.status_code == 201, r.text
+
+    ids = [p["id"] for p in (await test_client.get("/api/v1/products?search=Hist Preco&limit=10", headers=h)).json()]
+    assert len(ids) == 2, ids
+    svc = SupplierInsightsService(async_session)
+    toda = await svc.paid_cost_history(t_id)
+    for pid in [x for x in ids if x]:
+        so_um = await svc.paid_cost_history(t_id, pid)
+        esperado = {k: v for k, v in toda.items() if k[1] == pid}
+        assert so_um == esperado and so_um, (pid, so_um, esperado)
+    assert list(await svc.paid_cost_history(t_id, ids[1]))
