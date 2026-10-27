@@ -248,6 +248,19 @@ export default function VariantBuilderInline({
   const setQty = (color: string, size: string, text: string) => {
     onVariantQuantitiesChange({ [qtyKey(color, size)]: parseQty(text) });
   };
+  const stepQty = (color: string, size: string, delta: number) => {
+    onVariantQuantitiesChange({ [qtyKey(color, size)]: Math.max(0, Math.min(9999, qtyOf(color, size) + delta)) });
+  };
+  const stepQtyAll = (color: string, sizes: string[], delta: number) => {
+    const patch: Record<string, number> = {};
+    sizes.forEach((sz) => { patch[qtyKey(color, sz)] = Math.max(0, Math.min(9999, qtyOf(color, sz) + delta)); });
+    onVariantQuantitiesChange(patch);
+  };
+  /** Valor comum da cor: só aparece se todos os tamanhos têm a mesma quantidade */
+  const commonQty = (color: string, sizes: string[]): number => {
+    const vals = sizes.map((sz) => qtyOf(color, sz));
+    return vals.length > 0 && vals.every((v) => v === vals[0]) ? vals[0] : 0;
+  };
   const setQtyAll = (color: string, sizes: string[], text: string) => {
     const v = parseQty(text);
     const patch: Record<string, number> = {};
@@ -662,19 +675,29 @@ export default function VariantBuilderInline({
                       </ScrollView>
                     )}
 
-                    {/* Mesma quantidade em todos os tamanhos desta cor */}
+                    {/* Quantidade de todos os tamanhos desta cor de uma vez (cada tamanho ainda pode ser ajustado) */}
                     <View style={styles.qtyAllRow}>
-                      <Text style={styles.qtyAllLabel}>Quantidade de cada tamanho</Text>
-                      <RNTextInput
-                        style={styles.qtyAllInput}
-                        keyboardType="number-pad"
-                        placeholder="todos"
-                        placeholderTextColor={Colors.light.textTertiary}
-                        maxLength={4}
-                        returnKeyType="done"
-                        onChangeText={(t) => setQtyAll(color, sizes, t)}
-                        accessibilityLabel={`Mesma quantidade em todos os tamanhos de ${color}`}
-                      />
+                      <Text style={styles.qtyAllLabel}>Todos os tamanhos desta cor</Text>
+                      <View style={styles.qtyStepper}>
+                        <TouchableOpacity style={styles.qtyStepBtn} onPress={() => stepQtyAll(color, sizes, -1)} accessibilityLabel={`Diminuir um em todos os tamanhos de ${color}`}>
+                          <Ionicons name="remove" size={16} color={brandingColors.primary} />
+                        </TouchableOpacity>
+                        <RNTextInput
+                          style={styles.qtyAllInput}
+                          keyboardType="number-pad"
+                          placeholder="varia"
+                          placeholderTextColor={Colors.light.textTertiary}
+                          maxLength={4}
+                          returnKeyType="done"
+                          selectTextOnFocus
+                          value={commonQty(color, sizes) > 0 ? String(commonQty(color, sizes)) : ''}
+                          onChangeText={(t) => setQtyAll(color, sizes, t)}
+                          accessibilityLabel={`Mesma quantidade em todos os tamanhos de ${color}`}
+                        />
+                        <TouchableOpacity style={styles.qtyStepBtn} onPress={() => stepQtyAll(color, sizes, 1)} accessibilityLabel={`Aumentar um em todos os tamanhos de ${color}`}>
+                          <Ionicons name="add" size={16} color={brandingColors.primary} />
+                        </TouchableOpacity>
+                      </View>
                     </View>
 
                     {/* Chips de tamanho com preço */}
@@ -699,19 +722,27 @@ export default function VariantBuilderInline({
                             <Text style={[styles.variantCardPrice, isCustom && styles.variantCardPriceCustom, isCustom && { color: brandingColors.primary }]}>
                               {price > 0 ? `R$\u00a0${price.toFixed(2).replace('.', ',')}` : '—'}
                             </Text>
-                            {/* Quantidade a lançar */}
-                            <RNTextInput
-                              style={[styles.variantCardQty, qtyOf(color, size) > 0 && { borderColor: brandingColors.primary, color: brandingColors.primary }]}
-                              value={qtyOf(color, size) > 0 ? String(qtyOf(color, size)) : ''}
-                              onChangeText={(t) => setQty(color, size, t)}
-                              keyboardType="number-pad"
-                              placeholder="Qtd"
-                              placeholderTextColor={Colors.light.textTertiary}
-                              maxLength={4}
-                              returnKeyType="done"
-                              selectTextOnFocus
-                              accessibilityLabel={`Quantidade ${color} ${size}`}
-                            />
+                            {/* Quantidade a lançar: - campo + (cada variação tem a sua) */}
+                            <View style={styles.qtyStepper}>
+                              <TouchableOpacity style={styles.qtyStepBtn} onPress={() => stepQty(color, size, -1)} accessibilityLabel={`Diminuir quantidade ${color} ${size}`}>
+                                <Ionicons name="remove" size={14} color={brandingColors.primary} />
+                              </TouchableOpacity>
+                              <RNTextInput
+                                style={[styles.variantCardQty, qtyOf(color, size) > 0 && { borderColor: brandingColors.primary, color: brandingColors.primary }]}
+                                value={qtyOf(color, size) > 0 ? String(qtyOf(color, size)) : ''}
+                                onChangeText={(t) => setQty(color, size, t)}
+                                keyboardType="number-pad"
+                                placeholder="0"
+                                placeholderTextColor={Colors.light.textTertiary}
+                                maxLength={4}
+                                returnKeyType="done"
+                                selectTextOnFocus
+                                accessibilityLabel={`Quantidade ${color} ${size}`}
+                              />
+                              <TouchableOpacity style={styles.qtyStepBtn} onPress={() => stepQty(color, size, 1)} accessibilityLabel={`Aumentar quantidade ${color} ${size}`}>
+                                <Ionicons name="add" size={14} color={brandingColors.primary} />
+                              </TouchableOpacity>
+                            </View>
                             {/* Indicador de preço personalizado */}
                             {isCustom && (
                               <View style={styles.variantCardCustomBadge}>
@@ -1350,7 +1381,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   variantCard: {
     backgroundColor: Colors.light.card,
     borderRadius: 12,
-    paddingHorizontal: 12,
+    paddingHorizontal: 6,
     paddingVertical: 10,
     alignItems: 'center',
     borderWidth: 1.5,
@@ -1408,14 +1439,19 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: Colors.light.warning,
   },
 
+  qtyStepper: { flexDirection: 'row', alignItems: 'center', gap: 2, marginTop: 6 },
+  qtyStepBtn: {
+    width: 22, height: 32, borderRadius: 8, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: Colors.light.background, borderWidth: 1, borderColor: Colors.light.border,
+  },
   qtyAllRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 },
   qtyAllLabel: { fontSize: 12, color: Colors.light.textSecondary, flex: 1 },
   qtyAllInput: {
-    width: 72, height: 34, borderRadius: 10, borderWidth: 1.5, borderColor: Colors.light.border,
+    width: 56, height: 32, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.light.border,
     backgroundColor: Colors.light.card, textAlign: 'center', fontSize: 14, fontWeight: '700', color: Colors.light.text, paddingVertical: 0,
   },
   variantCardQty: {
-    marginTop: 6, width: 56, height: 32, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.light.border,
+    width: 38, height: 32, borderRadius: 8, borderWidth: 1.5, borderColor: Colors.light.border,
     backgroundColor: Colors.light.background, textAlign: 'center', fontSize: 14, fontWeight: '700', color: Colors.light.text, paddingVertical: 0,
   },
   qtyTotal: { marginTop: 12, fontSize: 13, fontWeight: '700', color: Colors.light.text },
