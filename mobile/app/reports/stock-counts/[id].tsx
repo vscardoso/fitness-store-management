@@ -2,7 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 
 import PageHeader from '@/components/layout/PageHeader';
@@ -18,6 +18,7 @@ const variantLabel = (i: StockCountItem) => [i.color, i.size].filter(Boolean).jo
 
 export default function StockCountDetailScreen() {
   const brand = useBrandingColors();
+  const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { goBack } = useBackToList('/reports/stock-counts');
   const [onlyDiffs, setOnlyDiffs] = useState(false);
@@ -47,7 +48,7 @@ export default function StockCountDetailScreen() {
     <View style={styles.container}>
       <PageHeader
         title={count?.name || 'Conferência de estoque'}
-        subtitle={count ? formatDateTime(count.created_at) : undefined}
+        subtitle={count ? (count.status === 'open' ? 'Em andamento · salva em ' + formatDateTime(count.updated_at || count.created_at) : 'Finalizada em ' + formatDateTime(count.finished_at || count.created_at)) : undefined}
         showBackButton
         onBack={goBack}
       />
@@ -68,6 +69,21 @@ export default function StockCountDetailScreen() {
               {[count.created_by_name, count.category_name || 'Todas as categorias'].filter(Boolean).join(' · ')}
             </Text>
             {!!count.note && <Text style={styles.note}>{count.note}</Text>}
+            {count.status === 'open' && (
+              <View style={styles.openBox}>
+                <Text style={styles.openText}>
+                  Esta conferência ainda está em andamento: os números abaixo são os do último salvamento. Continue de onde parou para contar mais peças e finalizar.
+                </Text>
+                <TouchableOpacity
+                  onPress={() => router.push({ pathname: '/reports/stock-check', params: { resume: String(count.id) } } as any)}
+                  style={[styles.openBtn, { backgroundColor: brand.primary }]}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="play" size={14} color="#fff" />
+                  <Text style={styles.openBtnText}>Continuar de onde parou</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             <View style={styles.cards}>
               <View style={styles.card}>
@@ -149,7 +165,7 @@ export default function StockCountDetailScreen() {
                 </Text>
               </TouchableOpacity>
             )}
-            <Text style={styles.footer}>Esta conferência é uma fotografia do dia. Ela não altera o estoque.</Text>
+            <Text style={styles.footer}>{count.status === 'open' ? 'Esta conferência não altera o estoque.' : 'Esta conferência é uma fotografia do dia e não muda mais. Ela não altera o estoque.'}</Text>
           </>
         )}
       </ScrollView>
@@ -161,6 +177,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },
   content: { padding: 16, gap: 12, paddingBottom: 40 },
   meta: { fontSize: 13, color: Colors.light.textSecondary },
+  openBox: { gap: 10, backgroundColor: '#FEF3C7', borderRadius: 12, padding: 12 },
+  openText: { fontSize: 13, lineHeight: 18, fontWeight: '600', color: '#92400E' },
+  openBtn: { alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
+  openBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
   note: { fontSize: 14, color: Colors.light.text, backgroundColor: Colors.light.card, borderRadius: 12, padding: 12 },
   cards: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   card: {

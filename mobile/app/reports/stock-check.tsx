@@ -19,7 +19,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import PageHeader from '@/components/layout/PageHeader';
@@ -31,7 +31,7 @@ import useBackToList from '@/hooks/useBackToList';
 import { useAuthStore } from '@/store/authStore';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getStockCheck, type StockCheckRow } from '@/services/stockCheckService';
-import { saveStockCount } from '@/services/stockCountService';
+import { countsKey, createStockCount, getStockCount, updateStockCount, type CountedItemInput } from '@/services/stockCountService';
 import { variantCodeText } from '@/utils/shortCode';
 import HScroll from '@/components/ui/HScroll';
 import { formatInt, formatDateTime } from '@/utils/format';
@@ -41,6 +41,14 @@ import { buildCodeIndex, findVariantLocal } from '@/utils/scanLogic';
 import { playScan } from '@/utils/scanFeedback';
 
 type Counts = Record<number, string>;
+
+interface Draft {
+  id: number;
+  revision: number;
+  name: string;
+  note: string;
+  categoryId: number | null;
+}
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const variantLabel = (r: StockCheckRow) => [r.color, r.size].filter(Boolean).join(' / ') || 'Única';
@@ -72,7 +80,16 @@ export default function StockCheckScreen() {
   const [saveNote, setSaveNote] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
-  const [savedInfo, setSavedInfo] = useState<{ id: number; at: string } | null>(null);
+  // Conferência em andamento no servidor (continua em qualquer aparelho)
+  const [draft, setDraft] = useState<Draft | null>(null);
+  const [saveMode, setSaveMode] = useState<'draft' | 'finish'>('draft');
+  const [finishOpen, setFinishOpen] = useState(false);
+  const [conflict, setConflict] = useState('');
+  const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [pendingResume, setPendingResume] = useState<number | null>(null);
+  const lastSavedRef = useRef('');
+  const resumedRef = useRef<string | null>(null);
+  const params = useLocalSearchParams<{ resume?: string }>();
   // leitura por QR
   const scrollRef = useRef<ScrollView>(null);
   const groupY = useRef<Record<string, number>>({});
@@ -177,31 +194,134 @@ export default function StockCheckScreen() {
     return { counted, countedPieces, systemOfCounted, falta, sobra, ok, diffs: counted - ok };
   }, [rows, counts]);
 
+  // Qual conferência em andamento este aparelho está continuando (a contagem em si já fica salva acima)
+  const draftKey = `@provador:conferencia_andamento:${tenantId ?? 'loja'}`;
+  const [draftLoaded, setDraftLoaded] = useState(false);
+  useEffect(() => {
+    AsyncStorage.getItem(draftKey)
+      .then((raw) => {
+        if (raw) setDraft(JSON.parse(raw));
+      })
+      .catch(() => {})
+      .finally(() => setDraftLoaded(true));
+  }, [draftKey]);
+  useEffect(() => {
+    if (!draftLoaded) return;
+    if (draft) AsyncStorage.setItem(draftKey, JSON.stringify(draft)).catch(() => {});
+    else AsyncStorage.removeItem(draftKey).catch(() => {});
+  }, [draft, draftLoaded, draftKey]);
+
   const setCount = useCallback((variantId: number, text: string) => {
     setCounts((prev) => ({ ...prev, [variantId]: text.replace(/[^0-9]/g, '') }));
   }, []);
 
-  // Grava a conferência no servidor (data, quem contou e o resultado de cada peça). Só vai o que foi contado.
-  const doSave = async () => {
-    const items = rows
-      .filter((r) => diffOf(r, counts) !== null)
+  // O que vai para o servidor: TODAS as peças contadas do escopo da conferência (nunca só as que o filtro mostra agora)
+  const scopeCategory = draft ? draft.categoryId : categoryId;
+  const payloadItems = useCallback((): CountedItemInput[] => {
+    const src = allData?.rows ?? [];
+    return src
+      .filter((r) => (scopeCategory == null || r.category_id === scopeCategory) && diffOf(r, counts) !== null)
       .map((r) => ({ variant_id: r.variant_id, counted_quantity: parseInt(counts[r.variant_id], 10) }));
-    if (!items.length) return;
-    setSaving(true);
-    setSaveError('');
+  }, [allData, scopeCategory, counts]);
+
+  // Salva no servidor: cria a conferência em andamento (1ª vez), atualiza a mesma (as seguintes) ou finaliza.
+  const persist = useCallback(
+    async (opts: { finish?: boolean; name?: string; note?: string; silent?: boolean } = {}) => {
+      const items = payloadItems();
+      if (opts.finish && !items.length) {
+        setSaveError('Conte ao menos uma peça antes de finalizar.');
+        return false;
+      }
+      if (!draft && !items.length) return false;
+      setSaving(true);
+      setSaveError('');
+      try {
+        const res = draft
+          ? await updateStockCount(draft.id, {
+              revision: draft.revision, name: opts.name ?? draft.name, note: opts.note ?? draft.note, items, finish: opts.finish,
+            })
+          : await createStockCount({ name: opts.name, note: opts.note, categoryId: scopeCategory, items, finish: opts.finish });
+        queryClient.invalidateQueries({ queryKey: ['stock-counts'] });
+        lastSavedRef.current = countsKey(items);
+        setConflict('');
+        setSavedAt(new Date().toISOString());
+        if (opts.finish) {
+          setDraft(null);
+          setCounts({});
+          lastSavedRef.current = '';
+          setSaveOpen(false);
+          setFinishOpen(false);
+          router.push({ pathname: '/reports/stock-counts/[id]', params: { id: String(res.id) } } as any);
+        } else {
+          setDraft({ id: res.id, revision: res.revision, name: res.name ?? '', note: res.note ?? '', categoryId: res.category_id });
+          setSaveOpen(false);
+        }
+        return true;
+      } catch (e: any) {
+        if (e?.response?.status === 409) {
+          setConflict(e?.response?.data?.detail || 'Outra pessoa salvou esta conferência depois de você. Recarregue a versão salva.');
+          setFinishOpen(false);
+        } else if (!opts.silent) {
+          setSaveError(e?.message || 'Não foi possível salvar a conferência. Tente de novo.');
+        }
+        return false;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [payloadItems, draft, scopeCategory, queryClient, router],
+  );
+
+  // Salva sozinho, 20 s depois da última mudança, quando há conferência em andamento
+  useEffect(() => {
+    if (!draft || conflict || saving || !allData) return;
+    if (countsKey(payloadItems()) === lastSavedRef.current) return;
+    const t = setTimeout(() => {
+      persist({ silent: true });
+    }, 20000);
+    return () => clearTimeout(t);
+  }, [draft, conflict, saving, allData, payloadItems, persist]);
+
+  // Abre uma conferência em andamento do servidor e põe os números dela na tela
+  const loadDraft = useCallback(async (id: number) => {
     try {
-      const saved = await saveStockCount({ name: saveName, note: saveNote, categoryId, items });
-      setSavedInfo({ id: saved.id, at: saved.created_at });
-      setSaveOpen(false);
-      setSaveName('');
-      setSaveNote('');
-      queryClient.invalidateQueries({ queryKey: ['stock-counts'] });
+      const detail = await getStockCount(id);
+      if (detail.count.status !== 'open') {
+        setMessage('Esta conferência já foi finalizada e não pode mais ser continuada.');
+        return;
+      }
+      const next: Counts = {};
+      detail.items.forEach((i) => {
+        if (i.variant_id != null) next[i.variant_id] = String(i.counted_quantity);
+      });
+      setCounts(next);
+      setCategoryId(detail.count.category_id);
+      setDraft({
+        id: detail.count.id, revision: detail.count.revision, name: detail.count.name ?? '',
+        note: detail.count.note ?? '', categoryId: detail.count.category_id,
+      });
+      lastSavedRef.current = countsKey(
+        detail.items.filter((i) => i.variant_id != null).map((i) => ({ variant_id: i.variant_id as number, counted_quantity: i.counted_quantity })),
+      );
+      setConflict('');
+      setSavedAt(detail.count.updated_at ?? detail.count.created_at);
+      setMessage('');
     } catch (e: any) {
-      setSaveError(e?.message || 'Não foi possível salvar a conferência. Tente de novo.');
-    } finally {
-      setSaving(false);
+      setMessage(e?.message || 'Não foi possível abrir a conferência. Tente de novo.');
     }
-  };
+  }, []);
+
+  // Veio da lista de conferências ("Continuar")
+  useEffect(() => {
+    const id = params.resume;
+    if (!id || !loaded || !draftLoaded || resumedRef.current === id) return;
+    resumedRef.current = id;
+    const n = Number(id);
+    if (!Number.isFinite(n)) return;
+    const hasLocal = Object.keys(countsRef.current).length > 0;
+    if (hasLocal && draft?.id !== n) setPendingResume(n);
+    else loadDraft(n);
+  }, [params.resume, loaded, draftLoaded, draft, loadDraft]);
 
   // seta de + e -: sem número ainda, o primeiro + conta 1 e o primeiro - conta 0; nunca passa de 0 para baixo
   const stepCount = useCallback((variantId: number, delta: 1 | -1) => {
@@ -442,9 +562,9 @@ export default function StockCheckScreen() {
           )}
         </View>
         <HScroll showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          <Chip label="Todas as categorias" active={categoryId === null} onPress={() => setCategoryId(null)} color={brand.primary} />
+          <Chip label="Todas as categorias" active={categoryId === null} onPress={() => setCategoryId(null)} color={brand.primary} disabled={!!draft && draft.categoryId !== null} />
           {categories.map(([id, name]) => (
-            <Chip key={id} label={name} active={categoryId === id} onPress={() => setCategoryId(id)} color={brand.primary} />
+            <Chip key={id} label={name} active={categoryId === id} onPress={() => setCategoryId(id)} color={brand.primary} disabled={!!draft && draft.categoryId !== null && draft.categoryId !== id} />
           ))}
         </HScroll>
         <View style={styles.chips}>
@@ -452,19 +572,56 @@ export default function StockCheckScreen() {
           <Chip label="Só divergências" active={onlyDiffs} onPress={() => setOnlyDiffs((v) => !v)} color={brand.primary} />
         </View>
 
-        {/* Salvar e histórico */}
+        {/* Conferência em andamento: salvar, finalizar e histórico */}
+        {!!draft && (
+          <View style={styles.draftBanner}>
+            <Ionicons name="cloud-done-outline" size={18} color="#92400E" />
+            <Text style={styles.draftText}>
+              Em andamento{draft.name ? ': ' + draft.name : ''}. {savedAt ? 'Salva às ' + formatDateTime(savedAt).slice(-5) + '. ' : ''}
+              Ela fica guardada e você continua de onde parou, em qualquer aparelho. O salvamento é automático.
+            </Text>
+          </View>
+        )}
+        {!!conflict && (
+          <View style={styles.conflictBanner}>
+            <Text style={styles.conflictText}>{conflict}</Text>
+            <TouchableOpacity onPress={() => draft && loadDraft(draft.id)} style={styles.conflictBtn} activeOpacity={0.8}>
+              <Text style={styles.conflictBtnText}>Recarregar a versão salva</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={styles.actions}>
           <TouchableOpacity
-            style={[styles.actionBtn, styles.saveBtn, { backgroundColor: brand.primary, borderColor: brand.primary, opacity: summary.counted ? 1 : 0.5 }]}
+            style={[styles.actionBtn, styles.saveBtn, { backgroundColor: brand.primary, borderColor: brand.primary, opacity: summary.counted && allData && !saving ? 1 : 0.5 }]}
             onPress={() => {
-              if (!summary.counted) return;
+              if (!summary.counted || !allData || saving) return;
               setSaveError('');
-              setSaveOpen(true);
+              if (draft) persist();
+              else {
+                setSaveMode('draft');
+                setSaveOpen(true);
+              }
             }}
             activeOpacity={0.85}
           >
             <Ionicons name="save-outline" size={16} color="#fff" />
-            <Text style={[styles.actionText, { color: '#fff' }]}>Salvar conferência</Text>
+            <Text style={[styles.actionText, { color: '#fff' }]}>{draft ? 'Salvar andamento' : 'Salvar conferência'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionBtn, { borderColor: VALUE_COLORS.positive, opacity: summary.counted && allData ? 1 : 0.5 }]}
+            onPress={() => {
+              if (!summary.counted || !allData) return;
+              setSaveError('');
+              if (draft) setFinishOpen(true);
+              else {
+                setSaveMode('finish');
+                setSaveOpen(true);
+              }
+            }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="checkmark-done-outline" size={16} color={VALUE_COLORS.positive} />
+            <Text style={[styles.actionText, { color: VALUE_COLORS.positive }]}>Finalizar</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.actionBtn, { borderColor: Colors.light.border }]}
@@ -475,16 +632,6 @@ export default function StockCheckScreen() {
             <Text style={[styles.actionText, { color: Colors.light.textSecondary }]}>Conferências salvas</Text>
           </TouchableOpacity>
         </View>
-        {!!savedInfo && (
-          <TouchableOpacity
-            onPress={() => router.push({ pathname: '/reports/stock-counts/[id]', params: { id: String(savedInfo.id) } } as any)}
-            style={styles.savedBanner}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="checkmark-circle" size={18} color={VALUE_COLORS.positive} />
-            <Text style={styles.savedText}>Conferência salva em {formatDateTime(savedInfo.at)}. Toque para ver.</Text>
-          </TouchableOpacity>
-        )}
 
         {/* Ações */}
         <View style={styles.actions}>
@@ -622,16 +769,24 @@ export default function StockCheckScreen() {
       <BottomSheet
         visible={saveOpen}
         onDismiss={() => !saving && setSaveOpen(false)}
-        title="Salvar conferência"
+        title={saveMode === 'finish' ? 'Finalizar conferência' : 'Salvar conferência'}
         subtitle={`${formatInt(summary.counted)} variações contadas, ${formatInt(summary.diffs)} divergentes`}
-        icon="save-outline"
+        icon={saveMode === 'finish' ? 'checkmark-done-outline' : 'save-outline'}
         actions={[
           { label: 'Cancelar', onPress: () => setSaveOpen(false), variant: 'secondary', disabled: saving },
-          { label: 'Salvar', onPress: doSave, variant: 'primary', loading: saving, icon: 'checkmark' },
+          {
+            label: saveMode === 'finish' ? 'Finalizar' : 'Salvar',
+            onPress: () => persist({ finish: saveMode === 'finish', name: saveName, note: saveNote }),
+            variant: 'primary',
+            loading: saving,
+            icon: 'checkmark',
+          },
         ]}
       >
         <Text style={styles.saveHelp}>
-          O resultado fica guardado com a data de hoje e o seu nome. Peças que você não contou não entram. O estoque não muda.
+          {saveMode === 'finish'
+            ? 'A conferência vira um relatório fechado, com a data de hoje e o seu nome, e não muda mais. Peças que você não contou ficam como "não contadas". O estoque não muda.'
+            : 'Fica guardada como "em andamento": você continua de onde parou, em qualquer aparelho, e ela é salva sozinha enquanto você conta. Quando terminar, toque em Finalizar.'}
         </Text>
         <RNTextInput
           style={styles.saveInput}
@@ -654,14 +809,45 @@ export default function StockCheckScreen() {
       </BottomSheet>
 
       <ConfirmDialog
+        visible={finishOpen}
+        type="warning"
+        title="Finalizar a conferência?"
+        message={`Você contou ${formatInt(summary.counted)} de ${formatInt(rows.length)} variações (${formatInt(pending)} sem contagem ficam como "não contadas"). Depois de finalizar, ela vira relatório e não dá mais para mudar.`}
+        confirmText="Finalizar"
+        cancelText="Voltar"
+        onConfirm={() => persist({ finish: true })}
+        onCancel={() => setFinishOpen(false)}
+      />
+
+      <ConfirmDialog
+        visible={pendingResume !== null}
+        type="warning"
+        title="Continuar a conferência salva?"
+        message="Este aparelho tem uma contagem em andamento. Continuar a conferência salva troca essa contagem pela da conferência salva."
+        confirmText="Continuar a salva"
+        cancelText="Manter a deste aparelho"
+        onConfirm={() => {
+          const id = pendingResume;
+          setPendingResume(null);
+          if (id !== null) loadDraft(id);
+        }}
+        onCancel={() => setPendingResume(null)}
+      />
+
+      <ConfirmDialog
         visible={confirmClear}
         type="warning"
         title="Limpar a contagem?"
-        message="Os números que você digitou serão apagados deste aparelho. O estoque do sistema não muda."
+        message={draft
+          ? 'Os números serão apagados deste aparelho e ele deixa de continuar a conferência em andamento. Ela continua guardada na lista de conferências salvas, como estava no último salvamento. O estoque não muda.'
+          : 'Os números que você digitou serão apagados deste aparelho. O estoque do sistema não muda.'}
         confirmText="Limpar"
         cancelText="Cancelar"
         onConfirm={() => {
           setCounts({});
+          setDraft(null);
+          lastSavedRef.current = '';
+          setConflict('');
           setConfirmClear(false);
         }}
         onCancel={() => setConfirmClear(false)}
@@ -670,12 +856,12 @@ export default function StockCheckScreen() {
   );
 }
 
-function Chip({ label, active, onPress, color }: { label: string; active: boolean; onPress: () => void; color: string }) {
+function Chip({ label, active, onPress, color, disabled }: { label: string; active: boolean; onPress: () => void; color: string; disabled?: boolean }) {
   return (
     <TouchableOpacity
-      onPress={onPress}
+      onPress={disabled ? undefined : onPress}
       activeOpacity={0.75}
-      style={[styles.chip, active && { borderColor: color, backgroundColor: color + '14' }]}
+      style={[styles.chip, active && { borderColor: color, backgroundColor: color + '14' }, disabled && { opacity: 0.35 }]}
     >
       <Text style={[styles.chipText, active && { color, fontWeight: '700' }]} numberOfLines={1}>{label}</Text>
     </TouchableOpacity>
@@ -736,6 +922,12 @@ const styles = StyleSheet.create({
   saveBtn: { borderWidth: 1 },
   undoBtn: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card },
   rowHighlight: { backgroundColor: '#FEF9C3' },
+  draftBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 12, backgroundColor: '#FEF3C7', marginTop: 8 },
+  draftText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: '600', color: '#92400E' },
+  conflictBanner: { gap: 8, padding: 12, borderRadius: 12, backgroundColor: '#FEE2E2', marginTop: 8 },
+  conflictText: { fontSize: 13, lineHeight: 18, fontWeight: '600', color: '#991B1B' },
+  conflictBtn: { alignSelf: 'flex-start', backgroundColor: '#991B1B', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
+  conflictBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
   savedBanner: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -27,21 +27,35 @@ export default function StockCountsScreen() {
 
   const renderItem = ({ item }: { item: StockCountSummary }) => {
     const clean = item.diff_variants === 0;
+    const open = item.status === 'open';
     return (
       <TouchableOpacity
         style={styles.card}
         activeOpacity={0.8}
         onPress={() => router.push({ pathname: '/reports/stock-counts/[id]', params: { id: String(item.id) } } as any)}
       >
+        {open && (
+          <View style={styles.openRow}>
+            <Text style={styles.openBadge}>Em andamento</Text>
+            <TouchableOpacity
+              onPress={() => router.push({ pathname: '/reports/stock-check', params: { resume: String(item.id) } } as any)}
+              style={[styles.continueBtn, { backgroundColor: brand.primary }]}
+              activeOpacity={0.85}
+            >
+              <Ionicons name="play" size={14} color="#fff" />
+              <Text style={styles.continueText}>Continuar</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={styles.cardTop}>
           <View style={{ flex: 1, minWidth: 0 }}>
-            <Text style={styles.date}>{formatDateTime(item.created_at)}</Text>
+            <Text style={styles.date}>{open ? 'Salva em ' + formatDateTime(item.updated_at || item.created_at) + ' · começou ' + formatDateTime(item.created_at) : 'Finalizada em ' + formatDateTime(item.finished_at || item.created_at)}</Text>
             <Text style={styles.title} numberOfLines={1}>{item.name || 'Conferência de estoque'}</Text>
             <Text style={styles.meta} numberOfLines={1}>
               {[item.created_by_name, item.category_name || 'Todas as categorias'].filter(Boolean).join(' · ')}
             </Text>
           </View>
-          <Ionicons name={clean ? 'checkmark-circle' : 'alert-circle'} size={26} color={clean ? VALUE_COLORS.positive : VALUE_COLORS.negative} />
+          {!open && <Ionicons name={clean ? 'checkmark-circle' : 'alert-circle'} size={26} color={clean ? VALUE_COLORS.positive : VALUE_COLORS.negative} />}
         </View>
         <View style={styles.pills}>
           <Text style={styles.pill}>{formatInt(item.counted_variants)} de {formatInt(item.total_variants)} contadas</Text>
@@ -81,7 +95,7 @@ export default function StockCountsScreen() {
             <View style={styles.empty}>
               <Ionicons name="checkbox-outline" size={40} color={Colors.light.textTertiary} />
               <Text style={styles.emptyText}>Nenhuma conferência salva ainda.</Text>
-              <Text style={styles.emptyHint}>Na tela de Conferência de estoque, conte as peças e toque em "Salvar conferência".</Text>
+              <Text style={styles.emptyHint}>Na tela de Conferência de estoque, conte as peças e toque em "Salvar conferência". Ela fica em andamento até você finalizar.</Text>
             </View>
           }
         />
@@ -116,6 +130,10 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     overflow: 'hidden',
   },
+  openRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 },
+  openBadge: { fontSize: 12, fontWeight: '800', color: '#92400E', backgroundColor: '#FEF3C7', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999, overflow: 'hidden' },
+  continueBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
+  continueText: { color: '#fff', fontWeight: '800', fontSize: 13 },
   pillBad: { color: VALUE_COLORS.negative, backgroundColor: '#FEE2E2' },
   pillWarn: { color: '#B45309', backgroundColor: '#FEF3C7' },
   pillGood: { color: VALUE_COLORS.positive, backgroundColor: '#DCFCE7' },

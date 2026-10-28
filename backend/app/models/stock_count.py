@@ -5,7 +5,7 @@ foi encontrado em cada peça.
 Os nomes, cores, tamanhos e quantidades do sistema são COPIADOS no momento de salvar (fotografia), para o relatório
 continuar igual mesmo que a peça seja renomeada, vendida ou apagada depois. A conferência não altera o estoque.
 """
-from sqlalchemy import ForeignKey, Integer, String, Text
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import BaseModel
@@ -20,6 +20,12 @@ class StockCount(BaseModel):
     category_name: Mapped[str | None] = mapped_column(String(120), nullable=True, comment="Categoria no dia (vazio = todas)")
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_by_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+
+    status: Mapped[str] = mapped_column(String(20), default="finished", server_default="finished", nullable=False,
+                                        comment="open = em andamento (pode continuar) | finished = fechada, não muda mais")
+    revision: Mapped[int] = mapped_column(Integer, default=1, server_default="1", nullable=False,
+                                          comment="Sobe a cada salvamento: impede que dois aparelhos se sobrescrevam sem querer")
+    finished_at: Mapped[object | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     total_variants: Mapped[int] = mapped_column(Integer, default=0, nullable=False, comment="Variações no escopo no dia")
     counted_variants: Mapped[int] = mapped_column(Integer, default=0, nullable=False)

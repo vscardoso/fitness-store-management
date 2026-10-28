@@ -114,3 +114,77 @@ async def test_so_da_propria_loja_e_so_gerente(test_client, async_session, test_
         hh = {"Authorization": f"Bearer {create_access_token(data={'sub': str(u.id)})}"}
         assert (await test_client.get("/api/v1/reports/stock-counts", headers=hh)).status_code == 403
         assert (await test_client.post("/api/v1/reports/stock-counts", json={"items": [{"variant_id": 1, "counted_quantity": 1}]}, headers=hh)).status_code == 403
+
+
+async def test_andamento_continua_atualiza_a_mesma_e_finaliza(test_client, async_session, test_user):
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    await _produto_com_variacoes(async_session, t_id, cat, "Legging Andamento", [("Preto", "P", 5), ("Preto", "M", 3), ("Preto", "G", 2)])
+    await async_session.commit()
+    h = {"Authorization": f"Bearer {token}"}
+    rows = {(r["color"], r["size"]): r["variant_id"] for r in await _linhas(test_client, h, cat)}
+    url = "/api/v1/reports/stock-counts"
+    # 1) primeiro salvamento: em andamento, revisão 1
+    r = await test_client.post(url, json={"name": "Prateleira 3", "category_id": cat, "items": [{"variant_id": rows[("Preto", "P")], "counted_quantity": 4}]}, headers=h)
+    assert r.status_code == 201, r.text
+    c = r.json()
+    assert (c["status"], c["revision"], c["finished_at"]) == ("open", 1, None) and c["counted_variants"] == 1
+    cid = c["id"]
+    # 2) continua: salva de novo na MESMA conferência (troca o que foi contado, sobe a revisão)
+    r = await test_client.put(f"{url}/{cid}", json={"revision": 1, "name": "Prateleira 3", "items": [
+        {"variant_id": rows[("Preto", "P")], "counted_quantity": 5}, {"variant_id": rows[("Preto", "M")], "counted_quantity": 1}]}, headers=h)
+    assert r.status_code == 200, r.text
+    c = r.json()
+    assert (c["id"], c["status"], c["revision"], c["counted_variants"], c["ok_variants"], c["short_pieces"]) == (cid, "open", 2, 2, 1, 2)
+    d = (await test_client.get(f"{url}/{cid}", headers=h)).json()
+    assert [(i["size"], i["counted_quantity"]) for i in d["items"]] == [("P", 5), ("M", 1)]    # sem itens velhos sobrando
+    # 3) revisão velha (outro aparelho salvou antes) é recusada e não grava nada
+    r = await test_client.put(f"{url}/{cid}", json={"revision": 1, "items": [{"variant_id": rows[("Preto", "G")], "counted_quantity": 9}]}, headers=h)
+    assert r.status_code == 409 and "Outra pessoa" in r.json()["detail"]
+    assert [i["size"] for i in (await test_client.get(f"{url}/{cid}", headers=h)).json()["items"]] == ["P", "M"]
+    # 4) o andamento aparece primeiro na lista e o filtro funciona
+    lista = (await test_client.get(f"{url}?status=open", headers=h)).json()
+    assert cid in [x["id"] for x in lista["results"]] and all(x["status"] == "open" for x in lista["results"])
+    assert (await test_client.get(f"{url}?status=zzz", headers=h)).status_code == 422
+    # 5) finaliza (peças que ninguém contou ficam de fora)
+    r = await test_client.put(f"{url}/{cid}", json={"revision": 2, "finish": True, "items": [
+        {"variant_id": rows[("Preto", "P")], "counted_quantity": 5}, {"variant_id": rows[("Preto", "M")], "counted_quantity": 3},
+        {"variant_id": rows[("Preto", "G")], "counted_quantity": 2}]}, headers=h)
+    assert r.status_code == 200, r.text
+    f = r.json()
+    assert (f["status"], f["revision"], f["counted_variants"], f["ok_variants"], f["short_pieces"]) == ("finished", 3, 3, 3, 0) and f["finished_at"]
+    # 6) finalizada não muda mais
+    r = await test_client.put(f"{url}/{cid}", json={"revision": 3, "items": [{"variant_id": rows[("Preto", "P")], "counted_quantity": 0}]}, headers=h)
+    assert r.status_code == 409 and "finalizada" in r.json()["detail"]
+    assert (await test_client.get(f"{url}?status=open", headers=h)).json()["results"] == [] or cid not in [x["id"] for x in (await test_client.get(f"{url}?status=open", headers=h)).json()["results"]]
+
+
+async def test_andamento_recusas_e_isolamento(test_client, async_session, test_user):
+    from app.api.deps import get_current_tenant_id
+    from app.main import app
+    from app.models.stock_count import StockCountItem
+    t_id, token_a, cat = await _loja_api(async_session, test_user)
+    await _produto_com_variacoes(async_session, t_id, cat, "Andamento Recusa", [("Rosa", "M", 4)])
+    await async_session.commit()
+    ha = {"Authorization": f"Bearer {token_a}"}
+    vid = (await _linhas(test_client, ha, cat))[0]["variant_id"]
+    url = "/api/v1/reports/stock-counts"
+    cid = (await test_client.post(url, json={"category_id": cat, "items": [{"variant_id": vid, "counted_quantity": 2}]}, headers=ha)).json()["id"]
+    # peça que não existe: 400 e a conferência continua como estava
+    r = await test_client.put(f"{url}/{cid}", json={"revision": 1, "items": [{"variant_id": 99999999, "counted_quantity": 1}]}, headers=ha)
+    assert r.status_code == 400
+    ok = await test_client.put(f"{url}/{cid}", json={"revision": 1, "items": [{"variant_id": vid, "counted_quantity": 3}]}, headers=ha)
+    assert ok.status_code == 200 and ok.json()["revision"] == 2        # a recusa não gastou a revisão
+    # esvaziar o andamento é permitido (a pessoa apagou as contagens); finalizar vazio não
+    r = await test_client.put(f"{url}/{cid}", json={"revision": 2, "items": []}, headers=ha)
+    assert r.status_code == 200 and r.json()["counted_variants"] == 0
+    r = await test_client.put(f"{url}/{cid}", json={"revision": 3, "items": [], "finish": True}, headers=ha)
+    assert r.status_code == 400
+    assert (await test_client.put(f"{url}/99999999", json={"revision": 1, "items": []}, headers=ha)).status_code == 404
+    # outra loja não enxerga nem altera
+    app.dependency_overrides.pop(get_current_tenant_id, None)
+    _, _, token_b = await _nova_loja(async_session, "pro")
+    hb = {"Authorization": f"Bearer {token_b}"}
+    assert (await test_client.put(f"{url}/{cid}", json={"revision": 3, "items": []}, headers=hb)).status_code == 404
+    # criar já finalizada
+    r = await test_client.post(url, json={"category_id": cat, "finish": True, "items": [{"variant_id": vid, "counted_quantity": 4}]}, headers=ha)
+    assert r.status_code == 201 and r.json()["status"] == "finished" and r.json()["finished_at"]   # criar já finalizada
