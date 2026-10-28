@@ -95,11 +95,11 @@ class ProductMediaRepository:
             .values(is_active=False)
         )
 
-    async def reorder(self, items: List[dict]) -> None:
-        """items = [{"id": 1, "position": 0}, ...]"""
+    async def reorder(self, product_id: int, items: List[dict]) -> None:
+        """items = [{"id": 1, "position": 0}, ...] (so midias do produto informado)"""
         for item in items:
             await self.db.execute(
                 update(ProductMedia)
-                .where(ProductMedia.id == item["id"])
+                .where(ProductMedia.id == item["id"], ProductMedia.product_id == product_id)
                 .values(position=item["position"])
             )

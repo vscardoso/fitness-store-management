@@ -152,6 +152,9 @@ class Settings(BaseSettings):
     MP_WEBHOOK_SECRET: str = ""
     # Segredo compartilhado dos webhooks Stone/Cielo/Cielo PIX (header X-Webhook-Token ou ?token=). Vazio = webhooks recusados.
     PDV_WEBHOOK_TOKEN: str = ""
+    # Bot Baileys legado (/webhooks/whatsapp): token do bot e loja atendida. Vazio = webhook desativado (503).
+    WHATSAPP_BOT_TOKEN: str = ""
+    WHATSAPP_BOT_TENANT_ID: int = 0
     # Emails (separados por virgula) autorizados a entrar no painel /admin (operadores da plataforma). Vazio = painel bloqueado.
     ADMIN_PANEL_EMAILS: str = ""
     MP_TEST_PAYER_EMAIL: str = ""

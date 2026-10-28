@@ -49,6 +49,12 @@ class PrinterService:
             (success, message)
         """
         try:
+            # Revalida no envio: linhas antigas do banco podem ter alvo invalido
+            from app.core import printer_targets as _pt
+            _pt.validate_ip(printer.ip_address)
+            _pt.validate_port(printer.port)
+            _pt.validate_usb(printer.usb_device)
+            _pt.validate_serial(printer.serial_port)
             if printer.connection_type == ConnectionType.ETHERNET:
                 return await self._print_ethernet(printer, data)
             elif printer.connection_type == ConnectionType.USB:

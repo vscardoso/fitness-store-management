@@ -4,7 +4,9 @@ Schemas Pydantic para impressoras de etiqueta e jobs de impressão.
 from __future__ import annotations
 from typing import Optional, List
 from datetime import datetime
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.core import printer_targets as _pt
 
 from app.models.label_printer import ConnectionType, PrinterProtocol
 from app.models.print_job import PrintJobStatus
@@ -29,6 +31,26 @@ class LabelPrinterBase(BaseModel):
     dpi: int = 203
     is_default: bool = False
 
+    @field_validator("ip_address")
+    @classmethod
+    def _v_ip(cls, v):
+        return _pt.validate_ip(v)
+
+    @field_validator("port")
+    @classmethod
+    def _v_port(cls, v):
+        return _pt.validate_port(v)
+
+    @field_validator("usb_device")
+    @classmethod
+    def _v_usb(cls, v):
+        return _pt.validate_usb(v)
+
+    @field_validator("serial_port")
+    @classmethod
+    def _v_serial(cls, v):
+        return _pt.validate_serial(v)
+
 
 class LabelPrinterCreate(LabelPrinterBase):
     pass
@@ -47,6 +69,26 @@ class LabelPrinterUpdate(BaseModel):
     dpi: Optional[int] = None
     is_default: Optional[bool] = None
     is_active: Optional[bool] = None
+
+    @field_validator("ip_address")
+    @classmethod
+    def _v_ip(cls, v):
+        return _pt.validate_ip(v)
+
+    @field_validator("port")
+    @classmethod
+    def _v_port(cls, v):
+        return _pt.validate_port(v)
+
+    @field_validator("usb_device")
+    @classmethod
+    def _v_usb(cls, v):
+        return _pt.validate_usb(v)
+
+    @field_validator("serial_port")
+    @classmethod
+    def _v_serial(cls, v):
+        return _pt.validate_serial(v)
 
 
 class LabelPrinterResponse(LabelPrinterBase):

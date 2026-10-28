@@ -40,6 +40,28 @@ class SaleService:
         self.product_repo = ProductRepository(db)
         self.fifo_service = FIFOService(db)
     
+    async def _validate_refs(self, sale_data, tenant_id: int) -> None:
+        """customer_id, product_id e variant_id do corpo precisam ser da loja (e a variacao do produto)."""
+        from sqlalchemy import select as _sel
+        from app.models.product_variant import ProductVariant as _PV
+
+        if sale_data.customer_id:
+            if not await self.customer_repo.get(self.db, sale_data.customer_id, tenant_id=tenant_id):
+                raise ValueError("Cliente não encontrado")
+        for item in sale_data.items:
+            if not await self.product_repo.get(self.db, item.product_id, tenant_id=tenant_id):
+                raise ValueError(f"Produto {item.product_id} não encontrado")
+            if item.variant_id:
+                ok = (await self.db.execute(
+                    _sel(_PV.id).where(
+                        _PV.id == item.variant_id,
+                        _PV.product_id == item.product_id,
+                        _PV.tenant_id == tenant_id,
+                    )
+                )).scalar_one_or_none()
+                if ok is None:
+                    raise ValueError(f"Variação {item.variant_id} não encontrada para o produto {item.product_id}")
+
     async def create_sale(
         self,
         sale_data: SaleCreate,
@@ -80,6 +102,7 @@ class SaleService:
                 variant_ids=[i.variant_id for i in sale_data.items],
                 product_ids=[i.product_id for i in sale_data.items if not i.variant_id],
             )
+            await self._validate_refs(sale_data, tenant_id)
             # 1. Validar estoque disponível via FIFO (entry_items) para TODOS os itens
             print(f" Validando estoque para {len(sale_data.items)} itens...")
             for item in sale_data.items:

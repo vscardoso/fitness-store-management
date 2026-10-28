@@ -30,8 +30,9 @@ async def get_product_tags(
     product_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
-    return await _svc.get_tags(db, product_id)
+    return await _svc.get_tags(db, product_id, tenant_id)
 
 
 @router.post("/tags", response_model=ProductTagResponse, status_code=201)
@@ -41,7 +42,10 @@ async def add_product_tag(
     current_user: User = Depends(get_current_user),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    return await _svc.add_tag(db, tenant_id, data)
+    try:
+        return await _svc.add_tag(db, tenant_id, data)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Produto não encontrado")
 
 
 @router.delete("/tags/{tag_id}", status_code=204)
@@ -49,7 +53,8 @@ async def delete_product_tag(
     tag_id: int,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
+    tenant_id: int = Depends(get_current_tenant_id),
 ):
-    deleted = await _svc.delete_tag(db, tag_id)
+    deleted = await _svc.delete_tag(db, tag_id, tenant_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Tag não encontrada")

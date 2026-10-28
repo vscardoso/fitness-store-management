@@ -54,6 +54,16 @@ class ProductMediaService:
         product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
         if not product:
             raise ValueError(f"Produto {product_id} não encontrado")
+        if variant_id is not None:
+            v_ok = (await self.db.execute(
+                select(ProductVariant.id).where(
+                    ProductVariant.id == variant_id,
+                    ProductVariant.product_id == product_id,
+                    ProductVariant.tenant_id == tenant_id,
+                )
+            )).scalar_one_or_none()
+            if v_ok is None:
+                raise ValueError(f"Variação {variant_id} não encontrada")
 
         existing = await self.repo.list_by_product(
             product_id, variant_id, variant_id_filter=True
@@ -151,7 +161,7 @@ class ProductMediaService:
         product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
         if not product:
             raise ValueError(f"Produto {product_id} não encontrado")
-        await self.repo.reorder(items)
+        await self.repo.reorder(product_id, items)
         await self.db.commit()
         return await self.repo.list_by_product(product_id)
 
@@ -173,7 +183,9 @@ class ProductMediaService:
             self.db.add(product)
         else:
             result = await self.db.execute(
-                select(ProductVariant).where(ProductVariant.id == variant_id)
+                select(ProductVariant).where(
+                    ProductVariant.id == variant_id, ProductVariant.product_id == product.id
+                )
             )
             variant = result.scalar_one_or_none()
             if variant:

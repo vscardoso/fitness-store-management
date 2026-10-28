@@ -44,10 +44,12 @@ def get_compatible_colors(color: str) -> List[str]:
 class SuggestionService:
 
     async def get_tags(
-        self, db: AsyncSession, product_id: int
+        self, db: AsyncSession, product_id: int, tenant_id: int
     ) -> List[ProductTagResponse]:
         stmt = select(ProductTag).where(
-            ProductTag.product_id == product_id, ProductTag.is_active == True
+            ProductTag.product_id == product_id,
+            ProductTag.tenant_id == tenant_id,
+            ProductTag.is_active == True,
         )
         result = await db.execute(stmt)
         tags = result.scalars().all()
@@ -56,6 +58,11 @@ class SuggestionService:
     async def add_tag(
         self, db: AsyncSession, tenant_id: int, data: ProductTagCreate
     ) -> ProductTagResponse:
+        owned = (await db.execute(
+            select(Product.id).where(Product.id == data.product_id, Product.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+        if owned is None:
+            raise ValueError("Produto não encontrado")
         tag = ProductTag(
             tenant_id=tenant_id,
             product_id=data.product_id,
@@ -67,8 +74,10 @@ class SuggestionService:
         await db.refresh(tag)
         return ProductTagResponse.model_validate(tag)
 
-    async def delete_tag(self, db: AsyncSession, tag_id: int) -> bool:
-        stmt = select(ProductTag).where(ProductTag.id == tag_id, ProductTag.is_active == True)
+    async def delete_tag(self, db: AsyncSession, tag_id: int, tenant_id: int) -> bool:
+        stmt = select(ProductTag).where(
+            ProductTag.id == tag_id, ProductTag.tenant_id == tenant_id, ProductTag.is_active == True
+        )
         result = await db.execute(stmt)
         tag = result.scalar_one_or_none()
         if not tag:
@@ -90,6 +99,7 @@ class SuggestionService:
         # 1. Buscar tags do produto de referência
         stmt = select(ProductTag).where(
             ProductTag.product_id == product_id,
+            ProductTag.tenant_id == tenant_id,
             ProductTag.is_active == True,
         )
         result = await db.execute(stmt)
@@ -123,6 +133,7 @@ class SuggestionService:
                         ProductTag.tag_type == tag_type,
                         ProductTag.tag_value == value,
                         ProductTag.product_id != product_id,
+                        ProductTag.tenant_id == tenant_id,
                         ProductTag.is_active == True,
                     )
                 )
@@ -149,7 +160,7 @@ class SuggestionService:
         for pid in sorted_ids:
             stmt = (
                 select(Product)
-                .where(Product.id == pid, Product.is_active == True)
+                .where(Product.id == pid, Product.tenant_id == tenant_id, Product.is_active == True)
                 .options(selectinload(Product.variants).selectinload(ProductVariant.entry_items))
             )
             result = await db.execute(stmt)
@@ -180,7 +191,7 @@ class SuggestionService:
         self, db: AsyncSession, product_id: int, tenant_id: int, limit: int
     ) -> List[SuggestionResponse]:
         """Fallback: produtos da mesma categoria quando não há tags."""
-        stmt = select(Product).where(Product.id == product_id, Product.is_active == True)
+        stmt = select(Product).where(Product.id == product_id, Product.tenant_id == tenant_id, Product.is_active == True)
         result = await db.execute(stmt)
         ref = result.scalar_one_or_none()
         if not ref or not ref.category_id:
@@ -189,6 +200,7 @@ class SuggestionService:
         stmt = (
             select(Product)
             .where(
+                Product.tenant_id == tenant_id,
                 Product.category_id == ref.category_id,
                 Product.id != product_id,
                 Product.is_active == True,

@@ -53,7 +53,7 @@ class WishlistRepository:
     async def create(self, db: AsyncSession, tenant_id: int, data: WishlistCreate) -> Wishlist:
         # Evitar duplicatas
         existing = await self.find_existing(
-            db, data.customer_id, data.product_id, data.variant_id
+            db, data.customer_id, data.product_id, data.variant_id, tenant_id
         )
         if existing:
             return existing
@@ -77,8 +77,10 @@ class WishlistRepository:
         customer_id: int,
         product_id: int,
         variant_id: Optional[int],
+        tenant_id: int,
     ) -> Optional[Wishlist]:
         stmt = select(Wishlist).where(
+            Wishlist.tenant_id == tenant_id,
             Wishlist.customer_id == customer_id,
             Wishlist.product_id == product_id,
             Wishlist.is_active == True,
@@ -86,7 +88,7 @@ class WishlistRepository:
         if variant_id:
             stmt = stmt.where(Wishlist.variant_id == variant_id)
         result = await db.execute(stmt)
-        return result.scalar_one_or_none()
+        return result.scalars().first()
 
     async def mark_notified(self, db: AsyncSession, wishlist: Wishlist) -> None:
         wishlist.notified = True

@@ -32,7 +32,23 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
 
 # Token estático para autenticar o bot (definido em .env como WHATSAPP_BOT_TOKEN)
-BOT_TOKEN = os.getenv("WHATSAPP_BOT_TOKEN", "")
+BOT_TOKEN = os.getenv("WHATSAPP_BOT_TOKEN", "")  # legado; a checagem usa settings (le .env tambem)
+
+
+def _autentica_bot(x_bot_token: Optional[str]) -> int:
+    """Fail-closed: exige token e loja configurados; devolve o tenant_id atendido pelo bot."""
+    import hmac
+    expected = settings.WHATSAPP_BOT_TOKEN or BOT_TOKEN
+    tenant_id = settings.WHATSAPP_BOT_TENANT_ID
+    if not expected or not tenant_id:
+        raise HTTPException(status_code=503, detail="Bot desativado")
+    if not x_bot_token or not hmac.compare_digest(x_bot_token.encode(), expected.encode()):
+        raise HTTPException(status_code=401, detail="Token inválido")
+    return tenant_id
+
+
+def _escape_like(term: str) -> str:
+    return term.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -113,8 +129,7 @@ async def whatsapp_webhook(
     Autenticado via header X-Bot-Token.
     """
     # Autenticação do bot
-    if BOT_TOKEN and x_bot_token != BOT_TOKEN:
-        raise HTTPException(status_code=401, detail="Token inválido")
+    tenant_id = _autentica_bot(x_bot_token)
 
     body = msg.body.strip().lower()
     state = msg.session_state or "idle"
@@ -127,7 +142,7 @@ async def whatsapp_webhook(
 
     # ── Estado: aguardando busca de produto ─────────────────
     if state == "awaiting_product_search":
-        return await _handle_product_search(db, msg.from_number, msg.body)
+        return await _handle_product_search(db, msg.from_number, msg.body, tenant_id)
 
     # ── Menu principal ───────────────────────────────────────
     if body == "1" or "buscar" in body or "produto" in body:
@@ -140,7 +155,7 @@ async def whatsapp_webhook(
         return WhatsAppReply(reply=_catalog_url(), next_state="menu")
 
     if body == "3" or "wishlist" in body:
-        return await _handle_wishlist(db, msg.from_number)
+        return await _handle_wishlist(db, msg.from_number, tenant_id)
 
     if body == "4" or "horário" in body or "horario" in body:
         return WhatsAppReply(reply=_horarios(), next_state="menu")
@@ -155,16 +170,20 @@ async def whatsapp_webhook(
 # ── Handlers internos ─────────────────────────────────────────────────────────
 
 async def _handle_product_search(
-    db: AsyncSession, from_number: str, search_term: str
+    db: AsyncSession, from_number: str, search_term: str, tenant_id: int
 ) -> WhatsAppReply:
     """Busca produtos pelo nome e retorna lista formatada."""
     from sqlalchemy import select
     from app.models.product import Product
 
-    term = f"%{search_term.strip()}%"
+    term = f"%{_escape_like(search_term.strip())}%"
     stmt = (
         select(Product)
-        .where(Product.is_active == True, Product.name.ilike(term))
+        .where(
+            Product.tenant_id == tenant_id,
+            Product.is_active == True,
+            Product.name.ilike(term, escape="\\"),
+        )
         .limit(5)
     )
     result = await db.execute(stmt)
@@ -193,7 +212,7 @@ async def _handle_product_search(
     return WhatsAppReply(reply="\n".join(lines), next_state="menu")
 
 
-async def _handle_wishlist(db: AsyncSession, from_number: str) -> WhatsAppReply:
+async def _handle_wishlist(db: AsyncSession, from_number: str, tenant_id: int) -> WhatsAppReply:
     """Mostra wishlist do cliente pelo número de telefone."""
     from sqlalchemy import select
     from app.models.customer import Customer
@@ -206,11 +225,12 @@ async def _handle_wishlist(db: AsyncSession, from_number: str) -> WhatsAppReply:
     phone_suffix = phone_clean[-11:] if len(phone_clean) >= 11 else phone_clean
 
     stmt = select(Customer).where(
+        Customer.tenant_id == tenant_id,
         Customer.is_active == True,
-        Customer.phone.like(f"%{phone_suffix}%"),
+        Customer.phone.like(f"%{_escape_like(phone_suffix)}%", escape="\\"),
     )
     result = await db.execute(stmt)
-    customer = result.scalar_one_or_none()
+    customer = result.scalars().first()
 
     if not customer:
         site = os.getenv("NEXT_PUBLIC_SITE_URL", "https://fitness-store-management.vercel.app")
@@ -226,7 +246,7 @@ async def _handle_wishlist(db: AsyncSession, from_number: str) -> WhatsAppReply:
     # Buscar wishlist
     stmt2 = (
         select(Wishlist)
-        .where(Wishlist.customer_id == customer.id, Wishlist.is_active == True, Wishlist.notified == False)
+        .where(Wishlist.tenant_id == tenant_id, Wishlist.customer_id == customer.id, Wishlist.is_active == True, Wishlist.notified == False)
         .options(selectinload(Wishlist.product))
         .limit(10)
     )

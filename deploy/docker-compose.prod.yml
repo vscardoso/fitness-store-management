@@ -41,6 +41,8 @@ services:
       MP_WEBHOOK_SECRET: ${MP_WEBHOOK_SECRET:-}
       PDV_WEBHOOK_TOKEN: ${PDV_WEBHOOK_TOKEN:-}
       ADMIN_PANEL_EMAILS: ${ADMIN_PANEL_EMAILS:-}
+      WHATSAPP_BOT_TOKEN: ${WHATSAPP_BOT_TOKEN:-}
+      WHATSAPP_BOT_TENANT_ID: ${WHATSAPP_BOT_TENANT_ID:-0}
       # O container só recebe o que está listado aqui (--env-file só preenche os ${...}).
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       ZAI_API_KEY: ${ZAI_API_KEY:-}
