@@ -37,8 +37,12 @@ async def get_stock_check_report(
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
+    import json
+    from fastapi.responses import Response
     from app.services.stock_check_service import StockCheckService
-    return await StockCheckService(db).report(tenant_id=tenant_id, category_id=category_id, only_in_stock=only_in_stock)
+    data = await StockCheckService(db).report(tenant_id=tenant_id, category_id=category_id, only_in_stock=only_in_stock)
+    # com dezenas de milhares de linhas o jsonable_encoder do FastAPI levava mais tempo que a consulta: serializa direto
+    return Response(content=json.dumps(data, ensure_ascii=False, separators=(",", ":")), media_type="application/json")
 
 
 @router.get(

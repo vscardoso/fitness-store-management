@@ -15,6 +15,7 @@ from app.models.entry_item import EntryItem
 from app.models.product import Product
 from app.models.product_variant import ProductVariant
 from app.models.stock_entry import StockEntry
+from app.utils.variant_code import format_variant_code
 from app.utils.variant_grid import size_sort_key
 
 
@@ -44,8 +45,13 @@ class StockCheckService:
             elif product_id:
                 legacy_by_product[product_id] = legacy_by_product.get(product_id, 0) + int(qty)
 
+        # só as colunas usadas (carregar a entidade inteira de 29 mil variações custava a maior parte do tempo)
         stmt = (
-            select(ProductVariant, Product, Category.name)
+            select(
+                ProductVariant.id, ProductVariant.product_id, ProductVariant.color, ProductVariant.size, ProductVariant.sku,
+                ProductVariant.short_code, ProductVariant.product_code, ProductVariant.variant_number,
+                Product.name, Product.category_id, Category.name,
+            )
             .join(Product, Product.id == ProductVariant.product_id)
             .outerjoin(Category, Category.id == Product.category_id)
             .where(
@@ -60,27 +66,29 @@ class StockCheckService:
 
         # item antigo sem variação soma na primeira variação ativa do produto (mesma regra de quando o estoque entra sem variação)
         first_variant: Dict[int, int] = {}
-        for v, p, _c in sorted(rows, key=lambda r: r[0].id):
-            first_variant.setdefault(p.id, v.id)
+        for r in rows:
+            vid, pid = r[0], r[1]
+            if pid not in first_variant or vid < first_variant[pid]:
+                first_variant[pid] = vid
 
         out: List[Dict[str, Any]] = []
-        for v, p, cat_name in rows:
-            qty = by_variant.get(v.id, 0)
-            if first_variant.get(p.id) == v.id:
-                qty += legacy_by_product.get(p.id, 0)
+        for vid, pid, color, size, sku, short_code, product_code, variant_number, pname, pcat, cname in rows:
+            qty = by_variant.get(vid, 0)
+            if first_variant.get(pid) == vid:
+                qty += legacy_by_product.get(pid, 0)
             if only_in_stock and qty <= 0:
                 continue
             out.append({
-                "variant_id": v.id,
-                "product_id": p.id,
-                "product_name": p.name,
-                "category_id": p.category_id,
-                "category_name": cat_name or "Sem categoria",
-                "color": v.color,
-                "size": v.size,
-                "sku": v.sku,
-                "short_code": v.short_code,   # número antigo por variação (#0123)
-                "display_code": v.display_code,   # código da etiqueta (#101-1), quando a variação já foi numerada
+                "variant_id": vid,
+                "product_id": pid,
+                "product_name": pname,
+                "category_id": pcat,
+                "category_name": cname or "Sem categoria",
+                "color": color,
+                "size": size,
+                "sku": sku,
+                "short_code": short_code,   # número antigo por variação (#0123)
+                "display_code": format_variant_code(product_code, variant_number),   # código da etiqueta (#101-1), quando já numerada
                 "system_quantity": qty,
             })
         out.sort(key=lambda r: (

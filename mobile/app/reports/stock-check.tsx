@@ -78,6 +78,7 @@ export default function StockCheckScreen() {
   const { data, isLoading, isRefetching, refetch, error } = useQuery({
     queryKey: ['stock-check', categoryId, onlyInStock],
     queryFn: () => getStockCheck({ categoryId, onlyInStock }),
+    staleTime: 60 * 1000, // a lista é grande: não baixa de novo a cada volta à tela
   });
   // categorias para filtrar vêm da própria lista (sem filtro de categoria ativo)
   const { data: allData } = useQuery({
