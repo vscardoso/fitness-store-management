@@ -382,7 +382,12 @@ export default function StockCheckScreen() {
                     </View>
                     <View style={styles.diff}>
                       {d === null ? (
-                        <Text style={styles.diffNone}>-</Text>
+                        // ainda sem contagem: mostra o que faltaria se nada for achado (cinza = provisório)
+                        r.system_quantity > 0 ? (
+                          <Text style={styles.diffPending}>falta {formatInt(r.system_quantity)}</Text>
+                        ) : (
+                          <Text style={styles.diffNone}>-</Text>
+                        )
                       ) : d === 0 ? (
                         <Ionicons name="checkmark-circle" size={22} color={VALUE_COLORS.positive} accessibilityLabel="Confere" />
                       ) : (
@@ -514,6 +519,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.card,
   },
   diff: { width: 54, alignItems: 'center' },
+  diffPending: { fontSize: 12, fontWeight: '600', textAlign: 'center', color: Colors.light.textTertiary },
   diffNone: { color: Colors.light.textTertiary, fontSize: 16 },
   diffText: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
   empty: { alignItems: 'center', paddingVertical: 40, gap: 8 },
