@@ -41,9 +41,14 @@ class AppNotificationService:
             .group_by(Product.id, Product.name)
         )).all()
 
+        def clip(text: str, limit: int) -> str:
+            # nome de produto muito longo estourava a coluna (title é varchar(255)) e derrubava a consulta inteira
+            return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
         state: dict[int, tuple[str, str, str]] = {}
         for pid, name, qty, min_stock in rows:
             qty, min_stock = int(qty), int(min_stock)
+            name = clip(name or "", 120)
             if qty <= 0:
                 state[pid] = ("out_of_stock", f"Sem estoque: {name}", f"{name} acabou. Hora de repor.")
             elif min_stock > 0 and qty <= min_stock:

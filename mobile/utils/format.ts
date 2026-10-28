@@ -158,3 +158,10 @@ export const capitalizeWords = (text: string): string => {
     .map(word => word.charAt(0).toUpperCase() + word.slice(1))
     .join(' ');
 };
+
+/** Número inteiro com ponto de milhar (pt-BR): 1822511 vira "1.822.511". Não depende do Intl do aparelho. */
+export const formatInt = (value: number | null | undefined): string => {
+  const n = Math.round(Number(value ?? 0));
+  if (!Number.isFinite(n)) return '0';
+  return (n < 0 ? '-' : '') + String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+};

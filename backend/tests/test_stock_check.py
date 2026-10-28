@@ -98,3 +98,19 @@ async def test_relatorio_e_so_da_propria_loja_e_so_para_gerente(test_client, asy
     await async_session.refresh(u)
     r = await test_client.get("/api/v1/reports/stock-check", headers={"Authorization": f"Bearer {create_access_token(data={'sub': str(u.id)})}"})
     assert r.status_code == 403
+
+
+async def test_alerta_de_estoque_com_nome_enorme_cabe_na_coluna(async_session, test_user):
+    """Produto com nome de ~300 letras gerava título > 255 e o Postgres recusava (o app via 422 em unread-count)."""
+    from app.models.inventory import Inventory
+    from app.models.notification import AppNotification
+    from app.services.app_notification_service import AppNotificationService
+    t_id, _token, cat = await _loja_api(async_session, test_user)
+    p = await _produto_com_variacoes(async_session, t_id, cat, "N" * 300, [("Preto", "M", 3)])
+    pid = p.id
+    async_session.add(Inventory(product_id=pid, quantity=0, min_stock=2, tenant_id=t_id))
+    await async_session.commit()
+    await AppNotificationService().sync_stock_alerts(async_session, t_id)
+    await async_session.commit()
+    rows = (await async_session.execute(select(AppNotification).where(AppNotification.product_id == pid))).scalars().all()
+    assert rows and all(len(r.title) <= 255 for r in rows), [len(r.title) for r in rows]

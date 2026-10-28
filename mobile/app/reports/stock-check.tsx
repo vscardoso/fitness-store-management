@@ -32,6 +32,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { getStockCheck, type StockCheckRow } from '@/services/stockCheckService';
 import { variantCodeText } from '@/utils/shortCode';
 import HScroll from '@/components/ui/HScroll';
+import { formatInt } from '@/utils/format';
 
 type Counts = Record<number, string>;
 
@@ -185,8 +186,8 @@ export default function StockCheckScreen() {
       tr.falta td{background:#fde8e8}tr.sobra td{background:#fff4d6}tr.ok td{color:#2a7a3b}
     </style></head><body>
       <h1>${title}</h1>
-      <div class="sub">${today}${categoryId ? ' · só uma categoria' : ''} · ${visible.length} variações${
-        withResult ? ` · contadas ${summary.counted}, divergentes ${summary.diffs}, faltam ${summary.falta} peça(s), sobram ${summary.sobra}` : ''
+      <div class="sub">${today}${categoryId ? ' · só uma categoria' : ''} · ${formatInt(visible.length)} variações${
+        withResult ? ` · contadas ${formatInt(summary.counted)}, divergentes ${formatInt(summary.diffs)}, faltam ${formatInt(summary.falta)} peça(s), sobram ${formatInt(summary.sobra)}` : ''
       }</div>
       <table><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table>
     </body></html>`;
@@ -230,20 +231,20 @@ export default function StockCheckScreen() {
         <View style={styles.cards}>
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Variações contadas</Text>
-            <Text style={styles.cardValue}>{summary.counted} de {rows.length}</Text>
+            <Text style={styles.cardValue}>{formatInt(summary.counted)} de {formatInt(rows.length)}</Text>
           </View>
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Peças no sistema</Text>
-            <Text style={styles.cardValue}>{data?.total_pieces ?? 0}</Text>
+            <Text style={styles.cardValue}>{formatInt(data?.total_pieces)}</Text>
           </View>
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Confere</Text>
-            <Text style={[styles.cardValue, { color: VALUE_COLORS.positive }]}>{summary.ok}</Text>
+            <Text style={[styles.cardValue, { color: VALUE_COLORS.positive }]}>{formatInt(summary.ok)}</Text>
           </View>
           <View style={styles.card}>
             <Text style={styles.cardLabel}>Faltam / sobram</Text>
             <Text style={[styles.cardValue, { color: summary.diffs > 0 ? VALUE_COLORS.negative : Colors.light.text }]}>
-              {summary.falta} / {summary.sobra}
+              {formatInt(summary.falta)} / {formatInt(summary.sobra)}
             </Text>
           </View>
         </View>
@@ -335,7 +336,7 @@ export default function StockCheckScreen() {
                     </View>
                     <View style={styles.sys}>
                       <Text style={styles.sysLabel}>Sistema</Text>
-                      <Text style={styles.sysValue}>{r.system_quantity}</Text>
+                      <Text style={styles.sysValue}>{formatInt(r.system_quantity)}</Text>
                     </View>
                     <RNTextInput
                       style={[
@@ -369,14 +370,14 @@ export default function StockCheckScreen() {
         {grouped.length > shownGroups.length && (
           <TouchableOpacity onPress={() => setShown((n) => n + PAGE)} style={{ alignItems: 'center', padding: 16 }}>
             <Text style={[styles.link, { color: brand.primary }]}>
-              Mostrar mais ({grouped.length - shownGroups.length} produtos restantes)
+              Mostrar mais ({formatInt(grouped.length - shownGroups.length)} produtos restantes)
             </Text>
           </TouchableOpacity>
         )}
 
         {!isLoading && rows.length > 0 && (
           <Text style={styles.footer}>
-            {pending > 0 ? `${pending} variação(ões) ainda sem contagem.` : 'Todas as variações foram contadas.'}
+            {pending > 0 ? `${formatInt(pending)} variação(ões) ainda sem contagem.` : 'Todas as variações foram contadas.'}
           </Text>
         )}
       </ScrollView>
