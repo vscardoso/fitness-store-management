@@ -368,7 +368,11 @@ class CieloPixProvider(BasePixProvider):
             )
             pix_tx = pix_tx_res.scalar_one_or_none()
 
-            if pix_tx and pix_tx.status != "pending":
+            if not pix_tx:
+                logger.warning("Webhook Cielo PIX ignorado: txid sem PixTransaction: %s", txid)
+                continue
+
+            if pix_tx.status != "pending":
                 logger.info("Webhook Cielo PIX ignorado (já processado): txid=%s status=%s",
                             txid, pix_tx.status)
                 continue
@@ -378,14 +382,14 @@ class CieloPixProvider(BasePixProvider):
             except Exception:
                 valor_pago = Decimal("0")
 
-            if pix_tx and abs(float(pix_tx.amount_expected) - float(valor_pago)) > 0.02:
+            if abs(float(pix_tx.amount_expected) - float(valor_pago)) > 0.02:
                 logger.error(
                     "CIELO PIX FRAUDE: txid=%s esperado=%.2f pago=%.2f sale=%s",
                     txid, float(pix_tx.amount_expected), float(valor_pago), sale_id,
                 )
                 continue
 
-            await self._confirm_sale(db, sale_id, txid)
+            await self._confirm_sale(db, sale_id, txid, pix_tx.tenant_id)
 
             if pix_tx:
                 await db.execute(
@@ -449,11 +453,13 @@ class CieloPixProvider(BasePixProvider):
             logger.warning("Erro ao consultar /cob/%s: %s", txid, exc)
         return None
 
-    async def _confirm_sale(self, db: AsyncSession, sale_id: int, txid: str) -> None:
+    async def _confirm_sale(self, db: AsyncSession, sale_id: int, txid: str, tenant_id: int) -> None:
         from app.services.audit_service import AuditService
         from app.core.payment_events import signal_payment
 
-        result = await db.execute(select(Sale).where(Sale.id == sale_id))
+        result = await db.execute(
+            select(Sale).where(Sale.id == sale_id, Sale.tenant_id == tenant_id)
+        )
         sale = result.scalar_one_or_none()
         if sale and sale.status == SaleStatus.PENDING:
             await db.execute(

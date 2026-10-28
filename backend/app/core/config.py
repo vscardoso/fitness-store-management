@@ -150,6 +150,10 @@ class Settings(BaseSettings):
     # Mercado Pago (apenas quando PIX_PROVIDER=mercadopago)
     MP_ACCESS_TOKEN: str = ""
     MP_WEBHOOK_SECRET: str = ""
+    # Segredo compartilhado dos webhooks Stone/Cielo/Cielo PIX (header X-Webhook-Token ou ?token=). Vazio = webhooks recusados.
+    PDV_WEBHOOK_TOKEN: str = ""
+    # Emails (separados por virgula) autorizados a entrar no painel /admin (operadores da plataforma). Vazio = painel bloqueado.
+    ADMIN_PANEL_EMAILS: str = ""
     MP_TEST_PAYER_EMAIL: str = ""
     APP_URL: str = "https://localhost:8000"  # URL pública do backend (para webhooks)
 

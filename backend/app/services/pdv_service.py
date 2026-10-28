@@ -162,6 +162,14 @@ class PDVService:
         if not terminal or terminal.tenant_id != tenant_id:
             raise ValueError("Terminal não encontrado.")
 
+        from sqlalchemy import select as _sel
+        from app.models.sale import Sale as _Sale
+        owned = (await db.execute(
+            _sel(_Sale.id).where(_Sale.id == payload.sale_id, _Sale.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+        if owned is None:
+            raise ValueError("Venda não encontrada.")
+
         tp = get_terminal_provider(terminal.provider)
         return await tp.create_payment(
             db=db,

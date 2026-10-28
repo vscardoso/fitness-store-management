@@ -12,6 +12,7 @@ from typing import Optional
 from datetime import datetime, timezone, timedelta
 
 import httpx
+from jose import JWTError, jwt
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,6 +33,31 @@ MP_AUTH_URL = "https://auth.mercadopago.com/authorization"
 MP_TOKEN_URL = "https://api.mercadopago.com/oauth/token"
 
 
+_STATE_PURPOSE = "mp_oauth"
+_STATE_TTL_MIN = 10
+
+
+def _make_state(tenant_id: int, user_id: int) -> str:
+    """state assinado (JWT) e expirável: vincula o fluxo ao tenant e ao usuário que o iniciou."""
+    exp = datetime.now(timezone.utc) + timedelta(minutes=_STATE_TTL_MIN)
+    return jwt.encode(
+        {"tid": tenant_id, "uid": user_id, "purpose": _STATE_PURPOSE, "exp": exp},
+        settings.SECRET_KEY,
+        algorithm=settings.ALGORITHM,
+    )
+
+
+def _read_state(state: str) -> Optional[int]:
+    """Retorna o tenant_id do state válido; None se inválido, expirado ou de outro propósito."""
+    try:
+        data = jwt.decode(state, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    except JWTError:
+        return None
+    if data.get("purpose") != _STATE_PURPOSE or not isinstance(data.get("tid"), int):
+        return None
+    return data["tid"]
+
+
 # ── URL de autorização ────────────────────────────────────────────────────────
 
 @router.get("/url")
@@ -50,7 +76,7 @@ async def get_oauth_url(
         f"&response_type=code"
         f"&platform_id=mp"
         f"&redirect_uri={redirect_uri}"
-        f"&state={tenant_id}"
+        f"&state={_make_state(tenant_id, current_user.id)}"
     )
     return {"url": url}
 
@@ -67,10 +93,9 @@ async def oauth_callback(
     Recebe o code do MP, troca por access_token e salva no Store.
     Este endpoint é chamado diretamente pelo Mercado Pago — sem autenticação JWT.
     """
-    try:
-        tenant_id = int(state)
-    except (ValueError, TypeError):
-        logger.error("MP OAuth callback: state inválido: %s", state)
+    tenant_id = _read_state(state)
+    if tenant_id is None:
+        logger.error("MP OAuth callback: state inválido ou expirado")
         return RedirectResponse(
             url=f"{settings.FRONTEND_URL}/settings/pix?error=invalid_state"
         )

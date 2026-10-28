@@ -532,6 +532,16 @@ async def mp_webhook(
     return {"status": "ok"}
 
 
+def _require_webhook_token(request: Request) -> None:
+    """Webhooks Stone/Cielo: exige segredo compartilhado; fail-closed se PDV_WEBHOOK_TOKEN vazio."""
+    import hmac
+    from app.core.config import settings
+    expected = settings.PDV_WEBHOOK_TOKEN
+    given = request.headers.get("x-webhook-token") or request.query_params.get("token") or ""
+    if not expected or not hmac.compare_digest(given.encode(), expected.encode()):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Webhook não autorizado.")
+
+
 # ── Webhooks Stone ───────────────────────────────────────────────────────────
 
 @router.post("/webhooks/stone", status_code=200)
@@ -543,6 +553,7 @@ async def stone_webhook(
     Recebe webhooks da Stone/Pagar.me (charge.paid, charge.refunded).
     Após charge.paid, fecha o pedido e confirma a venda.
     """
+    _require_webhook_token(request)
     try:
         payload = await request.json()
     except Exception:
@@ -556,13 +567,16 @@ async def stone_webhook(
         metadata = charge.get("metadata", {})
         sale_id = metadata.get("sale_id")
         if sale_id:
-            await db.execute(
-                _update(Sale).where(Sale.id == int(sale_id)).values(status=SaleStatus.COMPLETED)
+            res = await db.execute(
+                _update(Sale)
+                .where(Sale.id == int(sale_id), Sale.status == SaleStatus.PENDING)
+                .values(status=SaleStatus.COMPLETED)
             )
             await db.commit()
 
-            from app.core.payment_events import signal_payment
-            signal_payment(str(sale_id), {"status": "approved", "paid": True})
+            if res.rowcount:
+                from app.core.payment_events import signal_payment
+                signal_payment(str(sale_id), {"status": "approved", "paid": True})
 
     return {"status": "ok"}
 
@@ -578,6 +592,7 @@ async def cielo_webhook(
     Recebe webhooks da Cielo LIO (status change).
     Confirma venda quando status = PAID.
     """
+    _require_webhook_token(request)
     try:
         payload = await request.json()
     except Exception:
@@ -593,7 +608,7 @@ async def cielo_webhook(
             _select(Sale).where(Sale.payment_reference == str(order_id))
         )
         sale = result.scalar_one_or_none()
-        if sale and sale.status != SaleStatus.COMPLETED:
+        if sale and sale.status == SaleStatus.PENDING:
             await db.execute(
                 _update(Sale).where(Sale.id == sale.id).values(status=SaleStatus.COMPLETED)
             )
@@ -617,6 +632,7 @@ async def cielo_pix_webhook(
     Payload: {"pix": [{"endToEndId", "txid", "valor", "horario"}]}
     Confirma a venda associada ao txid e dispara SSE para o app.
     """
+    _require_webhook_token(request)
     try:
         payload = await request.json()
     except Exception:

@@ -60,7 +60,7 @@ class ManualTerminalProvider(BaseTerminalProvider):
         O operador deve cobrar na maquininha e confirmar manualmente.
         """
         await db.execute(
-            update(Sale).where(Sale.id == sale_id)
+            update(Sale).where(Sale.id == sale_id, Sale.tenant_id == tenant_id)
             .values(status=SaleStatus.PENDING)
         )
         await db.commit()

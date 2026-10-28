@@ -310,7 +310,8 @@ class MercadoPagoTerminalProvider(BaseTerminalProvider):
         mp_payment_id = (data.get("transactions", {}).get("payments") or [{}])[0].get("id")
 
         await db.execute(
-            update(Sale).where(Sale.id == sale_id).values(payment_reference=mp_order_id)
+            update(Sale).where(Sale.id == sale_id, Sale.tenant_id == tenant_id)
+            .values(payment_reference=mp_order_id)
         )
         await db.commit()
 
@@ -559,8 +560,8 @@ class MercadoPagoTerminalProvider(BaseTerminalProvider):
         """
         secret = settings.MP_WEBHOOK_SECRET
         if not secret:
-            logger.warning("MP_WEBHOOK_SECRET não configurado — assinatura não validada.")
-            return True
+            logger.error("MP_WEBHOOK_SECRET não configurado — webhook recusado.")
+            return False
 
         if not x_signature:
             return False
