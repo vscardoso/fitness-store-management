@@ -12,7 +12,8 @@ from typing import Optional
 from datetime import datetime, timezone, timedelta
 
 import httpx
-from jose import JWTError, jwt
+import jwt
+from jwt import PyJWTError as JWTError
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession

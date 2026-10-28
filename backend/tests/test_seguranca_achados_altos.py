@@ -5,7 +5,7 @@ Comando: cd backend && venv\\Scripts\\python -m pytest tests/test_seguranca_acha
 from datetime import datetime, timedelta, timezone
 
 import pytest
-from jose import jwt
+import jwt
 
 from app.core.config import settings
 
