@@ -71,7 +71,7 @@ export default function ConsultScreen() {
     <View style={styles.container}>
       <PageHeader title="Consultar peça" subtitle="Bipe a etiqueta para ver preço e estoque" showBackButton onBack={goBack} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-        <ScanBar onCode={handleCode} status={status} placeholder="Bipe a peça ou digite o código" />
+        <ScanBar onCode={handleCode} status={status} placeholder="Bipe ou digite o código" />
 
         {!result || !selected ? (
           <View style={styles.empty}>

@@ -551,7 +551,9 @@ function MobileSaleScreen() {
             </TouchableOpacity>
 
           </View>
-          <ScanBar onCode={handleScanCode} status={scanStatus} placeholder="Bipe a peça: cada leitura entra no carrinho" paused={productModalVisible || customerModalVisible} />
+          <View style={{ marginTop: 12 }}>
+            <ScanBar onCode={handleScanCode} status={scanStatus} placeholder="Bipe ou digite o código" paused={productModalVisible || customerModalVisible} />
+          </View>
         </View>
 
         {/* Carrinho de compras */}

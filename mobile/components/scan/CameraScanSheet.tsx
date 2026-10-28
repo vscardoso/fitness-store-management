@@ -6,6 +6,7 @@ import React, { useEffect, useRef } from 'react';
 import { Modal, View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
 import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-camera';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
 import { createScanGate } from '@/utils/scanLogic';
 
@@ -27,6 +28,7 @@ const COLORS = { ok: '#16A34A', warn: '#D97706', error: '#DC2626' } as const;
 export default function CameraScanSheet({ visible, onClose, onCode, status, hint }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const gate = useRef(createScanGate(1500)).current;
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (visible) gate.reset();
@@ -58,7 +60,8 @@ export default function CameraScanSheet({ visible, onClose, onCode, status, hint
           />
         )}
 
-        <View style={styles.top} pointerEvents="box-none">
+        <View style={[styles.top, { paddingTop: Math.max(insets.top, 24) + 14 }]} pointerEvents="box-none">
+          <Text style={styles.hintTitle}>Bipar etiqueta</Text>
           <Text style={styles.hint}>{hint || 'Aponte para o QR da etiqueta. A câmera continua aberta para a próxima peça.'}</Text>
         </View>
         <View style={styles.frame} pointerEvents="none" />
@@ -67,7 +70,7 @@ export default function CameraScanSheet({ visible, onClose, onCode, status, hint
             <Text style={styles.bannerText} numberOfLines={3}>{status.text}</Text>
           </View>
         )}
-        <TouchableOpacity style={styles.done} onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar câmera">
+        <TouchableOpacity style={[styles.done, { bottom: Math.max(insets.bottom, 16) + 20 }]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar câmera">
           <Ionicons name="checkmark" size={22} color="#fff" />
           <Text style={styles.doneText}>Pronto</Text>
         </TouchableOpacity>
@@ -78,16 +81,17 @@ export default function CameraScanSheet({ visible, onClose, onCode, status, hint
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  top: { position: 'absolute', top: 0, left: 0, right: 0, paddingTop: 48, paddingHorizontal: 20, backgroundColor: 'rgba(0,0,0,0.45)', paddingBottom: 14 },
-  hint: { color: '#fff', fontSize: 14, textAlign: 'center' },
+  top: { position: 'absolute', top: 0, left: 0, right: 0, paddingHorizontal: 20, backgroundColor: 'rgba(0,0,0,0.72)', paddingBottom: 16, gap: 4 },
+  hintTitle: { color: '#fff', fontSize: 17, fontWeight: '800', textAlign: 'center' },
+  hint: { color: 'rgba(255,255,255,0.92)', fontSize: 14, lineHeight: 19, textAlign: 'center' },
   frame: {
     position: 'absolute', top: '28%', alignSelf: 'center', width: 240, height: 240,
     borderWidth: 3, borderColor: 'rgba(255,255,255,0.9)', borderRadius: 24,
   },
-  banner: { position: 'absolute', left: 16, right: 16, bottom: 110, borderRadius: 16, padding: 14 },
+  banner: { position: 'absolute', left: 16, right: 16, bottom: 130, borderRadius: 16, padding: 14 },
   bannerText: { color: '#fff', fontSize: 16, fontWeight: '700', textAlign: 'center' },
   done: {
-    position: 'absolute', bottom: 36, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8,
+    position: 'absolute', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: Colors.light.primary, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 999,
   },
   doneText: { color: '#fff', fontSize: 16, fontWeight: '800' },

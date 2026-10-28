@@ -158,7 +158,7 @@ export default function EntryReceiveCheckScreen() {
           </View>
         ) : (
           <>
-            <ScanBar onCode={handleCode} status={status} placeholder="Bipe cada peça que chegou" />
+            <ScanBar onCode={handleCode} status={status} placeholder="Bipe ou digite o código" />
 
             <View style={styles.cards}>
               <View style={styles.card}>

@@ -414,7 +414,7 @@ export default function StockCheckScreen() {
         <ScanBar
           onCode={handleScan}
           status={scanStatus}
-          placeholder="Bipe a peça: cada leitura soma 1"
+          placeholder="Bipe ou digite o código"
           right={
             lastScan !== null ? (
               <TouchableOpacity onPress={undoScan} style={styles.undoBtn} accessibilityRole="button" accessibilityLabel="Desfazer última leitura">
