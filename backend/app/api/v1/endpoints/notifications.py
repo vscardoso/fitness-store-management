@@ -14,6 +14,13 @@ from app.models.user import User, UserRole
 router = APIRouter(prefix="/notifications", tags=["Notificações"])
 
 
+def _somente_fora_de_producao() -> None:
+    """Endpoints /test/* varrem todas as lojas: nao existem em producao."""
+    from app.core.config import settings
+    if settings.ENVIRONMENT == "production":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Not Found")
+
+
 @router.get("/inbox", response_model=list[AppNotificationResponse])
 async def list_inbox(
     db: AsyncSession = Depends(get_db),
@@ -94,7 +101,7 @@ async def send_notification(
     return result
 
 
-@router.post("/test/check-sla", dependencies=[Depends(require_role([UserRole.ADMIN]))])
+@router.post("/test/check-sla", dependencies=[Depends(require_role([UserRole.ADMIN])), Depends(_somente_fora_de_producao)])
 async def test_check_sla_notifications(
     db: AsyncSession = Depends(get_db),
 ):
@@ -111,7 +118,7 @@ async def test_check_sla_notifications(
     }
 
 
-@router.post("/test/pending-reminder", dependencies=[Depends(require_role([UserRole.ADMIN]))])
+@router.post("/test/pending-reminder", dependencies=[Depends(require_role([UserRole.ADMIN])), Depends(_somente_fora_de_producao)])
 async def test_pending_shipments_reminder(
     db: AsyncSession = Depends(get_db),
 ):
@@ -128,7 +135,7 @@ async def test_pending_shipments_reminder(
     }
 
 
-@router.post("/test/overdue-alert", dependencies=[Depends(require_role([UserRole.ADMIN]))])
+@router.post("/test/overdue-alert", dependencies=[Depends(require_role([UserRole.ADMIN])), Depends(_somente_fora_de_producao)])
 async def test_overdue_shipments_alert(
     db: AsyncSession = Depends(get_db),
 ):
@@ -145,7 +152,7 @@ async def test_overdue_shipments_alert(
     }
 
 
-@router.post("/test/missed-departure-alert", dependencies=[Depends(require_role([UserRole.ADMIN]))])
+@router.post("/test/missed-departure-alert", dependencies=[Depends(require_role([UserRole.ADMIN])), Depends(_somente_fora_de_producao)])
 async def test_missed_departure_alert(
     db: AsyncSession = Depends(get_db),
 ):

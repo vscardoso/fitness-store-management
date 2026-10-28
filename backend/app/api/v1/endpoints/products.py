@@ -31,14 +31,15 @@ router = APIRouter(prefix="/products", tags=["Produtos"])
 _category_cache: dict = {}
 
 
-async def get_category_data(db: AsyncSession, category_id: int) -> dict | None:
-    """Busca dados da categoria com cache."""
-    if category_id in _category_cache:
-        return _category_cache[category_id]
+async def get_category_data(db: AsyncSession, category_id: int, tenant_id: int) -> dict | None:
+    """Busca dados da categoria (da própria loja) com cache por (tenant, id)."""
+    key = (tenant_id, category_id)
+    if key in _category_cache:
+        return _category_cache[key]
 
     result = await db.execute(
-        text("SELECT id, name, description, parent_id, is_active, created_at, updated_at FROM categories WHERE id = :cat_id"),
-        {"cat_id": category_id}
+        text("SELECT id, name, description, parent_id, is_active, created_at, updated_at FROM categories WHERE id = :cat_id AND tenant_id = :tid"),
+        {"cat_id": category_id, "tid": tenant_id}
     )
     row = result.fetchone()
     if row:
@@ -51,7 +52,7 @@ async def get_category_data(db: AsyncSession, category_id: int) -> dict | None:
             "created_at": row[5],
             "updated_at": row[6]
         }
-        _category_cache[category_id] = data
+        _category_cache[key] = data
         return data
     return None
 
@@ -74,8 +75,8 @@ async def build_product_responses(
     categories: dict = {}
     if cat_ids:
         rows = (await db.execute(
-            text("SELECT id, name, description, parent_id, is_active, created_at, updated_at FROM categories WHERE id IN :ids").bindparams(bindparam("ids", expanding=True)),
-            {"ids": cat_ids},
+            text("SELECT id, name, description, parent_id, is_active, created_at, updated_at FROM categories WHERE id IN :ids AND tenant_id = :tid").bindparams(bindparam("ids", expanding=True)),
+            {"ids": cat_ids, "tid": tenant_id},
         )).fetchall()
         categories = {r[0]: {"id": r[0], "name": r[1], "description": r[2], "parent_id": r[3], "is_active": r[4],
                              "created_at": r[5], "updated_at": r[6]} for r in rows}
@@ -703,7 +704,7 @@ async def get_product(
             )
 
         # Categoria — row[3] é category_id (row[2] é description)
-        category_data = await get_category_data(db, row[3]) if row[3] else None
+        category_data = await get_category_data(db, row[3], tenant_id) if row[3] else None
 
         # Estoque
         inv_result = await db.execute(

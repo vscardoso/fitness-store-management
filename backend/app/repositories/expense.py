@@ -138,6 +138,10 @@ class ExpenseRepository(
             .having(func.coalesce(func.sum(Expense.amount), 0) > 0)
             .order_by(func.coalesce(func.sum(Expense.amount), 0).desc())
         )
+        if tenant_id is not None:
+            stmt = stmt.where(
+                (ExpenseCategory.tenant_id == tenant_id) | ExpenseCategory.tenant_id.is_(None)
+            )
         result = await db.execute(stmt)
         rows = result.all()
         return [

@@ -357,7 +357,7 @@ Responda APENAS com o JSON, sem texto adicional."""
 
         start_time = time.time()
 
-        categories = await self._get_categories()
+        categories = await self._get_categories(tenant_id)
         categories_text = ", ".join([c.name for c in categories])
         prompt = self._build_prompt(categories_text, context)
 
@@ -420,9 +420,13 @@ Responda APENAS com o JSON, sem texto adicional."""
             return result[0]
         return result
 
-    async def _get_categories(self) -> List[Category]:
-        """Busca todas as categorias ativas."""
-        stmt = select(Category).where(Category.is_active == True).order_by(Category.name)
+    async def _get_categories(self, tenant_id: int) -> List[Category]:
+        """Busca as categorias ativas da loja."""
+        stmt = (
+            select(Category)
+            .where(Category.is_active == True, Category.tenant_id == tenant_id)
+            .order_by(Category.name)
+        )
         result = await self.db.execute(stmt)
         return list(result.scalars().all())
 

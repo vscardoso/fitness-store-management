@@ -81,7 +81,10 @@ class ProductService:
         # Verificar se categoria existe
         from app.models.category import Category
         category = await self.db.execute(
-            select(Category).where(Category.id == product_data.category_id)
+            select(Category).where(
+                Category.id == product_data.category_id,
+                Category.tenant_id == tenant_id,
+            )
         )
         if not category.scalar_one_or_none():
             raise ValueError(
@@ -325,6 +328,17 @@ class ProductService:
                 raise ValueError(f"Código de barras {product_data.barcode} já existe")
         
         update_dict = product_data.model_dump(exclude_unset=True)
+
+        if update_dict.get("category_id") is not None:
+            from app.models.category import Category
+            cat_ok = (await self.db.execute(
+                select(Category.id).where(
+                    Category.id == update_dict["category_id"],
+                    Category.tenant_id == tenant_id,
+                )
+            )).scalar_one_or_none()
+            if cat_ok is None:
+                raise ValueError(f"Categoria {update_dict['category_id']} não encontrada.")
 
         # Campos que existem como colunas diretas na tabela 'products'
         PRODUCT_COLUMNS = {

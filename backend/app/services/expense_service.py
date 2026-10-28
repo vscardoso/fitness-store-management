@@ -170,6 +170,16 @@ class ExpenseService:
             limit=limit,
         )
 
+    async def _validate_category(self, category_id: Optional[int], tenant_id: Optional[int]) -> None:
+        """Categoria informada precisa ser da mesma loja (ou padrão global sem tenant)."""
+        if category_id is None:
+            return
+        stmt = select(ExpenseCategory.id).where(ExpenseCategory.id == category_id, ExpenseCategory.is_active == True)  # noqa: E712
+        if tenant_id is not None:
+            stmt = stmt.where((ExpenseCategory.tenant_id == tenant_id) | ExpenseCategory.tenant_id.is_(None))
+        if (await self.db.execute(stmt)).scalar_one_or_none() is None:
+            raise ValueError("Categoria não encontrada")
+
     async def _validate_link(self, stock_entry_id: Optional[int], trip_id: Optional[int], tenant_id: Optional[int]) -> None:
         """Lote/viagem informados precisam existir, estar ativos e ser da mesma loja."""
         if stock_entry_id is not None:
@@ -201,6 +211,7 @@ class ExpenseService:
         from sqlalchemy.orm import selectinload
         from sqlalchemy import select as sa_select
 
+        await self._validate_category(data.category_id, tenant_id)
         await self._validate_link(data.stock_entry_id, data.trip_id, tenant_id)
         obj = Expense(**data.model_dump(), tenant_id=tenant_id)
         self.db.add(obj)
@@ -225,6 +236,8 @@ class ExpenseService:
         if not exp:
             return None
         changes = data.model_dump(exclude_unset=True)
+        if "category_id" in changes:
+            await self._validate_category(changes["category_id"], tenant_id)
         old_entry, old_trip = exp.stock_entry_id, exp.trip_id
         new_entry = changes.get("stock_entry_id", old_entry)
         new_trip = changes.get("trip_id", old_trip)
