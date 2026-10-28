@@ -201,6 +201,11 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 - **RLS por loja no Postgres** (2026-10-23): código pronto e DORMENTE (`RLS_ENABLED=false`), commit local `16ff277`, NÃO publicado nem aplicado em produção. Para ligar: (1) criar papel sem superusuário e rodar `backend/scripts/rls_apply.py --dry-run` e depois sem `--dry-run` (manual; o alembic roda no startup, por isso não é migração), (2) apontar `DATABASE_URL` para o papel `provador_app`, (3) `RLS_ENABLED=true`. Rollback: `rls_apply.py --rollback`. Testes: `TEST_PG_URL=postgresql+asyncpg://postgres@127.0.0.1:55432/postgres pytest tests/pg --no-cov` (Postgres local descartável).
 - **CI Backend Tests vermelho** (desde antes de 2026-10-23, commits `418c507`, `a5df64c`, `8442337` e seguintes): medido localmente em 23/10/2026, 100 testes falhando e 21 com erro de 247 (`pytest tests --ignore=tests/e2e`), por fixtures e suítes antigas. `tests/e2e/test_catalog.py` nem importa (`get_async_session` não existe em `app.core.database`). Consertar ou remover os testes mortos para o CI voltar a ser sinal confiável; os testes novos de segurança (`tests/test_auth_hardening.py`) passam.
 
+## Limpeza do Render e do Neon (2026-10-28)
+
+- Removidos do repositório: `render.yaml` (todo push tentava publicar no Render e falhava com a cota do Neon estourada) e o workflow `backup-database.yml` (guardava dump SEM criptografia do Neon como artefato do GitHub; o backup real é o do VPS, criptografado com age). As URLs de API em `mobile/eas.json` (builds preview e production) apontavam para o Render morto: agora `https://api.provadorfit.com.br/api/v1`. Guias antigos foram para `docs/archive/deploy-guides/`.
+- Falta, só no painel (feito pelo Victor): suspender ou apagar o serviço `fitness-backend` no Render e, depois de confirmar que nada antigo importa, o projeto no Neon. Segredo `DATABASE_BACKUP_URL` do GitHub pode ser apagado (Settings > Secrets).
+
 ## Servidor de produção no VPS (2026-10-22)
 
 - Backend + Postgres rodando em `/opt/provador` no VPS (compose `docker-compose.prod.yml`, `.env.prod` com segredos só no servidor, modo 600). Backend em `127.0.0.1:8000`, nginx site `provador-api` na porta 80 para `api.provadorfit.com.br`; Postgres sem porta publicada; `DATABASE_SSL=disable` (sem isso o código exige SSL por causa do Neon/Render).

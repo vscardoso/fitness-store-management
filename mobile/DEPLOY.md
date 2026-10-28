@@ -155,14 +155,14 @@ eas submit --platform ios --profile production
       "distribution": "internal",
       "android": { "buildType": "apk" },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://fitness-backend-x1qn.onrender.com/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://api.provadorfit.com.br/api/v1"
       }
     },
     "production": {
       "autoIncrement": true,
       "android": { "buildType": "app-bundle" },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://fitness-backend-x1qn.onrender.com/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://api.provadorfit.com.br/api/v1"
       }
     }
   }
@@ -315,7 +315,7 @@ eas submit -p ios --profile production
 
 ### Produção
 ```
-EXPO_PUBLIC_API_URL=https://fitness-backend-x1qn.onrender.com/api/v1
+EXPO_PUBLIC_API_URL=https://api.provadorfit.com.br/api/v1
 ```
 
 ### Desenvolvimento Local

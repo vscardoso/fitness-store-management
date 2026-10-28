@@ -12,7 +12,7 @@ Resumo de tudo que foi feito e como configurar o projeto do zero em um novo PC.
 # Python 3.11+
 # Node.js 18+
 # Git
-# PostgreSQL (ou usar o banco remoto do Render)
+# PostgreSQL local (a produção roda no VPS)
 ```
 
 ### Clonar e configurar
@@ -67,7 +67,7 @@ cp .env.example .env.local   # se existir, senão criar manualmente
 
 **Variáveis do `.env.local`:**
 ```env
-NEXT_PUBLIC_API_URL=https://fitness-backend-x1qn.onrender.com/api/v1
+NEXT_PUBLIC_API_URL=https://api.provadorfit.com.br/api/v1
 NEXT_PUBLIC_WHATSAPP_NUMBER=55XXXXXXXXXXX
 NEXT_PUBLIC_STORE_NAME=WA Moda Fitness
 NEXT_PUBLIC_SITE_URL=https://www.wamodafitness.com.br
@@ -218,7 +218,7 @@ Posso receber em casa para experimentar antes de decidir?
 
 | Serviço | URL | Status |
 |---------|-----|--------|
-| Backend | https://fitness-backend-x1qn.onrender.com | Render (auto-deploy no push) |
+| Backend | https://api.provadorfit.com.br | VPS Hetzner (publica sozinho por push, com a guarda de publicação) |
 | Web | https://www.wamodafitness.com.br | Vercel (auto-deploy no push) |
 | Mobile | Expo EAS | Build manual |
 
