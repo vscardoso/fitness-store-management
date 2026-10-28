@@ -54,7 +54,7 @@ const CSP = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  `connect-src 'self' ${apiOrigin} https://viacep.com.br https://brasilapi.com.br https://ws.apicep.com https://*.ingest.us.sentry.io`,
+  `connect-src 'self' blob: data: ${apiOrigin} https://viacep.com.br https://brasilapi.com.br https://ws.apicep.com https://*.ingest.us.sentry.io`,
   "media-src 'self' blob: data:",
   "worker-src 'self' blob:",
   "manifest-src 'self'",

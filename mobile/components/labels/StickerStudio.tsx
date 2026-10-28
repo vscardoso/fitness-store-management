@@ -43,7 +43,7 @@ const qrOf = (code?: string | null) => (code ? `PV${code}` : null);
 export default function StickerStudio({ items, initialQty, onAddMore, onRemove, onGenerated, emptyText }: Props) {
   const brand = useBrandingColors();
   const { width } = useWindowDimensions();
-  const [sizeId, setSizeId] = useState<(typeof STICKER_SIZES)[number]['id']>('6x5');
+  const [sizeId, setSizeId] = useState<(typeof STICKER_SIZES)[number]['id']>('65x55');
   const [qty, setQty] = useState<Record<number, number>>({});
   const [focusId, setFocusId] = useState<number | null>(null);
   const [showSheet, setShowSheet] = useState(false);

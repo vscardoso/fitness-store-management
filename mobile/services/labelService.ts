@@ -9,10 +9,10 @@ import api from './api';
 
 export type TagLabelLayout = 'a4' | 'roll';
 
-/** Medidas do adesivo do verso da tag (mm). 6x5 é a etiqueta que a loja usa hoje; 5x6 é a mesma em pé. */
+/** Medidas do adesivo do verso da tag (mm). 6,5 x 5,5 cm é a etiqueta que a loja usa hoje; a outra é a mesma em pé. */
 export const STICKER_SIZES = [
-  { id: '6x5', name: '6 × 5 cm', note: 'deitada', widthMm: 60, heightMm: 50 },
-  { id: '5x6', name: '5 × 6 cm', note: 'em pé', widthMm: 50, heightMm: 60 },
+  { id: '65x55', name: '6,5 × 5,5 cm', note: 'deitada', widthMm: 65, heightMm: 55 },
+  { id: '55x65', name: '5,5 × 6,5 cm', note: 'em pé', widthMm: 55, heightMm: 65 },
 ] as const;
 export type StickerSize = (typeof STICKER_SIZES)[number];
 
@@ -23,7 +23,7 @@ export interface TagLabelOptions {
   heightMm?: number;
 }
 
-/** Quantos adesivos cabem numa folha A4 (mesma conta do servidor, `a4_grid`): 6x5 = 15, 5x6 = 12. */
+/** Quantos adesivos cabem numa folha A4 (mesma conta do servidor, `a4_grid`): 65x55 = 8, 55x65 = 12. */
 export function stickersPerSheet(widthMm: number, heightMm: number): number {
   const cols = Math.max(1, Math.floor((210 - 16 + 4) / (widthMm + 4)));
   const rows = Math.max(1, Math.floor((297 - 16 + 4) / (heightMm + 4)));
@@ -34,8 +34,8 @@ function sizeBody(options: TagLabelOptions) {
   return {
     layout: options.layout,
     start_position: options.startPosition ?? 1,
-    width_mm: options.widthMm ?? 60,
-    height_mm: options.heightMm ?? 50,
+    width_mm: options.widthMm ?? 65,
+    height_mm: options.heightMm ?? 55,
   };
 }
 

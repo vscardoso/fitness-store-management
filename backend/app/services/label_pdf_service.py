@@ -31,7 +31,7 @@ MIN_MM, MAX_MM = 30, 100
 
 
 def a4_grid(width_mm: float, height_mm: float) -> tuple[int, int]:
-    """Quantas etiquetas cabem na folha A4 (colunas, linhas): 60x50 -> 3x5 = 15; 50x60 -> 3x4 = 12."""
+    """Quantas etiquetas cabem na folha A4 (colunas, linhas): 65x55 -> 2x4 = 8; 55x65 -> 3x4 = 12."""
     cols = int((210 - 2 * A4_MARGIN_MM + A4_GAP_MM) // (width_mm + A4_GAP_MM))
     rows = int((297 - 2 * A4_MARGIN_MM + A4_GAP_MM) // (height_mm + A4_GAP_MM))
     return max(1, cols), max(1, rows)
@@ -162,7 +162,7 @@ def _crop_marks(c: canvas.Canvas, x: float, y: float, w: float, h: float) -> Non
 
 
 def build_pdf(labels: List[LabelData], layout: str = "a4", start_position: int = 1,
-              width_mm: float = 60, height_mm: float = 50, title: str = "Etiquetas") -> bytes:
+              width_mm: float = 65, height_mm: float = 55, title: str = "Etiquetas") -> bytes:
     """Gera o PDF. `start_position` pula posições já usadas da primeira folha A4 (1 até o total da grade)."""
     if layout not in ("a4", "roll"):
         raise ValueError("Formato inválido: use 'a4' ou 'roll'.")

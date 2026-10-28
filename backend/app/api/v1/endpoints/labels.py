@@ -22,8 +22,8 @@ class LabelItem(BaseModel):
 class LabelOptions(BaseModel):
     layout: Literal["a4", "roll"] = "a4"
     start_position: int = Field(1, ge=1, le=100, description="Na folha A4, em que posição começar (pula as já usadas)")
-    width_mm: float = Field(60, ge=MIN_MM, le=MAX_MM, description="Largura do adesivo (60 = 6 cm)")
-    height_mm: float = Field(50, ge=MIN_MM, le=MAX_MM, description="Altura do adesivo (50 = 5 cm)")
+    width_mm: float = Field(65, ge=MIN_MM, le=MAX_MM, description="Largura do adesivo (65 = 6,5 cm)")
+    height_mm: float = Field(55, ge=MIN_MM, le=MAX_MM, description="Altura do adesivo (55 = 5,5 cm)")
 
 
 class LabelPdfRequest(LabelOptions):
@@ -37,7 +37,7 @@ def _pdf(content: bytes, filename: str) -> Response:
 
 @router.get("/sizes", summary="Tamanhos de adesivo e quantas cabem por folha A4")
 async def label_sizes(user: User = Depends(get_current_active_user)):
-    presets = [("6x5", "6 × 5 cm (deitada)", 60, 50), ("5x6", "5 × 6 cm (em pé)", 50, 60)]
+    presets = [("65x55", "6,5 × 5,5 cm (deitada)", 65, 55), ("55x65", "5,5 × 6,5 cm (em pé)", 55, 65)]
     out = []
     for key, name, w, h in presets:
         cols, rows = a4_grid(w, h)
