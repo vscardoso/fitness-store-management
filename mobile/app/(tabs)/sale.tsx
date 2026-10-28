@@ -36,7 +36,10 @@ import {
 import type { Product, Customer } from '@/types';
 import type { ProductGrouped, ProductVariant as GroupedVariant } from '@/types';
 import ProductSelectionModal from '@/components/sale/ProductSelectionModal';
-import QRCodeScanner from '@/components/sale/QRCodeScanner';
+import ScanBar, { type ScanStatus } from '@/components/scan/ScanBar';
+import { lookupCode, variantLabel as lookupVariantLabel } from '@/services/codeResolver';
+import { buildCartProduct } from '@/services/scanToCart';
+import { playScan } from '@/utils/scanFeedback';
 
 import { Money } from '@/components/ui/PriceDisplay';
 import { useIsDesktop } from '@/hooks/useLayout';
@@ -55,7 +58,7 @@ function MobileSaleScreen() {
   const cart = useCart();
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
-  const [scannerVisible, setScannerVisible] = useState(false);
+  const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
   const [customerModalVisible, setCustomerModalVisible] = useState(false);
   const [productModalVisible, setProductModalVisible] = useState(false);
 
@@ -371,60 +374,40 @@ function MobileSaleScreen() {
   };
 
   /**
-   * Abrir scanner de código de barras
+   * Leitura contínua (câmera, leitor USB/Bluetooth ou código digitado): cada leitura soma 1 no carrinho.
+   * Sem estoque ou acima do estoque: avisa na própria barra e NÃO adiciona (sem janela que trave a fila de leituras).
    */
-  const handleOpenScanner = () => {
-    haptics.light();
-    setScannerVisible(true);
-  };
-
-  /**
-   * Handler quando produto é encontrado pelo scanner de QR Code
-   */
-  const handleProductScanned = (product: Product, quantity: number = 1) => {
-    setScannerVisible(false);
-
-    const scannedProduct = product as Product & { variant_id?: number };
-    const cart_key = scannedProduct.variant_id ? `v_${scannedProduct.variant_id}` : `p_${product.id}`;
-    const existingItem = cart.getItem(cart_key);
-    const newQty = (existingItem?.quantity ?? 0) + quantity;
-    const availableStock = scannedProduct.current_stock ?? 0;
-
-    if (availableStock <= 0) {
-      haptics.warning();
-      setDialog({
-        visible: true,
-        type: 'warning',
-        title: 'Sem estoque',
-        message: 'Este item não tem estoque disponível.',
-        confirmText: 'Entendi',
-        cancelText: '',
-        onConfirm: () => setDialog({ ...dialog, visible: false }),
-      });
-      return;
+  const handleScanCode = async (code: string) => {
+    try {
+      const found = await lookupCode(code);
+      if (!found) {
+        playScan('error');
+        setScanStatus({ kind: 'error', text: 'Código ' + code + ' não encontrado nesta loja.' });
+        return;
+      }
+      const product = buildCartProduct(found);
+      const title = found.product.name + ' · ' + lookupVariantLabel(found.variant);
+      const cartKey = 'v_' + found.variant.id;
+      const inCart = cart.getItem(cartKey)?.quantity ?? 0;
+      const stock = found.variant.current_stock;
+      if (stock <= 0) {
+        playScan('warn');
+        setScanStatus({ kind: 'warn', text: title + ': sem estoque, não foi adicionada.' });
+        return;
+      }
+      if (inCart + 1 > stock) {
+        playScan('warn');
+        setScanStatus({ kind: 'warn', text: title + ': só há ' + stock + ' em estoque e já estão no carrinho.' });
+        return;
+      }
+      if (inCart > 0) cart.updateQuantity(cartKey, inCart + 1);
+      else cart.addItem(product, 1);
+      playScan('ok');
+      setScanStatus({ kind: 'ok', text: title + ': ' + (inCart + 1) + ' no carrinho' });
+    } catch (e: any) {
+      playScan('error');
+      setScanStatus({ kind: 'error', text: e?.message || 'Não foi possível consultar o código. Tente de novo.' });
     }
-
-    if (newQty > availableStock) {
-      haptics.warning();
-      setDialog({
-        visible: true,
-        type: 'warning',
-        title: 'Estoque insuficiente',
-        message: `Apenas ${availableStock} unidade(s) disponíveis para este item.`,
-        confirmText: 'Entendi',
-        cancelText: '',
-        onConfirm: () => setDialog({ ...dialog, visible: false }),
-      });
-      return;
-    }
-
-    if (existingItem) {
-      cart.updateQuantity(cart_key, newQty);
-    } else {
-      cart.addItem(product, quantity);
-    }
-
-    haptics.success();
   };
 
   /**
@@ -567,16 +550,8 @@ function MobileSaleScreen() {
               <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
             </TouchableOpacity>
 
-            {/* Botão de scanner QR Code */}
-            <TouchableOpacity
-              style={[styles.scanQRButton, { backgroundColor: brandingColors.primary }]}
-              onPress={handleOpenScanner}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="qr-code-outline" size={26} color="#fff" />
-              <Text style={styles.scanQRButtonText}>Escanear</Text>
-            </TouchableOpacity>
           </View>
+          <ScanBar onCode={handleScanCode} status={scanStatus} placeholder="Bipe a peça: cada leitura entra no carrinho" paused={productModalVisible || customerModalVisible} />
         </View>
 
         {/* Carrinho de compras */}
@@ -780,21 +755,6 @@ function MobileSaleScreen() {
           </View>
         )}
 
-        {/* FAB para escanear código de barras - Desabilitado temporariamente */}
-        {/* <FAB
-          icon="barcode-scan"
-          style={styles.fab}
-          onPress={handleOpenScanner}
-          label="Escanear"
-        /> */}
-
-        {/* Scanner de código de barras - Desabilitado temporariamente */}
-        {/* <BarcodeScanner
-          visible={scannerVisible}
-          onDismiss={() => setScannerVisible(false)}
-          onProductFound={handleProductScanned}
-        /> */}
-
         {/* Customer Selection Modal */}
         <CustomerSelectionModal
           visible={customerModalVisible}
@@ -808,20 +768,6 @@ function MobileSaleScreen() {
           onDismiss={() => setProductModalVisible(false)}
           onSelectProduct={handleSelectProduct}
           hasStock={true}
-        />
-
-        {/* QR Code Scanner */}
-        <QRCodeScanner
-          visible={scannerVisible}
-          onClose={() => setScannerVisible(false)}
-          onProductScanned={handleProductScanned}
-          getCartQuantity={(product) => {
-            const productWithVariant = product as Product & { variant_id?: number };
-            const cartKey = productWithVariant.variant_id
-              ? `v_${productWithVariant.variant_id}`
-              : `p_${product.id}`;
-            return cart.getItem(cartKey)?.quantity ?? 0;
-          }}
         />
 
         {/* Confirm Dialog */}

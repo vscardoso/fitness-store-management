@@ -4,7 +4,7 @@
  * em branco) e imprimir o resultado depois. A contagem fica salva no aparelho (pode continuar outro dia).
  * Esta tela só confere: não altera o estoque.
  */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -35,6 +35,10 @@ import { saveStockCount } from '@/services/stockCountService';
 import { variantCodeText } from '@/utils/shortCode';
 import HScroll from '@/components/ui/HScroll';
 import { formatInt, formatDateTime } from '@/utils/format';
+import ScanBar, { type ScanStatus } from '@/components/scan/ScanBar';
+import { lookupCode } from '@/services/codeResolver';
+import { buildCodeIndex, findVariantLocal } from '@/utils/scanLogic';
+import { playScan } from '@/utils/scanFeedback';
 
 type Counts = Record<number, string>;
 
@@ -69,6 +73,15 @@ export default function StockCheckScreen() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
   const [savedInfo, setSavedInfo] = useState<{ id: number; at: string } | null>(null);
+  // leitura por QR
+  const scrollRef = useRef<ScrollView>(null);
+  const groupY = useRef<Record<string, number>>({});
+  const rowY = useRef<Record<number, number>>({});
+  const countsRef = useRef<Counts>({});
+  const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
+  const [lastScan, setLastScan] = useState<number | null>(null);
+  const [highlightId, setHighlightId] = useState<number | null>(null);
+  const [focusId, setFocusId] = useState<number | null>(null);
 
   const storageKey = `@provador:conferencia:${tenantId ?? 'loja'}`;
 
@@ -106,6 +119,12 @@ export default function StockCheckScreen() {
   }, [allData]);
 
   const rows = data?.rows ?? [];
+  useEffect(() => {
+    countsRef.current = counts;
+  }, [counts]);
+  const rowById = useMemo(() => new Map(rows.map((r) => [r.variant_id, r])), [rows]);
+  const codeIndex = useMemo(() => buildCodeIndex(rows), [rows]);
+  const allIndex = useMemo(() => buildCodeIndex(allData?.rows ?? []), [allData]);
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -194,6 +213,106 @@ export default function StockCheckScreen() {
     });
   }, []);
 
+  // Leitura do QR: acha a peça na lista (na hora, sem servidor), soma 1, rola até a linha e destaca
+  const handleScan = useCallback(
+    async (code: string) => {
+      const id = findVariantLocal(codeIndex, code);
+      const row = id !== null ? rowById.get(id) : undefined;
+      if (!row) {
+        const inAll = findVariantLocal(allIndex, code);
+        if (inAll !== null) {
+          const r = (allData?.rows ?? []).find((x) => x.variant_id === inAll);
+          playScan('warn');
+          setScanStatus({ kind: 'warn', text: (r?.product_name ?? 'Peça') + ' está fora do filtro atual. Escolha "Todas as categorias" para contar.' });
+          return;
+        }
+        try {
+          const found = await lookupCode(code);
+          if (found) {
+            playScan('warn');
+            setScanStatus({ kind: 'warn', text: found.product.name + ' existe, mas não está na lista (puxe a tela para baixo para atualizar).' });
+          } else {
+            playScan('error');
+            setScanStatus({ kind: 'error', text: 'Código ' + code + ' não encontrado nesta loja.' });
+          }
+        } catch (e: any) {
+          playScan('error');
+          setScanStatus({ kind: 'error', text: e?.message || 'Não foi possível consultar o código. Tente de novo.' });
+        }
+        return;
+      }
+      const vid = row.variant_id;
+      const before = countsRef.current[vid];
+      const cur = before === undefined || before === '' ? 0 : parseInt(before, 10) || 0;
+      const next = cur + 1;
+      setCounts((prev) => ({ ...prev, [vid]: String(next) }));
+      setLastScan(vid);
+      const diff = next - row.system_quantity;
+      playScan(diff > 0 ? 'warn' : 'ok');
+      const tail = diff > 0 ? ' (sobra ' + diff + ')' : diff === 0 ? ' (confere)' : '';
+      setScanStatus({
+        kind: diff > 0 ? 'warn' : 'ok',
+        text: row.product_name + ' · ' + variantLabel(row) + ': contado ' + next + ' de ' + row.system_quantity + tail,
+      });
+      setHighlightId(vid);
+      setFocusId(vid);
+    },
+    [codeIndex, allIndex, rowById, allData],
+  );
+
+  const undoScan = useCallback(() => {
+    if (lastScan === null) return;
+    stepCount(lastScan, -1);
+    setScanStatus({ kind: 'ok', text: 'Última leitura desfeita.' });
+    setLastScan(null);
+  }, [lastScan, stepCount]);
+
+  // some o destaque e o aviso depois de alguns segundos
+  useEffect(() => {
+    if (highlightId === null) return;
+    const t = setTimeout(() => setHighlightId(null), 3000);
+    return () => clearTimeout(t);
+  }, [highlightId]);
+  useEffect(() => {
+    if (!scanStatus) return;
+    const t = setTimeout(() => {
+      setScanStatus(null);
+      setLastScan(null);
+    }, 6000);
+    return () => clearTimeout(t);
+  }, [scanStatus]);
+
+  // rola até a linha lida: abre a página da lista onde ela está e espera a medida da linha
+  useEffect(() => {
+    if (focusId === null) return;
+    const idx = grouped.findIndex((g) => g.rows.some((r) => r.variant_id === focusId));
+    if (idx < 0) {
+      setFocusId(null);
+      return;
+    }
+    if (idx >= shown) {
+      setShown(idx + 1 + PAGE);
+      return;
+    }
+    const key = grouped[idx].key;
+    let tries = 0;
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      const gy = groupY.current[key];
+      const ry = rowY.current[focusId];
+      if (gy !== undefined && ry !== undefined) {
+        scrollRef.current?.scrollTo({ y: Math.max(0, gy + ry - 140), animated: true });
+        setFocusId(null);
+      } else if (tries++ < 8) {
+        timer = setTimeout(tick, 60);
+      } else {
+        setFocusId(null);
+      }
+    };
+    timer = setTimeout(tick, 30);
+    return () => clearTimeout(timer);
+  }, [focusId, grouped, shown]);
+
   const buildHtml = (withResult: boolean) => {
     const title = withResult ? 'Resultado da conferência de estoque' : 'Lista para conferência de estoque';
     const today = new Date().toLocaleDateString('pt-BR');
@@ -256,6 +375,7 @@ export default function StockCheckScreen() {
     <View style={styles.container}>
       <PageHeader title="Conferência de estoque" subtitle="Compare o sistema com a contagem" showBackButton onBack={goBack} />
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
@@ -289,6 +409,20 @@ export default function StockCheckScreen() {
             </Text>
           </View>
         </View>
+
+        {/* Leitura do QR: câmera, leitor USB/Bluetooth ou digitar o código */}
+        <ScanBar
+          onCode={handleScan}
+          status={scanStatus}
+          placeholder="Bipe a peça: cada leitura soma 1"
+          right={
+            lastScan !== null ? (
+              <TouchableOpacity onPress={undoScan} style={styles.undoBtn} accessibilityRole="button" accessibilityLabel="Desfazer última leitura">
+                <Ionicons name="arrow-undo-outline" size={18} color={Colors.light.text} />
+              </TouchableOpacity>
+            ) : null
+          }
+        />
 
         {/* Filtros */}
         <View style={styles.searchBar}>
@@ -395,7 +529,7 @@ export default function StockCheckScreen() {
           </View>
         ) : (
           shownGroups.map((g) => (
-            <View key={g.key} style={styles.group}>
+            <View key={g.key} style={styles.group} onLayout={(e) => { groupY.current[g.key] = e.nativeEvent.layout.y; }}>
               <View style={styles.groupHead}>
                 <Text style={styles.groupName} numberOfLines={2}>{g.name}</Text>
                 <Text style={styles.groupCat}>{g.category}</Text>
@@ -404,7 +538,11 @@ export default function StockCheckScreen() {
                 const d = diffOf(r, counts);
                 const code = variantCodeText(r);
                 return (
-                  <View key={r.variant_id} style={styles.row}>
+                  <View
+                    key={r.variant_id}
+                    style={[styles.row, highlightId === r.variant_id && styles.rowHighlight]}
+                    onLayout={(e) => { rowY.current[r.variant_id] = e.nativeEvent.layout.y; }}
+                  >
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={styles.variant} numberOfLines={1}>{variantLabel(r)}</Text>
                       <Text style={styles.meta} numberOfLines={1}>{[code, r.sku].filter(Boolean).join(' · ')}</Text>
@@ -596,6 +734,8 @@ const styles = StyleSheet.create({
   sysLabel: { fontSize: 10, color: Colors.light.textSecondary },
   sysValue: { fontSize: 16, fontWeight: '700', color: Colors.light.text },
   saveBtn: { borderWidth: 1 },
+  undoBtn: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card },
+  rowHighlight: { backgroundColor: '#FEF9C3' },
   savedBanner: {
     flexDirection: 'row',
     alignItems: 'center',

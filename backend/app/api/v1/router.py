@@ -59,6 +59,7 @@ from app.api.v1.endpoints import (
     supplier_insights,
 )
 from app.api.v1 import product_variants
+from app.api.v1 import code_lookup
 
 
 # Router principal da API v1
@@ -97,6 +98,8 @@ api_router.include_router(
 )
 
 # Variantes de produtos (tamanhos/cores)
+# Resolvedor de código lido: ANTES de product_variants (senão /lookup cai em /{variant_id})
+api_router.include_router(code_lookup.router)
 api_router.include_router(
     product_variants.router,
     tags=["Variantes de Produto"]

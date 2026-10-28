@@ -10,6 +10,7 @@ import { getAccessToken, getRefreshToken, saveAccessToken, saveRefreshToken, cle
 import { loadingManager } from './loadingManager';
 import { OFFLINE_ERROR, friendlyFromText, safeMessage, validationMessage } from '@/utils/friendlyError';
 import { logError } from './debugLog';
+import { reportApiFailure } from './systemStatus';
 import type { ApiError } from '@/types';
 
 /**
@@ -263,6 +264,11 @@ api.interceptors.response.use(
       originalRequest._retryRead = true;
       await new Promise((resolve) => setTimeout(resolve, 800));
       return api(originalRequest);
+    }
+
+    // Servidor fora (reinício da publicação) ou sem rede: confere o /health e, se for isso mesmo, mostra a tela única de atualização
+    if (error.code !== 'ERR_CANCELED' && (!error.response || [502, 503, 504].includes(error.response.status))) {
+      reportApiFailure();
     }
 
     // Log resumido em desenvolvimento

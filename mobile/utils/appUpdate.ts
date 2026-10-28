@@ -24,7 +24,7 @@ export const IDLE_CHECK_EVERY_MS = 15_000;
 
 /** Telas em que se perde trabalho se a página recarregar: nunca atualiza sozinho nelas, só mostra o aviso. */
 const PROTECTED_PATH_PARTS = [
-  'pdv', 'checkout', 'payment', 'wizard', 'add', 'edit', 'create', 'new', 'login', 'signup', 'cadastro', 'aceite-termos', 'conferencia', 'stock-check',
+  'pdv', 'checkout', 'payment', 'wizard', 'add', 'edit', 'create', 'new', 'login', 'signup', 'cadastro', 'aceite-termos', 'conferencia', 'stock-check', 'check', 'consult',
 ];
 
 export interface IdleState {

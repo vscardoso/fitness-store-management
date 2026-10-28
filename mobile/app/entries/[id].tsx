@@ -925,6 +925,17 @@ export default function StockEntryDetailsScreen() {
           <Text style={styles.sectionTitleLarge}>
             Produtos ({entry.entry_items?.length || 0})
           </Text>
+          <View style={styles.itemActionsRow}>
+            <TouchableOpacity
+              onPress={() => router.push({ pathname: '/entries/check/[id]', params: { id: String(entryId) } } as any)}
+              style={[styles.editItemButton, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12' }]}
+              activeOpacity={0.7}
+              accessibilityLabel="Conferir as peças recebidas lendo o QR de cada uma"
+            >
+              <Ionicons name="qr-code-outline" size={14} color={brandingColors.primary} />
+              <Text style={[styles.editItemButtonText, { color: brandingColors.primary }]}>Conferir recebimento</Text>
+            </TouchableOpacity>
+          </View>
           {isManagerRole(user?.role) && (
             <View style={styles.itemActionsRow}>
               <TouchableOpacity

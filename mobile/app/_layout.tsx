@@ -32,6 +32,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { setForceLogoutCallback, setInvalidateQueriesCallback } from '@/services/api';
 import GlobalConfirmModalHost, { installGlobalAlertOverride } from '@/components/ui/GlobalConfirmModal';
 import UpdateBanner from '@/components/layout/UpdateBanner';
+import SystemUpdateOverlay from '@/components/layout/SystemUpdateOverlay';
 import { saveLastRoute } from '@/utils/lastRoute';
 import { startHistoryTrail, trailRoute } from '@/utils/navTrail';
 import { startQueryPersist } from '@/utils/queryPersist';
@@ -208,6 +209,9 @@ export default function RootLayout() {
 
                 {/* Aviso de versão nova (só no app web) */}
                 <UpdateBanner />
+
+                {/* Sistema atualizando: tela única, some sozinha quando o servidor volta */}
+                <SystemUpdateOverlay />
 
                 {/* Global Loading Overlay */}
                 <LoadingOverlay />

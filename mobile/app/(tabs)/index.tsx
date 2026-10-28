@@ -286,6 +286,13 @@ export default function DashboardScreen() {
       onPress: () => router.push('/(tabs)/sale'),
     },
     {
+      id: 'consult',
+      title: 'Consultar',
+      icon: 'qr-code',
+      color: '#0EA5E9',
+      onPress: () => router.push('/products/consult' as any),
+    },
+    {
       id: 'products',
       title: 'Produtos',
       icon: 'cube',
