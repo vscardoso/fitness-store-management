@@ -669,7 +669,12 @@ async def cielo_pix_register_webhook(
             detail="Chave PIX não configurada. Acesse Configurações → Chave PIX primeiro.",
         )
 
-    callback_url = f"{cfg.APP_URL}/api/v1/pdv/webhooks/cielo-pix"
+    if not cfg.PDV_WEBHOOK_TOKEN:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="PDV_WEBHOOK_TOKEN não configurado no servidor.",
+        )
+    callback_url = f"{cfg.APP_URL}/api/v1/pdv/webhooks/cielo-pix?token={cfg.PDV_WEBHOOK_TOKEN}"
     try:
         result = await CieloPixProvider().register_webhook(pix_key, callback_url)
     except ValueError as e:

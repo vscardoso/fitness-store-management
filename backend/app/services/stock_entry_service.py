@@ -2068,6 +2068,15 @@ class StockEntryService:
 
         return new_item
     
+    async def _assert_category(self, category_id, tenant_id: int) -> None:
+        """category_id do corpo precisa ser categoria da propria loja."""
+        from app.models.category import Category
+        ok = (await self.db.execute(
+            select(Category.id).where(Category.id == category_id, Category.tenant_id == tenant_id)
+        )).scalar_one_or_none()
+        if ok is None:
+            raise ValueError(f"Categoria {category_id} não encontrada")
+
     async def create_entry_with_new_product(
         self,
         product_data: Dict[str, Any],
@@ -2118,6 +2127,7 @@ class StockEntryService:
             )
             if default_supplier is None:
                 raise ValueError("Informe o fornecedor da entrada")
+            await self._assert_category(product_data.get('category_id'), tenant_id)
             # Valida o custo ANTES de criar produto/entrada: se falhar, nada fica gravado pela metade
             self._require_cost(
                 product_data.get('cost_price'),
@@ -2274,6 +2284,7 @@ class StockEntryService:
             # Validar dados do produto
             if not product_data.get('name') or not product_data.get('category_id'):
                 raise ValueError("Nome e categoria do produto são obrigatórios")
+            await self._assert_category(product_data.get('category_id'), tenant_id)
 
             # Variação sem quantidade não existe: não é criada (senão ficaria zerada, sem nunca ter entrado)
             variants_data[:] = [v for v in variants_data if (v.get('quantity') or 0) > 0]
@@ -2450,6 +2461,7 @@ class StockEntryService:
                 raise ValueError(f"Entrada {entry_id} não encontrada")
             if not product_data.get('name') or not product_data.get('category_id'):
                 raise ValueError("Nome e categoria do produto são obrigatórios")
+            await self._assert_category(product_data.get('category_id'), tenant_id)
             if not variants_data:
                 raise ValueError("Informe ao menos uma variação")
             if not any((v.get('quantity') or 0) > 0 for v in variants_data):

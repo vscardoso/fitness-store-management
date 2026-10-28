@@ -218,7 +218,7 @@ class CieloPixProvider(BasePixProvider):
         db.add(pix_tx)
 
         await db.execute(
-            update(Sale).where(Sale.id == sale_id)
+            update(Sale).where(Sale.id == sale_id, Sale.tenant_id == tenant_id)
             .values(status=SaleStatus.PENDING, payment_reference=txid)
         )
         await db.commit()

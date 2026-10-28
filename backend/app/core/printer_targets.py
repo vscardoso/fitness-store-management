@@ -16,6 +16,8 @@ def validate_ip(value):
         ip = ipaddress.ip_address(value)
     except ValueError:
         raise ValueError("ip_address deve ser um IP da rede local (sem nome de host)")
+    if getattr(ip, "ipv4_mapped", None):
+        ip = ip.ipv4_mapped  # ::ffff:127.0.0.1 vale como 127.0.0.1
     if not ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_unspecified or ip.is_multicast:
         raise ValueError("ip_address deve ser um IP privado da rede local da loja")
     return value

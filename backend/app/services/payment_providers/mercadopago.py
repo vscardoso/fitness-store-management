@@ -905,7 +905,7 @@ class MercadoPagoPixProvider(BasePixProvider):
 
         await db.execute(
             update(Sale)
-            .where(Sale.id == sale_id)
+            .where(Sale.id == sale_id, Sale.tenant_id == tenant_id)
             .values(status=SaleStatus.PENDING, payment_reference=payment_id)
         )
         await db.commit()
