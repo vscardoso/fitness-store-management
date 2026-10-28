@@ -20,19 +20,21 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { useRouter } from 'expo-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import BottomSheet from '@/components/ui/BottomSheet';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors, VALUE_COLORS } from '@/constants/Colors';
 import useBackToList from '@/hooks/useBackToList';
 import { useAuthStore } from '@/store/authStore';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getStockCheck, type StockCheckRow } from '@/services/stockCheckService';
+import { saveStockCount } from '@/services/stockCountService';
 import { variantCodeText } from '@/utils/shortCode';
 import HScroll from '@/components/ui/HScroll';
-import { formatInt } from '@/utils/format';
+import { formatInt, formatDateTime } from '@/utils/format';
 
 type Counts = Record<number, string>;
 
@@ -60,6 +62,13 @@ export default function StockCheckScreen() {
   const [loaded, setLoaded] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [message, setMessage] = useState('');
+  const queryClient = useQueryClient();
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [saveName, setSaveName] = useState('');
+  const [saveNote, setSaveNote] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [savedInfo, setSavedInfo] = useState<{ id: number; at: string } | null>(null);
 
   const storageKey = `@provador:conferencia:${tenantId ?? 'loja'}`;
 
@@ -152,6 +161,28 @@ export default function StockCheckScreen() {
   const setCount = useCallback((variantId: number, text: string) => {
     setCounts((prev) => ({ ...prev, [variantId]: text.replace(/[^0-9]/g, '') }));
   }, []);
+
+  // Grava a conferência no servidor (data, quem contou e o resultado de cada peça). Só vai o que foi contado.
+  const doSave = async () => {
+    const items = rows
+      .filter((r) => diffOf(r, counts) !== null)
+      .map((r) => ({ variant_id: r.variant_id, counted_quantity: parseInt(counts[r.variant_id], 10) }));
+    if (!items.length) return;
+    setSaving(true);
+    setSaveError('');
+    try {
+      const saved = await saveStockCount({ name: saveName, note: saveNote, categoryId, items });
+      setSavedInfo({ id: saved.id, at: saved.created_at });
+      setSaveOpen(false);
+      setSaveName('');
+      setSaveNote('');
+      queryClient.invalidateQueries({ queryKey: ['stock-counts'] });
+    } catch (e: any) {
+      setSaveError(e?.message || 'Não foi possível salvar a conferência. Tente de novo.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // seta de + e -: sem número ainda, o primeiro + conta 1 e o primeiro - conta 0; nunca passa de 0 para baixo
   const stepCount = useCallback((variantId: number, delta: 1 | -1) => {
@@ -287,6 +318,40 @@ export default function StockCheckScreen() {
           <Chip label="Só divergências" active={onlyDiffs} onPress={() => setOnlyDiffs((v) => !v)} color={brand.primary} />
         </View>
 
+        {/* Salvar e histórico */}
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={[styles.actionBtn, styles.saveBtn, { backgroundColor: brand.primary, borderColor: brand.primary, opacity: summary.counted ? 1 : 0.5 }]}
+            onPress={() => {
+              if (!summary.counted) return;
+              setSaveError('');
+              setSaveOpen(true);
+            }}
+            activeOpacity={0.85}
+          >
+            <Ionicons name="save-outline" size={16} color="#fff" />
+            <Text style={[styles.actionText, { color: '#fff' }]}>Salvar conferência</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.actionBtn, { borderColor: Colors.light.border }]}
+            onPress={() => router.push('/reports/stock-counts' as any)}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="time-outline" size={16} color={Colors.light.textSecondary} />
+            <Text style={[styles.actionText, { color: Colors.light.textSecondary }]}>Conferências salvas</Text>
+          </TouchableOpacity>
+        </View>
+        {!!savedInfo && (
+          <TouchableOpacity
+            onPress={() => router.push({ pathname: '/reports/stock-counts/[id]', params: { id: String(savedInfo.id) } } as any)}
+            style={styles.savedBanner}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="checkmark-circle" size={18} color={VALUE_COLORS.positive} />
+            <Text style={styles.savedText}>Conferência salva em {formatDateTime(savedInfo.at)}. Toque para ver.</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Ações */}
         <View style={styles.actions}>
           <TouchableOpacity style={[styles.actionBtn, { borderColor: brand.primary }]} onPress={() => printList(false)} activeOpacity={0.8}>
@@ -416,6 +481,40 @@ export default function StockCheckScreen() {
         )}
       </ScrollView>
 
+      <BottomSheet
+        visible={saveOpen}
+        onDismiss={() => !saving && setSaveOpen(false)}
+        title="Salvar conferência"
+        subtitle={`${formatInt(summary.counted)} variações contadas, ${formatInt(summary.diffs)} divergentes`}
+        icon="save-outline"
+        actions={[
+          { label: 'Cancelar', onPress: () => setSaveOpen(false), variant: 'secondary', disabled: saving },
+          { label: 'Salvar', onPress: doSave, variant: 'primary', loading: saving, icon: 'checkmark' },
+        ]}
+      >
+        <Text style={styles.saveHelp}>
+          O resultado fica guardado com a data de hoje e o seu nome. Peças que você não contou não entram. O estoque não muda.
+        </Text>
+        <RNTextInput
+          style={styles.saveInput}
+          value={saveName}
+          onChangeText={setSaveName}
+          placeholder="Nome da conferência (opcional), ex.: Prateleira 2"
+          placeholderTextColor={Colors.light.textTertiary}
+          maxLength={120}
+        />
+        <RNTextInput
+          style={[styles.saveInput, { height: 80, textAlignVertical: 'top' }]}
+          value={saveNote}
+          onChangeText={setSaveNote}
+          placeholder="Observação (opcional)"
+          placeholderTextColor={Colors.light.textTertiary}
+          multiline
+          maxLength={2000}
+        />
+        {!!saveError && <Text style={styles.error}>{saveError}</Text>}
+      </BottomSheet>
+
       <ConfirmDialog
         visible={confirmClear}
         type="warning"
@@ -496,6 +595,28 @@ const styles = StyleSheet.create({
   sys: { alignItems: 'center', minWidth: 52 },
   sysLabel: { fontSize: 10, color: Colors.light.textSecondary },
   sysValue: { fontSize: 16, fontWeight: '700', color: Colors.light.text },
+  saveBtn: { borderWidth: 1 },
+  savedBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: '#DCFCE7',
+  },
+  savedText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#166534' },
+  saveHelp: { fontSize: 13, color: Colors.light.textSecondary, marginBottom: 12 },
+  saveInput: {
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 15,
+    color: Colors.light.text,
+    backgroundColor: Colors.light.card,
+    marginBottom: 10,
+  },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   stepBtn: {
     width: 32,

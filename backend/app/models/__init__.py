@@ -36,6 +36,7 @@ from .legal_acceptance import LegalAcceptance
 from .catalog_counter import CatalogCounter
 from .error_log import ErrorLog
 from .supplier_return import SupplierReturn
+from .stock_count import StockCount, StockCountItem
 from .entry_supplier_discount import EntrySupplierDiscount
 
 __all__ = [
@@ -100,6 +101,8 @@ __all__ = [
     "NotificationLog",
     "AppNotification",
     "RefreshToken",
+    "StockCount",
+    "StockCountItem",
     
     # Sale Return
     "SaleReturn",

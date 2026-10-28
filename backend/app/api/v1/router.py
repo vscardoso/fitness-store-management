@@ -49,6 +49,7 @@ from app.api.v1.endpoints import (
     debug,
     returns,
     supplier_returns,
+    stock_counts,
     looks,
     wishlist,
     suggestions,
@@ -198,6 +199,9 @@ api_router.include_router(
     returns.router,
     tags=["Devoluções"]
 )
+
+# Conferência de estoque salva
+api_router.include_router(stock_counts.router)
 
 # Devolução ao fornecedor
 api_router.include_router(supplier_returns.router, tags=["Devolução ao fornecedor"])
