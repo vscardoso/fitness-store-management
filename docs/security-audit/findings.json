@@ -1,0 +1,2546 @@
+[
+  {
+    "verdict": "confirmed",
+    "fingerprint": "admin-panel/any-tenant-admin-cross-tenant-access",
+    "title": "SQLAdmin /admin accepts any tenant's ADMIN (every self-signup owner) and exposes all tenants' data with full edit and delete",
+    "description": "The SQLAdmin panel at /admin authorizes any user whose role is ADMIN and never checks tenant or a platform-operator flag. Open public signup makes every new store owner an ADMIN of their own tenant. The panel's ModelViews run on the global engine with no tenant scoping and create/edit/delete enabled, so any self-registered tenant owner can log in at /admin and read, modify or delete users, stores, sales, customers and other data belonging to every other tenant, including Store.mp_access_token.",
+    "root_cause": "The panel's authorization boundary is the tenant-level role ADMIN, not a platform-superuser concept; AdminAuth.login and authenticate check only role == ADMIN and the views are unscoped ModelViews on the global engine, so RLS (default off) provides no backstop.",
+    "intended_behavior": "Only platform operators (a separate superuser flag, an allowlist, or a network-restricted or disabled panel) reach a cross-tenant admin UI; a tenant ADMIN is confined to their own tenant's data.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/auth.py",
+        "line": 326,
+        "scope": "signup",
+        "description": "Public POST /auth/signup; only an IP rate limit (5 per hour) and a honeypot, no invite or approval."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/signup_service.py",
+        "line": 107,
+        "scope": "SignupService.signup",
+        "description": "The new user is created with role=UserRole.ADMIN in a freshly created tenant."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/admin/auth.py",
+        "line": 38,
+        "scope": "AdminAuth.login",
+        "description": "Looks up the user by email and password (RLS bypass) and rejects only if role != ADMIN; no tenant, superuser or allowlist check; stores a session token."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/admin/auth.py",
+        "line": 56,
+        "scope": "AdminAuth.authenticate",
+        "description": "Each /admin request is authorized solely by the JWT role claim equalling ADMIN."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/main.py",
+        "line": 150,
+        "scope": "module",
+        "description": "Admin(app, engine=engine, base_url='/admin') is mounted unconditionally; ALL_VIEWS added at lines 158-159."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/admin/views.py",
+        "line": 21,
+        "scope": "UserAdmin / StoreAdmin / SaleAdmin / CustomerAdmin (ALL_VIEWS)",
+        "description": "Plain ModelViews with can_create, can_edit and can_delete True and no tenant-scoped query, covering all tenants' users, stores, subscriptions, sales, customers and inventory; StoreAdmin (line 46) excludes only subscription and conditional_shipments so Store.mp_access_token (store.py:124) is viewable and editable."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/admin/auth.py",
+        "line": 38,
+        "description": "Only a role check on login; no tenant or platform flag."
+      },
+      {
+        "file": "backend/app/admin/auth.py",
+        "line": 56,
+        "description": "authenticate returns True if the token role claim is ADMIN."
+      },
+      {
+        "file": "backend/app/main.py",
+        "line": 149,
+        "description": "Admin panel mounted unconditionally on the global engine."
+      },
+      {
+        "file": "backend/app/services/signup_service.py",
+        "line": 107,
+        "description": "Signup always creates an ADMIN user."
+      },
+      {
+        "file": "backend/app/admin/views.py",
+        "line": 39,
+        "description": "UserAdmin has edit and delete enabled and is not tenant-filtered; only hashed_password is hidden."
+      },
+      {
+        "file": "backend/app/admin/views.py",
+        "line": 62,
+        "description": "StoreAdmin form excludes only subscription and conditional_shipments."
+      },
+      {
+        "file": "backend/app/core/config.py",
+        "line": 25,
+        "description": "RLS_ENABLED defaults to False and no non-doc source enables it."
+      },
+      {
+        "file": "deploy/nginx-api.conf",
+        "line": 10,
+        "description": "Catch-all location / proxies everything including /admin; there is no /admin block."
+      },
+      {
+        "file": "deploy/protecao/provador-api.site",
+        "line": 33,
+        "description": "The hardened config also proxies everything under location / to the backend; its only deny rule matches wp-admin, not /admin."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "Only a self-registered account via public signup (tenant ADMIN); limited to 5 per hour per IP and a honeypot, no approval step."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "RLS_ENABLED off by default and no deploy source enables it; admin DB access uses the global engine anyway."
+      },
+      {
+        "kind": "network_routing",
+        "description": "/admin reachable on the API host; source nginx configs proxy all paths and no block, allowlist or env gate for /admin was found."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Unauthenticated internet user who can register a new store.",
+      "payloads": [
+        "POST /api/v1/auth/signup with a new email, store name and slug",
+        "GET /admin/login then submit the new account's email and password",
+        "Browse /admin/user/list, /admin/store/list, /admin/sale/list and open another tenant's Store detail"
+      ],
+      "instructions": [
+        "On a local dummy instance register two tenants A and B through signup.",
+        "Log in to /admin as tenant A's owner.",
+        "Open the User, Store, Sale and Customer views and observe tenant B's rows; edit or delete one of B's rows."
+      ],
+      "observed_result": "Source-established (not executed): login accepts any active ADMIN regardless of tenant, the admin views perform unfiltered queries on the global engine with edit and delete enabled, and no source gating of /admin by flag, environment, allowlist or nginx was found."
+    },
+    "remediation": {
+      "strategy": "Add a distinct platform-superuser flag (or configured operator email allowlist) checked in AdminAuth.login and authenticate (embedded in the token and re-validated); mount the panel only when explicitly enabled by a settings flag and restrict /admin by IP or VPN in nginx; remove mp_access_token and other secret fields from the Store form and details. Regression tests: a signup-created ADMIN cannot log in to /admin; /admin returns 404 when disabled."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "Open public signup is the only prerequisite and no source gate on /admin was found."
+      },
+      "impact": {
+        "score": "high",
+        "reason": "Cross-tenant read, write and delete of users, stores, sales and customers plus exposure of tenant payment tokens fully defeats tenant isolation."
+      },
+      "overall_severity": "high"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Every link (signup creating ADMIN, role-only admin auth, unconditional mount, unscoped editable views, no nginx or env gating) read in current source; residual risk is production infrastructure outside the repo restricting /admin."
+    }
+  },
+  {
+    "verdict": "needs_validation",
+    "fingerprint": "ci/backup-database-plaintext-artifact",
+    "title": "Scheduled GitHub Actions DB backup stores an unencrypted pg_dump as a 30-day workflow artifact",
+    "description": "The workflow .github/workflows/backup-database.yml runs daily at 03:00 UTC and on manual dispatch. It runs pg_dump against the repository secret DATABASE_BACKUP_URL, compresses the output with gzip only and uploads the .sql.gz as a GitHub Actions artifact (actions/upload-artifact@v7) with retention-days 30. A full re-read found no encryption step, no if: condition, no table exclusion and no conditional upload. Anyone with read access to the repository's Actions artifacts (collaborators for a private repo; any signed-in GitHub user for a public repo) can download a full plaintext dump (users, password hashes, customer PII, sales). README documents this as the intended flow. deploy/backup_pg.sh, by contrast, age-encrypts. Exploitability depends on facts outside source: README points DATABASE_BACKUP_URL at a Neon database and CLAUDE.md says Neon/Render are legacy and production moved to a VPS Postgres, so the secret may target a dead or demo database or be unset; repository visibility is not stated.",
+    "claimed_root_cause": "The CI backup job writes a full plaintext database dump to GitHub Actions artifact storage with 30-day retention and never encrypts it, unlike the VPS script, so artifact read access equals full database read access.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": ".github/workflows/backup-database.yml",
+        "line": 3,
+        "scope": "on: schedule / workflow_dispatch",
+        "description": "Daily cron 0 3 * * * (4-6) and manual workflow_dispatch (7-12) start the job with no condition."
+      },
+      {
+        "kind": "propagation",
+        "file": ".github/workflows/backup-database.yml",
+        "line": 31,
+        "scope": "jobs.backup.steps[Run pg_dump]",
+        "description": "pg_dump of the secret DATABASE_BACKUP_URL with no --exclude-table, piped through tee and gzip into backup_<date>.sql.gz (line 34); no encryption."
+      },
+      {
+        "kind": "propagation",
+        "file": ".github/workflows/backup-database.yml",
+        "line": 59,
+        "scope": "jobs.backup.steps[Verificar integridade do backup]",
+        "description": "Only checks file exists, size >= 100 bytes and gzip --test; exports the file name via GITHUB_OUTPUT (65)."
+      },
+      {
+        "kind": "sink",
+        "file": ".github/workflows/backup-database.yml",
+        "line": 69,
+        "scope": "jobs.backup.steps[Upload como GitHub Actions Artifact]",
+        "description": "actions/upload-artifact uploads the plaintext .sql.gz with retention-days 30 (73) unconditionally."
+      }
+    ],
+    "evidence": [
+      {
+        "file": ".github/workflows/backup-database.yml",
+        "line": 34,
+        "description": "Output only gzip-compressed; no encryption step in the 91-line workflow and no if: condition."
+      },
+      {
+        "file": ".github/workflows/backup-database.yml",
+        "line": 73,
+        "description": "retention-days: 30 on the plaintext artifact."
+      },
+      {
+        "file": "README.md",
+        "line": 402,
+        "description": "README documents GitHub Actions Artifacts as the backup destination, 30-day retention (403) and download instructions (406-411): intended design."
+      },
+      {
+        "file": "README.md",
+        "line": 420,
+        "description": "README tells the owner to set the secret to a Neon postgres URL (legacy database)."
+      },
+      {
+        "file": "CLAUDE.md",
+        "line": 219,
+        "description": "Pending item to turn off Render/Neon; line 183 says Neon was abandoned (quota exceeded) and line 206 that production is a new empty Postgres on the VPS."
+      },
+      {
+        "file": "deploy/backup_pg.sh",
+        "line": 19,
+        "description": "Contrast: the production VPS backup is gzip then age-encrypted with an age header check at line 23."
+      },
+      {
+        "file": "README.md",
+        "line": 7,
+        "description": "MIT license badge; nothing in source states repo visibility."
+      }
+    ],
+    "blockers": [
+      "Repository visibility (public vs private) and the collaborator list are not in source; artifact read access depends on both.",
+      "Whether the secret DATABASE_BACKUP_URL is set in repository or environment secrets is not visible in source.",
+      "Which database the secret points to (legacy Neon, demo, or the new VPS production database) is not visible in source; production Postgres publishes no port so the runner may not reach it.",
+      "Whether the Database Backup workflow is enabled and whether recent scheduled runs succeeded with unexpired artifacts is not visible in source.",
+      "Organization or repo-level artifact retention and download policy are not visible in source."
+    ],
+    "validation_plan": {
+      "deployment": "Owner-observed checks in the GitHub UI, no live probing: (1) Settings > General: confirm repository visibility, and open the repo logged out to see whether Actions runs and artifacts are listed; (2) Settings > Collaborators and teams: list everyone with read access; (3) Settings > Secrets and variables > Actions: check whether DATABASE_BACKUP_URL exists, its last-updated date and which host it uses (Neon, VPS or other) without revealing the value; (4) Actions > Database Backup: confirm the workflow is enabled, the last scheduled run succeeded and backup_*.sql.gz artifacts are listed with unexpired dates; (5) if artifacts exist, check whether they hold real production data; (6) if real data is present and the repo is public or has broad collaborators, delete the artifacts, rotate database credentials and any stored provider tokens, and encrypt dumps with age or gpg before upload (or drop the workflow in favour of deploy/backup_pg.sh with offsite copy).",
+      "local": "Inspect repository history only: git log -p on .github/workflows/backup-database.yml for any past encryption step, and read repository visibility with the owner's own authenticated gh (gh api repos/vscardoso/fitness-store-management --jq .private). Do not run the workflow."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "jwt/refresh-jwt-accepted-as-access-bearer-unrevocable",
+    "title": "Signup-issued stateless refresh JWT is accepted as an access bearer token for 7 days and cannot be revoked",
+    "description": "get_current_user decodes the bearer JWT and checks only signature, exp and the presence of sub; it never reads the type claim (both token factories stamp access or refresh, and verify_token_type exists but has no callers). POST /auth/signup returns an access JWT and a refresh JWT created with create_refresh_token({'sub': user.id}); that refresh JWT is stateless, not stored in the database, and used as Authorization: Bearer authenticates the user for REFRESH_TOKEN_EXPIRE_DAYS=7 instead of the 30 minutes of an access token. Logout is a no-op and JWTs are not tracked, so it cannot be revoked. Same principal's own session and needs a prior token leak, so this is near the hardening threshold. Login-issued refresh tokens are opaque and DB-tracked and are not affected.",
+    "root_cause": "get_current_user does not enforce token purpose (type == access) and the signup flow issues a refresh token as a self-contained signed JWT with no server-side record or version binding.",
+    "intended_behavior": "Only access-type tokens authenticate API requests; refresh credentials are usable only at the refresh endpoint and are revocable, as login-issued refresh tokens already are.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/services/signup_service.py",
+        "line": 131,
+        "scope": "SignupService.signup",
+        "description": "create_refresh_token({'sub': str(user.id)}) mints a stateless 7-day HS256 JWT with type=refresh and no DB record; returned in SignupResponse.refresh_token (line 148) next to the access token (147)."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/core/security.py",
+        "line": 100,
+        "scope": "create_refresh_token",
+        "description": "Payload gets exp = now + REFRESH_TOKEN_EXPIRE_DAYS (7) and type=refresh, signed with the same SECRET_KEY and ALGORITHM as access tokens."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/api/deps.py",
+        "line": 58,
+        "scope": "get_current_user",
+        "description": "jwt.decode with pinned algorithms validates only signature and exp; the type claim is never examined."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/api/deps.py",
+        "line": 85,
+        "scope": "get_current_user",
+        "description": "After the sub check (65-67) the user is loaded by id and the tenant set (line 91); the request proceeds authenticated with the refresh JWT; no iat, password-change or token-version check."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/api/deps.py",
+        "line": 58,
+        "description": "Decode checks only signature and exp."
+      },
+      {
+        "file": "backend/app/core/security.py",
+        "line": 68,
+        "description": "Access tokens carry type=access, so a distinguishing claim exists but is unused."
+      },
+      {
+        "file": "backend/app/core/security.py",
+        "line": 130,
+        "description": "verify_token_type is defined and has no callers in backend/."
+      },
+      {
+        "file": "backend/app/services/signup_service.py",
+        "line": 131,
+        "description": "Signup refresh token is a stateless JWT with sub only, not persisted."
+      },
+      {
+        "file": "backend/app/core/config.py",
+        "line": 50,
+        "description": "REFRESH_TOKEN_EXPIRE_DAYS = 7 versus ACCESS_TOKEN_EXPIRE_MINUTES = 30 at line 49."
+      },
+      {
+        "file": "backend/app/api/v1/endpoints/auth.py",
+        "line": 255,
+        "description": "Logout is a TODO no-op with no blacklist."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "environmental_dependency",
+        "description": "Attacker must already hold the signup response body or stored refresh_token (client storage, logs, proxy); same-user session, no privilege gained beyond that user's own."
+      },
+      {
+        "kind": "data_state",
+        "description": "Applies only to sessions created through /auth/signup; login-issued refresh tokens are opaque and DB-tracked."
+      },
+      {
+        "kind": "timing_dependency",
+        "description": "Usable until the 7-day exp; deactivation is still honoured by get_current_active_user, but logout and password change do not revoke it."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Holder of a leaked refresh_token from a signup response whose 30-minute access token has expired.",
+      "payloads": [
+        "Authorization: Bearer <refresh_token value from POST /auth/signup>"
+      ],
+      "instructions": [
+        "Locally call POST /auth/signup with dummy data and keep the returned refresh_token.",
+        "After the access token expires, call GET /auth/me with the refresh_token as Bearer.",
+        "Call POST /auth/logout and repeat; the request still authenticates."
+      ],
+      "observed_result": "Source-established (not executed): get_current_user accepts any validly signed, unexpired JWT with a sub claim regardless of type, loads the user and sets the tenant; no server-side state can invalidate it before exp."
+    },
+    "remediation": {
+      "strategy": "In get_current_user reject any token whose type != access (use verify_token_type) immediately after decode; issue signup's refresh token the same way login does (opaque, DB-tracked) so logout and revocation work. Regression tests: a signup refresh JWT on /auth/me returns 401; a signup access token still returns 200."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Requires a prior leak of a credential the user already holds and applies only to signup-issued sessions."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Same-principal session; extends an unrevocable credential from 30 minutes to 7 days and defeats access/refresh separation; no cross-user or cross-tenant boundary crossed."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "medium",
+      "reason": "Missing type check, stateless signup refresh JWT and no-op logout are clear in source; real-world value is limited because access JWTs are also unrevocable and a prior leak is required."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "oauth/mp-connect-callback-unsigned-state-tenant-token-overwrite",
+    "title": "Unauthenticated Mercado Pago OAuth callback trusts a raw tenant_id in state and overwrites any tenant's payment token",
+    "description": "GET /api/v1/mp-connect/callback has no authentication. It takes the tenant from the unsigned state query parameter, which /mp-connect/url sets to the plain tenant id, exchanges code with the platform's MP client credentials and unconditionally UPDATEs that tenant's Store row with the resulting access token, refresh token, MP user id and expiry. An attacker authorizes the platform's MP app with their own MP account, then replays the code to the callback with state set to a victim tenant id. In the default production configuration (PIX_PROVIDER=mercadopago) the victim's later PIX QR codes are created under the attacker's MP account, so payments are credited to the attacker.",
+    "root_cause": "The OAuth state parameter is used as a direct tenant selector instead of a CSRF/session-bound nonce; the callback has no authenticated principal, no signed or stored state, and no check that the completing party started the flow; it runs on get_db_unscoped and overwrites any existing connection.",
+    "intended_behavior": "Only an authenticated tenant ADMIN who started the connect flow may bind a Mercado Pago account to that tenant; state must be a single-use, expiring, server-verifiable value bound to tenant and user.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/mp_connect.py",
+        "line": 60,
+        "scope": "oauth_callback (GET /api/v1/mp-connect/callback)",
+        "description": "Only Query(code), Query(state) and get_db_unscoped; no get_current_user; the permission matrix applies only through get_current_* dependencies."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/api/v1/endpoints/mp_connect.py",
+        "line": 71,
+        "scope": "oauth_callback",
+        "description": "tenant_id = int(state) with no signature, nonce, cookie or session check."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/api/v1/endpoints/mp_connect.py",
+        "line": 80,
+        "scope": "oauth_callback",
+        "description": "Exchanges the supplied code at MP_TOKEN_URL with the platform client_id/secret; the token belongs to whichever MP account authorized the app."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/api/v1/endpoints/mp_connect.py",
+        "line": 118,
+        "scope": "oauth_callback",
+        "description": "UPDATE Store WHERE id=tenant_id SET mp_access_token, mp_refresh_token, mp_user_id, mp_token_expires_at and pix_provider; unconditional, overwrites an existing connection."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/api/v1/endpoints/mp_connect.py",
+        "line": 53,
+        "description": "/mp-connect/url (authenticated) emits state={tenant_id} raw and exposes MP_CLIENT_ID and redirect_uri in the authorize URL (46-54)."
+      },
+      {
+        "file": "backend/app/api/v1/endpoints/mp_connect.py",
+        "line": 64,
+        "description": "Callback uses the RLS-bypass session; docstring at 68-69 states no JWT auth."
+      },
+      {
+        "file": "backend/app/services/pdv_service.py",
+        "line": 226,
+        "description": "_get_mp_token_for_tenant returns Store.mp_access_token when set (226-227)."
+      },
+      {
+        "file": "backend/app/services/pdv_service.py",
+        "line": 275,
+        "description": "create_pix_payment passes the tenant's stored token as mp_token when provider == mercadopago; POST /pdv/pix/{sale_id} passes no provider so the default applies."
+      },
+      {
+        "file": "backend/app/services/pdv_service.py",
+        "line": 271,
+        "description": "Provider defaults to the global PIX_PROVIDER, not Store.pix_provider (never read on this path), so the token overwrite is what redirects payments."
+      },
+      {
+        "file": "deploy/docker-compose.prod.yml",
+        "line": 38,
+        "description": "Production compose default is PIX_PROVIDER=mercadopago, so the stored per-tenant token is used for PIX creation."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "system_configuration",
+        "description": "MP_CLIENT_ID and MP_CLIENT_SECRET configured and the MP app redirect URI is APP_URL/api/v1/mp-connect/callback; neither is set in the repo deploy files, so this assumes the OAuth feature is enabled."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "Impact on PIX needs the global PIX_PROVIDER to be mercadopago (prod compose default). Via create_pix_start a victim store with a pix_key is routed to generic PIX and is unaffected; POST /pdv/pix/{sale_id} uses the default provider regardless."
+      },
+      {
+        "kind": "third_party_dependency",
+        "description": "Mercado Pago must pass an arbitrary state through to the redirect and accept a code for the legit redirect_uri (standard OAuth); not testable from source."
+      },
+      {
+        "kind": "data_state",
+        "description": "Attacker needs the victim tenant id; ids are small sequential integers."
+      },
+      {
+        "kind": "authentication_level",
+        "description": "No platform authentication on the callback; the attacker needs their own Mercado Pago account and the public MP_CLIENT_ID."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Anonymous internet user with an ordinary Mercado Pago account.",
+      "payloads": [
+        "GET /api/v1/mp-connect/callback?code=<code from the attacker's own MP authorization of the platform app>&state=<victim_tenant_id>"
+      ],
+      "instructions": [
+        "On a local dummy instance with a stubbed MP token endpoint and two tenants (1 attacker, 2 victim), call GET /mp-connect/callback?code=X&state=2 with no Authorization header.",
+        "Observe Store 2 now holds the stubbed access token.",
+        "Create a PIX payment for tenant 2 and observe _get_mp_token_for_tenant returns the injected token."
+      ],
+      "observed_result": "Source-established (not executed): the callback performs no authentication or state verification, exchanges the supplied code with platform credentials and updates Store.mp_access_token, mp_refresh_token, mp_user_id, mp_token_expires_at and pix_provider for Store.id == int(state) on an RLS-bypassing session; PIX creation later reads that stored token."
+    },
+    "remediation": {
+      "strategy": "Mint a signed, short-lived, single-use state in /mp-connect/url (tenant_id, user_id, random nonce stored server-side or bound to a browser cookie, exp, purpose); in /callback verify signature, expiry and nonce and consume it before taking the tenant from the verified payload; reject otherwise; optionally refuse to overwrite an existing connection without an explicit reconnect. Regression tests: forged integer state is rejected with no UPDATE; expired or replayed state rejected; valid state for tenant A cannot change tenant B."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "No platform account needed and trivial once the OAuth app is configured; depends on MP_CLIENT_ID being set and MP passing state through; tenant ids enumerable."
+      },
+      "impact": {
+        "score": "high",
+        "reason": "Cross-tenant overwrite of a payment credential; in the default prod PIX_PROVIDER=mercadopago configuration victim PIX payments are created under the attacker's MP account, diverting funds."
+      },
+      "overall_severity": "high"
+    },
+    "confidence": {
+      "score": "medium",
+      "reason": "Source trace complete with no preventing control; Mercado Pago behaviors (state passthrough, code usable for the legit redirect_uri) are not verifiable from source and exploitation depends on global PIX_PROVIDER being mercadopago."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "pdv-orders-create-payment-unscoped-sale-update",
+    "title": "POST /pdv/orders lets any tenant flip another tenant's sale to PENDING, so the stale-sale job cancels it and reverts stock and loyalty",
+    "description": "POST /api/v1/pdv/orders takes sale_id from the request body. PDVService.create_order only checks that the terminal belongs to the caller's tenant, then calls the provider's create_payment. The manual provider (also the factory fallback for rede, getnet, pagseguro, sumup and any unknown provider string) runs UPDATE sales SET status=PENDING WHERE id=:sale_id with no tenant filter and no existence check; the Mercado Pago provider overwrites payment_reference by id alone. The scheduler job auto_cancel_stale_pending_sales (RLS-bypass session, every 5 minutes) cancels every non-PIX PENDING sale older than 30 minutes via SaleService.cancel_sale, reverting FIFO stock, loyalty and spend. A user in one tenant can therefore tamper with and then destroy sales in another tenant. The competing claim that the path is dead because of payload.get was refuted: create_order uses attribute access and no .get call exists on that path.",
+    "root_cause": "The sale_id in the request body is trusted; provider UPDATEs are keyed by Sale.id only, so the tenant check made on the terminal is never applied to the sale, while the neighbouring status, cancel and refund methods filter by tenant.",
+    "intended_behavior": "create_payment acts only on a sale belonging to the calling tenant, preferably PENDING or unpaid with a matching total; a foreign sale fails with the same not-found response as a missing sale.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/pdv.py",
+        "line": 265,
+        "scope": "create_order (POST /pdv/orders)",
+        "description": "Takes PDVOrderRequest (sale_id, terminal_id, total_amount) from the body and passes the model unchanged to the service (273); legacy alias POST /pdv/payment at 484-491; CASHIER and above (permissions.py:59)."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/pdv_service.py",
+        "line": 159,
+        "scope": "PDVService.create_order",
+        "description": "Only terminal.tenant_id == tenant_id is checked (161-163); then get_terminal_provider(terminal.provider).create_payment(sale_id=payload.sale_id, ...) with attribute access (165-177)."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/payment_providers/factory.py",
+        "line": 18,
+        "scope": "_get_terminal_class",
+        "description": "Only mercadopago, stone and cielo map to their own classes; every other string including manual falls through to ManualTerminalProvider (28-31)."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/payment_providers/manual.py",
+        "line": 62,
+        "scope": "ManualTerminalProvider.create_payment",
+        "description": "update(Sale).where(Sale.id == sale_id).values(status=PENDING) committed at line 66 with no tenant filter and no existence check."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/services/pdv_service.py",
+        "line": 751,
+        "scope": "auto_cancel_stale_pending_sales",
+        "description": "Selects PENDING non-PIX active sales older than 30 minutes across all tenants (761-768) and calls cancel_sale with the sale's own tenant_id (777-782), reversing FIFO stock and loyalty and setting CANCELLED; job runs every 5 minutes on a bypass_on session (core/scheduler.py:86-96)."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/services/pdv_service.py",
+        "line": 161,
+        "description": "create_order uses payload.terminal_id and payload.sale_id (161, 169) with no dict .get call, disproving the dead-path claim."
+      },
+      {
+        "file": "backend/app/schemas/pdv.py",
+        "line": 143,
+        "description": "PDVOrderRequest has sale_id: int, terminal_id: int and total_amount: float with no ownership validation."
+      },
+      {
+        "file": "backend/app/services/payment_providers/manual.py",
+        "line": 62,
+        "description": "Unscoped UPDATE on sales; other methods in the file (get_payment_status 87, cancel_payment 116) filter by tenant_id."
+      },
+      {
+        "file": "backend/app/services/payment_providers/mercadopago.py",
+        "line": 313,
+        "description": "update(Sale).where(Sale.id == sale_id).values(payment_reference=mp_order_id) with no tenant filter; second unscoped write, needs a working MP terminal."
+      },
+      {
+        "file": "backend/app/core/permissions.py",
+        "line": 47,
+        "description": "Writes to /pdv/terminals require ADMIN, which limits who can create a manual terminal, but signup gives every new tenant an ADMIN."
+      },
+      {
+        "file": "backend/app/api/v1/endpoints/pdv.py",
+        "line": 87,
+        "description": "create_terminal accepts an arbitrary provider string such as manual for a terminal in the caller's own tenant."
+      },
+      {
+        "file": "backend/app/services/sale_service.py",
+        "line": 362,
+        "description": "cancel_sale rejects only already CANCELLED sales, so a tampered COMPLETED sale (now PENDING) is cancelled with stock and loyalty reverted."
+      },
+      {
+        "file": "backend/app/core/config.py",
+        "line": 25,
+        "description": "RLS_ENABLED defaults to False; no RLS setting under deploy/."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "A valid account: self-signup gives an ADMIN of a fresh tenant (auth.py:319) or any existing tenant ADMIN."
+      },
+      {
+        "kind": "authorization_role",
+        "description": "ADMIN once to create a terminal with provider manual in the attacker's own tenant (permissions.py:47); then CASHIER or higher can call POST /pdv/orders. No ADMIN action if the attacker tenant already has a non-MP, non-Stone, non-Cielo terminal."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "RLS_ENABLED false (default, not enabled in deploy); with RLS on the request-session UPDATE would not see other tenants' rows."
+      },
+      {
+        "kind": "data_state",
+        "description": "Victim sale is non-PIX, active and older than 30 minutes; ids are sequential and guessable."
+      },
+      {
+        "kind": "timing_dependency",
+        "description": "The APScheduler job runs every 5 minutes and must be enabled; harm lands at the next run."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A signed-in ADMIN of their own tenant B targeting a completed non-PIX sale in tenant A.",
+      "payloads": [
+        "POST /api/v1/pdv/terminals {\"name\":\"x\",\"external_id\":\"x1\",\"provider\":\"manual\"} (once, as ADMIN of tenant B)",
+        "POST /api/v1/pdv/orders {\"sale_id\":<tenant A sale id>,\"terminal_id\":<tenant B manual terminal id>,\"total_amount\":1.0}"
+      ],
+      "instructions": [
+        "On a local dummy deployment with two tenants create a COMPLETED cash sale in tenant A older than 30 minutes.",
+        "As tenant B ADMIN create a manual terminal then POST /pdv/orders with tenant A's sale id and the manual terminal.",
+        "Read tenant A's sale: status is pending; run auto_cancel_stale_pending_sales and observe it become cancelled with stock restored."
+      ],
+      "observed_result": "Source-established (not executed): the manual provider commits status=PENDING for the given id regardless of tenant and returns 200; the scheduler job then selects that sale and cancels it using the sale's own tenant_id, reverting FIFO stock and loyalty."
+    },
+    "remediation": {
+      "strategy": "In PDVService.create_order load the sale with Sale.id == payload.sale_id AND Sale.tenant_id == tenant_id and raise not-found otherwise; require the sale to be PENDING/draft and total_amount to equal sale.total_amount; add Sale.tenant_id == tenant_id to the UPDATE in manual.py:62 and mercadopago.py:313 and to similar writes keyed by sale id alone (pdv_service lines near 906-908, 1068, 1086, 1103). Regression test: tenant B calling POST /pdv/orders with tenant A's sale_id gets an error and the sale status is unchanged."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Self-signup account plus one terminal creation; sale ids guessable; job's 30-minute age gate met by any older sale; depends on the scheduler running."
+      },
+      "impact": {
+        "score": "high",
+        "reason": "Cross-tenant write that changes another tenant's sale status and, through the job, cancels the sale and reverses stock and loyalty: integrity of financial records across tenants."
+      },
+      "overall_severity": "high"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Whole path read in the working tree; payload is a pydantic model used by attribute access, provider UPDATE has no tenant filter, factory falls back to manual, job criteria match a flipped non-PIX sale. Residual: runtime RLS state and scheduler running."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "pdv-webhooks:mercadopago-signature-fail-open-and-unverified-order-topics",
+    "title": "Mercado Pago webhook accepts unauthenticated forged order events: signature check fails open and the production compose never supplies MP_WEBHOOK_SECRET",
+    "description": "POST /api/v1/pdv/webhooks/mp is anonymous and uses get_db_unscoped. Its only control, verify_webhook_signature, returns True whenever MP_WEBHOOK_SECRET is empty (default empty). deploy/docker-compose.prod.yml gives the backend only an explicit environment list and MP_WEBHOOK_SECRET is not on it; deploy/.env.prod.example does not mention it. In the documented deployment the signature check is therefore off. For topics order and point_integration_wh, process_webhook trusts the body external_reference sale_<id> and calls _confirm_sale, _cancel_sale or _refund_sale with no Mercado Pago API call and no tenant filter, so an anonymous caller can mark any tenant's PENDING sale paid, cancel PENDING sales or refund COMPLETED ones. Topics payment and merchant_order re-query the MP API and are not forgeable this way. Even with a secret set, the HMAC covers only data.id, x-request-id and ts (not the body; no ts freshness check).",
+    "root_cause": "The signature verifier fails open on a missing secret and the compose file never passes the secret to the container; the order and point_integration_wh handlers treat unauthenticated body fields as proof of payment using an unscoped Sale lookup by id.",
+    "intended_behavior": "Only Mercado Pago may drive sale state transitions: reject webhooks when no secret is configured, verify the signature, and confirm payment state from the MP API or a stored order id bound to the tenant's sale.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/pdv.py",
+        "line": 510,
+        "scope": "mp_webhook",
+        "description": "Anonymous POST /pdv/webhooks/mp on get_db_unscoped with no auth dependency."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/payment_providers/mercadopago.py",
+        "line": 560,
+        "scope": "MercadoPagoTerminalProvider.verify_webhook_signature",
+        "description": "If MP_WEBHOOK_SECRET is empty it logs a warning and returns True (lines 561-563)."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/payment_providers/mercadopago.py",
+        "line": 665,
+        "scope": "_handle_order_webhook",
+        "description": "For topic order (dispatched at line 497) reads data.external_reference sale_<id> and status from the body and parses the integer id; point_integration_wh (502-509) does the same."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/services/payment_providers/mercadopago.py",
+        "line": 700,
+        "scope": "_confirm_sale",
+        "description": "select(Sale).where(Sale.id == sale_id) with no tenant filter; a PENDING sale becomes COMPLETED, an audit row is written and payment approved is signalled (703-716). _cancel_sale (718) and _refund_sale (736) are likewise unscoped."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/core/config.py",
+        "line": 152,
+        "description": "MP_WEBHOOK_SECRET defaults to the empty string."
+      },
+      {
+        "file": "backend/.env.example",
+        "line": 69,
+        "description": "MP_WEBHOOK_SECRET= is left empty in the example env."
+      },
+      {
+        "file": "deploy/docker-compose.prod.yml",
+        "line": 40,
+        "description": "Comment says the container receives only the variables listed; the backend environment block (lines 30-50) lists MP_ACCESS_TOKEN (line 39) but no MP_WEBHOOK_SECRET."
+      },
+      {
+        "file": "deploy/.env.prod.example",
+        "line": 14,
+        "description": "Lists MP_ACCESS_TOKEN= only; no MP_WEBHOOK_SECRET entry."
+      },
+      {
+        "file": "backend/app/services/payment_providers/mercadopago.py",
+        "line": 582,
+        "description": "HMAC manifest built only from id, request-id and ts; body not covered and ts freshness not checked."
+      },
+      {
+        "file": "backend/app/services/payment_providers/mercadopago.py",
+        "line": 634,
+        "description": "The payment topic re-queries the MP API and checks the amount, which is why only order and point_integration_wh are body-trusting."
+      },
+      {
+        "file": "deploy/nginx-api.conf",
+        "line": 9,
+        "description": "All paths including /api/v1/pdv/webhooks/mp are proxied to the backend with no auth or allowlist."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "system_configuration",
+        "description": "MP_WEBHOOK_SECRET is empty in the running backend, the state produced by the shipped docker-compose.prod.yml. Differs only if the operator edited the compose file or baked a backend/.env into the image on the VPS (not visible in the repo)."
+      },
+      {
+        "kind": "data_state",
+        "description": "A target sale must be PENDING for confirm or cancel; ids are sequential and the lookup is not tenant-scoped."
+      },
+      {
+        "kind": "network_routing",
+        "description": "Endpoint reachable by an anonymous caller through the public nginx for api.provadorfit.com.br."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Anonymous internet client with no account and no Mercado Pago relationship.",
+      "payloads": [
+        "POST /api/v1/pdv/webhooks/mp {\"type\":\"order\",\"action\":\"order.processed\",\"data\":{\"external_reference\":\"sale_123\",\"status\":\"processed\"}} (no x-signature header)",
+        "POST /api/v1/pdv/webhooks/mp {\"type\":\"point_integration_wh\",\"data\":{\"state\":\"FINISHED\",\"external_reference\":\"sale_123\"}}"
+      ],
+      "instructions": [
+        "Locally with MP_WEBHOOK_SECRET unset, create a PENDING sale in a dummy tenant.",
+        "Send the JSON body to /api/v1/pdv/webhooks/mp with no x-signature.",
+        "Observe _confirm_sale move the sale from PENDING to COMPLETED; order.canceled or order.refunded actions cancel a PENDING sale or refund a COMPLETED one."
+      ],
+      "observed_result": "Source-established (not executed): with an empty MP_WEBHOOK_SECRET the endpoint returns 200 and, for an order body naming an existing PENDING sale, updates it to COMPLETED regardless of tenant, writes a PDV_SALE_CONFIRMED audit row and signals payment approved. No Mercado Pago payment is checked."
+    },
+    "remediation": {
+      "strategy": "Make verify_webhook_signature fail closed when MP_WEBHOOK_SECRET is empty (or refuse to start in production without it); add MP_WEBHOOK_SECRET to the compose environment list and deploy/.env.prod.example; reject stale ts; make order and point_integration_wh confirm via the MP API or match a stored mp_order_id with a tenant-bound lookup before _confirm_sale. Regression test: an unsigned or secret-less webhook with an order body does not change a PENDING sale."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "Anonymous, one unsigned request; the shipped compose does not forward the secret, so the check is off in the documented deployment."
+      },
+      "impact": {
+        "score": "high",
+        "reason": "Unauthenticated party can mark any tenant's PENDING sale paid, cancel PENDING sales or refund COMPLETED ones, defeating the webhook authentication control across tenants."
+      },
+      "overall_severity": "high"
+    },
+    "confidence": {
+      "score": "medium",
+      "reason": "Code path and deploy wiring fully visible; medium because the real VPS .env.prod or any image-baked backend/.env cannot be inspected."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "pdv-webhooks:stone-cielo-cielopix-unauthenticated-sale-completion-cross-tenant",
+    "title": "Unauthenticated Stone, Cielo and Cielo PIX webhooks flip any tenant's sale to COMPLETED",
+    "description": "POST /api/v1/pdv/webhooks/stone, /cielo and /cielo-pix are registered on the public api_router with no authentication, signature, shared secret or IP check, and use get_db_unscoped (RLS bypass). An anonymous caller who supplies a sequential sale id, a Cielo order id stored in payment_reference, or a txid of the form VENDA<id> can mark a sale from any tenant COMPLETED. Stone does this with no status or tenant guard, so it also moves CANCELLED or REFUNDED sales to COMPLETED. Cielo PIX confirms any PENDING sale whether or not a PixTransaction exists. A paid event is signalled to the cashier UI. Harm is forged payment confirmation across tenants, not data disclosure.",
+    "root_cause": "The payment-provider callback handlers treat the request body as proof of payment: no provider authenticity check (signature, secret, IP), no binding of the claimed payment to the sale's tenant, expected amount or lifecycle state.",
+    "intended_behavior": "Only the payment provider, proven by a verified signature or secret, may confirm a sale, and only for a PENDING sale whose stored provider reference and amount match the event.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/pdv.py",
+        "line": 537,
+        "scope": "stone_webhook (POST /api/v1/pdv/webhooks/stone)",
+        "description": "Anonymous route on get_db_unscoped; takes data.metadata.sale_id from the attacker body for type charge.paid."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/api/v1/endpoints/pdv.py",
+        "line": 559,
+        "scope": "stone_webhook",
+        "description": "UPDATE Sale SET status=COMPLETED WHERE id=<sale_id> with no tenant or status guard, committed, then signal_payment at line 565."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/api/v1/endpoints/pdv.py",
+        "line": 572,
+        "scope": "cielo_webhook (POST /api/v1/pdv/webhooks/cielo)",
+        "description": "Anonymous; selects Sale by payment_reference == body id with no tenant filter and sets COMPLETED unless already COMPLETED (lines 592-603)."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/api/v1/endpoints/pdv.py",
+        "line": 610,
+        "scope": "cielo_pix_webhook (POST /api/v1/pdv/webhooks/cielo-pix)",
+        "description": "Anonymous; passes the body to CieloPixProvider.process_webhook."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/payment_providers/cielo_pix.py",
+        "line": 361,
+        "scope": "CieloPixProvider.process_webhook",
+        "description": "_parse_sale_id turns txid VENDA<n> into a sale id; PixTransaction lookup (line 366) has no tenant filter; amount check at line 381 runs only when pix_tx exists."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/services/payment_providers/cielo_pix.py",
+        "line": 452,
+        "scope": "CieloPixProvider._confirm_sale",
+        "description": "Selects Sale by id with no tenant check; a PENDING sale is set COMPLETED with an audit row, no PixTransaction required."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/api/v1/router.py",
+        "line": 235,
+        "description": "pdv.router is included on api_router with no router-level dependencies."
+      },
+      {
+        "file": "backend/app/api/v1/endpoints/pdv.py",
+        "line": 57,
+        "description": "APIRouter(prefix='/pdv') declared with no dependencies; webhook routes inherit no auth."
+      },
+      {
+        "file": "backend/app/api/v1/endpoints/pdv.py",
+        "line": 520,
+        "description": "Contrast: the MP webhook calls a signature check; Stone, Cielo and Cielo PIX handlers have no equivalent."
+      },
+      {
+        "file": "backend/app/services/pdv_service.py",
+        "line": 406,
+        "description": "Generic PIX sales are created PENDING with payment_id generic_<id>_<ts> and are only confirmed manually by a cashier, so a forged Cielo PIX event can complete them."
+      },
+      {
+        "file": "backend/app/core/payment_events.py",
+        "line": 22,
+        "description": "signal_payment records the paid result and wakes the SSE waiter the cashier UI treats as payment received."
+      },
+      {
+        "file": "deploy/protecao/provador-api.site",
+        "line": 33,
+        "description": "nginx has special locations only for scanner paths, auth and ai; /api/v1/pdv/webhooks falls through to the generic location with no auth or IP restriction."
+      },
+      {
+        "file": "backend/app/core/config.py",
+        "line": 25,
+        "description": "RLS_ENABLED defaults to False; the unscoped session bypasses RLS either way."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "None; the caller is anonymous and needs only network access to the API."
+      },
+      {
+        "kind": "data_state",
+        "description": "Target sale id is a guessable sequential integer. Cielo also needs the order id stored in payment_reference. Cielo PIX affects only PENDING sales; Stone any status."
+      },
+      {
+        "kind": "environmental_dependency",
+        "description": "Staff must act on the displayed paid state or COMPLETED status (for example releasing goods) for the forged payment to have real-world effect."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Anonymous internet client enumerating small integer sale ids that belong to any tenant.",
+      "payloads": [
+        "POST /api/v1/pdv/webhooks/cielo-pix {\"pix\":[{\"endToEndId\":\"E1\",\"txid\":\"VENDA123\",\"valor\":\"1.00\"}]}",
+        "POST /api/v1/pdv/webhooks/stone {\"type\":\"charge.paid\",\"data\":{\"metadata\":{\"sale_id\":123}}}"
+      ],
+      "instructions": [
+        "Against a local dummy deployment with two tenants, create a PENDING generic-PIX sale in tenant B.",
+        "POST either payload with Content-Type application/json and no Authorization header.",
+        "Read the sale status; the handler returns 200 {\"status\":\"ok\"} whether or not a sale matched."
+      ],
+      "observed_result": "Source-established (not executed): the handlers run no credential check. The Stone handler sets Sale.status to COMPLETED for the given id regardless of tenant or prior status; Cielo PIX sets any PENDING sale COMPLETED without a PixTransaction or amount check; both write to the database and signal paid."
+    },
+    "remediation": {
+      "strategy": "Invariant: a sale becomes COMPLETED only through an authenticated provider event whose reference and amount match the stored transaction. Verify a provider signature or shared secret (constant-time, fail closed when unset) at the start of each handler; require a matching PixTransaction or payment_reference; UPDATE ... WHERE id=? AND status=PENDING and tenant derived from the stored row; compare amount; reject Cielo PIX events with no pix_tx. Regression tests: unsigned POST returns 401 and leaves the sale unchanged; a CANCELLED or REFUNDED sale cannot be completed."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "Anonymous routes, one request, sequential ids and predictable VENDA<n> txid."
+      },
+      "impact": {
+        "score": "high",
+        "reason": "Cross-tenant write that forges payment confirmation and can resurrect cancelled or refunded sales; integrity impact, with loss depending on staff acting on a false paid state."
+      },
+      "overall_severity": "high"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Handlers and router registration fully visible; no dependency, middleware or nginx rule gates these routes. Only an upstream control outside the repo could differ."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "print-job-variant-product-lookup-missing-tenant-filter",
+    "title": "Label print and preview helpers load Product and ProductVariant by id without a tenant filter (cross-tenant catalog read)",
+    "description": "PrintJobService._get_variant and _get_product select by primary key only, while the sibling _get_printer filters by tenant_id. POST /label-printers/print, POST /label-printers/print/batch and GET /label-printers/print/preview pass client-supplied variant_id and product_id into these helpers. A SELLER-or-higher user of tenant A can supply tenant B's ids; the generated ZPL (product name truncated to 20 characters, SKU, price) comes back in ZplPreviewResponse.zpl and PrintJob snapshot fields (product_name, sku, variant_label, price) come back in PrintJobResponse. Preview needs no printer_id. Ids are sequential. Disclosed data is commercial catalog data (name, SKU, color/size, sale price), not secrets, PII or cost data.",
+    "root_cause": "Tenant scoping is applied to the printer lookup but omitted from the two catalog lookup helpers; RLS_ENABLED defaults to False and no deploy file enables it.",
+    "intended_behavior": "Every Product and ProductVariant loaded for a tenant must satisfy tenant_id == caller tenant (and be active), as _get_printer and label_print_service already do; foreign ids behave as not found.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/label_printers.py",
+        "line": 228,
+        "scope": "preview_zpl (GET /label-printers/print/preview)",
+        "description": "Client-controlled variant_id, product_id and optional printer_id; reachable by SELLER or higher (permissions.py 80-81); tenant_id is not used to scope catalog lookups."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/print_job_service.py",
+        "line": 153,
+        "scope": "PrintJobService.get_zpl_preview",
+        "description": "Calls _get_variant(db, variant_id) and _get_product(db, product_id) with no tenant argument; printer tenant-checked only when printer_id is given (150-151)."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/print_job_service.py",
+        "line": 285,
+        "scope": "PrintJobService._get_variant",
+        "description": "select(ProductVariant).where(ProductVariant.id == variant_id) with no tenant or is_active filter; _get_product (line 294) has the same defect."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/services/print_job_service.py",
+        "line": 172,
+        "scope": "PrintJobService.get_zpl_preview return",
+        "description": "Foreign product and variant rendered via label_service.generate_back_label_zpl (name, SKU, price) and returned in zpl; print and batch paths (40-41, 88, 98) persist the same data into PrintJob and return it."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/services/print_job_service.py",
+        "line": 269,
+        "description": "_get_printer filters LabelPrinter.tenant_id, showing tenant scoping was intended but omitted for catalog helpers."
+      },
+      {
+        "file": "backend/app/services/print_job_service.py",
+        "line": 285,
+        "description": "ProductVariant lookup by id only."
+      },
+      {
+        "file": "backend/app/services/print_job_service.py",
+        "line": 294,
+        "description": "Product lookup by id only."
+      },
+      {
+        "file": "backend/app/services/print_job_service.py",
+        "line": 40,
+        "description": "create_and_print uses _get_variant and _get_product (41) with client ids; create_batch_and_print at 88 and 98; get_zpl_preview at 153-154."
+      },
+      {
+        "file": "backend/app/schemas/label_printer.py",
+        "line": 76,
+        "description": "PrintJobCreate and PrintJobBatchCreate accept raw integer ids with no ownership validator."
+      },
+      {
+        "file": "backend/app/core/permissions.py",
+        "line": 80,
+        "description": "Preview, print and batch require only SELLER."
+      },
+      {
+        "file": "backend/app/core/config.py",
+        "line": 25,
+        "description": "RLS_ENABLED defaults to False; no RLS setting under deploy/."
+      },
+      {
+        "file": "backend/app/services/label_print_service.py",
+        "line": 25,
+        "description": "The sibling labels service filters ProductVariant.tenant_id, so the defect is confined to print_job_service."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "Valid authenticated account in any tenant."
+      },
+      {
+        "kind": "authorization_role",
+        "description": "SELLER or higher."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "RLS not active (default). If enabled and applied to products and product_variants, foreign rows would be hidden."
+      },
+      {
+        "kind": "data_state",
+        "description": "Attacker guesses sequential product and variant ids of another tenant; preview does not require them to be related."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Authenticated SELLER of tenant A who wants tenant B's catalog names, SKUs and prices.",
+      "payloads": [
+        "GET /api/v1/label-printers/print/preview?variant_id=<tenantB_variant_id>&product_id=<tenantB_product_id>",
+        "POST /api/v1/label-printers/print {\"printer_id\":<own printer>,\"variant_id\":<tenantB_variant_id>,\"product_id\":<tenantB_product_id>,\"quantity\":1}"
+      ],
+      "instructions": [
+        "On a local dummy two-tenant database authenticate as tenant A's seller.",
+        "Call the preview endpoint with tenant B ids and read the zpl field.",
+        "Optionally POST /print with an own printer and read product_name, sku, variant_label and price from the job response."
+      ],
+      "observed_result": "Source-established (not executed): _get_variant and _get_product run SELECTs keyed only on id, so other tenants' rows are returned and get_zpl_preview builds ZPL with the foreign product name, SKU and price; print and batch additionally store a snapshot in the caller's PrintJob rows."
+    },
+    "remediation": {
+      "strategy": "Pass tenant_id into _get_variant and _get_product and add Model.tenant_id == tenant_id and is_active == True to both queries; require variant.product_id == product.id. Regression test with two tenants: tenant A calling preview, print and batch with tenant B ids gets 404/400 and no tenant B data."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Any SELLER+ account in any tenant; ids sequential; preview needs no foreign printer; RLS off in the visible deployment."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Disclosure limited to catalog data (name truncated to 20 chars, SKU, color/size, sale price); no cost, stock, customers, sales or credentials; read only."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Helpers, call sites, endpoints and permission matrix read directly; no ownership check on the path; only production RLS state is outside source."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "printer-config-unvalidated-socket-file-serial-sinks",
+    "title": "Label printer ip_address/port/usb_device/serial_port are unvalidated and reach socket.create_connection, open(path,'wb') and serial.Serial on the API server",
+    "description": "POST/PUT /label-printers accept ip_address, port, usb_device and serial_port as free strings or ints, stored on LabelPrinter and later passed unchanged to printer_service. ETHERNET calls socket.create_connection((host, port)) and sends ZPL bytes; USB calls open(device, 'wb') which truncates or overwrites any file the app user can write; SERIAL calls serial.Serial(port). POST /label-printers/{id}/test (MANAGER or ADMIN) returns the service's success/failure text (connect/port-scan and path-existence oracle); printing by any SELLER or above uses the same sinks. Self-signup creates a tenant whose first user is ADMIN, so the required role is easy to obtain. A tenant user can make the backend connect to localhost, the docker network (postgres:5432) or link-local metadata addresses and truncate and overwrite files writable by appuser, including other tenants' public upload files and application code under /app.",
+    "root_cause": "The Pydantic schemas declare the target fields as plain Optional[str] or int with no validators; create_printer/update_printer copy them into the model unchecked; printer_service uses them directly as network and filesystem targets with no allow-list, private-range filter or path restriction, and returns raw error text to the caller.",
+    "intended_behavior": "A tenant-supplied printer endpoint reaches only the printer's own LAN address on an approved port; USB/serial device paths are limited to a fixed allow-list of device nodes or disabled on the shared server; error text does not reveal reachability detail.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/label_printers.py",
+        "line": 86,
+        "scope": "create_printer (POST /label-printers/) and update_printer (line 105), ADMIN or MANAGER",
+        "description": "Tenant ADMIN or MANAGER submits connection_type, ip_address, port, usb_device and serial_port; model_dump() goes straight to the service."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/schemas/label_printer.py",
+        "line": 22,
+        "scope": "LabelPrinterBase and LabelPrinterUpdate (lines 22-26, 40-44)",
+        "description": "ip_address, serial_port and usb_device are Optional[str] and port is int with no validators; only DB column length bounds them."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/print_job_service.py",
+        "line": 219,
+        "scope": "PrintJobService.create_printer / update_printer (219-246)",
+        "description": "Values persisted with LabelPrinter(**data) or setattr with no checks beyond tenant ownership in _get_printer."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/api/v1/endpoints/label_printers.py",
+        "line": 145,
+        "scope": "test_printer (POST /label-printers/{id}/test), MANAGER+",
+        "description": "Calls print_job_service.test_printer (line 255) and printer_service.test_connection and returns (success, message) to the caller; printing at lines 173 and 193 reaches the same sinks."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/services/printer_service.py",
+        "line": 93,
+        "scope": "PrinterService._send_tcp; _send_usb open at line 127; _send_serial serial.Serial at line 174",
+        "description": "socket.create_connection((host, port)) sends bytes to an arbitrary host and port; open(device,'wb') opens the tenant-supplied path; serial.Serial(port) opens the tenant-supplied port; refused/timeout/permission/not-found text is returned verbatim (98-102, 131-136, 179)."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/schemas/label_printer.py",
+        "line": 22,
+        "description": "No format, range or allow-list validation on ip_address, port, serial_port, usb_device."
+      },
+      {
+        "file": "backend/app/services/printer_service.py",
+        "line": 52,
+        "description": "print_label dispatches on connection_type with no platform or feature-flag guard; USB and SERIAL are reachable on a Linux server."
+      },
+      {
+        "file": "backend/app/services/printer_service.py",
+        "line": 127,
+        "description": "open(device, 'wb') on the raw configured string: truncate and write, no path check."
+      },
+      {
+        "file": "backend/app/services/printer_service.py",
+        "line": 98,
+        "description": "Distinct timeout, refused and OSError texts form a response oracle; the generic handler at 60-62 returns str(e)."
+      },
+      {
+        "file": "backend/Dockerfile",
+        "line": 45,
+        "description": "/app and /app/uploads are chowned to appuser and the container runs as appuser (line 60), so code and uploads are writable by the process."
+      },
+      {
+        "file": "deploy/docker-compose.prod.yml",
+        "line": 54,
+        "description": "The provador_uploads volume at /app/uploads holds all tenants' files (STORAGE_TYPE=local default, config.py:114); the backend sits on the compose network next to postgres:5432."
+      },
+      {
+        "file": "backend/app/services/storage_service.py",
+        "line": 115,
+        "description": "Upload filenames are uuid4 hex, so overwrite targets must be learned from public image URLs; path guessing is not feasible."
+      },
+      {
+        "file": "backend/app/api/v1/endpoints/auth.py",
+        "line": 320,
+        "description": "/auth/signup is open (rate-limited with a bot check) and signup_service.py:107 makes the first user ADMIN."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authorization_role",
+        "description": "MANAGER or ADMIN of any tenant to configure and test a printer; open self-signup yields ADMIN of a new tenant (subject to rate limit, bot check and plan gating)."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "Outbound connections from the backend container to the target must be allowed; file overwrite needs the Linux layout where /app and /app/uploads are owned by appuser; files not writable by appuser fail with PermissionError returned to the caller."
+      },
+      {
+        "kind": "data_state",
+        "description": "Cross-tenant upload overwrite needs the uuid-named path, exposed in public catalog image URLs; overwriting code files under /app only crashes on next restart because the content is ZPL."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A MANAGER or ADMIN of their own tenant (for example created by self-signup) with a valid access token.",
+      "payloads": [
+        "POST /api/v1/label-printers/ {\"name\":\"x\",\"connection_type\":\"ETHERNET\",\"ip_address\":\"169.254.169.254\",\"port\":80} then POST /api/v1/label-printers/{id}/test",
+        "PUT /api/v1/label-printers/{id} {\"ip_address\":\"postgres\",\"port\":5432} then POST /label-printers/{id}/test",
+        "POST /api/v1/label-printers/ {\"name\":\"x\",\"connection_type\":\"USB\",\"usb_device\":\"<path to a dummy writable file>\"} then POST /label-printers/{id}/test"
+      ],
+      "instructions": [
+        "On a local dummy deployment authenticate as a tenant MANAGER.",
+        "Create or update a label printer with a loopback host and port, or with a dummy file path in usb_device.",
+        "Call POST /label-printers/{id}/test and read the returned message; the backend opens the TCP connection and sends ZPL, or truncates and writes the dummy file."
+      ],
+      "observed_result": "Source-established (not executed): configured strings reach socket.create_connection, open(device,'wb') and serial.Serial without validation; the API returns the success or failure text; the process writes ZPL bytes to the TCP peer or to the chosen file after truncating it."
+    },
+    "remediation": {
+      "strategy": "Validate on create/update and again at send time: ip_address must be an RFC1918 LAN literal excluding loopback, link-local and internal docker hosts; port limited to approved values (9100); usb_device and serial_port limited by a regex allow-list of device nodes (or reject USB/SERIAL on the shared server); return a generic error and log detail server-side. Regression tests: 127.0.0.1, 169.254.169.254, postgres and /app/uploads/x are rejected with 422 and the test endpoint does not echo OS error text."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "A MANAGER or ADMIN token is enough, self-signup yields ADMIN, and there is no validation layer."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Cross-tenant truncate/overwrite of upload files and a possible crash loop if code under /app is truncated are real violations but limited by uuid-named upload paths, uncontrolled ZPL content and write permissions; SSRF sends only ZPL bytes and adds a reachability oracle. The verifier rated overall high; the parent caps overall at the demonstrated impact (medium) per the severity rule."
+      },
+      "overall_severity": "medium"
+    },
+    "confidence": {
+      "score": "medium",
+      "reason": "Source path complete with no preventing control; exact impact depends on deployment facts outside source (egress, metadata reachability, whether other tenants' upload paths can be learned)."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "return-refund-exceeds-paid-and-client-exchange-price",
+    "title": "Return refund ignores item-level discount and is uncapped versus amount paid; exchange replacement price is client-supplied",
+    "description": "A sale item's discount_amount is subtracted from SaleItem.subtotal and Sale.total_amount, so the customer pays net of it. ReturnService.process_return computes refund as quantity * SaleItem.unit_price, deducting only the proportional sale-level discount, never the item discount, and nothing caps it against SaleItem.subtotal, Sale.total_amount or the amount paid. For exchanges the replacement unit price comes from the request (replacement_unit_price, only gt=0), so net = total_new - total_refund can be negative and, when the store allows money refunds (default true), that difference is paid out. Needs only SELLER within the caller's own tenant; the same user can already set arbitrary unit_price and discount when creating sales, so this is an insider same-tenant financial control gap that crosses no tenant or privilege boundary.",
+    "root_cause": "Refund is derived from the gross SaleItem.unit_price rather than the amount actually paid, with no cap against paid amount, and the exchange replacement price is trusted from the client.",
+    "intended_behavior": "The refund for a returned quantity never exceeds what the customer paid for it ((SaleItem.subtotal / quantity) * returned quantity, less proportional sale-level discount); the exchange price comes from the variant's catalog price with overrides restricted to MANAGER.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/core/permissions.py",
+        "line": 74,
+        "scope": "permission matrix",
+        "description": "POST /returns/ requires SELLER, so a low-privilege tenant user reaches return processing."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/schemas/return_schema.py",
+        "line": 18,
+        "scope": "ReturnItemCreate.replacement_unit_price",
+        "description": "Client-supplied replacement price validated only as Decimal gt=0."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/sale_service.py",
+        "line": 107,
+        "scope": "SaleService.create_sale subtotal computation",
+        "description": "Sale subtotal is unit_price*quantity minus item.discount_amount, so the paid amount is net of item discount (lines 183 and 219 persist it on SaleItem)."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/return_service.py",
+        "line": 323,
+        "scope": "ReturnService.process_return refund computation",
+        "description": "item_gross_amount = quantity * sale_item.unit_price; only the sale-level discount percentage (297-299) deducted (326-330); item discount_amount, subtotal and tax never used; no min() cap."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/return_service.py",
+        "line": 357,
+        "scope": "ReturnService.process_return exchange branch",
+        "description": "unit_price = replacement_unit_price or rv.price: request value overrides catalog price."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/services/return_service.py",
+        "line": 526,
+        "scope": "ReturnService._create_exchange_sale",
+        "description": "net = total_new - total_refund; the only guard is net < 0 and not allow_refund (527), so with allow_money_refund true a negative net is accepted and paid out."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/services/sale_service.py",
+        "line": 107,
+        "description": "Item subtotal = unit_price*quantity - discount_amount, so paid is net of item discount."
+      },
+      {
+        "file": "backend/app/models/sale.py",
+        "line": 307,
+        "description": "SaleItem.calculate_subtotal also subtracts discount_amount."
+      },
+      {
+        "file": "backend/app/services/return_service.py",
+        "line": 323,
+        "description": "Refund uses gross unit_price; no use of sale_item.discount_amount or subtotal."
+      },
+      {
+        "file": "backend/app/services/return_service.py",
+        "line": 177,
+        "description": "check_eligibility repeats the gross-based max_refund (177-181)."
+      },
+      {
+        "file": "backend/app/services/return_service.py",
+        "line": 54,
+        "description": "_allow_money_refund returns True when the store setting is NULL."
+      },
+      {
+        "file": "backend/app/schemas/return_schema.py",
+        "line": 18,
+        "description": "replacement_unit_price is Optional[Decimal] with only gt=0."
+      },
+      {
+        "file": "backend/app/schemas/sale.py",
+        "line": 28,
+        "description": "SaleItemCreate lets the client set unit_price and discount_amount, so a SELLER already controls sale pricing."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authorization_role",
+        "description": "Authenticated tenant user with at least SELLER."
+      },
+      {
+        "kind": "data_state",
+        "description": "Original sale has an item with discount_amount > 0 (over-refund) or the exchange uses a replacement_unit_price far below the returned value."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "For a negative exchange net to be paid out, Store.allow_money_refund must be true (default when unset)."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A SELLER (insider) or colluding customer processing a return or exchange in their own tenant.",
+      "payloads": [
+        "POST /returns/<sale_id> for an item sold at unit_price 100 with discount_amount 90 (paid 10): items=[{sale_item_id, quantity:1}]",
+        "POST /returns/<sale_id> exchange with replacement_variant_id and replacement_unit_price 0.01 for a returned item worth 100"
+      ],
+      "instructions": [
+        "On a local dummy tenant create a sale whose item has discount_amount close to unit_price.",
+        "Submit a return for that item and observe refund_amount equal to the full unit_price.",
+        "Alternatively submit an exchange with a tiny replacement_unit_price and allow_money_refund enabled and observe a negative net."
+      ],
+      "observed_result": "Source-established (not executed): process_return sets refund_amount = quantity * sale_item.unit_price (less only the sale-level discount percentage) with no cap against SaleItem.subtotal or Sale.total_amount; the exchange price comes from the request and _create_exchange_sale accepts a negative net when refunds are allowed."
+    },
+    "remediation": {
+      "strategy": "Compute refund from SaleItem.subtotal / SaleItem.quantity times the returned quantity (net of item discount), then apply the proportional sale discount, in both process_return and check_eligibility, capping cumulative refunds at Sale.total_amount; take the replacement price from the variant and allow overrides only for MANAGER or above with a floor. Tests: item sold at 100 with 90 discount refunds 10; seller-supplied replacement_unit_price is ignored or rejected; negative-net exchange cannot exceed amount paid."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Requires an authenticated SELLER acting within their own tenant who can already set arbitrary prices and discounts."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Same-tenant financial integrity gap bounded by the sale value; no cross-tenant or privilege boundary crossed."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Item discount stored and subtracted into subtotal, refund uses gross unit_price, no cap in process_return, check_eligibility or the exchange helper, and replacement_unit_price is client-controlled."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "sale-create-unvalidated-foreign-ids",
+    "title": "POST /sales accepts customer_id and product_id from other tenants and returns their names in the response",
+    "description": "SaleService.create_sale does not validate the request's customer_id or per-item product_id against the caller's tenant. customer_id is copied into Sale.customer_id; the tenant-scoped customer lookup (line 252) only gates the loyalty update and a miss is silently ignored. Item product_id is copied into SaleItem.product_id; with a tenant-owned variant_id the FIFO checks key on variant_id only, and the tenant-scoped product lookup near line 95 only builds an error message. After commit the sale is reloaded with unscoped selectinload on Sale.customer and SaleItem.product, so SaleResponse serializes customer_name (full_name) and item.product (id, name, description, sku) of another tenant. Ids are sequential, so a CASHIER can enumerate other tenants' customers and products. The conflicting claim that create_sale validates both with tenant is only partly right: neither check can reject the request. The exchange-sale loyalty variant (return_service.py:569) is not established standalone and is excluded from this record.",
+    "root_cause": "Foreign-key ids from the request body are never verified to belong to the caller's tenant before being persisted; the only tenant-scoped customer lookup does not abort on a miss and the response reload uses relationship loaders with no tenant filter; RLS is off by default.",
+    "intended_behavior": "Every customer_id and product_id referenced in a sale belongs to the caller's tenant and the product matches the variant; otherwise the request is rejected with 400 before any write.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/sales.py",
+        "line": 27,
+        "scope": "create_sale (POST /sales/)",
+        "description": "Any authenticated user (CASHIER) posts SaleCreate; the endpoint passes tenant_id and the unvalidated body to SaleService.create_sale (104-112)."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/schemas/sale.py",
+        "line": 24,
+        "scope": "SaleItemCreate / SaleCreate",
+        "description": "product_id (24), variant_id (25) and customer_id (41) are plain ints with no ownership validation."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/sale_service.py",
+        "line": 85,
+        "scope": "SaleService.create_sale",
+        "description": "Stock check via FIFOService.check_availability; with variant_id set it uses a variant-only tenant filter so a foreign product_id is never checked; product_repo.get at line 95 only builds an error message."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/sale_service.py",
+        "line": 158,
+        "scope": "SaleService.create_sale",
+        "description": "Sale.customer_id is set from sale_data.customer_id (156-172) and SaleItem.product_id from item_data.product_id (213) with no tenant check."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/sale_service.py",
+        "line": 252,
+        "scope": "SaleService.create_sale",
+        "description": "The tenant-scoped customer lookup only gates the loyalty update; a foreign id yields None, nothing happens and the sale commits (280) with the foreign customer_id."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/services/sale_service.py",
+        "line": 307,
+        "scope": "SaleService.create_sale",
+        "description": "Reload uses selectinload(SaleItem.product) and selectinload(Sale.customer) with no tenant criteria; SaleResponse (schemas/sale.py 75, 131) serializes item.product name, description, sku and customer_name (models/sale.py:206) of the other tenant."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/services/sale_service.py",
+        "line": 95,
+        "description": "Tenant-scoped product lookup used only to format the insufficient-stock error message; no raise on a missing or foreign product."
+      },
+      {
+        "file": "backend/app/services/sale_service.py",
+        "line": 253,
+        "description": "if customer: wraps the loyalty update; a foreign customer_id yields None and is skipped silently."
+      },
+      {
+        "file": "backend/app/repositories/entry_item_repository.py",
+        "line": 235,
+        "description": "Variant FIFO query filters EntryItem.tenant_id on variant_id only; product_id plays no part in validation."
+      },
+      {
+        "file": "backend/app/models/sale.py",
+        "line": 120,
+        "description": "Sale.customer_id is a plain FK to customers.id, existence only."
+      },
+      {
+        "file": "backend/app/models/sale.py",
+        "line": 206,
+        "description": "customer_name returns self.customer.full_name, included in SaleResponse."
+      },
+      {
+        "file": "backend/app/schemas/sale.py",
+        "line": 12,
+        "description": "ProductInSale exposes id, name, description and sku."
+      },
+      {
+        "file": "backend/app/core/config.py",
+        "line": 25,
+        "description": "RLS_ENABLED defaults to False; no deploy file enables it."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "Any authenticated tenant user including CASHIER."
+      },
+      {
+        "kind": "data_state",
+        "description": "Attacker knows or guesses valid foreign customer or product ids (sequential); for the product leak an own tenant variant with FIFO stock."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "RLS_ENABLED False (default, not enabled in deploy)."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A cashier in tenant A who wants tenant B's customer names or product details.",
+      "payloads": [
+        "POST /sales/ {\"customer_id\":<tenant B customer id>,\"items\":[{\"product_id\":<tenant B product id>,\"variant_id\":<tenant A variant with stock>,\"quantity\":1,\"unit_price\":1,\"discount_amount\":0}],\"payments\":[{\"payment_method\":\"CASH\",\"amount\":1}]}"
+      ],
+      "instructions": [
+        "On a local dummy two-tenant database authenticate as a tenant A user and pick a stocked own variant.",
+        "POST /sales/ with the foreign customer_id and product_id and a covering payment.",
+        "Read customer_name and items[].product.name/description/sku from the 201 response."
+      ],
+      "observed_result": "Source-established (not executed): no code path rejects the foreign ids; the sale commits with them and the unscoped reload returns the other tenant's customer_name and product name, description and sku; the loyalty update is skipped for the foreign customer."
+    },
+    "remediation": {
+      "strategy": "In SaleService.create_sale, before stock checks, load the customer with a tenant filter and raise if customer_id is set but missing; for each item load the product and variant by tenant and require variant.product_id == item.product_id; raise ValueError (mapped to 400) before any write; apply to /pdv/pix/start and /pdv/terminal/start which reach create_sale; add Customer.tenant_id to the customer select in ReturnService._create_exchange_sale. Regression tests: foreign customer_id returns 400 and creates no sale; foreign product_id with an own variant_id returns 400."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Any cashier with one request; ids sequential; product path needs a stocked own variant."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Cross-tenant read of limited PII (customer full_name) and catalog fields plus foreign references written into the sale; no stock or money write established across tenants."
+      },
+      "overall_severity": "medium"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Full create_sale path, schemas, response serializer and model property read in the working tree; no early validation and the only tenant checks do not abort; runtime RLS unknown but deploy files do not enable it."
+    }
+  },
+  {
+    "verdict": "rejected",
+    "fingerprint": "sale-response-cost-margin-exposed-to-cashier",
+    "title": "Sale responses expose cost, profit and margin to cashier role",
+    "description": "The hunter claimed SaleItemResponse and SaleResponse return unit_cost, cost_total, profit, margin_percent, sale_sources (per-layer unit_cost and total_cost) and total_cost, total_profit, profit_margin_percent to cashier-level callers of GET /sales, GET /sales/{id} and POST /sales. The schema serializes these fields, but CostMaskMiddleware runs on every HTTP response and nulls every cost-like key for cashier and seller roles, so the values never reach them.",
+    "claimed_root_cause": "Sale response schemas serialize FIFO cost, profit and margin fields and the sales endpoints apply no role-based field masking, so cashier-role callers see store cost and margin.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/sales.py",
+        "line": 136,
+        "scope": "GET /sales route (response_model=List[SaleResponse])",
+        "description": "Cashier-level list endpoint; the response model carries the cost and profit fields."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/schemas/sale.py",
+        "line": 68,
+        "scope": "SaleItemResponse fields and SaleResponse FIFO summary",
+        "description": "unit_cost, cost_total, profit, margin_percent and sale_sources on items; total_cost, total_profit and profit_margin_percent on the sale (134-136)."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/core/permissions.py",
+        "line": 154,
+        "scope": "permission_matrix dependency",
+        "description": "Records the caller's role in request.state.user_role; inserted into every authenticated route by apply_permission_matrix(app) (main.py 171) after include_router (167)."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/core/cost_mask.py",
+        "line": 56,
+        "scope": "CostMaskMiddleware.__call__.wrapped_send",
+        "description": "For cashier and seller and content-type application/json the body is buffered and mask() nulls every cost-like key at any depth; this control prevents the claimed disclosure."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/core/cost_mask.py",
+        "line": 15,
+        "description": "MASKED_ROLES = {cashier, seller}."
+      },
+      {
+        "file": "backend/app/core/cost_mask.py",
+        "line": 19,
+        "description": "Key regex (^|_)(cost|costs|profit|profits|margin|margins|cmv|roi|markup|investment|lucro|custo)(_|$) matches unit_cost, cost_total, total_cost, profit, total_profit, profit_margin_percent and margin_percent; only installments_cost is allow-listed."
+      },
+      {
+        "file": "backend/app/core/cost_mask.py",
+        "line": 31,
+        "description": "mask() recurses through dicts and lists, so nested unit_cost and total_cost inside sale_sources are nulled."
+      },
+      {
+        "file": "backend/app/main.py",
+        "line": 250,
+        "description": "CostMaskMiddleware is installed globally for all routes."
+      },
+      {
+        "file": "backend/app/schemas/sale.py",
+        "line": 50,
+        "description": "SaleSourceInfo keeps entry_id, entry_item_id, quantity_taken, entry_code and entry_date visible; these are non-monetary traceability identifiers."
+      }
+    ],
+    "reason": "CostMaskMiddleware wraps all HTTP responses and, for cashier and seller roles, nulls every JSON value whose key matches the cost, profit or margin regex at any depth. All fields the hunter listed are covered. The role is set by the permission-matrix dependency on every authenticated route. Only non-monetary sale_sources identifiers pass through, which is not a meaningful boundary violation. Residual hardening: a key-name regex is fragile against future field names; mask at the schema or serializer level as defense in depth."
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "sale-unbounded-discount-negative-total-zero-payment",
+    "title": "Sale creation accepts discounts above the subtotal, producing a negative total that an empty payments list satisfies",
+    "description": "POST /sales/ accepts client-supplied unit_price, per-item discount_amount and sale-level discount_amount, none with an upper bound, and a payments list with no minimum length. The service computes total_amount = subtotal - discount + tax and rejects the sale only when payments_total < total_amount. A discount above the subtotal makes the total negative and an empty payments list (sum 0) passes; the sale is stored COMPLETED with a negative total_amount, FIFO stock is deducted, and the customer's loyalty_points and total_spent are decremented by the negative total. Any CASHIER-level user in the tenant can reach it. The actor already controls unit_price, so this is a same-tenant business-logic and integrity gap that crosses no tenant or privilege boundary.",
+    "root_cause": "Missing server-side invariants: no upper bound on discounts, no total_amount >= 0 check and no requirement that payments cover a positive total; the only guard is the one-sided payments_total < total_amount.",
+    "intended_behavior": "A completed sale has total_amount >= 0, discounts do not exceed the subtotal and payments cover the total; large discounts need manager approval.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/sales.py",
+        "line": 27,
+        "scope": "create_sale",
+        "description": "POST /sales/ accepts SaleCreate from any CASHIER-rank user (permissions.py:57); only authentication and tenant resolution at endpoint level."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/schemas/sale.py",
+        "line": 22,
+        "scope": "SaleItemCreate, SaleCreate",
+        "description": "unit_price gt=0 (27), item discount_amount ge=0 with no maximum (28), SaleCreate.discount_amount ge=0 no maximum (43), payments List[PaymentCreate] with no min length (47); no model validators."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/sale_service.py",
+        "line": 131,
+        "scope": "SaleService.create_sale",
+        "description": "total_amount = subtotal - discount_amount + tax_amount (133); only guard is payments_total < total_amount (141)."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/services/sale_service.py",
+        "line": 277,
+        "scope": "SaleService.create_sale",
+        "description": "Sale persisted with the negative total (164) as COMPLETED; FIFO stock consumed (189); loyalty_points and total_spent decremented (255-272); committed at 280."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/schemas/sale.py",
+        "line": 28,
+        "description": "Item discount has ge=0 only, no upper bound."
+      },
+      {
+        "file": "backend/app/schemas/sale.py",
+        "line": 47,
+        "description": "payments has no min_length and there are no model validators."
+      },
+      {
+        "file": "backend/app/services/sale_service.py",
+        "line": 141,
+        "description": "One-sided payment check; no total <= 0 guard and no discount cap."
+      },
+      {
+        "file": "backend/app/core/permissions.py",
+        "line": 57,
+        "description": "POST /sales/ requires only CASHIER."
+      },
+      {
+        "file": "backend/app/models/sale.py",
+        "line": 83,
+        "description": "total_amount is a plain mapped column with no CheckConstraint (grep found none)."
+      },
+      {
+        "file": "backend/app/api/v1/endpoints/sales.py",
+        "line": 108,
+        "description": "Payload passed straight to the service; no role-based discount rule (grep for max_discount or discount_limit found none)."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "Valid authenticated user in the tenant."
+      },
+      {
+        "kind": "authorization_role",
+        "description": "CASHIER rank or higher."
+      },
+      {
+        "kind": "data_state",
+        "description": "Sufficient FIFO stock for the items."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A malicious or careless cashier in one tenant who submits a sale whose discount exceeds the subtotal with no payments.",
+      "payloads": [
+        "POST /sales/ {\"payment_method\":\"CASH\",\"items\":[{\"product_id\":1,\"quantity\":1,\"unit_price\":100,\"discount_amount\":0}],\"discount_amount\":500,\"payments\":[]}"
+      ],
+      "instructions": [
+        "On a local dummy tenant authenticate as a CASHIER.",
+        "POST the payload for a stocked product.",
+        "Observe 201 with total_amount -400, status completed and no payments."
+      ],
+      "observed_result": "Source-established (not executed): with subtotal 100, discount 500 and tax 0 total_amount is -400; 0 < -400 is false so no ValueError; the sale is saved COMPLETED, stock deducted via FIFO and a linked customer's total_spent and loyalty_points reduced by 400 and 40."
+    },
+    "remediation": {
+      "strategy": "Enforce 0 <= total_amount and discount <= subtotal in SaleService.create_sale before any writes; reject a zero-length payments list unless total_amount == 0; optionally add a SaleCreate model_validator, a manager-approval threshold for large discounts and a DB CheckConstraint total_amount >= 0. Regression test: discount above subtotal returns 400."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "One request by any cashier; needs an authenticated insider and stocked inventory."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Same-tenant integrity and fraud-detection issue (corrupted totals, loyalty and spend, stock removed without payment); no cross-tenant or privilege boundary crossed."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Every control on the path read in the working tree; none blocks the input; uncommitted edits to sale_service.py only add the stock lock."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "tenant-authz/category-public-unscoped-by-id",
+    "title": "Unauthenticated GET /categories/{id} and /categories/hierarchy read categories across tenants (no tenant filter, RLS bypassed)",
+    "description": "GET /api/v1/categories/{category_id} and GET /api/v1/categories/hierarchy use get_service_public, which depends on get_db_unscoped (RLS bypass). The routes have no authentication dependency and no tenant resolution and the repository selects Category by primary key only, so any tenant's category (name, description, parent_id, is_active, timestamps and children) can be read anonymously by enumerating sequential ids. The hierarchy route returns the tree of one arbitrary tenant (MIN(tenant_id)). The data is low sensitivity (category labels); the storefront /public/categories exposes only id and name for one tenant, so over-disclosure is description, is_active (including inactive categories), timestamps and other tenants' trees; tenant_id is not in the response.",
+    "root_cause": "The public route reuses the generic id-based repository lookup on a session with RLS bypassed, and neither the route nor the query binds the request to a tenant (slug or host) or to is_active; the comment that the tree is shared suggests a single-tenant design assumption that no longer holds.",
+    "intended_behavior": "Anonymous access is limited to active categories of the tenant being browsed (as /public/categories does); authenticated access is limited to the caller's tenant.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/categories.py",
+        "line": 69,
+        "scope": "get_category route (GET /categories/{category_id})",
+        "description": "No auth dependency; the only dependency is get_service_public; no router-level dependencies."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/api/v1/endpoints/categories.py",
+        "line": 28,
+        "scope": "get_service_public",
+        "description": "Builds CategoryService on get_db_unscoped, whose session has RLS bypass enabled (database.py:144-160); no tenant resolved."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/category_service.py",
+        "line": 42,
+        "scope": "CategoryService.get_category",
+        "description": "Passes only category_id to the repository; no tenant_id parameter."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/repositories/category_repository.py",
+        "line": 34,
+        "scope": "CategoryRepository.get_with_subcategories",
+        "description": "select(Category).where(Category.id == category_id) with selectinload(children) and no tenant_id or is_active filter; serialized as CategoryWithChildren."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/core/database.py",
+        "line": 144,
+        "description": "get_db_unscoped calls bypass_on(session); its docstring says the route code must filter by itself, and this route does not."
+      },
+      {
+        "file": "backend/app/repositories/category_repository.py",
+        "line": 79,
+        "description": "get_hierarchy anchors on tenant_id = (SELECT MIN(tenant_id) FROM categories WHERE is_active = true)."
+      },
+      {
+        "file": "backend/app/schemas/category.py",
+        "line": 46,
+        "description": "CategoryResponse exposes id, name, description, parent_id, is_active, created_at and updated_at; no tenant_id or secrets."
+      },
+      {
+        "file": "backend/app/api/v1/endpoints/public_catalog.py",
+        "line": 252,
+        "description": "The storefront equivalent returns only id and name scoped by tenant, showing the intended public surface is narrower."
+      },
+      {
+        "file": "backend/app/api/v1/endpoints/categories.py",
+        "line": 134,
+        "description": "Authenticated update, delete, create and list routes are tenant-scoped; only the two read routes are unscoped."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "None; anonymous network client."
+      },
+      {
+        "kind": "data_state",
+        "description": "Other tenants have categories; ids are sequential so enumeration is trivial."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "RLS state does not matter: the route bypasses it and the query has no tenant predicate."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Anonymous client that can reach the API enumerating integer category ids.",
+      "payloads": [
+        "GET /api/v1/categories/1",
+        "GET /api/v1/categories/2",
+        "GET /api/v1/categories/hierarchy"
+      ],
+      "instructions": [
+        "On a local dummy two-tenant instance send unauthenticated GET /api/v1/categories/{id} for ids 1..N.",
+        "Observe name, description, parent_id, is_active, timestamps and children regardless of owning tenant.",
+        "Request /api/v1/categories/hierarchy and observe one tenant's tree."
+      ],
+      "observed_result": "Source-established (not executed): the handler requires no credentials, runs on an RLS-bypassed session and executes a query keyed only by category id, serializing the matching row and its children to the client regardless of tenant_id or is_active."
+    },
+    "remediation": {
+      "strategy": "Require authentication for /categories/{id} and /categories/hierarchy and pass current_user.tenant_id into the repository using get_db instead of get_db_unscoped; if anonymous access is genuinely needed, remove these routes in favour of /public/categories or resolve the tenant from slug or host and filter by it and by is_active; replace the MIN(tenant_id) anchor in get_hierarchy with a tenant_id parameter. Regression tests: tenant A cannot read tenant B's category (404); an anonymous request without a resolvable tenant gets 401/404."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "No authentication required and sequential ids make enumeration trivial."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Only category labels and descriptions plus is_active and timestamps; no tenant_id, PII or secrets; a similar subset is already public by design for the storefront."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Route, service and repository read in the working tree; no auth dependency, tenant filter or ORM-level tenant criteria (grep for with_loader_criteria and do_orm_execute found nothing)."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "tenant-authz/looks-unscoped-product-refs",
+    "title": "Looks create and add-item accept unvalidated cross-tenant product_id and variant_id and echo the foreign product's name, image and price",
+    "description": "POST /looks/ and POST /looks/{look_id}/items let a MANAGER or higher attach any product_id and variant_id to a look in their own tenant. No layer checks that the referenced product or variant belongs to the caller's tenant. The response is built from LookItem.product and LookItem.variant relationships loaded by primary key with no tenant filter and returns product_name, product_image_url, variant_description (size and color) and unit_price of another tenant's catalog row. Ids are sequential. customer_id on Look is also unvalidated but LookResponse returns only the numeric id, so no customer PII leaks. Look get, update and delete are tenant-filtered.",
+    "root_cause": "LookRepository.create and add_item persist body-supplied product_id and variant_id with only the new row's tenant_id set; the tenant check applies to the Look but never to the referenced Product or ProductVariant, and the response reads them through relationships without a tenant filter.",
+    "intended_behavior": "A look item may only reference products and variants (and customers) of the caller's tenant; a foreign id is rejected as not found.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/looks.py",
+        "line": 96,
+        "scope": "add_item (POST /looks/{look_id}/items); create_look at line 43",
+        "description": "MANAGER+ (WRITE /looks, permissions.py:91) sends LookItemCreate with arbitrary product_id and variant_id; tenant_id comes from the caller."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/look_service.py",
+        "line": 122,
+        "scope": "LookService.add_item and LookService.create (line 78)",
+        "description": "Only the Look is fetched with a tenant filter (131); product_id and variant_id pass unchecked to repo.add_item."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/repositories/look_repository.py",
+        "line": 94,
+        "scope": "LookRepository.add_item and create (line 61)",
+        "description": "LookItem persisted with the caller's tenant_id and body product_id and variant_id; no Product or ProductVariant lookup, so no tenant check can run."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/repositories/look_repository.py",
+        "line": 17,
+        "scope": "LookRepository.get",
+        "description": "Reloads with selectinload(Look.items).selectinload(LookItem.product) and selectinload(LookItem.variant): primary-key loads with no tenant criteria."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/services/look_service.py",
+        "line": 28,
+        "scope": "_build_item_response",
+        "description": "Serializes the foreign product name, image_url, variant size and color and variant price or product base_price into LookResponse.items."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/schemas/look.py",
+        "line": 10,
+        "description": "LookItemCreate validates only product_id > 0; variant_id and customer_id (LookCreate line 35) are unconstrained."
+      },
+      {
+        "file": "backend/app/repositories/look_repository.py",
+        "line": 60,
+        "description": "create() writes LookItem rows with the caller tenant_id and body ids with no ownership lookup."
+      },
+      {
+        "file": "backend/app/models/look.py",
+        "line": 56,
+        "description": "LookItem.product and LookItem.variant are plain relationships; FKs only to products.id and product_variants.id."
+      },
+      {
+        "file": "backend/app/schemas/look.py",
+        "line": 38,
+        "description": "LookResponse exposes customer_id only, no customer name or contact fields."
+      },
+      {
+        "file": "backend/app/core/config.py",
+        "line": 25,
+        "description": "RLS_ENABLED defaults to False and no enablement was found in deploy or docs."
+      },
+      {
+        "file": "backend/app/core/permissions.py",
+        "line": 91,
+        "description": "WRITE on /looks requires MANAGER."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "Valid authenticated account in any tenant."
+      },
+      {
+        "kind": "authorization_role",
+        "description": "MANAGER or ADMIN."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "RLS not enabled (default); if production enables it, foreign rows would not load."
+      },
+      {
+        "kind": "data_state",
+        "description": "Attacker guesses or enumerates sequential product or variant ids of the target tenant."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A MANAGER of tenant A who creates a look or adds an item referencing tenant B ids and walks ids to read the other catalog.",
+      "payloads": [
+        "POST /api/v1/looks/ {\"name\":\"x\",\"items\":[{\"product_id\":<tenantB_product_id>,\"variant_id\":<tenantB_variant_id>}]}",
+        "POST /api/v1/looks/{own_look_id}/items {\"product_id\":<tenantB_product_id>,\"position\":0}"
+      ],
+      "instructions": [
+        "On a local dummy two-tenant database authenticate as a MANAGER of tenant A.",
+        "Send either request with a product_id belonging to tenant B.",
+        "Read items[].product_name, product_image_url, variant_description and unit_price from the response."
+      ],
+      "observed_result": "Source-established (not executed): nothing validates ownership of product_id or variant_id; the look is reloaded with tenant-agnostic relationships and _build_item_response copies the foreign product's name, image_url, variant size and color and price into the response."
+    },
+    "remediation": {
+      "strategy": "Validate every product_id, variant_id (belonging to the product) and customer_id in LookService.create and add_item against the caller's tenant (404 or 422 on mismatch, nothing persisted); filter relationship loads by tenant as defense in depth. Regression tests: tenant A manager posting tenant B ids gets 404/422, nothing persisted and no tenant B data in the response."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Needs a MANAGER or ADMIN account in any tenant (obtainable if signup is open); ids sequential."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Cross-tenant read limited to catalog fields (name, image URL, size/color, price) largely public in a storefront; no PII or secrets; minor integrity effect on the attacker's own look."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "All hops read in current source; no validation in schema, service or repository; severity calibrated below the hunter's medium because only catalog fields leak."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "tenant-authz/matrix-shadow-product-suppliers",
+    "title": "Permission matrix rule order lets CASHIER read GET /products/{product_id}/suppliers, which the matrix intends to restrict to MANAGER",
+    "description": "In backend/app/core/permissions.py the first matching rule wins. The CASHIER rule for GET /(products|product-variants|categories|looks)(/|$) at line 67 matches GET /products/{product_id}/suppliers before the MANAGER rule at line 92 written for that path. The route has no role guard of its own (only get_current_active_user), so a cashier can read the supplier list for any product in their own tenant: supplier_name, supplier_cnpj, supplier_phone, purchase_count, last_purchase_date and is_cheapest (derived from cost and not masked; last_unit_cost is nulled by CostMaskMiddleware). Same-tenant disclosure of supplier identity to a lower-privileged role. The /products/grouped-debug GET rule is shadowed the same way.",
+    "root_cause": "The narrower MANAGER rule at line 92 is shadowed by the broader CASHIER read rule at line 67; required_role() iterates RULES in order and returns the first match (105-107) and nothing else guards the GET.",
+    "intended_behavior": "Supplier data per product requires MANAGER or above, consistent with GET /suppliers requiring manager and the module docstring (gerente owns suppliers).",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/suppliers.py",
+        "line": 146,
+        "scope": "product_supplier_router GET /products/{product_id}/suppliers",
+        "description": "Mounted via api_router.include_router(suppliers.product_supplier_router); only auth dependencies are get_current_active_user and get_current_tenant_id."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/core/permissions.py",
+        "line": 105,
+        "scope": "required_role",
+        "description": "Strips /api/v1 and iterates RULES in order returning the first rule whose method and regex match; regex.search on route.path_format (template form)."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/core/permissions.py",
+        "line": 67,
+        "scope": "RULES",
+        "description": "Pattern ^/(products|product-variants|categories|looks)(/|$) is not anchored at the end, so it matches /products/{product_id}/suppliers for GET and returns CASHIER."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/api/v1/endpoints/suppliers.py",
+        "line": 162,
+        "scope": "get_product_suppliers",
+        "description": "_sp_to_response (24-38) builds rows with supplier identity fields and the handler returns them; the matrix check at line 158 passes for the cashier role."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/core/permissions.py",
+        "line": 67,
+        "description": "GET rule for products with an open (/|$) suffix grants CASHIER."
+      },
+      {
+        "file": "backend/app/core/permissions.py",
+        "line": 92,
+        "description": "MANAGER rule for /products/{product_id}/suppliers, shadowed for GET."
+      },
+      {
+        "file": "backend/app/core/permissions.py",
+        "line": 6,
+        "description": "Docstring states the first rule that matches wins."
+      },
+      {
+        "file": "backend/app/core/permissions.py",
+        "line": 133,
+        "description": "by_method is computed from route.path_format, so the regex is matched against the {product_id} template."
+      },
+      {
+        "file": "backend/app/api/v1/endpoints/suppliers.py",
+        "line": 150,
+        "description": "The handler has no require_role guard."
+      },
+      {
+        "file": "backend/app/core/cost_mask.py",
+        "line": 26,
+        "description": "The mask nulls keys containing cost, profit or margin as whole words; supplier_* fields and is_cheapest are returned."
+      },
+      {
+        "file": "backend/tests/test_permissions.py",
+        "line": 87,
+        "description": "Tests cover GET /api/v1/suppliers but have no case for /products/{id}/suppliers or /products/grouped-debug."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "Valid authenticated active cashier (lowest role) in the tenant."
+      },
+      {
+        "kind": "data_state",
+        "description": "The product has supplier purchase history in the caller's own tenant; the service filters by tenant_id, so no cross-tenant exposure."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "RLS state does not change this outcome: it is a role boundary within one tenant."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A low-privilege cashier in the store with a normal token.",
+      "payloads": [
+        "GET /api/v1/products/123/suppliers with the cashier bearer token"
+      ],
+      "instructions": [
+        "Locally call required_role('GET', '/api/v1/products/{product_id}/suppliers') and observe CASHIER.",
+        "Authenticate as a cashier and GET the route for a product with supplier history.",
+        "Read supplier_name, supplier_cnpj, supplier_phone, purchase_count and is_cheapest; last_unit_cost is null."
+      ],
+      "observed_result": "Source-established (not executed): required_role returns CASHIER because the rule at line 67 matches first, so no 403 is raised; the handler returns supplier rows with identity fields and the middleware masks only cost-named keys."
+    },
+    "remediation": {
+      "strategy": "Move the MANAGER rule for /products/{product_id}/suppliers and /products/grouped-debug above the CASHIER products rule (or add a negative lookahead) and add regression tests in tests/test_permissions.py that cashier and seller get 403 on these GETs while manager gets 200, plus a test that fails when any rule is unreachable because an earlier rule already covers it."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "Any cashier with one ordinary GET; no other role guard on the route."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Same-tenant disclosure of supplier identity, contact data and purchase frequency to a lower role; cost values masked; no cross-tenant exposure or write access."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "First-match logic, unanchored regex, template path matching and unguarded handler read directly; nothing blocks cashier; no test for this path."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "tenant-authz/pdv-sse-global-event-registry",
+    "title": "PDV payment SSE endpoints subscribe to a process-global, tenant-agnostic registry without checking sale or payment ownership",
+    "description": "GET /pdv/orders/{sale_id}/events and GET /pdv/pix/{payment_id}/events require only get_current_user, never load the sale or payment and never compare it to current_user.tenant_id, and subscribe to module-level dicts in app/core/payment_events.py keyed by the bare id string. A cashier of tenant A can listen on a tenant B sale id and receive the payload that B's webhook or confirmation signals (only {status, paid}); the endpoint's finally block also calls cleanup(key), which pops the shared event and result, so a tenant B waiter blocked on the old Event is never woken by a later signal_payment. Impact: a cross-tenant boolean payment-status leak and interference with another tenant's instant-confirmation UI; the sale and payment themselves are unaffected and no PII or amount is exposed.",
+    "root_cause": "The registry has no tenant namespace and the two SSE handlers never verify sale or payment ownership, unlike every other PDV route that passes current_user.tenant_id to the service layer.",
+    "intended_behavior": "A user may only observe and tear down the stream of a sale or payment owned by their own tenant; registry keys are tenant-scoped.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/pdv.py",
+        "line": 334,
+        "scope": "terminal_payment_events (GET /pdv/orders/{sale_id}/events); pix_sse at 445",
+        "description": "Depends only on get_current_user; no DB session or tenant check; key = str(sale_id); the PIX endpoint takes a free-form payment_id."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/core/payment_events.py",
+        "line": 15,
+        "scope": "get_or_create_event",
+        "description": "Looks up or creates an Event in the global _events dict by id string with no tenant component."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/core/payment_events.py",
+        "line": 22,
+        "scope": "signal_payment",
+        "description": "Writes _results[payment_id] and sets the shared event; callers pass str(sale_id) or payment_reference with no tenant."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/api/v1/endpoints/pdv.py",
+        "line": 353,
+        "scope": "terminal_payment_events.generate",
+        "description": "The finally block calls cleanup(key), popping the shared event and result; the result is yielded to the caller at 355; the PIX equivalent is at 461-463."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/api/v1/endpoints/pdv.py",
+        "line": 337,
+        "description": "Only dependency is get_current_user; no tenant lookup of the sale."
+      },
+      {
+        "file": "backend/app/api/v1/endpoints/pdv.py",
+        "line": 448,
+        "description": "PIX endpoint takes a free-form payment_id with no ownership check."
+      },
+      {
+        "file": "backend/app/core/payment_events.py",
+        "line": 10,
+        "description": "_events and _results are plain module-level dicts keyed by id string."
+      },
+      {
+        "file": "backend/app/core/payment_events.py",
+        "line": 38,
+        "description": "cleanup() pops both the event and the result unconditionally."
+      },
+      {
+        "file": "backend/app/services/payment_providers/cielo.py",
+        "line": 277,
+        "description": "signal_payment(str(sale_id), {status: approved, paid: True}); payload has no tenant or amount."
+      },
+      {
+        "file": "backend/entrypoint.sh",
+        "line": 9,
+        "description": "uvicorn runs with WEB_CONCURRENCY default 2 workers while the registry is per-process, limiting the attack to the same-worker case."
+      },
+      {
+        "file": "mobile/app/(tabs)/pdv/terminal-checkout.tsx",
+        "line": 100,
+        "description": "The victim client also polls every 5s as a fallback, partly mitigating cleanup interference."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "Valid authenticated account of any tenant and role."
+      },
+      {
+        "kind": "data_state",
+        "description": "Terminal sale ids are sequential; PIX payment ids are provider ids and harder to guess."
+      },
+      {
+        "kind": "timing_dependency",
+        "description": "Attacker must be subscribed when the victim's payment is signalled, or open and close a stream while the victim waits."
+      },
+      {
+        "kind": "environmental_dependency",
+        "description": "Attacker's request must reach the same uvicorn worker as the victim's webhook or waiter (registry is per-process; default 2 workers)."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A low-privilege authenticated cashier of tenant A who wants to observe or disrupt payment confirmation for tenant B sales.",
+      "payloads": [
+        "GET /api/v1/pdv/orders/<victim_sale_id>/events with Authorization: Bearer <tenant A token>",
+        "GET /api/v1/pdv/pix/<victim_payment_id>/events with Authorization: Bearer <tenant A token>"
+      ],
+      "instructions": [
+        "On a local dummy two-tenant instance authenticate as any tenant A user.",
+        "Open the SSE stream for a tenant B sale id and keep it open.",
+        "Trigger tenant B's payment signal on the same worker and observe the data event; alternatively open and close the stream so cleanup removes the victim's registered event."
+      ],
+      "observed_result": "Source-established (not executed): the handlers run no tenant check before get_or_create_event(key) and cleanup(key) and the registry is keyed only by the id string, so a cross-tenant caller receives the same {status, paid} payload as the owner and can remove the shared event and result."
+    },
+    "remediation": {
+      "strategy": "Load the Sale (or PIX transaction by payment_reference) with a tenant filter in both handlers and return 404 before subscribing; prefix registry keys with tenant_id in both subscribe and signal_payment call sites; longer term replace the in-process dicts with Redis pub/sub so delivery works across workers. Regression test: tenant A requesting tenant B's /events gets 404 and B's event survives A's disconnect."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "low",
+        "reason": "Requires an authenticated account, correct timing and landing on the same worker; PIX ids are not trivially guessable."
+      },
+      "impact": {
+        "score": "low",
+        "reason": "Boolean paid or cancelled status for a guessed id with no amount or PII; disruption limited to instant-confirmation UI with a 5 second polling fallback; DB state unaffected."
+      },
+      "overall_severity": "low"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Both handlers and the registry read in full; no tenant check or key namespacing anywhere; severity calibrated down for payload content and cross-worker and polling mitigations."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "tenant-authz/product-media-unscoped-ids",
+    "title": "Product media reorder and variant cover sync use unscoped ids, allowing cross-tenant writes",
+    "description": "The product-media endpoints verify only that the path product_id belongs to the caller's tenant. In PUT /products/{product_id}/media/reorder the media ids in the body go straight into an UPDATE keyed only on ProductMedia.id. In the upload endpoints the variant_id (query or body) reaches _sync_cover_url, which loads ProductVariant by id alone and overwrites its image_url. A MANAGER or ADMIN of one tenant can change the position of another tenant's media rows and replace the image_url of another tenant's product variant with an image they uploaded.",
+    "root_cause": "Tenant check covers only the path product_id; media ids (reorder) and variant_id (upload and cover sync) are never checked against that product or tenant; repository UPDATE and SELECT are keyed on the bare primary key; ProductMedia has no tenant_id column so RLS could not cover it.",
+    "intended_behavior": "Every media id in a reorder request belongs to the given tenant-checked product, and a supplied variant_id belongs to the same product and tenant before any media row is created or variant.image_url is changed.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/product_media.py",
+        "line": 200,
+        "scope": "reorder_product_media (PUT /products/{product_id}/media/reorder), ADMIN or MANAGER",
+        "description": "Body is a list of {id, position} with no ownership validation; the upload endpoints (line 86 query, line 126 body) take an arbitrary variant_id."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/product_media_service.py",
+        "line": 144,
+        "scope": "ProductMediaService.reorder",
+        "description": "Checks only product_repo.get(product_id, tenant_id), then passes raw items to repo.reorder and commits."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/product_media_service.py",
+        "line": 41,
+        "scope": "ProductMediaService.add_media",
+        "description": "Validates the product only; with a foreign variant_id the media list is empty, so is_first is true and _sync_cover_url is called with the foreign variant_id."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/repositories/product_media_repository.py",
+        "line": 101,
+        "scope": "ProductMediaRepository.reorder",
+        "description": "UPDATE product_media SET position=... WHERE id = item['id'] with no product_id or tenant condition."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/services/product_media_service.py",
+        "line": 175,
+        "scope": "ProductMediaService._sync_cover_url",
+        "description": "select(ProductVariant).where(ProductVariant.id == variant_id) with no tenant or product filter, then sets variant.image_url = url and commits."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/schemas/product_media.py",
+        "line": 19,
+        "description": "ProductMediaReorderItem has only int id and int position, with no ownership constraint."
+      },
+      {
+        "file": "backend/app/services/product_media_service.py",
+        "line": 155,
+        "description": "reorder commits the unscoped update."
+      },
+      {
+        "file": "backend/app/services/product_media_service.py",
+        "line": 78,
+        "description": "add_media commits the variant mutation made by _sync_cover_url."
+      },
+      {
+        "file": "backend/app/services/product_media_service.py",
+        "line": 58,
+        "description": "Existing-media lookup is filtered by (own product_id, variant_id), empty for a foreign variant, so is_first is true."
+      },
+      {
+        "file": "backend/app/services/product_media_service.py",
+        "line": 89,
+        "description": "set_cover and delete_media check media.product_id == product_id; reorder and add_media have no equivalent, showing the missing control."
+      },
+      {
+        "file": "backend/app/core/config.py",
+        "line": 25,
+        "description": "RLS_ENABLED defaults to False and no deploy file enables it; ProductMedia has no tenant_id so RLS would not protect the media table anyway."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "Authenticated user in any tenant."
+      },
+      {
+        "kind": "authorization_role",
+        "description": "ADMIN or MANAGER for reorder and upload."
+      },
+      {
+        "kind": "data_state",
+        "description": "Victim media id or variant id (sequential, enumerable); for the variant overwrite the attacker's own product must have no media for that variant_id, e.g. a fresh product."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "RLS off by default; even with RLS on, product_media has no tenant column so the reorder write is unaffected."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A MANAGER of tenant A who owns product P_A and enumerates integer ids belonging to tenant B.",
+      "payloads": [
+        "PUT /api/v1/products/{P_A}/media/reorder [{\"id\":<tenantB_media_id>,\"position\":999}]",
+        "POST /api/v1/products/{P_A}/media/upload?variant_id=<tenantB_variant_id> with a valid image file",
+        "POST /api/v1/products/{P_A}/media/upload/base64 {\"image_data\":\"<base64 image>\",\"variant_id\":<tenantB_variant_id>}"
+      ],
+      "instructions": [
+        "On a local dummy deployment authenticate as a MANAGER in tenant A with an own product.",
+        "Send the reorder PUT with a foreign media id; the UPDATE runs without ownership checks and commits.",
+        "Or upload an image to the own product with variant_id set to a foreign variant; _sync_cover_url overwrites the foreign variant's image_url."
+      ],
+      "observed_result": "Source-established (not executed): reorder issues UPDATE product_media ... WHERE id = <supplied id> and commits with no product or tenant check; the upload path sets ProductVariant.image_url for any variant id to the attacker-supplied URL and commits."
+    },
+    "remediation": {
+      "strategy": "In reorder load the product's media ids and reject items not in that set, and add ProductMedia.product_id == product_id to the UPDATE; in add_media when variant_id is set select ProductVariant with id, product_id and tenant_id and 404 if absent; apply the same scoped lookup in _sync_cover_url. Regression tests: cross-tenant reorder leaves the foreign position unchanged; upload with a foreign variant_id returns 404 and leaves variant.image_url unchanged."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Any MANAGER or ADMIN of any tenant with one request and sequential ids; the variant overwrite needs an own product with no media for that variant, easy to arrange."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Cross-tenant write limited in scope: reorder changes display position; the variant overwrite replaces image_url with attacker-chosen content (defacement of another tenant's catalog or PDV imagery); no data exposure, account takeover or financial damage."
+      },
+      "overall_severity": "medium"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Endpoint, schema, service and repository read; none validates ownership of media or variant ids and both paths commit; only where variant image_url is rendered remains uncertain."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "tenant-authz/suggestions-unscoped",
+    "title": "Suggestions and tags endpoints ignore tenant_id: cross-tenant tag read, tag soft-delete and tag injection, and foreign product catalog data returned by /suggestions/{id}",
+    "description": "The suggestions router passes caller-controlled product_id and tag_id to SuggestionService without ownership checks, and the service never uses tenant_id in any read or in delete_tag. (1) GET /suggestions/{product_id}/tags returns the active tags of any tenant's product. (2) DELETE /suggestions/tags/{tag_id} soft-deletes any tenant's tag by id; POST /suggestions/tags stamps the caller's tenant_id but accepts any product_id, so tags can be attached to a foreign product. (3) GET /suggestions/{product_id} finds candidate tags across all tenants and loads Product rows by id with no tenant filter, returning product name, image URL, min and max price, total stock and matching tags of other tenants' products, even when the caller passes their own product_id; the same-category fallback is also unscoped. Exposed data is catalog names, prices and stock; write impact is soft-deleting or injecting low-value tags.",
+    "root_cause": "Tenant scoping was applied only to ProductTag insertion; every read, the delete and the product hydration select by product_id or id only, and endpoints do no ownership pre-check, so isolation depends on opt-in code filters or on RLS, which is off by default.",
+    "intended_behavior": "Every product, tag and suggestion read or write is restricted to the caller's tenant; foreign ids behave as not found; suggestions are computed only from the caller's own tags and products.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/suggestions.py",
+        "line": 16,
+        "scope": "get_suggestions (GET /suggestions/{product_id}, SELLER+); get_product_tags at 28 (no tenant dependency); delete_product_tag at 47 (MANAGER+)",
+        "description": "Caller-supplied product_id and tag_id go to SuggestionService; tenant_id is only forwarded and never used in a query; get_tags and delete_tag do not take tenant_id."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/suggestion_service.py",
+        "line": 46,
+        "scope": "SuggestionService.get_tags",
+        "description": "Selects ProductTag by product_id and is_active only."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/suggestion_service.py",
+        "line": 91,
+        "scope": "SuggestionService.suggest",
+        "description": "Reference tags read by product_id and is_active only; compatible tags searched across all tenants (118-130)."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/suggestion_service.py",
+        "line": 71,
+        "scope": "SuggestionService.delete_tag",
+        "description": "Selects ProductTag by id and is_active only, sets is_active=False and commits (74-77)."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/services/suggestion_service.py",
+        "line": 150,
+        "scope": "SuggestionService.suggest",
+        "description": "Product hydrated by Product.id and is_active only, returning name, image_url, price range and stock of any tenant in SuggestionResponse (164-175)."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/api/v1/endpoints/suggestions.py",
+        "line": 25,
+        "description": "Service called with product_id and tenant_id but the service never uses tenant_id in a query."
+      },
+      {
+        "file": "backend/app/services/suggestion_service.py",
+        "line": 59,
+        "description": "add_tag stamps the caller's tenant_id but accepts any product_id (ProductTagCreate.product_id only gt=0)."
+      },
+      {
+        "file": "backend/app/services/suggestion_service.py",
+        "line": 183,
+        "description": "Fallback loads the reference Product by id and lists products with the same category_id with no tenant filter (189-198)."
+      },
+      {
+        "file": "backend/app/models/product_tag.py",
+        "line": 18,
+        "description": "ProductTag inherits BaseModel and has a tenant_id column (models/base.py:56) that these queries never filter on."
+      },
+      {
+        "file": "backend/app/core/permissions.py",
+        "line": 84,
+        "description": "The matrix gates only by role: GET /suggestions/ SELLER, writes (line 91) MANAGER."
+      },
+      {
+        "file": "backend/app/core/config.py",
+        "line": 25,
+        "description": "RLS_ENABLED defaults to False; nothing under deploy, .github or env examples sets it; scripts/rls_apply.py is manual only."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "Valid tenant user JWT: SELLER or higher for the GETs, MANAGER or higher for POST and DELETE."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "RLS_ENABLED False (default and not enabled by any deploy, workflow or env example); production value not visible in source."
+      },
+      {
+        "kind": "data_state",
+        "description": "By-id parts need sequential foreign ids; the suggest read needs no guessing because the global tag match returns other tenants' products sharing tag values such as common colors."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A SELLER or MANAGER of tenant A with their own JWT.",
+      "payloads": [
+        "GET /api/v1/suggestions/{own_product_id}?limit=20",
+        "GET /api/v1/suggestions/{tenantB_product_id}/tags",
+        "DELETE /api/v1/suggestions/tags/{tenantB_tag_id}",
+        "POST /api/v1/suggestions/tags {\"product_id\":<tenantB_product_id>,\"tag_type\":\"color\",\"tag_value\":\"preto\"}"
+      ],
+      "instructions": [
+        "On a local dummy two-tenant database authenticate as tenant A (MANAGER for write calls).",
+        "Call GET /suggestions/{own_product_id} for a tagged product and observe tenant B products in the response.",
+        "Iterate ids on GET /suggestions/{N}/tags and DELETE /suggestions/tags/{M}; POST a tag with a foreign product_id."
+      ],
+      "observed_result": "Source-established (not executed): no code on the path compares the target product or tag tenant_id with the caller's; get_tags returns tags for any product_id, delete_tag deactivates any active tag id and suggest returns products from any tenant."
+    },
+    "remediation": {
+      "strategy": "Pass tenant_id into get_tags, delete_tag, suggest and the fallback and filter ProductTag.tenant_id and Product.tenant_id on every query; 404 when the reference product is not in the tenant; verify the product exists in the tenant in add_tag; add the tenant dependency to get_product_tags and delete_product_tag. Regression tests with two tenants: A cannot read or delete B's tags or add tags to B's product, and suggest returns no tenant B products."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Needs an authenticated SELLER or MANAGER, but the suggest read leaks foreign products on ordinary use without id guessing."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Cross-tenant disclosure of catalog names, images, price ranges and stock plus cross-tenant soft-delete and injection of low-value tags; no PII, credentials or sales data."
+      },
+      "overall_severity": "medium"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Endpoint and service source read directly; no tenant filter or pre-validation; production RLS value recorded as a condition."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "tenant-authz/wishlist-unscoped-refs",
+    "title": "Wishlist add accepts cross-tenant customer, product and variant ids and returns the foreign customer's name and product data",
+    "description": "POST /api/v1/wishlist/ (SELLER or higher) takes customer_id, product_id and variant_id from the body and never checks they belong to the caller's tenant. find_existing does not filter by tenant_id, so it can return another tenant's wishlist row. Otherwise a new row is inserted under the caller's tenant_id referencing the foreign customer, product and variant, and the service reloads it with selectinload on customer, product and variant. _build_response returns customer.full_name, product_name, variant size and color, product image URL and notes for objects owned by another tenant. Ids are sequential. No ownership check exists in the endpoint, service, schema or repository and RLS is off by default.",
+    "root_cause": "The wishlist write path trusts client-supplied foreign keys: find_existing has no tenant filter, create inserts body ids without verifying tenant ownership of Customer, Product and ProductVariant, and the response is built from ORM relationships with no tenant filter.",
+    "intended_behavior": "A wishlist entry may only link a customer, product and variant of the caller's tenant; duplicate detection is tenant-scoped; foreign ids give 404 and are never echoed.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/api/v1/endpoints/wishlist.py",
+        "line": 38,
+        "scope": "add_to_wishlist",
+        "description": "POST /wishlist/ accepts WishlistCreate (customer_id, product_id, variant_id, look_id, notes); SELLER or higher; tenant_id comes from the caller; no ownership validation."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/services/wishlist_service.py",
+        "line": 41,
+        "scope": "WishlistService.add",
+        "description": "Passes the body unchanged to repo.create, then reloads by Wishlist.id with selectinload of product, variant and customer (45-53)."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/repositories/wishlist_repository.py",
+        "line": 74,
+        "scope": "WishlistRepository.find_existing",
+        "description": "Filters only on customer_id, product_id, is_active and optionally variant_id, so it can return another tenant's row, which create returns as is (55-59)."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/repositories/wishlist_repository.py",
+        "line": 61,
+        "scope": "WishlistRepository.create",
+        "description": "Inserts a Wishlist with the caller's tenant_id and unvalidated body ids, then commits."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/services/wishlist_service.py",
+        "line": 27,
+        "scope": "_build_response",
+        "description": "Returns customer.full_name, product.name, product.image_url, variant size and color and notes of the foreign objects to the caller."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/schemas/wishlist.py",
+        "line": 7,
+        "description": "WishlistCreate only enforces customer_id > 0 and product_id > 0."
+      },
+      {
+        "file": "backend/app/core/permissions.py",
+        "line": 85,
+        "description": "The matrix allows POST, GET and DELETE on /wishlist/ for SELLER or higher: role check only."
+      },
+      {
+        "file": "backend/app/models/wishlist.py",
+        "line": 30,
+        "description": "customer, product and variant are plain relationships with no tenant criteria."
+      },
+      {
+        "file": "backend/app/services/wishlist_service.py",
+        "line": 62,
+        "description": "remove() and list_by_customer() check tenant_id, so only the add path lacks scoping."
+      },
+      {
+        "file": "backend/app/core/config.py",
+        "line": 25,
+        "description": "RLS_ENABLED defaults to False; no setting under deploy, workflows or docs enables it."
+      },
+      {
+        "file": "backend/app/tasks/wishlist_notifier.py",
+        "line": 123,
+        "description": "Secondary effect: the hourly notifier, with RLS bypass, sends a WhatsApp message to item.customer.phone when stock is positive, so a planted cross-tenant row can trigger a message to a foreign customer."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "authentication_level",
+        "description": "Valid authenticated account in any tenant."
+      },
+      {
+        "kind": "authorization_role",
+        "description": "SELLER or higher."
+      },
+      {
+        "kind": "system_configuration",
+        "description": "RLS_ENABLED False (default); no source enables it. If production enables it, the cross-tenant read would likely be blocked."
+      },
+      {
+        "kind": "data_state",
+        "description": "Attacker guesses valid sequential ids of a customer, product or variant in another tenant; for the duplicate-row path a foreign wishlist row must exist."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "A seller in tenant A who wants tenant B's customer names and catalog details.",
+      "payloads": [
+        "POST /api/v1/wishlist/ {\"customer_id\":<tenant B customer id>,\"product_id\":<tenant B product id>,\"variant_id\":null}"
+      ],
+      "instructions": [
+        "On a local dummy two-tenant database authenticate as a SELLER in tenant A.",
+        "POST the payload with guessed ids, iterating to enumerate.",
+        "Read customer_name, product_name, variant_description, product_image_url and notes in the 201 response."
+      ],
+      "observed_result": "Source-established (not executed): the request passes schema validation; find_existing may return tenant B's row or create inserts a tenant A row pointing at tenant B's customer and product; the reload returns the foreign customer's full_name, product name and image and variant description."
+    },
+    "remediation": {
+      "strategy": "Validate customer_id, product_id, variant_id (belonging to product_id) and look_id against the caller's tenant in WishlistService.add before repo.create (404 on mismatch, nothing echoed); add Wishlist.tenant_id to find_existing and to the reload select. Regression tests: tenant A posting tenant B ids gets 404 and creates no row; matching tenant B's existing wishlist row does not return it; same-tenant add still works."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "medium",
+        "reason": "Any seller in any tenant, one authenticated request, sequential ids; RLS off in visible configuration; attacker must guess valid foreign ids."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Exposed customer PII is limited to full_name (no phone, email or CPF) plus product and variant details and cross-tenant link rows; a real boundary violation with narrow data."
+      },
+      "overall_severity": "medium"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "All files on the path read in the working tree; no ownership validation anywhere; only the production RLS value is outside source."
+    }
+  },
+  {
+    "verdict": "confirmed",
+    "fingerprint": "webhook/baileys-whatsapp-failopen-auth-crosstenant-queries",
+    "title": "Legacy Baileys WhatsApp webhook is unauthenticated in the shipped production deploy and reads Product and Customer data across all tenants",
+    "description": "POST /webhooks/whatsapp checks a shared token only when the BOT_TOKEN module constant is non-empty. BOT_TOKEN is read with os.getenv at import time; deploy/docker-compose.prod.yml passes the container an explicit list of variables and WHATSAPP_BOT_TOKEN is not on it, so the token is empty and the check skipped; any internet caller reaches the handlers through nginx. The handlers run on get_db_unscoped and their queries have no tenant filter: product search lists active product names and prices from every tenant, and the wishlist handler looks up a Customer by phone with LIKE on a caller-controlled from_number (the % and _ wildcards work) and replies with the customer's first name and wishlist product names.",
+    "root_cause": "Three flaws combine: a fail-open token check (if BOT_TOKEN and ...), a prod compose that omits WHATSAPP_BOT_TOKEN (pydantic env_file does not populate os.environ), and tenant-agnostic queries on an RLS-bypassing session.",
+    "intended_behavior": "Only the store's own Baileys bot presenting the shared secret may call the webhook, and lookups are limited to the one tenant the bot serves with an exact normalized phone match.",
+    "trace": [
+      {
+        "kind": "entrypoint",
+        "file": "backend/app/webhooks/whatsapp.py",
+        "line": 105,
+        "scope": "whatsapp_webhook",
+        "description": "Public POST /webhooks/whatsapp mounted at backend/app/main.py:174 with no prefix and no auth dependency; takes attacker-controlled from_number, body, session_state and an optional X-Bot-Token; uses get_db_unscoped."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/webhooks/whatsapp.py",
+        "line": 116,
+        "scope": "whatsapp_webhook",
+        "description": "if BOT_TOKEN and x_bot_token != BOT_TOKEN is skipped when BOT_TOKEN is empty; BOT_TOKEN set at line 35 from os.getenv."
+      },
+      {
+        "kind": "propagation",
+        "file": "backend/app/webhooks/whatsapp.py",
+        "line": 143,
+        "scope": "whatsapp_webhook",
+        "description": "Body 3 or wishlist routes to _handle_wishlist with the attacker from_number; state awaiting_product_search (line 129) routes to _handle_product_search."
+      },
+      {
+        "kind": "sink",
+        "file": "backend/app/webhooks/whatsapp.py",
+        "line": 208,
+        "scope": "_handle_wishlist",
+        "description": "select(Customer) filters is_active and Customer.phone.like('%suffix%') with no tenant filter on an RLS-bypass session; reply (239, 246-249) contains first name and wishlist product names; product search (165-169) is likewise cross-tenant."
+      }
+    ],
+    "evidence": [
+      {
+        "file": "backend/app/webhooks/whatsapp.py",
+        "line": 35,
+        "description": "BOT_TOKEN = os.getenv('WHATSAPP_BOT_TOKEN','') read once at import, defaulting to empty."
+      },
+      {
+        "file": "backend/app/core/database.py",
+        "line": 144,
+        "description": "get_db_unscoped calls bypass_on; its docstring says the route must filter by tenant itself, which this webhook does not."
+      },
+      {
+        "file": "deploy/docker-compose.prod.yml",
+        "line": 30,
+        "description": "Backend environment block lists explicit variables (comment at line 40: container receives only what is listed); includes WHATSAPP_CLOUD_* but not WHATSAPP_BOT_TOKEN."
+      },
+      {
+        "file": "backend/app/core/config.py",
+        "line": 13,
+        "description": "Settings uses env_file='.env' with extra='ignore', which does not populate os.environ, and has no bot-token field."
+      },
+      {
+        "file": "backend/app/main.py",
+        "line": 174,
+        "description": "The legacy whatsapp_router is included unconditionally outside /api/v1; nginx location / (deploy/protecao/provador-api.site:33) proxies all paths with only rate limits."
+      },
+      {
+        "file": "docs/COORDENACAO.md",
+        "line": 27,
+        "description": "Docs state the old POST /webhooks/whatsapp (Baileys bot) continues as is next to the new Cloud API webhook, so the route is intentionally live."
+      },
+      {
+        "file": "whatsapp_bot/.env.example",
+        "line": 10,
+        "description": "The token is documented only for the bot and backend/.env, absent from deploy/.env.prod.example and docker-compose.prod.yml."
+      }
+    ],
+    "conditions": [
+      {
+        "kind": "system_configuration",
+        "description": "WHATSAPP_BOT_TOKEN unset or empty in the backend process; the shipped prod compose never passes it. Does not hold if the operator patched compose or the container environment on the VPS."
+      },
+      {
+        "kind": "network_routing",
+        "description": "Backend reachable through nginx at api.provadorfit.com.br; nothing restricts /webhooks/whatsapp."
+      },
+      {
+        "kind": "data_state",
+        "description": "For the PII branch a customer whose phone matches the pattern must exist and be active; the attacker must narrow the pattern to a single match because multiple matches raise MultipleResultsFound (HTTP 500)."
+      }
+    ],
+    "execution": {
+      "attacker_perspective": "Anonymous internet client with no credentials or tenant membership.",
+      "payloads": [
+        "POST /webhooks/whatsapp {\"from_number\":\"x\",\"body\":\"legging\",\"session_state\":\"awaiting_product_search\"}",
+        "POST /webhooks/whatsapp {\"from_number\":\"55349%\",\"body\":\"3\"}"
+      ],
+      "instructions": [
+        "Locally with WHATSAPP_BOT_TOKEN unset, seed two dummy tenants with distinct products and one customer with a wishlist in tenant B.",
+        "Send the first payload with no X-Bot-Token; the reply lists up to 5 active products with prices from any tenant.",
+        "Send the second payload with a digit pattern using wildcards, narrowing until exactly one customer matches; the reply contains the first name and up to 10 wishlist product names."
+      ],
+      "observed_result": "Source-established (not executed): with BOT_TOKEN empty the 401 check is skipped; with RLS bypassed and no tenant predicate the product search returns names and prices from all tenants and the wishlist handler returns the matched customer's first name and wishlist items from any tenant. Multi-match patterns raise an unhandled MultipleResultsFound."
+    },
+    "remediation": {
+      "strategy": "Fail closed: refuse every request (503/401) when the token is unset and compare with hmac.compare_digest; read the token through settings; add WHATSAPP_BOT_TOKEN to docker-compose.prod.yml and deploy/.env.prod.example, or remove the router from main.py if the Baileys bot is retired; pin a tenant id for the bot and add tenant_id predicates to the Product and Customer queries; replace LIKE with an exact comparison on the normalized phone (or escape wildcards) and use a tenant-scoped unique lookup. Regression tests: no valid token gives 401 even when unset; handlers return only the configured tenant's rows."
+    },
+    "severity": {
+      "likelihood": {
+        "score": "high",
+        "reason": "The shipped prod compose never passes the token, the endpoint is internet-reachable and needs no credentials."
+      },
+      "impact": {
+        "score": "medium",
+        "reason": "Cross-tenant read but limited: product names and prices are largely public catalog data; wishlist path exposes a customer's first name and wishlist items after phone-pattern guessing; no write path."
+      },
+      "overall_severity": "medium"
+    },
+    "confidence": {
+      "score": "high",
+      "reason": "Every step read in current source; only a server-side compose or environment edit on the VPS outside the repo would close the hole."
+    }
+  }
+]
