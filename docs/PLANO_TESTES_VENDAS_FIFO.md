@@ -65,14 +65,14 @@ Se diferir, uma peça sumiu ou foi inventada. Mais: um livro de estoque independ
 (`initdb -D <dir> -U postgres --auth=trust` e `pg_ctl -o "-p 55432" start`), `TEST_PG_URL=postgresql+asyncpg://postgres@127.0.0.1:55432/postgres pytest tests/pg -p no:cacheprovider --no-cov`.
 Ainda sem trava (fora do alcance desta rodada): exclusão/edição de entrada de estoque e ajuste manual de inventário durante vendas.
 
-**C. Dinheiro e relatórios (arquivo novo `tests/test_estresse_dinheiro.py`).** Depois de sequências aleatórias, conferir: soma dos pagamentos
+**C. Dinheiro e relatórios (arquivo novo `tests/test_estresse_dinheiro.py`). EM ANDAMENTO (nuvem, 28/10).** Depois de sequências aleatórias, conferir: soma dos pagamentos
 confirmados = receita da venda; reembolso + diferença da troca; receita líquida do dashboard = vendas ativas - devoluções + trocas;
 lucro = receita - custo FIFO das peças que ficaram vendidas; pontos de fidelidade (ganhos - estornados nunca negativos, cliente com
 total gasto coerente); relatórios `/sales/reports/*` e PDF batem com o livro. Pontos já suspeitos: custo da peça devolvida no lucro
 ("devolução parcial NÃO abate o lucro", ver CLAUDE.md) e `supplier_insights` contando como vendida a peça devolvida
 (`sale_sources` agora tem `quantity_returned`).
 
-**D. Tela de devolução/troca no navegador (Playwright, backend local descartável).** Fluxo completo no app (lista de vendas, devolver,
+**D. Tela de devolução/troca no navegador (Playwright, backend local descartável). EM ANDAMENTO (nuvem, 28/10, depois da C).** Fluxo completo no app (lista de vendas, devolver,
 trocar, diferença a pagar), erros do servidor legíveis, resumo e estoque conferidos. Nada disso foi clicado ainda.
 
 ## Regras para quem for continuar
