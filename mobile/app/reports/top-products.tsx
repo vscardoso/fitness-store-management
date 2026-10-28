@@ -27,6 +27,7 @@ import { formatCurrency } from '@/utils/format';
 import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
+import { FitText } from '@/components/ui/PriceDisplay';
 import {
   getTopProducts,
   TopProductsPeriod,
@@ -152,9 +153,9 @@ function SummaryStats({ data, brandingPrimary }: { data: TopProductsResponse; br
 
       <View style={styles.summaryCardWide}>
         <Ionicons name="cash-outline" size={18} color={VALUE_COLORS.positive} />
-        <Text style={styles.summaryValueWide} numberOfLines={1} adjustsFontSizeToFit>
+        <FitText style={styles.summaryValueWide}>
           {formatCurrency(data.total_revenue)}
-        </Text>
+        </FitText>
         <Text style={styles.summaryLabel}>Receita total</Text>
       </View>
     </View>

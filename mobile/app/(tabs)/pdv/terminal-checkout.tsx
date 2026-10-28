@@ -27,6 +27,7 @@ import { API_CONFIG } from '@/constants/Config';
 import { useCart } from '@/hooks/useCart';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
+import { Money } from '@/components/ui/PriceDisplay';
 const C = Colors.light;
 
 export default function TerminalCheckoutScreen() {
@@ -263,7 +264,7 @@ export default function TerminalCheckoutScreen() {
           </View>
 
           {/* Valor em destaque */}
-          <Text style={styles.amount}>{formatCurrency(totalAmount)}</Text>
+          <Money style={styles.amount} value={Number(totalAmount)} />
 
           {/* Badge de tipo */}
           {paymentBadge()}

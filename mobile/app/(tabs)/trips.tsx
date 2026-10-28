@@ -22,6 +22,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
+import { FitText } from '@/components/ui/PriceDisplay';
 export default function TripsScreen() {
   const router = useRouter();
   const brandingColors = useBrandingColors();
@@ -219,16 +220,16 @@ export default function TripsScreen() {
             <View style={styles.financialCard}>
               <View style={styles.financialBlock}>
                 <Text style={styles.financialLabel}>CUSTO TOTAL</Text>
-                <Text style={[styles.financialValue, { color: VALUE_COLORS.negative }]} numberOfLines={1}>
+                <FitText style={[styles.financialValue, { color: VALUE_COLORS.negative }]}>
                   {formatCurrency(stats.totalCost)}
-                </Text>
+                </FitText>
               </View>
               <View style={styles.financialDivider} />
               <View style={styles.financialBlock}>
                 <Text style={styles.financialLabel}>CUSTO MEDIO</Text>
-                <Text style={[styles.financialValue, { color: VALUE_COLORS.warning }]} numberOfLines={1}>
+                <FitText style={[styles.financialValue, { color: VALUE_COLORS.warning }]}>
                   {formatCurrency(stats.avgCost)}
-                </Text>
+                </FitText>
               </View>
             </View>
 

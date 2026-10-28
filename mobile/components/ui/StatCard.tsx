@@ -5,6 +5,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 
+import { FitText } from '@/components/ui/PriceDisplay';
 interface StatCardProps {
   label: string;
   value: string;
@@ -52,9 +53,9 @@ export default function StatCard({
       )}
       <Text style={[styles.label]}>{label}</Text>
       <View style={styles.valueContainer}>
-        <Text style={[styles.value, { color }]} numberOfLines={1} adjustsFontSizeToFit>
+        <FitText style={[styles.value, { color }]} containerStyle={suffix ? styles.valueFitShrink : styles.valueFitFull}>
           {value}
-        </Text>
+        </FitText>
         {suffix && <Text style={[styles.suffix]}>{suffix}</Text>}
       </View>
     </Animated.View>
@@ -83,6 +84,8 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: Colors.light.textSecondary,
   },
+  valueFitFull: { flexGrow: 1, flexShrink: 1, minWidth: 0 },
+  valueFitShrink: { flexShrink: 1, minWidth: 0 },
   valueContainer: {
     flexDirection: 'row',
     alignItems: 'baseline',

@@ -38,6 +38,7 @@ import type { ProductGrouped, ProductVariant as GroupedVariant } from '@/types';
 import ProductSelectionModal from '@/components/sale/ProductSelectionModal';
 import QRCodeScanner from '@/components/sale/QRCodeScanner';
 
+import { Money } from '@/components/ui/PriceDisplay';
 export default function SaleScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -736,7 +737,7 @@ export default function SaleScreen() {
               )}
               <View style={[styles.totalRow, styles.totalRowFinal]}>
                 <Text style={styles.totalFinalLabel}>Total</Text>
-                <Text style={styles.totalFinalValue}>{formatCurrency(cart.total)}</Text>
+                <Money style={styles.totalFinalValue} value={Number(cart.total)} />
               </View>
               {cartProfit && (
                 <View style={styles.profitRow}>

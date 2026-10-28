@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { formatCurrency } from '@/utils/format';
+import { PriceRange } from '@/components/ui/PriceDisplay';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import type { ProductVariant } from '@/types/productVariant';
 
@@ -212,13 +213,11 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
               <View style={styles.priceContainer}>
                 <View style={[styles.priceItem, { flex: 2 }]}>
                   <Text style={styles.priceLabel}>Faixa de Preço</Text>
-                  <Text style={[styles.priceValueHighlight, { color: VALUE_COLORS.neutral }]}>
-                    {priceRange
-                      ? priceRange[0] === priceRange[1]
-                        ? formatCurrency(priceRange[0])
-                        : `${formatCurrency(priceRange[0])} – ${formatCurrency(priceRange[1])}`
-                      : '-'}
-                  </Text>
+                  {priceRange ? (
+                    <PriceRange min={priceRange[0]} max={priceRange[1]} size={16} minSize={11} color={VALUE_COLORS.neutral} />
+                  ) : (
+                    <Text style={[styles.priceValueHighlight, { color: VALUE_COLORS.neutral }]}>-</Text>
+                  )}
                 </View>
                 <View style={styles.priceDivider} />
                 <View style={styles.priceItem}>

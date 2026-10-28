@@ -29,6 +29,7 @@ import PeriodFilter, { PeriodFilterValue } from '@/components/PeriodFilter';
 import type { Sale } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
+import { Money } from '@/components/ui/PriceDisplay';
 const statusMap: Record<string, { label: string; color: string; icon: string }> = {
   pending:            { label: 'Pendente',     color: '#F59E0B',             icon: 'time-outline' },
   completed:          { label: 'Concluída',    color: VALUE_COLORS.positive, icon: 'checkmark-circle-outline' },
@@ -149,9 +150,7 @@ export default function SalesListScreen() {
             </View>
 
             {/* Valor em destaque */}
-            <Text style={[styles.amount, { color: brandingColors.primary }]}>
-              {formatCurrency(item.total_amount)}
-            </Text>
+            <Money style={[styles.amount, { color: brandingColors.primary }]} value={Number(item.total_amount)} />
 
             {/* Linha inferior: cliente + data/hora */}
             <View style={styles.cardBottom}>
@@ -227,7 +226,7 @@ export default function SalesListScreen() {
           </View>
 
           <View style={styles.summaryBody}>
-            <Text style={styles.summaryValue}>{formatCurrency(totalRevenue)}</Text>
+            <Money style={styles.summaryValue} value={Number(totalRevenue)} />
             <Text style={styles.summaryMeta}>
               {salesCount} {salesCount === 1 ? 'venda' : 'vendas'} • {completedCount} concluídas
             </Text>

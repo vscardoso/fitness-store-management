@@ -35,6 +35,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
+import { Money } from '@/components/ui/PriceDisplay';
 /** Texto do usuário dentro do HTML do PDF. */
 const escapeHtml = (v: string) =>
   v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -682,7 +683,7 @@ export default function SalesReportScreen() {
                     </View>
                     <Text style={styles.metricLabel}>Receita</Text>
                   </View>
-                  <Text style={[styles.metricValue, { color: VALUE_COLORS.positive }]}>{formatCurrency(report.total_revenue)}</Text>
+                  <Money style={[styles.metricValue, { color: VALUE_COLORS.positive }]} value={Number(report.total_revenue)} />
                   <Text style={styles.metricCount}>{report.total_sales} vendas</Text>
                 </View>
 
@@ -693,7 +694,7 @@ export default function SalesReportScreen() {
                     </View>
                     <Text style={styles.metricLabel}>Lucro</Text>
                   </View>
-                  <Text style={[styles.metricValue, { color: VALUE_COLORS.positive }]}>{formatCurrency(report.total_profit)}</Text>
+                  <Money style={[styles.metricValue, { color: VALUE_COLORS.positive }]} value={Number(report.total_profit)} />
                   <Text style={styles.metricCount}>Margem: {report.profit_margin.toFixed(1)}%</Text>
                 </View>
 
@@ -704,7 +705,7 @@ export default function SalesReportScreen() {
                     </View>
                     <Text style={styles.metricLabel}>Ticket Médio</Text>
                   </View>
-                  <Text style={[styles.metricValue, { color: VALUE_COLORS.neutral }]}>{formatCurrency(report.average_ticket)}</Text>
+                  <Money style={[styles.metricValue, { color: VALUE_COLORS.neutral }]} value={Number(report.average_ticket)} />
                   <Text style={styles.metricCount}>por venda</Text>
                 </View>
 
@@ -715,7 +716,7 @@ export default function SalesReportScreen() {
                     </View>
                     <Text style={styles.metricLabel}>Custo das peças</Text>
                   </View>
-                  <Text style={[styles.metricValue, { color: VALUE_COLORS.negative }]}>{formatCurrency(report.total_cost)}</Text>
+                  <Money style={[styles.metricValue, { color: VALUE_COLORS.negative }]} value={Number(report.total_cost)} />
                   <Text style={styles.metricCount}>custo total</Text>
                 </View>
               </View>

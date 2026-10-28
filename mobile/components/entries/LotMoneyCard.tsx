@@ -23,6 +23,7 @@ import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 
+import { Money } from '@/components/ui/PriceDisplay';
 interface Props {
   entryId: number;
   /** Quem pode lançar despesa do lote (gerente e admin). */
@@ -276,7 +277,7 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
       {hasSales && (
         <>
           <Text style={styles.blockTitle}>3. Quanto sobrou até agora</Text>
-          <Text style={[styles.bigNumber, { color: profitColor }]}>{formatCurrency(a.gross_profit)}</Text>
+          <Money style={[styles.bigNumber, { color: profitColor }]} value={Number(a.gross_profit)} />
           <Text style={styles.note}>
             {a.gross_profit >= 0
               ? `É o lucro das peças que já saíram, já descontado o custo delas (com a parte do frete e da viagem). De cada R$ 100 que você vendeu, R$ ${a.margin_pct.toFixed(0)} viraram lucro.`

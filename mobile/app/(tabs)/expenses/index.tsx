@@ -20,6 +20,7 @@ import AppButton from '@/components/ui/AppButton';
 import type { Expense } from '@/types/expense';
 import PeriodFilter, { PeriodFilterValue } from '@/components/PeriodFilter';
 
+import { Money } from '@/components/ui/PriceDisplay';
 const fmt = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -150,7 +151,7 @@ export default function ExpenseListScreen() {
 
         {/* Valor em destaque */}
         <View style={styles.summaryBody}>
-          <Text style={styles.summaryValue}>{formatCurrency(total)}</Text>
+          <Money style={styles.summaryValue} value={Number(total)} />
           <Text style={styles.summaryMeta}>
             {expenses?.length ?? 0} {(expenses?.length ?? 0) === 1 ? 'despesa' : 'despesas'}
           </Text>

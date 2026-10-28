@@ -65,6 +65,7 @@ import { logInfo, logError } from '@/services/debugLog';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import { clearPresetEntry } from '@/utils/presetEntry';
 
+import { Money } from '@/components/ui/PriceDisplay';
 /**
  * Capitaliza a primeira letra de cada palavra no nome do fornecedor
  * Ex: "joão silva" -> "João Silva", "MARIA SANTOS" -> "Maria Santos"
@@ -2167,9 +2168,7 @@ export default function AddStockEntryScreen() {
             })()}
             <View style={styles.summaryRow}>
               <Text style={styles.totalLabel}>Total da Entrada</Text>
-              <Text style={[styles.totalValue, { color: brandingColors.primary }]}>
-                {formatCurrency(total - Math.min(unmaskCurrency(discountText) || 0, total))}
-              </Text>
+              <Money style={[styles.totalValue, { color: brandingColors.primary }]} value={Number(total - Math.min(unmaskCurrency(discountText) || 0, total))} />
             </View>
           </View>
         )}

@@ -27,6 +27,7 @@ import { formatCurrency } from '@/utils/format';
 import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
+import { FitText } from '@/components/ui/PriceDisplay';
 import {
   getHistory,
   HistoryPeriod,
@@ -155,7 +156,7 @@ function QuickStats({ events, brandingPrimary }: { events: HistoryEvent[]; brand
 
       <View style={styles.statCard}>
         <Ionicons name="cash-outline" size={18} color={brandingPrimary} />
-        <Text style={styles.statValueSmall} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(totalSales)}</Text>
+        <FitText style={styles.statValueSmall}>{formatCurrency(totalSales)}</FitText>
         <Text style={styles.statLabel}>Vendido</Text>
       </View>
     </View>

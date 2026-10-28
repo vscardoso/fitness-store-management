@@ -36,6 +36,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { SaleWithDetails } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
+import { Money } from '@/components/ui/PriceDisplay';
 const statusMap: Record<string, { label: string; color: string; solid?: boolean; icon: keyof typeof Ionicons.glyphMap }> = {
   pending:            { label: 'Pendente',     color: '#F59E0B', icon: 'time-outline' },
   completed:          { label: 'Concluída',    color: VALUE_COLORS.positive, solid: true, icon: 'checkmark-circle' },
@@ -274,7 +275,7 @@ export default function SaleDetailsScreen() {
             <Text style={[styles.statusText, { color: statusStyle.solid ? '#fff' : statusStyle.color }]}>{statusStyle.label}</Text>
           </View>
           <Text style={styles.heroLabel}>TOTAL DA VENDA</Text>
-          <Text style={styles.heroAmount}>{formatCurrency(sale.total_amount)}</Text>
+          <Money style={styles.heroAmount} value={Number(sale.total_amount)} />
           <Text style={styles.heroItems}>
             {sale.items.length} {sale.items.length === 1 ? 'produto' : 'produtos'}
           </Text>
@@ -319,19 +320,19 @@ export default function SaleDetailsScreen() {
         {/* ── RENTABILIDADE (FIFO) — só exibe quando disponível ── */}
         {sale.total_profit != null && (
           <View style={styles.profitCard}>
-            <Ionicons name="trending-up" size={16} color={VALUE_COLORS.positive} />
-            <Text style={styles.profitTitle}>Rentabilidade</Text>
-            <View style={styles.profitSep} />
+            <View style={styles.profitHead}>
+              <Ionicons name="trending-up" size={16} color={VALUE_COLORS.positive} />
+              <Text style={styles.profitTitle}>Rentabilidade</Text>
+            </View>
             <View style={styles.profitCol}>
               <Text style={styles.profitLbl}>Custo</Text>
-              <Text style={[styles.profitVal, { color: VALUE_COLORS.negative }]}>{formatCurrency(sale.total_cost || 0)}</Text>
+              <Money style={styles.profitVal} value={Number(sale.total_cost || 0)} minSize={9} color={VALUE_COLORS.negative} />
             </View>
             <View style={styles.profitSep} />
             <View style={styles.profitCol}>
               <Text style={styles.profitLbl}>Lucro</Text>
-              <Text style={[styles.profitVal, { color: (sale.total_profit ?? 0) >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
-                {formatCurrency(sale.total_profit ?? 0)}
-              </Text>
+              <Money style={styles.profitVal} value={Number(sale.total_profit ?? 0)} minSize={9}
+                color={(sale.total_profit ?? 0) >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative} />
             </View>
             <View style={styles.profitSep} />
             <View style={styles.profitCol}>
@@ -424,7 +425,7 @@ export default function SaleDetailsScreen() {
             )}
             <View style={styles.grandTotalLine}>
               <Text style={styles.grandTotalLabel}>TOTAL</Text>
-              <Text style={styles.grandTotalValue}>{formatCurrency(sale.total_amount)}</Text>
+              <Money style={styles.grandTotalValue} value={Number(sale.total_amount)} />
             </View>
             {sale.payments.length > 0 && (
               <Text style={styles.paymentMethodText}>
@@ -677,21 +678,23 @@ const styles = StyleSheet.create({
 
   // ── Rentabilidade ─────────────────────────────────────────
   profitCard: {
-    flexDirection: 'row', alignItems: 'center',
+    flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center',
     backgroundColor: Colors.light.card,
     borderRadius: theme.borderRadius.lg,
     borderWidth: 1, borderColor: Colors.light.border,
     padding: theme.spacing.sm + 6, marginBottom: theme.spacing.sm, gap: theme.spacing.sm,
     ...theme.shadows.sm,
   },
-  profitTitle: { fontSize: theme.fontSize.xs, fontWeight: '700', color: VALUE_COLORS.positive, flex: 1 },
+  // título em linha própria: as 3 colunas de valores ficam com a largura toda (valores grandes cabem)
+  profitHead: { flexDirection: 'row', alignItems: 'center', gap: 6, flexBasis: '100%' },
+  profitTitle: { fontSize: theme.fontSize.xs, fontWeight: '700', color: VALUE_COLORS.positive },
   profitSep: { width: 1, height: 24, backgroundColor: Colors.light.border },
-  profitCol: { alignItems: 'center', flex: 1 },
+  profitCol: { alignItems: 'center', flex: 1, minWidth: 0 },
   profitLbl: {
     fontSize: theme.fontSize.xxs, color: Colors.light.textTertiary,
     textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2,
   },
-  profitVal: { fontSize: theme.fontSize.sm, fontWeight: '700', color: Colors.light.text },
+  profitVal: { fontSize: theme.fontSize.md, fontWeight: '700', color: Colors.light.text },
 
   // ── Card genérico ─────────────────────────────────────────
   card: {

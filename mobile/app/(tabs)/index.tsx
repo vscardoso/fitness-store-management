@@ -41,6 +41,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import { FitFlowLogo } from '@/components/branding/FitFlowLogo';
 import { isManagerRole } from '@/utils/roles';
 
+import { FitText, Money } from '@/components/ui/PriceDisplay';
 const { width } = Dimensions.get('window');
 
 // Interface para ações rápidas
@@ -408,7 +409,7 @@ export default function DashboardScreen() {
               )}
             </View>
             <Text style={styles.mainCardLabel}>Vendas Hoje</Text>
-            <Text style={styles.mainCardValue}>{formatCurrency(totalSalesToday)}</Text>
+            <Money style={styles.mainCardValue} value={Number(totalSalesToday)} />
             <Text style={styles.mainCardSubtitle}>
               {salesCountToday} {salesCountToday === 1 ? 'venda realizada' : 'vendas realizadas'}
             </Text>
@@ -478,7 +479,7 @@ export default function DashboardScreen() {
                 <Ionicons name="information-circle-outline" size={11} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-            <Text style={styles.monthCardValue}>{formatCurrency(periodTotal)}</Text>
+            <Money style={styles.monthCardValue} value={Number(periodTotal)} />
             <View style={styles.monthCardFooter}>
               <Text style={styles.monthCardSubtitle}>{periodCount} vendas</Text>
               {totalChangePercent !== 0 && (
@@ -517,9 +518,7 @@ export default function DashboardScreen() {
                 <Ionicons name="information-circle-outline" size={11} color="#9CA3AF" />
               </TouchableOpacity>
             </View>
-            <Text style={[styles.monthCardValue, { color: VALUE_COLORS.positive }]}>
-              {formatCurrency(periodProfit)}
-            </Text>
+            <Money style={[styles.monthCardValue, { color: VALUE_COLORS.positive }]} value={Number(periodProfit)} />
             <View style={styles.monthCardFooter}>
               <Text style={styles.monthCardSubtitle}>{periodMargin.toFixed(0)}% do vendido</Text>
               {profitChangePercent !== 0 && (
@@ -652,9 +651,9 @@ export default function DashboardScreen() {
                 <View style={styles.chartSummaryLabelRow}>
                   <Text style={styles.chartSummaryLabel} numberOfLines={1}>Faturamento</Text>
                 </View>
-                <Text style={styles.chartSummaryValue} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                <FitText style={styles.chartSummaryValue}>
                   {formatCurrency(dailySales.totals?.total || 0)}
-                </Text>
+                </FitText>
               </View>
               <View style={styles.chartSummaryDivider} />
               <View style={styles.chartSummaryItem}>
@@ -664,14 +663,9 @@ export default function DashboardScreen() {
                     <Ionicons name="information-circle-outline" size={12} color="#9CA3AF" />
                   </TouchableOpacity>
                 </View>
-                <Text
-                  style={[styles.chartSummaryValue, { color: VALUE_COLORS.positive }]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.7}
-                >
+                <FitText style={[styles.chartSummaryValue, { color: VALUE_COLORS.positive }]}>
                   {formatCurrency(dailySales.totals?.profit || 0)}
-                </Text>
+                </FitText>
               </View>
               <View style={styles.chartSummaryDivider} />
               <View style={styles.chartSummaryItem}>
@@ -681,14 +675,9 @@ export default function DashboardScreen() {
                     <Ionicons name="information-circle-outline" size={12} color="#9CA3AF" />
                   </TouchableOpacity>
                 </View>
-                <Text
-                  style={[styles.chartSummaryValue, { color: VALUE_COLORS.negative }]}
-                  numberOfLines={1}
-                  adjustsFontSizeToFit
-                  minimumFontScale={0.7}
-                >
+                <FitText style={[styles.chartSummaryValue, { color: VALUE_COLORS.negative }]}>
                   {formatCurrency(dailySales.totals?.cmv || 0)}
-                </Text>
+                </FitText>
               </View>
             </View>
           </View>
@@ -1074,7 +1063,7 @@ export default function DashboardScreen() {
                   <Ionicons name="information-circle-outline" size={11} color="#9CA3AF" />
                 </TouchableOpacity>
               </View>
-              <Text style={styles.purchasesValue}>{formatCurrency(purchasesTotal)}</Text>
+              <Money style={styles.purchasesValue} value={Number(purchasesTotal)} />
               <Text style={styles.purchasesPeriodNote}>{periodLabel}</Text>
             </View>
             {purchasesChangePercent !== 0 && (

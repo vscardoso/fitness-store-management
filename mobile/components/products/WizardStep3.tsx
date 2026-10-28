@@ -22,6 +22,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import { formatCurrency } from '@/utils/format';
+import { PriceRange } from '@/components/ui/PriceDisplay';
 import { getStockEntries, getStockEntryById } from '@/services/stockEntryService';
 import { clearPresetEntry, peekPresetEntry } from '@/utils/presetEntry';
 import type { StockEntry } from '@/types';
@@ -240,16 +241,13 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
   const isPending = isAtomicVariants || isVirtual;
 
   // Faixa de preço: mostra "min – max" quando há variantes com preços distintos
-  const priceDisplay = useMemo(() => {
+  const priceBounds = useMemo(() => {
     if (productVariants.length > 0) {
       const prices = productVariants.map((v: any) => Number(v.price)).filter((p: number) => p > 0);
-      if (prices.length > 0) {
-        const min = Math.min(...prices);
-        const max = Math.max(...prices);
-        return min === max ? formatCurrency(min) : `${formatCurrency(min)} – ${formatCurrency(max)}`;
-      }
+      if (prices.length > 0) return { min: Math.min(...prices), max: Math.max(...prices) };
     }
-    return formatCurrency(product?.price ?? 0);
+    const p = Number(product?.price ?? 0);
+    return { min: p, max: p };
   }, [productVariants, product]);
 
   const renderPrimaryModalAction = (label: string, onPress: () => void) => (
@@ -295,7 +293,9 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
             <Text style={styles.productName} numberOfLines={2}>{product.name}</Text>
             <View style={styles.productMeta}>
               <Text style={styles.productSku}>{product.sku}</Text>
-              <Text style={[styles.productPrice, { color: VALUE_COLORS.neutral }]}>{priceDisplay}</Text>
+              <View style={styles.productPriceWrap}>
+                <PriceRange min={priceBounds.min} max={priceBounds.max} inline size={15} minSize={11} color={VALUE_COLORS.neutral} />
+              </View>
             </View>
             {isAtomicVariants && productVariants.length > 0 && (
               <Text style={[styles.variantCountLabel, { color: brandingColors.primary }]}>
@@ -795,10 +795,9 @@ const createStyles = (brand: string, brand2: string) => StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 4,
   },
-  productPrice: {
-    fontSize: 15,
-    fontWeight: '700',
-    color: VALUE_COLORS.neutral,
+  productPriceWrap: {
+    flex: 1,
+    minWidth: 0,
   },
 
   // Aviso de estoque

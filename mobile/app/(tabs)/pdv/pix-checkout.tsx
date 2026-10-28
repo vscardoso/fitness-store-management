@@ -29,6 +29,7 @@ import { useCart } from '@/hooks/useCart';
 import type { PixPaymentData } from '@/types/pdv';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
+import { Money } from '@/components/ui/PriceDisplay';
 const C = Colors.light;
 
 export default function PixCheckoutScreen() {
@@ -252,7 +253,7 @@ export default function PixCheckoutScreen() {
         {/* Valor */}
         <View style={styles.amountCard}>
           <Text style={styles.amountLabel}>Total a pagar</Text>
-          <Text style={styles.amountValue}>{formatCurrency(totalAmount)}</Text>
+          <Money style={styles.amountValue} value={Number(totalAmount)} />
         </View>
 
         {/* Gerando QR Code */}

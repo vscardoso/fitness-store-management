@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Text, Image } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Text, Image, useWindowDimensions } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
 import { getImageUrl } from '@/constants/Config';
 import { useBrandingColors } from '@/store/brandingStore';
-import { formatCurrency } from '@/utils/format';
+import { PriceRange } from '@/components/ui/PriceDisplay';
 import type { ProductGrouped } from '@/types';
 
 interface ProductGroupCardProps {
@@ -15,12 +15,11 @@ interface ProductGroupCardProps {
 export default function ProductGroupCard({ product, onPress }: ProductGroupCardProps) {
   const [imageError, setImageError] = useState(false);
   const brandingColors = useBrandingColors();
+  // Tela estreita (ex.: 320 px): etiquetas embaixo do nome, para nome e preço usarem a largura toda
+  const compact = useWindowDimensions().width < 360;
 
   const hasVariants = product.variant_count > 1;
   const stockText = product.total_stock > 0 ? `${product.total_stock} un.` : 'Sem estoque';
-  const priceText = product.min_price === product.max_price
-    ? formatCurrency(product.min_price)
-    : `${formatCurrency(product.min_price)} - ${formatCurrency(product.max_price)}`;
   const lowStockThreshold = product.min_stock_threshold ?? 3;
 
   const stockStatus = (() => {
@@ -49,6 +48,44 @@ export default function ProductGroupCard({ product, onPress }: ProductGroupCardP
       icon: 'checkmark-circle' as const,
     };
   })();
+
+  const renderBadges = () => (
+    <>
+      {hasVariants ? (
+        <View
+          style={[
+            styles.variantBadge,
+            {
+              backgroundColor: brandingColors.primary + '12',
+              borderColor: brandingColors.primary + '24',
+            },
+          ]}
+        >
+          <Ionicons name="layers-outline" size={11} color={brandingColors.primary} />
+          <Text style={[styles.variantText, { color: brandingColors.primary }]} numberOfLines={1}>
+            {product.variant_count} variações
+          </Text>
+        </View>
+      ) : compact ? null : (
+        <View style={styles.badgePlaceholder} />
+      )}
+
+      <View
+        style={[
+          styles.stockBadge,
+          {
+            backgroundColor: stockStatus.backgroundColor,
+            borderColor: stockStatus.borderColor,
+          },
+        ]}
+      >
+        <Ionicons name={stockStatus.icon} size={12} color={stockStatus.color} />
+        <Text style={[styles.stockText, { color: stockStatus.color }]} numberOfLines={1}>
+          {stockText}
+        </Text>
+      </View>
+    </>
+  );
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.72}>
@@ -82,46 +119,18 @@ export default function ProductGroupCard({ product, onPress }: ProductGroupCardP
               )}
             </View>
 
-            <Text style={[styles.price, { color: brandingColors.primary }]} numberOfLines={1}>
-              {priceText}
-            </Text>
+            <PriceRange
+              min={product.min_price}
+              max={product.max_price}
+              inline
+              size={theme.fontSize.base}
+              minSize={11}
+              color={brandingColors.primary}
+            />
+            {compact && <View style={styles.badgesRow}>{renderBadges()}</View>}
           </View>
 
-          <View style={styles.badgesColumn}>
-            {hasVariants ? (
-              <View
-                style={[
-                  styles.variantBadge,
-                  {
-                    backgroundColor: brandingColors.primary + '12',
-                    borderColor: brandingColors.primary + '24',
-                  },
-                ]}
-              >
-                <Ionicons name="layers-outline" size={11} color={brandingColors.primary} />
-                <Text style={[styles.variantText, { color: brandingColors.primary }]} numberOfLines={1}>
-                  {product.variant_count} variações
-                </Text>
-              </View>
-            ) : (
-              <View style={styles.badgePlaceholder} />
-            )}
-
-            <View
-              style={[
-                styles.stockBadge,
-                {
-                  backgroundColor: stockStatus.backgroundColor,
-                  borderColor: stockStatus.borderColor,
-                },
-              ]}
-            >
-              <Ionicons name={stockStatus.icon} size={12} color={stockStatus.color} />
-              <Text style={[styles.stockText, { color: stockStatus.color }]} numberOfLines={1}>
-                {stockText}
-              </Text>
-            </View>
-          </View>
+          {!compact && <View style={styles.badgesColumn}>{renderBadges()}</View>}
 
           <View style={styles.chevronColumn}>
             <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
@@ -187,8 +196,15 @@ const styles = StyleSheet.create({
     color: Colors.light.textTertiary,
     fontSize: theme.fontSize.xs,
   },
+  badgesRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
   badgesColumn: {
-    width: 110,
+    maxWidth: 110,
     alignItems: 'flex-end',
     justifyContent: 'center',
     gap: 6,
@@ -211,11 +227,6 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.xxs,
     fontWeight: '700',
     textTransform: 'uppercase',
-  },
-  price: {
-    fontSize: theme.fontSize.base,
-    fontWeight: '700',
-    letterSpacing: -0.2,
   },
   chevronColumn: {
     width: 20,

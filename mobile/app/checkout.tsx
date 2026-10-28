@@ -36,6 +36,7 @@ import type { Customer } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useBrandingColors } from '@/store/brandingStore';
 
+import { Money } from '@/components/ui/PriceDisplay';
 /**
  * Métodos de pagamento disponíveis
  */
@@ -1428,9 +1429,7 @@ export default function CheckoutScreen() {
               {cashReceived && (
                 <View style={styles.changeContainer}>
                   <Text style={styles.changeLabel}>Troco:</Text>
-                  <Text style={styles.changeValue}>
-                    {formatCurrency(calculateChange())}
-                  </Text>
+                  <Money style={styles.changeValue} value={Number(calculateChange())} />
                 </View>
               )}
             </View>
@@ -1488,7 +1487,7 @@ export default function CheckoutScreen() {
 
               <View style={styles.totalHighlightBox}>
                 <Text style={styles.totalCaption}>Total da Venda</Text>
-                <Text style={styles.totalMainValue}>{formatCurrency(finalTotal)}</Text>
+                <Money style={styles.totalMainValue} value={Number(finalTotal)} />
               </View>
 
               {/* Mostrar Total Pago e Restante APENAS no modo misto */}

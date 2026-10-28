@@ -24,6 +24,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
 
+import { FitText } from '@/components/ui/PriceDisplay';
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 type SaleStatus = 'pending' | 'completed' | 'cancelled' | 'refunded' | 'partially_refunded';
@@ -375,9 +376,9 @@ function SummaryCard({ icon, iconBg, iconColor, label, value, valueColor, note, 
         <Ionicons name={icon} size={18} color={iconColor} />
       </View>
       <Text style={styles.summaryCardLabel} numberOfLines={1}>{label}</Text>
-      <Text style={[styles.summaryCardValue, { color: valueColor }]} numberOfLines={1} adjustsFontSizeToFit>
+      <FitText style={[styles.summaryCardValue, { color: valueColor }]}>
         {value}
-      </Text>
+      </FitText>
       {note ? (
         <Text style={[styles.summaryCardNote, noteColor ? { color: noteColor } : undefined]} numberOfLines={1}>
           {note}

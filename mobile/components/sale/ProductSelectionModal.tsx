@@ -102,10 +102,11 @@ export default function ProductSelectionModal({
             ) : null}
           </View>
           <View style={styles.productRight}>
-            <Text style={[styles.productPrice, { color: brandingColors.primary }]}>
-              {item.min_price === item.max_price
-                ? formatCurrency(item.min_price)
-                : `${formatCurrency(item.min_price)}+`}
+            {item.min_price !== item.max_price ? (
+              <Text style={styles.priceFrom}>a partir de</Text>
+            ) : null}
+            <Text style={[styles.productPrice, { color: brandingColors.primary }]} numberOfLines={1}>
+              {formatCurrency(item.min_price)}
             </Text>
             <View style={[styles.stockPill, { backgroundColor: (item.total_stock ?? 0) > 0 ? Colors.light.success + '18' : Colors.light.error + '18' }]}>
               <Text style={[styles.stockPillText, { color: (item.total_stock ?? 0) > 0 ? Colors.light.success : Colors.light.error }]}>
@@ -422,6 +423,12 @@ const styles = StyleSheet.create({
   productPrice: {
     fontSize: theme.fontSize.sm,
     fontWeight: '700',
+  },
+  priceFrom: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: Colors.light.textSecondary,
+    marginBottom: -4,
   },
   stockPill: {
     paddingHorizontal: 7,

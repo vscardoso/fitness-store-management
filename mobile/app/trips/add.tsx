@@ -22,6 +22,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useEffect, useRef } from 'react';
 
+import { Money } from '@/components/ui/PriceDisplay';
 export default function AddTripScreen() {
   const router = useRouter();
   const brandingColors = useBrandingColors();
@@ -604,7 +605,7 @@ export default function AddTripScreen() {
 
             <View style={styles.totalCard}>
               <Text style={styles.totalLabel}>Custo Total</Text>
-              <Text style={[styles.totalValue, { color: brandingColors.primary }]}>{formatCurrency(totalCost)}</Text>
+              <Money style={[styles.totalValue, { color: brandingColors.primary }]} value={Number(totalCost)} />
             </View>
           </View>
 

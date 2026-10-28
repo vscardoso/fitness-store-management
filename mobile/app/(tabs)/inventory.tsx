@@ -42,6 +42,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import { useTutorialContext } from '@/components/tutorial';
 import { useBrandingColors } from '@/store/brandingStore';
 
+import { FitText } from '@/components/ui/PriceDisplay';
 const PERIOD_DAYS_OPTIONS = [
   { value: 7, label: '7 dias' },
   { value: 30, label: '30 dias' },
@@ -104,9 +105,9 @@ function StatCard({ icon, label, value, trend, iconColor, iconBg, onPress }: Sta
           <Text style={styles.statLabel} numberOfLines={2}>
             {label}
           </Text>
-          <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
+          <FitText style={styles.statValue}>
             {value}
-          </Text>
+          </FitText>
         </View>
       </View>
     </TouchableOpacity>

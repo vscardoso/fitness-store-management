@@ -23,6 +23,7 @@ import { createLook } from '@/services/lookService';
 import { Colors, theme } from '@/constants/Colors';
 import { getImageUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
+import { PriceRange } from '@/components/ui/PriceDisplay';
 import type { ProductGrouped, ProductVariant } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
@@ -265,10 +266,6 @@ function ProductSelectCard({
   selected: boolean;
   onPress: () => void;
 }) {
-  const priceText =
-    product.min_price === product.max_price
-      ? formatCurrency(product.min_price)
-      : `${formatCurrency(product.min_price)} – ${formatCurrency(product.max_price)}`;
 
   return (
     <TouchableOpacity onPress={onPress} activeOpacity={0.7}>
@@ -296,7 +293,9 @@ function ProductSelectCard({
             {product.variant_count > 1 && (
               <RNText style={styles.variantText}>{product.variant_count} variações</RNText>
             )}
-            <Text style={styles.productPrice}>{priceText}</Text>
+            <View style={styles.productPriceWrap}>
+              <PriceRange min={product.min_price} max={product.max_price} inline size={13} minSize={10} color={Colors.light.primary} />
+            </View>
           </View>
 
           <View style={[styles.checkContainer, selected && styles.checkActive]}>
@@ -419,10 +418,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontWeight: '600',
   },
-  productPrice: {
-    fontSize: 13,
-    color: Colors.light.primary,
-    fontWeight: '700',
+  productPriceWrap: {
     marginTop: 4,
   },
   checkContainer: {

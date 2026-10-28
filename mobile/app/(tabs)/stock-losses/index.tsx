@@ -20,6 +20,7 @@ import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import type { Expense } from '@/types/expense';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
+import { Money } from '@/components/ui/PriceDisplay';
 const fmt = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -205,7 +206,7 @@ export default function StockLossListScreen() {
         </View>
 
         <View style={styles.summaryBody}>
-          <Text style={styles.summaryValue}>{formatCurrency(total)}</Text>
+          <Money style={styles.summaryValue} value={Number(total)} />
           <Text style={styles.summaryMeta}>
             {losses?.length ?? 0} {(losses?.length ?? 0) === 1 ? 'lançamento' : 'lançamentos'}
           </Text>

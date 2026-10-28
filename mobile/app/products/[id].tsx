@@ -36,6 +36,8 @@ import { useProductSuppliers } from '@/hooks/useSuppliers';
 import { VALUE_COLORS } from '@/constants/Colors';
 import ElginPrintSheet from '@/components/labels/ElginPrintSheet';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { PriceRange } from '@/components/ui/PriceDisplay';
+import VariantPricesSheet, { distinctPrices } from '@/components/products/VariantPricesSheet';
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -226,6 +228,7 @@ export default function ProductDetailsScreen() {
   // Verificar ID inválido
   // Usar só algumas variações: desativa as desmarcadas (só variação sem estoque)
   const [keepModalVisible, setKeepModalVisible] = useState(false);
+  const [pricesSheetOpen, setPricesSheetOpen] = useState(false);
   const removeVariantsMutation = useMutation({
     mutationFn: async (ids: number[]) => {
       for (const id of ids) await deleteVariant(id);
@@ -387,14 +390,17 @@ export default function ProductDetailsScreen() {
             </View>
             <View style={styles.quickInfo}>
               <Text style={styles.quickLabel}>Preço</Text>
-              <Text
-                style={[styles.quickValue, { color: VALUE_COLORS.neutral }]}
-                numberOfLines={1}
-              >
-                {hasPriceRange
-                  ? `${formatCurrency(minVariantPrice)} – ${formatCurrency(maxVariantPrice)}`
-                  : formatCurrency(hasVariants ? minVariantPrice : product.price)}
-              </Text>
+              <PriceRange
+                min={hasVariants ? minVariantPrice : product.price}
+                max={hasVariants ? maxVariantPrice : product.price}
+                size={15}
+                minSize={11}
+                color={VALUE_COLORS.neutral}
+                pricesCount={distinctPrices(displayVariants).length}
+                linkColor={brandingColors.primary}
+                onShowPrices={hasPriceRange ? () => setPricesSheetOpen(true) : undefined}
+                testID="product-price"
+              />
             </View>
           </View>
         </View>
@@ -1044,6 +1050,13 @@ export default function ProductDetailsScreen() {
         variants={displayVariants}
       />
 
+      <VariantPricesSheet
+        visible={pricesSheetOpen}
+        onDismiss={() => setPricesSheetOpen(false)}
+        productName={product.name}
+        variants={displayVariants}
+        color={brandingColors.primary}
+      />
       <VariantKeepModal
         visible={keepModalVisible}
         variants={activeVariants}
@@ -1130,11 +1143,13 @@ const createStyles = (brand: string) => StyleSheet.create({
   // ── Quick Stats Grid ──
   quickGrid: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: 12,
     marginBottom: 16,
   },
   quickCard: {
     flex: 1,
+    minWidth: 150, // tela estreita: os dois cartões vão um embaixo do outro em vez de espremer o preço
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,

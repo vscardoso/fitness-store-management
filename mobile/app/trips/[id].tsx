@@ -15,6 +15,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
+import { Money } from '@/components/ui/PriceDisplay';
 export default function TripDetailsScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -319,9 +320,7 @@ export default function TripDetailsScreen() {
 
             <View style={styles.totalRow}>
               <Text style={styles.totalLabel}>TOTAL</Text>
-              <Text style={[styles.totalValue, { color: VALUE_COLORS.negative }]}>
-                {formatCurrency(trip.travel_cost_total)}
-              </Text>
+              <Money style={[styles.totalValue, { color: VALUE_COLORS.negative }]} value={Number(trip.travel_cost_total)} />
             </View>
           </View>
 

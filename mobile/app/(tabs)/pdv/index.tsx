@@ -43,6 +43,7 @@ import {
 import type { PendingSale } from '@/types/pdv';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
+import { Money } from '@/components/ui/PriceDisplay';
 const C = Colors.light;
 
 interface QRModalState {
@@ -113,7 +114,7 @@ function PendingCard({
       </View>
 
       <View style={styles.cardBody}>
-        <Text style={styles.amount}>{formatCurrency(sale.total_amount)}</Text>
+        <Money style={styles.amount} value={Number(sale.total_amount)} />
         <Text style={styles.saleNumber}>Venda #{sale.sale_number}</Text>
         {sale.customer_name ? (
           <Text style={styles.customer}>{sale.customer_name}</Text>
@@ -213,7 +214,7 @@ function QRModal({
       ]}
     >
       {state.sale && (
-        <Text style={styles.modalAmount}>{formatCurrency(state.sale.total_amount)}</Text>
+        <Money style={styles.modalAmount} value={Number(state.sale.total_amount)} />
       )}
 
       {state.loading ? (

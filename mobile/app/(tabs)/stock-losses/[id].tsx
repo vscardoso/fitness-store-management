@@ -15,6 +15,7 @@ import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
+import { Money } from '@/components/ui/PriceDisplay';
 function parseNoteValue(notes: string | null | undefined, key: string): string | null {
   if (!notes) return null;
   const tokens = notes.split('|').map((part) => part.trim());
@@ -92,7 +93,7 @@ export default function StockLossDetailScreen() {
               <Text style={styles.heroDate}>{data.expense_date.replace(/-/g, '/')}</Text>
             </View>
           </View>
-          <Text style={styles.heroAmount}>{formatCurrency(data.amount)}</Text>
+          <Money style={styles.heroAmount} value={Number(data.amount)} />
         </View>
 
         <View style={styles.sectionCard}>
