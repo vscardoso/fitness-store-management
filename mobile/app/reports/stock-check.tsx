@@ -153,6 +153,16 @@ export default function StockCheckScreen() {
     setCounts((prev) => ({ ...prev, [variantId]: text.replace(/[^0-9]/g, '') }));
   }, []);
 
+  // seta de + e -: sem número ainda, o primeiro + conta 1 e o primeiro - conta 0; nunca passa de 0 para baixo
+  const stepCount = useCallback((variantId: number, delta: 1 | -1) => {
+    setCounts((prev) => {
+      const raw = prev[variantId];
+      const cur = raw === undefined || raw === '' ? null : parseInt(raw, 10) || 0;
+      const next = cur === null ? (delta > 0 ? 1 : 0) : Math.max(0, cur + delta);
+      return { ...prev, [variantId]: String(next) };
+    });
+  }, []);
+
   const buildHtml = (withResult: boolean) => {
     const title = withResult ? 'Resultado da conferência de estoque' : 'Lista para conferência de estoque';
     const today = new Date().toLocaleDateString('pt-BR');
@@ -338,19 +348,38 @@ export default function StockCheckScreen() {
                       <Text style={styles.sysLabel}>Sistema</Text>
                       <Text style={styles.sysValue}>{formatInt(r.system_quantity)}</Text>
                     </View>
-                    <RNTextInput
-                      style={[
-                        styles.countInput,
-                        d !== null && d === 0 && { borderColor: VALUE_COLORS.positive },
-                        d !== null && d !== 0 && { borderColor: VALUE_COLORS.negative },
-                      ]}
-                      value={counts[r.variant_id] ?? ''}
-                      onChangeText={(t) => setCount(r.variant_id, t)}
-                      keyboardType="numeric"
-                      placeholder="Contado"
-                      placeholderTextColor={Colors.light.textTertiary}
-                      inputMode="numeric"
-                    />
+                    <View style={styles.stepper}>
+                      <TouchableOpacity
+                        accessibilityRole="button"
+                        accessibilityLabel="Diminuir contagem"
+                        onPress={() => stepCount(r.variant_id, -1)}
+                        style={styles.stepBtn}
+                      >
+                        <Ionicons name="remove" size={18} color={Colors.light.text} />
+                      </TouchableOpacity>
+                      <RNTextInput
+                        style={[
+                          styles.countInput,
+                          d !== null && d === 0 && { borderColor: VALUE_COLORS.positive },
+                          d !== null && d !== 0 && { borderColor: VALUE_COLORS.negative },
+                        ]}
+                        value={counts[r.variant_id] ?? ''}
+                        onChangeText={(t) => setCount(r.variant_id, t)}
+                        keyboardType="numeric"
+                        placeholder="0"
+                        placeholderTextColor={Colors.light.textTertiary}
+                        inputMode="numeric"
+                        selectTextOnFocus
+                      />
+                      <TouchableOpacity
+                        accessibilityRole="button"
+                        accessibilityLabel="Aumentar contagem"
+                        onPress={() => stepCount(r.variant_id, 1)}
+                        style={styles.stepBtn}
+                      >
+                        <Ionicons name="add" size={18} color={Colors.light.text} />
+                      </TouchableOpacity>
+                    </View>
                     <View style={styles.diff}>
                       {d === null ? (
                         <Text style={styles.diffNone}>-</Text>
@@ -462,8 +491,19 @@ const styles = StyleSheet.create({
   sys: { alignItems: 'center', minWidth: 52 },
   sysLabel: { fontSize: 10, color: Colors.light.textSecondary },
   sysValue: { fontSize: 16, fontWeight: '700', color: Colors.light.text },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  stepBtn: {
+    width: 32,
+    height: 40,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.light.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+  },
   countInput: {
-    width: 72,
+    width: 52,
     height: 40,
     borderWidth: 1,
     borderColor: Colors.light.border,
@@ -473,7 +513,7 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
     backgroundColor: Colors.light.card,
   },
-  diff: { width: 62, alignItems: 'center' },
+  diff: { width: 54, alignItems: 'center' },
   diffNone: { color: Colors.light.textTertiary, fontSize: 16 },
   diffText: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
   empty: { alignItems: 'center', paddingVertical: 40, gap: 8 },

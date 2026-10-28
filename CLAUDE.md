@@ -402,6 +402,7 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 - App: `components/labels/StickerStudio.tsx` + `StickerPreview.tsx` (prévia em escala com o mesmo desenho do PDF). `products/label/[id].tsx` e `products/label/index.tsx` (Estúdio) usam o componente; `products/qrcode/[id].tsx` redireciona; `ElginPrintSheet` foi removida. Impressoras e Fila (`app/labels`, `app/settings/printers`) continuam no código, sem uso até haver impressora.
 - Leitor de QR da venda (`QRCodeScanner.tsx`) agora entende `PV#101-1` (antes tratava como SKU e dava "Produto não encontrado"): resolve em `GET /product-variants/short-code/{code}` e segue pelo SKU da variação. Câmera NÃO testada em aparelho.
 - Testes: `tests/test_short_codes.py` (tamanho exato de cada página lido do PDF, grade, recusas). Ambiente de teste no navegador: backend com `DATABASE_URL=sqlite+aiosqlite:///./qa_etq.db` ligado ao IP da rede na porta 8000 (o app em dev chama `http://<ip-da-rede>:8000`) e Metro na 8081 (CORS só aceita essa porta); Metro em CI não relê arquivo alterado.
+- Plano de leitura do QR (conferência, venda, consulta; câmera e leitor tipo teclado): `docs/PLANO_LEITOR_QR.md` (Q1 a Q11; Q1, o + e - no campo Contado, feita).
 - Armadilha: `backend/test.db` sujo (execução interrompida por timeout) faz os testes falharem com `UNIQUE constraint failed: stores.slug`; apagar `test.db` e `test.db-journal`.
 
 
