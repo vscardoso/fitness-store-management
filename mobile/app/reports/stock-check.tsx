@@ -117,6 +117,15 @@ export default function StockCheckScreen() {
     return out;
   }, [visible]);
 
+  // Lojas grandes têm milhares de variações: desenhar tudo de uma vez trava o celular.
+  // Mostra os primeiros produtos e libera mais sob demanda (o resumo continua somando tudo).
+  const PAGE = 30;
+  const [shown, setShown] = useState(PAGE);
+  useEffect(() => {
+    setShown(PAGE);
+  }, [search, onlyDiffs, categoryId, onlyInStock]);
+  const shownGroups = useMemo(() => grouped.slice(0, shown), [grouped, shown]);
+
   const summary = useMemo(() => {
     let counted = 0;
     let countedPieces = 0;
@@ -307,7 +316,7 @@ export default function StockCheckScreen() {
             <Text style={styles.emptyText}>{onlyDiffs ? 'Nenhuma divergência até agora.' : 'Nenhuma variação encontrada.'}</Text>
           </View>
         ) : (
-          grouped.map((g) => (
+          shownGroups.map((g) => (
             <View key={g.key} style={styles.group}>
               <View style={styles.groupHead}>
                 <Text style={styles.groupName} numberOfLines={2}>{g.name}</Text>
@@ -353,6 +362,14 @@ export default function StockCheckScreen() {
               })}
             </View>
           ))
+        )}
+
+        {grouped.length > shownGroups.length && (
+          <TouchableOpacity onPress={() => setShown((n) => n + PAGE)} style={{ alignItems: 'center', padding: 16 }}>
+            <Text style={[styles.link, { color: brand.primary }]}>
+              Mostrar mais ({grouped.length - shownGroups.length} produtos restantes)
+            </Text>
+          </TouchableOpacity>
         )}
 
         {!isLoading && rows.length > 0 && (
