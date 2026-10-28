@@ -9,6 +9,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
 import { useUIStore } from '@/store/uiStore';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useIsDesktop } from '@/hooks/useLayout';
 
 export default function TabsLayout() {
   const { bottom: safeBottom } = useSafeAreaInsets();
@@ -22,6 +23,8 @@ export default function TabsLayout() {
   const initialSyncAttempted = useBrandingStore((state) => state.initialSyncAttempted);
   const fetchBrandingFromServer = useBrandingStore((state) => state.fetchFromServer);
   const triggerDashboardRefresh = useUIStore((s) => s.triggerDashboardRefresh);
+  // Notebook: a barra lateral substitui as abas de baixo
+  const isDesktop = useIsDesktop();
 
   // Se não autenticado, redirecionar para login
   useEffect(() => {
@@ -50,7 +53,7 @@ export default function TabsLayout() {
       screenOptions={{
         tabBarActiveTintColor: brandingColors.primary,
         tabBarInactiveTintColor: Colors.light.tabIconDefault,
-        tabBarStyle: {
+        tabBarStyle: isDesktop ? { display: 'none' } : {
           // Web: área útil de 60px para ícone + rótulo (com 49px o texto era cortado) + área segura
           height: Platform.OS === 'web' ? 68 + webBottom : Platform.OS === 'ios' ? 85 : 65,
           paddingBottom: Platform.OS === 'web' ? webBottom : Platform.OS === 'ios' ? 20 : 8,

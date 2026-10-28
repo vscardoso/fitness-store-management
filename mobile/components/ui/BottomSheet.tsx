@@ -30,6 +30,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useIsDesktop } from '@/hooks/useLayout';
 
 interface BottomSheetAction {
   label: string;
@@ -120,6 +121,8 @@ export default function BottomSheet({
 }: BottomSheetProps) {
   const insets = useSafeAreaInsets();
   const brandingColors = useBrandingColors();
+  // Notebook: vira um diálogo no meio da tela (folha subindo de baixo é coisa de celular)
+  const isDesktop = useIsDesktop();
 
   const getActionStyle = (variant: BottomSheetAction['variant'] = 'primary') => {
     switch (variant) {
@@ -141,7 +144,7 @@ export default function BottomSheet({
     <Modal
       visible={visible}
       transparent
-      animationType="slide"
+      animationType={isDesktop ? 'fade' : 'slide'}
       onRequestClose={onDismiss}
       statusBarTranslucent
     >
@@ -152,22 +155,24 @@ export default function BottomSheet({
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.kavContainer}
+        style={[styles.kavContainer, isDesktop && styles.kavDesktop]}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
-        <View style={[styles.sheet, { paddingBottom: insets.bottom }]}>
+        <View style={[styles.sheet, { paddingBottom: insets.bottom }, isDesktop && styles.sheetDesktop]}>
 
           {/* Header com gradiente — cobre os cantos arredondados do sheet */}
           <LinearGradient
             colors={[brandingColors.primary, brandingColors.secondary]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={styles.header}
+            style={[styles.header, isDesktop && styles.headerDesktop]}
           >
             {/* Handle dentro do gradiente (branco translúcido) */}
-            <View style={styles.handleContainer}>
-              <View style={styles.handle} />
-            </View>
+            {isDesktop ? <View style={{ height: 16 }} /> : (
+              <View style={styles.handleContainer}>
+                <View style={styles.handle} />
+              </View>
+            )}
 
             {/* Linha de conteúdo: ícone + textos + botão fechar */}
             <View style={styles.headerRow}>
@@ -286,6 +291,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.12,
     shadowRadius: 12,
     elevation: 16,
+  },
+  kavDesktop: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  sheetDesktop: {
+    width: '100%',
+    maxWidth: 560,
+    maxHeight: '86%',
+    borderRadius: 16,
+  },
+  headerDesktop: {
+    borderRadius: 0,
   },
   handleContainer: {
     alignItems: 'center',

@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 from app.core.database import get_db
 from app.api.deps import get_current_active_user, get_current_tenant_id
 from app.models.user import User
+from app.utils.variant_code import format_variant_code
 
 router = APIRouter(prefix="/products", tags=["Produtos Agrupados"])
 
@@ -176,7 +177,8 @@ async def list_grouped_products(
                        SELECT MAX(i2.min_stock)
                        FROM inventory i2
                        WHERE i2.product_id = p.id AND i2.tenant_id = :tid
-                   ) as min_stock
+                   ) as min_stock,
+                   v.short_code, v.product_code, v.variant_number
             FROM products p
             LEFT JOIN product_variants v
                    ON p.id = v.product_id AND v.is_active = true AND v.tenant_id = :tid
@@ -230,6 +232,9 @@ async def list_grouped_products(
                     "price": float(row[17]) if row[17] else 0.0,
                     "cost_price": float(row[18]) if row[18] else None,
                     "current_stock": variant_stock,
+                    # código da etiqueta (#101-1) e o antigo (#0123): o PDV do notebook acha a peça lida pelo leitor
+                    "short_code": row[21],
+                    "display_code": format_variant_code(row[22], row[23]),
                 }
                 grouped[product_id]["variants"].append(variant)
                 grouped[product_id]["total_stock"] += variant_stock

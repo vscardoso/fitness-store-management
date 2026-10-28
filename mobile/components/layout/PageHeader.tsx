@@ -39,6 +39,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
+import { useIsDesktop } from '@/hooks/useLayout';
 
 interface RightAction {
   icon: keyof typeof Ionicons.glyphMap;
@@ -82,6 +83,8 @@ export default function PageHeader({
   const webTopPad = Platform.OS === 'web' ? { paddingTop: Math.max(64, safeTop + 20) } : null;
   const brandingColors = useBrandingColors();
   const resolvedGradient = gradientColors ?? brandingColors.gradient;
+  // Notebook: faixa baixa com o título à esquerda (o cabeçalho alto de celular comia 1/5 da tela)
+  const isDesktop = useIsDesktop();
 
   const handleBack = () => {
     if (onBack) {
@@ -98,26 +101,26 @@ export default function PageHeader({
         colors={resolvedGradient}
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
-        style={[styles.gradient, webTopPad]}
+        style={isDesktop ? styles.gradientDesktop : [styles.gradient, webTopPad]}
       >
         <View style={styles.content}>
           {/* Linha única: Botão voltar + Título centralizado + Ações */}
-          <View style={styles.topRow}>
+          <View style={[styles.topRow, isDesktop && styles.topRowDesktop]}>
             {/* Botão voltar à esquerda */}
             {showBackButton ? (
               <TouchableOpacity onPress={handleBack} style={styles.backButton}>
                 <Ionicons name="arrow-back" size={24} color="#fff" />
               </TouchableOpacity>
-            ) : leftVisual ? (
+            ) : leftVisual && !isDesktop ? (
               <View style={styles.leftVisualWrap}>{leftVisual}</View>
-            ) : (
+            ) : isDesktop ? null : (
               <View style={styles.placeholder} />
             )}
 
             {/* Título e subtítulo centralizados */}
-            <View style={styles.headerInfo}>
-              <Text style={styles.title}>{title}</Text>
-              {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+            <View style={[styles.headerInfo, isDesktop && styles.headerInfoDesktop]}>
+              <Text style={[styles.title, isDesktop && styles.titleDesktop]}>{title}</Text>
+              {subtitle && <Text style={[styles.subtitle, isDesktop && styles.subtitleDesktop]}>{subtitle}</Text>}
             </View>
 
             {/* Ações à direita */}
@@ -146,7 +149,7 @@ export default function PageHeader({
           </View>
 
           {/* Elemento customizado (badges, avatar, etc) */}
-          {children && <View style={styles.customContent}>{children}</View>}
+          {children && <View style={[styles.customContent, isDesktop && styles.customContentDesktop]}>{children}</View>}
         </View>
       </LinearGradient>
     </View>
@@ -163,6 +166,30 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.xl,         // ✅ 32 (respiração adequada)
     borderBottomLeftRadius: theme.borderRadius.xxl, // 24
     borderBottomRightRadius: theme.borderRadius.xxl,
+  },
+  gradientDesktop: {
+    paddingHorizontal: 24,
+    paddingTop: 12,
+    paddingBottom: 12,
+  },
+  topRowDesktop: {
+    gap: 12,
+  },
+  headerInfoDesktop: {
+    alignItems: 'flex-start',
+    paddingHorizontal: 0,
+  },
+  titleDesktop: {
+    textAlign: 'left',
+    paddingHorizontal: 0,
+  },
+  subtitleDesktop: {
+    textAlign: 'left',
+    marginTop: 2,
+  },
+  customContentDesktop: {
+    marginTop: 10,
+    alignItems: 'flex-start',
   },
   content: {
     // Container do conteúdo

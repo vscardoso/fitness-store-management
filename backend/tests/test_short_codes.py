@@ -428,3 +428,20 @@ async def test_busca_pelo_codigo_do_produto_e_variacao(test_client, async_sessio
         assert r.status_code == 200, (code, r.text)
         assert r.json()["id"] == alvo.id and r.json()["display_code"] == "#001-2"
     assert (await test_client.get("/api/v1/product-variants/short-code/001-9", headers=h)).status_code == 404
+
+
+async def test_lista_agrupada_traz_o_codigo_da_etiqueta(test_client, async_session):
+    """O PDV do notebook acha a peça lida pelo leitor (#001-2, PV#0123) na lista agrupada, sem ir ao servidor."""
+    _sem_override()
+    db = async_session
+    t, c = await _loja(db)
+    p, vs = await _produto(db, t, c, nome="Lista Agrupada", grade=(("Preto", "P"), ("Preto", "M")))
+    await db.commit()
+    h = await _user(db, t, UserRole.SELLER)
+    r = await test_client.get("/api/v1/products/grouped", headers=h)
+    assert r.status_code == 200, r.text
+    grupo = next(g for g in r.json() if g["id"] == p.id)
+    por_id = {v["id"]: v for v in grupo["variants"]}
+    for v in vs:
+        assert por_id[v.id]["display_code"] == v.display_code and por_id[v.id]["display_code"].startswith("#001-")
+        assert por_id[v.id]["short_code"] == v.short_code

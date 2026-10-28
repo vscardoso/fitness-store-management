@@ -1,6 +1,16 @@
 # Plano: app web para notebook (proposta, 2026-10-28)
 
-Pedido do Victor: muitas lojas usam notebook; o app web precisa funcionar bem em tela grande. Proposta para aprovação, NADA implementado.
+Pedido do Victor: muitas lojas usam notebook; o app web precisa funcionar bem em tela grande.
+
+**Estado (2026-10-28): fases 1 e 2 FEITAS** (protótipo aprovado: https://claude.ai/artifact/WDt5KNFsxviFEe9cAbpNfh). Fases 3 a 5 pendentes.
+- `hooks/useLayout.ts`: `isDesktop` = app web com 1024 px ou mais (no celular é sempre falso). Todo código do modo notebook passa por ele.
+- `components/layout/DesktopShell.tsx` (em `app/_layout.tsx`): barra lateral `DesktopSidebar.tsx` à esquerda quando logado (não nas telas de login, termos e aceite), conteúdo até 1280 px (PDV usa a largura toda), F2 de qualquer tela abre o PDV. No iOS/Android devolve as telas sem nenhuma View a mais. As abas de baixo somem no notebook (`app/(tabs)/_layout.tsx`).
+- Barra lateral: mesmos destinos e regras de papel do menu "Mais" (`app/(tabs)/more.tsx`); item novo de menu entra nos DOIS. Grupos Relatórios e Loja começam fechados.
+- `PageHeader`: faixa baixa com título à esquerda no notebook (sem o logo do Início, que a barra já mostra). `BottomSheet`: diálogo no meio da tela.
+- PDV: `components/sale/DesktopPDV.tsx` (o PDV do celular ficou intacto em `MobileSaleScreen`). Busca sempre aberta filtrando por variação; Enter adiciona o código lido (`PV#001-2`, `#1-2`, `#0123`, SKU) ou a única peça possível; F2 nova venda, F4 cliente, F9 finalizar, `/` busca, Esc limpa. Mesmo carrinho e validações de estoque do celular; "Finalizar" leva ao mesmo `/checkout` (pagamento, troco, PIX e maquininha ficaram lá, não no painel do protótipo). Os atalhos escutam o teclado na fase de CAPTURA: o campo de texto do react-native-web não deixa a tecla subir até a página.
+- Servidor: `GET /products/grouped` passou a devolver `short_code` e `display_code` por variação (teste `test_lista_agrupada_traz_o_codigo_da_etiqueta`).
+- Verificado: fotos de 26 telas em 390 px e em 1000 px, versão de antes x depois: iguais (as poucas diferenças variam de uma rodada para outra também na versão antiga: animação); roteiro do notebook 26/26 (barra, cabeçalho, PDV pelo teclado e leitor, estoque, cliente, desconto, checkout, diálogo, vendedora sem dinheiro/entradas e sem lucro, janela estreita volta ao celular, sem erro de JS); `tsc` 0. NÃO testado: aparelho físico (o código do notebook não roda lá) e leitor USB de verdade (simulado digitando + Enter).
+- Achado, não corrigido (já existia): o Início da vendedora chama painéis só de gerente (`/dashboard/stats`, `/sales/monthly`, `/purchases`, `/inventory/valuation`) e mostra "Permissão negada".
 
 ## Como está hoje (fotos em 1366x768, backend local)
 O app web é o layout do celular esticado:

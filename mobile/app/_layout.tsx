@@ -36,6 +36,7 @@ import { saveLastRoute } from '@/utils/lastRoute';
 import { startHistoryTrail, trailRoute } from '@/utils/navTrail';
 import { startQueryPersist } from '@/utils/queryPersist';
 import { LegalGate } from '@/components/legal/LegalGate';
+import DesktopShell from '@/components/layout/DesktopShell';
 import { registerQueryClient } from '@/utils/queryCache';
 
 // TEMP: Sentry desabilitado por conflito de versão
@@ -192,12 +193,15 @@ export default function RootLayout() {
             <ErrorProvider>
               <TutorialProvider>
                 <StatusBar style="auto" />
-                <Stack
-                  screenOptions={{
-                    headerShown: false,
-                    gestureEnabled: true,
-                  }}
-                />
+                {/* App web em notebook: barra lateral à esquerda (no celular não muda nada) */}
+                <DesktopShell>
+                  <Stack
+                    screenOptions={{
+                      headerShown: false,
+                      gestureEnabled: true,
+                    }}
+                  />
+                </DesktopShell>
 
                 {/* Termos: quem não aceitou a versão atual vai para a tela de aceite */}
                 <LegalGate />

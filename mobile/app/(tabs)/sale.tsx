@@ -39,7 +39,16 @@ import ProductSelectionModal from '@/components/sale/ProductSelectionModal';
 import QRCodeScanner from '@/components/sale/QRCodeScanner';
 
 import { Money } from '@/components/ui/PriceDisplay';
+import { useIsDesktop } from '@/hooks/useLayout';
+import DesktopPDV from '@/components/sale/DesktopPDV';
+
+/** Notebook (app web com 1024 px ou mais): PDV de balcão em duas colunas. Celular: o PDV de sempre. */
 export default function SaleScreen() {
+  const isDesktop = useIsDesktop();
+  return isDesktop ? <DesktopPDV /> : <MobileSaleScreen />;
+}
+
+function MobileSaleScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { user } = useAuth();

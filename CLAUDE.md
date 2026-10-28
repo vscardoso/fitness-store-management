@@ -418,3 +418,11 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 - Venda com devolução/troca não pode ser cancelada (400, usar Devolução). Cancelar pela API recebe o motivo em `?reason=` (corpo é ignorado: 422). Troco: pagamento gravado é o que ficou na loja; cartão/PIX acima do total = 400.
 - Testes: `tests/test_estresse_dinheiro.py` (todas as telas contra um livro independente; `ESTRESSE_OPS`, `ESTRESSE_DINHEIRO_SEEDS`). Ver itens 5 a 12 em `docs/PLANO_TESTES_VENDAS_FIFO.md`.
 - Total gasto dos clientes antigos (devoluções antigas não descontaram, troca não somava): `backend/scripts/recalcular_total_gasto.py` recalcula `total_spent` e `total_purchases` pela regra acima (sem `--apply` só simula; `--loja N`; não mexe em pontos nem no tipo da cliente; idempotente). Teste: fim de `tests/test_estresse_dinheiro.py`; conferido no Postgres local. Simulado em produção na loja 2 em 28/10/2026 (guarda livre): 0 clientes com valor diferente, nada gravado (`--apply` desnecessário). Rodar de novo só se aparecer divergência: `docker exec -w /app provador-backend python scripts/recalcular_total_gasto.py --loja 2`.
+
+## App web no notebook (fases 1 e 2, 2026-10-28)
+
+- Modo notebook = app web com 1024 px ou mais (`hooks/useLayout.ts`, `useIsDesktop`); no celular nada muda (o código é todo condicionado a ele). Detalhes, estado e próximas fases em `docs/PLANO_WEB_NOTEBOOK.md`.
+- Barra lateral `components/layout/DesktopSidebar.tsx` (via `DesktopShell` no `app/_layout.tsx`) com os mesmos itens e regras de papel do menu "Mais": item novo de menu entra nos dois. `PageHeader` baixo e `BottomSheet` centralizado no notebook.
+- PDV de balcão `components/sale/DesktopPDV.tsx` (leitor USB = código + Enter; F2/F4/F9); atalho de teclado no app web: escutar `keydown` em CAPTURA (`addEventListener(..., true)`), porque o TextInput do react-native-web corta a propagação.
+- Antes de publicar mudança de layout: comparar fotos 390 px antes x depois (script de comparação pixel a pixel usado nesta sessão; diferenças de animação aparecem também comparando a versão antiga com ela mesma).
+
