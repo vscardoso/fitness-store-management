@@ -388,3 +388,52 @@ async def test_item_da_venda_traz_cor_e_tamanho_e_venda_devolvida_explica_em_por
     assert (await _devolver(test_client, h, venda["id"], [{"sale_item_id": det["items"][0]["id"], "quantity": 1}])).status_code == 201
     el = (await test_client.get(f"/api/v1/returns/eligibility/{venda['id']}", headers=h)).json()
     assert el["is_eligible"] is False and el["reason"] == "Todas as peças desta venda já foram devolvidas ou trocadas."
+
+
+async def test_recalculo_do_total_gasto_dos_clientes_antigos_bate_com_a_regra_nova(test_client, async_session, test_user):
+    """scripts/recalcular_total_gasto.py: cliente com venda, devolução, defeito, troca, venda cancelada e outra venda.
+    O valor que a API mantém hoje é o certo; zerado/errado como nos dados antigos, o script volta a ele."""
+    import importlib.util
+    from pathlib import Path
+    from app.models.customer import Customer
+    spec = importlib.util.spec_from_file_location(
+        "recalcular_total_gasto", Path(__file__).resolve().parents[1] / "scripts" / "recalcular_total_gasto.py")
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+
+    t_id, h, p, va, vb = await _cenario_30(async_session, test_user, preco_a="100.00", preco_b="120.00")
+    cid = await _cliente(test_client, h, "Cliente Antiga")
+    outra = await _cliente(test_client, h, "Cliente Sem Compra")
+    venda = (await _vende(test_client, h, [(p.id, va.id, 10, "100.00")], cliente=cid)).json()
+    item = venda["items"][0]["id"]
+    assert (await _devolver(test_client, h, venda["id"], [{"sale_item_id": item, "quantity": 3}])).status_code == 201
+    assert (await _devolver(test_client, h, venda["id"], [{"sale_item_id": item, "quantity": 1, "restock": False}])).status_code == 201
+    assert (await _devolver(test_client, h, venda["id"], [{"sale_item_id": item, "quantity": 2, "replacement_variant_id": vb.id}],
+                            settlement_method="pix")).status_code == 201
+    cancelada = (await _vende(test_client, h, [(p.id, va.id, 2, "100.00")], cliente=cid)).json()
+    assert (await test_client.post(f"/api/v1/sales/{cancelada['id']}/cancel", headers=h, params={"reason": "Lançada errado"})).status_code == 200
+    assert (await _vende(test_client, h, [(p.id, va.id, 1, "100.00")], desconto="10", cliente=cid)).status_code in (200, 201)
+
+    # 1000 - 300 - 100 - 200 + 240 (troca) + 90 = 730; compras: 2 (a troca e a cancelada não contam)
+    _pts, gasto, compras = await _cliente_api(test_client, h, cid)
+    assert (gasto, compras) == (D("730.00"), 2), (gasto, compras)
+
+    async def recalcula():
+        # a limpeza entre testes apaga vendas sem passar pelo serviço: clientes de outros testes ficam com valor velho
+        return {c.id: (antigo, novo, pa, pn) for c, antigo, novo, pa, pn in await mod.recalculate_store(async_session, t_id)
+                if c.id in (cid, outra)}
+
+    async_session.expire_all()
+    assert await recalcula() == {}, "dado já certo: o script não muda nada"
+
+    # como estava antes da regra: devolução não descontava, troca não somava
+    await async_session.execute(update(Customer).where(Customer.id == cid).values(total_spent=1090, total_purchases=3))
+    await async_session.execute(update(Customer).where(Customer.id == outra).values(total_spent=50, total_purchases=1))
+    await async_session.commit()
+    async_session.expire_all()
+    mudou = await recalcula()
+    assert mudou == {cid: (D("1090.00"), D("730.00"), 3, 2), outra: (D("50.00"), D("0"), 1, 0)}, mudou
+    await async_session.commit()
+    async_session.expire_all()
+    assert (await _cliente_api(test_client, h, cid))[1:] == (D("730.00"), 2)
+    assert await recalcula() == {}, "rodar de novo não muda nada"
