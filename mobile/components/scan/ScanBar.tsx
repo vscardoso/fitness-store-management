@@ -12,7 +12,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { createScanGate, createWedgeBuffer, normalizeScan } from '@/utils/scanLogic';
-import { isScanMuted, onScanMutedChange, setScanMuted } from '@/utils/scanFeedback';
+import { isScanMuted, onScanMutedChange, setScanMuted, unlockAudio } from '@/utils/scanFeedback';
 import CameraScanSheet, { type CameraStatus } from './CameraScanSheet';
 
 export type ScanStatus = CameraStatus;
@@ -27,12 +27,14 @@ interface Props {
   paused?: boolean;
   /** Ações extras ao lado do campo. */
   right?: React.ReactNode;
+  /** A câmera fecha sozinha ao ler uma peça (venda e consulta). Sem isso, fica aberta para ler várias (conferência). */
+  closeOnScan?: boolean;
 }
 
 const COLORS = { ok: '#16A34A', warn: '#B45309', error: '#DC2626' } as const;
 const BG = { ok: '#DCFCE7', warn: '#FEF3C7', error: '#FEE2E2' } as const;
 
-export default function ScanBar({ onCode, status, placeholder, paused, right }: Props) {
+export default function ScanBar({ onCode, status, placeholder, paused, right, closeOnScan }: Props) {
   const brand = useBrandingColors();
   const [cameraOpen, setCameraOpen] = useState(false);
   const [muted, setMuted] = useState(isScanMuted());
@@ -78,7 +80,10 @@ export default function ScanBar({ onCode, status, placeholder, paused, right }: 
       <View style={styles.row}>
         <TouchableOpacity
           style={[styles.camBtn, { backgroundColor: brand.primary }]}
-          onPress={() => setCameraOpen(true)}
+          onPress={() => {
+            unlockAudio(); // no iPhone o som só funciona depois de um toque
+            setCameraOpen(true);
+          }}
           accessibilityRole="button"
           accessibilityLabel="Abrir câmera para bipar"
           activeOpacity={0.85}
@@ -119,7 +124,16 @@ export default function ScanBar({ onCode, status, placeholder, paused, right }: 
           <Text style={[styles.statusText, { color: COLORS[status.kind] }]} numberOfLines={2}>{status.text}</Text>
         </View>
       )}
-      <CameraScanSheet visible={cameraOpen} onClose={() => setCameraOpen(false)} onCode={emit} status={status} />
+      <CameraScanSheet
+        visible={cameraOpen}
+        onClose={() => setCameraOpen(false)}
+        onCode={(c) => {
+          const code = normalizeScan(c);
+          if (code) onCode(code); // a câmera já evita contar o mesmo adesivo parado
+        }}
+        status={status}
+        closeOnScan={closeOnScan}
+      />
     </View>
   );
 }

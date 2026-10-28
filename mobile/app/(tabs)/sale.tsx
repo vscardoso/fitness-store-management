@@ -552,7 +552,7 @@ function MobileSaleScreen() {
 
           </View>
           <View style={{ marginTop: 12 }}>
-            <ScanBar onCode={handleScanCode} status={scanStatus} placeholder="Bipe ou digite o código" paused={productModalVisible || customerModalVisible} />
+            <ScanBar closeOnScan onCode={handleScanCode} status={scanStatus} placeholder="Bipe ou digite o código" paused={productModalVisible || customerModalVisible} />
           </View>
         </View>
 

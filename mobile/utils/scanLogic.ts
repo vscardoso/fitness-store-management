@@ -30,6 +30,32 @@ export function createScanGate(windowMs = 1500) {
 }
 
 /**
+ * Câmera contínua: o mesmo QR parado na frente da câmera é lido várias vezes por segundo (e de novo depois de
+ * 1,5 s, 3 s...). Aqui o MESMO código só conta de novo depois de SAIR da vista da câmera por `gapMs`: segurar o
+ * adesivo parado conta 1 só; tirar da vista e mostrar outra peça igual conta mais 1.
+ */
+export function createPresenceGate(gapMs = 800) {
+  let lastCode = '';
+  let lastSeenAt = -Infinity;
+  return {
+    /** Chamar a cada quadro em que a câmera viu um código. Devolve true quando deve contar. */
+    accept(code: string, now: number): boolean {
+      const c = normalizeScan(code);
+      if (!c) return false;
+      const again = c === lastCode && now - lastSeenAt <= gapMs; // continua na vista
+      lastSeenAt = now;
+      if (again) return false;
+      lastCode = c;
+      return true;
+    },
+    reset() {
+      lastCode = '';
+      lastSeenAt = -Infinity;
+    },
+  };
+}
+
+/**
  * Leitor USB/Bluetooth que age como teclado: manda os caracteres colados (poucos ms entre eles) e termina com Enter.
  * Digitação humana é bem mais lenta que `maxGapMs` e nunca vira leitura.
  */

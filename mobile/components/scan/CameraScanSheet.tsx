@@ -8,7 +8,7 @@ import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-ca
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '@/constants/Colors';
-import { createScanGate } from '@/utils/scanLogic';
+import { createPresenceGate } from '@/utils/scanLogic';
 
 export interface CameraStatus {
   kind: 'ok' | 'warn' | 'error';
@@ -21,13 +21,15 @@ interface Props {
   onCode: (code: string) => void;
   status?: CameraStatus | null;
   hint?: string;
+  /** Fecha a câmera assim que uma leitura é aceita (venda e consulta: uma peça por vez). */
+  closeOnScan?: boolean;
 }
 
 const COLORS = { ok: '#16A34A', warn: '#D97706', error: '#DC2626' } as const;
 
-export default function CameraScanSheet({ visible, onClose, onCode, status, hint }: Props) {
+export default function CameraScanSheet({ visible, onClose, onCode, status, hint, closeOnScan }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
-  const gate = useRef(createScanGate(1500)).current;
+  const gate = useRef(createPresenceGate(800)).current;
   const insets = useSafeAreaInsets();
 
   useEffect(() => {
@@ -35,7 +37,10 @@ export default function CameraScanSheet({ visible, onClose, onCode, status, hint
   }, [visible, gate]);
 
   const handle = (result: BarcodeScanningResult) => {
-    if (gate.accept(result.data, Date.now())) onCode(result.data);
+    if (gate.accept(result.data, Date.now())) {
+      onCode(result.data);
+      if (closeOnScan) onClose();
+    }
   };
 
   return (
@@ -62,7 +67,7 @@ export default function CameraScanSheet({ visible, onClose, onCode, status, hint
 
         <View style={[styles.top, { paddingTop: Math.max(insets.top, 24) + 14 }]} pointerEvents="box-none">
           <Text style={styles.hintTitle}>Bipar etiqueta</Text>
-          <Text style={styles.hint}>{hint || 'Aponte para o QR da etiqueta. A câmera continua aberta para a próxima peça.'}</Text>
+          <Text style={styles.hint}>{hint || (closeOnScan ? 'Aponte para o QR da etiqueta. A câmera fecha sozinha ao ler.' : 'Aponte para o QR da etiqueta. A câmera continua aberta para a próxima peça.')}</Text>
         </View>
         <View style={styles.frame} pointerEvents="none" />
         {!!status && (
@@ -70,10 +75,21 @@ export default function CameraScanSheet({ visible, onClose, onCode, status, hint
             <Text style={styles.bannerText} numberOfLines={3}>{status.text}</Text>
           </View>
         )}
-        <TouchableOpacity style={[styles.done, { bottom: Math.max(insets.bottom, 16) + 20 }]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar câmera">
-          <Ionicons name="checkmark" size={22} color="#fff" />
-          <Text style={styles.doneText}>Pronto</Text>
-        </TouchableOpacity>
+        {closeOnScan ? (
+          <TouchableOpacity
+            style={[styles.closeX, { top: Math.max(insets.top, 24) + 10 }]}
+            onPress={onClose}
+            accessibilityRole="button"
+            accessibilityLabel="Cancelar leitura"
+          >
+            <Ionicons name="close" size={22} color="#fff" />
+          </TouchableOpacity>
+        ) : (
+          <TouchableOpacity style={[styles.done, { bottom: Math.max(insets.bottom, 16) + 20 }]} onPress={onClose} accessibilityRole="button" accessibilityLabel="Fechar câmera">
+            <Ionicons name="checkmark" size={22} color="#fff" />
+            <Text style={styles.doneText}>Pronto</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </Modal>
   );
@@ -94,6 +110,7 @@ const styles = StyleSheet.create({
     position: 'absolute', alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: Colors.light.primary, paddingHorizontal: 28, paddingVertical: 14, borderRadius: 999,
   },
+  closeX: { position: 'absolute', right: 16, width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   doneText: { color: '#fff', fontSize: 16, fontWeight: '800' },
   perm: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, gap: 16 },
   permTitle: { color: '#fff', fontSize: 16, textAlign: 'center' },

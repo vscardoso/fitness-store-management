@@ -1,6 +1,6 @@
 // Testes da lógica de leitura. Rodar: node scripts/test-scan-logic.mts
 import assert from 'node:assert/strict';
-import { buildCodeIndex, codeKeys, createScanGate, createWedgeBuffer, findVariantLocal, normalizeScan } from '../utils/scanLogic.ts';
+import { buildCodeIndex, codeKeys, createPresenceGate, createScanGate, createWedgeBuffer, findVariantLocal, normalizeScan } from '../utils/scanLogic.ts';
 
 let n = 0;
 const t = (name: string, fn: () => void) => {
@@ -117,6 +117,23 @@ t('estresse: índice com 30 mil variações acha qualquer uma rápido', () => {
     assert.equal(findVariantLocal(idx, r.sku), id);
   }
   assert.ok(Date.now() - t0 < 1500, 'busca lenta demais: ' + (Date.now() - t0) + ' ms');
+});
+
+t('câmera: QR parado na frente conta 1 só, mesmo por 20 segundos', () => {
+  const g = createPresenceGate(800);
+  let aceitas = 0;
+  for (let now = 0; now <= 20000; now += 120) if (g.accept('PV#5-1', now)) aceitas += 1;   // ~8 quadros por segundo
+  assert.equal(aceitas, 1);
+});
+
+t('câmera: tirou da vista (>800 ms) e mostrou de novo = conta mais 1; outra peça conta na hora', () => {
+  const g = createPresenceGate(800);
+  assert.equal(g.accept('PV#5-1', 0), true);
+  assert.equal(g.accept('PV#5-1', 100), false);
+  assert.equal(g.accept('PV#5-1', 1500), true);     // ficou 1,4 s sem ver: é outra peça igual
+  assert.equal(g.accept('PV#5-2', 1600), true);     // código diferente
+  assert.equal(g.accept('PV#5-1', 1700), true);     // voltou ao anterior depois de outro
+  assert.equal(g.accept('  ', 1800), false);
 });
 
 console.log(`\n${n} testes passaram`);
