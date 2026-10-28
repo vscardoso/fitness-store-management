@@ -82,8 +82,8 @@ aconteceu, peça com defeito continua no custo, total gasto do cliente líquido.
 11. Ranking de fornecedor atribuía a devolução proporcionalmente (fornecedor errado quando as camadas são de fornecedores diferentes); reposição
     contava peça devolvida como demanda.
 12. Cache do início só era limpo ao criar venda; agora também em devolução, troca, cancelamento e venda do condicional.
-Não feito: recalcular o total gasto de clientes ANTIGOS de produção (devoluções antigas não descontaram); `ReturnItem.unit_cost` antigos seguem com
-o custo médio. Limitação mantida: custo por peça gravado em centavos.
+Total gasto dos clientes antigos: `backend/scripts/recalcular_total_gasto.py`, simulado em produção na loja 2 em 28/10/2026 com 0 diferenças (nada gravado).
+Não feito: `ReturnItem.unit_cost` antigos seguem com o custo médio. Limitação mantida: custo por peça gravado em centavos.
 
 **D. Tela de devolução/troca no navegador: FEITA** (nuvem, 28/10/2026; Playwright com backend local descartável, 22/22): devolução parcial,
 troca por peça mais cara com diferença em PIX, peça com defeito, troca por peça mais barata (loja devolve a diferença), erro do servidor legível,
