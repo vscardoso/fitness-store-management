@@ -136,11 +136,23 @@ export default function ProductsScreen() {
         ]),
       ]).start();
 
+      // A entrada é só enfeite: se a animação travar (aba em segundo plano, janela
+      // pequena, driver nativo ausente no web), a tela NÃO pode ficar invisível.
+      const showNow = () => {
+        headerScale.setValue(1);
+        headerOpacity.setValue(1);
+        contentTranslateY.setValue(0);
+        contentOpacity.setValue(1);
+      };
+      const safety = setTimeout(showNow, 900);
+
       return () => {
+        clearTimeout(safety);
         headerScale.stopAnimation();
         headerOpacity.stopAnimation();
         contentTranslateY.stopAnimation();
         contentOpacity.stopAnimation();
+        showNow();
       };
     }, [refetch, refetchAllProducts, filter, headerScale, headerOpacity, contentTranslateY, contentOpacity])
   );
