@@ -403,3 +403,10 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 - Leitor de QR da venda (`QRCodeScanner.tsx`) agora entende `PV#101-1` (antes tratava como SKU e dava "Produto não encontrado"): resolve em `GET /product-variants/short-code/{code}` e segue pelo SKU da variação. Câmera NÃO testada em aparelho.
 - Testes: `tests/test_short_codes.py` (tamanho exato de cada página lido do PDF, grade, recusas). Ambiente de teste no navegador: backend com `DATABASE_URL=sqlite+aiosqlite:///./qa_etq.db` ligado ao IP da rede na porta 8000 (o app em dev chama `http://<ip-da-rede>:8000`) e Metro na 8081 (CORS só aceita essa porta); Metro em CI não relê arquivo alterado.
 - Armadilha: `backend/test.db` sujo (execução interrompida por timeout) faz os testes falharem com `UNIQUE constraint failed: stores.slug`; apagar `test.db` e `test.db-journal`.
+
+
+## Auditoria de seguranca (28/10/2026)
+- Relatorio: docs/security-audit/REPORT.md (+ findings.json). Perfil quick, cobertura parcial; 19 confirmados (5 altos, 6 medios, 8 baixos), 1 needs_validation (backup plaintext em artifact do GitHub Actions).
+- Onda 1 (commit 38619c0, NAO publicado): 5 altos corrigidos em codigo + testes (backend/tests/test_seguranca_achados_altos.py).
+- **Onda 2 (pendente, nao dar push antes):** configuracao no servidor dos segredos novos (PDV_WEBHOOK_TOKEN, MP_WEBHOOK_SECRET, ADMIN_PANEL_EMAILS), cadastrar URLs de webhook Stone/Cielo com ?token=, refinar o codigo dessas partes; depois os 6 medios e 8 baixos e o item de backup. Sem esses segredos, push do 38619c0 recusa webhooks MP/Stone/Cielo e bloqueia o /admin.
+- Suite: baseline tem 98 falhas pre-existentes (iguais com e sem as correcoes).
