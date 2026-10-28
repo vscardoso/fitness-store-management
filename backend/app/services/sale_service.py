@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List, Optional
 
-from sqlalchemy import insert
+from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timezone import now_brazil
@@ -20,6 +20,7 @@ from app.schemas.sale import SaleCreate
 from app.services.fifo_service import FIFOService
 from app.services.inventory_service import InventoryService
 from app.services.payment_discount_service import PaymentDiscountService
+from app.services.stock_lock import lock_stock
 
 
 class SaleService:
@@ -73,6 +74,12 @@ class SaleService:
             ValueError: Se validaes falharem (estoque, pagamento, etc)
         """
         try:
+            # Trava as variações da venda (ordem fixa) antes de ler o saldo: dois pedidos pela mesma peça se enfileiram
+            await lock_stock(
+                self.db,
+                variant_ids=[i.variant_id for i in sale_data.items],
+                product_ids=[i.product_id for i in sale_data.items if not i.variant_id],
+            )
             # 1. Validar estoque disponível via FIFO (entry_items) para TODOS os itens
             print(f" Validando estoque para {len(sale_data.items)} itens...")
             for item in sale_data.items:
@@ -338,10 +345,20 @@ class SaleService:
             ValueError: Se venda no encontrada ou j cancelada
         """
         try:
+            # Trava a venda e as variações dela antes de ler: cancelar e devolver ao mesmo tempo se enfileiram
+            await lock_stock(self.db, sale_ids=[sale_id])
+            _rows = (await self.db.execute(
+                select(SaleItem.variant_id, SaleItem.product_id).where(SaleItem.sale_id == sale_id, SaleItem.tenant_id == tenant_id)
+            )).all()
+            await lock_stock(
+                self.db,
+                variant_ids=[r[0] for r in _rows],
+                product_ids=[r[1] for r in _rows if not r[0]],
+            )
             sale = await self.sale_repo.get(self.db, sale_id, tenant_id=tenant_id)
             if not sale:
                 raise ValueError(f"Venda {sale_id} no encontrada")
-            
+
             if sale.status == SaleStatus.CANCELLED.value:
                 raise ValueError("Venda j est cancelada")
             

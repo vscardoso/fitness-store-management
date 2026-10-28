@@ -22,6 +22,7 @@ from app.schemas.return_schema import (
 )
 from app.services.fifo_service import FIFOService
 from app.services.inventory_service import InventoryService
+from app.services.stock_lock import lock_stock
 
 
 # Prazo padrão para devolução em dias; cada loja pode mudar (stores.return_window_days)
@@ -250,6 +251,17 @@ class ReturnService:
             ValueError: Se validações falharem
         """
         try:
+            # Trava a venda, as variações dela e as peças novas da troca ANTES de ler "quanto já voltou" e o saldo:
+            # duas devoluções (ou devolução e cancelamento) da mesma venda se enfileiram em vez de passar juntas.
+            await lock_stock(self.db, sale_ids=[sale_id])
+            _rows = (await self.db.execute(
+                select(SaleItem.variant_id, SaleItem.product_id).where(SaleItem.sale_id == sale_id, SaleItem.tenant_id == tenant_id)
+            )).all()
+            await lock_stock(
+                self.db,
+                variant_ids=[r[0] for r in _rows] + [i.replacement_variant_id for i in return_data.items],
+                product_ids=[r[1] for r in _rows if not r[0]],
+            )
             # 1. Verificar elegibilidade
             eligibility = await self.check_eligibility(sale_id, tenant_id=tenant_id)
             

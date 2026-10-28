@@ -16,7 +16,7 @@ de `PLANO_TESTES_VENDAS_FIFO.md`, commit em português e push. Nunca rodar carga
 
 ---
 
-## A. Estresse do condicional com FIFO
+## A. Estresse do condicional com FIFO (FEITA em 2026-10-28, ver PLANO_TESTES_VENDAS_FIFO.md)
 Arquivo novo: `backend/tests/test_estresse_condicional.py`. Serviço: `backend/app/services/conditional_shipment.py`.
 Estender o oráculo: `recebido - restante` por camada = vendas ativas + reservas abertas de condicional + perdas/danificadas.
 Cenários: criar e enviar (a peça sai ao enviar); devolução parcial e total; itens mantidos viram venda (custo FIFO certo, pontos e
@@ -26,7 +26,7 @@ condicional nunca enviado; devolver ou trocar uma venda que nasceu de condiciona
 `ESTRESSE_SEEDS`, como em `test_estresse_aleatorio.py`) misturando condicional, vendas, devoluções, trocas e reposições, conferindo
 oráculo, livro de estoque, tudo-ou-nada e nenhum 5xx.
 
-## B. Concorrência de vendas e devoluções no Postgres
+## B. Concorrência de vendas e devoluções no Postgres (FEITA em 2026-10-28, ver PLANO_TESTES_VENDAS_FIFO.md)
 Arquivos novos em `backend/tests/pg/` (ex.: `test_concorrencia_vendas_postgres.py`), com Postgres descartável
 (`TEST_PG_URL=postgresql+asyncpg://postgres@127.0.0.1:55432/postgres`; copiar como `tests/pg/test_rls_postgres.py` sobe e limpa).
 Pedidos de verdade em paralelo (`asyncio.gather`, várias sessões): (1) dois pedidos para a ÚLTIMA peça (um vence, o outro 400, estoque

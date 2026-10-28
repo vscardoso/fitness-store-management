@@ -13,12 +13,13 @@ from app.repositories.conditional_shipment import (
 )
 from app.repositories.product_repository import ProductRepository
 from app.repositories.customer_repository import CustomerRepository
-from app.models.conditional_shipment import ConditionalShipment
+from app.models.conditional_shipment import ConditionalShipment, ConditionalShipmentItem
 from app.models.expense import Expense, ExpenseCategory
 from app.models.product import Product
 from app.models.product_variant import ProductVariant
 from app.models.sale import Sale, SaleItem, SaleStatus, PaymentMethod
 from app.services.fifo_service import FIFOService
+from app.services.stock_lock import lock_stock
 from app.schemas.conditional_shipment import (
     ConditionalShipmentCreate,
     ConditionalShipmentUpdate,
@@ -62,6 +63,13 @@ class ConditionalShipmentService:
         # Instanciar services
         fifo_service = FIFOService(db)
         product_repo = ProductRepository(db)
+
+        # Trava as variações (ordem fixa) antes de ler o saldo: dois envios (ou um envio e uma venda) pela mesma peça se enfileiram
+        await lock_stock(
+            db,
+            variant_ids=[i.variant_id for i in shipment_data.items],
+            product_ids=[i.product_id for i in shipment_data.items if not i.variant_id],
+        )
 
         # 0. Cliente, produto e variação precisam existir NA LOJA e combinar entre si
         customer = await CustomerRepository(db).get(db, shipment_data.customer_id, tenant_id=tenant_id)
@@ -161,7 +169,8 @@ class ConditionalShipmentService:
         Raises:
             ValueError: Se dados inválidos ou shipment não encontrado
         """
-        # 1. Buscar shipment
+        # 1. Buscar shipment (com o envio e as variações travados: duas devoluções do mesmo envio não passam juntas)
+        await self._lock_shipment(db, shipment_id)
         shipment = await self.shipment_repo.get_with_items(db, shipment_id, tenant_id)
         if not shipment:
             raise ValueError(f"Envio {shipment_id} não encontrado")
@@ -274,10 +283,11 @@ class ConditionalShipmentService:
                     "variant_id": db_item.variant_id,
                     "quantity": item_update.quantity_kept,
                     "unit_price": db_item.unit_price,
-                    "unit_cost": self._fifo_unit_cost(db_item),
+                    "unit_cost": self._avg_cost(self._kept_sources(db_item, item_update)) or self._fifo_unit_cost(db_item),
                     "sources": self._kept_sources(db_item, item_update),
                 })
 
+            tail = item_update.quantity_returned + item_update.quantity_kept
             if item_update.quantity_lost > 0:
                 await self._create_loss_expense(
                     db=db,
@@ -286,6 +296,7 @@ class ConditionalShipmentService:
                     db_item=db_item,
                     quantity_lost=item_update.quantity_lost,
                     notes=item_update.notes,
+                    sources=self._slice_sources(db_item, tail, item_update.quantity_lost),
                 )
             if item_update.quantity_damaged > 0:
                 # A peça danificada não volta ao estoque: o custo dela é prejuízo da loja
@@ -297,6 +308,7 @@ class ConditionalShipmentService:
                     quantity_lost=item_update.quantity_damaged,
                     notes=item_update.notes,
                     kind="Peça danificada",
+                    sources=self._slice_sources(db_item, tail + item_update.quantity_lost, item_update.quantity_damaged),
                 )
         
         # 3. Determinar novo status baseado no resultado
@@ -346,6 +358,15 @@ class ConditionalShipmentService:
         await db.refresh(shipment)
         return shipment
 
+    async def _lock_shipment(self, db: AsyncSession, shipment_id: int) -> None:
+        """Trava o envio e as variações dele (ordem fixa) antes de ler status e saldo."""
+        await lock_stock(db, shipment_ids=[shipment_id])
+        rows = (await db.execute(
+            select(ConditionalShipmentItem.variant_id, ConditionalShipmentItem.product_id)
+            .where(ConditionalShipmentItem.shipment_id == shipment_id)
+        )).all()
+        await lock_stock(db, variant_ids=[r[0] for r in rows], product_ids=[r[1] for r in rows if not r[0]])
+
     async def _create_loss_expense(
         self,
         db: AsyncSession,
@@ -355,12 +376,13 @@ class ConditionalShipmentService:
         quantity_lost: int,
         notes: str | None,
         kind: str = "Perda de item",
+        sources: list | None = None,
     ) -> None:
         category = await self._get_or_create_loss_category(db)
         product_name, unit_cost = await self._get_item_loss_cost_context(db, db_item.product_id, db_item.variant_id)
 
         # O custo real é o da peça que saiu do estoque (FIFO, custo posto); só sem ele usa o cadastro e, por último, o preço
-        fifo_cost = self._fifo_unit_cost(db_item)
+        fifo_cost = self._avg_cost(sources) if sources else self._fifo_unit_cost(db_item)
         if fifo_cost > 0:
             unit_cost = Decimal(str(fifo_cost))
         if unit_cost <= 0:
@@ -394,6 +416,28 @@ class ConditionalShipmentService:
     def _fifo_unit_cost(db_item) -> float:
         """Custo médio por peça das fontes FIFO reservadas no envio (0 se não houver)."""
         sources = (db_item.fifo_sources or {}).get("sources", []) if db_item.fifo_sources else []
+        qty = sum(int(s.get("quantity_taken", 0)) for s in sources)
+        if qty <= 0:
+            return 0.0
+        return sum(int(s.get("quantity_taken", 0)) * float(s.get("unit_cost", 0) or 0) for s in sources) / qty
+
+    @staticmethod
+    def _slice_sources(db_item, skip: int, take: int) -> list:
+        """Fontes FIFO do trecho [skip, skip+take) das peças enviadas: devolvidas saem pela frente, depois ficadas, depois o resto."""
+        out = []
+        for src in ((db_item.fifo_sources or {}).get("sources", []) if db_item.fifo_sources else []):
+            q = int(src.get("quantity_taken", 0))
+            cut = min(q, skip)
+            skip -= cut
+            q -= cut
+            if q > 0 and take > 0:
+                use = min(q, take)
+                out.append({**src, "quantity_taken": use})
+                take -= use
+        return out
+
+    @staticmethod
+    def _avg_cost(sources: list) -> float:
         qty = sum(int(s.get("quantity_taken", 0)) for s in sources)
         if qty <= 0:
             return 0.0
@@ -723,6 +767,7 @@ class ConditionalShipmentService:
         Returns:
             ConditionalShipment cancelado
         """
+        await self._lock_shipment(db, shipment_id)
         shipment = await self.shipment_repo.get_with_items(db, shipment_id, tenant_id)
         if not shipment:
             raise ValueError(f"Envio {shipment_id} não encontrado")
