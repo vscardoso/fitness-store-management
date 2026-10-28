@@ -7,18 +7,18 @@ starlette>=1.3.1  # correções de segurança (o FastAPI aceita versão mais vel
 
 # Database
 sqlalchemy==2.0.36
-alembic==1.12.0
+alembic==1.20.1
 psycopg[binary]==3.2.6
 psycopg2-binary==2.9.9
 asyncpg==0.29.0
 aiosqlite==0.19.0
-greenlet==3.0.3
+greenlet==3.5.6
 
 # Validation & Settings
-pydantic>=2.0,<3.0
+pydantic>=2.14.1,<3.0
 pydantic-settings==2.0.3
 python-dotenv==1.2.2
-email-validator>=2.0,<3.0
+email-validator>=2.3.0,<3.0
 
 # Security
 PyJWT==2.15.1
@@ -40,7 +40,7 @@ openai>=1.0.0
 # Testing
 pytest==7.4.0
 pytest-asyncio==0.21.1
-pytest-cov==4.1.0
+pytest-cov==7.1.0
 
 # Development
 black==26.10.1
