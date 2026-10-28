@@ -375,3 +375,16 @@ async def test_ranking_de_fornecedor_tira_a_devolucao_do_fornecedor_certo(test_c
     # as 5 devolvidas voltaram para a camada do B: tudo que ficou vendido é do A
     assert rk[a_id]["revenue"] == 1000.0 and rk[a_id]["cogs"] == 400.0 and rk[a_id]["sold_qty"] == 10, rk[a_id]
     assert rk[b_id]["revenue"] == 0.0 and rk[b_id]["cogs"] == 0.0 and rk[b_id]["sold_qty"] == 0, rk[b_id]
+
+
+async def test_item_da_venda_traz_cor_e_tamanho_e_venda_devolvida_explica_em_portugues(test_client, async_session, test_user):
+    t_id, h, p, va, vb = await _cenario_30(async_session, test_user)       # vb = Azul / M
+    r = await _vende(test_client, h, [(p.id, vb.id, 1, "100.00")])
+    venda = r.json()
+    det = (await test_client.get(f"/api/v1/sales/{venda['id']}", headers=h)).json()
+    assert det["items"][0]["variant_label"] == "Azul · M"
+    el = (await test_client.get(f"/api/v1/returns/eligibility/{venda['id']}", headers=h)).json()
+    assert el["items"][0]["variant_label"] == "Azul · M"
+    assert (await _devolver(test_client, h, venda["id"], [{"sale_item_id": det["items"][0]["id"], "quantity": 1}])).status_code == 201
+    el = (await test_client.get(f"/api/v1/returns/eligibility/{venda['id']}", headers=h)).json()
+    assert el["is_eligible"] is False and el["reason"] == "Todas as peças desta venda já foram devolvidas ou trocadas."

@@ -98,14 +98,8 @@ export default function ReturnModal({
       const data = await checkReturnEligibility(saleId);
       setEligibility(data);
       
-      // Pré-selecionar todos os itens disponíveis
-      if (data.is_eligible && data.items.length > 0) {
-        const newSelected = new Map<number, number>();
-        data.items.forEach(item => {
-          newSelected.set(item.sale_item_id, item.quantity_available_for_return);
-        });
-        setSelectedItems(newSelected);
-      }
+      // Começa sem nada marcado: um toque direto em "Processar" não pode devolver a venda inteira
+      setSelectedItems(new Map());
     } catch (error: any) {
       setDialog({
         visible: true,
@@ -288,12 +282,13 @@ export default function ReturnModal({
   const settlementLabel = (m: string) =>
     ({ cash: 'dinheiro', pix: 'PIX', debit_card: 'débito', credit_card: 'crédito' } as Record<string, string>)[m] || m;
 
-  // Calcular dias restantes (corrigido)
+  // Dias restantes
   const daysRemaining = eligibility 
     ? Math.max(0, eligibility.max_return_days - eligibility.days_since_sale)
     : 0;
   const isUrgent = daysRemaining <= 2 && daysRemaining >= 0;
-  const isExpired = eligibility && eligibility.days_since_sale >= eligibility.max_return_days;
+  // o servidor aceita até o último dia (dias <= prazo): no último dia é "Último dia!", não "expirado"
+  const isExpired = eligibility && eligibility.days_since_sale > eligibility.max_return_days;
 
   return (
     <>
@@ -520,7 +515,7 @@ export default function ReturnModal({
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
                     {(['cash', 'pix', 'debit_card', 'credit_card'] as const).map((m) => (
                       <Chip key={m} selected={settlement === m} onPress={() => setSettlement(m)} mode={settlement === m ? 'flat' : 'outlined'}>
-                        {settlementLabel(m)}
+                        {settlementLabel(m).charAt(0).toUpperCase() + settlementLabel(m).slice(1)}
                       </Chip>
                     ))}
                   </View>

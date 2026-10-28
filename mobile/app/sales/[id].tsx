@@ -21,7 +21,7 @@ import * as Sharing from 'expo-sharing';
 import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
 import { getSaleById } from '@/services/saleService';
-import { getReturnHistory } from '@/services/returnService';
+import { checkReturnEligibility, getReturnHistory } from '@/services/returnService';
 import { confirmManualPayment, cancelOrder } from '@/services/pdvService';
 import { formatCurrency, formatDateTime } from '@/utils/format';
 import type { SaleReturn } from '@/services/returnService';
@@ -99,6 +99,14 @@ export default function SaleDetailsScreen() {
     enabled: !!saleId,
   });
 
+  // Prazo de troca é o da loja (Mais > Prazo de troca e devolução), não 7 dias fixos
+  const { data: eligibility, refetch: refetchEligibility } = useQuery({
+    queryKey: ['return-eligibility', saleId],
+    queryFn: () => checkReturnEligibility(saleId),
+    enabled: !!saleId,
+    retry: false,
+  });
+
   // Dispara animação de entrada quando dados carregam
   const animateIn = useCallback(() => {
     headerOpacity.value  = 0;
@@ -135,7 +143,10 @@ export default function SaleDetailsScreen() {
   const handleReturnSuccess = useCallback(() => {
     refetch();
     refetchReturns();
-  }, [refetch, refetchReturns]);
+    refetchEligibility();
+    // estoque, início, relatórios e cliente mudaram junto
+    queryClient.invalidateQueries();
+  }, [refetch, refetchReturns, refetchEligibility, queryClient]);
 
   const handleShareReceipt = async () => {
     if (!sale || !receiptRef.current) return;
@@ -239,10 +250,8 @@ export default function SaleDetailsScreen() {
   const hasDiscount = Number(sale.discount_amount) > 0;
   const hasTax = Number(sale.tax_amount) > 0;
 
-  const daysSinceSale = Math.floor(
-    (Date.now() - new Date(sale.created_at).getTime()) / (1000 * 60 * 60 * 24)
-  );
-  const isWithinReturnWindow = daysSinceSale < 7;
+  const returnDays = eligibility?.max_return_days;
+  const isWithinReturnWindow = !!eligibility && eligibility.days_since_sale <= eligibility.max_return_days;
 
 
 
@@ -371,6 +380,7 @@ export default function SaleDetailsScreen() {
                     <Text style={styles.itemName} numberOfLines={2}>
                       {item.product?.name || `Produto ${item.product_id}`}
                     </Text>
+                    {!!item.variant_label && <Text style={styles.itemVariant}>{item.variant_label}</Text>}
                     <Text style={styles.itemQtyPrice}>
                       {item.quantity} × {formatCurrency(item.unit_price)}
                     </Text>
@@ -547,7 +557,9 @@ export default function SaleDetailsScreen() {
               onPress={() => setReturnModalVisible(true)}
               style={styles.returnButton}
             />
-            <Text style={styles.returnInfoText}>Prazo de até 7 dias após a venda</Text>
+            {returnDays != null && (
+              <Text style={styles.returnInfoText}>Prazo de até {returnDays} {returnDays === 1 ? 'dia' : 'dias'} após a venda</Text>
+            )}
           </View>
         )}
       </Animated.ScrollView>
@@ -819,6 +831,7 @@ const styles = StyleSheet.create({
     maxWidth: 360,
     alignSelf: 'center',
   },
+  itemVariant: { fontSize: theme.fontSize.xs, color: Colors.light.textSecondary, marginTop: 1 },
   returnInfoText: {
     fontSize: theme.fontSize.xs, color: Colors.light.textSecondary, marginTop: theme.spacing.sm, textAlign: 'center',
   },

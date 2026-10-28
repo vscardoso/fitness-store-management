@@ -296,6 +296,20 @@ class SaleItem(BaseModel):
         "ProductVariant",
         back_populates="sale_items"
     )
+
+    @property
+    def variant_label(self) -> str | None:
+        """"Preto · M" a partir das variações do produto já carregadas (nunca dispara consulta)."""
+        from sqlalchemy import inspect as _inspect
+        if self.variant_id is None or "product" in _inspect(self).unloaded:
+            return None
+        product = self.product
+        if product is None or "variants" in _inspect(product).unloaded:
+            return None
+        for v in product.variants:
+            if v.id == self.variant_id:
+                return " · ".join(x for x in (v.color, v.size) if x) or None
+        return None
     
     def __repr__(self) -> str:
         return f"<SaleItem(id={self.id}, product_id={self.product_id}, quantity={self.quantity})>"

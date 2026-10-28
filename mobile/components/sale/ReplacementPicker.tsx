@@ -99,7 +99,7 @@ export default function ReplacementPicker({ visible, productId, excludeVariantId
           <View key={p.id} style={{ marginBottom: theme.spacing.sm }}>
             <Text style={styles.productName} numberOfLines={1}>{p.name}</Text>
             {available(p).map((v) => {
-              const detail = [v.color, v.size].filter(Boolean).join(' / ') || 'Única';
+              const detail = [v.color, v.size].filter(Boolean).join(' · ') || 'Única';
               return (
                 <TouchableOpacity
                   key={v.id}

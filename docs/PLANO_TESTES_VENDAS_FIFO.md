@@ -85,8 +85,16 @@ aconteceu, peça com defeito continua no custo, total gasto do cliente líquido.
 Não feito: recalcular o total gasto de clientes ANTIGOS de produção (devoluções antigas não descontaram); `ReturnItem.unit_cost` antigos seguem com
 o custo médio. Limitação mantida: custo por peça gravado em centavos.
 
-**D. Tela de devolução/troca no navegador (Playwright, backend local descartável). EM ANDAMENTO (nuvem, 28/10).** Fluxo completo no app (lista de vendas, devolver,
-trocar, diferença a pagar), erros do servidor legíveis, resumo e estoque conferidos. Nada disso foi clicado ainda.
+**D. Tela de devolução/troca no navegador: FEITA** (nuvem, 28/10/2026; Playwright com backend local descartável, 22/22): devolução parcial,
+troca por peça mais cara com diferença em PIX, peça com defeito, troca por peça mais barata (loja devolve a diferença), erro do servidor legível,
+prazo da loja, totais do início/relatório e total gasto do cliente conferidos pela API depois de cada passo. Achados (corrigidos):
+13. A tela abria com TODOS os itens marcados: um toque em "Processar Devolução" devolvia a venda inteira. Agora começa sem nada marcado.
+14. Botão e texto de devolução usavam 7 dias fixos (a loja configura de 0 a 90): agora vêm da elegibilidade do servidor. No último dia a tela
+    dizia "Prazo expirado" (o servidor aceita até o último dia).
+15. Itens da venda sem cor/tamanho (duas linhas iguais "Legging"): `variant_label` na resposta da venda; "Preto / G" padronizado para "Preto · G".
+16. Mensagem técnica "Venda com status 'SaleStatus.REFUNDED'..." trocada por frase clara. Depois da devolução o app invalida todo o cache
+    (início, estoque e relatórios mostravam o número antigo).
+Não testado: aparelho físico (só navegador).
 
 ## Regras para quem for continuar
 - Teste novo de venda/FIFO usa os helpers de `tests/test_estresse_vendas_fifo.py` (`_cenario_30`, `_vender`, `_devolver`) e a fixture

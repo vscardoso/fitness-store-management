@@ -125,7 +125,11 @@ class ReturnService:
                 sale_date=sale.created_at,
                 days_since_sale=days_since_sale,
                 is_eligible=False,
-                reason=f"Venda com status '{sale.status}' não pode ser devolvida. Apenas vendas concluídas ou parcialmente devolvidas podem ter novos itens devolvidos.",
+                reason={
+                    "refunded": "Todas as peças desta venda já foram devolvidas ou trocadas.",
+                    "cancelled": "Esta venda foi cancelada.",
+                    "pending": "Esta venda ainda está aguardando pagamento: confirme ou cancele antes de devolver.",
+                }.get(str(getattr(sale.status, "value", sale.status)).lower(), "Esta venda não pode receber devolução."),
                 max_return_days=max_days,
                 items=[],
             )
@@ -164,7 +168,7 @@ class ReturnService:
         variant_labels: Dict[int, str] = {}
         if v_ids:
             for v in (await self.db.execute(select(ProductVariant).where(ProductVariant.id.in_(v_ids)))).scalars().all():
-                variant_labels[v.id] = " / ".join(x for x in (v.color, v.size) if x)
+                variant_labels[v.id] = " · ".join(x for x in (v.color, v.size) if x)
         returnable_items = []
         for item in sale.items:
             if not item.is_active:
