@@ -9,7 +9,7 @@ import SuppliersTabs from '@/components/suppliers/SuppliersTabs';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useCostComparison } from '@/hooks/useSupplierInsights';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatPercent, formatSignedPercent } from '@/utils/format';
 
 export default function SupplierCostsScreen() {
   const router = useRouter();
@@ -54,7 +54,7 @@ export default function SupplierCostsScreen() {
                 {increases.map((i) => (
                   <Text key={`${i.product_id}-${i.supplier_id}`} style={styles.alertLine}>
                     {i.supplier_name} subiu {i.product_name} de {formatCurrency(i.previous_unit_cost)} para{' '}
-                    {formatCurrency(i.last_unit_cost)} (+{i.change_pct.toFixed(0)}%)
+                    {formatCurrency(i.last_unit_cost)} (+{formatPercent(i.change_pct, 0)})
                   </Text>
                 ))}
               </View>
@@ -76,7 +76,7 @@ export default function SupplierCostsScreen() {
                     {p.savings_per_unit > 0 && (
                       <View style={styles.saveBadge}>
                         <Text style={styles.saveText}>
-                          economiza {formatCurrency(p.savings_per_unit)} ({p.savings_pct.toFixed(0)}%)
+                          economiza {formatCurrency(p.savings_per_unit)} ({formatPercent(p.savings_pct, 0)})
                         </Text>
                       </View>
                     )}
@@ -94,7 +94,7 @@ export default function SupplierCostsScreen() {
                         <Text style={styles.meta}>
                           {s.purchase_count} {s.purchase_count === 1 ? 'compra' : 'compras'}
                           {s.change_pct !== null && s.change_pct !== 0
-                            ? ` · ${s.change_pct > 0 ? '+' : ''}${s.change_pct.toFixed(0)}% desde a anterior`
+                            ? ` · ${formatSignedPercent(s.change_pct, 0)} desde a anterior`
                             : ''}
                         </Text>
                       </View>

@@ -17,7 +17,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/layout/PageHeader';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatPercent } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -606,7 +606,7 @@ function MobileSaleScreen() {
                           return (
                             <View style={[styles.cartMarginBadge, { backgroundColor: marginPct >= 30 ? VALUE_COLORS.positive + '18' : VALUE_COLORS.warning + '18' }]}>
                               <Text style={[styles.cartMarginText, { color: marginPct >= 30 ? VALUE_COLORS.positive : VALUE_COLORS.warning }]}>
-                                {marginPct.toFixed(0)}%
+                                {formatPercent(marginPct, 0)}
                               </Text>
                             </View>
                           );
@@ -737,7 +737,7 @@ function MobileSaleScreen() {
                     </Text>
                     <View style={[styles.profitRowBadge, { backgroundColor: cartProfit.margin >= 30 ? VALUE_COLORS.positive + '18' : VALUE_COLORS.warning + '18' }]}>
                       <Text style={[styles.profitRowBadgeText, { color: cartProfit.margin >= 30 ? VALUE_COLORS.positive : VALUE_COLORS.warning }]}>
-                        {cartProfit.margin.toFixed(1)}%
+                        {formatPercent(cartProfit.margin, 1)}
                       </Text>
                     </View>
                   </View>

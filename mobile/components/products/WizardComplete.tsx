@@ -14,7 +14,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatPercent } from '@/utils/format';
 import { PriceRange } from '@/components/ui/PriceDisplay';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import type { ProductVariant } from '@/types/productVariant';
@@ -180,7 +180,7 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
                     <View style={styles.priceDivider} />
                     <View style={styles.priceItem}>
                       <Text style={styles.priceLabel}>Markup</Text>
-                      <Text style={styles.markupValue}>+{markup.toFixed(0)}%</Text>
+                      <Text style={styles.markupValue}>+{formatPercent(markup, 0)}</Text>
                     </View>
                   </>
                 )}
@@ -283,7 +283,7 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
                           {formatCurrency(Number(v.price))}
                         </Text>
                         {varMarkup !== null && varMarkup > 0 && (
-                          <Text style={styles.variantMarkup}>+{varMarkup.toFixed(0)}%</Text>
+                          <Text style={styles.variantMarkup}>+{formatPercent(varMarkup, 0)}</Text>
                         )}
                       </View>
                     </View>

@@ -23,7 +23,7 @@ import useBackToList from '@/hooks/useBackToList';
 import { getSaleById } from '@/services/saleService';
 import { checkReturnEligibility, getReturnHistory } from '@/services/returnService';
 import { confirmManualPayment, cancelOrder } from '@/services/pdvService';
-import { formatCurrency, formatDateTime } from '@/utils/format';
+import { formatCurrency, formatDateTime, formatPercent } from '@/utils/format';
 import type { SaleReturn } from '@/services/returnService';
 import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -347,7 +347,7 @@ export default function SaleDetailsScreen() {
             <View style={styles.profitCol}>
               <Text style={styles.profitLbl}>Margem</Text>
               <Text style={[styles.profitVal, { color: (sale.profit_margin_percent ?? 0) >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
-                {(sale.profit_margin_percent ?? 0).toFixed(1)}%
+                {formatPercent((sale.profit_margin_percent ?? 0), 1)}
               </Text>
             </View>
           </View>
@@ -401,7 +401,7 @@ export default function SaleDetailsScreen() {
                           styles.marginBadgeText,
                           { color: (item.margin_percent ?? 0) >= 30 ? '#2E7D32' : '#F57C00' },
                         ]}>
-                          {(item.margin_percent ?? 0).toFixed(0)}%
+                          {formatPercent((item.margin_percent ?? 0), 0)}
                         </Text>
                       </View>
                     )}

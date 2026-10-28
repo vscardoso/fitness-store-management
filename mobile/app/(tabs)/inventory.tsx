@@ -35,7 +35,7 @@ import { getStockEntries, getSlowMovingProducts } from '@/services/stockEntrySer
 import { getLowStockProducts, getProducts } from '@/services/productService';
 import { getInventoryValuation } from '@/services/dashboardService';
 import { getResultByPeriod } from '@/services/expenseService';
-import { formatCurrency, formatDate } from '@/utils/format';
+import { formatCurrency, formatDate, formatPercent } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { EntryType } from '@/types';
 import PageHeader from '@/components/layout/PageHeader';
@@ -95,7 +95,7 @@ function StatCard({ icon, label, value, trend, iconColor, iconBg, onPress }: Sta
                 styles.trendBadgeText,
                 { color: trend >= 0 ? '#10B981' : '#EF4444' }
               ]}>
-                {Math.abs(trend).toFixed(0)}%
+                {formatPercent(Math.abs(trend), 0)}
               </Text>
             </View>
           )}
@@ -632,7 +632,7 @@ export default function InventoryDashboard() {
                       <View style={styles.chartRowHeader}>
                         <Text style={styles.chartMonthImproved}>{monthLabel}</Text>
                         <View style={styles.shareChip}>
-                          <Text style={styles.shareText}>{sharePercentage.toFixed(0)}%</Text>
+                          <Text style={styles.shareText}>{formatPercent(sharePercentage, 0)}</Text>
                         </View>
                       </View>
 
@@ -745,7 +745,7 @@ export default function InventoryDashboard() {
                             Colors.light.error
                         }
                       ]}>
-                        {(entry.sell_through_rate || 0).toFixed(0)}%
+                        {formatPercent((entry.sell_through_rate || 0), 0)}
                       </Text>
                     </View>
                   </View>

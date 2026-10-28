@@ -39,7 +39,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import BottomSheet from '@/components/ui/BottomSheet';
 import useBackToList from '@/hooks/useBackToList';
 import { getStockEntryById, deleteStockEntry, updateEntryItem, deleteEntryItem, correctEntryItem, getStockEntryAnalytics } from '@/services/stockEntryService';
-import { formatCurrency, formatDate } from '@/utils/format';
+import { formatCurrency, formatDate, formatPercent } from '@/utils/format';
 import { toBRNumber, maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import EmptyState from '@/components/ui/EmptyState';
@@ -616,7 +616,7 @@ export default function StockEntryDetailsScreen() {
               : ''}
             {' · '}Venda {formatCurrency(itemNumbers.sell_price)}
             {' · '}Lucro {formatCurrency(itemNumbers.profit_per_unit)} por peça
-            {' · '}Markup {itemNumbers.markup_pct.toFixed(0)}%
+            {' · '}Markup {formatPercent(itemNumbers.markup_pct, 0)}
           </Text>
         )}
 
@@ -645,7 +645,7 @@ export default function StockEntryDetailsScreen() {
           <View style={styles.progressHeader}>
             <Text style={styles.progressLabel}>Já vendido</Text>
             <Text style={[styles.progressPercentage, { color: progressColor }]}>
-              {depletionRate.toFixed(1)}%
+              {formatPercent(depletionRate, 1)}
             </Text>
           </View>
           <View style={styles.progressBarTrack}>
@@ -833,7 +833,7 @@ export default function StockEntryDetailsScreen() {
           {lotAnalytics && (
             <StatCard
               label="Markup do lote"
-              value={`${lotAnalytics.markup_pct_total.toFixed(0)}%`}
+              value={`${formatPercent(lotAnalytics.markup_pct_total, 0)}`}
               icon="pricetag-outline"
               valueColor={lotAnalytics.markup_pct_total >= 0 ? Colors.light.success : Colors.light.error}
             />
@@ -841,7 +841,7 @@ export default function StockEntryDetailsScreen() {
           {lotAnalytics && (
             <StatCard
               label="Lucro do lote (previsto)"
-              value={`${lotAnalytics.potential_margin_pct.toFixed(0)}%`}
+              value={`${formatPercent(lotAnalytics.potential_margin_pct, 0)}`}
               icon="wallet-outline"
               valueColor={lotAnalytics.potential_profit_total >= 0 ? Colors.light.success : Colors.light.error}
             />
@@ -860,7 +860,7 @@ export default function StockEntryDetailsScreen() {
           />
           <StatCard
             label="Taxa de Venda"
-            value={`${entry.sell_through_rate.toFixed(1)}%`}
+            value={`${formatPercent(entry.sell_through_rate, 1)}`}
             icon="trending-up"
             valueColor={entry.sell_through_rate >= 70 ? Colors.light.success : entry.sell_through_rate >= 40 ? Colors.light.warning : Colors.light.error}
           />
@@ -889,7 +889,7 @@ export default function StockEntryDetailsScreen() {
                   <View style={styles.rankInfo}>
                     <Text style={styles.rankName}>{item.product_name}</Text>
                     <Text style={styles.rankMetric}>
-                      {item.quantity_sold} vendidos de {item.quantity_received} ({item.depletionRate.toFixed(0)}%)
+                      {item.quantity_sold} vendidos de {item.quantity_received} ({formatPercent(item.depletionRate, 0)})
                     </Text>
                   </View>
                 </View>
@@ -912,7 +912,7 @@ export default function StockEntryDetailsScreen() {
                   <View style={styles.rankInfo}>
                     <Text style={styles.rankName}>{item.product_name}</Text>
                     <Text style={styles.rankMetric}>
-                      Restam {item.quantity_remaining} de {item.quantity_received} ({item.depletionRate.toFixed(0)}% vendido)
+                      Restam {item.quantity_remaining} de {item.quantity_received} ({formatPercent(item.depletionRate, 0)} vendido)
                     </Text>
                   </View>
                 </View>

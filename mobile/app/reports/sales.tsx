@@ -26,7 +26,7 @@ import {
   type TopProduct,
 } from '@/services/reportService';
 import { getSales } from '@/services/saleService';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatPercent } from '@/utils/format';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import PeriodFilter from '@/components/PeriodFilter';
 import type { PeriodFilterValue } from '@/components/PeriodFilter';
@@ -193,7 +193,7 @@ export default function SalesReportScreen() {
             </div>
             <div style="font-size: 12px; color: #6b7280;">${
               product.quantity_sold
-            } unidades • Margem: ${product.margin.toFixed(1)}%</div>
+            } unidades • Margem: ${formatPercent(product.margin, 1)}</div>
           </td>
           <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">
             <div style="font-weight: 700; color: #1f2937; margin-bottom: 4px;">${formatCurrency(
@@ -695,7 +695,7 @@ export default function SalesReportScreen() {
                     <Text style={styles.metricLabel}>Lucro</Text>
                   </View>
                   <Money style={[styles.metricValue, { color: VALUE_COLORS.positive }]} value={Number(report.total_profit)} />
-                  <Text style={styles.metricCount}>Margem: {report.profit_margin.toFixed(1)}%</Text>
+                  <Text style={styles.metricCount}>Margem: {formatPercent(report.profit_margin, 1)}</Text>
                 </View>
 
                 <View style={styles.metricCard}>
@@ -731,7 +731,7 @@ export default function SalesReportScreen() {
                   <Text style={styles.compareText}>
                     {report.comparison.is_growth ? 'Vendeu ' : 'Vendeu '}
                     <Text style={{ fontWeight: '800', color: report.comparison.is_growth ? VALUE_COLORS.positive : VALUE_COLORS.negative }}>
-                      {Math.abs(report.comparison.percentage_change).toFixed(0)}% {report.comparison.is_growth ? 'a mais' : 'a menos'}
+                      {formatPercent(Math.abs(report.comparison.percentage_change), 0)} {report.comparison.is_growth ? 'a mais' : 'a menos'}
                     </Text>
                     {' '}que nos {daysLabel} anteriores ({formatCurrency(report.comparison.previous_total)}, {report.comparison.previous_sales} vendas)
                   </Text>
@@ -829,7 +829,7 @@ export default function SalesReportScreen() {
                       </View>
                       <View style={styles.paymentValues}>
                         <Text style={styles.paymentTotal}>{formatCurrency(item.total)}</Text>
-                        <Text style={styles.paymentPercent}>{item.percentage.toFixed(1)}%</Text>
+                        <Text style={styles.paymentPercent}>{formatPercent(item.percentage, 1)}</Text>
                       </View>
                     </View>
                   ))
@@ -880,7 +880,7 @@ export default function SalesReportScreen() {
                           </View>
                         )}
                         <Text style={styles.productStats} numberOfLines={1}>
-                          {product.quantity_sold} un • Margem: {product.margin.toFixed(1)}%
+                          {product.quantity_sold} un • Margem: {formatPercent(product.margin, 1)}
                         </Text>
                       </View>
                       <View style={styles.productValues}>
@@ -909,7 +909,7 @@ export default function SalesReportScreen() {
                       <View style={styles.hbarTrack}>
                         <View style={[styles.hbarFill, { width: `${Math.max(2, c.percentage)}%`, backgroundColor: brandingColors.primary }]} />
                       </View>
-                      <Text style={styles.catMeta}>{c.pieces} peças · {c.percentage.toFixed(0)}% da receita · lucro {formatCurrency(c.profit)}</Text>
+                      <Text style={styles.catMeta}>{c.pieces} peças · {formatPercent(c.percentage, 0)} da receita · lucro {formatCurrency(c.profit)}</Text>
                     </View>
                   ))}
                 </View>
@@ -929,7 +929,7 @@ export default function SalesReportScreen() {
                         <Text style={styles.catName} numberOfLines={1}>{v.seller_name}</Text>
                         <Text style={styles.catValue}>{formatCurrency(v.revenue)}</Text>
                       </View>
-                      <Text style={styles.catMeta}>{v.sales} vendas · ticket médio {formatCurrency(v.average_ticket)} · {v.percentage.toFixed(0)}% do total</Text>
+                      <Text style={styles.catMeta}>{v.sales} vendas · ticket médio {formatCurrency(v.average_ticket)} · {formatPercent(v.percentage, 0)} do total</Text>
                     </View>
                   ))}
                 </View>

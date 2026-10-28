@@ -23,7 +23,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatPercent } from '@/utils/format';
 import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
@@ -124,13 +124,13 @@ function ProductCard({ product, onPress }: { product: TopProductDetail; onPress:
         <View style={styles.detailItem}>
           <Ionicons name="pie-chart-outline" size={14} color={Colors.light.info} />
           <Text style={styles.detailLabel}>Margem</Text>
-          <Text style={[styles.detailValue, { color: Colors.light.info }]}>{product.profit_margin.toFixed(1)}%</Text>
+          <Text style={[styles.detailValue, { color: Colors.light.info }]}>{formatPercent(product.profit_margin, 1)}</Text>
         </View>
 
         <View style={styles.detailItem}>
           <Ionicons name="analytics-outline" size={14} color={VALUE_COLORS.warning} />
           <Text style={styles.detailLabel}>Share</Text>
-          <Text style={[styles.detailValue, { color: VALUE_COLORS.warning }]}>{product.share_revenue.toFixed(1)}%</Text>
+          <Text style={[styles.detailValue, { color: VALUE_COLORS.warning }]}>{formatPercent(product.share_revenue, 1)}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -308,17 +308,17 @@ export default function TopProductsScreen() {
 
                 <Text style={styles.insightText}>
                   O produto <Text style={styles.insightHighlight}>{data.products[0].product_name}</Text> representa{' '}
-                  <Text style={styles.insightHighlight}>{data.products[0].share_revenue.toFixed(1)}%</Text> da receita total.
+                  <Text style={styles.insightHighlight}>{formatPercent(data.products[0].share_revenue, 1)}</Text> da receita total.
                 </Text>
 
                 <Text style={styles.insightText}>
                   Top 3 produtos somam{' '}
                   <Text style={styles.insightHighlight}>
-                    {(
+                    {formatPercent((
                       data.products[0].share_revenue +
                       data.products[1].share_revenue +
                       data.products[2].share_revenue
-                    ).toFixed(1)}%
+                    ), 1)}
                   </Text>{' '}
                   das vendas.
                 </Text>

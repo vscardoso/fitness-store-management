@@ -25,6 +25,7 @@ import useBackToList from '@/hooks/useBackToList';
 import type { DuplicateMatch } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useBrandingColors } from '@/store/brandingStore';
+import { formatPercent } from '@/utils/format';
 
 const { width } = Dimensions.get('window');
 
@@ -371,7 +372,7 @@ export default function ScanProductScreen() {
                   <View style={styles.priceItem}>
                     <Text style={styles.priceLabel}>Markup</Text>
                     <Text style={styles.priceValueMarkup}>
-                      {Number(scanResult.markup_percentage).toFixed(0)}%
+                      {formatPercent(Number(scanResult.markup_percentage))}
                     </Text>
                   </View>
                 )}

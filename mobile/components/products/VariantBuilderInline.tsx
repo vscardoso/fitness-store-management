@@ -51,6 +51,7 @@ import {
   type ColorGroup,
 } from '@/types/productVariant';
 import HScroll from '@/components/ui/HScroll';
+import { formatPercent } from '@/utils/format';
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -932,7 +933,7 @@ export default function VariantBuilderInline({
                               ? styles.batchMarginTextOk
                               : styles.batchMarginTextLow,
                           ]}>
-                            {margin.toFixed(0)}%
+                            {formatPercent(margin, 0)}
                           </Text>
                         </View>
                       ) : (

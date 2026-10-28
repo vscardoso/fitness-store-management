@@ -165,3 +165,24 @@ export const formatInt = (value: number | null | undefined): string => {
   if (!Number.isFinite(n)) return '0';
   return (n < 0 ? '-' : '') + String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 };
+
+/**
+ * Porcentagem em português: vírgula nos decimais e ponto no milhar (1234.5 vira "1.234,5%").
+ * Valor pequeno demais para aparecer com as casas pedidas vira "menos de 0,1%" em vez de "0%" enganoso.
+ */
+export const formatPercent = (value: number | null | undefined, decimals = 0): string => {
+  const n = Number(value ?? 0);
+  if (!Number.isFinite(n)) return '0%';
+  const min = Math.pow(10, -decimals);
+  if (n !== 0 && Math.abs(n) < min / 2) return n < 0 ? '0%' : 'menos de ' + min.toFixed(decimals).replace('.', ',') + '%';
+  const [int, frac] = Math.abs(n).toFixed(decimals).split('.');
+  const body = int.replace(/\B(?=(\d{3})+(?!\d))/g, '.') + (frac ? ',' + frac : '');
+  return (n < 0 && Number(Math.abs(n).toFixed(decimals)) !== 0 ? '-' : '') + body + '%';
+};
+
+/** Com sinal explícito: +12% / -3% / 0%. */
+export const formatSignedPercent = (value: number | null | undefined, decimals = 0): string => {
+  const n = Number(value ?? 0);
+  const txt = formatPercent(n, decimals);
+  return n > 0 && !txt.startsWith('menos') ? '+' + txt : txt;
+};

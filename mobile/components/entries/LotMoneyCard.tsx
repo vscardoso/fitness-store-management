@@ -19,7 +19,7 @@ import { getStockEntryAnalytics, getStockEntryCosts } from '@/services/stockEntr
 import { createExpense, deleteExpense } from '@/services/expenseService';
 import { updateStockEntry } from '@/services/stockEntryService';
 import type { StockEntryCreate } from '@/types';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatPercent } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 
@@ -209,7 +209,7 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
             ? 'Esses gastos extras entram no preço de custo de cada peça. '
             : 'O desconto entra no preço de custo de cada peça. '}
           Por isso cada peça deste lote custa <Text style={styles.bold}>{formatCurrency(perPieceFull)}</Text> (e não{' '}
-          {formatCurrency(perPieceBase)}), uns {Math.abs(c.cost_increase_pct).toFixed(0)}%{' '}
+          {formatCurrency(perPieceBase)}), uns {formatPercent(Math.abs(c.cost_increase_pct), 0)}{' '}
           {c.extra_costs_total > 0 ? 'a mais' : 'a menos'}. É esse custo que o app usa para calcular o seu lucro em cada venda.
         </Text>
       )}
@@ -250,7 +250,7 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
         </Text>
       </View>
       <Text style={styles.note}>
-        Markup de <Text style={styles.bold}>{a.markup_pct_total.toFixed(0)}%</Text>: para cada R$ 100 que você gastou, a venda prevista põe R${' '}
+        Markup de <Text style={styles.bold}>{formatPercent(a.markup_pct_total, 0)}</Text>: para cada R$ 100 que você gastou, a venda prevista põe R${' '}
         {a.markup_pct_total.toFixed(0)} de lucro por cima. Olhando pelo valor vendido, de cada R$ 100 vendidos, R${' '}
         {a.potential_margin_pct.toFixed(0)} são lucro.
       </Text>
@@ -266,7 +266,7 @@ export default function LotMoneyCard({ entryId, canEdit }: Props) {
           <Text style={styles.note}>
             {paidOff
               ? 'Este lote já se pagou por inteiro. O que vender daqui para frente é lucro.'
-              : `Já voltou ${a.recovered_pct.toFixed(0)}% do dinheiro que você gastou neste lote.`}
+              : `Já voltou ${formatPercent(a.recovered_pct, 0)} do dinheiro que você gastou neste lote.`}
           </Text>
         </>
       ) : (

@@ -31,7 +31,7 @@ import type { DailySalesData } from '@/services/dashboardService';
 import { getSales } from '@/services/saleService';
 import { getLowStockProducts } from '@/services/productService';
 import type { Sale } from '@/types';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatInt, formatPercent, formatSignedPercent } from '@/utils/format';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { valueColor } from '@/utils/format';
 import FAB from '@/components/FAB';
@@ -375,7 +375,7 @@ export default function DashboardScreen() {
               <Ionicons name="warning" size={20} color={Colors.light.warning} />
               <View style={{ flex: 1 }}>
                 <Text style={styles.stockAlertTitle}>
-                  {lowStockCount} produto{lowStockCount !== 1 ? 's' : ''} com estoque baixo
+                  {formatInt(lowStockCount)} produto{lowStockCount !== 1 ? 's' : ''} com estoque baixo
                 </Text>
                 <Text style={styles.stockAlertSub}>Toque para ver alertas</Text>
               </View>
@@ -411,7 +411,7 @@ export default function DashboardScreen() {
                     color="#fff"
                   />
                   <Text style={styles.trendText}>
-                    {salesTrendPercent > 0 ? '+' : ''}{salesTrendPercent.toFixed(0)}% vs ontem
+                    {formatSignedPercent(salesTrendPercent)} vs ontem
                   </Text>
                 </View>
               )}
@@ -419,7 +419,7 @@ export default function DashboardScreen() {
             <Text style={styles.mainCardLabel}>Vendas Hoje</Text>
             <Money style={styles.mainCardValue} value={Number(totalSalesToday)} />
             <Text style={styles.mainCardSubtitle}>
-              {salesCountToday} {salesCountToday === 1 ? 'venda realizada' : 'vendas realizadas'}
+              {formatInt(salesCountToday)} {salesCountToday === 1 ? 'venda realizada' : 'vendas realizadas'}
             </Text>
             {salesCountToday > 0 && (
               <View style={styles.todayProfitRow}>
@@ -428,7 +428,7 @@ export default function DashboardScreen() {
                   Lucro: {formatCurrency(profitToday)}
                 </Text>
                 <View style={styles.todayMarginBadge}>
-                  <Text style={styles.todayMarginText}>{marginToday.toFixed(1)}%</Text>
+                  <Text style={styles.todayMarginText}>{formatPercent(marginToday, 1)}</Text>
                 </View>
               </View>
             )}
@@ -489,7 +489,7 @@ export default function DashboardScreen() {
             </View>
             <Money style={styles.monthCardValue} value={Number(periodTotal)} />
             <View style={styles.monthCardFooter}>
-              <Text style={styles.monthCardSubtitle}>{periodCount} vendas</Text>
+              <Text style={styles.monthCardSubtitle}>{formatInt(periodCount)} vendas</Text>
               {totalChangePercent !== 0 && (
                 <View style={[
                   styles.changeBadge,
@@ -504,7 +504,7 @@ export default function DashboardScreen() {
                     styles.changeText,
                     { color: totalChangePercent >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
                   ]}>
-                    {Math.abs(totalChangePercent).toFixed(0)}%
+                    {formatPercent(Math.abs(totalChangePercent))}
                   </Text>
                 </View>
               )}
@@ -528,7 +528,7 @@ export default function DashboardScreen() {
             </View>
             <Money style={[styles.monthCardValue, { color: VALUE_COLORS.positive }]} value={Number(periodProfit)} />
             <View style={styles.monthCardFooter}>
-              <Text style={styles.monthCardSubtitle}>{periodMargin.toFixed(0)}% do vendido</Text>
+              <Text style={styles.monthCardSubtitle}>{formatPercent(periodMargin)} do vendido</Text>
               {profitChangePercent !== 0 && (
                 <View style={[
                   styles.changeBadge,
@@ -543,7 +543,7 @@ export default function DashboardScreen() {
                     styles.changeText,
                     { color: profitChangePercent >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
                   ]}>
-                    {Math.abs(profitChangePercent).toFixed(0)}%
+                    {formatPercent(Math.abs(profitChangePercent))}
                   </Text>
                 </View>
               )}
@@ -596,7 +596,7 @@ export default function DashboardScreen() {
                   <Text style={[styles.plSummaryMargin, {
                     color: monthlyResult.net_profit >= 0 ? Colors.light.success : Colors.light.error,
                   }]}>
-                    {Number(monthlyResult.net_margin_pct).toFixed(0)}% do que vendeu
+                    {formatPercent(Number(monthlyResult.net_margin_pct))} do que vendeu
                   </Text>
                 </View>
               </View>
@@ -723,7 +723,7 @@ export default function DashboardScreen() {
                     <View style={styles.topProductStats}>
                       <Text style={styles.topProductStatText}>{product.qty_sold} un vendidas</Text>
                       <Text style={[styles.topProductStatText, { color: valueColor(product.profit, 'profit') }]}>
-                        Lucro: {formatCurrency(product.profit)} ({product.margin_percent.toFixed(0)}%)
+                        Lucro: {formatCurrency(product.profit)} ({formatPercent(product.margin_percent)})
                       </Text>
                     </View>
                   </View>
@@ -770,11 +770,11 @@ export default function DashboardScreen() {
               </View>
 
               <Text style={styles.fifoSellThroughValue}>
-                {fifoPerf.sell_through.rate.toFixed(0)}%
+                {formatPercent(fifoPerf.sell_through.rate, fifoPerf.sell_through.rate > 0 && fifoPerf.sell_through.rate < 1 ? 2 : 0)}
               </Text>
 
               <Text style={styles.fifoMetricSub}>
-                {fifoPerf.sell_through.total_sold} de {fifoPerf.sell_through.total_received} itens vendidos
+                {formatInt(fifoPerf.sell_through.total_sold)} de {formatInt(fifoPerf.sell_through.total_received)} itens vendidos
               </Text>
 
               <View style={styles.fifoGaugeContainer}>
@@ -821,7 +821,7 @@ export default function DashboardScreen() {
                   styles.fifoMetricValue,
                   { color: fifoPerf.roi.avg_roi >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
                 ]}>
-                  {fifoPerf.roi.avg_roi > 0 ? '+' : ''}{fifoPerf.roi.avg_roi.toFixed(0)}%
+                  {formatSignedPercent(fifoPerf.roi.avg_roi)}
                 </Text>
                 <View style={[
                   styles.fifoMetricBadge,
@@ -861,7 +861,7 @@ export default function DashboardScreen() {
                   styles.fifoMetricValue,
                   { color: fifoPerf.roi.negative_count === 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
                 ]}>
-                  {fifoPerf.roi.negative_count}
+                  {formatInt(fifoPerf.roi.negative_count)}
                 </Text>
                 <View style={[
                   styles.fifoMetricBadge,
@@ -901,7 +901,7 @@ export default function DashboardScreen() {
                   styles.fifoMetricValue,
                   { color: fifoPerf.sell_through.total_remaining === 0 ? VALUE_COLORS.positive : VALUE_COLORS.warning }
                 ]}>
-                  {fifoPerf.sell_through.total_remaining}
+                  {formatInt(fifoPerf.sell_through.total_remaining)}
                 </Text>
                 <View style={[
                   styles.fifoMetricBadge,
@@ -923,7 +923,7 @@ export default function DashboardScreen() {
                 <View style={styles.fifoAlertContent}>
                   <Text style={styles.fifoAlertTitle}>Ação Necessária</Text>
                   <Text style={styles.fifoAlertText}>
-                    {fifoPerf.roi.negative_count} {fifoPerf.roi.negative_count === 1 ? 'compra está' : 'compras estão'} gerando prejuízo
+                    {formatInt(fifoPerf.roi.negative_count)} {fifoPerf.roi.negative_count === 1 ? 'compra está' : 'compras estão'} gerando prejuízo
                   </Text>
                   <Text style={styles.fifoAlertHint}>Verifique os preços de venda →</Text>
                 </View>
@@ -963,7 +963,7 @@ export default function DashboardScreen() {
                     color={isPositive ? VALUE_COLORS.positive : VALUE_COLORS.negative}
                   />
                   <Text style={[styles.yoyChangePct, { color: isPositive ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
-                    {isPositive ? '+' : ''}{yoyData.totals.total_change_percent.toFixed(1)}% no ano
+                    {formatSignedPercent(yoyData.totals.total_change_percent, 1)} no ano
                   </Text>
                 </View>
               </View>
@@ -1043,7 +1043,7 @@ export default function DashboardScreen() {
                           />
                         )}
                         <Text style={[styles.yoyMonthBadgeText, { color: chgColor }]}>
-                          {chg > 0 ? '+' : ''}{chg.toFixed(0)}%
+                          {formatSignedPercent(chg)}
                         </Text>
                       </View>
                     </View>
@@ -1088,19 +1088,19 @@ export default function DashboardScreen() {
                   styles.changeText,
                   { color: purchasesChangePercent >= 0 ? VALUE_COLORS.warning : VALUE_COLORS.positive }
                 ]}>
-                  {Math.abs(purchasesChangePercent).toFixed(0)}%
+                  {formatPercent(Math.abs(purchasesChangePercent))}
                 </Text>
               </View>
             )}
           </View>
           <View style={styles.purchasesStats}>
             <View style={styles.purchasesStat}>
-              <Text style={styles.purchasesStatValue}>{purchasesCount}</Text>
+              <Text style={styles.purchasesStatValue}>{formatInt(purchasesCount)}</Text>
               <Text style={styles.purchasesStatLabel}>entradas</Text>
             </View>
             <View style={styles.purchasesStatDivider} />
             <View style={styles.purchasesStat}>
-              <Text style={styles.purchasesStatValue}>{purchasesItems}</Text>
+              <Text style={styles.purchasesStatValue}>{formatInt(purchasesItems)}</Text>
               <Text style={styles.purchasesStatLabel}>unidades compradas</Text>
             </View>
           </View>
@@ -1161,7 +1161,7 @@ export default function DashboardScreen() {
               <View style={styles.stockProfitRight}>
                 <Text style={styles.stockProfitValue}>{formatCurrency(stockProfit)}</Text>
                 <View style={styles.stockProfitBadge}>
-                  <Text style={styles.stockProfitPercent}>{stockMarginPercent.toFixed(0)}%</Text>
+                  <Text style={styles.stockProfitPercent}>{formatPercent(stockMarginPercent)}</Text>
                 </View>
               </View>
             </View>
@@ -1170,8 +1170,8 @@ export default function DashboardScreen() {
             <View style={styles.stockInfo}>
               <Text style={styles.stockInfoText}>
                 {totalSkus > totalProducts
-                  ? `${totalSkus} variações de ${totalProducts} ${totalProducts === 1 ? 'produto' : 'produtos'} em estoque`
-                  : `${totalProducts} ${totalProducts === 1 ? 'produto' : 'produtos'} em estoque`
+                  ? `${formatInt(totalSkus)} variações de ${formatInt(totalProducts)} ${totalProducts === 1 ? 'produto' : 'produtos'} em estoque`
+                  : `${formatInt(totalProducts)} ${totalProducts === 1 ? 'produto' : 'produtos'} em estoque`
                 }
               </Text>
             </View>
@@ -1232,7 +1232,7 @@ export default function DashboardScreen() {
                   </View>
                   <View style={styles.tooltipDivider} />
                   <Text style={styles.tooltipText}>
-                    Diferença entre o preço de venda e o custo do estoque atual.{`\n\nMargem de lucro de ${stockMarginPercent.toFixed(0)}% sobre o preço de venda — se vender tudo ao preço atual.`}
+                    Diferença entre o preço de venda e o custo do estoque atual.{`\n\nMargem de lucro de ${formatPercent(stockMarginPercent)} sobre o preço de venda — se vender tudo ao preço atual.`}
                   </Text>
                 </>
               )}
@@ -1363,7 +1363,7 @@ export default function DashboardScreen() {
             <View style={styles.alertContent}>
               <Text style={styles.alertTitle}>Estoque Baixo</Text>
               <Text style={styles.alertText}>
-                {lowStockCount} {lowStockCount === 1 ? 'produto precisa' : 'produtos precisam'} de reposição
+                {formatInt(lowStockCount)} {lowStockCount === 1 ? 'produto precisa' : 'produtos precisam'} de reposição
               </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
@@ -1378,12 +1378,12 @@ export default function DashboardScreen() {
             onPress={() => router.push('/(tabs)/products')}
           >
             <Ionicons name="cube" size={20} color="#8B5CF6" />
-            <Text style={styles.quickStatValue}>{totalSkus}</Text>
+            <Text style={styles.quickStatValue}>{formatInt(totalSkus)}</Text>
             <Text style={styles.quickStatLabel}>
               {totalSkus > totalProducts ? 'Variações' : 'Produtos'}
             </Text>
             {totalSkus > totalProducts && (
-              <Text style={styles.quickStatSub}>{totalProducts} modelos</Text>
+              <Text style={styles.quickStatSub}>{formatInt(totalProducts)} modelos</Text>
             )}
           </TouchableOpacity>
           <TouchableOpacity
@@ -1391,7 +1391,7 @@ export default function DashboardScreen() {
             onPress={() => router.push('/(tabs)/customers')}
           >
             <Ionicons name="people" size={20} color="#3B82F6" />
-            <Text style={styles.quickStatValue}>{totalCustomers}</Text>
+            <Text style={styles.quickStatValue}>{formatInt(totalCustomers)}</Text>
             <Text style={styles.quickStatLabel}>Clientes</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -1399,7 +1399,7 @@ export default function DashboardScreen() {
             onPress={() => router.push('/(tabs)/sales')}
           >
             <Ionicons name="receipt" size={20} color="#10B981" />
-            <Text style={styles.quickStatValue}>{periodCount}</Text>
+            <Text style={styles.quickStatValue}>{formatInt(periodCount)}</Text>
             <Text style={styles.quickStatLabel}>Vendas</Text>
           </TouchableOpacity>
         </View>

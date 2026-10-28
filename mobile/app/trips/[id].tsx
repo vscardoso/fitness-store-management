@@ -9,7 +9,7 @@ import { getTripById, deleteTrip, updateTripStatus, getTripAnalytics } from '@/s
 import { TripStatus } from '@/types';
 import type { TripAnalytics } from '@/types';
 import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
-import { formatCurrency, formatDate, formatDateTime } from '@/utils/format';
+import { formatCurrency, formatDate, formatDateTime, formatPercent } from '@/utils/format';
 import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -343,7 +343,7 @@ export default function TripDetailsScreen() {
                 <View style={styles.analyticsCell}>
                   <Text style={styles.analyticsCellLabel}>Sell-through</Text>
                   <Text style={[styles.analyticsCellValue, { color: brandingColors.primary }]}>
-                    {(analytics.sell_through_rate ?? 0).toFixed(1)}%
+                    {formatPercent((analytics.sell_through_rate ?? 0), 1)}
                   </Text>
                 </View>
                 <View style={styles.analyticsCell}>
@@ -352,7 +352,7 @@ export default function TripDetailsScreen() {
                     styles.analyticsCellValue,
                     { color: (analytics.roi ?? 0) >= 0 ? Colors.light.success : Colors.light.error },
                   ]}>
-                    {(analytics.roi ?? 0) >= 0 ? '+' : ''}{(analytics.roi ?? 0).toFixed(1)}%
+                    {(analytics.roi ?? 0) >= 0 ? '+' : ''}{formatPercent((analytics.roi ?? 0), 1)}
                   </Text>
                 </View>
               </View>

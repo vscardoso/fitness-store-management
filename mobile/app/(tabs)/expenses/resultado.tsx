@@ -10,7 +10,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import PageHeader from '@/components/layout/PageHeader';
 import { getMonthlyResult } from '@/services/expenseService';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatPercent } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import type { MonthlyResult, ExpenseByCategoryItem } from '@/types/expense';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
@@ -103,7 +103,7 @@ function PLCard({ data }: { data: MonthlyResult }) {
               Lucro do mês (o que sobrou no bolso)
             </Text>
             <Text style={[styles.netMargin, { color: netPositive ? Colors.light.success : Colors.light.error }]}>
-              {Number(data.net_margin_pct).toFixed(0)}% do que você vendeu
+              {formatPercent(Number(data.net_margin_pct))} do que você vendeu
             </Text>
           </View>
           <Text style={[styles.netValue, { color: netPositive ? Colors.light.success : Colors.light.error }]}>
@@ -155,7 +155,7 @@ function ExpenseBreakdown({ items, total }: { items: ExpenseByCategoryItem[]; to
               </View>
               <Text style={styles.catName}>{item.category}</Text>
               <View style={styles.catRight}>
-                <Text style={styles.catPct}>{pct.toFixed(0)}%</Text>
+                <Text style={styles.catPct}>{formatPercent(pct, 0)}</Text>
                 <Text style={styles.catValue}>{formatCurrency(item.total)}</Text>
               </View>
             </View>

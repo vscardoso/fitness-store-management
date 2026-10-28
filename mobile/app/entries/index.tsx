@@ -46,7 +46,7 @@ import { takePendingProductImage } from '@/services/pendingProductImage';
 import { markWizardCompleted, PRODUCT_LIST_ROUTE, wasWizardJustCompleted } from '@/utils/wizardGuard';
 import { trailMark, trailReport } from '@/utils/navTrail';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
-import { formatCurrency, formatDate } from '@/utils/format';
+import { formatCurrency, formatDate, formatPercent } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { StockEntry, EntryType } from '@/types';
@@ -533,7 +533,7 @@ export default function StockEntriesScreen() {
                       styles.kpiValue,
                       { color: item.sell_through_rate >= 70 ? Colors.light.success : item.sell_through_rate >= 40 ? Colors.light.warning : Colors.light.error }
                     ]}>
-                      {item.sell_through_rate.toFixed(1)}%
+                      {formatPercent(item.sell_through_rate, 1)}
                     </Text>
                     {item.roi !== null && item.roi !== undefined && (
                       <Text style={[
@@ -541,7 +541,7 @@ export default function StockEntriesScreen() {
                         styles.roiValue,
                         { color: item.roi >= 0 ? Colors.light.success : Colors.light.error }
                       ]}>
-                        Lucro {item.roi >= 0 ? '+' : ''}{item.roi.toFixed(1)}%
+                        Lucro {item.roi >= 0 ? '+' : ''}{formatPercent(item.roi, 1)}
                       </Text>
                     )}
                   </View>
@@ -716,7 +716,7 @@ export default function StockEntriesScreen() {
               styles.statValue,
               { color: stats.avgSellThrough >= 70 ? Colors.light.success : Colors.light.warning }
             ]}>
-              {isNaN(stats.avgSellThrough) ? '0' : stats.avgSellThrough.toFixed(0)}%
+              {isNaN(stats.avgSellThrough) ? '0%' : formatPercent(stats.avgSellThrough)}
             </Text>
           </View>
         </LinearGradient>

@@ -25,7 +25,7 @@ import { getProductVariants, getVariantGrid, formatVariantLabel, deleteVariant }
 import { variantCodeText } from '@/utils/shortCode';
 import VariantKeepModal from '@/components/products/VariantKeepModal';
 import { VariantStockMatrix } from '@/components/products/VariantStockMatrix';
-import { formatCurrency, formatDate } from '@/utils/format';
+import { formatCurrency, formatDate, formatPercent } from '@/utils/format';
 import { getImageUrl } from '@/constants/Config';
 import { Colors, theme } from '@/constants/Colors';
 import { documentLabel } from '@/utils/masks';
@@ -684,7 +684,7 @@ export default function ProductDetailsScreen() {
                     <Ionicons name="trending-up" size={22} color={brandingColors.primary} style={{ marginBottom: 6 }} />
                     <Text style={styles.pricingLabel}>Margem</Text>
                     <Text style={[styles.pricingValue, { color: Colors.light.text }]}>
-                      {(((product.price - product.cost_price) / product.price) * 100).toFixed(0)}%
+                      {formatPercent(((product.price - product.cost_price) / product.price) * 100)}
                     </Text>
                   </View>
                 )}

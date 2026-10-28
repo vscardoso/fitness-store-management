@@ -11,7 +11,7 @@ import SuppliersTabs from '@/components/suppliers/SuppliersTabs';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useSupplierRanking } from '@/hooks/useSupplierInsights';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatPercent } from '@/utils/format';
 import type { SupplierRankingRow, SupplierRating } from '@/services/supplierInsightsService';
 
 const PERIODS = [
@@ -28,7 +28,7 @@ const RATING: Record<SupplierRating, { label: string; color: string }> = {
   sem_dados: { label: 'Poucos dados', color: Colors.light.textSecondary },
 };
 
-const pct = (v: number | null) => (v === null || v === undefined ? '-' : `${v.toFixed(0)}%`);
+const pct = (v: number | null) => (v === null || v === undefined ? '-' : `${formatPercent(v, 0)}`);
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (

@@ -30,7 +30,7 @@ import VariantBuilderInline from '@/components/products/VariantBuilderInline';
 import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
 import { getActiveProducts } from '@/services/productService';
 import { collectSkus, generateSKU, generateVariantSKU } from '@/utils/skuGenerator';
-import { capitalizeWords } from '@/utils/format';
+import { capitalizeWords, formatPercent } from '@/utils/format';
 import { formatPriceInput } from '@/utils/priceFormatter';
 
 interface WizardStep2Props {
@@ -385,7 +385,7 @@ export default function WizardStep2({
                 <View style={styles.markupBadge}>
                   <Ionicons name="trending-up" size={16} color={Colors.light.success} />
                   <Text style={styles.markupText}>
-                    Markup: {markup.toFixed(1)}%
+                    Markup: {formatPercent(markup, 1)}
                   </Text>
                 </View>
                 <Text style={styles.markupHint}>

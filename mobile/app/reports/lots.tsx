@@ -9,7 +9,7 @@ import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 
 import { Colors, VALUE_COLORS } from '@/constants/Colors';
-import { formatCurrency, formatDate } from '@/utils/format';
+import { formatCurrency, formatDate, formatPercent } from '@/utils/format';
 import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
@@ -94,7 +94,7 @@ function LotCard({ lot, color, onPress }: { lot: LotProfitRow; color: string; on
           ? 'Ainda não vendeu nada deste lote.'
           : paidOff
             ? 'Este lote já se pagou. O que vender daqui para frente é lucro.'
-            : `Já voltou ${lot.recovered_pct.toFixed(0)}% do que você gastou. Faltam ${formatCurrency(missing)} para o lote se pagar.`}
+            : `Já voltou ${formatPercent(lot.recovered_pct, 0)} do que você gastou. Faltam ${formatCurrency(missing)} para o lote se pagar.`}
       </Text>
       {lot.projected_profit_if_all_sold !== 0 && (
         <Text style={styles.forecast}>

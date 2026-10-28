@@ -22,7 +22,7 @@ import { useCategories } from '@/hooks/useCategories';
 import { getGroupedProducts, getFIFOCosts } from '@/services/productService';
 import { getVariantByLabelCode } from '@/services/productVariantService';
 import { getCustomerById } from '@/services/customerService';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, formatPercent } from '@/utils/format';
 import { colorNameToHex } from '@/utils/colorHex';
 import { isManagerRole } from '@/utils/roles';
 import { isLabelCode, parseShortCode, variantCodeText } from '@/utils/shortCode';
@@ -579,7 +579,7 @@ export default function DesktopPDV() {
               <View style={styles.line}>
                 <Text style={styles.lineLabel}>Lucro estimado</Text>
                 <Text style={[styles.lineValue, { color: cartProfit.profit >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
-                  {formatCurrency(cartProfit.profit)} ({cartProfit.margin.toFixed(1)}%)
+                  {formatCurrency(cartProfit.profit)} ({formatPercent(cartProfit.margin, 1)})
                 </Text>
               </View>
             )}
