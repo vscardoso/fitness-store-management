@@ -20,3 +20,8 @@ export function variantCodeText(v?: { display_code?: string | null; short_code?:
   if (!v) return null;
   return v.display_code ?? formatShortCode(v.short_code);
 }
+
+/** O QR do adesivo leva "PV#101-1" (ou "PV#0123" nas etiquetas antigas): é o que distingue de SKU e de JSON. */
+export function isLabelCode(text: string): boolean {
+  return /^PV#\s*\d/i.test(text.trim());
+}

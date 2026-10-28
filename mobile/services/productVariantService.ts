@@ -66,6 +66,12 @@ export async function getVariantBySku(sku: string): Promise<ProductVariantWithPr
 /**
  * Lista todas as variantes de um produto
  */
+/** Peça pelo código impresso na etiqueta ("PV#101-1" lido do QR, "#101-1", "#0123"). Código inexistente dá 404 com mensagem. */
+export async function getVariantByLabelCode(code: string): Promise<ProductVariantWithProduct> {
+  const response = await api.get(`/product-variants/short-code/${encodeURIComponent(code.trim())}`);
+  return response.data;
+}
+
 export async function getProductVariants(productId: number, config?: object): Promise<ProductVariant[]> {
   const response = await api.get(`/product-variants/product/${productId}`, config);
   return response.data;

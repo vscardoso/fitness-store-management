@@ -25,6 +25,8 @@ import { CameraView, useCameraPermissions, BarcodeScanningResult } from 'expo-ca
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { getProductById, getProductBySku } from '@/services/productService';
+import { getVariantByLabelCode } from '@/services/productVariantService';
+import { isLabelCode } from '@/utils/shortCode';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import type { Product } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
@@ -87,11 +89,17 @@ export default function QRCodeScanner({
     try {
       // Parse do QR Code
       let data: ScannedData;
-      try {
-        data = JSON.parse(result.data);
-      } catch {
-        // Se não for JSON, tenta como SKU direto
-        data = { sku: result.data };
+      if (isLabelCode(result.data)) {
+        // Adesivo do verso da tag: o QR leva o código da peça (PV#101-1); o servidor diz qual é a variação
+        const variant = await getVariantByLabelCode(result.data);
+        data = { sku: variant.sku, id: variant.product_id };
+      } else {
+        try {
+          data = JSON.parse(result.data);
+        } catch {
+          // Se não for JSON, tenta como SKU direto
+          data = { sku: result.data };
+        }
       }
 
       // Validar dados
@@ -143,7 +151,7 @@ export default function QRCodeScanner({
 
       setScannedProduct(product);
     } catch (err: any) {
-      setError(err.message || 'Erro ao processar QR Code');
+      setError(err?.response?.data?.detail || err.message || 'Erro ao processar QR Code');
       // Permitir novo scan após erro
       setTimeout(() => setScanned(false), 2000);
     } finally {

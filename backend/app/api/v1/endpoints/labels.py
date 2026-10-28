@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_active_user, get_current_tenant_id
 from app.core.database import get_db
 from app.models.user import User
-from app.services.label_pdf_service import build_pdf
+from app.services.label_pdf_service import MAX_MM, MIN_MM, a4_grid, build_pdf
 from app.services.label_print_service import LabelRequestError, labels_for_entry, labels_for_variants
 
 router = APIRouter(prefix="/labels", tags=["Etiquetas"])
@@ -21,7 +21,9 @@ class LabelItem(BaseModel):
 
 class LabelOptions(BaseModel):
     layout: Literal["a4", "roll"] = "a4"
-    start_position: int = Field(1, ge=1, le=12, description="Na folha A4, em que posição começar (pula as já usadas)")
+    start_position: int = Field(1, ge=1, le=100, description="Na folha A4, em que posição começar (pula as já usadas)")
+    width_mm: float = Field(60, ge=MIN_MM, le=MAX_MM, description="Largura do adesivo (60 = 6 cm)")
+    height_mm: float = Field(50, ge=MIN_MM, le=MAX_MM, description="Altura do adesivo (50 = 5 cm)")
 
 
 class LabelPdfRequest(LabelOptions):
@@ -33,6 +35,16 @@ def _pdf(content: bytes, filename: str) -> Response:
                     headers={"Content-Disposition": f'inline; filename="{filename}"'})
 
 
+@router.get("/sizes", summary="Tamanhos de adesivo e quantas cabem por folha A4")
+async def label_sizes(user: User = Depends(get_current_active_user)):
+    presets = [("6x5", "6 × 5 cm (deitada)", 60, 50), ("5x6", "5 × 6 cm (em pé)", 50, 60)]
+    out = []
+    for key, name, w, h in presets:
+        cols, rows = a4_grid(w, h)
+        out.append({"id": key, "name": name, "width_mm": w, "height_mm": h, "per_sheet": cols * rows, "cols": cols, "rows": rows})
+    return out
+
+
 @router.post("/pdf", summary="PDF das etiquetas das peças escolhidas")
 async def labels_pdf(
     body: LabelPdfRequest,
@@ -42,12 +54,12 @@ async def labels_pdf(
 ):
     try:
         labels = await labels_for_variants(db, tenant_id, [(i.variant_id, i.quantity) for i in body.items])
-        content = build_pdf(labels, body.layout, body.start_position)
+        content = build_pdf(labels, body.layout, body.start_position, body.width_mm, body.height_mm)
         await db.commit()  # grava números novos só depois do PDF pronto
-    except LabelRequestError as e:
+    except (LabelRequestError, ValueError) as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
-    return _pdf(content, "etiquetas.pdf")
+    return _pdf(content, f"etiquetas-{body.width_mm:g}x{body.height_mm:g}.pdf")
 
 
 @router.post("/pdf/entry/{entry_id}", summary="PDF com uma etiqueta por peça recebida na entrada")
@@ -60,9 +72,9 @@ async def labels_pdf_entry(
 ):
     try:
         labels, code = await labels_for_entry(db, tenant_id, entry_id)
-        content = build_pdf(labels, body.layout, body.start_position)
+        content = build_pdf(labels, body.layout, body.start_position, body.width_mm, body.height_mm)
         await db.commit()
-    except LabelRequestError as e:
+    except (LabelRequestError, ValueError) as e:
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     return _pdf(content, f"etiquetas-{code or entry_id}.pdf")

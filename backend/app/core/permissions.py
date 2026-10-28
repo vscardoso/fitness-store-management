@@ -80,6 +80,7 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     ({"GET"}, r"^/label-printers/(default|print/jobs|print/preview)$|^/label-printers/?$", SELLER),
     ({"POST"}, r"^/label-printers/print(/batch)?$", SELLER),
     ({"POST"}, r"^/labels/pdf(/entry/\{entry_id\})?$", SELLER),  # vendedor imprime etiqueta
+    ({"GET"}, r"^/labels/sizes$", SELLER),  # tamanhos de adesivo e quantas cabem por folha
     ({"GET"}, r"^/ai/status$", SELLER),
     ({"GET"}, r"^/suggestions/", SELLER),
     ({"POST", "GET", "DELETE"}, r"^/wishlist/(\{wishlist_id\}|customer/\{customer_id\})?$", SELLER),

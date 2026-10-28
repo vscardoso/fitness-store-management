@@ -26,7 +26,15 @@ from reportlab.pdfgen import canvas
 
 BOLD, REGULAR = "Helvetica-Bold", "Helvetica"
 ZONES = (15, 13, 11, 21)  # proporção das faixas (somam 60)
-A4_COLS, A4_ROWS = 3, 4
+A4_MARGIN_MM, A4_GAP_MM = 8, 4   # borda da folha e espaço entre etiquetas (cabem as marcas de corte)
+MIN_MM, MAX_MM = 30, 100
+
+
+def a4_grid(width_mm: float, height_mm: float) -> tuple[int, int]:
+    """Quantas etiquetas cabem na folha A4 (colunas, linhas): 60x50 -> 3x5 = 15; 50x60 -> 3x4 = 12."""
+    cols = int((210 - 2 * A4_MARGIN_MM + A4_GAP_MM) // (width_mm + A4_GAP_MM))
+    rows = int((297 - 2 * A4_MARGIN_MM + A4_GAP_MM) // (height_mm + A4_GAP_MM))
+    return max(1, cols), max(1, rows)
 
 
 @dataclass
@@ -154,13 +162,16 @@ def _crop_marks(c: canvas.Canvas, x: float, y: float, w: float, h: float) -> Non
 
 
 def build_pdf(labels: List[LabelData], layout: str = "a4", start_position: int = 1,
-              width_mm: float = 50, height_mm: float = 60, title: str = "Etiquetas") -> bytes:
-    """Gera o PDF. `start_position` (1 a 12) pula posições já usadas da primeira folha A4."""
+              width_mm: float = 60, height_mm: float = 50, title: str = "Etiquetas") -> bytes:
+    """Gera o PDF. `start_position` pula posições já usadas da primeira folha A4 (1 até o total da grade)."""
     if layout not in ("a4", "roll"):
         raise ValueError("Formato inválido: use 'a4' ou 'roll'.")
+    if not (MIN_MM <= width_mm <= MAX_MM and MIN_MM <= height_mm <= MAX_MM):
+        raise ValueError(f"Tamanho inválido: use de {MIN_MM} a {MAX_MM} mm.")
     w, h = width_mm * mm, height_mm * mm
     buf = io.BytesIO()
     if layout == "roll":
+        # uma etiqueta por página, página = etiqueta (é o arquivo para a gráfica ou para a térmica)
         c = canvas.Canvas(buf, pagesize=(w, h))
         c.setTitle(title)
         for d in labels:
@@ -170,11 +181,13 @@ def build_pdf(labels: List[LabelData], layout: str = "a4", start_position: int =
         return buf.getvalue()
 
     pw, ph = A4
-    per_page = A4_COLS * A4_ROWS
+    cols, rows = a4_grid(width_mm, height_mm)
+    per_page = cols * rows
     if not 1 <= start_position <= per_page:
         raise ValueError(f"Posição inicial deve ser de 1 a {per_page}.")
-    mx = (pw - A4_COLS * w) / (A4_COLS + 1)
-    my = (ph - A4_ROWS * h) / (A4_ROWS + 1)
+    gap = A4_GAP_MM * mm
+    x0 = (pw - (cols * w + (cols - 1) * gap)) / 2      # grade centralizada na folha
+    y0 = (ph - (rows * h + (rows - 1) * gap)) / 2
     c = canvas.Canvas(buf, pagesize=A4)
     c.setTitle(title)
     slot = start_position - 1
@@ -182,9 +195,9 @@ def build_pdf(labels: List[LabelData], layout: str = "a4", start_position: int =
         if slot == per_page:
             c.showPage()
             slot = 0
-        row, col = divmod(slot, A4_COLS)
-        x = mx + col * (w + mx)
-        y = ph - (my + (row + 1) * h + row * my)
+        row, col = divmod(slot, cols)
+        x = x0 + col * (w + gap)
+        y = ph - y0 - (row + 1) * h - row * gap
         _crop_marks(c, x, y, w, h)
         draw_label(c, x, y, w, h, d)
         slot += 1
