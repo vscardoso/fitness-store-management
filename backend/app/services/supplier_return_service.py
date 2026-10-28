@@ -71,6 +71,8 @@ class SupplierReturnService:
                 EntryItem.id == entry_item_id, EntryItem.tenant_id == tenant_id))).scalar_one_or_none()
             if not item:
                 raise ValueError("Peça da entrada não encontrada.")
+            from app.services.stock_lock import lock_entry_items
+            await lock_entry_items(self.db, [item])  # saldo relido depois da trava
             if from_stock and quantity > item.quantity_remaining:
                 raise ValueError(f"Só há {item.quantity_remaining} peça(s) em estoque nesta entrada.")
             entry = (await self.db.execute(select(StockEntry).where(StockEntry.id == item.entry_id))).scalar_one()
@@ -102,6 +104,8 @@ class SupplierReturnService:
             if sr.status != "sent":
                 raise ValueError("Esta devolução ao fornecedor já foi resolvida.")
             item = (await self.db.execute(select(EntryItem).where(EntryItem.id == sr.entry_item_id))).scalar_one()
+            from app.services.stock_lock import lock_entry_items
+            await lock_entry_items(self.db, [item])  # fornecedor recusou e a peça volta: sem atropelar venda
             entry = (await self.db.execute(select(StockEntry).where(StockEntry.id == sr.entry_id))).scalar_one()
             product_ids = {sr.product_id}
 

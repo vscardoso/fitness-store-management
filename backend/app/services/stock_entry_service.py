@@ -1129,6 +1129,8 @@ class StockEntryService:
         entry = await self.entry_repo.get_by_id(self.db, entry_id, include_items=True, tenant_id=tenant_id)
         if not entry:
             raise ValueError(f"Entry {entry_id} não encontrada")
+        from app.services.stock_lock import lock_entry_items
+        await lock_entry_items(self.db, [i for i in entry.entry_items if i.is_active])  # venda simultânea não some
 
         # VALIDAÇÃO CRÍTICA: Verificar se algum item teve vendas
         # Se quantity_sold > 0, a entrada é parte do histórico de vendas e não pode ser excluída
@@ -1515,6 +1517,9 @@ class StockEntryService:
         if item.tenant_id != tenant_id:
             raise ValueError(f"EntryItem {item_id} não pertence a este tenant")
 
+        from app.services.stock_lock import lock_entry_items
+        await lock_entry_items(self.db, [item])  # antes de conferir saldo: venda simultânea não some
+
         # VALIDAÇÃO CRÍTICA: Bloquear edição se item já teve vendas
         if item.quantity_sold > 0:
             raise ValueError(
@@ -1725,6 +1730,8 @@ class StockEntryService:
             raise ValueError(f"EntryItem {item_id} não encontrado")
         if item.tenant_id != tenant_id:
             raise ValueError(f"EntryItem {item_id} não encontrado")
+        from app.services.stock_lock import lock_entry_items
+        await lock_entry_items(self.db, [item])  # antes de conferir saldo: venda simultânea não some
         if item.quantity_sold > 0:
             raise ValueError(
                 f"Não é possível excluir: este produto já teve {item.quantity_sold} unidade(s) vendida(s) ou reservada(s). "
@@ -2582,6 +2589,8 @@ class StockEntryService:
             raise ValueError(f"EntryItem {item_id} não encontrado")
         if item.tenant_id != tenant_id:
             raise ValueError("EntryItem não pertence a este tenant")
+        from app.services.stock_lock import lock_entry_items
+        await lock_entry_items(self.db, [item])  # antes de conferir saldo: venda simultânea não some
         if quantity_diff == 0:
             raise ValueError("quantity_diff não pode ser zero")
 

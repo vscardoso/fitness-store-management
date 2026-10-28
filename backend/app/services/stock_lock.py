@@ -38,3 +38,22 @@ async def lock_stock(
     )
     for cls, key in plan:
         await db.execute(text("SELECT pg_advisory_xact_lock(:c, :k)"), {"c": cls, "k": key})
+
+
+async def lock_entry_items(db: AsyncSession, items) -> None:
+    """Trava as variações (ou produtos sem variação) dos itens de entrada e RELÊ o saldo deles do banco.
+
+    Para editar, corrigir ou excluir item/entrada e para ajuste manual: o código lê `quantity_remaining`, confere
+    ("nada vendido", "tem saldo") e regrava. Sem trava, uma venda no meio tinha a baixa apagada (peça inventada).
+    O refresh é obrigatório: o objeto pode ter sido carregado antes da trava, com o saldo velho.
+    """
+    items = [i for i in items if i is not None]
+    if not items or db.get_bind().dialect.name != "postgresql":
+        return
+    await lock_stock(
+        db,
+        variant_ids=[i.variant_id for i in items],
+        product_ids=[i.product_id for i in items if not i.variant_id],
+    )
+    for i in items:
+        await db.refresh(i, attribute_names=["quantity_received", "quantity_remaining", "is_active"])

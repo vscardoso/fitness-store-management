@@ -63,7 +63,7 @@ Se diferir, uma peça sumiu ou foi inventada. Mais: um livro de estoque independ
 **A. Condicional + FIFO: FEITA** (`tests/test_estresse_condicional.py`, 14 testes + aleatório; achado 4).
 **B. Concorrência no Postgres: FEITA** (`tests/pg/test_concorrencia_vendas_postgres.py`, 15 testes; achado 3). Como rodar: Postgres descartável em 55432
 (`initdb -D <dir> -U postgres --auth=trust` e `pg_ctl -o "-p 55432" start`), `TEST_PG_URL=postgresql+asyncpg://postgres@127.0.0.1:55432/postgres pytest tests/pg -p no:cacheprovider --no-cov`.
-Ainda sem trava (fora do alcance desta rodada): exclusão/edição de entrada de estoque e ajuste manual de inventário durante vendas.
+Trava estendida (nuvem, 28/10/2026): editar/corrigir/excluir item, excluir entrada, ajuste manual, excluir produto e devolução ao fornecedor (`lock_entry_items`). `tests/pg/test_concorrencia_entradas_postgres.py`: sem a trava, excluir item e excluir entrada vendiam a peça apagada e o ajuste manual para 2 terminava com 5 (3 peças inventadas); com a trava, 40 rodadas de cada sem erro.
 
 **C. Dinheiro e relatórios: FEITA** (nuvem, 28/10/2026; `tests/test_estresse_dinheiro.py`, 4 cenários fechados + aleatório com livro independente +
 ranking de fornecedor; com o código antigo os 8 falham). Regras decididas pelo Victor: receita LÍQUIDA em todas as telas, devolução abate no dia em que

@@ -459,6 +459,12 @@ class ProductService:
         if new_quantity < 0:
             raise ValueError("Nova quantidade não pode ser negativa")
 
+        # Trava as peças do produto ANTES de ler o saldo: ajuste e venda simultâneos não se atropelam
+        from app.models.product_variant import ProductVariant as _PV
+        from app.services.stock_lock import lock_stock
+        _vids = (await self.db.execute(select(_PV.id).where(_PV.product_id == product_id, _PV.tenant_id == tenant_id))).scalars().all()
+        await lock_stock(self.db, variant_ids=_vids, product_ids=[product_id])
+
         # Quantidade atual baseada no FIFO (EntryItems)
         stmt_sum = (
             select((EntryItem.quantity_remaining))
@@ -547,6 +553,7 @@ class ProductService:
                     )
                     .order_by(SE.entry_date.asc(), EntryItem.created_at.asc())
                 )
+                q = q.execution_options(populate_existing=True)  # saldo lido depois da trava, não o guardado na sessão
                 try:
                     items = (await self.db.execute(q)).scalars().all()
                 except OperationalError as op_err:
@@ -608,6 +615,12 @@ class ProductService:
         product = await self.product_repo.get(self.db, product_id, tenant_id=tenant_id)
         if not product:
             raise ValueError("Produto não encontrado")
+
+        # Trava as peças antes de conferir "sem vendas": uma venda no meio não pode cair num produto apagado
+        from app.services.stock_lock import lock_stock
+        _vids = (await self.db.execute(select(ProductVariant.id).where(
+            ProductVariant.product_id == product_id, ProductVariant.tenant_id == tenant_id))).scalars().all()
+        await lock_stock(self.db, variant_ids=_vids, product_ids=[product_id])
 
         # ── 1. Verificar vendas (bloqueio absoluto) ─────────────────────────
         # Checar SaleItems via variant_id (novo fluxo) e product_id (legado)
