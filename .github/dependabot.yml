@@ -1,0 +1,44 @@
+# Item 2.5: PRs automáticos de atualização de dependências (segurança + versões), uma vez por semana.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /backend
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    labels: [dependencias, backend]
+    ignore:
+      # FastAPI 0.137+ troca o include_router (rotas viram _IncludedRouter) e quebra app/core/permissions.py
+      - dependency-name: fastapi
+        versions: [">=0.137"]
+      # pytest 8+ exige pytest-asyncio 1.x (reescrever as fixtures dos testes)
+      - dependency-name: pytest
+        update-types: [version-update:semver-major]
+      - dependency-name: pytest-asyncio
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: npm
+    directory: /mobile
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 5
+    labels: [dependencias, mobile]
+    ignore:
+      # Troca de versão do Expo/React Native é projeto à parte (expo install --fix), não PR automático
+      - dependency-name: expo
+        update-types: [version-update:semver-major, version-update:semver-minor]
+      - dependency-name: react-native
+        update-types: [version-update:semver-major, version-update:semver-minor]
+      - dependency-name: react
+        update-types: [version-update:semver-major]
+      - dependency-name: react-dom
+        update-types: [version-update:semver-major]
+
+  - package-ecosystem: npm
+    directory: /web
+    schedule: { interval: weekly, day: monday }
+    open-pull-requests-limit: 3
+    labels: [dependencias, web]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule: { interval: monthly }
+    labels: [dependencias]

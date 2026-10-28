@@ -1,0 +1,14 @@
+{
+  "_leia": "Exceções do CI de segurança (.github/workflows/security-audit.yml). Cada pacote aqui precisa de motivo e de data para rever. Tirar daqui assim que a correção existir.",
+  "pip": {
+    "pytest": "Só roda em desenvolvimento/CI, não em produção. Correção exige pytest 9 + pytest-asyncio 1.x (reescrever fixtures). Rever em 2026-12."
+  },
+  "npm-mobile": {
+    "postcss": "Ferramenta de build do Expo 51 (não vai no app). Correção só no Expo 52+. Rever na troca de versão do Expo.",
+    "image-size": "Usado pelo Metro/Expo CLI no build (não vai no app). Rever na troca de versão do Expo.",
+    "ws": "Servidor de desenvolvimento do Metro (não vai no app). Rever na troca de versão do Expo."
+  },
+  "npm-web": {
+    "postcss": "Build do Next 15 (site ainda não publicado). Correção só no Next 16. Rever antes de publicar o site."
+  }
+}

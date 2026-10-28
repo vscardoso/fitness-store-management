@@ -1,0 +1,68 @@
+name: Security Audit
+
+# Item 2.5: barra vulnerabilidade grave nas dependências (backend, app e site).
+# Exceções com motivo em .github/audit-allowlist.json; regra em .github/scripts/audit_gate.py.
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'backend/requirements.txt'
+      - 'mobile/package.json'
+      - 'mobile/package-lock.json'
+      - 'web/package.json'
+      - 'web/package-lock.json'
+      - '.github/audit-allowlist.json'
+      - '.github/scripts/audit_gate.py'
+      - '.github/workflows/security-audit.yml'
+  pull_request:
+    paths:
+      - 'backend/requirements.txt'
+      - 'mobile/package.json'
+      - 'mobile/package-lock.json'
+      - 'web/package.json'
+      - 'web/package-lock.json'
+      - '.github/audit-allowlist.json'
+      - '.github/scripts/audit_gate.py'
+  schedule:
+    - cron: '17 9 * * 1'   # toda segunda: vulnerabilidade nova aparece mesmo sem commit
+  workflow_dispatch:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: pip-audit
+        run: |
+          pip install --quiet pip-audit
+          pip-audit -r backend/requirements.txt -f json -o pip.json --progress-spinner off || true
+          python .github/scripts/audit_gate.py pip pip.json
+
+  mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: npm audit (dependências de produção)
+        working-directory: mobile
+        run: |
+          npm audit --omit=dev --json > ../npm.json || true
+          python3 ../.github/scripts/audit_gate.py npm-mobile ../npm.json
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: npm audit (dependências de produção)
+        working-directory: web
+        run: |
+          npm audit --omit=dev --json > ../npm.json || true
+          python3 ../.github/scripts/audit_gate.py npm-web ../npm.json

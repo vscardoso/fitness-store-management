@@ -10,7 +10,8 @@ from starlette.concurrency import run_in_threadpool
 from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-from jose import jwt, JWTError
+import jwt
+from jwt import PyJWTError as JWTError
 
 from app.core.database import get_db, get_db_unscoped
 from app.core.config import settings

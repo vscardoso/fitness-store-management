@@ -37,7 +37,7 @@ Objetivo: conferir o estoque lendo a etiqueta, e imprimir a etiqueta pelo sistem
 | 2.2 | Esconder campos de custo (cost_price, unit_cost, lucro) para caixa e vendedor nas respostas da API (hoje só o menu esconde). | M | Teste por papel mostra que caixa e vendedor não recebem custo || Nuvem: FEITO 27/10/2026 (`app/core/cost_mask.py`, ver CLAUDE.md) |
 | 2.3 | Rate limit também em cadastro, reset de senha e scanner de IA (hoje só no login). | P | 429 com mensagem clara; testes || Nuvem: FEITO 27/10/2026 (ver CLAUDE.md, "Limite de tentativas") |
 | 2.4 | Validar o conteúdo real das imagens enviadas (abrir com Pillow, limite de tamanho no código, não confiar no tipo declarado). | P | Arquivo que não é imagem é recusado | Nuvem: FEITO 28/10/2026 (`app/core/image_guard.py`, ver CLAUDE.md, "Imagens enviadas") |
-| 2.5 | Dependabot e CI que falha em vulnerabilidade grave (hoje `safety` e `npm audit` com `|| true`). | P | PRs automáticos abrindo; CI barra grave | |
+| 2.5 | Dependabot e CI que falha em vulnerabilidade grave (hoje `safety` e `npm audit` com `|| true`). | P | PRs automáticos abrindo; CI barra grave | Nuvem: FEITO 28/10/2026 (`.github/dependabot.yml`, `security-audit.yml`, ver CLAUDE.md, "Dependências e vulnerabilidades") |
 | 2.6 | Bot protection (Cloudflare Turnstile) no cadastro, perto do lançamento público. | P | Cadastro sem token recusado | |
 | 2.7 | CSP no site do app (nginx), testando para não quebrar o PWA. | M | Sem erro de CSP no console em todas as telas | |
 | 2.8 | Decidir e ligar o RLS no Postgres em produção (código pronto e dormente, roteiro em CLAUDE.md). | M | `rls_apply.py` aplicado, app rodando com o papel sem superusuário, rollback testado | |
