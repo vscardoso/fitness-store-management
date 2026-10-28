@@ -432,15 +432,10 @@ async def upload_variant_image(
     try:
         file_bytes = await file.read()
 
-        was_converted = content_type in convertible_types
-        if was_converted:
-            from app.api.v1.endpoints.ai import _convert_to_jpeg
-            file_bytes = _convert_to_jpeg(file_bytes)
-            content_type = "image/jpeg"
-
-        ext = "jpg" if (was_converted or content_type == "image/jpeg") else (
-            file.filename.rsplit(".", 1)[-1].lower() if file.filename and "." in file.filename else "jpg"
-        )
+        # Conteúdo real conferido e regravado (o tipo declarado e o nome do arquivo não decidem nada)
+        from app.core.image_guard import sanitize_or_400
+        file_bytes, ext_dot, content_type = sanitize_or_400(file_bytes)
+        ext = ext_dot.lstrip(".")
 
         storage = get_storage_service()
         file_path = await storage.upload_from_bytes(
@@ -483,16 +478,8 @@ async def upload_variant_image_base64(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Variação não encontrada")
 
     try:
-        raw = image_data
-        ext = ".jpg"
-        if "," in raw:
-            header, raw = raw.split(",", 1)
-            if "png" in header:
-                ext = ".png"
-            elif "webp" in header:
-                ext = ".webp"
-
-        image_bytes = b64mod.b64decode(raw)
+        from app.core.image_guard import base64_or_400
+        image_bytes, ext, _ = base64_or_400(image_data)
         storage = get_storage_service()
         file_path = await storage.upload_from_bytes(
             image_bytes, folder="variants", filename=f"variant_{variant_id}{ext}", ext=ext
@@ -506,6 +493,8 @@ async def upload_variant_image_base64(
             current_stock=variant.get_current_stock(),
             variant_label=variant.get_variant_label(),
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
 

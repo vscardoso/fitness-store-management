@@ -188,10 +188,36 @@ mimetypes.add_type("image/webp", ".webp")  # sem isso o Python pode servir .webp
 
 
 class UploadsStaticFiles(StaticFiles):
-    """Logos têm nome UUID novo a cada upload, então o navegador pode guardá-los por muito tempo."""
+    """Fotos enviadas. Logos têm nome UUID novo a cada upload, então o navegador pode guardá-los por muito tempo.
+
+    Só entrega extensão de imagem: arquivo .html/.svg/.js que tenha subido antes da conferência de conteúdo
+    (app/core/image_guard.py) nunca é servido como página. CSP "sandbox" e nosniff impedem o navegador de
+    executar qualquer coisa vinda daqui.
+    """
+
+    IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+
+    async def get_response(self, path, scope):
+        from starlette.exceptions import HTTPException as StarletteHTTPException
+        # "" = fotos antigas da galeria, gravadas sem extensão: só saem se o conteúdo for imagem (file_response)
+        if Path(path).suffix.lower() not in self.IMAGE_EXTS | {""}:
+            raise StarletteHTTPException(status_code=404)
+        return await super().get_response(path, scope)
 
     def file_response(self, full_path, stat_result, scope, status_code=200):
+        from starlette.responses import Response
+        from app.core.image_guard import sniff_image_type
+        sniffed = None
+        if not Path(full_path).suffix:
+            with open(full_path, "rb") as fh:
+                sniffed = sniff_image_type(fh.read(16))
+            if not sniffed:
+                return Response(status_code=404)
         response = super().file_response(full_path, stat_result, scope, status_code)
+        if sniffed:
+            response.headers["Content-Type"] = sniffed
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox"
         if "logos" in Path(full_path).parts:
             response.headers["Cache-Control"] = "public, max-age=2592000, immutable"
         return response

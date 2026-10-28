@@ -1308,23 +1308,12 @@ async def upload_product_image(
         # Ler bytes da imagem
         file_bytes = await file.read()
 
-        # Converter HEIC/HEIF/TIFF/BMP para JPEG antes do upload
-        was_converted = content_type in convertible_types
-        if was_converted:
-            from app.api.v1.endpoints.ai import _convert_to_jpeg
-            file_bytes = _convert_to_jpeg(file_bytes)
-            content_type = "image/jpeg"
+        # Conteúdo real conferido e regravado (o tipo declarado e o nome do arquivo não decidem nada)
+        from app.core.image_guard import sanitize_or_400
+        file_bytes, ext_dot, content_type = sanitize_or_400(file_bytes)
 
-        # Upload da imagem
         storage = get_storage_service()
-
-        # Gerar extensão do arquivo de saída
-        if was_converted or content_type == "image/jpeg":
-            ext = "jpg"
-        elif file.filename and "." in file.filename:
-            ext = file.filename.rsplit(".", 1)[-1].lower()
-        else:
-            ext = "jpg"
+        ext = ext_dot.lstrip(".")
         filename = f"{product_id}.{ext}"
 
         # Fazer upload a partir dos bytes (já lidos acima)
@@ -1385,23 +1374,9 @@ async def upload_product_image_base64(
         )
 
     try:
-        # Remover prefixo data:image/xxx;base64, se presente
-        if "," in image_data:
-            header, image_data = image_data.split(",", 1)
-            # Extrair extensão do header (data:image/jpeg;base64)
-            if "jpeg" in header or "jpg" in header:
-                ext = ".jpg"
-            elif "png" in header:
-                ext = ".png"
-            elif "webp" in header:
-                ext = ".webp"
-            else:
-                ext = ".jpg"
-        else:
-            ext = ".jpg"
-
-        # Decodificar base64
-        image_bytes = base64.b64decode(image_data)
+        # Conteúdo real conferido e regravado (antes qualquer coisa em base64 virava ".jpg")
+        from app.core.image_guard import base64_or_400
+        image_bytes, ext, _ = base64_or_400(image_data)
 
         # Upload
         storage = get_storage_service()
@@ -1417,6 +1392,8 @@ async def upload_product_image_base64(
         inventory_repo = InventoryRepository(db)
         return await build_product_response(product, db, inventory_repo, tenant_id)
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

@@ -89,26 +89,17 @@ async def upload_product_media(
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     from app.services.storage_service import get_storage_service
-    from app.api.v1.endpoints.ai import _convert_to_jpeg
+    from app.core.image_guard import sanitize_or_400
 
-    content_type = _resolve_content_type(file)
-    file_bytes = await file.read()
-
-    # Converte HEIC/TIFF/BMP → JPEG
-    if content_type in CONVERTIBLE_TYPES:
-        file_bytes = _convert_to_jpeg(file_bytes)
-        content_type = "image/jpeg"
-
+    _resolve_content_type(file)  # recusa cedo o que nem se diz imagem
+    # Conteúdo real conferido e regravado; GIF animado continua animado
+    file_bytes, ext_dot, content_type = sanitize_or_400(await file.read(), keep_animation=True)
     media_type = "gif" if content_type == "image/gif" else "photo"
-    ext = "gif" if media_type == "gif" else "jpg"
-    if content_type == "image/png":
-        ext = "png"
-    elif content_type == "image/webp":
-        ext = "webp"
+    ext = ext_dot.lstrip(".")
 
     import uuid as _uuid
     scope = f"variant_{variant_id}" if variant_id else f"product_{product_id}"
-    filename = f"{scope}_{_uuid.uuid4().hex[:10]}_media"
+    filename = f"{scope}_{_uuid.uuid4().hex[:10]}_media.{ext}"
 
     storage = get_storage_service()
     file_path = await storage.upload_from_bytes(
@@ -141,21 +132,16 @@ async def upload_product_media_base64(
     import re
     from app.services.storage_service import get_storage_service
 
-    # Strip data URI prefix
-    match = re.match(r"data:(?P<mime>[^;]+);base64,(?P<data>.+)", image_data, re.DOTALL)
-    if match:
-        mime = match.group("mime")
-        raw = base64.b64decode(match.group("data"))
-    else:
-        mime = "image/jpeg"
-        raw = base64.b64decode(image_data)
+    from app.core.image_guard import base64_or_400
 
-    ext = "gif" if mime == "image/gif" else "jpg"
+    # Conteúdo real conferido e regravado (o "data:image/..." do texto não decide o tipo)
+    raw, ext_dot, mime = base64_or_400(image_data, keep_animation=True)
+    ext = ext_dot.lstrip(".")
     media_type = "gif" if mime == "image/gif" else "photo"
 
     import uuid as _uuid
     scope = f"variant_{variant_id}" if variant_id else f"product_{product_id}"
-    filename = f"{scope}_{_uuid.uuid4().hex[:10]}_media"
+    filename = f"{scope}_{_uuid.uuid4().hex[:10]}_media.{ext}"
 
     storage = get_storage_service()
     file_path = await storage.upload_from_bytes(raw, folder="product_media", filename=filename, ext=f".{ext}")
