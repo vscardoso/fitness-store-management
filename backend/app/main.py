@@ -373,26 +373,18 @@ async def general_exception_handler(
     )
 
 
-# Health Check Endpoint
+# Health Check Endpoint (só diz se está de pé: sem nome, versão nem ambiente)
 @app.get("/health", tags=["Health"])
 async def health_check():
     """Check API health status."""
-    return {
-        "status": "healthy",
-        "version": settings.APP_VERSION,
-        "environment": settings.ENVIRONMENT
-    }
+    return {"status": "healthy"}
 
 
-# Root Endpoint
-@app.get("/", tags=["Root"])
+# Root Endpoint (sem nome do sistema nem versão)
+@app.get("/", tags=["Root"], include_in_schema=False)
 async def root():
     """API root endpoint."""
-    return {
-        "message": f"Bem-vindo à {settings.APP_NAME}",
-        "version": settings.APP_VERSION,
-        "docs": "/api/docs" if settings.DEBUG else None
-    }
+    return {"status": "ok"}
 
 
 if __name__ == "__main__":
