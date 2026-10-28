@@ -23,8 +23,17 @@ updates:
     labels: [dependencias, mobile]
     ignore:
       # Troca de versão do Expo/React Native é projeto à parte (expo install --fix), não PR automático
-      - dependency-name: expo
+      - dependency-name: "expo"
         update-types: [version-update:semver-major, version-update:semver-minor]
+      # pacotes do SDK do Expo andam junto com o expo (versão maior errada quebra o app)
+      - dependency-name: "expo-*"
+        update-types: [version-update:semver-major]
+      - dependency-name: "@expo/*"
+        update-types: [version-update:semver-major]
+      - dependency-name: "react-native-*"
+        update-types: [version-update:semver-major]
+      - dependency-name: "@react-native*"
+        update-types: [version-update:semver-major]
       - dependency-name: react-native
         update-types: [version-update:semver-major, version-update:semver-minor]
       - dependency-name: react
@@ -37,6 +46,16 @@ updates:
     schedule: { interval: weekly, day: monday }
     open-pull-requests-limit: 3
     labels: [dependencias, web]
+    ignore:
+      # versão maior de framework/ferramenta é projeto à parte
+      - dependency-name: "next"
+        update-types: [version-update:semver-major]
+      - dependency-name: "eslint-config-next"
+        update-types: [version-update:semver-major]
+      - dependency-name: "typescript"
+        update-types: [version-update:semver-major]
+      - dependency-name: "@types/node"
+        update-types: [version-update:semver-major]
 
   - package-ecosystem: github-actions
     directory: /
