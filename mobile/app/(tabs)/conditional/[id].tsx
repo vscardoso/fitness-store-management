@@ -49,6 +49,7 @@ import {
   isFinalStatus,
 } from '@/types/conditional';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import HScroll from '@/components/ui/HScroll';
 
 /**
  * Traduz os códigos de forma de pagamento para labels legíveis
@@ -1262,7 +1263,7 @@ export default function ConditionalShipmentDetailsScreen() {
                           </View>
                           <Text style={styles.installmentPickerLabel}>Parcelamento no credito</Text>
                         </View>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                        <HScroll showsHorizontalScrollIndicator={false}>
                           <View style={styles.installmentChipsRow}>
                             {installmentOptions.map((opt) => (
                               <TouchableOpacity
@@ -1293,7 +1294,7 @@ export default function ConditionalShipmentDetailsScreen() {
                               </TouchableOpacity>
                             ))}
                           </View>
-                        </ScrollView>
+                        </HScroll>
                       </View>
                     )}
                   </View>

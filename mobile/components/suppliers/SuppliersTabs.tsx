@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
+import HScroll from '@/components/ui/HScroll';
 
 export type SuppliersTab = 'list' | 'ranking' | 'costs' | 'restock' | 'returns';
 
@@ -23,8 +24,8 @@ export default function SuppliersTabs({ active }: { active: SuppliersTab }) {
   const brandingColors = useBrandingColors();
 
   return (
-    <ScrollView
-      horizontal
+    <HScroll
+      
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.row}
       style={styles.scroll}
@@ -50,7 +51,7 @@ export default function SuppliersTabs({ active }: { active: SuppliersTab }) {
           </TouchableOpacity>
         );
       })}
-    </ScrollView>
+    </HScroll>
   );
 }
 

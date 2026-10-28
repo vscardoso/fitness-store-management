@@ -50,6 +50,7 @@ import {
   type ColorOption,
   type ColorGroup,
 } from '@/types/productVariant';
+import HScroll from '@/components/ui/HScroll';
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -421,8 +422,8 @@ export default function VariantBuilderInline({
               </View>
             </View>
 
-            <ScrollView
-              horizontal
+            <HScroll
+              
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.chipsRow}
             >
@@ -454,7 +455,7 @@ export default function VariantBuilderInline({
                   </TouchableOpacity>
                 );
               })}
-            </ScrollView>
+            </HScroll>
           </View>
 
           {/* ══ CORES ════════════════════════════════ */}
@@ -482,8 +483,8 @@ export default function VariantBuilderInline({
 
             {/* Pills das cores selecionadas */}
             {selectedColors.length > 0 && (
-              <ScrollView
-                horizontal
+              <HScroll
+                
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.selectedColorPills}
               >
@@ -505,7 +506,7 @@ export default function VariantBuilderInline({
                     </TouchableOpacity>
                   );
                 })}
-              </ScrollView>
+              </HScroll>
             )}
 
             {/* Grade agrupada por categoria */}
@@ -644,8 +645,8 @@ export default function VariantBuilderInline({
 
                     {/* Seleção de tamanhos desta cor */}
                     {color !== '—' && (
-                      <ScrollView
-                        horizontal
+                      <HScroll
+                        
                         showsHorizontalScrollIndicator={false}
                         contentContainerStyle={styles.colorGroupSizesRow}
                       >
@@ -672,7 +673,7 @@ export default function VariantBuilderInline({
                             </TouchableOpacity>
                           );
                         })}
-                      </ScrollView>
+                      </HScroll>
                     )}
 
                     {/* Quantidade de todos os tamanhos desta cor de uma vez (cada tamanho ainda pode ser ajustado) */}
@@ -851,7 +852,7 @@ export default function VariantBuilderInline({
             {basePrice > 0 && (
               <View style={styles.modalQuickActionsRow}>
                 <Text style={styles.modalQuickActionsLabel}>Aplicar a todos:</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+                <HScroll showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
                   {[
                     { label: 'Preço base', value: basePrice },
                     { label: '+5%', value: basePrice * 1.05 },
@@ -871,7 +872,7 @@ export default function VariantBuilderInline({
                       </Text>
                     </TouchableOpacity>
                   ))}
-                </ScrollView>
+                </HScroll>
               </View>
             )}
 

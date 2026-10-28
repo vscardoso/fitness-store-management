@@ -42,6 +42,7 @@ import { FitFlowLogo } from '@/components/branding/FitFlowLogo';
 import { isManagerRole } from '@/utils/roles';
 
 import { FitText, Money } from '@/components/ui/PriceDisplay';
+import HScroll from '@/components/ui/HScroll';
 const { width } = Dimensions.get('window');
 
 // Interface para ações rápidas
@@ -432,8 +433,8 @@ export default function DashboardScreen() {
 
         {/* ========== AÇÕES RÁPIDAS ========== */}
         <Text style={styles.sectionTitle}>Ações Rápidas</Text>
-        <ScrollView
-          horizontal
+        <HScroll
+          
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.quickActionsContainer}
         >
@@ -450,7 +451,7 @@ export default function DashboardScreen() {
               <Text style={styles.quickActionText}>{action.title}</Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </HScroll>
 
         {canSeeDashboard && (
 <>

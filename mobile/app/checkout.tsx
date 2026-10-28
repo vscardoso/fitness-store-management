@@ -37,6 +37,7 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useBrandingColors } from '@/store/brandingStore';
 
 import { Money } from '@/components/ui/PriceDisplay';
+import HScroll from '@/components/ui/HScroll';
 /**
  * Métodos de pagamento disponíveis
  */
@@ -1100,7 +1101,7 @@ export default function CheckoutScreen() {
                     <Text style={styles.installmentPickerHint}>Escolha a quantidade de parcelas</Text>
                   </View>
                 </View>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.installmentScroll}>
+                <HScroll showsHorizontalScrollIndicator={false} style={styles.installmentScroll}>
                   <View style={styles.installmentChipsRow}>
                     {installmentOptions.map((opt) => (
                       <TouchableOpacity
@@ -1119,7 +1120,7 @@ export default function CheckoutScreen() {
                       </TouchableOpacity>
                     ))}
                   </View>
-                </ScrollView>
+                </HScroll>
                 <AppButton
                   variant="primary"
                   size="md"
@@ -1166,7 +1167,7 @@ export default function CheckoutScreen() {
 
                 {/* Parcelas (apenas crédito) */}
                 {terminalPaymentType === 'credit_card' && (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.installmentScroll}>
+                  <HScroll showsHorizontalScrollIndicator={false} style={styles.installmentScroll}>
                     <View style={styles.installmentChipsRow}>
                       {installmentOptions.map((opt) => (
                         <TouchableOpacity
@@ -1185,7 +1186,7 @@ export default function CheckoutScreen() {
                         </TouchableOpacity>
                       ))}
                     </View>
-                  </ScrollView>
+                  </HScroll>
                 )}
 
                 {/* Selecionar terminal */}
@@ -1202,7 +1203,7 @@ export default function CheckoutScreen() {
                     </Text>
                   </View>
                 ) : (
-                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <HScroll showsHorizontalScrollIndicator={false}>
                     <View style={{ flexDirection: 'row', gap: 8 }}>
                       {terminals.map((t) => (
                         <TouchableOpacity
@@ -1217,7 +1218,7 @@ export default function CheckoutScreen() {
                         </TouchableOpacity>
                       ))}
                     </View>
-                  </ScrollView>
+                  </HScroll>
                 )}
 
                 {/* Confirmar seleção */}
@@ -1287,8 +1288,8 @@ export default function CheckoutScreen() {
                   </View>
 
                   {/* Seleção de método no modo misto */}
-                  <ScrollView
-                    horizontal
+                  <HScroll
+                    
                     showsHorizontalScrollIndicator={false}
                     style={styles.methodsScroll}
                   >
@@ -1318,13 +1319,13 @@ export default function CheckoutScreen() {
                         </Text>
                       </TouchableOpacity>
                     ))}
-                  </ScrollView>
+                  </HScroll>
 
                   {/* Parcelas no modo misto (apenas crédito) */}
                   {selectedMethod === PaymentMethod.CREDIT_CARD && (
                     <View style={styles.installmentPickerMixed}>
                       <Text style={styles.installmentPickerLabel}>Parcelas:</Text>
-                      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.installmentScroll}>
+                      <HScroll showsHorizontalScrollIndicator={false} style={styles.installmentScroll}>
                         <View style={styles.installmentChipsRow}>
                           {installmentOptions.map((opt) => (
                             <TouchableOpacity
@@ -1338,7 +1339,7 @@ export default function CheckoutScreen() {
                             </TouchableOpacity>
                           ))}
                         </View>
-                      </ScrollView>
+                      </HScroll>
                     </View>
                   )}
 

@@ -8,6 +8,7 @@ import { Colors } from '@/constants/Colors';
 import type { VariantGrid } from '@/types/productVariant';
 import { buildVariantMatrix, type CellStatus } from '@/utils/variantMatrix';
 import { useBrandingColors } from '@/store/brandingStore';
+import HScroll from '@/components/ui/HScroll';
 
 interface Props {
   grid: VariantGrid;
@@ -60,7 +61,7 @@ export function VariantStockMatrix({ grid }: Props) {
         )}
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <HScroll showsHorizontalScrollIndicator={false}>
         <View>
           <View style={styles.row}>
             <View style={{ width: LABEL_W }} />
@@ -103,7 +104,7 @@ export function VariantStockMatrix({ grid }: Props) {
             <Text style={[styles.totalCell, styles.grandTotal, { width: CELL_W }]}>{m.total}</Text>
           </View>
         </View>
-      </ScrollView>
+      </HScroll>
     </View>
   );
 }

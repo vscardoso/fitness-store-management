@@ -146,7 +146,9 @@ export default function FAB({ bottom = 20, directRoute, onPress }: FABProps) {
   // card calcula uma largura maior que o espaço disponível e quebra a
   // grade em 1 coluna).
   const modalContentWidth = Math.min(width - theme.spacing.lg * 2, 400);
-  const actionCardWidth = (modalContentWidth - theme.spacing.xl * 2 - theme.spacing.md) / 2;
+  // floor e -1: com a soma exata (2 cards + espaço = largura interna) qualquer arredondamento do
+  // navegador empurra o segundo card para baixo e a grade vira 1 coluna.
+  const actionCardWidth = Math.floor((modalContentWidth - theme.spacing.xl * 2 - theme.spacing.md) / 2) - 1;
 
   // Prioridade: onPress customizado > rota direta > modal de ações
   const handleFABPress = () => {

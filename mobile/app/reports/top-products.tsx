@@ -34,6 +34,7 @@ import {
   TopProductsResponse,
   TopProductDetail,
 } from '@/services/reportService';
+import HScroll from '@/components/ui/HScroll';
 
 const periodOptions: { value: TopProductsPeriod; label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
   { value: 'this_month', label: 'Este mes', icon: 'calendar-outline' },
@@ -228,7 +229,7 @@ export default function TopProductsScreen() {
 
       <Animated.View style={[styles.contentAnimation, contentAnimStyle]}>
         <View style={styles.filtersArea}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
+          <HScroll showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
             {periodOptions.map((option) => {
               const selected = selectedPeriod === option.value;
               return (
@@ -253,7 +254,7 @@ export default function TopProductsScreen() {
                 </TouchableOpacity>
               );
             })}
-          </ScrollView>
+          </HScroll>
         </View>
 
         {isLoading ? (

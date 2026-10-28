@@ -35,6 +35,7 @@ import {
   HistoryEvent,
   HistoryGroup,
 } from '@/services/reportService';
+import HScroll from '@/components/ui/HScroll';
 
 const periodOptions: { value: HistoryPeriod; label: string }[] = [
   { value: 'today', label: 'Hoje' },
@@ -246,7 +247,7 @@ export default function HistoryScreen() {
 
       <Animated.View style={[styles.contentAnimation, contentAnimStyle]}>
         <View style={styles.filtersArea}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
+          <HScroll showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
             {typeOptions.map((option) => {
               const selected = selectedType === option.value;
               return (
@@ -271,9 +272,9 @@ export default function HistoryScreen() {
                 </TouchableOpacity>
               );
             })}
-          </ScrollView>
+          </HScroll>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
+          <HScroll showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filtersRow}>
             {periodOptions.map((option) => {
               const selected = selectedPeriod === option.value;
               return (
@@ -293,7 +294,7 @@ export default function HistoryScreen() {
                 </TouchableOpacity>
               );
             })}
-          </ScrollView>
+          </HScroll>
         </View>
 
         {isLoading ? (

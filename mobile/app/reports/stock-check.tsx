@@ -31,6 +31,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getStockCheck, type StockCheckRow } from '@/services/stockCheckService';
 import { variantCodeText } from '@/utils/shortCode';
+import HScroll from '@/components/ui/HScroll';
 
 type Counts = Record<number, string>;
 
@@ -264,12 +265,12 @@ export default function StockCheckScreen() {
             </TouchableOpacity>
           )}
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+        <HScroll showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
           <Chip label="Todas as categorias" active={categoryId === null} onPress={() => setCategoryId(null)} color={brand.primary} />
           {categories.map(([id, name]) => (
             <Chip key={id} label={name} active={categoryId === id} onPress={() => setCategoryId(id)} color={brand.primary} />
           ))}
-        </ScrollView>
+        </HScroll>
         <View style={styles.chips}>
           <Chip label="Só com estoque no sistema" active={onlyInStock} onPress={() => setOnlyInStock((v) => !v)} color={brand.primary} />
           <Chip label="Só divergências" active={onlyDiffs} onPress={() => setOnlyDiffs((v) => !v)} color={brand.primary} />
