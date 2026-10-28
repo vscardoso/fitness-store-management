@@ -73,6 +73,9 @@ export interface SignupData {
   // Termos de Uso e Política de Privacidade (obrigatório no servidor)
   accept_terms: boolean;
   terms_version: string;
+  // Contra robô (o servidor recusa se o campo invisível vier preenchido ou o envio for rápido demais)
+  website?: string;
+  form_ms?: number;
   
   // Address data
   zip_code: string;

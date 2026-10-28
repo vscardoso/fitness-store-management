@@ -313,6 +313,9 @@ async def refresh_token(
         )
 
 
+SIGNUP_MIN_FORM_MS = 1500  # menos que isso na tela da loja não é gente digitando
+
+
 @router.post(
     "/signup",
     response_model=SignupResponse,
@@ -345,6 +348,11 @@ async def signup(
     """
     # robô criando lojas em série: 5 cadastros por hora por IP
     await rate_limit.aenforce((f"signup:ip:{rate_limit.client_ip(request)}", 5, 3600), what="tentativas de cadastro")
+    # robô de formulário: preencheu o campo invisível ou enviou rápido demais para uma pessoa
+    if (signup_data.website or "").strip() or (signup_data.form_ms is not None and signup_data.form_ms < SIGNUP_MIN_FORM_MS):
+        logger.warning("Cadastro recusado como robô (ip=%s, form_ms=%s)", rate_limit.client_ip(request), signup_data.form_ms)
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                            detail="Não foi possível concluir o cadastro. Atualize a página e tente de novo.")
     signup_service = SignupService(db)
     
     try:

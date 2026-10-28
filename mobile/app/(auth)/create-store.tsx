@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -8,6 +8,7 @@ import {
   Alert,
   TouchableOpacity,
   Image,
+  TextInput as NativeTextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Text, TextInput, HelperText } from 'react-native-paper';
@@ -90,6 +91,9 @@ export default function CreateStoreScreen() {
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [acceptTerms, setAcceptTerms] = useState(false);
+  // Contra robô de formulário: campo invisível (pessoa nunca preenche) e tempo nesta tela até enviar
+  const [honeypot, setHoneypot] = useState('');
+  const openedAt = useRef(Date.now());
 
   const pickLogo = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -217,6 +221,8 @@ export default function CreateStoreScreen() {
         plan: 'trial',
         accept_terms: acceptTerms,
         terms_version: LEGAL_VERSION,
+        website: honeypot,
+        form_ms: Date.now() - openedAt.current,
         zip_code: form.cep.replace(/\D/g, ''),
         street: form.street.trim(),
         number: form.number.trim(),
@@ -467,6 +473,19 @@ export default function CreateStoreScreen() {
                   </View>
                 </View>
 
+                {Platform.OS === 'web' && (
+                  <NativeTextInput
+                    value={honeypot}
+                    onChangeText={setHoneypot}
+                    nativeID="website"
+                    autoComplete="off"
+                    tabIndex={-1}
+                    aria-hidden
+                    importantForAccessibility="no-hide-descendants"
+                    style={styles.honeypot}
+                  />
+                )}
+
                 <View style={styles.terms}>
                   <TermsCheckbox
                     checked={acceptTerms}
@@ -500,6 +519,7 @@ export default function CreateStoreScreen() {
 }
 
 const styles = StyleSheet.create({
+  honeypot: { position: 'absolute', left: -10000, top: 0, width: 1, height: 1, opacity: 0 },
   terms: { marginTop: 8, marginBottom: 16 },
   gradient: {
     flex: 1,

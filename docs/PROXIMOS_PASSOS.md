@@ -38,8 +38,8 @@ Objetivo: conferir o estoque lendo a etiqueta, e imprimir a etiqueta pelo sistem
 | 2.3 | Rate limit também em cadastro, reset de senha e scanner de IA (hoje só no login). | P | 429 com mensagem clara; testes || Nuvem: FEITO 27/10/2026 (ver CLAUDE.md, "Limite de tentativas") |
 | 2.4 | Validar o conteúdo real das imagens enviadas (abrir com Pillow, limite de tamanho no código, não confiar no tipo declarado). | P | Arquivo que não é imagem é recusado | Nuvem: FEITO 28/10/2026 (`app/core/image_guard.py`, ver CLAUDE.md, "Imagens enviadas") |
 | 2.5 | Dependabot e CI que falha em vulnerabilidade grave (hoje `safety` e `npm audit` com `|| true`). | P | PRs automáticos abrindo; CI barra grave | Nuvem: FEITO 28/10/2026 (`.github/dependabot.yml`, `security-audit.yml`, ver CLAUDE.md, "Dependências e vulnerabilidades") |
-| 2.6 | Bot protection (Cloudflare Turnstile) no cadastro, perto do lançamento público. | P | Cadastro sem token recusado | |
-| 2.7 | CSP no site do app (nginx), testando para não quebrar o PWA. | M | Sem erro de CSP no console em todas as telas | |
+| 2.6 | Bot protection (Cloudflare Turnstile) no cadastro, perto do lançamento público. | P | Cadastro sem token recusado | Nuvem: PARCIAL 28/10/2026: campo invisível + tempo mínimo na tela (robô de formulário), somados ao limite por IP. Turnstile NÃO feito: precisa de conta Cloudflare (grátis) do Victor e, no app instalado, de WebView |
+| 2.7 | CSP no site do app (nginx), testando para não quebrar o PWA. | M | Sem erro de CSP no console em todas as telas | Nuvem: FEITO 28/10/2026 como `<meta>` no index.html (`scripts/pwa-postbuild.js`). Falta no nginx (VPS): `frame-ancestors`/anti-iframe, que não vale em meta |
 | 2.8 | Decidir e ligar o RLS no Postgres em produção (código pronto e dormente, roteiro em CLAUDE.md). | M | `rls_apply.py` aplicado, app rodando com o papel sem superusuário, rollback testado | |
 | 2.9 | Trocar a senha de root do VPS e rever a porta 5678 do n8n (Docker publica por cima do ufw). | P | Só o necessário exposto | Victor |
 
