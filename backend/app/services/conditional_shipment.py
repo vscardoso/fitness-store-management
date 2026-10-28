@@ -355,6 +355,9 @@ class ConditionalShipmentService:
 
         # Um único commit: itens, estoque devolvido, perdas, status e venda juntos (ou nada)
         await db.commit()
+        if sale_created:
+            from app.core.dashboard_cache import invalidate_dashboard_cache
+            invalidate_dashboard_cache(tenant_id)  # a venda do condicional aparece no início na hora
         await db.refresh(shipment)
         return shipment
 

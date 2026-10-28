@@ -223,7 +223,7 @@ async def test_cancelar_enquanto_devolve(pg):
     for rodada in range(6):
         p, (v,) = await _prepara(pg, [(10, 40)])
         sale, item = await _venda_ok(pg, p, v, 10)
-        cancela = pg.client.post(f"/api/v1/sales/{sale}/cancel", headers=pg.h, json={"reason": "conc"})
+        cancela = pg.client.post(f"/api/v1/sales/{sale}/cancel", headers=pg.h, params={"reason": "conc"})
         rs = await asyncio.gather(cancela, _devolve(pg, sale, [{"sale_item_id": item, "quantity": 6}]), _devolve(pg, sale, [{"sale_item_id": item, "quantity": 6}]))
         assert all(r.status_code < 500 for r in rs), f"rodada {rodada}: {_status(rs)} {[r.text[:150] for r in rs]}"
         est = await _estoque(pg, v.id)
@@ -280,7 +280,7 @@ async def test_mistura_pesada_vendas_devolucoes_e_cancelamentos(pg):
     vendas = [await _venda_ok(pg, p, v, 4) for _ in range(5)]           # 20 vendidas, 20 em estoque
     tarefas = [_post_venda(pg, p, v, 3) for _ in range(9)]               # 27 pedidas contra 20 em estoque (+ devoluções)
     tarefas += [_devolve(pg, s_, [{"sale_item_id": i_, "quantity": 2}]) for s_, i_ in vendas[:3]]
-    tarefas += [pg.client.post(f"/api/v1/sales/{vendas[3][0]}/cancel", headers=pg.h, json={"reason": "conc"})]
+    tarefas += [pg.client.post(f"/api/v1/sales/{vendas[3][0]}/cancel", headers=pg.h, params={"reason": "conc"})]
     rs = await asyncio.gather(*tarefas)
     assert all(r.status_code < 500 for r in rs), _status(rs)
     assert await _estoque(pg, v.id) >= 0

@@ -65,14 +65,27 @@ Se diferir, uma peça sumiu ou foi inventada. Mais: um livro de estoque independ
 (`initdb -D <dir> -U postgres --auth=trust` e `pg_ctl -o "-p 55432" start`), `TEST_PG_URL=postgresql+asyncpg://postgres@127.0.0.1:55432/postgres pytest tests/pg -p no:cacheprovider --no-cov`.
 Ainda sem trava (fora do alcance desta rodada): exclusão/edição de entrada de estoque e ajuste manual de inventário durante vendas.
 
-**C. Dinheiro e relatórios (arquivo novo `tests/test_estresse_dinheiro.py`). EM ANDAMENTO (nuvem, 28/10).** Depois de sequências aleatórias, conferir: soma dos pagamentos
-confirmados = receita da venda; reembolso + diferença da troca; receita líquida do dashboard = vendas ativas - devoluções + trocas;
-lucro = receita - custo FIFO das peças que ficaram vendidas; pontos de fidelidade (ganhos - estornados nunca negativos, cliente com
-total gasto coerente); relatórios `/sales/reports/*` e PDF batem com o livro. Pontos já suspeitos: custo da peça devolvida no lucro
-("devolução parcial NÃO abate o lucro", ver CLAUDE.md) e `supplier_insights` contando como vendida a peça devolvida
-(`sale_sources` agora tem `quantity_returned`).
+**C. Dinheiro e relatórios: FEITA** (nuvem, 28/10/2026; `tests/test_estresse_dinheiro.py`, 4 cenários fechados + aleatório com livro independente +
+ranking de fornecedor; com o código antigo os 8 falham). Regras decididas pelo Victor: receita LÍQUIDA em todas as telas, devolução abate no dia em que
+aconteceu, peça com defeito continua no custo, total gasto do cliente líquido. Conta única em `app/services/money_ledger.py`. Achados (todos corrigidos):
+5. Cada tela tinha uma regra: o total geral do início zerava venda parcialmente devolvida (R$100 vendido - R$50 devolvido dava 0); o "este mês" e o
+   ano a ano somavam venda CANCELADA; o relatório de vendas não descontava devolução e contava a troca duas vezes (vendeu 100, trocou por 120 = 220);
+   o Resultado do Mês tirava inteira a venda com uma peça devolvida. Agora todas usam `money_ledger.period_totals`.
+6. Cancelar venda pela API dava erro 500 SEMPRE desde a trava de estoque (`from sqlalchemy import select` local na função). Os testes de estresse não
+   viam porque mandavam o motivo no corpo (a rota lê `?reason=`) e tomavam 422 tratado como "recusado". Corrigidos os testes (cancelamento agora é
+   exercitado de verdade, inclusive no Postgres em paralelo com devoluções).
+7. Venda que já teve devolução/troca agora NÃO pode ser cancelada (400 com orientação): o cancelamento apagava das contas o crédito que pagou a peça
+   da troca. O resto da venda volta pela Devolução.
+8. Cliente: devolução não descontava do total gasto; a troca não somava; cancelar depois de devolução estornava os pontos de novo.
+9. Troco em dinheiro era gravado como pagamento (app manda o valor recebido). Agora o pagamento gravado é o que ficou; cartão/PIX acima do total é recusado.
+10. Custo da peça devolvida gravado era o médio da venda; agora é o das camadas para onde ela voltou (exato).
+11. Ranking de fornecedor atribuía a devolução proporcionalmente (fornecedor errado quando as camadas são de fornecedores diferentes); reposição
+    contava peça devolvida como demanda.
+12. Cache do início só era limpo ao criar venda; agora também em devolução, troca, cancelamento e venda do condicional.
+Não feito: recalcular o total gasto de clientes ANTIGOS de produção (devoluções antigas não descontaram); `ReturnItem.unit_cost` antigos seguem com
+o custo médio. Limitação mantida: custo por peça gravado em centavos.
 
-**D. Tela de devolução/troca no navegador (Playwright, backend local descartável). EM ANDAMENTO (nuvem, 28/10, depois da C).** Fluxo completo no app (lista de vendas, devolver,
+**D. Tela de devolução/troca no navegador (Playwright, backend local descartável). EM ANDAMENTO (nuvem, 28/10).** Fluxo completo no app (lista de vendas, devolver,
 trocar, diferença a pagar), erros do servidor legíveis, resumo e estoque conferidos. Nada disso foi clicado ainda.
 
 ## Regras para quem for continuar

@@ -86,7 +86,7 @@ def build_sales_report_pdf(report: Any) -> bytes:
         ["Peças vendidas", f"{pieces} un", "Peças por venda", f"{(pieces / n_sales):.1f}" if n_sales else "0"],
         ["Descontos dados", brl(_g(report, "discount_total")), "Vendas com cliente cadastrado",
          f"{_g(report, 'sales_with_customer') or 0} de {n_sales}"],
-        ["Devoluções e trocas", f"{_g(report, 'returns_count') or 0} ({brl(_g(report, 'returns_total'))})",
+        ["Devoluções e trocas (já descontadas)", f"{_g(report, 'returns_count') or 0} ({brl(_g(report, 'returns_total'))})",
          "Vendas canceladas (fora dos totais)", f"{_g(report, 'cancelled_count') or 0} ({brl(_g(report, 'cancelled_total'))})"],
     ]
     rt = Table(resumo, colWidths=[38 * mm, 38 * mm, 52 * mm, 36 * mm])

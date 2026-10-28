@@ -27,7 +27,7 @@ from app.models.entry_item import EntryItem
 from app.models.product import Product
 from app.models.product_variant import ProductVariant
 from app.models.sale import Sale, SaleItem, SaleStatus
-from app.models.sale_return import ReturnItem
+from app.models.sale_return import ReturnItem, SaleReturn
 from app.models.stock_entry import StockEntry
 from app.models.supplier import Supplier
 from app.models.supplier_product import SupplierProduct
@@ -245,21 +245,25 @@ class SupplierInsightsService:
         for sale_item_id, qty, unit_price, discount, sources, _status in sale_rows:
             if not sources or "sources" not in sources or not qty:
                 continue
-            kept_factor = max(0, qty - returned.get(sale_item_id, 0)) / qty
             net_unit = (_f(unit_price) * qty - _f(discount)) / qty
-            for src in sources["sources"]:
+            srcs = sources["sources"]
+            # Cada fonte guarda quanto VOLTOU ao estoque (`quantity_returned`): a peça volta da última camada para a
+            # primeira, então a conta é exata por fornecedor. Peça devolvida com defeito não volta à camada: sai
+            # proporcional do que ficou (não foi vendida, mas o custo dela segue como prejuízo da loja).
+            back = sum(int(src.get("quantity_returned", 0) or 0) for src in srcs)
+            defect = max(0, returned.get(sale_item_id, 0) - back)
+            left = [max(0, int(src.get("quantity_taken") or 0) - int(src.get("quantity_returned", 0) or 0)) for src in srcs]
+            total_left = sum(left)
+            for src, kept_src in zip(srcs, left):
                 sup_id = item_to_supplier.get(src.get("entry_item_id"))
                 if sup_id is None:
                     continue
-                taken = (src.get("quantity_taken") or 0) * kept_factor
-                a = agg[sup_id]
-                a["revenue"] += net_unit * taken
-                src_cost = src.get("total_cost")
+                sold = kept_src - (defect * kept_src / total_left if total_left else 0)
                 unit_cost = _f(src.get("unit_cost"))
-                full_qty = src.get("quantity_taken") or 0
-                cost_total = _f(src_cost) if src_cost is not None else unit_cost * full_qty
-                a["cogs"] += cost_total * kept_factor
-                a["units_sold_fifo"] += taken
+                a = agg[sup_id]
+                a["revenue"] += net_unit * sold
+                a["cogs"] += unit_cost * kept_src   # defeito: custo fica (prejuízo), receita não
+                a["units_sold_fifo"] += sold
 
     async def _supplier_names(self, tenant_id: int, ids: List[int]) -> Dict[int, str]:
         if not ids:
@@ -401,6 +405,15 @@ class SupplierInsightsService:
         sold: Dict[int, int] = defaultdict(int)
         for vid, qty in sold_rows:
             sold[vid] += qty or 0
+        # peça devolvida no período não é demanda (senão a sugestão de compra cresce com a devolução)
+        for vid, qty in (await self.db.execute(
+            select(ReturnItem.variant_id, ReturnItem.quantity_returned)
+            .join(SaleReturn, SaleReturn.id == ReturnItem.return_id)
+            .where(ReturnItem.tenant_id == tenant_id, ReturnItem.is_active == True,  # noqa: E712
+                   SaleReturn.status == "completed", SaleReturn.created_at >= since_dt,
+                   ReturnItem.variant_id.is_not(None))
+        )).all():
+            sold[vid] = max(0, sold[vid] - (qty or 0))
 
         variants = (await self.db.execute(
             select(ProductVariant.id, ProductVariant.product_id, ProductVariant.size, ProductVariant.color,

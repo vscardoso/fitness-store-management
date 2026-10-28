@@ -410,3 +410,10 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 - Onda 1 (commit 38619c0, NAO publicado): 5 altos corrigidos em codigo + testes (backend/tests/test_seguranca_achados_altos.py).
 - **Onda 2 (pendente, nao dar push antes):** configuracao no servidor dos segredos novos (PDV_WEBHOOK_TOKEN, MP_WEBHOOK_SECRET, ADMIN_PANEL_EMAILS), cadastrar URLs de webhook Stone/Cielo com ?token=, refinar o codigo dessas partes; depois os 6 medios e 8 baixos e o item de backup. Sem esses segredos, push do 38619c0 recusa webhooks MP/Stone/Cielo e bloqueia o /admin.
 - Suite: baseline tem 98 falhas pre-existentes (iguais com e sem as correcoes).
+## Dinheiro: conta única de receita, custo e lucro (2026-10-28)
+
+- `backend/app/services/money_ledger.py` (`period_totals(db, tenant_id, inicio, fim)`, dias do Brasil): usada pelo início (`/dashboard/stats`, `/sales/monthly`, `/sales/daily`, `/sales/yoy`), relatório de vendas e PDF (`ReportService.get_sales_report`) e Resultado do Mês (`ExpenseService._build_period_result`). Tela nova de dinheiro usa ela, nunca `sum(Sale.total_amount)` solto.
+- Regras (Victor, 28/10): receita LÍQUIDA (vendas válidas do período - devoluções do período); venda válida = concluída, parcialmente devolvida ou devolvida (cancelada e pendente fora, e as devoluções dela também); devolução abate no DIA EM QUE ACONTECEU (dia pode ficar negativo); a venda da troca soma as peças novas e não conta como venda (quantidade/ticket); custo = FIFO vendido - custo das peças que VOLTARAM ao estoque (defeito fica como prejuízo); total gasto do cliente líquido.
+- Venda com devolução/troca não pode ser cancelada (400, usar Devolução). Cancelar pela API recebe o motivo em `?reason=` (corpo é ignorado: 422). Troco: pagamento gravado é o que ficou na loja; cartão/PIX acima do total = 400.
+- Testes: `tests/test_estresse_dinheiro.py` (todas as telas contra um livro independente; `ESTRESSE_OPS`, `ESTRESSE_DINHEIRO_SEEDS`). Ver itens 5 a 12 em `docs/PLANO_TESTES_VENDAS_FIFO.md`.
+- Pendente: recalcular total gasto dos clientes antigos em produção (devoluções antigas não descontaram).

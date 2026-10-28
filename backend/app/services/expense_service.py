@@ -326,59 +326,15 @@ class ExpenseService:
         period_label: str,
     ) -> MonthlyResultResponse:
         """Núcleo do cálculo de P&L, compartilhado entre monthly_result e result_by_days."""
-        # 1. Receita bruta (soma de total_amount de vendas completed)
-        from datetime import datetime
-
-        UTC_OFFSET = timedelta(hours=3)
-        start_dt = datetime.combine(first_day, datetime.min.time()) + UTC_OFFSET
-        end_dt = datetime.combine(last_day + timedelta(days=1), datetime.min.time()) + UTC_OFFSET
-
-        revenue_stmt = select(
-            func.coalesce(func.sum(Sale.total_amount), 0)
-        ).where(
-            Sale.is_active == True,
-            Sale.status == SaleStatus.COMPLETED,
-            Sale.created_at >= start_dt,
-            Sale.created_at < end_dt,
-        )
-        if tenant_id is not None:
-            revenue_stmt = revenue_stmt.where(Sale.tenant_id == tenant_id)
-        revenue_result = await self.db.execute(revenue_stmt)
-        revenue = Decimal(str(revenue_result.scalar() or 0))
-
-        # 1b. Quantidade de vendas concluídas no período
-        sales_count_stmt = select(func.count(Sale.id)).where(
-            Sale.is_active == True,
-            Sale.status == SaleStatus.COMPLETED,
-            Sale.created_at >= start_dt,
-            Sale.created_at < end_dt,
-        )
-        if tenant_id is not None:
-            sales_count_stmt = sales_count_stmt.where(Sale.tenant_id == tenant_id)
-        sales_count_result = await self.db.execute(sales_count_stmt)
-        sales_count = int(sales_count_result.scalar() or 0)
-
-        # 2. CMV (Custo das Mercadorias Vendidas) — sum(unit_cost * quantity) dos itens
-        #    e unidades vendidas no mesmo passe (evita query extra)
-        cmv_stmt = (
-            select(
-                func.coalesce(func.sum(SaleItem.unit_cost * SaleItem.quantity), 0),
-                func.coalesce(func.sum(SaleItem.quantity), 0),
-            )
-            .join(Sale, SaleItem.sale_id == Sale.id)
-            .where(
-                Sale.is_active == True,
-                Sale.status == SaleStatus.COMPLETED,
-                Sale.created_at >= start_dt,
-                Sale.created_at < end_dt,
-            )
-        )
-        if tenant_id is not None:
-            cmv_stmt = cmv_stmt.where(Sale.tenant_id == tenant_id)
-        cmv_result = await self.db.execute(cmv_stmt)
-        cmv_row = cmv_result.first()
-        cmv = Decimal(str(cmv_row[0] if cmv_row else 0))
-        units_sold = int(cmv_row[1] if cmv_row else 0)
+        # 1-2. Receita, custo, vendas e peças pela conta única (app/services/money_ledger.py): receita líquida de
+        #      devolução (abate no dia em que aconteceu), troca contada uma vez, cancelada fora. Antes só contava venda
+        #      "concluída": uma venda com uma peça devolvida sumia INTEIRA do resultado.
+        from app.services.money_ledger import period_totals
+        led = await period_totals(self.db, tenant_id, first_day, last_day)
+        revenue = led.revenue
+        sales_count = led.sales_count
+        cmv = led.cost
+        units_sold = led.pieces_sold - led.pieces_returned
 
         # 3. Custos de viagem: entram no CUSTO das peças do lote (custo posto, rateado em entry_items.extra_unit_cost)
         #    e portanto já estão no CMV quando a peça é vendida. Não somar de novo aqui (antes a viagem inteira caía

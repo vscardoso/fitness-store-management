@@ -157,7 +157,7 @@ async def test_venda_nascida_de_condicional_pode_ser_devolvida_e_trocada(test_cl
     assert await _estoque(async_session, ids.a) == 30 - 15 + 4 + 3
     r = await _devolver(test_client, h, venda_id, [{"sale_item_id": item_id, "quantity": 9}])      # só restam 8
     assert r.status_code == 400
-    r = await test_client.post(f"/api/v1/sales/{venda_id}/cancel", headers=h, json={"reason": "Cliente desistiu de tudo"})
+    r = await test_client.post(f"/api/v1/sales/{venda_id}/cancel", headers=h, params={"reason": "Cliente desistiu de tudo"})
     assert r.status_code < 500
     await confere(async_session, [ids.a, ids.b])
 
@@ -401,7 +401,7 @@ async def test_estresse_aleatorio_com_condicional(test_client, async_session, te
             if not ativas:
                 continue
             s = rng.choice(ativas)
-            r = await test_client.post(f"/api/v1/sales/{s['id']}/cancel", headers=h, json={"reason": f"fuzz cancelar {passo}"})
+            r = await test_client.post(f"/api/v1/sales/{s['id']}/cancel", headers=h, params={"reason": f"fuzz cancelar {passo}"})
             hist.append(f"{passo}: cancelar_venda {s['id']} -> {r.status_code}")
             assert r.status_code < 500, f"[seed {seed}] cancelar deu {r.status_code}: {r.text}"
             if r.status_code in (200, 201):

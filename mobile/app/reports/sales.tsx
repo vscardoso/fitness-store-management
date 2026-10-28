@@ -750,7 +750,7 @@ export default function SalesReportScreen() {
                   ['Peças por venda', report.total_sales > 0 ? ((report.pieces_sold ?? 0) / report.total_sales).toFixed(1) : '0'],
                   ['Descontos dados', formatCurrency(report.discount_total ?? 0)],
                   ['Vendas com cliente cadastrado', `${report.sales_with_customer ?? 0} de ${report.total_sales}`],
-                  ['Devoluções e trocas', `${report.returns_count ?? 0} (${formatCurrency(report.returns_total ?? 0)})`],
+                  ['Devoluções e trocas (já descontadas da receita)', `${report.returns_count ?? 0} (${formatCurrency(report.returns_total ?? 0)})`],
                   ['Vendas canceladas (não contam acima)', `${report.cancelled_count ?? 0} (${formatCurrency(report.cancelled_total ?? 0)})`],
                 ].map(([label, value]) => (
                   <View key={label} style={styles.kvRow}>

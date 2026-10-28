@@ -65,7 +65,7 @@ async def test_cancelar_venda_depois_de_devolucao_parcial_nao_repoe_duas_vezes(t
     t_id, h, p, va, vb = await _cenario_30(async_session, test_user)
     sale_id, item_id = await _vender(test_client, h, p, va, 30, "100.00")
     assert (await _devolver(test_client, h, sale_id, [{"sale_item_id": item_id, "quantity": 5}])).status_code == 201
-    r = await test_client.post(f"/api/v1/sales/{sale_id}/cancel", headers=h, json={"reason": "Cliente desistiu de tudo"})
+    r = await test_client.post(f"/api/v1/sales/{sale_id}/cancel", headers=h, params={"reason": "Cliente desistiu de tudo"})
     await confere_conservacao(async_session, [va.id])
     assert await _estoque(async_session, va.id) <= 45, "o cancelamento repôs peças que já tinham voltado"
     if r.status_code in (200, 201):
@@ -78,7 +78,7 @@ async def test_peca_com_defeito_devolvida_nunca_volta_ao_estoque_nem_no_cancelam
     r = await _devolver(test_client, h, sale_id, [{"sale_item_id": item_id, "quantity": 4, "restock": False}])
     assert r.status_code == 201, r.text
     assert await _estoque(async_session, va.id) == 35          # 45 - 10 vendidas; as 4 com defeito não voltam
-    r = await test_client.post(f"/api/v1/sales/{sale_id}/cancel", headers=h, json={"reason": "Cancelando depois do defeito"})
+    r = await test_client.post(f"/api/v1/sales/{sale_id}/cancel", headers=h, params={"reason": "Cancelando depois do defeito"})
     async_session.expire_all()
     # as 4 peças com defeito estão com a loja, mas defeituosas: o estoque vendável nunca passa de 45 - 4
     assert await _estoque(async_session, va.id) <= 41, f"peça com defeito voltou ao estoque (cancel={r.status_code})"

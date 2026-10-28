@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List, Optional
 
-from sqlalchemy import insert, select
+from sqlalchemy import func, insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timezone import now_brazil
@@ -145,6 +145,22 @@ class SaleService:
                     f"Faltam: R$ {(total_amount - payments_total):.2f}"
                 )
             
+            # 3.1 Troco: pago acima do total só existe em dinheiro, e o pagamento gravado é o que ficou na loja
+            #     (o app manda o valor RECEBIDO; antes o troco ficava gravado como pagamento)
+            pay_amounts = [Decimal(str(p.amount)) for p in sale_data.payments]
+            excess = payments_total - total_amount
+            if excess > 0:
+                cash_idx = [i for i, p in enumerate(sale_data.payments) if getattr(p.payment_method, 'value', p.payment_method) == 'cash']
+                if sum((pay_amounts[i] for i in cash_idx), Decimal('0')) < excess:
+                    raise ValueError(
+                        f"O valor pago (R$ {payments_total:.2f}) passa do total da venda (R$ {total_amount:.2f}). "
+                        "Troco só existe em dinheiro: ajuste os valores do cartão ou PIX."
+                    )
+                for i in reversed(cash_idx):
+                    tira = min(pay_amounts[i], excess)
+                    pay_amounts[i] -= tira
+                    excess -= tira
+
             # 4. Gerar número da venda — milissegundos + 3 chars aleatórios evitam colisão
             import secrets
             _ts = now_brazil().strftime('%Y%m%d%H%M%S%f')[:17]  # até milissegundos (17 chars)
@@ -227,10 +243,12 @@ class SaleService:
             
             # 7. Criar Payments
             print(f" Criando {len(sale_data.payments)} pagamentos...")
-            for payment_data in sale_data.payments:
+            for payment_data, paid in zip(sale_data.payments, pay_amounts):
+                if paid <= 0:
+                    continue  # dinheiro que era só troco
                 payment = Payment(
                     sale_id=sale.id,
-                    amount=float(payment_data.amount),
+                    amount=float(paid),
                     payment_method=payment_data.payment_method.value,
                     payment_reference=payment_data.payment_reference,
                     installments=payment_data.installments if payment_data.installments else 1,
@@ -361,6 +379,19 @@ class SaleService:
 
             if sale.status == SaleStatus.CANCELLED.value:
                 raise ValueError("Venda j est cancelada")
+
+            # Venda que já teve devolução ou troca não é cancelada: o cancelamento apaga a venda inteira das contas,
+            # inclusive o crédito que pagou a peça da troca (a cliente ficaria com a peça nova quase de graça).
+            # O que sobrou da venda volta pela Devolução, que acerta estoque, dinheiro, pontos e total gasto.
+            from app.models.sale_return import SaleReturn as _SR
+            _has_return = (await self.db.execute(select(func.count(_SR.id)).where(
+                _SR.sale_id == sale.id, _SR.status == "completed", _SR.is_active == True,  # noqa: E712
+            ))).scalar() or 0
+            if _has_return:
+                raise ValueError(
+                    "Esta venda já teve devolução ou troca e não pode ser cancelada. "
+                    "Para desfazer o que sobrou, use Devolução nas peças restantes."
+                )
             
             print(f" Cancelando venda {sale.sale_number}...")
             
@@ -404,18 +435,28 @@ class SaleService:
                 print(" Revertendo pontos de fidelidade...")
                 customer = await self.customer_repo.get(self.db, sale.customer_id, tenant_id=tenant_id)
                 if customer:
+                    # Devolução já tirou do total gasto o que voltou e estornou a parte proporcional dos pontos:
+                    # o cancelamento tira só o que sobrou (antes estornava tudo de novo).
+                    from app.models.sale_return import SaleReturn
+                    refunded = Decimal(str((await self.db.execute(
+                        select(func.coalesce(func.sum(SaleReturn.total_refund), 0)).where(
+                            SaleReturn.sale_id == sale.id, SaleReturn.status == "completed", SaleReturn.is_active == True,  # noqa: E712
+                        ))).scalar() or 0))
+                    total = Decimal(str(sale.total_amount or 0))
+                    still = max(Decimal('0'), total - refunded)
+                    share = (still / total) if total > 0 else Decimal('0')
+                    is_exchange = (await self.db.execute(
+                        select(func.count(SaleReturn.id)).where(SaleReturn.exchange_sale_id == sale.id))).scalar() or 0
                     new_loyalty_points = (
-                        Decimal(str(customer.loyalty_points)) - 
-                        Decimal(str(sale.loyalty_points_earned)) +
+                        Decimal(str(customer.loyalty_points)) -
+                        Decimal(str(sale.loyalty_points_earned)) * share +
                         Decimal(str(sale.loyalty_points_used))
                     )
-                    
-                    new_total_spent = (
-                        Decimal(str(customer.total_spent)) - 
-                        Decimal(str(sale.total_amount))
-                    )
-                    
-                    new_total_purchases = max(0, customer.total_purchases - 1)
+
+                    new_total_spent = Decimal(str(customer.total_spent)) - still
+
+                    # venda de troca não contou como compra nova
+                    new_total_purchases = customer.total_purchases if is_exchange else max(0, customer.total_purchases - 1)
                     
                     # Atualizar customer com atribuio direta
                     customer.loyalty_points = float(max(0, new_loyalty_points))
@@ -428,6 +469,8 @@ class SaleService:
 
             await self.db.commit()
             await self.db.refresh(sale)
+            from app.core.dashboard_cache import invalidate_dashboard_cache
+            invalidate_dashboard_cache(tenant_id)  # início e relatórios mostram o cancelamento na hora
 
             # 4. Recalcular inventory table a partir do FIFO para produtos afetados
             inv_sync = InventoryService(self.db)
@@ -442,7 +485,6 @@ class SaleService:
             # response schema — refresh() simples não popula relationships
             # lazy em modo async, causando MissingGreenlet na serialização
             # (mesmo padrão usado em create_sale).
-            from sqlalchemy import select
             from sqlalchemy.orm import selectinload
             from app.models.product import Product
 

@@ -362,6 +362,7 @@ class ReturnService:
                     items_to_return_to_stock.append({
                         'sale_item': sale_item,
                         'quantity': item_request.quantity,
+                        'ret_index': len(return_items_data),  # a linha da devolução abaixo (recebe o custo exato)
                     })
                 
                 return_items_data.append({
@@ -387,6 +388,7 @@ class ReturnService:
                 if sale_item.sale_sources and 'sources' in sale_item.sale_sources:
                     sources = [dict(src) for src in sale_item.sale_sources['sources']]
                     remaining_to_return = quantity
+                    back_cost = Decimal('0')
                     for source in reversed(sources):
                         if remaining_to_return <= 0:
                             break
@@ -396,10 +398,14 @@ class ReturnService:
                         voltar = min(livre, remaining_to_return)
                         await self.fifo_service.item_repo.increase_quantity(self.db, source['entry_item_id'], voltar)
                         source['quantity_returned'] = int(source.get('quantity_returned', 0)) + voltar
+                        back_cost += Decimal(str(source.get('unit_cost', 0))) * voltar
                         remaining_to_return -= voltar
                     if remaining_to_return > 0:
                         raise ValueError("A venda não tem mais peças para devolver ao estoque (fontes esgotadas)")
                     sale_item.sale_sources = {**sale_item.sale_sources, 'sources': sources}  # reatribui: o JSON só grava se mudar de objeto
+                    # custo real das camadas para onde as peças voltaram (não o custo médio da venda): é o que o
+                    # relatório abate do custo (app/services/money_ledger.py)
+                    return_items_data[item_data['ret_index']]['unit_cost'] = back_cost / quantity
                 else:
                     # Venda antiga sem fontes FIFO: não pode devolver e deixar o estoque perder a peça sem avisar
                     raise ValueError("Esta venda não tem a origem das peças (FIFO) registrada; devolva pelo ajuste de estoque")
@@ -421,6 +427,12 @@ class ReturnService:
                         float(customer.loyalty_points) - float(points_to_revoke)
                     )
             
+            # 5.1 Total gasto da cliente é líquido: o que voltou sai (a troca soma a peça nova em _create_exchange_sale)
+            if sale.customer_id:
+                cust = (await self.db.execute(select(Customer).where(Customer.id == sale.customer_id))).scalar_one_or_none()
+                if cust:
+                    cust.total_spent = float(max(Decimal('0'), Decimal(str(cust.total_spent or 0)) - total_refund))
+
             # 6. Gerar número da devolução
             return_number = f"DEV-{now_brazil().strftime('%Y%m%d%H%M%S')}"
             
@@ -491,7 +503,9 @@ class ReturnService:
                 sale.status = SaleStatus.PARTIALLY_REFUNDED.value
             
             await self.db.commit()
-            
+            from app.core.dashboard_cache import invalidate_dashboard_cache
+            invalidate_dashboard_cache(tenant_id)  # início e relatórios mostram a devolução na hora
+
             # 10. Sincronizar inventário
             inv_sync = InventoryService(self.db)
             affected_products = {item['product_id'] for item in return_items_data}
@@ -571,6 +585,8 @@ class ReturnService:
                 points = total_new / Decimal('10')
                 sale.loyalty_points_earned = float(points)
                 customer.loyalty_points = float(Decimal(str(customer.loyalty_points)) + points)
+                # a peça nova entra no total gasto (não conta como compra nova: é a mesma compra trocada)
+                customer.total_spent = float(Decimal(str(customer.total_spent or 0)) + total_new)
         await self.db.flush()
         return sale, net
 

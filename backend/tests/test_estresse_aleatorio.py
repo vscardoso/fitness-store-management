@@ -129,7 +129,7 @@ async def test_estresse_aleatorio_de_vendas_devolucoes_trocas_e_cancelamentos(te
             if not ativas:
                 continue
             s = rng.choice(ativas)
-            r = await test_client.post(f"/api/v1/sales/{s['id']}/cancel", headers=h, json={"reason": f"fuzz cancelar {passo}"})
+            r = await test_client.post(f"/api/v1/sales/{s['id']}/cancel", headers=h, params={"reason": f"fuzz cancelar {passo}"})
             historico.append(f"{passo}: cancelar venda {s['id']} -> {r.status_code}")
             assert r.status_code < 500, f"[seed {seed}] cancelar deu {r.status_code}: {r.text}"
             if r.status_code in (200, 201):
