@@ -396,7 +396,10 @@ class FIFOService:
         try:
             for source in sources:
                 entry_item_id = source["entry_item_id"]
-                quantity_to_return = source["quantity_taken"]
+                # o que já voltou por devolução parcial não volta de novo no cancelamento
+                quantity_to_return = int(source["quantity_taken"]) - int(source.get("quantity_returned", 0))
+                if quantity_to_return <= 0:
+                    continue
 
                 # Aumentar quantidade do item (SEM commit — transação gerenciada pelo service)
                 success = await self.item_repo.increase_quantity(

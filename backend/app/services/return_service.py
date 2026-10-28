@@ -369,32 +369,29 @@ class ReturnService:
                 sale_item = item_data['sale_item']
                 quantity = item_data['quantity']
                 
-                # Usar as fontes FIFO originais para devolver ao estoque correto
+                # Volta para as camadas FIFO de onde a peça saiu, da ÚLTIMA fonte para a primeira: depois da devolução o
+                # estoque fica como se a venda tivesse sido menor (vender 30 e devolver 5 = vender 25). Cada fonte guarda
+                # quanto já voltou (`quantity_returned`), senão a 2ª devolução da mesma venda reaproveitava a 1ª fonte.
                 if sale_item.sale_sources and 'sources' in sale_item.sale_sources:
-                    # Devolver para as entradas originais proporcionalmente
-                    sources = sale_item.sale_sources['sources']
+                    sources = [dict(src) for src in sale_item.sale_sources['sources']]
                     remaining_to_return = quantity
-                    
-                    for source in sources:
+                    for source in reversed(sources):
                         if remaining_to_return <= 0:
                             break
-                        
-                        # Quantidade que foi tirada desta entrada
-                        quantity_taken = source['quantity_taken']
-                        entry_item_id = source['entry_item_id']
-                        
-                        # Calcular quanto devolver proporcionalmente
-                        quantity_to_return = min(quantity_taken, remaining_to_return)
-                        
-                        # Devolver ao entry_item
-                        await self.fifo_service.item_repo.increase_quantity(
-                            self.db,
-                            entry_item_id,
-                            quantity_to_return
-                        )
-                        
-                        remaining_to_return -= quantity_to_return
-            
+                        livre = int(source['quantity_taken']) - int(source.get('quantity_returned', 0))
+                        if livre <= 0:
+                            continue
+                        voltar = min(livre, remaining_to_return)
+                        await self.fifo_service.item_repo.increase_quantity(self.db, source['entry_item_id'], voltar)
+                        source['quantity_returned'] = int(source.get('quantity_returned', 0)) + voltar
+                        remaining_to_return -= voltar
+                    if remaining_to_return > 0:
+                        raise ValueError("A venda não tem mais peças para devolver ao estoque (fontes esgotadas)")
+                    sale_item.sale_sources = {**sale_item.sale_sources, 'sources': sources}  # reatribui: o JSON só grava se mudar de objeto
+                else:
+                    # Venda antiga sem fontes FIFO: não pode devolver e deixar o estoque perder a peça sem avisar
+                    raise ValueError("Esta venda não tem a origem das peças (FIFO) registrada; devolva pelo ajuste de estoque")
+
             # 5. Estornar pontos de fidelidade (proporcional)
             if sale.customer_id and sale.loyalty_points_earned > 0:
                 # Calcular pontos proporcionais ao reembolso
