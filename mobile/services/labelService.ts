@@ -9,12 +9,35 @@ import api from './api';
 
 export type TagLabelLayout = 'a4' | 'roll';
 
+/** Medidas do adesivo do verso da tag (mm). 6x5 é a etiqueta que a loja usa hoje; 5x6 é a mesma em pé. */
+export const STICKER_SIZES = [
+  { id: '6x5', name: '6 × 5 cm', note: 'deitada', widthMm: 60, heightMm: 50 },
+  { id: '5x6', name: '5 × 6 cm', note: 'em pé', widthMm: 50, heightMm: 60 },
+] as const;
+export type StickerSize = (typeof STICKER_SIZES)[number];
+
 export interface TagLabelOptions {
   layout: TagLabelLayout;
-  startPosition?: number; // 1 a 12, só na folha A4
+  startPosition?: number; // só na folha A4: de 1 até o total da folha
+  widthMm?: number;
+  heightMm?: number;
 }
 
-export const TAG_LABELS_PER_A4 = 12;
+/** Quantos adesivos cabem numa folha A4 (mesma conta do servidor, `a4_grid`): 6x5 = 15, 5x6 = 12. */
+export function stickersPerSheet(widthMm: number, heightMm: number): number {
+  const cols = Math.max(1, Math.floor((210 - 16 + 4) / (widthMm + 4)));
+  const rows = Math.max(1, Math.floor((297 - 16 + 4) / (heightMm + 4)));
+  return cols * rows;
+}
+
+function sizeBody(options: TagLabelOptions) {
+  return {
+    layout: options.layout,
+    start_position: options.startPosition ?? 1,
+    width_mm: options.widthMm ?? 60,
+    height_mm: options.heightMm ?? 50,
+  };
+}
 
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
@@ -86,14 +109,15 @@ export async function printTagLabels(
 ): Promise<void> {
   const body = {
     items: items.filter((i) => i.quantity > 0).map((i) => ({ variant_id: i.variantId, quantity: i.quantity })),
-    layout: options.layout,
-    start_position: options.startPosition ?? 1,
+    ...sizeBody(options),
   };
-  await openPdf('/labels/pdf', body, 'etiquetas.pdf');
+  const total = body.items.reduce((sum, i) => sum + i.quantity, 0);
+  const tag = options.layout === 'roll' ? 'grafica' : 'folha-a4';
+  await openPdf('/labels/pdf', body, `etiquetas-${body.width_mm}x${body.height_mm}-${tag}-${total}un.pdf`);
 }
 
 /** PDF com uma etiqueta por peça recebida na entrada. */
 export async function printEntryTagLabels(entryId: number, options: TagLabelOptions): Promise<void> {
-  const body = { layout: options.layout, start_position: options.startPosition ?? 1 };
+  const body = sizeBody(options);
   await openPdf(`/labels/pdf/entry/${entryId}`, body, `etiquetas-entrada-${entryId}.pdf`);
 }
