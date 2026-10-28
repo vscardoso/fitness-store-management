@@ -3,6 +3,11 @@
 Premissa: **nenhuma peça pode sumir nem aparecer do nada, e nenhum valor pode ser inventado.** Este documento é a fila de trabalho
 para quem continuar (inclusive sessões na nuvem). Atualizado em 2026-10-28.
 
+**PLANO ENCERRADO em 2026-10-28 (decisão do Victor).** Filas A, B, C e D feitas; matriz toda OK. Ficam como limitações aceitas, sem trabalho previsto:
+`ReturnItem.unit_cost` das devoluções antigas com o custo médio (só mexe um pouco no lucro de meses passados), custo por peça em centavos em
+`sale_items.unit_cost` (exato nas fontes FIFO) e a tela de devolução/troca não testada em aparelho físico (só navegador). Os testes daqui seguem
+valendo como regressão: bug novo em venda/FIFO/dinheiro entra como achado novo, com teste que falha antes da correção.
+
 ## Como rodar
 ```bash
 cd backend
