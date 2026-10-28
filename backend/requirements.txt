@@ -44,7 +44,7 @@ pytest-cov==7.1.0
 
 # Development
 black==26.10.1
-flake8==6.0.0
+flake8==7.4.1
 mypy==1.5.1
 cloudinary==1.44.1
 
