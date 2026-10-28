@@ -1,5 +1,5 @@
-import { Tabs, useRouter } from 'expo-router';
-import { useEffect } from 'react';
+import { Tabs, usePathname, useRouter } from 'expo-router';
+import { useEffect, useRef } from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,6 +26,34 @@ export default function TabsLayout() {
   // Notebook: a barra lateral substitui as abas de baixo
   const isDesktop = useIsDesktop();
 
+  // Voltar pelo gesto do iPhone / botão do navegador: trocar de aba NÃO cria entrada no histórico do navegador
+  // (a troca substitui a entrada), então voltar de "Entradas" (aberta pelo Menu) caía no Início. Aqui lembramos de
+  // qual aba a pessoa veio e, se o gesto de voltar cair no Início, levamos para essa aba (Menu).
+  const pathname = usePathname();
+  const prevPath = useRef(pathname);
+  const origin = useRef<Record<string, string>>({});
+  const popAt = useRef(0);
+  useEffect(() => {
+    if (Platform.OS !== 'web' || typeof window === 'undefined') return;
+    const onPop = () => {
+      popAt.current = Date.now();
+      const from = prevPath.current;
+      setTimeout(() => {
+        const back = origin.current[from];
+        if (window.location.pathname === '/' && from !== '/' && (back === '/more' || back === '/sale')) {
+          router.replace((back === '/more' ? '/(tabs)/more' : '/(tabs)/sale') as any);
+        }
+      }, 120);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, [router]);
+  useEffect(() => {
+    if (pathname === prevPath.current) return;
+    if (Date.now() - popAt.current > 800) origin.current[pathname] = prevPath.current; // navegação normal, não voltar
+    prevPath.current = pathname;
+  }, [pathname]);
+
   // Se não autenticado, redirecionar para login
   useEffect(() => {
     if (!isAuthenticated) {
@@ -50,6 +78,9 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      // Voltar (botão, gesto do iPhone ou Voltar do navegador) leva à ÚLTIMA aba visitada, não à primeira:
+      // Menu > Produtos > voltar = Menu (antes caía no Início)
+      backBehavior="history"
       screenOptions={{
         tabBarActiveTintColor: brandingColors.primary,
         tabBarInactiveTintColor: Colors.light.tabIconDefault,
