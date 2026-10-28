@@ -19,7 +19,7 @@ class PushTokenResponse(BaseModel):
 
 
 class SendNotificationRequest(BaseModel):
-    user_ids: list[int] = Field(..., min_length=1)
+    user_ids: list[int] = Field(..., min_length=1, max_length=200)
     title: str = Field(..., min_length=1, max_length=255)
     body: str = Field(..., min_length=1)
     data: Optional[dict] = None

@@ -47,7 +47,7 @@ class NotificationService:
         data: Optional[dict] = None,
     ) -> dict:
         """Envia notificação via Expo Push"""
-        tokens = await self.token_repo.get_tokens_by_users(db, user_ids)
+        tokens = await self.token_repo.get_tokens_by_users(db, user_ids, tenant_id)
 
         if not tokens:
             return {"success": False, "sent_count": 0, "failed_count": 0, "errors": ["Nenhum token encontrado"]}

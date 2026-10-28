@@ -15,10 +15,14 @@ class PushTokenRepository(BaseRepository[PushToken, Any, Any]):
         )
         return result.scalars().first()
 
-    async def get_tokens_by_users(self, db: AsyncSession, user_ids: list[int]) -> list[PushToken]:
+    async def get_tokens_by_users(
+        self, db: AsyncSession, user_ids: list[int], tenant_id: int
+    ) -> list[PushToken]:
+        # tenant_id obrigatorio: push so chega a usuarios da propria loja
         result = await db.execute(
             select(PushToken).where(
                 PushToken.user_id.in_(user_ids),
+                PushToken.tenant_id == tenant_id,
                 PushToken.is_active == True
             )
         )

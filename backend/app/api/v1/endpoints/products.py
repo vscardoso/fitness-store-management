@@ -1214,7 +1214,7 @@ async def adjust_product_quantity(
     description="Retorna custo médio FIFO para uma lista de produtos. Usado pelo carrinho para calcular margem em tempo real.",
 )
 async def get_fifo_costs(
-    product_ids: List[int],
+    product_ids: List[int] = Body(..., max_length=200),
     tenant_id: int = Depends(get_current_tenant_id),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -1225,7 +1225,7 @@ async def get_fifo_costs(
 
     results = {}
     for pid in product_ids:
-        cost_info = await fifo_service.get_product_cost_info(pid)
+        cost_info = await fifo_service.get_product_cost_info(pid, tenant_id=tenant_id)
         results[str(pid)] = {
             "product_id": pid,
             "average_unit_cost": cost_info["average_unit_cost"],
