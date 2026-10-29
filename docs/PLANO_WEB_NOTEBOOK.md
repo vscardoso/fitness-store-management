@@ -65,3 +65,6 @@ O app web é o layout do celular esticado:
 - As lojas usam leitor de código de barras USB no notebook? (define a prioridade do atalho Enter no PDV)
 - Quais telas a W.A usa no notebook hoje? (sugestão: PDV, entradas, produtos)
 - Notebook mais comum: 1366x768 ou Full HD? (ajusta a densidade das tabelas)
+
+**Ajustes (2026-10-29, pedido do Victor):** sem limite de largura no conteúdo do notebook (o limite de 1280 px deixava o cabeçalho colorido estreito e faixas claras nas laterais; toda tela ocupa a área ao lado do menu). Telas de entrada (login, cadastro, criar loja, esqueci a senha) ficam numa coluna de 480 px centralizada sobre o degradê. Início da vendedora/caixa não pede mais os painéis de gerente ao voltar para a tela (o `refetch` ignorava o `enabled` e dava 403).
+

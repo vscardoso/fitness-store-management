@@ -215,20 +215,21 @@ export default function DashboardScreen() {
     playEntryAnimation();
   };
 
-  // Auto-refresh no foco
+  // Auto-refresh no foco (os painéis financeiros só para gerente/admin: `refetch` ignora o `enabled` e o servidor responde 403 para vendedor/caixa)
   useFocusEffect(
     useCallback(() => {
+      refetchRecentSales();
+      if (!canSeeDashboard) return;
       refetchStats();
       refetchValuation();
       refetchPeriod();
       refetchPurchases();
-      refetchRecentSales();
       refetchDailySales();
       refetchTopProducts();
       refetchFifo();
       refetchYoY();
       refetchMonthly();
-    }, [refetchStats, refetchValuation, refetchPeriod, refetchPurchases, refetchRecentSales, refetchDailySales, refetchTopProducts, refetchFifo, refetchYoY, refetchMonthly])
+    }, [canSeeDashboard, refetchStats, refetchValuation, refetchPeriod, refetchPurchases, refetchRecentSales, refetchDailySales, refetchTopProducts, refetchFifo, refetchYoY, refetchMonthly])
   );
 
   // Dados extraídos (optional chaining em todos os níveis para evitar crash quando API muda)

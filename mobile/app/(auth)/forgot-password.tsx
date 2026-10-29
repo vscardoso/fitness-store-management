@@ -228,6 +228,10 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
+    // Notebook: coluna centralizada em vez de esticar na tela toda
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
     backgroundColor: '#f5f5f5',
     padding: 16,
   },

@@ -222,6 +222,10 @@ const styles = StyleSheet.create({
   safe: { flex: 1 },
   keyboardView: { flex: 1 },
   scroll: {
+    // Notebook: o formulário fica numa coluna centralizada em vez de esticar na tela toda (no celular a largura é a mesma)
+    width: '100%',
+    maxWidth: 480,
+    alignSelf: 'center',
     flexGrow: 1,
     padding: theme.spacing.md,
     justifyContent: 'center',

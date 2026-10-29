@@ -12,8 +12,6 @@ import DesktopSidebar from './DesktopSidebar';
 
 /** Telas sem barra lateral mesmo logado (termos, aceite) */
 const NO_SIDEBAR = ['/termos', '/privacidade', '/aceite-termos'];
-/** Telas que usam a largura toda (o resto fica centralizado até 1280 px em monitor grande) */
-const FULL_WIDTH = ['/sale'];
 
 export default function DesktopShell({ children }: { children: ReactNode }) {
   if (Platform.OS !== 'web') return <>{children}</>;
@@ -28,7 +26,6 @@ function WebShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const inAuth = segments[0] === '(auth)';
   const showSidebar = isDesktop && isAuthenticated && !inAuth && !NO_SIDEBAR.includes(pathname);
-  const fullWidth = FULL_WIDTH.includes(pathname);
 
   // F2 de qualquer tela abre o ponto de venda (no PDV o próprio PDV usa o F2 para nova venda)
   useEffect(() => {
@@ -48,7 +45,7 @@ function WebShell({ children }: { children: ReactNode }) {
     <View style={styles.row}>
       {showSidebar && <DesktopSidebar />}
       <View style={[styles.main, showSidebar && styles.mainDesktop]}>
-        <View style={[styles.content, showSidebar && !fullWidth && styles.contentCapped]}>{children}</View>
+        <View style={styles.content}>{children}</View>
       </View>
     </View>
   );
@@ -59,5 +56,4 @@ const styles = StyleSheet.create({
   main: { flex: 1, minWidth: 0 },
   mainDesktop: { backgroundColor: Colors.light.backgroundSecondary },
   content: { flex: 1, width: '100%' },
-  contentCapped: { maxWidth: 1280, alignSelf: 'center' },
 });
