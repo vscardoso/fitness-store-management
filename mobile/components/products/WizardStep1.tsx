@@ -27,6 +27,7 @@ import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import type { IdentifyMethod } from '@/types/wizard';
 import type { Category, Product, DuplicateMatch } from '@/types';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
+import { dismissKeyboard } from '@/utils/dismissKeyboard';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { capitalizeWords } from '@/utils/format';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
@@ -478,7 +479,7 @@ export default function WizardStep1({
 
         <TouchableOpacity
           style={styles.categoryButton}
-          onPress={() => setCategoryModalVisible(true)}
+          onPress={() => { dismissKeyboard(); setCategoryModalVisible(true); }}
         >
           <View style={styles.categoryButtonContent}>
             <Ionicons

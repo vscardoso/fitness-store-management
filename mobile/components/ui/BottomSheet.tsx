@@ -31,6 +31,8 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useIsDesktop } from '@/hooks/useLayout';
+import { useKeyboardInset } from '@/hooks/useKeyboardInset';
+import { dismissKeyboardBehindModal } from '@/utils/dismissKeyboard';
 
 interface BottomSheetAction {
   label: string;
@@ -123,6 +125,12 @@ export default function BottomSheet({
   const brandingColors = useBrandingColors();
   // Notebook: vira um diálogo no meio da tela (folha subindo de baixo é coisa de celular)
   const isDesktop = useIsDesktop();
+  // Web no iPhone: o teclado cobre a parte de baixo sem encolher a janela; sobe a folha por cima dele
+  const keyboardInset = useKeyboardInset(visible && Platform.OS === 'web');
+  // Abrir a folha fecha o teclado do campo que estava em foco atrás dela
+  useEffect(() => {
+    if (visible) dismissKeyboardBehindModal();
+  }, [visible]);
 
   const getActionStyle = (variant: BottomSheetAction['variant'] = 'primary') => {
     switch (variant) {
@@ -155,7 +163,7 @@ export default function BottomSheet({
 
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={[styles.kavContainer, isDesktop && styles.kavDesktop]}
+        style={[styles.kavContainer, isDesktop && styles.kavDesktop, keyboardInset > 0 && { paddingBottom: keyboardInset }]}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 24}
       >
         <View style={[styles.sheet, { paddingBottom: insets.bottom }, isDesktop && styles.sheetDesktop]}>

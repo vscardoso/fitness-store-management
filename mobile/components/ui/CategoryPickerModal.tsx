@@ -16,6 +16,8 @@ import { Colors, theme } from '@/constants/Colors';
 import { useCreateCategory } from '@/hooks/useCategories';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useBrandingColors } from '@/store/brandingStore';
+import { dismissKeyboardBehindModal } from '@/utils/dismissKeyboard';
+import { useKeyboardInset } from '@/hooks/useKeyboardInset';
 import type { Category } from '@/types';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -92,9 +94,13 @@ export default function CategoryPickerModal({
     setCreateError(null);
   };
 
+  // Teclado do campo anterior (ex.: nome do produto) fecha ao abrir; o do campo de busca/nova categoria sobe a folha
+  const keyboardInset = useKeyboardInset(visible);
+
   // ── Animação de entrada/saída ──
   useEffect(() => {
     if (visible) {
+      dismissKeyboardBehindModal();
       Animated.parallel([
         Animated.spring(slideAnim, {
           toValue: 0,
@@ -255,7 +261,11 @@ export default function CategoryPickerModal({
 
       {/* Sheet deslizante */}
       <Animated.View
-        style={[styles.sheet, { transform: [{ translateY: slideAnim }] }]}
+        style={[
+          styles.sheet,
+          keyboardInset > 0 && { bottom: keyboardInset, maxHeight: Math.max(240, SCREEN_HEIGHT * 0.84 - keyboardInset), paddingBottom: 12 },
+          { transform: [{ translateY: slideAnim }] },
+        ]}
       >
         <SheetHeader
           title="Selecionar categoria"
