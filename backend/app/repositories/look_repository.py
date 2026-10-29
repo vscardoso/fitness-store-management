@@ -112,3 +112,12 @@ class LookRepository:
         item.is_active = False
         await db.commit()
         return True
+
+    async def get_item(self, db: AsyncSession, item_id: int, look_id: int) -> Optional[LookItem]:
+        stmt = select(LookItem).where(LookItem.id == item_id, LookItem.look_id == look_id, LookItem.is_active == True)  # noqa: E712
+        return (await db.execute(stmt)).scalar_one_or_none()
+
+    async def set_item_variant(self, db: AsyncSession, item: LookItem, variant_id: int) -> None:
+        item.variant_id = variant_id
+        await db.commit()
+

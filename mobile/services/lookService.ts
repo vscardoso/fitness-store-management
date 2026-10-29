@@ -44,6 +44,11 @@ export const addItemToLook = async (
   return data;
 };
 
+export const changeLookItemVariant = async (lookId: number, itemId: number, variantId: number): Promise<Look> => {
+  const { data } = await api.patch<Look>(`/looks/${lookId}/items/${itemId}`, { variant_id: variantId });
+  return data;
+};
+
 export const removeItemFromLook = async (lookId: number, itemId: number): Promise<void> => {
   await api.delete(`/looks/${lookId}/items/${itemId}`);
 };
@@ -55,5 +60,6 @@ export default {
   updateLook,
   deleteLook,
   addItemToLook,
+  changeLookItemVariant,
   removeItemFromLook,
 };

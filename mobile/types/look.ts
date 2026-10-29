@@ -10,6 +10,11 @@ export interface LookItemResponse {
   variant_description: string | null;
   product_image_url: string | null;
   unit_price: number | null;
+  variant_sku: string | null;
+  variant_color: string | null;
+  variant_size: string | null;
+  /** Peças disponíveis agora (null quando o servidor não informou) */
+  stock: number | null;
   created_at: string;
 }
 

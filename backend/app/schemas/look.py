@@ -13,6 +13,10 @@ class LookItemCreate(BaseModel):
     position: int = Field(0, ge=0)
 
 
+class LookItemUpdate(BaseModel):
+    variant_id: int = Field(..., gt=0)
+
+
 class LookItemResponse(BaseModel):
     id: int
     look_id: int
@@ -23,6 +27,11 @@ class LookItemResponse(BaseModel):
     variant_description: Optional[str] = None
     product_image_url: Optional[str] = None
     unit_price: Optional[float] = None
+    # Cor, tamanho, SKU e estoque da variação (a tela mostra disponibilidade e vende o look no PDV)
+    variant_sku: Optional[str] = None
+    variant_color: Optional[str] = None
+    variant_size: Optional[str] = None
+    stock: Optional[int] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

@@ -435,3 +435,8 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 
 - **Totais de estoque iguais em todas as telas** (2026-10-29): o Inventário somava só os 1.000 primeiros produtos (`getProducts({limit: 1000})`; o servidor não aceita mais que isso), então em loja grande o total de unidades saía menor que o das telas Produtos e Início. Agora Inventário e Produtos (notebook) usam `getAllGroupedProducts` (`services/productService.ts`, 500 por vez, chave `['grouped-products','all']`), com a mesma regra de estoque baixo (até o mínimo de cada produto, padrão 3). Total de unidades = soma de `entry_items.quantity_remaining` (o mesmo número do painel `/dashboard/stats`). Tela nova que mostre total de produto ou de estoque deve usar essa função, nunca a primeira página. Teste feito com 1.268 produtos: servidor 38.559, Inventário antes 31.065 e depois 38.559.
 
+
+## Lookbook, fase A (2026-10-29)
+
+- Look vendável: cada peça tem variação (cor/tamanho) e estoque na resposta (`variant_sku`, `variant_color`, `variant_size`, `stock`); `PATCH /looks/{id}/items/{item_id}` troca a variação; com 3+ peças o desconto do look entra sozinho; vitrine pública só com peças ativas e `customer_id IS NULL`; validação de produto/variação/cliente da loja (400). Testes: `tests/test_looks.py`. Plano e fase B (WhatsApp): `docs/PLANO_LOOKBOOK.md`.
+- App: `looks/builder.tsx` (escolher variação, editar com `?id=`), `looks/[id].tsx` ("Vender este look" põe as peças no carrinho do PDV com o desconto do look; recusa peça sem variação ou sem estoque; condicional agora manda `variant_id`). NÃO testado no navegador nem em aparelho.

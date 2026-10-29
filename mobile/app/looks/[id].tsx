@@ -17,11 +17,12 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
 import { getLook, deleteLook } from '@/services/lookService';
 import { createShipment } from '@/services/conditionalService';
+import { useCartStore } from '@/store/cartStore';
 import { Colors, theme } from '@/constants/Colors';
 import { getImageUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
 import type { LookItemResponse } from '@/types/look';
-import type { Customer } from '@/types';
+import type { Customer, ProductGrouped } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function LookDetailScreen() {
@@ -72,6 +73,7 @@ export default function LookDetailScreen() {
         .filter((i) => i.product_id != null && i.unit_price != null)
         .map((i) => ({
           product_id: i.product_id,
+          variant_id: i.variant_id ?? undefined,
           quantity_sent: 1,
           unit_price: i.unit_price!,
         }));
@@ -143,6 +145,36 @@ export default function LookDetailScreen() {
   }
 
   const hasItems = look.items.length > 0;
+  const subtotal = look.items.reduce((sum, i) => sum + (i.unit_price ?? 0), 0);
+  const lookDiscount = Math.max(0, Math.round((subtotal - look.total_price) * 100) / 100);
+
+  const sellLook = () => {
+    const problems = look.items.filter((i) => i.variant_id == null || (i.stock ?? 0) < 1);
+    if (problems.length > 0) {
+      const lista = problems
+        .map((i) => `${i.product_name ?? 'Produto'}${i.variant_description ? ` (${i.variant_description})` : ''}: ${i.variant_id == null ? 'sem cor/tamanho escolhido' : 'sem estoque'}`)
+        .join('\n');
+      setDialog({
+        visible: true, type: 'warning', title: 'Não dá para vender o look ainda',
+        message: `${lista}\n\nEdite o look e troque essas peças.`,
+        confirmText: 'Editar look', cancelText: 'Fechar',
+        onConfirm: () => { setDialog(DIALOG_HIDDEN); router.push(`/looks/builder?id=${lookId}`); },
+        onCancel: () => setDialog(DIALOG_HIDDEN),
+      });
+      return;
+    }
+    const cart = useCartStore.getState();
+    cart.clear();
+    look.items.forEach((i) => {
+      const product = { id: i.product_id, name: i.product_name ?? 'Produto', image_url: i.product_image_url ?? undefined, is_digital: false, is_activewear: false, variants: [], variant_count: 1, total_stock: i.stock ?? 0, min_price: i.unit_price ?? 0, max_price: i.unit_price ?? 0 } as ProductGrouped;
+      cart.addVariantItem(product, {
+        id: i.variant_id!, sku: i.variant_sku ?? '', size: i.variant_size ?? undefined, color: i.variant_color ?? undefined,
+        price: i.unit_price ?? 0, current_stock: i.stock ?? 0,
+      });
+    });
+    if (lookDiscount > 0) cart.setDiscount(lookDiscount);
+    router.push('/(tabs)/sale');
+  };
 
   return (
     <View style={styles.container}>
@@ -150,6 +182,7 @@ export default function LookDetailScreen() {
         title={look.name}
         subtitle={`${look.items_count} peças`}
         rightActions={[
+          { icon: 'create-outline', onPress: () => router.push(`/looks/builder?id=${lookId}`) },
           { icon: 'trash-outline', onPress: handleDelete },
         ]}
       />
@@ -185,6 +218,17 @@ export default function LookDetailScreen() {
         </Card>
 
         {/* Botão Pedir Condicional */}
+        {hasItems && (
+          <Button
+            mode="contained"
+            icon="cart"
+            onPress={sellLook}
+            style={[styles.conditionalButton, { backgroundColor: Colors.light.primary, marginBottom: 10 }]}
+            contentStyle={styles.conditionalButtonContent}
+          >
+            Vender este look
+          </Button>
+        )}
         {hasItems && (
           <Button
             mode="contained"
@@ -255,8 +299,17 @@ function LookItemCard({ item }: { item: LookItemResponse }) {
           <Text style={styles.itemName} numberOfLines={1}>
             {item.product_name ?? 'Produto'}
           </Text>
-          {item.variant_description && (
-            <Text style={styles.itemVariant}>{item.variant_description}</Text>
+          {item.variant_id == null ? (
+            <Text style={[styles.itemVariant, { color: Colors.light.error }]}>Escolher cor e tamanho</Text>
+          ) : (
+            <Text style={styles.itemVariant}>
+              {[item.variant_color, item.variant_size].filter(Boolean).join(' · ') || item.variant_description}
+            </Text>
+          )}
+          {item.stock != null && (
+            <Text style={[styles.itemVariant, { color: item.stock > 0 ? Colors.light.success : Colors.light.error, fontWeight: '600' }]}>
+              {item.stock > 0 ? `Em estoque: ${item.stock}` : 'Sem estoque'}
+            </Text>
           )}
         </View>
         {item.unit_price != null && (

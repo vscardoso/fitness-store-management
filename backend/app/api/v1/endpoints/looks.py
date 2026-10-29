@@ -6,7 +6,7 @@ from typing import List, Optional
 from app.core.database import get_db
 from app.api.deps import get_current_active_user, get_current_tenant_id
 from app.models.user import User
-from app.schemas.look import LookCreate, LookUpdate, LookResponse, LookListResponse, LookItemCreate
+from app.schemas.look import LookCreate, LookUpdate, LookResponse, LookListResponse, LookItemCreate, LookItemUpdate
 from app.services.look_service import LookService, LookValidationError
 
 router = APIRouter(prefix="/looks", tags=["Looks"])
@@ -129,3 +129,24 @@ async def remove_item(
     service = LookService()
     if not await service.remove_item(db, look_id, item_id, tenant_id):
         raise HTTPException(status_code=404, detail="Item não encontrado")
+
+
+@router.patch("/{look_id}/items/{item_id}", response_model=LookResponse)
+async def change_item_variant(
+    look_id: int,
+    item_id: int,
+    data: LookItemUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Trocar a cor/tamanho de uma peça do look."""
+    service = LookService()
+    try:
+        look = await service.change_item_variant(db, look_id, item_id, tenant_id, data.variant_id)
+    except LookValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    if not look:
+        raise HTTPException(status_code=404, detail="Item não encontrado")
+    return look
+
