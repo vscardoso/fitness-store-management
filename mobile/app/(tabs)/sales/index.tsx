@@ -28,6 +28,8 @@ import FAB from '@/components/FAB';
 import PeriodFilter, { PeriodFilterValue } from '@/components/PeriodFilter';
 import type { Sale } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useIsDesktop } from '@/hooks/useLayout';
+import DesktopSalesTable from '@/components/sale/DesktopSalesTable';
 
 import { Money } from '@/components/ui/PriceDisplay';
 const statusMap: Record<string, { label: string; color: string; icon: string }> = {
@@ -38,7 +40,13 @@ const statusMap: Record<string, { label: string; color: string; icon: string }> 
   refunded:           { label: 'Devolvida',    color: '#7B1FA2',             icon: 'refresh-outline' },
 };
 
+/** Notebook (app web com 1024 px ou mais): tabela. Celular: a lista de cartões de sempre. */
 export default function SalesListScreen() {
+  const isDesktop = useIsDesktop();
+  return isDesktop ? <DesktopSalesTable /> : <MobileSalesListScreen />;
+}
+
+function MobileSalesListScreen() {
   const router = useRouter();
   const brandingColors = useBrandingColors();
   const [skip, setSkip] = useState(0);

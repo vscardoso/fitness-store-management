@@ -24,10 +24,18 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { useTutorialContext } from '@/components/tutorial';
 import type { ProductGrouped } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useIsDesktop } from '@/hooks/useLayout';
+import DesktopProductsTable from '@/components/products/DesktopProductsTable';
 
 const PAGE_SIZE = 20;
 
+/** Notebook (app web com 1024 px ou mais): tabela. Celular: a lista de cartões de sempre. */
 export default function ProductsScreen() {
+  const isDesktop = useIsDesktop();
+  return isDesktop ? <DesktopProductsTable /> : <MobileProductsScreen />;
+}
+
+function MobileProductsScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { startTutorial } = useTutorialContext();
