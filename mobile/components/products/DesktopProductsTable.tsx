@@ -14,30 +14,16 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useCategories } from '@/hooks/useCategories';
 import { useTutorialContext } from '@/components/tutorial';
 import { useBrandingColors } from '@/store/brandingStore';
-import { getGroupedProducts } from '@/services/productService';
+import { getAllGroupedProducts } from '@/services/productService';
 import { formatCurrency } from '@/utils/format';
 import type { ProductGrouped } from '@/types';
 
 const INK = '#160F28';
 const MUTED = '#5B5670';
 const LINE = '#E6E3EE';
-const BATCH = 500;
-const MAX_PRODUCTS = 5000;
-
 type StockFilter = 'all' | 'low' | 'with' | 'none';
 
 const norm = (s?: string | null) => (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-
-/** Todos os produtos da loja (o servidor entrega até 500 por vez). Chave dentro de 'grouped-products': as telas que mudam produto já a atualizam. */
-async function loadAllProducts(): Promise<ProductGrouped[]> {
-  const all: ProductGrouped[] = [];
-  for (let skip = 0; skip < MAX_PRODUCTS; skip += BATCH) {
-    const page = await getGroupedProducts({ limit: BATCH, skip });
-    all.push(...page);
-    if (page.length < BATCH) break;
-  }
-  return all;
-}
 
 const isLow = (p: ProductGrouped) => p.total_stock > 0 && p.total_stock <= (p.min_stock_threshold ?? 3);
 
@@ -68,7 +54,7 @@ export default function DesktopProductsTable() {
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: ['grouped-products', 'desktop'],
-    queryFn: loadAllProducts,
+    queryFn: getAllGroupedProducts,
   });
   const products = data ?? [];
 
@@ -165,7 +151,7 @@ export default function DesktopProductsTable() {
   const header = (
     <PageHeader
       title="Produtos"
-      subtitle={`${summary.total} ${summary.total === 1 ? 'produto' : 'produtos'} · ${summary.pieces} peças em estoque`}
+      subtitle={`${summary.total.toLocaleString('pt-BR')} ${summary.total === 1 ? 'produto' : 'produtos'} · ${summary.pieces.toLocaleString('pt-BR')} peças em estoque`}
       rightActions={[
         { icon: 'scan', onPress: () => router.push('/products/wizard?method=scanner') },
         { icon: 'help-circle-outline', onPress: () => startTutorial('products') },
@@ -194,7 +180,7 @@ export default function DesktopProductsTable() {
   }
 
   const stockChips: { key: StockFilter; label: string }[] = [
-    { key: 'all', label: `Todos (${summary.total})` },
+    { key: 'all', label: `Todos (${summary.total.toLocaleString('pt-BR')})` },
     { key: 'with', label: 'Com estoque' },
     { key: 'low', label: `Estoque baixo (${summary.low})` },
     { key: 'none', label: `Sem estoque (${summary.none})` },

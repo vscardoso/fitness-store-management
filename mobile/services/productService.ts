@@ -49,6 +49,21 @@ export const getGroupedProducts = async (params?: PaginationParams & {
 };
 
 /**
+ * TODOS os produtos agrupados da loja (o servidor entrega até 500 por vez). Fonte única dos totais de produto e de
+ * estoque nas telas Produtos (notebook) e Inventário: contar só a primeira página dava números diferentes em loja grande.
+ */
+export const getAllGroupedProducts = async (): Promise<ProductGrouped[]> => {
+  const batch = 500;
+  const all: ProductGrouped[] = [];
+  for (let skip = 0; skip < 20000; skip += batch) {
+    const page = await getGroupedProducts({ limit: batch, skip });
+    all.push(...page);
+    if (page.length < batch) break;
+  }
+  return all;
+};
+
+/**
  * Listar produtos (endpoint antigo - use getActiveProducts)
  * @deprecated Use getActiveProducts para listar apenas produtos da loja
  */

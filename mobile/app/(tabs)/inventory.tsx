@@ -32,7 +32,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useAuth } from '@/hooks/useAuth';
 import { getStockEntries, getSlowMovingProducts } from '@/services/stockEntryService';
-import { getLowStockProducts, getProducts } from '@/services/productService';
+import { getLowStockProducts, getAllGroupedProducts } from '@/services/productService';
 import { getInventoryValuation } from '@/services/dashboardService';
 import { getResultByPeriod } from '@/services/expenseService';
 import { formatCurrency, formatDate, formatPercent } from '@/utils/format';
@@ -187,8 +187,9 @@ export default function InventoryDashboard() {
   });
 
   const { data: products = [], refetch: refetchProducts } = useQuery({
-    queryKey: ['products-inventory'],
-    queryFn: () => getProducts({ limit: 1000 }),
+    // Todos os produtos (a lista antiga só trazia 1.000: em loja grande o total de unidades saía menor que o da tela Produtos)
+    queryKey: ['grouped-products', 'all'],
+    queryFn: getAllGroupedProducts,
   });
 
   const { data: slowMovingProducts = [], refetch: refetchSlow } = useQuery({
@@ -233,31 +234,21 @@ export default function InventoryDashboard() {
    * Calcular métricas do dashboard baseado no inventário
    */
   const calculateMetrics = () => {
-    // Filtrar apenas produtos ativos e não catálogo
-    const activeProducts = products.filter(p => p.is_active && !p.is_catalog);
+    // Mesma fonte e mesmas regras da tela Produtos: todos os produtos ativos, estoque baixo = até o mínimo de cada produto (padrão 3)
+    const activeProducts = products;
+    const stockOf = (p: { total_stock?: number }) => Math.max(0, p.total_stock ?? 0);
 
-    // Calcular total em estoque (quantidade válida >= 0)
-    const totalQuantity = activeProducts.reduce((sum, product) => {
-      const stock = product.current_stock ?? 0;
-      return sum + (stock >= 0 ? stock : 0);
-    }, 0);
+    const totalQuantity = activeProducts.reduce((sum, product) => sum + stockOf(product), 0);
 
     // Usar valoração do endpoint (fonte única da verdade)
     const totalValue = valuation?.cost_value || 0;
 
-    // Total de produtos ativos não catálogo
     const totalItems = activeProducts.length;
-
-    // Produtos com estoque (quantidade > 0)
-    const productsWithStock = activeProducts.filter(p => (p.current_stock ?? 0) > 0).length;
-
-    // Produtos sem estoque
-    const productsOutOfStock = activeProducts.filter(p => (p.current_stock ?? 0) === 0).length;
-
-    // Estoque baixo: quantidade > 0 e < 3
-    const productsLowStock = activeProducts.filter(p => {
-      const stock = p.current_stock ?? 0;
-      return stock > 0 && stock < 3;
+    const productsWithStock = activeProducts.filter((p) => stockOf(p) > 0).length;
+    const productsOutOfStock = activeProducts.filter((p) => stockOf(p) === 0).length;
+    const productsLowStock = activeProducts.filter((p) => {
+      const stock = stockOf(p);
+      return stock > 0 && stock <= (p.min_stock_threshold ?? 3);
     }).length;
 
     return {
