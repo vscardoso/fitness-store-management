@@ -2,7 +2,7 @@
 Servio de gerenciamento de vendas.
 """
 from datetime import datetime
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Dict, List, Optional
 
 from sqlalchemy import func, insert, select
@@ -151,15 +151,23 @@ class SaleService:
                     print(f"   Erro ao calcular desconto: {e}")
                     # Continua sem desconto se houver erro
             
-            discount_amount = Decimal(str(sale_data.discount_amount or 0)) + payment_discount_amount
-            tax_amount = Decimal(str(sale_data.tax_amount or 0))
-            total_amount = subtotal - discount_amount + tax_amount
+            # Tudo em centavos, como a pessoa vê na tela: preço com mais casas (ex.: 99,996) ou desconto com fração
+            # deixava o total com milésimos e o pagamento de R$ 100,00 "passava do total" por 0,004.
+            cent = Decimal('0.01')
+            subtotal = subtotal.quantize(cent, ROUND_HALF_UP)
+            payment_discount_amount = payment_discount_amount.quantize(cent, ROUND_HALF_UP)
+            discount_amount = Decimal(str(sale_data.discount_amount or 0)).quantize(cent, ROUND_HALF_UP) + payment_discount_amount
+            tax_amount = Decimal(str(sale_data.tax_amount or 0)).quantize(cent, ROUND_HALF_UP)
+            total_amount = (subtotal - discount_amount + tax_amount).quantize(cent, ROUND_HALF_UP)
             
             # 3. Validar pagamentos
             print(" Validando pagamentos...")
-            payments_total = sum(
-                Decimal(str(p.amount)) for p in sale_data.payments
-            )
+            pay_amounts = [Decimal(str(p.amount)).quantize(cent, ROUND_HALF_UP) for p in sale_data.payments]
+            payments_total = sum(pay_amounts, Decimal('0'))
+            # Diferença de no máximo 1 centavo é arredondamento (o app calcula com ponto flutuante): ajusta o último pagamento
+            if pay_amounts and payments_total != total_amount and abs(payments_total - total_amount) <= cent:
+                pay_amounts[-1] -= payments_total - total_amount
+                payments_total = total_amount
             
             if payments_total < total_amount:
                 raise ValueError(
@@ -170,7 +178,6 @@ class SaleService:
             
             # 3.1 Troco: pago acima do total só existe em dinheiro, e o pagamento gravado é o que ficou na loja
             #     (o app manda o valor RECEBIDO; antes o troco ficava gravado como pagamento)
-            pay_amounts = [Decimal(str(p.amount)) for p in sale_data.payments]
             excess = payments_total - total_amount
             if excess > 0:
                 cash_idx = [i for i, p in enumerate(sale_data.payments) if getattr(p.payment_method, 'value', p.payment_method) == 'cash']

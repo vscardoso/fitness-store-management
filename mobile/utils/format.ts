@@ -186,3 +186,9 @@ export const formatSignedPercent = (value: number | null | undefined, decimals =
   const txt = formatPercent(n, decimals);
   return n > 0 && !txt.startsWith('menos') ? '+' + txt : txt;
 };
+
+/** Arredonda para centavos (meio centavo para cima), a mesma regra do servidor: o valor que a pessoa vê é o que é cobrado. */
+export const roundCents = (value: number): number => Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+
+/** Desconto em R$ de um percentual sobre o total, já em centavos. */
+export const discountInCents = (total: number, percentage: number): number => roundCents((total * percentage) / 100);

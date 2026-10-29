@@ -20,7 +20,7 @@ import { pixGenerateQR, listTerminals, createOrder, terminalStart } from '@/serv
 import type { PDVTerminal } from '@/types/pdv';
 import { getProductById } from '@/services/productService';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
-import { formatCurrency } from '@/utils/format';
+import { formatCurrency, discountInCents, roundCents } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import AppButton from '@/components/ui/AppButton';
@@ -100,13 +100,13 @@ export default function CheckoutScreen() {
         d => d.payment_method === paymentMethod && d.is_active
       );
       if (discount) {
-        return cart.total - (cart.total * discount.discount_percentage) / 100;
+        return cart.total - discountInCents(cart.total, discount.discount_percentage);
       }
     }
 
     // Se não tem pagamentos, usar availableDiscount do método selecionado
     if (cart.payments.length === 0 && availableDiscount) {
-      return cart.total - (cart.total * availableDiscount.discount_percentage) / 100;
+      return cart.total - discountInCents(cart.total, availableDiscount.discount_percentage);
     }
 
     return cart.total;
@@ -398,7 +398,7 @@ export default function CheckoutScreen() {
     );
 
     if (discount) {
-      return cart.total - (cart.total * discount.discount_percentage) / 100;
+      return cart.total - discountInCents(cart.total, discount.discount_percentage);
     }
 
     return cart.total;
@@ -411,7 +411,7 @@ export default function CheckoutScreen() {
   const handleAddDirectPayment = (method: PaymentMethod, installmentCount: number = 1) => {
     // Calcular o total com desconto diretamente para evitar race condition
     const totalWithDiscount = calculateTotalWithDiscount(method);
-    const totalRemaining = totalWithDiscount - cart.totalPaid;
+    const totalRemaining = roundCents(totalWithDiscount - cart.totalPaid);
 
     if (totalRemaining <= 0) {
       setDialog({

@@ -3,7 +3,7 @@ Modelo de descontos por forma de pagamento.
 """
 from sqlalchemy import String, ForeignKey, Numeric, Boolean, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from .base import BaseModel
 from .sale import PaymentMethod
 
@@ -68,4 +68,4 @@ class PaymentDiscount(BaseModel):
             return Decimal(0)
         
         discount = (amount * self.discount_percentage) / Decimal(100)
-        return discount.quantize(Decimal('0.01'))  # Arredondar para 2 casas decimais
+        return discount.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)  # centavos, meio centavo para cima (igual ao app)
