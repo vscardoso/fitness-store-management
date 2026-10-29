@@ -26,6 +26,7 @@ import type { ProductGrouped, ProductVariant } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { formatCurrency } from '@/utils/format';
 import { cepMask, phoneMask } from '@/utils/masks';
+import { takePresetConditional } from '@/utils/presetConditional';
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -70,8 +71,12 @@ export default function CreateConditionalShipmentScreen() {
   const [customerSearch, setCustomerSearch] = useState('');
   // ids que existiam ao abrir "Cadastrar cliente": a cliente nova que aparecer depois já volta selecionada
   const customerIdsBeforeAdd = React.useRef<Set<number> | null>(null);
-  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>([]);
-  const [notes, setNotes] = useState('');
+  // peças vindas de um look (Look > Pedir condicional): lidas uma vez ao abrir
+  const [fromLook] = useState(() => takePresetConditional());
+  const [selectedProducts, setSelectedProducts] = useState<SelectedProduct[]>(
+    () => fromLook?.items.map((i) => ({ ...i, quantity_sent: 1 })) ?? [],
+  );
+  const [notes, setNotes] = useState(fromLook?.notes ?? '');
   const [showProductModal, setShowProductModal] = useState(false);
   
   // Datas de ida e devolução (NOVO)

@@ -14,16 +14,14 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
 import { getLook, deleteLook } from '@/services/lookService';
-import { createShipment } from '@/services/conditionalService';
+import { setPresetConditional } from '@/utils/presetConditional';
 import { useCartStore } from '@/store/cartStore';
-import { parseApiError } from '@/utils/apiError';
 import { Colors, theme } from '@/constants/Colors';
 import { getImageUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
 import type { LookItemResponse } from '@/types/look';
-import type { Customer, ProductGrouped } from '@/types';
+import type { ProductGrouped } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 export default function LookDetailScreen() {
@@ -31,8 +29,6 @@ export default function LookDetailScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const lookId = parseInt(id, 10);
-
-  const [customerModalVisible, setCustomerModalVisible] = useState(false);
 
   type DialogState = {
     visible: boolean;
@@ -68,33 +64,6 @@ export default function LookDetailScreen() {
     },
   });
 
-  const conditionalMutation = useMutation({
-    mutationFn: (customerId: number) => {
-      const items = (look?.items ?? [])
-        .filter((i) => i.product_id != null && i.unit_price != null)
-        .map((i) => ({
-          product_id: i.product_id,
-          variant_id: i.variant_id ?? undefined,
-          quantity_sent: 1,
-          unit_price: i.unit_price!,
-        }));
-      return createShipment({
-        customer_id: customerId,
-        shipping_address: 'Endereço a definir com a cliente',
-        items,
-        notes: `Condicional do look: ${look?.name}`,
-      });
-    },
-    onSuccess: (shipment) => {
-      setCustomerModalVisible(false);
-      queryClient.invalidateQueries({ queryKey: ['conditional-shipments'] });
-      router.push(`/(tabs)/conditional/${shipment.id}`);
-    },
-    onError: (err) => {
-      setDialog({ visible: true, type: 'danger', title: 'Erro', message: `Não foi possível criar o condicional. ${parseApiError(err)}`, confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
-    },
-  });
-
   const handleDelete = () => {
     setDialog({
       visible: true,
@@ -104,19 +73,6 @@ export default function LookDetailScreen() {
       confirmText: 'Excluir',
       cancelText: 'Cancelar',
       onConfirm: () => { setDialog(DIALOG_HIDDEN); deleteMutation.mutate(); },
-      onCancel: () => setDialog(DIALOG_HIDDEN),
-    });
-  };
-
-  const handleSelectCustomer = (customer: Customer) => {
-    setDialog({
-      visible: true,
-      type: 'info',
-      title: 'Pedir Condicional',
-      message: `Criar condicional do look "${look?.name}" para ${customer.full_name}?`,
-      confirmText: 'Confirmar',
-      cancelText: 'Cancelar',
-      onConfirm: () => { setDialog(DIALOG_HIDDEN); conditionalMutation.mutate(customer.id); },
       onCancel: () => setDialog(DIALOG_HIDDEN),
     });
   };
@@ -149,21 +105,44 @@ export default function LookDetailScreen() {
   const subtotal = look.items.reduce((sum, i) => sum + (i.unit_price ?? 0), 0);
   const lookDiscount = Math.max(0, Math.round((subtotal - look.total_price) * 100) / 100);
 
-  const sellLook = () => {
+  /** Peças sem cor/tamanho ou sem estoque: avisa e devolve false (vender e pedir condicional exigem as duas coisas). */
+  const checkItems = (title: string): boolean => {
     const problems = look.items.filter((i) => i.variant_id == null || (i.stock ?? 0) < 1);
     if (problems.length > 0) {
       const lista = problems
         .map((i) => `${i.product_name ?? 'Produto'}${i.variant_description ? ` (${i.variant_description})` : ''}: ${i.variant_id == null ? 'sem cor/tamanho escolhido' : 'sem estoque'}`)
         .join('\n');
       setDialog({
-        visible: true, type: 'warning', title: 'Não dá para vender o look ainda',
+        visible: true, type: 'warning', title,
         message: `${lista}\n\nEdite o look e troque essas peças.`,
         confirmText: 'Editar look', cancelText: 'Fechar',
         onConfirm: () => { setDialog(DIALOG_HIDDEN); router.push(`/looks/builder?id=${lookId}`); },
         onCancel: () => setDialog(DIALOG_HIDDEN),
       });
-      return;
+      return false;
     }
+    return true;
+  };
+
+  const askConditional = () => {
+    if (!checkItems('Não dá para pedir o condicional ainda')) return;
+    setPresetConditional(
+      look.items.map((i) => ({
+        product_id: i.product_id,
+        name: i.product_name ?? 'Produto',
+        price: i.unit_price ?? 0,
+        max_stock: i.stock ?? undefined,
+        variant_id: i.variant_id!,
+        variant_size: i.variant_size ?? undefined,
+        variant_color: i.variant_color ?? undefined,
+      })),
+      `Condicional do look: ${look.name}`,
+    );
+    router.push('/(tabs)/conditional/create');
+  };
+
+  const sellLook = () => {
+    if (!checkItems('Não dá para vender o look ainda')) return;
     const cart = useCartStore.getState();
     cart.clear();
     look.items.forEach((i) => {
@@ -234,7 +213,7 @@ export default function LookDetailScreen() {
           <Button
             mode="contained"
             icon="package-variant"
-            onPress={() => setCustomerModalVisible(true)}
+            onPress={askConditional}
             style={styles.conditionalButton}
             contentStyle={styles.conditionalButtonContent}
           >
@@ -256,16 +235,6 @@ export default function LookDetailScreen() {
           ))
         )}
       </ScrollView>
-
-      {/* Selecionar cliente (mesmo painel da venda) */}
-      <CustomerSelectionModal
-        visible={customerModalVisible}
-        onDismiss={() => setCustomerModalVisible(false)}
-        onSelectCustomer={handleSelectCustomer}
-        title="Quem vai levar o look?"
-        subtitle="Escolha a cliente do envio condicional"
-        dismissLabel="Cancelar"
-      />
 
       <ConfirmDialog
         visible={dialog.visible}
