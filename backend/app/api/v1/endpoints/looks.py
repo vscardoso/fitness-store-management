@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.api.deps import get_current_active_user, get_current_tenant_id
 from app.models.user import User
 from app.schemas.look import LookCreate, LookUpdate, LookResponse, LookListResponse, LookItemCreate
-from app.services.look_service import LookService
+from app.services.look_service import LookService, LookValidationError
 
 router = APIRouter(prefix="/looks", tags=["Looks"])
 
@@ -49,7 +49,10 @@ async def create_look(
 ):
     """Criar novo look. Desconto de 10% aplicado automaticamente para 3+ peças."""
     service = LookService()
-    return await service.create(db, tenant_id, data)
+    try:
+        return await service.create(db, tenant_id, data)
+    except LookValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
 
 
 @router.get("/{look_id}", response_model=LookResponse)
@@ -103,9 +106,12 @@ async def add_item(
 ):
     """Adicionar produto a um look existente."""
     service = LookService()
-    look = await service.add_item(
-        db, look_id, tenant_id, data.product_id, data.variant_id, data.position
-    )
+    try:
+        look = await service.add_item(
+            db, look_id, tenant_id, data.product_id, data.variant_id, data.position
+        )
+    except LookValidationError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
     if not look:
         raise HTTPException(status_code=404, detail="Look não encontrado")
     return look

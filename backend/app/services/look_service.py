@@ -1,8 +1,12 @@
 """Service de Looks — regras de negócio."""
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 
+from app.models.customer import Customer
 from app.models.look import Look, LookItem
+from app.models.product import Product
+from app.models.product_variant import ProductVariant
 from app.repositories.look_repository import LookRepository
 from app.schemas.look import LookCreate, LookUpdate, LookResponse, LookListResponse, LookItemResponse
 
@@ -56,6 +60,16 @@ def _build_response(look: Look) -> LookResponse:
     )
 
 
+def _look_total(look: Look) -> float:
+    """Soma dos preços das peças ativas; com 3 ou mais peças aplica o desconto do look."""
+    items = [_build_item_response(i) for i in look.items if i.is_active]
+    total = sum(i.unit_price or 0 for i in items)
+    discount = look.discount_percentage or 0
+    if discount > 0 and len(items) >= 3:
+        total = total * (1 - discount / 100)
+    return round(total, 2)
+
+
 def _build_list_response(look: Look) -> LookListResponse:
     items = [i for i in look.items if i.is_active]
     return LookListResponse(
@@ -66,9 +80,46 @@ def _build_list_response(look: Look) -> LookListResponse:
         is_public=look.is_public,
         discount_percentage=look.discount_percentage,
         items_count=len(items),
-        total_price=0.0,
+        total_price=_look_total(look),
         created_at=look.created_at,
     )
+
+
+class LookValidationError(ValueError):
+    """Produto, variação ou cliente que não existe na loja (o endpoint responde 400)."""
+
+
+async def _validate_refs(
+    db: AsyncSession,
+    tenant_id: int,
+    items: List[tuple],
+    customer_id: Optional[int] = None,
+) -> None:
+    """Tudo que entra no look tem que ser da MESMA loja: sem isso uma loja monta look com produto de outra e lê o nome, o preço e a foto dele."""
+    if customer_id is not None:
+        ok = (await db.execute(
+            select(Customer.id).where(Customer.id == customer_id, Customer.tenant_id == tenant_id, Customer.is_active == True)  # noqa: E712
+        )).scalar_one_or_none()
+        if ok is None:
+            raise LookValidationError("Cliente não encontrado nesta loja.")
+    product_ids = {pid for pid, _ in items}
+    if product_ids:
+        found = set((await db.execute(
+            select(Product.id).where(Product.id.in_(product_ids), Product.tenant_id == tenant_id, Product.is_active == True)  # noqa: E712
+        )).scalars().all())
+        if found != product_ids:
+            raise LookValidationError("Produto não encontrado nesta loja.")
+    for pid, vid in items:
+        if vid is None:
+            continue
+        ok = (await db.execute(
+            select(ProductVariant.id).where(
+                ProductVariant.id == vid, ProductVariant.product_id == pid,
+                ProductVariant.tenant_id == tenant_id, ProductVariant.is_active == True,  # noqa: E712
+            )
+        )).scalar_one_or_none()
+        if ok is None:
+            raise LookValidationError("Variação não encontrada neste produto.")
 
 
 class LookService:
@@ -76,6 +127,7 @@ class LookService:
         self.repo = LookRepository()
 
     async def create(self, db: AsyncSession, tenant_id: int, data: LookCreate) -> LookResponse:
+        await _validate_refs(db, tenant_id, [(i.product_id, i.variant_id) for i in data.items], data.customer_id)
         # Regra: desconto de 10% automático para 3+ peças
         if len(data.items) >= 3 and data.discount_percentage == 0:
             data.discount_percentage = 10.0
@@ -131,6 +183,7 @@ class LookService:
         look = await self.repo.get(db, look_id, tenant_id)
         if not look:
             return None
+        await _validate_refs(db, tenant_id, [(product_id, variant_id)])
         await self.repo.add_item(db, tenant_id, look_id, product_id, variant_id, position)
         # Expirar do identity map para forçar re-query com os novos itens
         await db.refresh(look)

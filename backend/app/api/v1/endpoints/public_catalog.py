@@ -278,23 +278,29 @@ async def list_public_looks(
     store: Optional[str] = Query(None, description="Slug da loja"),
     db: AsyncSession = Depends(get_db_unscoped),
 ):
-    """Looks públicos da loja (is_public=true apenas)."""
+    """Looks públicos da loja (is_public=true apenas; look de cliente nunca aparece aqui)."""
     tenant_id = await _resolve_tenant(db, request, store)
 
     rows = (await db.execute(text("""
-        SELECT l.id, l.name, l.description,
+        SELECT l.id, l.name, l.description, l.discount_percentage,
                COUNT(li.id) AS items_count,
-               COALESCE(SUM(li.unit_price), 0) AS total_price
+               COALESCE(SUM(COALESCE(v.price, p.base_price, 0)), 0) AS subtotal
         FROM looks l
-        LEFT JOIN look_items li ON li.look_id = l.id
-        WHERE l.tenant_id = :tid AND l.is_public = true AND l.is_active = true
-        GROUP BY l.id, l.name, l.description
+        LEFT JOIN look_items li ON li.look_id = l.id AND li.is_active = true
+        LEFT JOIN products p ON p.id = li.product_id AND p.tenant_id = :tid AND p.is_active = true
+        LEFT JOIN product_variants v ON v.id = li.variant_id AND v.tenant_id = :tid AND v.is_active = true
+        WHERE l.tenant_id = :tid AND l.is_public = true AND l.is_active = true AND l.customer_id IS NULL
+        GROUP BY l.id, l.name, l.description, l.discount_percentage, l.created_at
         ORDER BY l.created_at DESC
         LIMIT :limit
     """), {"tid": tenant_id, "limit": limit})).fetchall()
 
-    return [
-        PublicLook(id=r[0], name=r[1], description=r[2],
-                   items_count=int(r[3] or 0), total_price=float(r[4] or 0))
-        for r in rows
-    ]
+    looks = []
+    for r in rows:
+        count = int(r[4] or 0)
+        total = float(r[5] or 0)
+        discount = float(r[3] or 0)
+        if count >= 3 and discount > 0:
+            total = total * (1 - discount / 100)  # mesma regra do look no app: desconto com 3 ou mais peças
+        looks.append(PublicLook(id=r[0], name=r[1], description=r[2], items_count=count, total_price=round(total, 2)))
+    return looks
