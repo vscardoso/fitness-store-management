@@ -18,6 +18,7 @@ import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
 import { getLook, deleteLook } from '@/services/lookService';
 import { createShipment } from '@/services/conditionalService';
 import { useCartStore } from '@/store/cartStore';
+import { parseApiError } from '@/utils/apiError';
 import { Colors, theme } from '@/constants/Colors';
 import { getImageUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
@@ -79,7 +80,7 @@ export default function LookDetailScreen() {
         }));
       return createShipment({
         customer_id: customerId,
-        shipping_address: 'A definir',
+        shipping_address: 'Endereço a definir com a cliente',
         items,
         notes: `Condicional do look: ${look?.name}`,
       });
@@ -89,8 +90,8 @@ export default function LookDetailScreen() {
       queryClient.invalidateQueries({ queryKey: ['conditional-shipments'] });
       router.push(`/(tabs)/conditional/${shipment.id}`);
     },
-    onError: () => {
-      setDialog({ visible: true, type: 'danger', title: 'Erro', message: 'Não foi possível criar o condicional. Tente novamente.', confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
+    onError: (err) => {
+      setDialog({ visible: true, type: 'danger', title: 'Erro', message: `Não foi possível criar o condicional. ${parseApiError(err)}`, confirmText: 'OK', onConfirm: () => setDialog(DIALOG_HIDDEN) });
     },
   });
 
