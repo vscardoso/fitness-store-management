@@ -232,3 +232,45 @@ async def test_graph_recusa_e_timeout_viram_erro_legivel(monkeypatch):
     _FakeClient.erro = None
     _FakeClient.resposta = httpx.Response(200, json={"messages": [{"id": "wamid.OK"}]})
     assert (await svc._post_graph("pn", {}))["messages"][0]["id"] == "wamid.OK"
+
+
+async def test_convite_monta_o_link_com_texto(test_client, async_session):
+    _sem_override()
+    store, num, h = await _loja(async_session)
+    num.display_phone_number = "553433050261"
+    await async_session.commit()
+    r = await test_client.get("/api/v1/whatsapp/invite", headers=h, params={"text": "Oi! Vi o look da W.A Fitness"})
+    assert r.status_code == 200, r.text
+    assert r.json() == {"phone": "553433050261", "link": "https://wa.me/553433050261?text=Oi%21%20Vi%20o%20look%20da%20W.A%20Fitness"}
+    assert (await test_client.get("/api/v1/whatsapp/invite", headers=h)).json()["link"] == "https://wa.me/553433050261"
+
+
+async def test_convite_sem_numero_na_loja_e_descobre_na_meta(test_client, async_session, monkeypatch):
+    _sem_override()
+    store, num, h = await _loja(async_session)
+    # sem número de exibição gravado e a Meta inacessível: erro legível, nada inventado
+    class Falha(_FakeClient):
+        async def get(self, *a, **k):
+            import httpx
+            raise httpx.ConnectError("sem rede")
+    monkeypatch.setattr(svc.httpx, "AsyncClient", Falha)
+    r = await test_client.get("/api/v1/whatsapp/invite", headers=h)
+    assert r.status_code == 424
+    # a Meta responde: o número é gravado para as próximas vezes
+    import httpx
+    class Ok(_FakeClient):
+        async def get(self, *a, **k):
+            return httpx.Response(200, json={"display_phone_number": "+55 34 3305-0261"})
+    monkeypatch.setattr(svc.httpx, "AsyncClient", Ok)
+    r = await test_client.get("/api/v1/whatsapp/invite", headers=h)
+    assert r.json()["link"] == "https://wa.me/553433050261"
+    # loja sem número oficial
+    outra = Store(name="Sem Zap", slug="sem-zap-x", subdomain="sem-zap-x", is_default=False, is_active=True)
+    async_session.add(outra)
+    await async_session.commit()
+    u = User(email="semzap@example.com", full_name="V", hashed_password=get_password_hash("Senha1234"),
+             role=UserRole.SELLER, tenant_id=outra.id, is_active=True)
+    async_session.add(u)
+    await async_session.commit()
+    h2 = {"Authorization": "Bearer " + create_access_token(data={"sub": str(u.id)}), "X-Tenant-Id": str(outra.id)}
+    assert (await test_client.get("/api/v1/whatsapp/invite", headers=h2)).status_code == 409

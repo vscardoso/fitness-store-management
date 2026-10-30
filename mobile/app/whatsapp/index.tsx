@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -7,6 +8,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import { listConversations, WaConversation } from '@/services/whatsappService';
 import { useBrandingColors } from '@/store/brandingStore';
 import { parseApiError } from '@/utils/apiError';
+import InviteSheet from '@/components/whatsapp/InviteSheet';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 function when(iso: string | null): string {
@@ -21,6 +23,7 @@ function when(iso: string | null): string {
 
 export default function WhatsappInboxScreen() {
   const router = useRouter();
+  const [showInvite, setShowInvite] = useState(false);
   const brand = useBrandingColors();
   const { data = [], isLoading, isError, error, refetch, isRefetching } = useQuery({
     queryKey: ['whatsapp-conversations'],
@@ -53,7 +56,12 @@ export default function WhatsappInboxScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader title="Conversas do WhatsApp" subtitle="Número oficial da loja" />
+      <PageHeader
+        title="Conversas do WhatsApp"
+        subtitle="Número oficial da loja"
+        rightActions={[{ icon: 'person-add-outline', onPress: () => setShowInvite(true) }]}
+      />
+      <InviteSheet visible={showInvite} onDismiss={() => setShowInvite(false)} />
       {isLoading ? (
         <View style={styles.center}><ActivityIndicator size="large" color={brand.primary} /></View>
       ) : isError ? (

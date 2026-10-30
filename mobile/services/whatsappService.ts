@@ -37,3 +37,6 @@ export const sendWhatsappText = async (id: number, text: string): Promise<WaMess
 
 export const getWhatsappUnread = async (): Promise<number> =>
   (await api.get<{ unread: number }>('/whatsapp/unread-count', { headers: { 'X-Skip-Loading': 'true' } })).data.unread;
+
+export const getWhatsappInvite = async (text?: string): Promise<{ phone: string; link: string }> =>
+  (await api.get('/whatsapp/invite', { params: text ? { text } : undefined, headers: { 'X-Skip-Loading': 'true' } })).data;

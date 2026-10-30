@@ -24,8 +24,9 @@ import { useBrandingColors } from '@/store/brandingStore';
 import type { Sale } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import CustomerPrivacyCard from '@/components/customers/CustomerPrivacyCard';
+import InviteSheet from '@/components/whatsapp/InviteSheet';
 import { useAuth } from '@/hooks/useAuth';
-import { isAdminRole, isManagerRole } from '@/utils/roles';
+import { isAdminRole, isManagerRole, normalizeRole } from '@/utils/roles';
 
 export default function CustomerDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -53,6 +54,7 @@ export default function CustomerDetailsScreen() {
    * Estados
    */
   const [refreshing, setRefreshing] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [showErrorDialog, setShowErrorDialog] = useState(false);
@@ -459,6 +461,14 @@ export default function CustomerDetailsScreen() {
             )}
         </View>
 
+        {normalizeRole(user?.role) !== 'cashier' && (
+          <TouchableOpacity style={styles.inviteBtn} onPress={() => setShowInvite(true)} accessibilityRole="button">
+            <Ionicons name="logo-whatsapp" size={20} color="#16A34A" />
+            <Text style={styles.inviteText}>Convidar para o WhatsApp da loja</Text>
+          </TouchableOpacity>
+        )}
+        <InviteSheet visible={showInvite} onDismiss={() => setShowInvite(false)} customerName={customer?.full_name} customerPhone={customer?.phone} />
+
         <CustomerPrivacyCard
           customerId={customerId}
           canExport={isManagerRole(user?.role)}
@@ -516,6 +526,8 @@ export default function CustomerDetailsScreen() {
 }
 
 const styles = StyleSheet.create({
+  inviteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginHorizontal: 16, marginTop: 12, paddingVertical: 14, borderRadius: 12, borderWidth: 1, borderColor: '#BBF7D0', backgroundColor: '#F0FDF4' },
+  inviteText: { fontSize: 14, fontWeight: '600', color: '#15803D' },
   container: {
     flex: 1,
     backgroundColor: Colors.light.backgroundSecondary,

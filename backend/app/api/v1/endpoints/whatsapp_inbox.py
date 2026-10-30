@@ -126,3 +126,20 @@ async def send_message(
         await db.rollback()
         raise HTTPException(status_code=e.status_code, detail=e.message)
     return _msg(msg)
+
+
+@router.get("/invite")
+async def invite(
+    text: Optional[str] = Query(None, max_length=500),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Link e número para convidar a cliente a escrever para o WhatsApp da loja."""
+    try:
+        data = await svc.invite_link(db, tenant_id, text)
+        await db.commit()
+    except svc.SendError as e:
+        await db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    return data

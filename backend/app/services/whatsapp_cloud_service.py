@@ -335,3 +335,43 @@ async def send_text(db: AsyncSession, tenant_id: int, conversation_id: int, text
     conv.last_message_at = _later(conv.last_message_at, now)
     await db.flush()
     return msg
+
+
+# ── convite: link para a cliente começar a conversa ──────────────────────────
+
+async def invite_link(db: AsyncSession, tenant_id: int, text: Optional[str] = None) -> dict:
+    """Link wa.me do número oficial da loja (a cliente escreve primeiro e abre a janela de 24 h).
+
+    Usa o número de exibição gravado; se não houver, pergunta à Meta uma vez e grava.
+    """
+    from urllib.parse import quote
+
+    number = (await db.execute(
+        select(WhatsAppCloudNumber).where(
+            WhatsAppCloudNumber.tenant_id == tenant_id, WhatsAppCloudNumber.is_active == True,  # noqa: E712
+        ).order_by(WhatsAppCloudNumber.id)
+    )).scalars().first()
+    if number is None:
+        raise SendError("Esta loja ainda não tem um número oficial do WhatsApp ligado.", 409)
+    digits = "".join(ch for ch in (number.display_phone_number or "") if ch.isdigit())
+    if not digits and settings.WHATSAPP_CLOUD_ACCESS_TOKEN:
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.get(
+                    f"https://graph.facebook.com/{settings.WHATSAPP_CLOUD_API_VERSION}/{number.phone_number_id}",
+                    params={"fields": "display_phone_number"},
+                    headers={"Authorization": f"Bearer {settings.WHATSAPP_CLOUD_ACCESS_TOKEN}"},
+                )
+            shown = (resp.json() or {}).get("display_phone_number") if resp.status_code == 200 else None
+        except (httpx.HTTPError, ValueError):
+            shown = None
+        digits = "".join(ch for ch in (shown or "") if ch.isdigit())
+        if digits:
+            number.display_phone_number = digits
+            await db.flush()
+    if not digits:
+        raise SendError("Não consegui descobrir o número do WhatsApp da loja. Tente de novo em instantes.", 424)
+    link = f"https://wa.me/{digits}"
+    if text and text.strip():
+        link += f"?text={quote(text.strip()[:500])}"
+    return {"phone": digits, "link": link}
