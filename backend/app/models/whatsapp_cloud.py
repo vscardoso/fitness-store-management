@@ -5,7 +5,7 @@ O webhook descobre a loja pelo `phone_number_id` que a Meta manda em cada evento
 (tabela whatsapp_cloud_numbers). Uma conversa é um contato falando com um número;
 o contato pode chegar só com telefone, só com BSUID (identificador por empresa) ou com os dois.
 """
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.models.base import BaseModel
@@ -59,5 +59,11 @@ class WhatsAppMessage(BaseModel):
     status = Column(String(12), nullable=False)         # received, sent, delivered, read, failed
     status_at = Column(DateTime(timezone=True), nullable=True)
     error = Column(Text, nullable=True)                 # JSON dos erros quando status = failed
+    # Cobrança que a Meta informa no status da mensagem enviada (campo `pricing`); nulo = a Meta ainda não informou
+    pricing_billable = Column(Boolean, nullable=True)
+    pricing_category = Column(String(40), nullable=True)   # service, utility, marketing, authentication, referral_conversion...
+    pricing_type = Column(String(40), nullable=True)       # regular, free_customer_service, free_entry_point...
+    pricing_model = Column(String(16), nullable=True)      # CBP (por conversa) ou PMP (por mensagem)
+    pricing_raw = Column(Text, nullable=True)              # JSON do `pricing` como a Meta mandou
 
     conversation = relationship("WhatsAppConversation", back_populates="messages")

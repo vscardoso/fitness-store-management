@@ -325,3 +325,56 @@ async def test_marcar_como_lida_avisa_a_meta_sem_travar(test_client, async_sessi
     _meta(monkeypatch, erro=svc.SendError("falhou", 424))
     assert (await test_client.post(f"/api/v1/whatsapp/conversations/{cid2}/read", headers=h)).status_code == 200
     assert (await test_client.get("/api/v1/whatsapp/unread-count", headers=h)).json() == {"unread": 0}
+
+
+async def test_cobranca_por_mensagem_guardada_dos_status_e_resumo(test_client, async_session, monkeypatch):
+    """O `pricing` dos status da Meta (fixture com valores FALSOS, no formato da documentação) vira custo real por mensagem."""
+    _sem_override()
+    store, num, h = await _loja(async_session)
+    c = await _conversa(async_session, store, num)
+    cid = c.id
+    wamids = []
+    for i in range(4):
+        w = f"wamid.PR{i}"
+        wamids.append(w)
+        _meta(monkeypatch, {"messages": [{"id": w}]})
+        assert (await test_client.post(f"/api/v1/whatsapp/conversations/{cid}/send", headers=h, json={"text": f"m{i}"})).status_code == 200
+    pricing = [
+        {"billable": False, "pricing_model": "PMP", "category": "service", "type": "free_customer_service"},
+        {"billable": True, "pricing_model": "PMP", "category": "utility", "type": "regular"},
+        {"billable": False, "pricing_model": "PMP", "category": "referral_conversion", "type": "free_entry_point"},
+    ]
+    for w, pr in zip(wamids, pricing):
+        res = svc.ProcessResult()
+        await svc._apply_status(async_session, num, {"id": w, "status": "sent", "timestamp": "1760000000", "pricing": pr}, res)
+    # a 4ª mensagem ainda não recebeu status com cobrança
+    await async_session.commit()
+    m = (await async_session.execute(select(WhatsAppMessage).where(WhatsAppMessage.wamid == wamids[1]))).scalar_one()
+    assert (m.pricing_billable, m.pricing_category, m.pricing_type, m.pricing_model) == (True, "utility", "regular", "PMP")
+    assert '"category": "utility"' in m.pricing_raw
+    # status de entrega seguinte não apaga a cobrança já guardada
+    res = svc.ProcessResult()
+    await svc._apply_status(async_session, num, {"id": wamids[1], "status": "delivered", "timestamp": "1760000100"}, res)
+    await async_session.commit()
+    await async_session.refresh(m)
+    assert m.pricing_category == "utility" and m.status == "delivered"
+    r = await test_client.get("/api/v1/whatsapp/costs", headers=h)
+    # vendedor não vê dinheiro
+    assert r.status_code == 403
+    gerente = await _gerente(async_session, store)
+    r = await test_client.get("/api/v1/whatsapp/costs", headers=gerente)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert (d["sent"], d["billable"], d["free"], d["unknown"]) == (4, 1, 2, 1)
+    assert d["by_category"] == {"service": 1, "utility": 1, "referral_conversion": 1}
+    assert d["by_type"]["free_entry_point"] == 1
+
+
+async def _gerente(db, store):
+    n = next(_seq)
+    u = User(email=f"ger.{n}@example.com", full_name="Gerente", hashed_password=get_password_hash("Senha1234"),
+             role=UserRole.MANAGER, tenant_id=store.id, is_active=True)
+    db.add(u)
+    await db.commit()
+    await db.refresh(u)
+    return {"Authorization": "Bearer " + create_access_token(data={"sub": str(u.id)}), "X-Tenant-Id": str(store.id)}

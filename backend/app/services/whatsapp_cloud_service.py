@@ -197,6 +197,22 @@ async def _save_inbound(db: AsyncSession, number: WhatsAppCloudNumber, msg: dict
     result.messages_saved += 1
 
 
+def _apply_pricing(msg: WhatsAppMessage, st: dict) -> None:
+    """Guarda a cobrança informada pela Meta no status (`pricing`, ou a categoria da `conversation` no formato antigo)."""
+    pricing = st.get("pricing")
+    if not isinstance(pricing, dict):
+        return
+    category = pricing.get("category")
+    if not category:
+        origin = ((st.get("conversation") or {}).get("origin") or {})
+        category = origin.get("type")
+    msg.pricing_billable = pricing.get("billable") if isinstance(pricing.get("billable"), bool) else msg.pricing_billable
+    msg.pricing_category = str(category)[:40] if category else msg.pricing_category
+    msg.pricing_type = str(pricing["type"])[:40] if pricing.get("type") else msg.pricing_type
+    msg.pricing_model = str(pricing["pricing_model"])[:16] if pricing.get("pricing_model") else msg.pricing_model
+    msg.pricing_raw = json.dumps(pricing, ensure_ascii=False)
+
+
 async def _apply_status(db: AsyncSession, number: WhatsAppCloudNumber, st: dict, result: ProcessResult):
     wamid, status = st.get("id"), st.get("status")
     msg = None
@@ -211,6 +227,8 @@ async def _apply_status(db: AsyncSession, number: WhatsAppCloudNumber, st: dict,
         )).scalar_one_or_none()
         if conv is not None and not conv.bsuid:
             conv.bsuid = st["recipient_user_id"]
+    if msg is not None and msg.direction == "out":
+        _apply_pricing(msg, st)
     if msg is None or msg.direction != "out" or status not in ("sent", "delivered", "read", "failed"):
         # Mensagem enviada por fora do app (celular, painel da Meta) ou status desconhecido
         result.statuses_ignored += 1
@@ -448,3 +466,33 @@ async def mark_read_on_meta(db: AsyncSession, tenant_id: int, conv: WhatsAppConv
             await _post_graph(number.phone_number_id, {"messaging_product": "whatsapp", "status": "read", "message_id": last})
     except Exception:  # noqa: BLE001 - recibo de leitura é cortesia; falha não atrapalha o atendimento
         logger.info("WhatsApp Cloud: não consegui marcar como lida na Meta", exc_info=False)
+
+
+async def costs_summary(db: AsyncSession, tenant_id: int, days: int = 30) -> dict:
+    """Quantas mensagens enviadas a Meta cobrou ou não, por categoria e tipo, nos últimos `days` dias.
+
+    Só contagens: o valor em reais depende da tabela de preços da Meta (muda por país, categoria e data) e não é inventado aqui.
+    """
+    since = datetime.now(timezone.utc) - timedelta(days=days)
+    rows = (await db.execute(
+        select(WhatsAppMessage.pricing_billable, WhatsAppMessage.pricing_category, WhatsAppMessage.pricing_type)
+        .where(
+            WhatsAppMessage.tenant_id == tenant_id, WhatsAppMessage.direction == "out",
+            WhatsAppMessage.sent_at >= since,
+        )
+    )).all()
+    out = {"days": days, "sent": len(rows), "billable": 0, "free": 0, "unknown": 0, "by_category": {}, "by_type": {}}
+    for billable, category, ptype in rows:
+        if billable is None and category is None and ptype is None:
+            out["unknown"] += 1
+            continue
+        pays = billable if billable is not None else (ptype not in ("free_customer_service", "free_entry_point") if ptype else None)
+        if pays is True:
+            out["billable"] += 1
+        elif pays is False:
+            out["free"] += 1
+        else:
+            out["unknown"] += 1
+        out["by_category"][category or "desconhecida"] = out["by_category"].get(category or "desconhecida", 0) + 1
+        out["by_type"][ptype or "desconhecido"] = out["by_type"].get(ptype or "desconhecido", 0) + 1
+    return out

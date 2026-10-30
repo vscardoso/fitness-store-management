@@ -130,3 +130,9 @@ Falta: envio (texto dentro da janela de 24 h, gravado só depois que a Meta acei
 
 - Recebimento: "Oi" do celular do Victor para o fixo chegou (19:51) e está na loja 2 (conferido no banco, só leitura). A caixa vazia que ele viu era a loja 1 ("WA Fitness", teste); a real é a loja 2 ("W.A Fitness"). Atenção: nomes quase iguais.
 - Envio: a resposta "Boa noite, tudo bem?" (19:55) chegou no celular dele, com o aviso padrão da Meta de serviço seguro. Fica a conferir no app se a bolha aparece com o status de entrega (assumido que saiu pelo app; não confirmado).
+
+### Custo real por mensagem (2026-10-30, noite)
+
+- O status de cada mensagem ENVIADA traz o campo `pricing` da Meta (formato da documentação: `billable`, `pricing_model`, `category`, `type`; no formato antigo a categoria vem em `conversation.origin.type`). `_apply_pricing` guarda em `whatsapp_messages.pricing_billable/_category/_type/_model` e o JSON original em `pricing_raw` (migração aditiva `20261107_wa_message_pricing`, testada só em SQLite: subir, descer, subir; Postgres NÃO testado). Status de entrega seguinte não apaga a cobrança.
+- `GET /whatsapp/costs?days=30` (só gerente/admin): quantas mensagens a Meta cobrou, quantas foram grátis (atendimento dentro da janela e entrada por anúncio), e por categoria e tipo. SÓ CONTAGENS: o valor em reais depende da tabela de preços da Meta e não é inventado; quando for tela de dinheiro, entra uma tabela de preços por categoria editável pela loja.
+- NÃO verificado: os nomes exatos dos campos de cobrança com payload REAL da Meta (testes usam valores falsos no formato da documentação). Conferir na primeira mensagem real: `select pricing_category, pricing_type, pricing_billable, pricing_raw from whatsapp_messages where direction='out' order by id desc limit 5`.

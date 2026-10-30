@@ -206,3 +206,14 @@ async def conversation_of_customer(
         .order_by(WhatsAppConversation.id).limit(1)
     )).scalar_one_or_none()
     return _conv(conv, None, {key: (customer_id, cname)}) if conv else None
+
+
+@router.get("/costs")
+async def costs(
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Mensagens enviadas que a Meta cobrou ou não (pelo campo `pricing` dos status). Só contagens."""
+    return await svc.costs_summary(db, tenant_id, days)
