@@ -440,3 +440,7 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 
 - Look vendável: cada peça tem variação (cor/tamanho) e estoque na resposta (`variant_sku`, `variant_color`, `variant_size`, `stock`); `PATCH /looks/{id}/items/{item_id}` troca a variação; com 3+ peças o desconto do look entra sozinho; vitrine pública só com peças ativas e `customer_id IS NULL`; validação de produto/variação/cliente da loja (400). Testes: `tests/test_looks.py`. Plano e fase B (WhatsApp): `docs/PLANO_LOOKBOOK.md`.
 - App: `looks/builder.tsx` (escolher variação, editar com `?id=`), `looks/[id].tsx` ("Vender este look" põe as peças no carrinho do PDV com o desconto do look; recusa peça sem variação ou sem estoque; condicional agora manda `variant_id`). NÃO testado no navegador nem em aparelho.
+
+## WhatsApp: caixa de conversas e envio (2026-10-30)
+
+- `POST /whatsapp/conversations/{id}/send` só dentro de 24 h do último recebido, grava depois que a Meta aceita (erros 424 legíveis); listar/abrir/ler em `endpoints/whatsapp_inbox.py` (vendedor para cima). App: Mais > Conversas do WhatsApp (`app/whatsapp/`). Testes: `tests/test_whatsapp_inbox.py`. Falta: envio real, aviso no celular, modelos. Detalhes em `docs/whatsapp-cloud-plano.md`.

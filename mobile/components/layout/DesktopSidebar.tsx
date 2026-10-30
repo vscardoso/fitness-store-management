@@ -10,7 +10,7 @@ import { usePathname, useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadCount } from '@/hooks/useNotificationInbox';
 import { useBrandingColors } from '@/store/brandingStore';
-import { isAdminRole, isManagerRole } from '@/utils/roles';
+import { isAdminRole, isManagerRole, normalizeRole } from '@/utils/roles';
 import { ProvadorLogo } from '@/components/branding/ProvadorLogo';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { BRAND } from '@/constants/Brand';
@@ -81,6 +81,7 @@ export default function DesktopSidebar() {
       {
         key: 'clientes', title: 'Clientes', items: [
           { label: 'Clientes', icon: 'people-outline', href: '/(tabs)/customers', match: ['/customers'] },
+          ...(normalizeRole(user?.role) !== 'cashier' ? [{ label: 'WhatsApp', icon: 'logo-whatsapp' as Icon, href: '/whatsapp', match: ['/whatsapp'] }] : []),
           ...(manager ? [
             { label: 'Lookbook', icon: 'shirt-outline' as Icon, href: '/looks', match: ['/looks'] },
             { label: 'Demanda wishlist', icon: 'heart-outline' as Icon, href: '/(tabs)/demand', match: ['/demand', '/wishlist'] },

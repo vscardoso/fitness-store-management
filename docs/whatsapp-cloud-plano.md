@@ -115,3 +115,12 @@ Falta: envio (texto dentro da janela de 24 h, gravado só depois que a Meta acei
 - Texto livre fora da janela de 24 horas não é entregue; o primeiro contato só por modelo aprovado ou o cliente escrevendo primeiro (QR code).
 - O log de acesso do backend grava a URL do GET de verificação com o verify token; tratar o log como sensível.
 - Mexer no `.env.prod` e reiniciar o backend: rodar antes `python3 /opt/provador/guarda_publicacao.py --status` no VPS (só quando LIVRE; o login do próprio Victor conta como uso).
+
+## Estado (2026-10-30, noite): envio de texto e caixa de conversas (nuvem)
+
+- Backend: `POST /whatsapp/conversations/{id}/send` (`send_text` em `whatsapp_cloud_service.py`): só texto livre com a janela de 24 h aberta (última mensagem DO CONTATO), manda para o `wa_id` que a Meta conhece (celular pode vir sem o 9), grava a mensagem como `sent` SÓ depois que a Meta devolve o `wamid`. Recusa da Meta, timeout, token ausente e resposta sem `wamid` viram erro legível 424 e nada é gravado (5xx seria reescrito pelo tratador de erros amigáveis). Também: `GET /whatsapp/conversations`, `GET /whatsapp/conversations/{id}`, `POST .../read`, `GET /whatsapp/unread-count`. Papel mínimo: vendedor (regra em `permissions.py`).
+- Status de entrega: `recipient_user_id` agora completa o BSUID da conversa. A fixture com payload real redigido ainda NÃO existe (o teste usa valor falso).
+- App: Mais > "Conversas do WhatsApp" (e "WhatsApp" na barra lateral do notebook), telas `app/whatsapp/index.tsx` e `[id].tsx` (bolhas, status da mensagem, aviso de janela fechada, campo bloqueado fora da janela, não lidas zeradas ao abrir, atualização a cada 10 a 20 s). Sem aba nova.
+- Testes: `tests/test_whatsapp_inbox.py` (10) + os 23 do webhook + permissões + looks: 93 passam. No navegador (backend local, Meta inacessível): lista, abrir, enviar com erro legível, janela fechada, não lidas zeradas: 8/8, sem erro de JS.
+- NÃO verificado: envio real pela Meta (nenhum envio real foi feito), iPhone/PWA físico, aviso no celular (push) e modelos (templates) para fora da janela. Proposta para o aviso: o projeto já tem push do Expo para alertas da loja; ligar o webhook de mensagem nova a ele. Aguardando ok do Victor antes de construir.
+- Teste real pendente (com o Victor): mandar "oi" do celular dele para o fixo, abrir em Mais > Conversas do WhatsApp e responder.
