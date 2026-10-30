@@ -11,6 +11,7 @@ Regras:
   com e sem o 9 depois do DDD é o mesmo contato.
 """
 import hashlib
+from collections import OrderedDict
 import hmac
 import json
 import logging
@@ -505,8 +506,65 @@ async def send_media(db: AsyncSession, tenant_id: int, conversation_id: int, *, 
 ALLOWED_VIEW = ("image/", "audio/", "video/", "application/pdf")
 
 
-async def fetch_media(db: AsyncSession, tenant_id: int, message_id: int) -> tuple[bytes, str, Optional[str]]:
-    """Baixa da Meta o arquivo de uma mensagem da loja (sem guardar cópia aqui). Devolve (bytes, tipo, nome)."""
+_MEDIA_CACHE: "OrderedDict[tuple, tuple]" = OrderedDict()
+_MEDIA_CACHE_BYTES = 0
+_MEDIA_CACHE_LIMIT = 64 * 1024 * 1024   # 64 MB em memória do processo; some ao reiniciar (nada de foto de cliente em disco)
+THUMB_SIDE = 640
+
+
+def _cache_get(key):
+    hit = _MEDIA_CACHE.get(key)
+    if hit is not None:
+        _MEDIA_CACHE.move_to_end(key)
+    return hit
+
+
+def _cache_put(key, value) -> None:
+    global _MEDIA_CACHE_BYTES
+    size = len(value[0])
+    if size > _MEDIA_CACHE_LIMIT // 4:
+        return
+    old = _MEDIA_CACHE.pop(key, None)
+    if old is not None:
+        _MEDIA_CACHE_BYTES -= len(old[0])
+    _MEDIA_CACHE[key] = value
+    _MEDIA_CACHE_BYTES += size
+    while _MEDIA_CACHE_BYTES > _MEDIA_CACHE_LIMIT and _MEDIA_CACHE:
+        _, (dropped, *_rest) = _MEDIA_CACHE.popitem(last=False)
+        _MEDIA_CACHE_BYTES -= len(dropped)
+
+
+def _make_thumb(data: bytes) -> Optional[bytes]:
+    """Miniatura JPEG (lado maior 640 px, sem EXIF) de uma foto; None se não for imagem que o filtro aceita."""
+    import io
+    from app.core.image_guard import InvalidImage, sanitize_image
+    from PIL import Image
+
+    try:
+        clean, _ext, _mime = sanitize_image(data)
+        img = Image.open(io.BytesIO(clean))
+        img.thumbnail((THUMB_SIDE, THUMB_SIDE))
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+        out = io.BytesIO()
+        img.save(out, "JPEG", quality=75, optimize=True)
+        return out.getvalue()
+    except (InvalidImage, OSError, ValueError):
+        return None
+
+
+async def fetch_media(db: AsyncSession, tenant_id: int, message_id: int, thumb: bool = False) -> tuple[bytes, str, Optional[str]]:
+    """Baixa da Meta o arquivo de uma mensagem da loja. Devolve (bytes, tipo, nome).
+
+    Fica em cache na memória (por loja e mensagem), então a segunda abertura não vai à Meta. `thumb` devolve uma
+    miniatura (para a bolha da conversa abrir rápido); a foto inteira só é baixada quando a pessoa toca nela.
+    """
+    import asyncio
+
+    key = (tenant_id, message_id, bool(thumb))
+    hit = _cache_get(key)
+    if hit is not None:
+        return hit
     msg = (await db.execute(
         select(WhatsAppMessage).where(WhatsAppMessage.id == message_id, WhatsAppMessage.tenant_id == tenant_id)
     )).scalar_one_or_none()
@@ -520,26 +578,38 @@ async def fetch_media(db: AsyncSession, tenant_id: int, message_id: int) -> tupl
     media_id = (info or {}).get("id")
     if not media_id:
         raise SendError("Esta mensagem não tem arquivo.", 404)
-    if not settings.WHATSAPP_CLOUD_ACCESS_TOKEN:
-        raise SendError("O WhatsApp da loja ainda não está configurado.", 424)
-    headers = {"Authorization": f"Bearer {settings.WHATSAPP_CLOUD_ACCESS_TOKEN}"}
-    try:
-        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
-            meta = await client.get(
-                f"{settings.WHATSAPP_CLOUD_GRAPH_BASE}/{settings.WHATSAPP_CLOUD_API_VERSION}/{media_id}", headers=headers)
-            mj = meta.json() if meta.status_code == 200 else {}
-            url = mj.get("url")
-            if not url:
-                raise SendError("O arquivo não está mais disponível no WhatsApp.", 404)
-            if int(mj.get("file_size") or 0) > MEDIA_MAX_BYTES:
-                raise SendError("Arquivo grande demais para abrir aqui.", 413)
-            resp = await client.get(url, headers=headers)
-    except httpx.HTTPError:
-        raise SendError("Não consegui falar com o WhatsApp agora. Tente de novo em instantes.", 424)
-    if resp.status_code != 200 or len(resp.content) > MEDIA_MAX_BYTES:
-        raise SendError("Não consegui baixar o arquivo.", 424)
-    mime = str(mj.get("mime_type") or (info or {}).get("mime_type") or "application/octet-stream").split(";")[0].strip().lower()
-    return resp.content, mime, (info or {}).get("filename")
+
+    full_key = (tenant_id, message_id, False)
+    full = _cache_get(full_key)
+    if full is None:
+        if not settings.WHATSAPP_CLOUD_ACCESS_TOKEN:
+            raise SendError("O WhatsApp da loja ainda não está configurado.", 424)
+        headers = {"Authorization": f"Bearer {settings.WHATSAPP_CLOUD_ACCESS_TOKEN}"}
+        try:
+            async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+                meta = await client.get(
+                    f"{settings.WHATSAPP_CLOUD_GRAPH_BASE}/{settings.WHATSAPP_CLOUD_API_VERSION}/{media_id}", headers=headers)
+                mj = meta.json() if meta.status_code == 200 else {}
+                url = mj.get("url")
+                if not url:
+                    raise SendError("O arquivo não está mais disponível no WhatsApp.", 404)
+                if int(mj.get("file_size") or 0) > MEDIA_MAX_BYTES:
+                    raise SendError("Arquivo grande demais para abrir aqui.", 413)
+                resp = await client.get(url, headers=headers)
+        except httpx.HTTPError:
+            raise SendError("Não consegui falar com o WhatsApp agora. Tente de novo em instantes.", 424)
+        if resp.status_code != 200 or len(resp.content) > MEDIA_MAX_BYTES:
+            raise SendError("Não consegui baixar o arquivo.", 424)
+        mime = str(mj.get("mime_type") or (info or {}).get("mime_type") or "application/octet-stream").split(";")[0].strip().lower()
+        full = (resp.content, mime, (info or {}).get("filename"))
+        _cache_put(full_key, full)
+    if thumb and full[1].startswith("image/") and full[1] != "image/svg+xml":
+        small = await asyncio.to_thread(_make_thumb, full[0])
+        if small is not None:
+            result = (small, "image/jpeg", full[2])
+            _cache_put(key, result)
+            return result
+    return full
 
 
 # ── convite: link para a cliente começar a conversa ──────────────────────────

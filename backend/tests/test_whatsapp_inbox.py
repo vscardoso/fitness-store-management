@@ -19,6 +19,8 @@ _seq = itertools.count(1)
 @pytest.fixture(autouse=True)
 def _token(monkeypatch):
     monkeypatch.setattr(settings, "WHATSAPP_CLOUD_ACCESS_TOKEN", "token-de-teste")
+    svc._MEDIA_CACHE.clear()   # o cache de arquivos vive no processo: cada teste começa vazio
+    svc._MEDIA_CACHE_BYTES = 0
 
 
 def _sem_override():
@@ -500,7 +502,8 @@ async def test_abrir_arquivo_da_mensagem_busca_na_meta_e_isola_a_loja(test_clien
     # a conversa avisa o app de que há arquivo (sem entregar o arquivo)
     det = (await test_client.get(f"/api/v1/whatsapp/conversations/{cid}", headers=h)).json()["messages"]
     assert any(m["media"] and m["media"]["kind"] == "audio" for m in det)
-    # a Meta já apagou o arquivo
+    # a Meta já apagou o arquivo (e a loja ainda não tinha a cópia em cache)
+    svc._MEDIA_CACHE.clear(); svc._MEDIA_CACHE_BYTES = 0
     _MediaClient.rotas[("GET", "IMG1")] = httpx.Response(404)
     r = await test_client.get(f"/api/v1/whatsapp/messages/{ids[0]}/media", headers=h)
     assert r.status_code == 404 and "não está mais disponível" in r.json()["detail"]
@@ -540,3 +543,48 @@ async def test_saudacao_configuracao_so_admin_valida_e_isola_a_loja(test_client,
     await async_session.commit()
     h3 = {"Authorization": "Bearer " + create_access_token(data={"sub": str(u.id)}), "X-Tenant-Id": str(outra.id)}
     assert (await test_client.get("/api/v1/whatsapp/greeting", headers=h3)).status_code == 409
+
+
+async def test_miniatura_rapida_e_cache_evitam_voltar_a_meta(test_client, async_session, monkeypatch):
+    import io
+    import json as _json
+    import httpx
+    from PIL import Image
+    _sem_override()
+    svc._MEDIA_CACHE.clear()
+    store, num, h = await _loja(async_session)
+    c = await _conversa(async_session, store, num)
+    m = WhatsAppMessage(tenant_id=store.id, conversation_id=c.id, wamid=f"wamid.T{next(_seq)}", direction="in", msg_type="image",
+                        payload=_json.dumps({"image": {"id": "BIG1", "mime_type": "image/jpeg"}}), status="received",
+                        sent_at=datetime.now(timezone.utc))
+    async_session.add(m)
+    await async_session.commit()
+    mid = m.id
+    buf = io.BytesIO()
+    Image.effect_noise((2000, 1500), 90).convert("RGB").save(buf, "JPEG", quality=95)
+    grande = buf.getvalue()
+    monkeypatch.setattr(svc.httpx, "AsyncClient", _MediaClient)
+    _MediaClient.vistos = []
+    _MediaClient.rotas = {
+        ("GET", "BIG1"): httpx.Response(200, json={"url": "https://lookaside.example/big1", "mime_type": "image/jpeg", "file_size": len(grande)}),
+        ("GET", "big1"): httpx.Response(200, content=grande),
+    }
+    chamadas_meta = lambda: len([v for v in _MediaClient.vistos if v[0] == "GET"])
+    r = await test_client.get(f"/api/v1/whatsapp/messages/{mid}/media", headers=h, params={"thumb": "true"})
+    assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"
+    pequena = Image.open(io.BytesIO(r.content))
+    assert max(pequena.size) == 640 and len(r.content) < len(grande) / 3
+    assert chamadas_meta() == 2   # 1 para o endereço do arquivo, 1 para o arquivo
+    # segunda miniatura e a foto inteira: nenhuma chamada nova à Meta
+    assert (await test_client.get(f"/api/v1/whatsapp/messages/{mid}/media", headers=h, params={"thumb": "true"})).content == r.content
+    inteira = await test_client.get(f"/api/v1/whatsapp/messages/{mid}/media", headers=h)
+    assert inteira.content == grande and chamadas_meta() == 2
+    # o cache é por loja: outra loja não recebe a foto pelo cache
+    outra, num2, h2 = await _loja(async_session)
+    assert (await test_client.get(f"/api/v1/whatsapp/messages/{mid}/media", headers=h2, params={"thumb": "true"})).status_code == 404
+    # o teto do cache é respeitado
+    svc._MEDIA_CACHE.clear(); svc._MEDIA_CACHE_BYTES = 0
+    for i in range(200):
+        svc._cache_put((1, i, False), (b"x" * (3 * 1024 * 1024), "image/jpeg", None))
+    assert svc._MEDIA_CACHE_BYTES <= svc._MEDIA_CACHE_LIMIT
+    svc._MEDIA_CACHE.clear(); svc._MEDIA_CACHE_BYTES = 0

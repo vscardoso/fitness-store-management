@@ -8,6 +8,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import api from '@/services/api';
 import { parseApiError } from '@/utils/apiError';
 import type { WaMessage } from '@/services/whatsappService';
+import MediaViewer from './MediaViewer';
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 function toBase64(bytes: Uint8Array): string {
@@ -22,9 +23,10 @@ function toBase64(bytes: Uint8Array): string {
 }
 
 /** Baixa o arquivo da mensagem. Web: endereço blob:; celular: data URI. */
-async function loadMedia(messageId: number): Promise<{ uri: string; mime: string }> {
+async function loadMedia(messageId: number, thumb = false): Promise<{ uri: string; mime: string }> {
   const web = Platform.OS === 'web';
   const res = await api.get(`/whatsapp/messages/${messageId}/media`, {
+    params: thumb ? { thumb: true } : undefined,
     responseType: web ? 'blob' : 'arraybuffer',
     headers: { 'X-Skip-Loading': 'true' },
   });
@@ -52,14 +54,18 @@ export default function MessageMedia({ message, mine }: { message: WaMessage; mi
   const media = message.media!;
   const isImage = media.kind === 'image' || media.kind === 'sticker';
   const [file, setFile] = useState<{ uri: string; mime: string } | null>(null);
+  const [full, setFull] = useState<{ uri: string; mime: string } | null>(null);
+  const [viewer, setViewer] = useState(false);
+  const [viewerError, setViewerError] = useState<string | null>(null);
   const [loading, setLoading] = useState(isImage);
   const [error, setError] = useState<string | null>(null);
 
+  // foto: miniatura leve na bolha; a inteira só baixa quando a pessoa toca
   const load = async () => {
     setLoading(true);
     setError(null);
     try {
-      setFile(await loadMedia(message.id));
+      setFile(await loadMedia(message.id, isImage));
     } catch (e) {
       setError(parseApiError(e));
     } finally {
@@ -78,10 +84,24 @@ export default function MessageMedia({ message, mine }: { message: WaMessage; mi
 
   if (isImage) {
     if (file) {
+      const openPhoto = async () => {
+        setViewer(true);
+        setViewerError(null);
+        if (!full) {
+          try {
+            setFull(await loadMedia(message.id, false));
+          } catch (e) {
+            setViewerError(parseApiError(e));
+          }
+        }
+      };
       return (
-        <TouchableOpacity onPress={() => openFile(file.uri, file.mime, name)} accessibilityLabel="Abrir foto">
-          <Image source={{ uri: file.uri }} style={styles.photo} resizeMode="cover" />
-        </TouchableOpacity>
+        <>
+          <TouchableOpacity onPress={openPhoto} accessibilityLabel="Abrir foto">
+            <Image source={{ uri: file.uri }} style={styles.photo} resizeMode="cover" />
+          </TouchableOpacity>
+          <MediaViewer visible={viewer} onClose={() => setViewer(false)} kind="image" previewUri={file.uri} uri={full?.uri ?? null} title={name} error={viewerError} />
+        </>
       );
     }
     return (
@@ -107,6 +127,7 @@ export default function MessageMedia({ message, mine }: { message: WaMessage; mi
             const f = file ?? (await loadMedia(message.id));
             setFile(f);
             if (media.kind === 'audio' && Platform.OS === 'web') return; // o player aparece no lugar do botão
+            if (Platform.OS === 'web') { setViewer(true); return; }       // no navegador abre aqui dentro, não em outra aba
             await openFile(f.uri, f.mime, name);
           } catch (e) {
             setError(parseApiError(e));
@@ -118,6 +139,9 @@ export default function MessageMedia({ message, mine }: { message: WaMessage; mi
         <Text style={{ color, fontSize: 14, flexShrink: 1 }} numberOfLines={1}>{loading ? 'Abrindo…' : `${name} · toque para abrir`}</Text>
       </TouchableOpacity>
       {error && <Text style={styles.err}>{error}</Text>}
+      {file && Platform.OS === 'web' && media.kind !== 'audio' && (
+        <MediaViewer visible={viewer} onClose={() => setViewer(false)} kind={media.kind === 'video' ? 'video' : 'document'} uri={file.uri} title={name} />
+      )}
     </View>
   );
 }

@@ -257,20 +257,21 @@ async def send_media(
 @router.get("/messages/{message_id}/media")
 async def message_media(
     message_id: int,
+    thumb: bool = Query(False),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
     """Arquivo de uma mensagem (da cliente ou da loja), buscado na Meta na hora."""
     try:
-        content, mime, name = await svc.fetch_media(db, tenant_id, message_id)
+        content, mime, name = await svc.fetch_media(db, tenant_id, message_id, thumb=thumb)
     except svc.SendError as e:
         raise HTTPException(status_code=e.status_code, detail=e.message)
     viewable = mime.startswith(svc.ALLOWED_VIEW) and mime != "image/svg+xml"
     headers = {
         "X-Content-Type-Options": "nosniff",
         "Content-Security-Policy": "sandbox",
-        "Cache-Control": "private, max-age=3600",
+        "Cache-Control": "private, max-age=86400",
         "Content-Disposition": ("inline" if viewable else "attachment") + (f'; filename="{name}"' if name else ""),
     }
     return Response(content=content, media_type=mime if viewable else "application/octet-stream", headers=headers)
