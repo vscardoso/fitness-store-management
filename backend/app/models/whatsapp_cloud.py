@@ -7,6 +7,7 @@ o contato pode chegar só com telefone, só com BSUID (identificador por empresa
 """
 from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import relationship
+from sqlalchemy.sql import expression
 
 from app.models.base import BaseModel
 
@@ -20,6 +21,9 @@ class WhatsAppCloudNumber(BaseModel):
     waba_id = Column(String(64), nullable=True)  # ID da conta do WhatsApp Business
     display_phone_number = Column(String(32), nullable=True)
     verified_name = Column(String(120), nullable=True)
+    # Saudação automática: manda 1 vez por janela de 24 h quando a cliente escreve (desligada por padrão)
+    greeting_enabled = Column(Boolean, nullable=False, default=False, server_default=expression.false())
+    greeting_text = Column(Text, nullable=True)
 
 
 class WhatsAppConversation(BaseModel):
@@ -40,6 +44,7 @@ class WhatsAppConversation(BaseModel):
     last_message_at = Column(DateTime(timezone=True), nullable=True)
     last_inbound_at = Column(DateTime(timezone=True), nullable=True)  # abre a janela de 24 h
     unread_count = Column(Integer, nullable=False, default=0)
+    last_greeting_at = Column(DateTime(timezone=True), nullable=True)  # trava da saudação: 1 por janela de 24 h
 
     messages = relationship("WhatsAppMessage", back_populates="conversation")
 

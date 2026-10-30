@@ -504,3 +504,39 @@ async def test_abrir_arquivo_da_mensagem_busca_na_meta_e_isola_a_loja(test_clien
     _MediaClient.rotas[("GET", "IMG1")] = httpx.Response(404)
     r = await test_client.get(f"/api/v1/whatsapp/messages/{ids[0]}/media", headers=h)
     assert r.status_code == 404 and "não está mais disponível" in r.json()["detail"]
+
+
+async def test_saudacao_configuracao_so_admin_valida_e_isola_a_loja(test_client, async_session):
+    _sem_override()
+    a, num_a, ha = await _loja(async_session, role=UserRole.ADMIN)
+    b, num_b, hb = await _loja(async_session, role=UserRole.ADMIN)
+    _, _, hs = await _loja(async_session)  # vendedor
+    g = await test_client.get("/api/v1/whatsapp/greeting", headers=ha)
+    assert g.status_code == 200 and g.json() == {"enabled": False, "text": "", "max_chars": 1000}
+    # vendedor e gerente não mexem; só admin
+    assert (await test_client.get("/api/v1/whatsapp/greeting", headers=hs)).status_code == 403
+    assert (await test_client.put("/api/v1/whatsapp/greeting", headers=hs, json={"enabled": False, "text": "x"})).status_code == 403
+    # ligar sem texto, texto em branco e texto grande demais
+    for corpo in ({"enabled": True, "text": ""}, {"enabled": True, "text": "   "}, {"enabled": True}, {"enabled": False, "text": "x" * 1001}):
+        r = await test_client.put("/api/v1/whatsapp/greeting", headers=ha, json=corpo)
+        assert r.status_code == 400, (corpo, r.text)
+    assert (await test_client.get("/api/v1/whatsapp/greeting", headers=ha)).json()["enabled"] is False
+    # grava (texto com espaços nas pontas é aparado); 1000 letras passa
+    r = await test_client.put("/api/v1/whatsapp/greeting", headers=ha, json={"enabled": True, "text": "  Oi! Seja bem-vinda à W.A Fitness.  "})
+    assert r.status_code == 200 and r.json() == {"enabled": True, "text": "Oi! Seja bem-vinda à W.A Fitness.", "max_chars": 1000}
+    assert (await test_client.put("/api/v1/whatsapp/greeting", headers=ha, json={"enabled": True, "text": "y" * 1000})).status_code == 200
+    # desligar guarda o texto
+    r = await test_client.put("/api/v1/whatsapp/greeting", headers=ha, json={"enabled": False, "text": "y" * 10})
+    assert r.json()["enabled"] is False and r.json()["text"] == "y" * 10
+    # a outra loja não é afetada
+    assert (await test_client.get("/api/v1/whatsapp/greeting", headers=hb)).json() == {"enabled": False, "text": "", "max_chars": 1000}
+    # loja sem número oficial
+    outra = Store(name="Sem Zap 2", slug="sem-zap-y", subdomain="sem-zap-y", is_default=False, is_active=True)
+    async_session.add(outra)
+    await async_session.commit()
+    u = User(email="admsemzap@example.com", full_name="A", hashed_password=get_password_hash("Senha1234"),
+             role=UserRole.ADMIN, tenant_id=outra.id, is_active=True)
+    async_session.add(u)
+    await async_session.commit()
+    h3 = {"Authorization": "Bearer " + create_access_token(data={"sub": str(u.id)}), "X-Tenant-Id": str(outra.id)}
+    assert (await test_client.get("/api/v1/whatsapp/greeting", headers=h3)).status_code == 409

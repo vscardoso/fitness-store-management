@@ -63,3 +63,11 @@ export const sendWhatsappFile = async (id: number, file: WaPickedFile, caption?:
     timeout: 90000,
   })).data;
 };
+
+export interface WaGreeting { enabled: boolean; text: string; max_chars: number }
+
+export const getWhatsappGreeting = async (): Promise<WaGreeting> =>
+  (await api.get<WaGreeting>('/whatsapp/greeting', { headers: { 'X-Skip-Loading': 'true' } })).data;
+
+export const saveWhatsappGreeting = async (enabled: boolean, text: string): Promise<WaGreeting> =>
+  (await api.put<WaGreeting>('/whatsapp/greeting', { enabled, text })).data;

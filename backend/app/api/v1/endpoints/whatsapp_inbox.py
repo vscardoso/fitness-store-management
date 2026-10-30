@@ -274,3 +274,55 @@ async def message_media(
         "Content-Disposition": ("inline" if viewable else "attachment") + (f'; filename="{name}"' if name else ""),
     }
     return Response(content=content, media_type=mime if viewable else "application/octet-stream", headers=headers)
+
+
+# ── saudação automática (configuração da loja; só admin) ─────────────────────
+
+class GreetingBody(BaseModel):
+    enabled: bool
+    text: Optional[str] = None
+
+
+async def _store_number(db: AsyncSession, tenant_id: int):
+    from app.models.whatsapp_cloud import WhatsAppCloudNumber
+
+    number = (await db.execute(
+        select(WhatsAppCloudNumber).where(
+            WhatsAppCloudNumber.tenant_id == tenant_id, WhatsAppCloudNumber.is_active == True,  # noqa: E712
+        ).order_by(WhatsAppCloudNumber.id)
+    )).scalars().first()
+    if number is None:
+        raise HTTPException(status_code=409, detail="Esta loja ainda não tem um número oficial do WhatsApp ligado.")
+    return number
+
+
+def _greeting(number) -> dict:
+    return {"enabled": bool(number.greeting_enabled), "text": number.greeting_text or "", "max_chars": svc.GREETING_MAX_CHARS}
+
+
+@router.get("/greeting")
+async def get_greeting(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    return _greeting(await _store_number(db, tenant_id))
+
+
+@router.put("/greeting")
+async def set_greeting(
+    body: GreetingBody,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    text = (body.text or "").strip()
+    if len(text) > svc.GREETING_MAX_CHARS:
+        raise HTTPException(status_code=400, detail=f"O texto passa de {svc.GREETING_MAX_CHARS} letras.")
+    if body.enabled and not text:
+        raise HTTPException(status_code=400, detail="Escreva a mensagem antes de ligar a saudação.")
+    number = await _store_number(db, tenant_id)
+    number.greeting_enabled = body.enabled
+    number.greeting_text = text or None
+    await db.commit()
+    return _greeting(number)

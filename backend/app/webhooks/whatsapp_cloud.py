@@ -12,14 +12,14 @@ import hmac
 import json
 import logging
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, Request
 from fastapi.responses import JSONResponse, PlainTextResponse
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db_unscoped
-from app.services.whatsapp_cloud_service import process_payload, verify_signature
+from app.services.whatsapp_cloud_service import process_payload, send_greeting, verify_signature
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +37,7 @@ async def verify_webhook(request: Request):
 
 
 @router.post("/whatsapp-cloud")
-async def receive_webhook(request: Request, db: AsyncSession = Depends(get_db_unscoped)):
+async def receive_webhook(request: Request, background: BackgroundTasks, db: AsyncSession = Depends(get_db_unscoped)):
     raw = await request.body()
     if not settings.WHATSAPP_CLOUD_APP_SECRET:
         logger.error("WhatsApp Cloud: WHATSAPP_CLOUD_APP_SECRET não configurado, webhook recusado")
@@ -67,6 +67,9 @@ async def receive_webhook(request: Request, db: AsyncSession = Depends(get_db_un
         except Exception:
             await db.rollback()
             raise
+    # Saudação automática: só depois do commit e depois de responder 200 à Meta (tarefa em segundo plano)
+    for tenant_id, conversation_id in result.greetings:
+        background.add_task(send_greeting, tenant_id, conversation_id)
     return {
         "ok": True,
         "saved": result.messages_saved,

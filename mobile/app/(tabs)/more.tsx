@@ -255,6 +255,16 @@ export default function MoreScreen() {
                 iconBg="#FEF3C7"
               />
             )}
+            {isAdminRole(user?.role) && (
+              <MenuItem
+                icon="chatbubble-ellipses-outline"
+                title="Saudação automática do WhatsApp"
+                subtitle="Mensagem que a cliente recebe quando escreve para a loja"
+                onPress={() => router.push('/settings/whatsapp-greeting' as any)}
+                iconColor="#16A34A"
+                iconBg="#DCFCE7"
+              />
+            )}
           </View>
         </View>
 

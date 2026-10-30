@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
 import httpx
-from sqlalchemy import or_, select
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -105,6 +105,7 @@ class ProcessResult:
     statuses_applied: int = 0
     statuses_ignored: int = 0
     unknown_numbers: list[str] = field(default_factory=list)
+    greetings: list[tuple] = field(default_factory=list)  # (tenant_id, conversation_id) a saudar depois do commit
 
 
 async def _find_number(db: AsyncSession, phone_number_id: Optional[str]) -> Optional[WhatsAppCloudNumber]:
@@ -184,6 +185,8 @@ async def _save_inbound(db: AsyncSession, number: WhatsAppCloudNumber, msg: dict
         return
 
     sent_at = _ts(msg.get("timestamp")) or datetime.now(timezone.utc)
+    previous_inbound = _aware(conv.last_inbound_at)
+    opens_window = previous_inbound is None or (sent_at - previous_inbound) > WINDOW
     db.add(WhatsAppMessage(
         tenant_id=number.tenant_id, conversation_id=conv.id, wamid=wamid, direction="in",
         msg_type=str(msg.get("type") or "unknown")[:30], text=message_text(msg),
@@ -195,6 +198,9 @@ async def _save_inbound(db: AsyncSession, number: WhatsAppCloudNumber, msg: dict
     conv.unread_count = (conv.unread_count or 0) + 1
     await db.flush()
     result.messages_saved += 1
+    if opens_window and str(msg.get("type") or "") not in GREETING_SKIP_TYPES:
+        if await _claim_greeting(db, number, conv, sent_at):
+            result.greetings.append((number.tenant_id, conv.id))
 
 
 def _apply_pricing(msg: WhatsAppMessage, st: dict) -> None:
@@ -271,6 +277,77 @@ async def process_payload(db: AsyncSession, payload: dict) -> ProcessResult:
             for st in value.get("statuses") or []:
                 await _apply_status(db, number, st, result)
     return result
+
+
+# ── saudação automática ───────────────────────────────────────────────────────
+
+GREETING_SKIP_TYPES = {"reaction", "system", "request_welcome", "unsupported"}
+GREETING_MAX_CHARS = 1000
+
+
+async def _is_system_contact(db: AsyncSession, conv: WhatsAppConversation) -> bool:
+    """O contato é a própria loja ou outro número ligado ao sistema? Esse nunca recebe saudação."""
+    if not conv.phone:
+        return False
+    shown = (await db.execute(select(WhatsAppCloudNumber.display_phone_number).where(
+        WhatsAppCloudNumber.display_phone_number.isnot(None)))).scalars().all()
+    return conv.phone in {customer_phone_key(x) for x in shown if x}
+
+
+async def _claim_greeting(db: AsyncSession, number: WhatsAppCloudNumber, conv: WhatsAppConversation,
+                          sent_at: datetime) -> bool:
+    """Decide, de forma atômica, se ESTA mensagem de entrada dispara a saudação.
+
+    O UPDATE condicional na linha da conversa é a trava: com duas mensagens simultâneas da mesma cliente, uma só
+    muda `last_greeting_at` (a outra espera o commit da primeira e não casa mais o WHERE). Roda na mesma transação
+    que grava a mensagem: se algo falhar, a trava volta junto (tudo-ou-nada).
+    """
+    if not number.greeting_enabled or not (number.greeting_text or "").strip():
+        return False
+    if await _is_system_contact(db, conv):
+        return False
+    res = await db.execute(
+        update(WhatsAppConversation)
+        .where(
+            WhatsAppConversation.id == conv.id,
+            or_(WhatsAppConversation.last_greeting_at.is_(None),
+                WhatsAppConversation.last_greeting_at <= sent_at - WINDOW),
+        )
+        .values(last_greeting_at=sent_at)
+        .execution_options(synchronize_session=False)
+    )
+    return (res.rowcount or 0) == 1
+
+
+async def send_greeting(tenant_id: int, conversation_id: int) -> None:
+    """Manda a saudação (depois do commit da mensagem de entrada e da resposta ao webhook). Nunca levanta erro.
+
+    Usa o mesmo caminho do texto da loja (`send_text`): só dentro da janela e só grava como enviada depois que a
+    Meta aceitar. Qualquer falha vira log e o atendimento segue.
+    """
+    import app.core.database as dbm
+    from app.core.rls import bypass_on
+
+    try:
+        async with dbm.async_session_maker() as db:
+            await bypass_on(db)
+            try:
+                conv = (await db.execute(select(WhatsAppConversation).where(
+                    WhatsAppConversation.id == conversation_id, WhatsAppConversation.tenant_id == tenant_id))).scalar_one_or_none()
+                number = (await db.execute(select(WhatsAppCloudNumber).where(
+                    WhatsAppCloudNumber.id == conv.number_id))).scalar_one_or_none() if conv else None
+                text = (number.greeting_text or "").strip() if number else ""
+                if not number or not number.greeting_enabled or not text:
+                    return  # desligada (ou apagada) entre o recebimento e o envio
+                await send_text(db, tenant_id, conversation_id, text)
+                await db.commit()
+            except Exception:
+                await db.rollback()
+                raise
+    except SendError as e:
+        logger.warning("WhatsApp Cloud: saudação não enviada (conversa %s): %s", conversation_id, e.message)
+    except Exception:  # noqa: BLE001 - a saudação nunca derruba o atendimento
+        logger.exception("WhatsApp Cloud: erro inesperado ao enviar a saudação (conversa %s)", conversation_id)
 
 
 # ── envio de saída ────────────────────────────────────────────────────────────

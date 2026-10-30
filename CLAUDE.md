@@ -444,3 +444,5 @@ Próximos passos sugeridos: (1) testar o fluxo completo no app; (2) Fase 3 de fo
 ## WhatsApp: caixa de conversas e envio (2026-10-30)
 
 - `POST /whatsapp/conversations/{id}/send` só dentro de 24 h do último recebido, grava depois que a Meta aceita (erros 424 legíveis); listar/abrir/ler em `endpoints/whatsapp_inbox.py` (vendedor para cima). App: Mais > Conversas do WhatsApp (`app/whatsapp/`). Testes: `tests/test_whatsapp_inbox.py`. Falta: envio real, aviso no celular, modelos. Detalhes em `docs/whatsapp-cloud-plano.md`.
+
+- **Saudação automática do WhatsApp** (2026-10-30): `whatsapp_cloud_numbers.greeting_enabled/greeting_text` (desligada por padrão) e `whatsapp_conversations.last_greeting_at` (trava atômica, 1 por janela de 24 h); envio depois do commit pelo `send_text` em `BackgroundTasks`; tela `app/settings/whatsapp-greeting.tsx` (admin). Testes: `tests/test_whatsapp_saudacao.py` e `tests/pg/test_whatsapp_saudacao_postgres.py`. Detalhes e como ligar em `docs/whatsapp-cloud-plano.md`.
