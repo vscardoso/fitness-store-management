@@ -378,3 +378,129 @@ async def _gerente(db, store):
     await db.commit()
     await db.refresh(u)
     return {"Authorization": "Bearer " + create_access_token(data={"sub": str(u.id)}), "X-Tenant-Id": str(store.id)}
+
+
+# ── fotos, áudio e PDF ────────────────────────────────────────────────────────
+
+class _MediaClient:
+    """httpx.AsyncClient falso para o envio e o download de arquivos. Ajuste `rotas` em cada teste."""
+    rotas: dict = {}
+    vistos: list = []
+
+    def __init__(self, *a, **k):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        return False
+
+    async def post(self, url, json=None, data=None, files=None, headers=None):
+        import httpx
+        _MediaClient.vistos.append(("POST", url, json, data, files))
+        r = _MediaClient.rotas.get(("POST", url.rsplit("/", 1)[-1]))
+        return r if r is not None else httpx.Response(200, json={"messages": [{"id": f"wamid.M{next(_seq)}"}]})
+
+    async def get(self, url, headers=None, params=None):
+        import httpx
+        _MediaClient.vistos.append(("GET", url, None, None, None))
+        r = _MediaClient.rotas.get(("GET", url.rsplit("/", 1)[-1]))
+        return r if r is not None else httpx.Response(404)
+
+
+def _png() -> bytes:
+    import io
+    from PIL import Image
+    buf = io.BytesIO()
+    Image.new("RGB", (20, 20), (200, 30, 90)).save(buf, "PNG")
+    return buf.getvalue()
+
+
+async def test_envia_foto_e_pdf_so_depois_da_meta_e_recusa_o_resto(test_client, async_session, monkeypatch):
+    import httpx
+    _sem_override()
+    store, num, h = await _loja(async_session)
+    c = await _conversa(async_session, store, num)
+    c2 = await _conversa(async_session, store, num, inbound_ago_h=26, wa_id="551166665555", phone="5511966665555")
+    cid, cid2 = c.id, c2.id
+    monkeypatch.setattr(svc.httpx, "AsyncClient", _MediaClient)
+    _MediaClient.vistos = []
+    _MediaClient.rotas = {("POST", "media"): httpx.Response(200, json={"id": "MEDIA123"})}
+    url = f"/api/v1/whatsapp/conversations/{cid}/send-media"
+    r = await test_client.post(url, headers=h, files={"file": ("foto.png", _png(), "image/png")}, data={"caption": "Olha que linda"})
+    assert r.status_code == 200, r.text
+    j = r.json()
+    assert j["type"] == "image" and j["text"] == "Olha que linda" and j["media"]["kind"] == "image"
+    envio = [v for v in _MediaClient.vistos if v[0] == "POST" and v[2]][-1][2]
+    assert envio["type"] == "image" and envio["image"] == {"id": "MEDIA123", "caption": "Olha que linda"} and envio["to"] == "551188887777"
+    # a foto sai regravada (sem EXIF): o que subiu para a Meta é JPEG/PNG válido
+    subido = [v for v in _MediaClient.vistos if v[4]][-1][4]["file"]
+    assert subido[2] in ("image/png", "image/jpeg") and subido[1][:4] in (b"\x89PNG", b"\xff\xd8\xff\xe0", b"\xff\xd8\xff\xdb", b"\xff\xd8\xff\xe1")
+    # PDF
+    r = await test_client.post(url, headers=h, files={"file": ("tabela.pdf", b"%PDF-1.4 teste", "application/pdf")})
+    assert r.status_code == 200 and r.json()["type"] == "document" and r.json()["media"]["filename"] == "tabela.pdf"
+    # arquivo que não é foto nem PDF, vazio e site disfarçado de foto
+    for nome, conteudo in (("a.txt", b"oi"), ("v.exe", b"MZ\x90\x00"), ("x.png", b"<html><script>1</script></html>")):
+        r = await test_client.post(url, headers=h, files={"file": (nome, conteudo, "image/png")})
+        assert r.status_code == 400, (nome, r.text)
+    # a Meta recusa o arquivo: erro legível e nada fica gravado como enviado
+    antes = len((await async_session.execute(select(WhatsAppMessage).where(WhatsAppMessage.conversation_id == cid, WhatsAppMessage.direction == "out"))).scalars().all())
+    _MediaClient.rotas = {("POST", "media"): httpx.Response(400, json={"error": {"code": 131053}})}
+    r = await test_client.post(url, headers=h, files={"file": ("foto.png", _png(), "image/png")})
+    assert r.status_code == 424 and "recusou o arquivo" in r.json()["detail"]
+    depois = len((await async_session.execute(select(WhatsAppMessage).where(WhatsAppMessage.conversation_id == cid, WhatsAppMessage.direction == "out"))).scalars().all())
+    assert antes == depois == 2
+    # janela fechada: nem sobe o arquivo
+    _MediaClient.vistos = []
+    r = await test_client.post(f"/api/v1/whatsapp/conversations/{cid2}/send-media", headers=h, files={"file": ("foto.png", _png(), "image/png")})
+    assert r.status_code == 409 and _MediaClient.vistos == []
+
+
+async def test_abrir_arquivo_da_mensagem_busca_na_meta_e_isola_a_loja(test_client, async_session, monkeypatch):
+    import json as _json
+    import httpx
+    _sem_override()
+    store, num, h = await _loja(async_session)
+    outra, num2, h2 = await _loja(async_session)
+    c = await _conversa(async_session, store, num)
+    msgs = []
+    for tipo, info in (("image", {"id": "IMG1", "mime_type": "image/jpeg", "caption": "tem esse?"}),
+                       ("audio", {"id": "AUD1", "mime_type": "audio/ogg; codecs=opus"}),
+                       ("image", {"id": "SVG1", "mime_type": "image/svg+xml"}),
+                       ("text", None)):
+        m = WhatsAppMessage(tenant_id=store.id, conversation_id=c.id, wamid=f"wamid.F{next(_seq)}", direction="in", msg_type=tipo,
+                            text=(info or {}).get("caption") if info else "oi", payload=_json.dumps({tipo: info} if info else {}),
+                            status="received", sent_at=datetime.now(timezone.utc))
+        async_session.add(m)
+        msgs.append(m)
+    await async_session.commit()
+    ids = [m.id for m in msgs]; cid = c.id
+    monkeypatch.setattr(svc.httpx, "AsyncClient", _MediaClient)
+    _MediaClient.vistos = []
+    _MediaClient.rotas = {
+        ("GET", "IMG1"): httpx.Response(200, json={"url": "https://lookaside.example/img1", "mime_type": "image/jpeg", "file_size": 7}),
+        ("GET", "img1"): httpx.Response(200, content=b"\xff\xd8\xffFOTO"),
+        ("GET", "AUD1"): httpx.Response(200, json={"url": "https://lookaside.example/aud1", "mime_type": "audio/ogg", "file_size": 5}),
+        ("GET", "aud1"): httpx.Response(200, content=b"OggS1"),
+        ("GET", "SVG1"): httpx.Response(200, json={"url": "https://lookaside.example/svg1", "mime_type": "image/svg+xml", "file_size": 9}),
+        ("GET", "svg1"): httpx.Response(200, content=b"<svg onload=1>"),
+    }
+    r = await test_client.get(f"/api/v1/whatsapp/messages/{ids[0]}/media", headers=h)
+    assert r.status_code == 200 and r.content == b"\xff\xd8\xffFOTO" and r.headers["content-type"] == "image/jpeg"
+    assert r.headers["x-content-type-options"] == "nosniff" and "sandbox" in r.headers["content-security-policy"]
+    r = await test_client.get(f"/api/v1/whatsapp/messages/{ids[1]}/media", headers=h)
+    assert r.status_code == 200 and r.headers["content-type"] == "audio/ogg"
+    # SVG não é exibido: baixa como arquivo genérico
+    r = await test_client.get(f"/api/v1/whatsapp/messages/{ids[2]}/media", headers=h)
+    assert r.headers["content-type"] == "application/octet-stream" and r.headers["content-disposition"].startswith("attachment")
+    # mensagem de texto não tem arquivo; outra loja não alcança a mensagem
+    assert (await test_client.get(f"/api/v1/whatsapp/messages/{ids[3]}/media", headers=h)).status_code == 404
+    assert (await test_client.get(f"/api/v1/whatsapp/messages/{ids[0]}/media", headers=h2)).status_code == 404
+    # a conversa avisa o app de que há arquivo (sem entregar o arquivo)
+    det = (await test_client.get(f"/api/v1/whatsapp/conversations/{cid}", headers=h)).json()["messages"]
+    assert any(m["media"] and m["media"]["kind"] == "audio" for m in det)
+    # a Meta já apagou o arquivo
+    _MediaClient.rotas[("GET", "IMG1")] = httpx.Response(404)
+    r = await test_client.get(f"/api/v1/whatsapp/messages/{ids[0]}/media", headers=h)
+    assert r.status_code == 404 and "não está mais disponível" in r.json()["detail"]

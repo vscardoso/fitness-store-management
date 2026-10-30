@@ -1,7 +1,8 @@
 """Caixa de conversas do WhatsApp oficial (Cloud API): listar, abrir, marcar como lida e responder."""
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,10 +35,24 @@ def _conv(c: WhatsAppConversation, last: Optional[WhatsAppMessage] = None, custo
     }
 
 
+def _media_info(m: WhatsAppMessage) -> Optional[dict]:
+    """Tem arquivo (foto, áudio, vídeo, documento, figurinha)? Só diz o tipo; o arquivo vem de /messages/{id}/media."""
+    if m.msg_type not in ("image", "audio", "video", "document", "sticker") or not m.payload:
+        return None
+    import json
+    try:
+        info = (json.loads(m.payload) or {}).get(m.msg_type)
+    except ValueError:
+        return None
+    if not isinstance(info, dict) or not info.get("id"):
+        return None
+    return {"kind": m.msg_type, "mime": info.get("mime_type"), "filename": info.get("filename")}
+
+
 def _msg(m: WhatsAppMessage) -> dict:
     return {
         "id": m.id, "direction": m.direction, "type": m.msg_type, "text": m.text,
-        "status": m.status, "sent_at": m.sent_at, "has_error": bool(m.error),
+        "status": m.status, "sent_at": m.sent_at, "has_error": bool(m.error), "media": _media_info(m),
     }
 
 
@@ -217,3 +232,45 @@ async def costs(
 ):
     """Mensagens enviadas que a Meta cobrou ou não (pelo campo `pricing` dos status). Só contagens."""
     return await svc.costs_summary(db, tenant_id, days)
+
+
+@router.post("/conversations/{conversation_id}/send-media")
+async def send_media(
+    conversation_id: int,
+    file: UploadFile = File(...),
+    caption: Optional[str] = Form(None),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Envia foto (JPG/PNG) ou PDF dentro da janela de 24 h."""
+    raw = await file.read(svc.MEDIA_MAX_BYTES + 1)
+    try:
+        msg = await svc.send_media(db, tenant_id, conversation_id, data=raw, filename=file.filename or "", caption=caption)
+        await db.commit()
+    except svc.SendError as e:
+        await db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    return _msg(msg)
+
+
+@router.get("/messages/{message_id}/media")
+async def message_media(
+    message_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Arquivo de uma mensagem (da cliente ou da loja), buscado na Meta na hora."""
+    try:
+        content, mime, name = await svc.fetch_media(db, tenant_id, message_id)
+    except svc.SendError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+    viewable = mime.startswith(svc.ALLOWED_VIEW) and mime != "image/svg+xml"
+    headers = {
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "sandbox",
+        "Cache-Control": "private, max-age=3600",
+        "Content-Disposition": ("inline" if viewable else "attachment") + (f'; filename="{name}"' if name else ""),
+    }
+    return Response(content=content, media_type=mime if viewable else "application/octet-stream", headers=headers)

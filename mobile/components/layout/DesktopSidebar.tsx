@@ -10,6 +10,7 @@ import { usePathname, useRouter } from 'expo-router';
 import { useAuth } from '@/hooks/useAuth';
 import { useUnreadCount } from '@/hooks/useNotificationInbox';
 import { useBrandingColors } from '@/store/brandingStore';
+import { useWhatsappUnread } from '@/hooks/useWhatsappUnread';
 import { isAdminRole, isManagerRole, normalizeRole } from '@/utils/roles';
 import { ProvadorLogo } from '@/components/branding/ProvadorLogo';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -50,6 +51,7 @@ export default function DesktopSidebar() {
   const { user, logout } = useAuth();
   const colors = useBrandingColors();
   const { data: unread = 0 } = useUnreadCount();
+  const { data: waUnread = 0 } = useWhatsappUnread(normalizeRole(user?.role) !== 'cashier');
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [confirmLogout, setConfirmLogout] = useState(false);
   const manager = isManagerRole(user?.role);
@@ -81,7 +83,7 @@ export default function DesktopSidebar() {
       {
         key: 'clientes', title: 'Clientes', items: [
           { label: 'Clientes', icon: 'people-outline', href: '/(tabs)/customers', match: ['/customers'] },
-          ...(normalizeRole(user?.role) !== 'cashier' ? [{ label: 'WhatsApp', icon: 'logo-whatsapp' as Icon, href: '/whatsapp', match: ['/whatsapp'] }] : []),
+          ...(normalizeRole(user?.role) !== 'cashier' ? [{ label: 'WhatsApp', icon: 'logo-whatsapp' as Icon, href: '/whatsapp', match: ['/whatsapp'], badge: waUnread }] : []),
           ...(manager ? [
             { label: 'Lookbook', icon: 'shirt-outline' as Icon, href: '/looks', match: ['/looks'] },
             { label: 'Demanda wishlist', icon: 'heart-outline' as Icon, href: '/(tabs)/demand', match: ['/demand', '/wishlist'] },
@@ -184,6 +186,7 @@ export default function DesktopSidebar() {
                     <Ionicons name={it.icon} size={18} color={active ? '#FFFFFF' : '#D9D4E8'} />
                     <Text style={[styles.itemText, active && styles.itemTextActive]} numberOfLines={1}>{it.label}</Text>
                     {it.shortcut ? <Text style={styles.shortcut}>{it.shortcut}</Text> : null}
+                    {it.badge ? <View style={styles.itemBadge}><Text style={styles.badgeText}>{it.badge > 99 ? '99+' : it.badge}</Text></View> : null}
                   </TouchableOpacity>
                 );
               })}
@@ -266,5 +269,6 @@ const styles = StyleSheet.create({
     position: 'absolute', top: 2, right: 0, minWidth: 16, height: 16, borderRadius: 8, paddingHorizontal: 3,
     backgroundColor: BRAND.magenta, alignItems: 'center', justifyContent: 'center',
   },
+  itemBadge: { minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 5, marginLeft: 'auto', backgroundColor: BRAND.magenta, alignItems: 'center', justifyContent: 'center' },
   badgeText: { color: '#FFFFFF', fontSize: 10, fontWeight: '700' },
 });

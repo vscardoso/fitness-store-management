@@ -3,6 +3,7 @@ import api from './api';
 
 export interface WaConversation {
   id: number;
+  customer_id: number | null;
   name: string;
   phone: string | null;
   unread_count: number;
@@ -22,8 +23,15 @@ export interface WaMessage {
   has_error: boolean;
 }
 
-export const listConversations = async (): Promise<WaConversation[]> =>
-  (await api.get<WaConversation[]>('/whatsapp/conversations', { headers: { 'X-Skip-Loading': 'true' } })).data;
+export const listConversations = async (q?: string): Promise<WaConversation[]> =>
+  (await api.get<WaConversation[]>('/whatsapp/conversations', {
+    params: q?.trim() ? { q: q.trim() } : undefined,
+    headers: { 'X-Skip-Loading': 'true' },
+  })).data;
+
+/** Conversa da cliente no número da loja; abre (sem enviar nada) se ela ainda não escreveu. */
+export const openCustomerConversation = async (customerId: number): Promise<WaConversation> =>
+  (await api.post<WaConversation>('/whatsapp/conversations/start', { customer_id: customerId })).data;
 
 export const getConversation = async (id: number): Promise<WaConversation & { messages: WaMessage[] }> =>
   (await api.get(`/whatsapp/conversations/${id}`, { headers: { 'X-Skip-Loading': 'true' } })).data;

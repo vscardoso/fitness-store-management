@@ -15,6 +15,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { useWhatsappUnread } from '@/hooks/useWhatsappUnread';
 import { isAdminRole, isManagerRole, normalizeRole } from '@/utils/roles';
 
 interface MenuItemProps {
@@ -62,6 +63,7 @@ export default function MoreScreen() {
   const router = useRouter();
   const brandingColors = useBrandingColors();
   const { data: unreadAlerts = 0 } = useUnreadCount();
+  const { data: waUnread = 0 } = useWhatsappUnread(normalizeRole(user?.role) !== 'cashier');
   const [refreshing, setRefreshing] = useState(false);
   const [showLogoutDialog, setShowLogoutDialog] = useState(false);
   const [showDevDialog, setShowDevDialog] = useState(false);
@@ -165,7 +167,7 @@ export default function MoreScreen() {
           <Text style={styles.sectionTitle}>Gestão</Text>
           <View style={styles.menuCard}>
             <MenuItem icon="cube-outline" title="Produtos" subtitle="Catálogo e gerenciamento" onPress={() => router.push('/(tabs)/products')} iconColor={brandingColors.primary} iconBg={brandingColors.primary + '20'} />
-            {normalizeRole(user?.role) !== 'cashier' && <MenuItem icon="logo-whatsapp" title="Conversas do WhatsApp" subtitle="Responda as clientes no número da loja" onPress={() => router.push('/whatsapp' as any)} iconColor="#16A34A" iconBg="#DCFCE7" />}
+            {normalizeRole(user?.role) !== 'cashier' && <MenuItem icon="logo-whatsapp" title="Conversas do WhatsApp" subtitle="Responda as clientes no número da loja" onPress={() => router.push('/whatsapp' as any)} badge={waUnread > 0 ? String(waUnread) : undefined} iconColor="#16A34A" iconBg="#DCFCE7" />}
             <MenuItem icon="qr-code-outline" title="Consultar Peça" subtitle="Bipe a etiqueta e veja preço e estoque" onPress={() => router.push('/products/consult' as any)} iconColor="#0EA5E9" iconBg="#E0F2FE" />
             <MenuItem icon="people-outline" title="Clientes" subtitle="Gerenciar clientes e fidelidade" onPress={() => router.push('/(tabs)/customers')} iconColor={Colors.light.info} iconBg={Colors.light.infoLight} />
             {isManager && <MenuItem icon="layers-outline" title="Entradas" subtitle="Compras e controle de entradas" onPress={() => router.push('/entries')} iconColor="#9333EA" iconBg="#F3E8FF" />}

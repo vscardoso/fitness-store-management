@@ -25,6 +25,8 @@ import type { Sale } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import CustomerPrivacyCard from '@/components/customers/CustomerPrivacyCard';
 import InviteSheet from '@/components/whatsapp/InviteSheet';
+import { openCustomerConversation } from '@/services/whatsappService';
+import { parseApiError } from '@/utils/apiError';
 import { useAuth } from '@/hooks/useAuth';
 import { isAdminRole, isManagerRole, normalizeRole } from '@/utils/roles';
 
@@ -55,6 +57,8 @@ export default function CustomerDetailsScreen() {
    */
   const [refreshing, setRefreshing] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
+  const [openingChat, setOpeningChat] = useState(false);
+  const [chatError, setChatError] = useState<string | null>(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [showErrorDialog, setShowErrorDialog] = useState(false);
@@ -461,6 +465,29 @@ export default function CustomerDetailsScreen() {
             )}
         </View>
 
+        {normalizeRole(user?.role) !== 'cashier' && !!customer?.phone && (
+          <TouchableOpacity
+            style={styles.inviteBtn}
+            disabled={openingChat}
+            onPress={async () => {
+              setChatError(null);
+              setOpeningChat(true);
+              try {
+                const conv = await openCustomerConversation(customerId);
+                router.push(`/whatsapp/${conv.id}` as any);
+              } catch (e) {
+                setChatError(parseApiError(e));
+              } finally {
+                setOpeningChat(false);
+              }
+            }}
+            accessibilityRole="button"
+          >
+            <Ionicons name="chatbubbles-outline" size={20} color="#15803D" />
+            <Text style={styles.inviteText}>{openingChat ? 'Abrindo…' : 'Abrir conversa no WhatsApp'}</Text>
+          </TouchableOpacity>
+        )}
+        {chatError && <Text style={{ marginHorizontal: 16, marginTop: 6, fontSize: 12, color: '#B91C1C' }}>{chatError}</Text>}
         {normalizeRole(user?.role) !== 'cashier' && (
           <TouchableOpacity style={styles.inviteBtn} onPress={() => setShowInvite(true)} accessibilityRole="button">
             <Ionicons name="logo-whatsapp" size={20} color="#16A34A" />

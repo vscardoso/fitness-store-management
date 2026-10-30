@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, TextInput } from 'react-native';
 import { useState } from 'react';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -24,10 +24,11 @@ function when(iso: string | null): string {
 export default function WhatsappInboxScreen() {
   const router = useRouter();
   const [showInvite, setShowInvite] = useState(false);
+  const [search, setSearch] = useState('');
   const brand = useBrandingColors();
   const { data = [], isLoading, isError, error, refetch, isRefetching } = useQuery({
-    queryKey: ['whatsapp-conversations'],
-    queryFn: listConversations,
+    queryKey: ['whatsapp-conversations', search.trim()],
+    queryFn: () => listConversations(search),
     refetchInterval: 20000,
   });
 
@@ -62,6 +63,22 @@ export default function WhatsappInboxScreen() {
         rightActions={[{ icon: 'person-add-outline', onPress: () => setShowInvite(true) }]}
       />
       <InviteSheet visible={showInvite} onDismiss={() => setShowInvite(false)} />
+      <View style={styles.searchBox}>
+        <Ionicons name="search-outline" size={18} color="#5B5670" />
+        <TextInput
+          style={styles.searchInput}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Buscar por nome ou telefone"
+          autoCorrect={false}
+          returnKeyType="search"
+        />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => setSearch('')} accessibilityLabel="Limpar busca">
+            <Ionicons name="close-circle" size={18} color="#5B5670" />
+          </TouchableOpacity>
+        )}
+      </View>
       {isLoading ? (
         <View style={styles.center}><ActivityIndicator size="large" color={brand.primary} /></View>
       ) : isError ? (
@@ -74,7 +91,11 @@ export default function WhatsappInboxScreen() {
           contentContainerStyle={{ padding: 16, gap: 10, flexGrow: 1 }}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} />}
           ListEmptyComponent={
-            <EmptyState icon="chatbubbles-outline" title="Nenhuma conversa ainda" description="Quando uma cliente escrever para o número da loja, a conversa aparece aqui." />
+            <EmptyState
+              icon="chatbubbles-outline"
+              title={search.trim() ? 'Nenhuma conversa encontrada' : 'Nenhuma conversa ainda'}
+              description={search.trim() ? 'Confira o nome ou o telefone.' : 'Quando uma cliente escrever para o número da loja, a conversa aparece aqui. Para chamar uma cliente, abra o cadastro dela.'}
+            />
           }
         />
       )}
@@ -94,5 +115,7 @@ const styles = StyleSheet.create({
   preview: { fontSize: 13, color: '#5B5670', flex: 1, marginTop: 2 },
   badge: { minWidth: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
   badgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  searchBox: { flexDirection: 'row', alignItems: 'center', gap: 8, marginHorizontal: 16, marginTop: 12, paddingHorizontal: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E6E3EE', backgroundColor: '#FFFFFF' },
+  searchInput: { flex: 1, paddingVertical: 10, fontSize: 14, color: '#160F28' },
   closed: { fontSize: 11, color: '#B45309', marginTop: 4 },
 });

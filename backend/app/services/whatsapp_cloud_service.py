@@ -310,13 +310,8 @@ async def _post_graph(phone_number_id: str, body: dict) -> dict:
     return data
 
 
-async def send_text(db: AsyncSession, tenant_id: int, conversation_id: int, text: str) -> WhatsAppMessage:
-    """Manda texto livre na conversa. A mensagem só é gravada DEPOIS que a Meta aceitar (devolve o wamid)."""
-    text = (text or "").strip()
-    if not text:
-        raise SendError("Escreva a mensagem antes de enviar.", 400)
-    if len(text) > 4096:
-        raise SendError("A mensagem passa de 4.096 letras.", 400)
+async def _prepare_send(db: AsyncSession, tenant_id: int, conversation_id: int):
+    """Confere token, conversa da loja, janela de 24 h e destino. Devolve (conversa, número, destino)."""
     if not settings.WHATSAPP_CLOUD_ACCESS_TOKEN:
         raise SendError("O WhatsApp da loja ainda não está configurado.", 424)
     conv = (await db.execute(
@@ -336,23 +331,138 @@ async def send_text(db: AsyncSession, tenant_id: int, conversation_id: int, text
     to = conv.wa_id or conv.phone   # o wa_id é como a Meta conhece o contato (celular pode vir sem o 9)
     if number is None or not to:
         raise SendError("Esta conversa não tem um número para responder.", 409)
+    return conv, number, to
 
-    data = await _post_graph(number.phone_number_id, {
-        "messaging_product": "whatsapp", "recipient_type": "individual", "to": to,
-        "type": "text", "text": {"preview_url": False, "body": text},
-    })
+
+def _record_out(db: AsyncSession, tenant_id: int, conv: WhatsAppConversation, data: dict, msg_type: str,
+                text: Optional[str], payload: dict) -> WhatsAppMessage:
     wamid = ((data.get("messages") or [{}])[0]).get("id")
     if not wamid:
         raise SendError("O WhatsApp não confirmou o envio.", 424)
     now = datetime.now(timezone.utc)
     msg = WhatsAppMessage(
-        tenant_id=tenant_id, conversation_id=conv.id, wamid=wamid, direction="out", msg_type="text",
-        text=text, payload=json.dumps({"to": to}), sent_at=now, status="sent", status_at=now,
+        tenant_id=tenant_id, conversation_id=conv.id, wamid=wamid, direction="out", msg_type=msg_type,
+        text=text, payload=json.dumps(payload, ensure_ascii=False), sent_at=now, status="sent", status_at=now,
     )
     db.add(msg)
     conv.last_message_at = _later(conv.last_message_at, now)
+    return msg
+
+
+async def send_text(db: AsyncSession, tenant_id: int, conversation_id: int, text: str) -> WhatsAppMessage:
+    """Manda texto livre na conversa. A mensagem só é gravada DEPOIS que a Meta aceitar (devolve o wamid)."""
+    text = (text or "").strip()
+    if not text:
+        raise SendError("Escreva a mensagem antes de enviar.", 400)
+    if len(text) > 4096:
+        raise SendError("A mensagem passa de 4.096 letras.", 400)
+    conv, number, to = await _prepare_send(db, tenant_id, conversation_id)
+    data = await _post_graph(number.phone_number_id, {
+        "messaging_product": "whatsapp", "recipient_type": "individual", "to": to,
+        "type": "text", "text": {"preview_url": False, "body": text},
+    })
+    msg = _record_out(db, tenant_id, conv, data, "text", text, {"to": to})
     await db.flush()
     return msg
+
+
+MEDIA_MAX_BYTES = 16 * 1024 * 1024
+
+
+async def send_media(db: AsyncSession, tenant_id: int, conversation_id: int, *, data: bytes, filename: str,
+                     caption: Optional[str] = None) -> WhatsAppMessage:
+    """Manda foto (regravada pelo filtro de imagem) ou PDF. Só grava depois que a Meta aceitar o envio."""
+    from app.core.image_guard import InvalidImage, sanitize_image
+
+    caption = (caption or "").strip()[:1024] or None
+    if not data:
+        raise SendError("O arquivo chegou vazio.", 400)
+    if len(data) > MEDIA_MAX_BYTES:
+        raise SendError("Arquivo muito grande (máximo 16 MB).", 400)
+    if data[:5] == b"%PDF-":
+        kind, mime, content = "document", "application/pdf", data
+        name = (filename or "documento.pdf").strip()[:120] or "documento.pdf"
+        if not name.lower().endswith(".pdf"):
+            name += ".pdf"
+    else:
+        try:
+            content, _ext, mime = sanitize_image(data)
+        except InvalidImage as e:
+            raise SendError(str(e) or "Envie uma foto ou um PDF.", 400)
+        if mime not in ("image/jpeg", "image/png"):
+            raise SendError("Envie a foto em JPG ou PNG, ou um PDF.", 400)
+        if len(content) > 5 * 1024 * 1024:
+            raise SendError("A foto passa de 5 MB, que é o limite do WhatsApp. Tire de novo em menor qualidade.", 400)
+        kind, name = "image", None
+    conv, number, to = await _prepare_send(db, tenant_id, conversation_id)
+
+    # 1) sobe o arquivo para a Meta; 2) manda a mensagem com o id devolvido
+    url = f"https://graph.facebook.com/{settings.WHATSAPP_CLOUD_API_VERSION}/{number.phone_number_id}/media"
+    try:
+        async with httpx.AsyncClient(timeout=60) as client:
+            up = await client.post(
+                url, data={"messaging_product": "whatsapp", "type": mime},
+                files={"file": (name or "foto", content, mime)},
+                headers={"Authorization": f"Bearer {settings.WHATSAPP_CLOUD_ACCESS_TOKEN}"},
+            )
+    except httpx.HTTPError:
+        raise SendError("Não consegui falar com o WhatsApp agora. Tente de novo em instantes.", 424)
+    media_id = (up.json() or {}).get("id") if up.status_code < 400 else None
+    if not media_id:
+        logger.warning("WhatsApp Cloud: envio de arquivo recusado (%s)", up.status_code)
+        raise SendError("O WhatsApp recusou o arquivo. Confira se é foto JPG/PNG ou PDF e tente de novo.", 424)
+    body_media = {"id": media_id}
+    if caption:
+        body_media["caption"] = caption
+    if kind == "document":
+        body_media["filename"] = name
+    data_out = await _post_graph(number.phone_number_id, {
+        "messaging_product": "whatsapp", "recipient_type": "individual", "to": to, "type": kind, kind: body_media,
+    })
+    msg = _record_out(db, tenant_id, conv, data_out, kind, caption or (name if kind == "document" else None),
+                      {"to": to, kind: {"id": media_id, "mime_type": mime, "filename": name}})
+    await db.flush()
+    return msg
+
+
+ALLOWED_VIEW = ("image/", "audio/", "video/", "application/pdf")
+
+
+async def fetch_media(db: AsyncSession, tenant_id: int, message_id: int) -> tuple[bytes, str, Optional[str]]:
+    """Baixa da Meta o arquivo de uma mensagem da loja (sem guardar cópia aqui). Devolve (bytes, tipo, nome)."""
+    msg = (await db.execute(
+        select(WhatsAppMessage).where(WhatsAppMessage.id == message_id, WhatsAppMessage.tenant_id == tenant_id)
+    )).scalar_one_or_none()
+    if msg is None:
+        raise SendError("Mensagem não encontrada.", 404)
+    try:
+        body = json.loads(msg.payload or "{}")
+    except ValueError:
+        body = {}
+    info = body.get(msg.msg_type) if isinstance(body.get(msg.msg_type), dict) else None
+    media_id = (info or {}).get("id")
+    if not media_id:
+        raise SendError("Esta mensagem não tem arquivo.", 404)
+    if not settings.WHATSAPP_CLOUD_ACCESS_TOKEN:
+        raise SendError("O WhatsApp da loja ainda não está configurado.", 424)
+    headers = {"Authorization": f"Bearer {settings.WHATSAPP_CLOUD_ACCESS_TOKEN}"}
+    try:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            meta = await client.get(
+                f"https://graph.facebook.com/{settings.WHATSAPP_CLOUD_API_VERSION}/{media_id}", headers=headers)
+            mj = meta.json() if meta.status_code == 200 else {}
+            url = mj.get("url")
+            if not url:
+                raise SendError("O arquivo não está mais disponível no WhatsApp.", 404)
+            if int(mj.get("file_size") or 0) > MEDIA_MAX_BYTES:
+                raise SendError("Arquivo grande demais para abrir aqui.", 413)
+            resp = await client.get(url, headers=headers)
+    except httpx.HTTPError:
+        raise SendError("Não consegui falar com o WhatsApp agora. Tente de novo em instantes.", 424)
+    if resp.status_code != 200 or len(resp.content) > MEDIA_MAX_BYTES:
+        raise SendError("Não consegui baixar o arquivo.", 424)
+    mime = str(mj.get("mime_type") or (info or {}).get("mime_type") or "application/octet-stream").split(";")[0].strip().lower()
+    return resp.content, mime, (info or {}).get("filename")
 
 
 # ── convite: link para a cliente começar a conversa ──────────────────────────
