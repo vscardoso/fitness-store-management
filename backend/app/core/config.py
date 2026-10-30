@@ -188,6 +188,7 @@ class Settings(BaseSettings):
     WHATSAPP_CLOUD_PHONE_NUMBER_ID: str = ""
     WHATSAPP_CLOUD_WABA_ID: str = ""
     WHATSAPP_CLOUD_API_VERSION: str = "v23.0"
+    WHATSAPP_CLOUD_GRAPH_BASE: str = "https://graph.facebook.com"  # só muda em teste local com uma Meta falsa
 
 
 # Singleton instance

@@ -21,6 +21,7 @@ export interface WaMessage {
   status: 'received' | 'sent' | 'delivered' | 'read' | 'failed';
   sent_at: string | null;
   has_error: boolean;
+  media: { kind: 'image' | 'audio' | 'video' | 'document' | 'sticker'; mime: string | null; filename: string | null } | null;
 }
 
 export const listConversations = async (q?: string): Promise<WaConversation[]> =>
@@ -48,3 +49,17 @@ export const getWhatsappUnread = async (): Promise<number> =>
 
 export const getWhatsappInvite = async (text?: string): Promise<{ phone: string; link: string }> =>
   (await api.get('/whatsapp/invite', { params: text ? { text } : undefined, headers: { 'X-Skip-Loading': 'true' } })).data;
+
+export interface WaPickedFile { uri: string; name: string; type: string }
+
+/** Envia foto (JPG/PNG) ou PDF para a conversa (dentro da janela de 24 h). */
+export const sendWhatsappFile = async (id: number, file: WaPickedFile, caption?: string): Promise<WaMessage> => {
+  const { appendFileToFormData } = await import('@/utils/formDataFile');
+  const form = new FormData();
+  await appendFileToFormData(form, 'file', file.uri, file.name, file.type);
+  if (caption?.trim()) form.append('caption', caption.trim());
+  return (await api.post<WaMessage>(`/whatsapp/conversations/${id}/send-media`, form, {
+    headers: { 'Content-Type': 'multipart/form-data', 'X-Loading-Message': 'Enviando...' },
+    timeout: 90000,
+  })).data;
+};

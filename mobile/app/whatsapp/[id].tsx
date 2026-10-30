@@ -6,7 +6,9 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
-import { getConversation, markConversationRead, sendWhatsappText, WaMessage } from '@/services/whatsappService';
+import { getConversation, markConversationRead, sendWhatsappText, sendWhatsappFile, WaMessage } from '@/services/whatsappService';
+import MessageMedia from '@/components/whatsapp/MessageMedia';
+import * as ImagePicker from 'expo-image-picker';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useKeyboardInset } from '@/hooks/useKeyboardInset';
 import { parseApiError } from '@/utils/apiError';
@@ -57,6 +59,36 @@ export default function WhatsappConversationScreen() {
     onError: (e) => setErro(parseApiError(e)),
   });
 
+  const sendFile = useMutation({
+    mutationFn: (f: { uri: string; name: string; type: string }) => sendWhatsappFile(convId, f, text),
+    onSuccess: () => {
+      setText('');
+      setErro(null);
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-conversation', convId] });
+      queryClient.invalidateQueries({ queryKey: ['whatsapp-conversations'] });
+    },
+    onError: (e) => setErro(parseApiError(e)),
+  });
+
+  const attach = async () => {
+    setErro(null);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      // no navegador o seletor de arquivos aceita foto e PDF
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/jpeg,image/png,application/pdf';
+      input.onchange = () => {
+        const f = input.files?.[0];
+        if (f) sendFile.mutate({ uri: URL.createObjectURL(f), name: f.name, type: f.type || 'application/octet-stream' });
+      };
+      input.click();
+      return;
+    }
+    const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
+    const asset = !res.canceled ? res.assets?.[0] : null;
+    if (asset) sendFile.mutate({ uri: asset.uri, name: asset.fileName || 'foto.jpg', type: asset.mimeType || 'image/jpeg' });
+  };
+
   const messages = data?.messages ?? [];
   const windowOpen = data?.window_open ?? false;
   const canSend = windowOpen && text.trim().length > 0 && !send.isPending;
@@ -65,7 +97,10 @@ export default function WhatsappConversationScreen() {
     const mine = item.direction === 'out';
     return (
       <View style={[styles.bubble, mine ? [styles.mine, { backgroundColor: brand.primary }] : styles.theirs]}>
-        <Text style={[styles.msgText, mine && { color: '#FFFFFF' }]}>{item.text ?? `(${item.type})`}</Text>
+        {item.media && <MessageMedia message={item} mine={mine} />}
+        {(item.text || !item.media) && (
+          <Text style={[styles.msgText, mine && { color: '#FFFFFF' }]}>{item.text ?? `(${item.type})`}</Text>
+        )}
         <Text style={[styles.meta, mine && { color: '#FFFFFFCC' }]}>
           {hour(item.sent_at)}{mine ? ` · ${STATUS_LABEL[item.status] ?? item.status}` : ''}
         </Text>
@@ -98,6 +133,14 @@ export default function WhatsappConversationScreen() {
         )}
         {erro && <Text style={styles.error}>{erro}</Text>}
         <View style={styles.inputRow}>
+          <TouchableOpacity
+            onPress={attach}
+            disabled={!windowOpen || sendFile.isPending}
+            style={[styles.attachBtn, (!windowOpen || sendFile.isPending) && { opacity: 0.4 }]}
+            accessibilityLabel="Anexar foto ou PDF"
+          >
+            <Ionicons name="attach" size={22} color="#5B5670" />
+          </TouchableOpacity>
           <TextInput
             style={[styles.input, !windowOpen && { opacity: 0.5 }]}
             value={text}
@@ -134,5 +177,6 @@ const styles = StyleSheet.create({
   error: { fontSize: 12, color: '#B91C1C' },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   input: { flex: 1, minHeight: 40, maxHeight: 120, borderWidth: 1, borderColor: '#E6E3EE', borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, fontSize: 15, color: '#160F28', backgroundColor: '#FAFAFC' },
+  attachBtn: { width: 36, height: 40, alignItems: 'center', justifyContent: 'center' },
   sendBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
 });

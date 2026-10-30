@@ -294,7 +294,7 @@ def window_open(conv: WhatsAppConversation, now: Optional[datetime] = None) -> b
 
 
 async def _post_graph(phone_number_id: str, body: dict) -> dict:
-    url = f"https://graph.facebook.com/{settings.WHATSAPP_CLOUD_API_VERSION}/{phone_number_id}/messages"
+    url = f"{settings.WHATSAPP_CLOUD_GRAPH_BASE}/{settings.WHATSAPP_CLOUD_API_VERSION}/{phone_number_id}/messages"
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(
@@ -397,7 +397,7 @@ async def send_media(db: AsyncSession, tenant_id: int, conversation_id: int, *, 
     conv, number, to = await _prepare_send(db, tenant_id, conversation_id)
 
     # 1) sobe o arquivo para a Meta; 2) manda a mensagem com o id devolvido
-    url = f"https://graph.facebook.com/{settings.WHATSAPP_CLOUD_API_VERSION}/{number.phone_number_id}/media"
+    url = f"{settings.WHATSAPP_CLOUD_GRAPH_BASE}/{settings.WHATSAPP_CLOUD_API_VERSION}/{number.phone_number_id}/media"
     try:
         async with httpx.AsyncClient(timeout=60) as client:
             up = await client.post(
@@ -449,7 +449,7 @@ async def fetch_media(db: AsyncSession, tenant_id: int, message_id: int) -> tupl
     try:
         async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
             meta = await client.get(
-                f"https://graph.facebook.com/{settings.WHATSAPP_CLOUD_API_VERSION}/{media_id}", headers=headers)
+                f"{settings.WHATSAPP_CLOUD_GRAPH_BASE}/{settings.WHATSAPP_CLOUD_API_VERSION}/{media_id}", headers=headers)
             mj = meta.json() if meta.status_code == 200 else {}
             url = mj.get("url")
             if not url:
@@ -486,7 +486,7 @@ async def invite_link(db: AsyncSession, tenant_id: int, text: Optional[str] = No
         try:
             async with httpx.AsyncClient(timeout=10) as client:
                 resp = await client.get(
-                    f"https://graph.facebook.com/{settings.WHATSAPP_CLOUD_API_VERSION}/{number.phone_number_id}",
+                    f"{settings.WHATSAPP_CLOUD_GRAPH_BASE}/{settings.WHATSAPP_CLOUD_API_VERSION}/{number.phone_number_id}",
                     params={"fields": "display_phone_number"},
                     headers={"Authorization": f"Bearer {settings.WHATSAPP_CLOUD_ACCESS_TOKEN}"},
                 )
