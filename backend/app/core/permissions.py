@@ -65,6 +65,7 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     ({"POST"}, r"^/payment-discounts/calculate$", CASHIER),
     ({"GET"}, r"^/payment-discounts/", CASHIER),
     ({"GET"}, r"^/(products|product-variants|categories|looks)(/|$)", CASHIER),
+    (ANY, r"^/whatsapp(/|$)", SELLER),  # caixa de conversas do WhatsApp da loja
     ({"GET"}, r"^/auth/(me)$", CASHIER),
     ({"POST"}, r"^/auth/logout$", CASHIER),
     (ANY, r"^/notifications/(inbox|token)(/|$)", CASHIER),

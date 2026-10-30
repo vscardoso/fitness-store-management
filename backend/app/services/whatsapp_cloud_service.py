@@ -15,12 +15,14 @@ import hmac
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 
+import httpx
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.models.whatsapp_cloud import WhatsAppCloudNumber, WhatsAppConversation, WhatsAppMessage
 
 logger = logging.getLogger(__name__)
@@ -202,6 +204,13 @@ async def _apply_status(db: AsyncSession, number: WhatsAppCloudNumber, st: dict,
         msg = (await db.execute(
             select(WhatsAppMessage).where(WhatsAppMessage.wamid == wamid, WhatsAppMessage.tenant_id == number.tenant_id)
         )).scalar_one_or_none()
+    if msg is not None and st.get("recipient_user_id"):
+        # o BSUID do contato (identificador por empresa) também vem nos status de entrega
+        conv = (await db.execute(
+            select(WhatsAppConversation).where(WhatsAppConversation.id == msg.conversation_id)
+        )).scalar_one_or_none()
+        if conv is not None and not conv.bsuid:
+            conv.bsuid = st["recipient_user_id"]
     if msg is None or msg.direction != "out" or status not in ("sent", "delivered", "read", "failed"):
         # Mensagem enviada por fora do app (celular, painel da Meta) ou status desconhecido
         result.statuses_ignored += 1
@@ -244,3 +253,85 @@ async def process_payload(db: AsyncSession, payload: dict) -> ProcessResult:
             for st in value.get("statuses") or []:
                 await _apply_status(db, number, st, result)
     return result
+
+
+# ── envio de saída ────────────────────────────────────────────────────────────
+
+WINDOW = timedelta(hours=24)
+
+
+class SendError(Exception):
+    """Envio recusado antes ou pela Meta; `status_code` é o que a API devolve ao app."""
+
+    def __init__(self, message: str, status_code: int = 400):
+        super().__init__(message)
+        self.message = message
+        self.status_code = status_code
+
+
+def window_open(conv: WhatsAppConversation, now: Optional[datetime] = None) -> bool:
+    """Texto livre só vale até 24 h depois da última mensagem DO CONTATO."""
+    last = _aware(conv.last_inbound_at)
+    return last is not None and (now or datetime.now(timezone.utc)) - last < WINDOW
+
+
+async def _post_graph(phone_number_id: str, body: dict) -> dict:
+    url = f"https://graph.facebook.com/{settings.WHATSAPP_CLOUD_API_VERSION}/{phone_number_id}/messages"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.post(
+                url, json=body, headers={"Authorization": f"Bearer {settings.WHATSAPP_CLOUD_ACCESS_TOKEN}"},
+            )
+    except httpx.HTTPError:
+        raise SendError("Não consegui falar com o WhatsApp agora. Tente de novo em instantes.", 424)
+    data = resp.json() if resp.content else {}
+    if resp.status_code >= 400:
+        err = (data.get("error") or {}) if isinstance(data, dict) else {}
+        logger.warning("WhatsApp Cloud: envio recusado (%s) code=%s", resp.status_code, err.get("code"))
+        raise SendError("O WhatsApp recusou o envio. Confira o número da cliente e tente de novo.", 424)
+    return data
+
+
+async def send_text(db: AsyncSession, tenant_id: int, conversation_id: int, text: str) -> WhatsAppMessage:
+    """Manda texto livre na conversa. A mensagem só é gravada DEPOIS que a Meta aceitar (devolve o wamid)."""
+    text = (text or "").strip()
+    if not text:
+        raise SendError("Escreva a mensagem antes de enviar.", 400)
+    if len(text) > 4096:
+        raise SendError("A mensagem passa de 4.096 letras.", 400)
+    if not settings.WHATSAPP_CLOUD_ACCESS_TOKEN:
+        raise SendError("O WhatsApp da loja ainda não está configurado.", 424)
+    conv = (await db.execute(
+        select(WhatsAppConversation).where(
+            WhatsAppConversation.id == conversation_id, WhatsAppConversation.tenant_id == tenant_id,
+        )
+    )).scalar_one_or_none()
+    if conv is None:
+        raise SendError("Conversa não encontrada.", 404)
+    if not window_open(conv):
+        raise SendError(
+            "Passou de 24 horas desde a última mensagem da cliente. Só dá para responder com um modelo aprovado.", 409,
+        )
+    number = (await db.execute(
+        select(WhatsAppCloudNumber).where(WhatsAppCloudNumber.id == conv.number_id, WhatsAppCloudNumber.is_active == True)  # noqa: E712
+    )).scalar_one_or_none()
+    to = conv.wa_id or conv.phone   # o wa_id é como a Meta conhece o contato (celular pode vir sem o 9)
+    if number is None or not to:
+        raise SendError("Esta conversa não tem um número para responder.", 409)
+
+    data = await _post_graph(number.phone_number_id, {
+        "messaging_product": "whatsapp", "recipient_type": "individual", "to": to,
+        "type": "text", "text": {"preview_url": False, "body": text},
+    })
+    wamid = ((data.get("messages") or [{}])[0]).get("id")
+    if not wamid:
+        raise SendError("O WhatsApp não confirmou o envio.", 424)
+    now = datetime.now(timezone.utc)
+    msg = WhatsAppMessage(
+        tenant_id=tenant_id, conversation_id=conv.id, wamid=wamid, direction="out", msg_type="text",
+        text=text, payload=json.dumps({"to": to}), sent_at=now, status="sent", status_at=now,
+    )
+    db.add(msg)
+    conv.last_message_at = _later(conv.last_message_at, now)
+    await db.flush()
+    return msg
