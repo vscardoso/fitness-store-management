@@ -4,7 +4,7 @@ Resumo das seções 13.4 e 13.13 do handoff do PC. **Este repositório é públi
 
 ## O que é
 
-Um segundo canal de WhatsApp da W.A Fitness, ligado à Cloud API oficial da Meta pelo telefone fixo da loja (3432151035), **sem provedor pago**. Ele NÃO substitui o WhatsApp Business do celular da loja. As conversas desse número aparecem dentro do app do Provador (caixa de entrada a construir), e um bot faz a primeira conversa. O WAHA (não oficial) caiu com `device_removed` e não deve ser reconectado.
+Um segundo canal de WhatsApp da W.A Fitness, ligado à Cloud API oficial da Meta pelo telefone fixo da loja (3433050261), **sem provedor pago**. Ele NÃO substitui o WhatsApp Business do celular da loja. As conversas desse número aparecem dentro do app do Provador (caixa de entrada a construir), e um bot faz a primeira conversa. O WAHA (não oficial) caiu com `device_removed` e não deve ser reconectado.
 
 ## Passo a passo da Meta (seção 13.4): quem faz o quê
 

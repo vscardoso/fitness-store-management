@@ -7,7 +7,7 @@ Recusa se o número já estiver vinculado a OUTRA loja.
 
 Uso (a partir de backend/, ou dentro do container do backend):
     python scripts/wa_cloud_vincular_numero.py --loja 1 --phone-number-id 123 --waba-id 456 \\
-        --telefone 553432151035 --nome "W.A Fitness"            # simulação: só mostra o que faria
+        --telefone 553433050261 --nome "W.A Fitness"            # simulação: só mostra o que faria
     python scripts/wa_cloud_vincular_numero.py ... --apply      # grava
 
 Os IDs não são segredo (ver docs/whatsapp-cloud-plano.md). A base usada é a do DATABASE_URL.
