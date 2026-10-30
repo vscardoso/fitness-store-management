@@ -124,3 +124,8 @@ Falta: envio (texto dentro da janela de 24 h, gravado só depois que a Meta acei
 - Testes: `tests/test_whatsapp_inbox.py` (10) + os 23 do webhook + permissões + looks: 93 passam. No navegador (backend local, Meta inacessível): lista, abrir, enviar com erro legível, janela fechada, não lidas zeradas: 8/8, sem erro de JS.
 - NÃO verificado: envio real pela Meta (nenhum envio real foi feito), iPhone/PWA físico, aviso no celular (push) e modelos (templates) para fora da janela. Proposta para o aviso: o projeto já tem push do Expo para alertas da loja; ligar o webhook de mensagem nova a ele. Aguardando ok do Victor antes de construir.
 - Teste real pendente (com o Victor): mandar "oi" do celular dele para o fixo, abrir em Mais > Conversas do WhatsApp e responder.
+
+### Teste real de envio e recebimento (2026-10-30, ~19:55 BRT)
+
+- Recebimento: "Oi" do celular do Victor para o fixo chegou (19:51) e está na loja 2 (conferido no banco, só leitura). A caixa vazia que ele viu era a loja 1 ("WA Fitness", teste); a real é a loja 2 ("W.A Fitness"). Atenção: nomes quase iguais.
+- Envio: a resposta "Boa noite, tudo bem?" (19:55) chegou no celular dele, com o aviso padrão da Meta de serviço seguro. Fica a conferir no app se a bolha aparece com o status de entrega (assumido que saiu pelo app; não confirmado).
