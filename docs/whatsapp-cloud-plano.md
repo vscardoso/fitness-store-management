@@ -56,7 +56,7 @@ Base pronta e testada só com eventos simulados (nenhuma mensagem real da Meta a
 - Tabelas `whatsapp_cloud_numbers` (número da Meta -> loja), `whatsapp_conversations` (contato x número; chave = telefone normalizado ou `u:` + BSUID) e `whatsapp_messages` (`wamid` único). Migração `20261023_whatsapp_cloud`, aditiva, testada no Postgres (upgrade, downgrade, upgrade; schema igual ao do modelo).
 - `GET /webhooks/whatsapp-cloud`: devolve `hub.challenge` se `hub.verify_token` bater; senão 403 (também 403 com o token vazio no servidor).
 - `POST /webhooks/whatsapp-cloud`: sem App Secret configurado = 503; assinatura errada, ausente ou corpo adulterado = 403 e nada gravado; JSON inválido = 400. Grava tudo numa transação; erro no meio = 500 e nada gravado (a Meta reenvia). Mensagem repetida é ignorada; entregas simultâneas da mesma mensagem (testado no Postgres, 5 ao mesmo tempo) gravam uma vez. Número sem loja vinculada: 200 e ignora.
-- Celular com e sem o 9 é a mesma conversa; fixo não ganha 9. Contato só com BSUID vira conversa `u:<bsuid>` e recebe o telefone quando ele aparecer. **Não verificado:** nome exato dos campos de BSUID no webhook da Meta (o código aceita `contacts[].user_id`, `messages[].from_user_id` e `messages[].user_id`).
+- Celular com e sem o 9 é a mesma conversa; fixo não ganha 9. Contato só com BSUID vira conversa `u:<bsuid>` e recebe o telefone quando ele aparecer. Campos de BSUID **observados em payload real (30/10/2026)**: `contacts[].user_id` (formato `BR.<números>`), `statuses[].recipient_user_id`; o payload de status também traz `recipient_id` (telefone sem o 9 de celular, ex.: `553488...`). O código ainda NÃO lê `statuses[].recipient_user_id` (ver pendências).
 - Status de entrega (sent < delivered < read) só avança; failed guarda o erro e não desfaz delivered/read; status de mensagem que não foi enviada pelo app é ignorado.
 - Vincular o número à loja: `backend/scripts/wa_cloud_vincular_numero.py` (simula por padrão, `--apply` grava; recusa número de outra loja).
 - O container de produção só recebe as variáveis listadas em `deploy/docker-compose.prod.yml` (já estão lá).
@@ -70,3 +70,48 @@ Falta: envio (texto dentro da janela de 24 h, gravado só depois que a Meta acei
 - Texto para cliente: nome da loja **W.A Fitness**, sem citar marca, sem travessão.
 - Janela de atendimento de 24 horas: fora dela só mensagem-modelo (template), que pode ser paga. Anúncio apontando para o número novo só depois do aviso no celular funcionar, com revisão visual e ok do Victor.
 - Persistência tudo-ou-nada; `npx tsc --noEmit` do mobile fica em 0 erros.
+
+## Estado (2026-10-30): número no ar, recebimento real comprovado
+
+**Repositório público: aqui só IDs que não são segredo. Token, App Secret e verify token ficam só no `.env.prod` do VPS e em arquivos locais do Victor.**
+
+### O que foi feito (Meta)
+
+- App novo **Provador Fit** (ID `2218667769031250`) no portfólio empresarial da W.A (verificação da empresa já concluída). NÃO reusar o app antigo da automação do Instagram. Atenção: o app tem um "app do Threads" com App Secret próprio (ID `2236182867778431`); ele NÃO serve para o webhook (a Meta devolve erro 190 de assinatura inválida).
+- Número fixo **+55 34 3305-0261** registrado por ligação de voz (a ligação é gravada em inglês e fala os dígitos). Nome verificado **W.A. Fitness**, status VERIFIED.
+  - `phone_number_id` = `1317051404835668`
+  - WABA ID = `1119795014098348` (aparece na Meta como "W A Moda Fitness"; renomear o portfólio é opcional e não afeta o que o cliente vê)
+- Número de teste da Meta (+1 555-179-4908): `phone_number_id` `1069559752900841`, WABA `1247720830277736`. Só serve para teste; não usar em produção.
+- Token: usuário do sistema **Employee** (criado pela Meta no fluxo do app), tipo SYSTEM_USER, **não expira**, escopos `business_management`, `whatsapp_business_management`, `whatsapp_business_messaging`. Gerar token exigiu verificação de conta/e-mail no portfólio.
+- Webhook configurado no painel: URL de callback `https://api.provadorfit.com.br/webhooks/whatsapp-cloud`, verificado com sucesso (GET 200 com `hub.challenge`).
+
+### O que foi feito (servidor)
+
+- `/opt/provador/.env.prod` (modo 600) com `WHATSAPP_CLOUD_ACCESS_TOKEN`, `_APP_SECRET`, `_VERIFY_TOKEN`, `_PHONE_NUMBER_ID`, `_WABA_ID` (valores do número FIXO). Backups do arquivo em `/opt/provador/backups/env.prod.antes_wa` e `env.prod.antes_wa2`. O compose de produção já repassava essas variáveis ao container; `docker compose ... --env-file .env.prod up -d backend` aplica.
+- Número vinculado à **loja 2 (W.A Fitness)** (a loja 1 é "WA Fitness", outra) com `scripts/wa_cloud_vincular_numero.py` (simulação primeiro, depois `--apply`; rodar de novo diz "nada a fazer").
+
+### Testes feitos (com saída observada)
+
+- Verificação: GET com token certo = 200 e devolve o desafio; token errado = 403.
+- POST sem assinatura = 403 `invalid signature` (antes de configurar o App Secret seria 503).
+- Token validado na Graph API: lê o `phone_number_id` do fixo (VERIFIED) e do número de teste; `debug_token` confirma app, tipo SYSTEM_USER, sem expiração e os 3 escopos. App Secret validado com a Meta (chamada `access_token=<app_id>|<secret>` devolve o app).
+- **Recebimento real**: mensagem de texto do celular do Victor para o fixo, 30/10 às 19:31 (BRT), chegou como `POST /webhooks/whatsapp-cloud` com 200; gravada em `whatsapp_messages` (direção `in`, com `wamid`) e `whatsapp_conversations` (loja 2, chave = telefone normalizado com o 9).
+- Envio pelo painel da Meta (hello_world para o celular de teste): chegou. O primeiro envio falhou com erro 131000 (genérico) e passou na segunda tentativa; causa não confirmada (suspeita: formato do número com/sem o 9).
+
+### Pendências (para o próximo dev)
+
+1. Meta: ligar **Assinar webhooks** do número fixo e conferir o campo `messages` assinado (o evento chegou, então deve estar ok; confirmar na tela).
+2. Meta: **cartão de pagamento** (só o Victor faz) e requisitos do app para publicar/Live: ícone 1024x1024, URL da política de privacidade, URL de instruções de exclusão de dados, categoria. A tela mostra "Não qualificado para envio no momento"; não está confirmado se isso bloqueia mensagens de clientes reais. Criar as páginas de política de privacidade e exclusão de dados em `provadorfit.com.br`.
+3. Perfil do número no Gerenciador do WhatsApp: foto (logo quadrada 640x640), descrição (até 512 caracteres), endereço (Av. dos Taróis, 640), categoria.
+4. Código: ler `statuses[].recipient_user_id` no tratamento de status; criar fixture de teste a partir de um payload real REDIGIDO (os payloads trazem telefone e BSUID do cliente: trocar por valores falsos antes de commitar).
+5. Envio de saída (texto dentro da janela de 24 h, gravado só depois da Meta aceitar), modelos (templates) em português para iniciar conversa, baixar mídia, caixa de entrada no app, aviso no celular, bot.
+6. Teste de recebimento pelas donas da loja: pedir que mandem "oi" para o fixo e conferir em `whatsapp_messages` (ainda não feito até este registro).
+7. Antes de apontar anúncio para o número: aviso no celular funcionando, revisão visual e ok do Victor.
+
+### Armadilhas encontradas
+
+- Celular brasileiro: o WhatsApp devolve o `wa_id` **sem o 9** (ex.: 5534988... vira 553488...). Casar sempre as duas formas.
+- Para o painel pedir código de segurança por SMS, o telefone da conta Meta precisa receber SMS. Telefone fixo não recebe. O e-mail da conta Meta pode ser diferente do e-mail pessoal.
+- Texto livre fora da janela de 24 horas não é entregue; o primeiro contato só por modelo aprovado ou o cliente escrevendo primeiro (QR code).
+- O log de acesso do backend grava a URL do GET de verificação com o verify token; tratar o log como sensível.
+- Mexer no `.env.prod` e reiniciar o backend: rodar antes `python3 /opt/provador/guarda_publicacao.py --status` no VPS (só quando LIVRE; o login do próprio Victor conta como uso).
