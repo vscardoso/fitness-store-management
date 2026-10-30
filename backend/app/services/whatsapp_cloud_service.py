@@ -375,3 +375,76 @@ async def invite_link(db: AsyncSession, tenant_id: int, text: Optional[str] = No
     if text and text.strip():
         link += f"?text={quote(text.strip()[:500])}"
     return {"phone": digits, "link": link}
+
+
+# ── ligação da conversa com o cadastro da cliente (pelo telefone) ────────────
+
+def customer_phone_key(raw: Optional[str]) -> Optional[str]:
+    """Telefone do cadastro no mesmo formato da conversa: com 55, e celular com o 9."""
+    digits = "".join(c for c in str(raw or "") if c.isdigit())
+    if not digits:
+        return None
+    if len(digits) in (10, 11):
+        digits = "55" + digits
+    return normalize_phone(digits)
+
+
+async def customers_by_phone(db: AsyncSession, tenant_id: int) -> dict:
+    """{telefone normalizado: (id, nome)} das clientes ativas da loja que têm telefone."""
+    from app.models.customer import Customer
+
+    rows = (await db.execute(
+        select(Customer.id, Customer.full_name, Customer.phone).where(
+            Customer.tenant_id == tenant_id, Customer.is_active == True, Customer.phone.isnot(None),  # noqa: E712
+        )
+    )).all()
+    out: dict = {}
+    for cid, name, phone in rows:
+        key = customer_phone_key(phone)
+        if key and key not in out:
+            out[key] = (cid, name)
+    return out
+
+
+async def start_conversation(db: AsyncSession, tenant_id: int, customer_id: int) -> WhatsAppConversation:
+    """Abre (ou acha) a conversa da cliente no número oficial da loja. Não manda nada: só prepara a conversa."""
+    from app.models.customer import Customer
+
+    customer = (await db.execute(
+        select(Customer).where(Customer.id == customer_id, Customer.tenant_id == tenant_id, Customer.is_active == True)  # noqa: E712
+    )).scalar_one_or_none()
+    if customer is None:
+        raise SendError("Cliente não encontrada.", 404)
+    key = customer_phone_key(customer.phone)
+    if not key:
+        raise SendError("Esta cliente não tem telefone cadastrado.", 409)
+    number = (await db.execute(
+        select(WhatsAppCloudNumber).where(
+            WhatsAppCloudNumber.tenant_id == tenant_id, WhatsAppCloudNumber.is_active == True,  # noqa: E712
+        ).order_by(WhatsAppCloudNumber.id)
+    )).scalars().first()
+    if number is None:
+        raise SendError("Esta loja ainda não tem um número oficial do WhatsApp ligado.", 409)
+    conv = await _get_or_create_conversation(db, number, wa_id=key, bsuid=None, profile_name=None)
+    await db.flush()
+    return conv
+
+
+async def mark_read_on_meta(db: AsyncSession, tenant_id: int, conv: WhatsAppConversation) -> None:
+    """Avisa o WhatsApp que a loja leu a última mensagem da cliente (ela vê os tiques azuis). Nunca levanta erro."""
+    if not settings.WHATSAPP_CLOUD_ACCESS_TOKEN:
+        return
+    try:
+        last = (await db.execute(
+            select(WhatsAppMessage.wamid).where(
+                WhatsAppMessage.conversation_id == conv.id, WhatsAppMessage.tenant_id == tenant_id,
+                WhatsAppMessage.direction == "in",
+            ).order_by(WhatsAppMessage.id.desc()).limit(1)
+        )).scalar_one_or_none()
+        number = (await db.execute(
+            select(WhatsAppCloudNumber).where(WhatsAppCloudNumber.id == conv.number_id)
+        )).scalar_one_or_none()
+        if last and number:
+            await _post_graph(number.phone_number_id, {"messaging_product": "whatsapp", "status": "read", "message_id": last})
+    except Exception:  # noqa: BLE001 - recibo de leitura é cortesia; falha não atrapalha o atendimento
+        logger.info("WhatsApp Cloud: não consegui marcar como lida na Meta", exc_info=False)

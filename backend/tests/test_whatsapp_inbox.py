@@ -274,3 +274,54 @@ async def test_convite_sem_numero_na_loja_e_descobre_na_meta(test_client, async_
     await async_session.commit()
     h2 = {"Authorization": "Bearer " + create_access_token(data={"sub": str(u.id)}), "X-Tenant-Id": str(outra.id)}
     assert (await test_client.get("/api/v1/whatsapp/invite", headers=h2)).status_code == 409
+
+
+async def test_conversa_ligada_ao_cadastro_busca_e_abrir_pela_cliente(test_client, async_session, monkeypatch):
+    from app.models.customer import Customer
+    _sem_override()
+    store, num, h = await _loja(async_session)
+    c = await _conversa(async_session, store, num, phone="5511988887777", wa_id="551188887777")
+    cli = Customer(full_name="Wanessa Santos", phone="(11) 98888-7777", tenant_id=store.id)
+    sem_conversa = Customer(full_name="Bia Sem Conversa", phone="21977776666", tenant_id=store.id)
+    sem_fone = Customer(full_name="Cris Sem Fone", tenant_id=store.id)
+    async_session.add_all([cli, sem_conversa, sem_fone])
+    await async_session.commit()
+    ids = (cli.id, sem_conversa.id, sem_fone.id)
+    # o nome do cadastro vence o nome do perfil do WhatsApp
+    item = (await test_client.get("/api/v1/whatsapp/conversations", headers=h)).json()[0]
+    assert item["name"] == "Wanessa Santos" and item["customer_id"] == ids[0]
+    # busca por nome do cadastro, por telefone e sem resultado
+    assert len((await test_client.get("/api/v1/whatsapp/conversations", headers=h, params={"q": "wanes"})).json()) == 1
+    assert len((await test_client.get("/api/v1/whatsapp/conversations", headers=h, params={"q": "8888-7777"})).json()) == 1
+    assert (await test_client.get("/api/v1/whatsapp/conversations", headers=h, params={"q": "zzz"})).json() == []
+    # conversa já existente da cliente
+    r = (await test_client.get(f"/api/v1/whatsapp/by-customer/{ids[0]}", headers=h)).json()
+    assert r["id"] == c.id and r["name"] == "Wanessa Santos"
+    assert (await test_client.get(f"/api/v1/whatsapp/by-customer/{ids[1]}", headers=h)).json() is None
+    # abrir conversa de quem ainda não escreveu: cria sem mandar nada, janela fechada; repetir devolve a mesma
+    r1 = await test_client.post("/api/v1/whatsapp/conversations/start", headers=h, json={"customer_id": ids[1]})
+    assert r1.status_code == 200 and r1.json()["window_open"] is False and r1.json()["name"] == "Bia Sem Conversa"
+    r2 = await test_client.post("/api/v1/whatsapp/conversations/start", headers=h, json={"customer_id": ids[1]})
+    assert r2.json()["id"] == r1.json()["id"]
+    chamadas = _meta(monkeypatch)
+    r = await test_client.post(f"/api/v1/whatsapp/conversations/{r1.json()['id']}/send", headers=h, json={"text": "oi"})
+    assert r.status_code == 409 and chamadas == []
+    # sem telefone: erro legível; cliente de outra loja não existe para esta
+    assert (await test_client.post("/api/v1/whatsapp/conversations/start", headers=h, json={"customer_id": ids[2]})).status_code == 409
+    assert (await test_client.post("/api/v1/whatsapp/conversations/start", headers=h, json={"customer_id": 999999})).status_code == 404
+
+
+async def test_marcar_como_lida_avisa_a_meta_sem_travar(test_client, async_session, monkeypatch):
+    _sem_override()
+    store, num, h = await _loja(async_session)
+    c = await _conversa(async_session, store, num)
+    cid = c.id
+    chamadas = _meta(monkeypatch)
+    assert (await test_client.post(f"/api/v1/whatsapp/conversations/{cid}/read", headers=h)).status_code == 200
+    assert chamadas and chamadas[0][1]["status"] == "read" and chamadas[0][1]["message_id"].startswith("wamid.in")
+    # Meta fora do ar: a leitura local continua valendo
+    c2 = await _conversa(async_session, store, num, wa_id="551177776666", phone="5511977776666")
+    cid2 = c2.id
+    _meta(monkeypatch, erro=svc.SendError("falhou", 424))
+    assert (await test_client.post(f"/api/v1/whatsapp/conversations/{cid2}/read", headers=h)).status_code == 200
+    assert (await test_client.get("/api/v1/whatsapp/unread-count", headers=h)).json() == {"unread": 0}
