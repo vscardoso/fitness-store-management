@@ -75,38 +75,60 @@ export type ButtonVariant = 'primary' | 'secondary' | 'outlined' | 'ghost' | 'da
 
 
 /**
- * Tokens da caixa de conversas (WhatsApp da loja), em claro e escuro. Todos derivam da paleta do Provador em
- * Colors.ts: nenhuma cor nova solta nos componentes. Use `useChatColors()` (hooks/useThemeColors.ts).
+ * Tokens da caixa de conversas (WhatsApp da loja), em claro e escuro.
+ * Claro: valores EXATOS que a tela já tinha antes da reestruturação (não mudar). Escuro: tokens de Colors.ts.
+ * A cor da marca da loja (bubbleOut/accent) entra em `useChatColors()` (hooks/useThemeColors.ts), via brandingStore.
  */
-const chatScheme = (c: typeof Colors.light) => ({
-  background: c.backgroundSecondary,       // fundo da conversa e da lista
-  surface: c.card,                         // cartões da lista, barra de resposta
-  border: c.border,
-  text: c.text,
-  textMuted: c.textSecondary,
-  bubbleOut: c.primary === Colors.light.primary ? c.primary : c.primaryLight,   // balão enviado
-  bubbleOutText: c.primary === Colors.light.primary ? c.background : c.text,
-  bubbleOutMuted: c.primary === Colors.light.primary ? c.primaryLight : c.textSecondary,
-  bubbleIn: c.card,                        // balão recebido
-  bubbleInText: c.text,
-  bubbleInBorder: c.border,
-  inputBg: c.backgroundSecondary,
-  accent: c.primary,
-  warning: c.warning,
-  warningSoft: c.warningLight,
-  danger: c.error,
-  // etiquetas: chave do servidor -> fundo e texto
-  label: {
-    primary: { bg: c.primaryLight, fg: c.primary },
-    secondary: { bg: c.secondaryLight, fg: c.secondary },
-    success: { bg: c.successLight, fg: c.success },
-    warning: { bg: c.warningLight, fg: c.warning },
-    info: { bg: c.infoLight, fg: c.info },
-    error: { bg: c.errorLight, fg: c.error },
-  },
+const chatLabels = (c: typeof Colors.light) => ({
+  primary: { bg: c.primaryLight, fg: c.primary },
+  secondary: { bg: c.secondaryLight, fg: c.secondary },
+  success: { bg: c.successLight, fg: c.success },
+  warning: { bg: c.warningLight, fg: c.warning },
+  info: { bg: c.infoLight, fg: c.info },
+  error: { bg: c.errorLight, fg: c.error },
 });
 
-export const CHAT = { light: chatScheme(Colors.light), dark: chatScheme(Colors.dark) } as const;
+const chatLight = {
+  background: '#FAFAFC',
+  surface: '#FFFFFF',
+  border: '#E6E3EE',
+  text: '#160F28',
+  textMuted: '#5B5670',
+  bubbleOut: Colors.light.primary,       // sobrescrito pela cor da marca em useChatColors
+  bubbleOutText: '#FFFFFF',
+  bubbleOutMuted: '#FFFFFFCC',
+  bubbleIn: '#FFFFFF',
+  bubbleInText: '#160F28',
+  bubbleInBorder: '#E6E3EE',
+  inputBg: '#FAFAFC',
+  accent: Colors.light.primary,          // sobrescrito pela cor da marca em useChatColors
+  warning: '#B45309',
+  warningSoft: Colors.light.warningLight,
+  danger: '#B91C1C',
+  label: chatLabels(Colors.light),
+};
+
+const chatDark: typeof chatLight = {
+  background: Colors.dark.backgroundSecondary,
+  surface: Colors.dark.card,
+  border: Colors.dark.border,
+  text: Colors.dark.text,
+  textMuted: Colors.dark.textSecondary,
+  bubbleOut: Colors.dark.primary,
+  bubbleOutText: '#FFFFFF',
+  bubbleOutMuted: '#FFFFFFCC',
+  bubbleIn: Colors.dark.card,
+  bubbleInText: Colors.dark.text,
+  bubbleInBorder: Colors.dark.border,
+  inputBg: Colors.dark.backgroundSecondary,
+  accent: Colors.dark.primary,
+  warning: Colors.dark.warning,
+  warningSoft: Colors.dark.warningLight,
+  danger: Colors.dark.error,
+  label: chatLabels(Colors.dark),
+};
+
+export const CHAT = { light: chatLight, dark: chatDark } as const;
 export type ChatColors = typeof CHAT.light;
 export const LABEL_COLOR_KEYS = ['primary', 'secondary', 'success', 'warning', 'info', 'error'] as const;
 export type LabelColorKey = (typeof LABEL_COLOR_KEYS)[number];
