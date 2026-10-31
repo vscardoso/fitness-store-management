@@ -15,7 +15,7 @@ from jwt import PyJWTError as JWTError
 
 from app.core.database import get_db, get_db_unscoped
 from app.core.config import settings
-from app.api.deps import get_current_tenant_id, require_role
+from app.api.deps import get_current_active_user, get_current_tenant_id, require_role
 from app.models.user import User, UserRole
 from app.models.store import Store
 from app.schemas.store_branding import StoreBrandingResponse, StoreBrandingUpdate, LogoUploadResponse, StorePIXKeyUpdate, StorePIXKeyResponse
@@ -249,6 +249,33 @@ async def update_return_settings(
     store.allow_money_refund = data.allow_money_refund
     await db.commit()
     return ReturnSettings(return_window_days=store.return_window_days, allow_money_refund=store.allow_money_refund)
+
+
+class StockWriteoffSettings(BaseModel):
+    enabled: bool = Field(False, description="True: o admin pode dar baixa no estoque pela Conferência de Estoque")
+
+
+@router.get("/stock-writeoff-settings", response_model=StockWriteoffSettings)
+async def get_stock_writeoff_settings(
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_active_user),
+):
+    store = await _get_store(tenant_id, db)
+    return StockWriteoffSettings(enabled=bool(store.allow_stock_writeoff))
+
+
+@router.put("/stock-writeoff-settings", response_model=StockWriteoffSettings)
+async def update_stock_writeoff_settings(
+    data: StockWriteoffSettings,
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role([UserRole.ADMIN])),
+):
+    store = await _get_store(tenant_id, db)
+    store.allow_stock_writeoff = data.enabled
+    await db.commit()
+    return StockWriteoffSettings(enabled=bool(store.allow_stock_writeoff))
 
 
 @router.get("/pix", response_model=StorePIXKeyResponse)

@@ -2,7 +2,8 @@
  * Conferência de estoque: lista cada cor/tamanho com a quantidade que o sistema diz ter, e você digita o que contou.
  * Mostra na hora quem confere, quem sobra e quem falta. Dá para imprimir a lista para contar na mão (coluna "Contado"
  * em branco) e imprimir o resultado depois. A contagem fica salva no aparelho (pode continuar outro dia).
- * Esta tela só confere: não altera o estoque.
+ * A conferência só compara. Só o admin, e só se ligar a opção "Dar baixa pela conferência" (chave no topo), pode dar baixa
+ * nas peças que faltam (perda, avaria, furto ou ajuste); a baixa desconta das entradas e fica registrada com o motivo.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
@@ -30,7 +31,13 @@ import { Colors, VALUE_COLORS } from '@/constants/Colors';
 import useBackToList from '@/hooks/useBackToList';
 import { useAuthStore } from '@/store/authStore';
 import { useBrandingColors } from '@/store/brandingStore';
-import { getStockCheck, type StockCheckRow } from '@/services/stockCheckService';
+import {
+  getStockCheck, getStockWriteoffEnabled, setStockWriteoffEnabled, writeoffStock,
+  type StockCheckRow, type WriteoffReason,
+} from '@/services/stockCheckService';
+import { isAdminRole } from '@/utils/roles';
+import { parseApiError } from '@/utils/apiError';
+import { Switch } from 'react-native-paper';
 import { countsKey, createStockCount, getStockCount, updateStockCount, type CountedItemInput } from '@/services/stockCountService';
 import { variantCodeText } from '@/utils/shortCode';
 import HScroll from '@/components/ui/HScroll';
@@ -65,6 +72,7 @@ export default function StockCheckScreen() {
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/more');
   const tenantId = useAuthStore((s) => s.tenant_id);
+  const isAdmin = isAdminRole(useAuthStore((s) => s.user?.role));
 
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [onlyInStock, setOnlyInStock] = useState(false);
@@ -75,6 +83,42 @@ export default function StockCheckScreen() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [message, setMessage] = useState('');
   const queryClient = useQueryClient();
+  const [writeoffOn, setWriteoffOn] = useState(false);
+  const [writeoffBusy, setWriteoffBusy] = useState(false);
+  const [wo, setWo] = useState<{ row: StockCheckRow; qty: number } | null>(null);
+  const [woReason, setWoReason] = useState<WriteoffReason>('perda');
+  const [woNote, setWoNote] = useState('');
+  const [woError, setWoError] = useState('');
+  const [woSaving, setWoSaving] = useState(false);
+  useEffect(() => {
+    getStockWriteoffEnabled().then(setWriteoffOn).catch(() => setWriteoffOn(false));
+  }, []);
+  const toggleWriteoff = async (v: boolean) => {
+    setWriteoffBusy(true);
+    try {
+      setWriteoffOn(await setStockWriteoffEnabled(v));
+    } catch (e: any) {
+      setMessage(parseApiError(e) || 'Não foi possível alterar a opção.');
+    } finally {
+      setWriteoffBusy(false);
+    }
+  };
+  const confirmWriteoff = async () => {
+    if (!wo) return;
+    setWoSaving(true);
+    setWoError('');
+    try {
+      await writeoffStock({ reason: woReason, note: woNote.trim() || undefined, items: [{ variant_id: wo.row.variant_id, quantity: wo.qty }] });
+      setWo(null);
+      setWoNote('');
+      await queryClient.invalidateQueries({ queryKey: ['stock-check'] });
+      setMessage('Baixa registrada.');
+    } catch (e: any) {
+      setWoError(parseApiError(e) || 'Não foi possível dar baixa.');
+    } finally {
+      setWoSaving(false);
+    }
+  };
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveName, setSaveName] = useState('');
   const [saveNote, setSaveNote] = useState('');
@@ -658,6 +702,20 @@ export default function StockCheckScreen() {
         </View>
         {!!message && <Text style={styles.error}>{message}</Text>}
 
+        {isAdmin && (
+          <View style={styles.woCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.woTitle}>Dar baixa pela conferência</Text>
+              <Text style={styles.woNote}>
+                {writeoffOn
+                  ? 'Ligado: nas peças com falta aparece "Dar baixa". A baixa desconta do estoque e fica registrada com o motivo.'
+                  : 'Desligado: a conferência só compara e não altera o estoque.'}
+              </Text>
+            </View>
+            <Switch value={writeoffOn} onValueChange={toggleWriteoff} disabled={writeoffBusy} color={brand.primary} />
+          </View>
+        )}
+
         {/* Lista */}
         {isLoading ? (
           <ActivityIndicator size="large" color={brand.primary} style={{ marginTop: 40 }} />
@@ -743,6 +801,16 @@ export default function StockCheckScreen() {
                       ) : (
                         <Text style={[styles.diffText, { color: VALUE_COLORS.negative }]}>{d < 0 ? `falta ${-d}` : `sobra ${d}`}</Text>
                       )}
+                        {isAdmin && writeoffOn && d !== null && d < 0 && r.system_quantity > 0 && (
+                          <TouchableOpacity
+                            accessibilityRole="button"
+                            accessibilityLabel={`Dar baixa de ${-d} peças`}
+                            onPress={() => { setWo({ row: r, qty: Math.min(-d, r.system_quantity) }); setWoReason('perda'); setWoNote(''); setWoError(''); }}
+                            style={styles.woBtn}
+                          >
+                            <Text style={[styles.woBtnText, { color: VALUE_COLORS.negative }]}>Dar baixa</Text>
+                          </TouchableOpacity>
+                        )}
                     </View>
                   </View>
                 );
@@ -765,6 +833,44 @@ export default function StockCheckScreen() {
           </Text>
         )}
       </ScrollView>
+
+      <BottomSheet
+        visible={!!wo}
+        onDismiss={() => !woSaving && setWo(null)}
+        title="Dar baixa no estoque"
+        subtitle={wo ? `${wo.row.product_name} · ${variantLabel(wo.row)}` : ''}
+        icon="remove-circle-outline"
+        actions={[
+          { label: 'Cancelar', onPress: () => setWo(null), variant: 'secondary', disabled: woSaving },
+          { label: wo ? `Dar baixa de ${wo.qty}` : 'Dar baixa', onPress: confirmWriteoff, variant: 'primary', loading: woSaving, icon: 'checkmark' },
+        ]}
+      >
+        <Text style={styles.saveHelp}>
+          Tira {wo?.qty ?? 0} peça(s) do estoque do sistema, das entradas mais antigas. Não dá para desfazer por aqui; fica registrado com o motivo.
+        </Text>
+        <View style={styles.woReasons}>
+          {(['perda', 'avaria', 'furto', 'ajuste'] as WriteoffReason[]).map((k) => (
+            <TouchableOpacity
+              key={k}
+              onPress={() => setWoReason(k)}
+              style={[styles.woChip, woReason === k && { borderColor: brand.primary, backgroundColor: brand.primary + '20' }]}
+            >
+              <Text style={{ color: woReason === k ? brand.primary : Colors.light.textSecondary, fontWeight: '700', fontSize: 13 }}>
+                {k === 'perda' ? 'Perda' : k === 'avaria' ? 'Avaria' : k === 'furto' ? 'Furto' : 'Ajuste de contagem'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <RNTextInput
+          style={styles.saveInput}
+          value={woNote}
+          onChangeText={setWoNote}
+          placeholder="Observação (opcional)"
+          placeholderTextColor={Colors.light.textTertiary}
+          maxLength={300}
+        />
+        {!!woError && <Text style={styles.error}>{woError}</Text>}
+      </BottomSheet>
 
       <BottomSheet
         visible={saveOpen}
@@ -978,6 +1084,13 @@ const styles = StyleSheet.create({
   empty: { alignItems: 'center', paddingVertical: 40, gap: 8 },
   emptyText: { fontSize: 14, color: Colors.light.textSecondary, textAlign: 'center' },
   link: { fontSize: 14, fontWeight: '700' },
+  woCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 12, marginBottom: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card },
+  woTitle: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
+  woNote: { fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary, marginTop: 2 },
+  woBtn: { paddingHorizontal: 8, paddingVertical: 6 },
+  woBtnText: { fontSize: 12, fontWeight: '800' },
+  woReasons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  woChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: Colors.light.border },
   error: { color: Colors.light.error, marginBottom: 6 },
   footer: { textAlign: 'center', color: Colors.light.textSecondary, fontSize: 13, marginTop: 16 },
 });

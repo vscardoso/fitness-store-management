@@ -3,13 +3,15 @@ Endpoints de relatórios.
 """
 from datetime import datetime, timedelta, date
 from typing import List, Optional
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, desc, func, and_
 from zoneinfo import ZoneInfo
 
 from app.core.database import get_db
-from app.api.deps import get_current_active_user, get_current_tenant_id
+from app.api.deps import get_current_active_user, get_current_tenant_id, require_role
+from app.models.user import UserRole
 from app.models.user import User
 from app.models.sale import Sale
 from app.models.stock_entry import StockEntry
@@ -43,6 +45,40 @@ async def get_stock_check_report(
     data = await StockCheckService(db).report(tenant_id=tenant_id, category_id=category_id, only_in_stock=only_in_stock)
     # com dezenas de milhares de linhas o jsonable_encoder do FastAPI levava mais tempo que a consulta: serializa direto
     return Response(content=json.dumps(data, ensure_ascii=False, separators=(",", ":")), media_type="application/json")
+
+
+class StockWriteoffLine(BaseModel):
+    variant_id: int
+    quantity: int = Field(..., gt=0, le=100000)
+
+
+class StockWriteoffRequest(BaseModel):
+    reason: str = Field(..., description="perda, avaria, furto ou ajuste")
+    note: str | None = Field(None, max_length=300)
+    items: list[StockWriteoffLine] = Field(..., min_length=1, max_length=500)
+
+
+@router.post(
+    "/stock-check/writeoff",
+    summary="Dar baixa no estoque pela conferência",
+    description="Admin. Só funciona se a loja ligou a opção. Tudo ou nada; registra movimento com o motivo.",
+)
+async def stock_check_writeoff(
+    body: StockWriteoffRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    from app.services.stock_writeoff_service import StockWriteoffService, WriteoffDisabled, WriteoffError
+    try:
+        return await StockWriteoffService(db).apply(
+            tenant_id=tenant_id, user_id=current_user.id, reason=body.reason, note=body.note,
+            lines=[l.model_dump() for l in body.items],
+        )
+    except WriteoffDisabled as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except WriteoffError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @router.get(

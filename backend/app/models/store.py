@@ -60,6 +60,13 @@ class Store(BaseModel):
         comment="Prazo, em dias, para o cliente devolver ou trocar uma compra"
     )
 
+    allow_stock_writeoff: Mapped[bool] = mapped_column(
+        default=False,
+        server_default="false",
+        nullable=False,
+        comment="Admin liga: permite dar baixa no estoque pela Conferência de Estoque"
+    )
+
     allow_money_refund: Mapped[bool] = mapped_column(
         default=True,
         server_default="true",
