@@ -44,6 +44,7 @@ import type { PendingSale } from '@/types/pdv';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { Money } from '@/components/ui/PriceDisplay';
+import { FEATURES } from '@/constants/features';
 const C = Colors.light;
 
 interface QRModalState {
@@ -366,12 +367,12 @@ export default function PendingSalesScreen() {
           title="Pagamentos Pendentes"
           subtitle={sales.length > 0 ? `${sales.length} aguardando` : undefined}
           showBackButton
-          rightActions={[
+          rightActions={FEATURES.maquininhas ? [
             {
               icon: 'settings-outline',
               onPress: () => router.push('/(tabs)/pdv/terminals' as any),
             },
-          ]}
+          ] : []}
         />
       </Animated.View>
 

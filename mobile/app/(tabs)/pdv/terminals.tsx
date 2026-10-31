@@ -18,6 +18,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { haptics } from '@/utils/haptics';
 import { listTerminals, createTerminal, setupTerminal, saveTerminalCredentials, deleteTerminal } from '@/services/pdvService';
 import type { PDVTerminal, PDVTerminalCreate, PaymentProvider } from '@/types/pdv';
+import FeatureGate from '@/components/FeatureGate';
 
 const C = Colors.light;
 
@@ -129,7 +130,7 @@ function EmptyTerminals() {
   );
 }
 
-export default function TerminalsScreen() {
+function TerminalsScreen() {
   const queryClient = useQueryClient();
 
   const [sheetVisible, setSheetVisible] = useState(false);
@@ -474,3 +475,11 @@ const styles = StyleSheet.create({
     color: C.textSecondary,
   },
 });
+
+export default function TerminalsScreenGate() {
+  return (
+    <FeatureGate feature="maquininhas">
+      <TerminalsScreen />
+    </FeatureGate>
+  );
+}

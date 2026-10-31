@@ -16,6 +16,7 @@ import { ProvadorLogo } from '@/components/branding/ProvadorLogo';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { BRAND } from '@/constants/Brand';
 import { SIDEBAR_WIDTH } from '@/hooks/useLayout';
+import { FEATURES } from '@/constants/features';
 
 type Icon = keyof typeof Ionicons.glyphMap;
 
@@ -83,10 +84,8 @@ export default function DesktopSidebar() {
       {
         key: 'clientes', title: 'Clientes', items: [
           { label: 'Clientes', icon: 'people-outline', href: '/(tabs)/customers', match: ['/customers'] },
-          ...(manager ? [
-            { label: 'Lookbook', icon: 'shirt-outline' as Icon, href: '/looks', match: ['/looks'] },
-            { label: 'Demanda wishlist', icon: 'heart-outline' as Icon, href: '/(tabs)/demand', match: ['/demand', '/wishlist'] },
-          ] : []),
+          ...(manager && FEATURES.lookbook ? [{ label: 'Lookbook', icon: 'shirt-outline' as Icon, href: '/looks', match: ['/looks'] }] : []),
+          ...(manager && FEATURES.wishlist ? [{ label: 'Demanda wishlist', icon: 'heart-outline' as Icon, href: '/(tabs)/demand', match: ['/demand', '/wishlist'] }] : []),
         ],
       },
     ];
@@ -133,7 +132,7 @@ export default function DesktopSidebar() {
           { label: 'Chave PIX', icon: 'qr-code-outline' as Icon, href: '/settings/pix-key', match: ['/settings/pix-key'] },
           { label: 'Prazo de troca', icon: 'swap-horizontal-outline' as Icon, href: '/settings/returns', match: ['/settings/returns'] },
         ] : []),
-        { label: 'Terminais', icon: 'hardware-chip-outline', href: '/(tabs)/pdv/terminals', match: ['/pdv/terminals'] },
+        ...(FEATURES.maquininhas ? [{ label: 'Terminais', icon: 'hardware-chip-outline' as Icon, href: '/(tabs)/pdv/terminals', match: ['/pdv/terminals'] }] : []),
         { label: 'Ajuda e tutoriais', icon: 'help-circle-outline', href: '/(tabs)/help', match: ['/help'] },
       ],
     });

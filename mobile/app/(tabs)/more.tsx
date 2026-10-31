@@ -17,6 +17,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useWhatsappUnread } from '@/hooks/useWhatsappUnread';
 import { isAdminRole, isManagerRole, normalizeRole } from '@/utils/roles';
+import { FEATURES } from '@/constants/features';
 
 interface MenuItemProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -222,13 +223,13 @@ export default function MoreScreen() {
         </View>
         )}
 
-        {/* Looks & Wishlist */}
-        {isManager && (
+        {/* Looks & Wishlist (fase 2: escondido enquanto as chaves em constants/features.ts estiverem falsas) */}
+        {isManager && (FEATURES.lookbook || FEATURES.wishlist) && (
 <View style={styles.section}>
           <Text style={styles.sectionTitle}>Looks & Wishlist</Text>
           <View style={styles.menuCard}>
-            <MenuItem icon="shirt-outline" title="Lookbook" subtitle="Montar e gerenciar looks" onPress={() => router.push('/looks')} iconColor="#EC4899" iconBg="#FCE7F3" />
-            <MenuItem icon="heart-outline" title="Demanda Wishlist" subtitle="Produtos mais desejados por clientes" onPress={() => router.push('/(tabs)/demand')} iconColor="#8B5CF6" iconBg="#EDE9FE" />
+            {FEATURES.lookbook && <MenuItem icon="shirt-outline" title="Lookbook" subtitle="Montar e gerenciar looks" onPress={() => router.push('/looks')} iconColor="#EC4899" iconBg="#FCE7F3" />}
+            {FEATURES.wishlist && <MenuItem icon="heart-outline" title="Demanda Wishlist" subtitle="Produtos mais desejados por clientes" onPress={() => router.push('/(tabs)/demand')} iconColor="#8B5CF6" iconBg="#EDE9FE" />}
           </View>
         </View>
         )}
@@ -245,14 +246,16 @@ export default function MoreScreen() {
               iconColor="#E4851A"
               iconBg="#FEF0E0"
             />
-            <MenuItem
-              icon="hardware-chip-outline"
-              title="Terminais"
-              subtitle="Gerenciar maquininhas"
-              onPress={() => router.push('/(tabs)/pdv/terminals' as any)}
-              iconColor="#003DA5"
-              iconBg="#E0E9FF"
-            />
+            {FEATURES.maquininhas && (
+              <MenuItem
+                icon="hardware-chip-outline"
+                title="Terminais"
+                subtitle="Gerenciar maquininhas"
+                onPress={() => router.push('/(tabs)/pdv/terminals' as any)}
+                iconColor="#003DA5"
+                iconBg="#E0E9FF"
+              />
+            )}
             {isAdminRole(user?.role) && (
               <MenuItem
                 icon="qr-code-outline"
@@ -299,7 +302,7 @@ export default function MoreScreen() {
             {isAdminRole(user?.role) && (
               <MenuItem icon="cash-outline" title="Descontos de Pagamento" subtitle="Configure descontos por forma de pagamento" onPress={() => router.push('/settings/payment-discounts')} iconColor="#10B981" iconBg="#D1FAE5" />
             )}
-            <MenuItem icon="person-circle-outline" title="Meu Perfil" subtitle="Dados pessoais e preferências" onPress={() => showDev('Meu Perfil')} iconColor={brandingColors.primary} iconBg={brandingColors.primary + '20'} />
+            {FEATURES.meuPerfil && <MenuItem icon="person-circle-outline" title="Meu Perfil" subtitle="Dados pessoais e preferências" onPress={() => showDev('Meu Perfil')} iconColor={brandingColors.primary} iconBg={brandingColors.primary + '20'} />}
             <MenuItem icon="notifications-outline" title="Notificações" subtitle="Alertas e lembretes" onPress={() => router.push('/notifications' as any)} badge={unreadAlerts > 0 ? String(unreadAlerts) : undefined} iconColor="#F97316" iconBg="#FFEDD5" />
             <MenuItem icon="help-circle-outline" title="Ajuda e Tutoriais" subtitle="Aprenda a usar o app" onPress={() => router.push('/help')} iconColor="#06B6D4" iconBg="#CFFAFE" />
           </View>

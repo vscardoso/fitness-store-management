@@ -20,8 +20,9 @@ import { Colors, theme } from '@/constants/Colors';
 import { formatCurrency } from '@/utils/format';
 import type { LookList } from '@/types/look';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import FeatureGate from '@/components/FeatureGate';
 
-export default function LooksScreen() {
+function LooksScreen() {
   const router = useRouter();
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -305,3 +306,11 @@ const styles = StyleSheet.create({
     color: Colors.light.textSecondary,
   },
 });
+
+export default function LooksScreenGate() {
+  return (
+    <FeatureGate feature="lookbook">
+      <LooksScreen />
+    </FeatureGate>
+  );
+}

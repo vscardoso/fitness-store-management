@@ -2,7 +2,7 @@
  * Conferência de estoque: lista cada cor/tamanho com a quantidade que o sistema diz ter, e você digita o que contou.
  * Mostra na hora quem confere, quem sobra e quem falta. Dá para imprimir a lista para contar na mão (coluna "Contado"
  * em branco) e imprimir o resultado depois. A contagem fica salva no aparelho (pode continuar outro dia).
- * A conferência só compara. Só o admin, e só se ligar a opção "Dar baixa pela conferência" (chave no topo), pode dar baixa
+ * A conferência só compara. Só o admin, e só se ligar a opção "Dar baixa pela conferência" (chave em "Mais opções"), pode dar baixa
  * nas peças que faltam (perda, avaria, furto ou ajuste); a baixa desconta das entradas e fica registrada com o motivo.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -46,6 +46,7 @@ import ScanBar, { type ScanStatus } from '@/components/scan/ScanBar';
 import { lookupCode } from '@/services/codeResolver';
 import { buildCodeIndex, findVariantLocal } from '@/utils/scanLogic';
 import { playScan } from '@/utils/scanFeedback';
+import { buildSearchIndex, matchesSearch } from '@/utils/searchMatch';
 
 type Counts = Record<number, string>;
 
@@ -83,6 +84,7 @@ export default function StockCheckScreen() {
   const [confirmClear, setConfirmClear] = useState(false);
   const [message, setMessage] = useState('');
   const queryClient = useQueryClient();
+  const [menuOpen, setMenuOpen] = useState(false);
   const [writeoffOn, setWriteoffOn] = useState(false);
   const [writeoffBusy, setWriteoffBusy] = useState(false);
   const [wo, setWo] = useState<{ row: StockCheckRow; qty: number } | null>(null);
@@ -187,17 +189,22 @@ export default function StockCheckScreen() {
   const codeIndex = useMemo(() => buildCodeIndex(rows), [rows]);
   const allIndex = useMemo(() => buildCodeIndex(allData?.rows ?? []), [allData]);
 
+  // Busca por início de palavra (letra ou número já no primeiro toque); o texto de cada peça é preparado uma vez só
+  const searchIndex = useMemo(
+    () => new Map(rows.map((r) => [r.variant_id, buildSearchIndex([r.product_name, r.color ?? '', r.size ?? ''], [variantCodeText(r), r.sku])])),
+    [rows],
+  );
   const visible = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = search.trim();
     return rows.filter((r) => {
-      if (q && !`${r.product_name} ${r.color ?? ''} ${r.size ?? ''} ${r.sku ?? ''} ${variantCodeText(r) ?? ''}`.toLowerCase().includes(q)) return false;
+      if (q && !matchesSearch(searchIndex.get(r.variant_id)!, q)) return false;
       if (onlyDiffs) {
         const d = diffOf(r, counts);
         return d !== null && d !== 0;
       }
       return true;
     });
-  }, [rows, search, onlyDiffs, counts]);
+  }, [rows, search, searchIndex, onlyDiffs, counts]);
 
   const grouped = useMemo(() => {
     const out: { key: string; name: string; category: string; rows: StockCheckRow[] }[] = [];
@@ -544,34 +551,31 @@ export default function StockCheckScreen() {
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
       >
-        <View style={styles.intro}>
-          <Ionicons name="information-circle-outline" size={20} color={Colors.light.textSecondary} />
-          <Text style={styles.introText}>
-            Conte as peças da prateleira e digite o número ao lado de cada cor e tamanho. A tela mostra na hora o que confere, o que falta
-            e o que sobra. Esta tela só confere: ela não muda o estoque.
-          </Text>
-        </View>
-
-        {/* Resumo */}
-        <View style={styles.cards}>
-          <View style={styles.card}>
-            <Text style={styles.cardLabel}>Variações contadas</Text>
-            <Text style={styles.cardValue}>{formatInt(summary.counted)} de {formatInt(rows.length)}</Text>
-          </View>
-          <View style={styles.card}>
-            <Text style={styles.cardLabel}>Peças no sistema</Text>
-            <Text style={styles.cardValue}>{formatInt(data?.total_pieces)}</Text>
-          </View>
-          <View style={styles.card}>
-            <Text style={styles.cardLabel}>Confere</Text>
-            <Text style={[styles.cardValue, { color: VALUE_COLORS.positive }]}>{formatInt(summary.ok)}</Text>
-          </View>
-          <View style={styles.card}>
-            <Text style={styles.cardLabel}>Faltam / sobram</Text>
-            <Text style={[styles.cardValue, { color: summary.diffs > 0 ? VALUE_COLORS.negative : Colors.light.text }]}>
-              {formatInt(summary.falta)} / {formatInt(summary.sobra)}
+        {/* Resumo: uma linha, sem 4 cartões */}
+        <View style={styles.summary}>
+          <View style={styles.summaryTop}>
+            <Text style={styles.summaryMain}>
+              <Text style={styles.summaryBig}>{formatInt(summary.counted)}</Text> de {formatInt(rows.length)} contadas
             </Text>
+            <Text style={styles.summarySys}>{formatInt(data?.total_pieces)} peças no sistema</Text>
           </View>
+          <View style={styles.progressTrack}>
+            <View
+              style={[
+                styles.progressFill,
+                { backgroundColor: brand.primary, width: `${rows.length ? Math.min(100, Math.round((summary.counted / rows.length) * 100)) : 0}%` },
+              ]}
+            />
+          </View>
+          {summary.counted > 0 ? (
+            <View style={styles.summaryStats}>
+              <Text style={[styles.stat, { color: VALUE_COLORS.positive }]}>{formatInt(summary.ok)} conferem</Text>
+              <Text style={[styles.stat, { color: summary.falta > 0 ? VALUE_COLORS.negative : Colors.light.textSecondary }]}>{formatInt(summary.falta)} faltam</Text>
+              <Text style={[styles.stat, { color: summary.sobra > 0 ? VALUE_COLORS.warning : Colors.light.textSecondary }]}>{formatInt(summary.sobra)} sobram</Text>
+            </View>
+          ) : (
+            <Text style={styles.summaryHint}>Digite o que contou ao lado de cada cor e tamanho. Aqui só se confere, o estoque não muda.</Text>
+          )}
         </View>
 
         {/* Leitura do QR: câmera, leitor USB/Bluetooth ou digitar o código */}
@@ -593,7 +597,7 @@ export default function StockCheckScreen() {
           <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />
           <RNTextInput
             style={styles.searchInput}
-            placeholder="Buscar por produto, cor, tamanho, SKU ou #código"
+            placeholder="Buscar produto, cor, tamanho ou código"
             placeholderTextColor={Colors.light.textTertiary}
             value={search}
             onChangeText={setSearch}
@@ -606,23 +610,22 @@ export default function StockCheckScreen() {
           )}
         </View>
         <HScroll showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          <Chip label="Todas as categorias" active={categoryId === null} onPress={() => setCategoryId(null)} color={brand.primary} disabled={!!draft && draft.categoryId !== null} />
+          <Chip label="Só divergências" active={onlyDiffs} onPress={() => setOnlyDiffs((v) => !v)} color={brand.primary} />
+          <Chip label="Só com estoque" active={onlyInStock} onPress={() => setOnlyInStock((v) => !v)} color={brand.primary} />
+          <View style={styles.chipDivider} />
+          <Chip label="Todas" active={categoryId === null} onPress={() => setCategoryId(null)} color={brand.primary} disabled={!!draft && draft.categoryId !== null} />
           {categories.map(([id, name]) => (
             <Chip key={id} label={name} active={categoryId === id} onPress={() => setCategoryId(id)} color={brand.primary} disabled={!!draft && draft.categoryId !== null && draft.categoryId !== id} />
           ))}
         </HScroll>
-        <View style={styles.chips}>
-          <Chip label="Só com estoque no sistema" active={onlyInStock} onPress={() => setOnlyInStock((v) => !v)} color={brand.primary} />
-          <Chip label="Só divergências" active={onlyDiffs} onPress={() => setOnlyDiffs((v) => !v)} color={brand.primary} />
-        </View>
 
-        {/* Conferência em andamento: salvar, finalizar e histórico */}
+        {/* Conferência em andamento */}
         {!!draft && (
           <View style={styles.draftBanner}>
-            <Ionicons name="cloud-done-outline" size={18} color="#92400E" />
-            <Text style={styles.draftText}>
-              Em andamento{draft.name ? ': ' + draft.name : ''}. {savedAt ? 'Salva às ' + formatDateTime(savedAt).slice(-5) + '. ' : ''}
-              Ela fica guardada e você continua de onde parou, em qualquer aparelho. O salvamento é automático.
+            <Ionicons name="cloud-done-outline" size={16} color="#92400E" />
+            <Text style={styles.draftText} numberOfLines={2}>
+              Em andamento{draft.name ? ': ' + draft.name : ''}
+              {savedAt ? ' · salva às ' + formatDateTime(savedAt).slice(-5) : ''} · salva sozinha
             </Text>
           </View>
         )}
@@ -636,7 +639,7 @@ export default function StockCheckScreen() {
         )}
         <View style={styles.actions}>
           <TouchableOpacity
-            style={[styles.actionBtn, styles.saveBtn, { backgroundColor: brand.primary, borderColor: brand.primary, opacity: summary.counted && allData && !saving ? 1 : 0.5 }]}
+            style={[styles.saveMain, { backgroundColor: brand.primary, opacity: summary.counted && allData && !saving ? 1 : 0.45 }]}
             onPress={() => {
               if (!summary.counted || !allData || saving) return;
               setSaveError('');
@@ -648,11 +651,11 @@ export default function StockCheckScreen() {
             }}
             activeOpacity={0.85}
           >
-            <Ionicons name="save-outline" size={16} color="#fff" />
-            <Text style={[styles.actionText, { color: '#fff' }]}>{draft ? 'Salvar andamento' : 'Salvar conferência'}</Text>
+            <Ionicons name="save-outline" size={17} color="#fff" />
+            <Text style={styles.saveMainText}>{draft ? 'Salvar andamento' : 'Salvar'}</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.actionBtn, { borderColor: VALUE_COLORS.positive, opacity: summary.counted && allData ? 1 : 0.5 }]}
+            style={[styles.finishBtn, { borderColor: VALUE_COLORS.positive, opacity: summary.counted && allData ? 1 : 0.45 }]}
             onPress={() => {
               if (!summary.counted || !allData) return;
               setSaveError('');
@@ -664,57 +667,19 @@ export default function StockCheckScreen() {
             }}
             activeOpacity={0.85}
           >
-            <Ionicons name="checkmark-done-outline" size={16} color={VALUE_COLORS.positive} />
-            <Text style={[styles.actionText, { color: VALUE_COLORS.positive }]}>Finalizar</Text>
+            <Text style={[styles.finishText, { color: VALUE_COLORS.positive }]}>Finalizar</Text>
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.actionBtn, { borderColor: Colors.light.border }]}
-            onPress={() => router.push('/reports/stock-counts' as any)}
+            style={styles.moreBtn}
+            onPress={() => setMenuOpen(true)}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Mais opções"
           >
-            <Ionicons name="time-outline" size={16} color={Colors.light.textSecondary} />
-            <Text style={[styles.actionText, { color: Colors.light.textSecondary }]}>Conferências salvas</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Ações */}
-        <View style={styles.actions}>
-          <TouchableOpacity style={[styles.actionBtn, { borderColor: brand.primary }]} onPress={() => printList(false)} activeOpacity={0.8}>
-            <Ionicons name="print-outline" size={16} color={brand.primary} />
-            <Text style={[styles.actionText, { color: brand.primary }]}>Imprimir lista para contar</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionBtn, { borderColor: brand.primary, opacity: summary.counted ? 1 : 0.5 }]}
-            onPress={() => summary.counted && printList(true)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="document-text-outline" size={16} color={brand.primary} />
-            <Text style={[styles.actionText, { color: brand.primary }]}>Imprimir resultado</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionBtn, { borderColor: Colors.light.border, opacity: summary.counted ? 1 : 0.5 }]}
-            onPress={() => summary.counted && setConfirmClear(true)}
-            activeOpacity={0.8}
-          >
-            <Ionicons name="refresh-outline" size={16} color={Colors.light.textSecondary} />
-            <Text style={[styles.actionText, { color: Colors.light.textSecondary }]}>Limpar contagem</Text>
+            <Ionicons name="ellipsis-horizontal" size={20} color={Colors.light.text} />
           </TouchableOpacity>
         </View>
         {!!message && <Text style={styles.error}>{message}</Text>}
-
-        {isAdmin && (
-          <View style={styles.woCard}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.woTitle}>Dar baixa pela conferência</Text>
-              <Text style={styles.woNote}>
-                {writeoffOn
-                  ? 'Ligado: nas peças com falta aparece "Dar baixa". A baixa desconta do estoque e fica registrada com o motivo.'
-                  : 'Desligado: a conferência só compara e não altera o estoque.'}
-              </Text>
-            </View>
-            <Switch value={writeoffOn} onValueChange={toggleWriteoff} disabled={writeoffBusy} color={brand.primary} />
-          </View>
-        )}
 
         {/* Lista */}
         {isLoading ? (
@@ -745,16 +710,39 @@ export default function StockCheckScreen() {
                 return (
                   <View
                     key={r.variant_id}
-                    style={[styles.row, highlightId === r.variant_id && styles.rowHighlight]}
+                    style={[
+                      styles.row,
+                      d !== null && { borderLeftColor: d === 0 ? VALUE_COLORS.positive : d < 0 ? VALUE_COLORS.negative : VALUE_COLORS.warning },
+                      highlightId === r.variant_id && styles.rowHighlight,
+                    ]}
                     onLayout={(e) => { rowY.current[r.variant_id] = e.nativeEvent.layout.y; }}
                   >
                     <View style={{ flex: 1, minWidth: 0 }}>
                       <Text style={styles.variant} numberOfLines={1}>{variantLabel(r)}</Text>
-                      <Text style={styles.meta} numberOfLines={1}>{[code, r.sku].filter(Boolean).join(' · ')}</Text>
-                    </View>
-                    <View style={styles.sys}>
-                      <Text style={styles.sysLabel}>Sistema</Text>
-                      <Text style={styles.sysValue}>{formatInt(r.system_quantity)}</Text>
+                      <Text style={styles.meta} numberOfLines={1}>
+                        {code ? code + ' · ' : ''}sistema {formatInt(r.system_quantity)}
+                      </Text>
+                      {d !== null && (
+                        <View style={styles.resultLine}>
+                          {d === 0 ? (
+                            <Text style={[styles.resultText, { color: VALUE_COLORS.positive }]}>Confere</Text>
+                          ) : (
+                            <Text style={[styles.resultText, { color: d < 0 ? VALUE_COLORS.negative : VALUE_COLORS.warning }]}>
+                              {d < 0 ? `Falta ${-d}` : `Sobra ${d}`}
+                            </Text>
+                          )}
+                          {isAdmin && writeoffOn && d < 0 && r.system_quantity > 0 && (
+                            <TouchableOpacity
+                              accessibilityRole="button"
+                              accessibilityLabel={`Dar baixa de ${-d} peças`}
+                              onPress={() => { setWo({ row: r, qty: Math.min(-d, r.system_quantity) }); setWoReason('perda'); setWoNote(''); setWoError(''); }}
+                              hitSlop={8}
+                            >
+                              <Text style={[styles.woBtnText, { color: brand.primary }]}>Dar baixa</Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      )}
                     </View>
                     <View style={styles.stepper}>
                       <TouchableOpacity
@@ -788,30 +776,6 @@ export default function StockCheckScreen() {
                         <Ionicons name="add" size={18} color={Colors.light.text} />
                       </TouchableOpacity>
                     </View>
-                    <View style={styles.diff}>
-                      {d === null ? (
-                        // ainda sem contagem: mostra o que faltaria se nada for achado (cinza = provisório)
-                        r.system_quantity > 0 ? (
-                          <Text style={styles.diffPending}>falta {formatInt(r.system_quantity)}</Text>
-                        ) : (
-                          <Text style={styles.diffNone}>-</Text>
-                        )
-                      ) : d === 0 ? (
-                        <Ionicons name="checkmark-circle" size={22} color={VALUE_COLORS.positive} accessibilityLabel="Confere" />
-                      ) : (
-                        <Text style={[styles.diffText, { color: VALUE_COLORS.negative }]}>{d < 0 ? `falta ${-d}` : `sobra ${d}`}</Text>
-                      )}
-                        {isAdmin && writeoffOn && d !== null && d < 0 && r.system_quantity > 0 && (
-                          <TouchableOpacity
-                            accessibilityRole="button"
-                            accessibilityLabel={`Dar baixa de ${-d} peças`}
-                            onPress={() => { setWo({ row: r, qty: Math.min(-d, r.system_quantity) }); setWoReason('perda'); setWoNote(''); setWoError(''); }}
-                            style={styles.woBtn}
-                          >
-                            <Text style={[styles.woBtnText, { color: VALUE_COLORS.negative }]}>Dar baixa</Text>
-                          </TouchableOpacity>
-                        )}
-                    </View>
                   </View>
                 );
               })}
@@ -833,6 +797,34 @@ export default function StockCheckScreen() {
           </Text>
         )}
       </ScrollView>
+
+      <BottomSheet visible={menuOpen} onDismiss={() => setMenuOpen(false)} title="Mais opções" icon="ellipsis-horizontal">
+        <MenuRow icon="time-outline" label="Conferências salvas" onPress={() => { setMenuOpen(false); router.push('/reports/stock-counts' as any); }} />
+        <MenuRow icon="print-outline" label="Imprimir lista para contar" onPress={() => { setMenuOpen(false); printList(false); }} />
+        <MenuRow
+          icon="document-text-outline"
+          label="Imprimir resultado"
+          disabled={!summary.counted}
+          onPress={() => { setMenuOpen(false); printList(true); }}
+        />
+        <MenuRow
+          icon="refresh-outline"
+          label="Limpar contagem"
+          disabled={!summary.counted}
+          onPress={() => { setMenuOpen(false); setConfirmClear(true); }}
+        />
+        {isAdmin && (
+          <View style={styles.woCard}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.woTitle}>Dar baixa pela conferência</Text>
+              <Text style={styles.woNote}>
+                {writeoffOn ? 'Ligado: peças com falta ganham o botão "Dar baixa".' : 'Desligado: a conferência só compara.'}
+              </Text>
+            </View>
+            <Switch value={writeoffOn} onValueChange={toggleWriteoff} disabled={writeoffBusy} color={brand.primary} />
+          </View>
+        )}
+      </BottomSheet>
 
       <BottomSheet
         visible={!!wo}
@@ -962,6 +954,20 @@ export default function StockCheckScreen() {
   );
 }
 
+function MenuRow({ icon, label, onPress, disabled }: { icon: keyof typeof Ionicons.glyphMap; label: string; onPress: () => void; disabled?: boolean }) {
+  return (
+    <TouchableOpacity
+      onPress={disabled ? undefined : onPress}
+      activeOpacity={0.7}
+      style={[styles.menuRow, disabled && { opacity: 0.4 }]}
+      accessibilityRole="button"
+    >
+      <Ionicons name={icon} size={20} color={Colors.light.textSecondary} />
+      <Text style={styles.menuRowText}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
 function Chip({ label, active, onPress, color, disabled }: { label: string; active: boolean; onPress: () => void; color: string; disabled?: boolean }) {
   return (
     <TouchableOpacity
@@ -977,20 +983,16 @@ function Chip({ label, active, onPress, color, disabled }: { label: string; acti
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.background },
   content: { padding: 16, paddingBottom: 48 },
-  intro: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  introText: { flex: 1, fontSize: 13, lineHeight: 19, color: Colors.light.textSecondary },
-  cards: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  card: {
-    flexGrow: 1,
-    flexBasis: '45%',
-    backgroundColor: Colors.light.card,
-    borderRadius: 14,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: Colors.light.border,
-  },
-  cardLabel: { fontSize: 12, color: Colors.light.textSecondary },
-  cardValue: { fontSize: 20, fontWeight: '800', color: Colors.light.text, marginTop: 2 },
+  summary: { backgroundColor: Colors.light.card, borderRadius: 16, borderWidth: 1, borderColor: Colors.light.border, padding: 14, marginBottom: 12, gap: 8 },
+  summaryTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+  summaryMain: { fontSize: 14, color: Colors.light.textSecondary },
+  summaryBig: { fontSize: 22, fontWeight: '800', color: Colors.light.text },
+  summarySys: { fontSize: 12, color: Colors.light.textTertiary },
+  progressTrack: { height: 6, borderRadius: 3, backgroundColor: Colors.light.backgroundSecondary, overflow: 'hidden' },
+  progressFill: { height: 6, borderRadius: 3 },
+  summaryStats: { flexDirection: 'row', gap: 14 },
+  stat: { fontSize: 13, fontWeight: '700' },
+  summaryHint: { fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1002,7 +1004,8 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   searchInput: { flex: 1, fontSize: 14, color: Colors.light.text },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 8, alignItems: 'center' },
+  chips: { flexDirection: 'row', gap: 6, marginBottom: 10, alignItems: 'center' },
+  chipDivider: { width: 1, height: 18, backgroundColor: Colors.light.border, marginHorizontal: 2 },
   chip: {
     paddingHorizontal: 12,
     paddingVertical: 7,
@@ -1012,24 +1015,27 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.light.card,
   },
   chipText: { fontSize: 13, color: Colors.light.text },
-  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginVertical: 8 },
-  actionBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 9 },
-  actionText: { fontSize: 13, fontWeight: '700' },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2, marginBottom: 6 },
+  saveMain: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 46, borderRadius: 14 },
+  saveMainText: { color: '#fff', fontSize: 15, fontWeight: '800' },
+  finishBtn: { height: 46, paddingHorizontal: 18, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  finishText: { fontSize: 15, fontWeight: '800' },
+  moreBtn: { width: 46, height: 46, borderRadius: 14, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card, alignItems: 'center', justifyContent: 'center' },
+  menuRow: { flexDirection: 'row', alignItems: 'center', gap: 14, paddingVertical: 14, paddingHorizontal: 4 },
+  menuRowText: { fontSize: 15, fontWeight: '600', color: Colors.light.text },
+  resultLine: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 3 },
+  resultText: { fontSize: 12, fontWeight: '800' },
   group: { backgroundColor: Colors.light.card, borderRadius: 14, borderWidth: 1, borderColor: Colors.light.border, marginTop: 10, overflow: 'hidden' },
   groupHead: { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: Colors.light.backgroundSecondary },
   groupName: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
   groupCat: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 1 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 9, borderTopWidth: 1, borderTopColor: Colors.light.border },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: 1, borderTopColor: Colors.light.border, borderLeftWidth: 3, borderLeftColor: 'transparent' },
   variant: { fontSize: 14, fontWeight: '600', color: Colors.light.text },
   meta: { fontSize: 11, color: Colors.light.textSecondary, marginTop: 1 },
-  sys: { alignItems: 'center', minWidth: 52 },
-  sysLabel: { fontSize: 10, color: Colors.light.textSecondary },
-  sysValue: { fontSize: 16, fontWeight: '700', color: Colors.light.text },
-  saveBtn: { borderWidth: 1 },
   undoBtn: { width: 42, height: 42, borderRadius: 12, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card },
   rowHighlight: { backgroundColor: '#FEF9C3' },
-  draftBanner: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, padding: 12, borderRadius: 12, backgroundColor: '#FEF3C7', marginTop: 8 },
-  draftText: { flex: 1, fontSize: 13, lineHeight: 18, fontWeight: '600', color: '#92400E' },
+  draftBanner: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, backgroundColor: '#FEF3C7', marginBottom: 8 },
+  draftText: { flex: 1, fontSize: 12, lineHeight: 16, fontWeight: '600', color: '#92400E' },
   conflictBanner: { gap: 8, padding: 12, borderRadius: 12, backgroundColor: '#FEE2E2', marginTop: 8 },
   conflictText: { fontSize: 13, lineHeight: 18, fontWeight: '600', color: '#991B1B' },
   conflictBtn: { alignSelf: 'flex-start', backgroundColor: '#991B1B', paddingHorizontal: 14, paddingVertical: 8, borderRadius: 10 },
@@ -1077,17 +1083,12 @@ const styles = StyleSheet.create({
     color: Colors.light.text,
     backgroundColor: Colors.light.card,
   },
-  diff: { width: 54, alignItems: 'center' },
-  diffPending: { fontSize: 12, fontWeight: '600', textAlign: 'center', color: Colors.light.textTertiary },
-  diffNone: { color: Colors.light.textTertiary, fontSize: 16 },
-  diffText: { fontSize: 12, fontWeight: '700', textAlign: 'center' },
   empty: { alignItems: 'center', paddingVertical: 40, gap: 8 },
   emptyText: { fontSize: 14, color: Colors.light.textSecondary, textAlign: 'center' },
   link: { fontSize: 14, fontWeight: '700' },
-  woCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginHorizontal: 12, marginBottom: 10, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card },
+  woCard: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 8, padding: 12, borderRadius: 14, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card },
   woTitle: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
   woNote: { fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary, marginTop: 2 },
-  woBtn: { paddingHorizontal: 8, paddingVertical: 6 },
   woBtnText: { fontSize: 12, fontWeight: '800' },
   woReasons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
   woChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: Colors.light.border },

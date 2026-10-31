@@ -23,8 +23,9 @@ import { getImageUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
 import type { DemandItem } from '@/types/look';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import FeatureGate from '@/components/FeatureGate';
 
-export default function WishlistDemandScreen() {
+function WishlistDemandScreen() {
   const router = useRouter();
 
   const {
@@ -270,3 +271,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
+
+export default function WishlistDemandScreenGate() {
+  return (
+    <FeatureGate feature="wishlist">
+      <WishlistDemandScreen />
+    </FeatureGate>
+  );
+}

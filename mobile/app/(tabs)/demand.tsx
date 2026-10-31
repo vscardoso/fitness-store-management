@@ -23,8 +23,9 @@ import { formatCurrency } from '@/utils/format';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { DemandItem } from '@/types/look';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import FeatureGate from '@/components/FeatureGate';
 
-export default function DemandScreen() {
+function DemandScreen() {
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const {
@@ -326,3 +327,11 @@ const createStyles = (brand: string) => StyleSheet.create({
     fontSize: 14,
   },
 });
+
+export default function DemandScreenGate() {
+  return (
+    <FeatureGate feature="wishlist">
+      <DemandScreen />
+    </FeatureGate>
+  );
+}

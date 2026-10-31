@@ -36,6 +36,7 @@ import { PriceRange } from '@/components/ui/PriceDisplay';
 import type { ProductGrouped, ProductVariant } from '@/types';
 import type { Look } from '@/types/look';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import FeatureGate from '@/components/FeatureGate';
 
 interface SelectedItem {
   product: ProductGrouped;
@@ -47,7 +48,7 @@ interface SelectedItem {
 const variantLabel = (v: Pick<ProductVariant, 'color' | 'size' | 'sku'>) =>
   [v.color, v.size].filter(Boolean).join(' · ') || v.sku;
 
-export default function LookBuilderScreen() {
+function LookBuilderScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -600,3 +601,10 @@ const styles = StyleSheet.create({
   },
 });
 
+export default function LookBuilderScreenGate() {
+  return (
+    <FeatureGate feature="lookbook">
+      <LookBuilderScreen />
+    </FeatureGate>
+  );
+}

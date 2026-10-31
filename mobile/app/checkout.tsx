@@ -38,6 +38,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 
 import { Money } from '@/components/ui/PriceDisplay';
 import HScroll from '@/components/ui/HScroll';
+import { FEATURES } from '@/constants/features';
 /**
  * Métodos de pagamento disponíveis
  */
@@ -1197,9 +1198,11 @@ export default function CheckoutScreen() {
                   <View style={{ padding: 12, backgroundColor: Colors.light.backgroundSecondary, borderRadius: 8 }}>
                     <Text style={{ color: Colors.light.textSecondary, fontSize: 13, textAlign: 'center' }}>
                       Nenhum terminal configurado.{' '}
-                      <Text style={{ color: brandingColors.primary }} onPress={() => router.push('/(tabs)/pdv/terminals' as any)}>
-                        Adicionar terminal
-                      </Text>
+                      {FEATURES.maquininhas && (
+                        <Text style={{ color: brandingColors.primary }} onPress={() => router.push('/(tabs)/pdv/terminals' as any)}>
+                          Adicionar terminal
+                        </Text>
+                      )}
                     </Text>
                   </View>
                 ) : (

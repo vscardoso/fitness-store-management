@@ -23,8 +23,9 @@ import { formatCurrency } from '@/utils/format';
 import type { LookItemResponse } from '@/types/look';
 import type { ProductGrouped } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import FeatureGate from '@/components/FeatureGate';
 
-export default function LookDetailScreen() {
+function LookDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -489,3 +490,11 @@ const styles = StyleSheet.create({
     fontSize: 14,
   },
 });
+
+export default function LookDetailScreenGate() {
+  return (
+    <FeatureGate feature="lookbook">
+      <LookDetailScreen />
+    </FeatureGate>
+  );
+}
