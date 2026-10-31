@@ -83,7 +83,6 @@ export default function DesktopSidebar() {
       {
         key: 'clientes', title: 'Clientes', items: [
           { label: 'Clientes', icon: 'people-outline', href: '/(tabs)/customers', match: ['/customers'] },
-          ...(normalizeRole(user?.role) !== 'cashier' ? [{ label: 'WhatsApp', icon: 'logo-whatsapp' as Icon, href: '/whatsapp', match: ['/whatsapp'], badge: waUnread }] : []),
           ...(manager ? [
             { label: 'Lookbook', icon: 'shirt-outline' as Icon, href: '/looks', match: ['/looks'] },
             { label: 'Demanda wishlist', icon: 'heart-outline' as Icon, href: '/(tabs)/demand', match: ['/demand', '/wishlist'] },
@@ -91,6 +90,20 @@ export default function DesktopSidebar() {
         ],
       },
     ];
+    if (normalizeRole(user?.role) !== 'cashier') {
+      g.push({
+        key: 'whatsapp', title: 'WhatsApp', items: [
+          { label: 'Conversas', icon: 'logo-whatsapp' as Icon, href: '/whatsapp', match: ['/whatsapp'], badge: waUnread },
+          ...(admin ? [
+            { label: 'Perfil', icon: 'business-outline' as Icon, href: '/settings/whatsapp-profile', match: ['/settings/whatsapp-profile'] },
+            { label: 'Horário e ausência', icon: 'time-outline' as Icon, href: '/settings/whatsapp-hours', match: ['/settings/whatsapp-hours'] },
+            { label: 'Saudação automática', icon: 'chatbubble-ellipses-outline' as Icon, href: '/settings/whatsapp-greeting', match: ['/settings/whatsapp-greeting'] },
+            { label: 'Respostas rápidas', icon: 'flash-outline' as Icon, href: '/settings/whatsapp-quick-replies', match: ['/settings/whatsapp-quick-replies'] },
+            { label: 'Etiquetas', icon: 'pricetags-outline' as Icon, href: '/settings/whatsapp-labels', match: ['/settings/whatsapp-labels'] },
+          ] : []),
+        ],
+      });
+    }
     if (manager) {
       g.push(
         {
@@ -119,14 +132,13 @@ export default function DesktopSidebar() {
           { label: 'Descontos de pagamento', icon: 'cash-outline' as Icon, href: '/settings/payment-discounts', match: ['/settings/payment-discounts'] },
           { label: 'Chave PIX', icon: 'qr-code-outline' as Icon, href: '/settings/pix-key', match: ['/settings/pix-key'] },
           { label: 'Prazo de troca', icon: 'swap-horizontal-outline' as Icon, href: '/settings/returns', match: ['/settings/returns'] },
-          { label: 'Saudação do WhatsApp', icon: 'chatbubble-ellipses-outline' as Icon, href: '/settings/whatsapp-greeting', match: ['/settings/whatsapp-greeting'] },
         ] : []),
         { label: 'Terminais', icon: 'hardware-chip-outline', href: '/(tabs)/pdv/terminals', match: ['/pdv/terminals'] },
         { label: 'Ajuda e tutoriais', icon: 'help-circle-outline', href: '/(tabs)/help', match: ['/help'] },
       ],
     });
     return g;
-  }, [manager, admin]);
+  }, [manager, admin, user?.role, waUnread]);
 
   const isGroupOpen = (group: NavGroup) => {
     if (open[group.key] !== undefined) return open[group.key];

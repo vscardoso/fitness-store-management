@@ -9,6 +9,7 @@ export interface WaConversation {
   unread_count: number;
   last_message_at: string | null;
   window_open: boolean;
+  labels: WaLabel[];
   last_text: string | null;
   last_direction: 'in' | 'out' | null;
 }
@@ -24,9 +25,9 @@ export interface WaMessage {
   media: { kind: 'image' | 'audio' | 'video' | 'document' | 'sticker'; mime: string | null; filename: string | null } | null;
 }
 
-export const listConversations = async (q?: string): Promise<WaConversation[]> =>
+export const listConversations = async (q?: string, labelId?: number | null): Promise<WaConversation[]> =>
   (await api.get<WaConversation[]>('/whatsapp/conversations', {
-    params: q?.trim() ? { q: q.trim() } : undefined,
+    params: { ...(q?.trim() ? { q: q.trim() } : {}), ...(labelId ? { label_id: labelId } : {}) },
     headers: { 'X-Skip-Loading': 'true' },
   })).data;
 
@@ -71,3 +72,52 @@ export const getWhatsappGreeting = async (): Promise<WaGreeting> =>
 
 export const saveWhatsappGreeting = async (enabled: boolean, text: string): Promise<WaGreeting> =>
   (await api.put<WaGreeting>('/whatsapp/greeting', { enabled, text })).data;
+
+// ── perfil, ausência, respostas rápidas e etiquetas ──────────────────────────
+
+export interface WaProfile {
+  about: string; address: string; description: string; email: string; websites: string[]; vertical: string;
+  profile_picture_url: string | null;
+  limits: { about: number; address: number; description: number; email: number; websites: number };
+  verticals: string[];
+}
+export type WaProfileInput = Partial<Pick<WaProfile, 'about' | 'address' | 'description' | 'email' | 'websites' | 'vertical'>>;
+
+export const getWhatsappProfile = async (): Promise<WaProfile> =>
+  (await api.get<WaProfile>('/whatsapp/profile', { headers: { 'X-Skip-Loading': 'true' } })).data;
+
+export const saveWhatsappProfile = async (data: WaProfileInput): Promise<WaProfile> =>
+  (await api.put<WaProfile>('/whatsapp/profile', data, { headers: { 'X-Loading-Message': 'Salvando...' } })).data;
+
+export type WaHours = Record<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun', [string, string][]>;
+export interface WaAway { enabled: boolean; text: string; max_chars: number; timezone: string; hours: WaHours; has_hours: boolean }
+
+export const getWhatsappAway = async (): Promise<WaAway> =>
+  (await api.get<WaAway>('/whatsapp/away', { headers: { 'X-Skip-Loading': 'true' } })).data;
+
+export const saveWhatsappAway = async (enabled: boolean, text: string, hours: WaHours): Promise<WaAway> =>
+  (await api.put<WaAway>('/whatsapp/away', { enabled, text, hours })).data;
+
+export interface WaQuickReply { id: number; shortcut: string; text: string }
+export const listQuickReplies = async (): Promise<WaQuickReply[]> =>
+  (await api.get<WaQuickReply[]>('/whatsapp/quick-replies', { headers: { 'X-Skip-Loading': 'true' } })).data;
+export const createQuickReply = async (shortcut: string, text: string): Promise<WaQuickReply> =>
+  (await api.post<WaQuickReply>('/whatsapp/quick-replies', { shortcut, text })).data;
+export const updateQuickReply = async (id: number, shortcut: string, text: string): Promise<WaQuickReply> =>
+  (await api.put<WaQuickReply>(`/whatsapp/quick-replies/${id}`, { shortcut, text })).data;
+export const deleteQuickReply = async (id: number): Promise<void> => {
+  await api.delete(`/whatsapp/quick-replies/${id}`);
+};
+
+export interface WaLabel { id: number; name: string; color_key: string }
+export const listWhatsappLabels = async (): Promise<WaLabel[]> =>
+  (await api.get<WaLabel[]>('/whatsapp/labels', { headers: { 'X-Skip-Loading': 'true' } })).data;
+export const createWhatsappLabel = async (name: string, color_key: string): Promise<WaLabel> =>
+  (await api.post<WaLabel>('/whatsapp/labels', { name, color_key })).data;
+export const updateWhatsappLabel = async (id: number, name: string, color_key: string): Promise<WaLabel> =>
+  (await api.put<WaLabel>(`/whatsapp/labels/${id}`, { name, color_key })).data;
+export const deleteWhatsappLabel = async (id: number): Promise<void> => {
+  await api.delete(`/whatsapp/labels/${id}`);
+};
+export const setConversationLabels = async (conversationId: number, labelIds: number[]): Promise<WaLabel[]> =>
+  (await api.put<WaLabel[]>(`/whatsapp/conversations/${conversationId}/labels`, { label_ids: labelIds })).data;

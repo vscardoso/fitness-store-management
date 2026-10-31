@@ -167,7 +167,6 @@ export default function MoreScreen() {
           <Text style={styles.sectionTitle}>Gestão</Text>
           <View style={styles.menuCard}>
             <MenuItem icon="cube-outline" title="Produtos" subtitle="Catálogo e gerenciamento" onPress={() => router.push('/(tabs)/products')} iconColor={brandingColors.primary} iconBg={brandingColors.primary + '20'} />
-            {normalizeRole(user?.role) !== 'cashier' && <MenuItem icon="logo-whatsapp" title="Conversas do WhatsApp" subtitle="Responda as clientes no número da loja" onPress={() => router.push('/whatsapp' as any)} badge={waUnread > 0 ? String(waUnread) : undefined} iconColor="#16A34A" iconBg="#DCFCE7" />}
             <MenuItem icon="qr-code-outline" title="Consultar Peça" subtitle="Bipe a etiqueta e veja preço e estoque" onPress={() => router.push('/products/consult' as any)} iconColor="#0EA5E9" iconBg="#E0F2FE" />
             <MenuItem icon="people-outline" title="Clientes" subtitle="Gerenciar clientes e fidelidade" onPress={() => router.push('/(tabs)/customers')} iconColor={Colors.light.info} iconBg={Colors.light.infoLight} />
             {isManager && <MenuItem icon="layers-outline" title="Entradas" subtitle="Compras e controle de entradas" onPress={() => router.push('/entries')} iconColor="#9333EA" iconBg="#F3E8FF" />}
@@ -176,6 +175,25 @@ export default function MoreScreen() {
             <MenuItem icon="layers-outline" title="Inventário" subtitle="Dashboard de estoque e alertas" onPress={() => router.push('/(tabs)/inventory')} iconColor={Colors.light.warning} iconBg={Colors.light.warningLight} />
           </View>
         </View>
+
+        {/* WhatsApp da loja */}
+        {normalizeRole(user?.role) !== 'cashier' && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>WhatsApp</Text>
+            <View style={styles.menuCard}>
+              <MenuItem icon="logo-whatsapp" title="Conversas" subtitle="Responda as clientes no número da loja" onPress={() => router.push('/whatsapp' as any)} badge={waUnread > 0 ? String(waUnread) : undefined} iconColor="#16A34A" iconBg="#DCFCE7" />
+              {isAdminRole(user?.role) && (
+                <>
+                  <MenuItem icon="business-outline" title="Perfil do WhatsApp" subtitle="Recado, descrição, endereço e sites que a cliente vê" onPress={() => router.push('/settings/whatsapp-profile' as any)} iconColor="#0EA5E9" iconBg="#E0F2FE" />
+                  <MenuItem icon="time-outline" title="Horário e ausência" subtitle="Quando a loja atende e o aviso fora do horário" onPress={() => router.push('/settings/whatsapp-hours' as any)} iconColor="#F59E0B" iconBg="#FEF3C7" />
+                  <MenuItem icon="chatbubble-ellipses-outline" title="Saudação automática" subtitle="Mensagem quando a cliente escreve para a loja" onPress={() => router.push('/settings/whatsapp-greeting' as any)} iconColor="#16A34A" iconBg="#DCFCE7" />
+                  <MenuItem icon="flash-outline" title="Respostas rápidas" subtitle="Textos prontos que se chamam com /" onPress={() => router.push('/settings/whatsapp-quick-replies' as any)} iconColor="#8B5CF6" iconBg="#EDE9FE" />
+                  <MenuItem icon="pricetags-outline" title="Etiquetas" subtitle="Organize e filtre as conversas" onPress={() => router.push('/settings/whatsapp-labels' as any)} iconColor="#EC4899" iconBg="#FCE7F3" />
+                </>
+              )}
+            </View>
+          </View>
+        )}
 
         {/* Financeiro */}
         {isManager && (
@@ -253,16 +271,6 @@ export default function MoreScreen() {
                 onPress={() => router.push('/settings/returns' as any)}
                 iconColor="#F59E0B"
                 iconBg="#FEF3C7"
-              />
-            )}
-            {isAdminRole(user?.role) && (
-              <MenuItem
-                icon="chatbubble-ellipses-outline"
-                title="Saudação automática do WhatsApp"
-                subtitle="Mensagem que a cliente recebe quando escreve para a loja"
-                onPress={() => router.push('/settings/whatsapp-greeting' as any)}
-                iconColor="#16A34A"
-                iconBg="#DCFCE7"
               />
             )}
           </View>

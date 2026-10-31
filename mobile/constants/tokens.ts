@@ -3,6 +3,8 @@
  * Valores reutilizáveis que padronizam badges, ícones e animações.
  */
 
+import { Colors } from './Colors';
+
 export const BADGE = {
   sm: { fontSize: 10, paddingH: 6,  paddingV: 2, borderRadius: 8  },
   md: { fontSize: 12, paddingH: 8,  paddingV: 4, borderRadius: 10 },
@@ -70,3 +72,41 @@ export const BUTTON = {
 
 export type ButtonSize    = keyof typeof BUTTON.size;
 export type ButtonVariant = 'primary' | 'secondary' | 'outlined' | 'ghost' | 'danger' | 'danger-outline' | 'text';
+
+
+/**
+ * Tokens da caixa de conversas (WhatsApp da loja), em claro e escuro. Todos derivam da paleta do Provador em
+ * Colors.ts: nenhuma cor nova solta nos componentes. Use `useChatColors()` (hooks/useThemeColors.ts).
+ */
+const chatScheme = (c: typeof Colors.light) => ({
+  background: c.backgroundSecondary,       // fundo da conversa e da lista
+  surface: c.card,                         // cartões da lista, barra de resposta
+  border: c.border,
+  text: c.text,
+  textMuted: c.textSecondary,
+  bubbleOut: c.primary === Colors.light.primary ? c.primary : c.primaryLight,   // balão enviado
+  bubbleOutText: c.primary === Colors.light.primary ? c.background : c.text,
+  bubbleOutMuted: c.primary === Colors.light.primary ? c.primaryLight : c.textSecondary,
+  bubbleIn: c.card,                        // balão recebido
+  bubbleInText: c.text,
+  bubbleInBorder: c.border,
+  inputBg: c.backgroundSecondary,
+  accent: c.primary,
+  warning: c.warning,
+  warningSoft: c.warningLight,
+  danger: c.error,
+  // etiquetas: chave do servidor -> fundo e texto
+  label: {
+    primary: { bg: c.primaryLight, fg: c.primary },
+    secondary: { bg: c.secondaryLight, fg: c.secondary },
+    success: { bg: c.successLight, fg: c.success },
+    warning: { bg: c.warningLight, fg: c.warning },
+    info: { bg: c.infoLight, fg: c.info },
+    error: { bg: c.errorLight, fg: c.error },
+  },
+});
+
+export const CHAT = { light: chatScheme(Colors.light), dark: chatScheme(Colors.dark) } as const;
+export type ChatColors = typeof CHAT.light;
+export const LABEL_COLOR_KEYS = ['primary', 'secondary', 'success', 'warning', 'info', 'error'] as const;
+export type LabelColorKey = (typeof LABEL_COLOR_KEYS)[number];

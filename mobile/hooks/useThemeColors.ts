@@ -4,6 +4,7 @@
  */
 import { useColorScheme } from 'react-native';
 import { Colors, theme } from '@/constants/Colors';
+import { CHAT, ChatColors } from '@/constants/tokens';
 
 export type ThemeColors = typeof Colors.light;
 
@@ -15,4 +16,10 @@ export function useThemeColors(): ThemeColors {
 export function useTheme() {
   const colors = useThemeColors();
   return { ...theme, colors };
+}
+
+/** Cores da caixa de conversas do WhatsApp (claro/escuro seguindo o sistema). */
+export function useChatColors(): ChatColors {
+  const scheme = useColorScheme();
+  return scheme === 'dark' ? CHAT.dark : CHAT.light;
 }

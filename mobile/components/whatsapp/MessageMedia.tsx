@@ -9,6 +9,7 @@ import api from '@/services/api';
 import { parseApiError } from '@/utils/apiError';
 import type { WaMessage } from '@/services/whatsappService';
 import MediaViewer from './MediaViewer';
+import { useChatColors } from '@/hooks/useThemeColors';
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 function toBase64(bytes: Uint8Array): string {
@@ -51,6 +52,7 @@ async function openFile(uri: string, mime: string, name: string): Promise<void> 
 const LABEL: Record<string, string> = { audio: 'Áudio', video: 'Vídeo', document: 'Documento', sticker: 'Figurinha', image: 'Foto' };
 
 export default function MessageMedia({ message, mine }: { message: WaMessage; mine: boolean }) {
+  const c = useChatColors();
   const media = message.media!;
   const isImage = media.kind === 'image' || media.kind === 'sticker';
   const [file, setFile] = useState<{ uri: string; mime: string } | null>(null);
@@ -79,7 +81,7 @@ export default function MessageMedia({ message, mine }: { message: WaMessage; mi
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [message.id]);
 
-  const color = mine ? '#FFFFFF' : '#160F28';
+  const color = mine ? c.bubbleOutText : c.bubbleInText;
   const name = media.filename || LABEL[media.kind];
 
   if (isImage) {
@@ -105,9 +107,9 @@ export default function MessageMedia({ message, mine }: { message: WaMessage; mi
       );
     }
     return (
-      <View style={[styles.photo, styles.photoEmpty]}>
-        {loading ? <ActivityIndicator color="#7C3AED" /> : (
-          <TouchableOpacity onPress={load}><Text style={styles.small}>{error ?? 'Foto'} Toque para tentar de novo.</Text></TouchableOpacity>
+      <View style={[styles.photo, styles.photoEmpty, { backgroundColor: c.inputBg }]}>
+        {loading ? <ActivityIndicator color={c.accent} /> : (
+          <TouchableOpacity onPress={load}><Text style={[styles.small, { color: c.textMuted }]}>{error ?? 'Foto'} Toque para tentar de novo.</Text></TouchableOpacity>
         )}
       </View>
     );
@@ -120,7 +122,7 @@ export default function MessageMedia({ message, mine }: { message: WaMessage; mi
   return (
     <View style={{ gap: 4 }}>
       <TouchableOpacity
-        style={[styles.fileBtn, { borderColor: mine ? '#FFFFFF88' : '#E6E3EE' }]}
+        style={[styles.fileBtn, { borderColor: mine ? c.bubbleOutMuted : c.border }]}
         disabled={loading}
         onPress={async () => {
           try {
@@ -138,7 +140,7 @@ export default function MessageMedia({ message, mine }: { message: WaMessage; mi
         <Ionicons name={media.kind === 'audio' ? 'musical-notes-outline' : media.kind === 'video' ? 'videocam-outline' : 'document-text-outline'} size={20} color={color} />
         <Text style={{ color, fontSize: 14, flexShrink: 1 }} numberOfLines={1}>{loading ? 'Abrindo…' : `${name} · toque para abrir`}</Text>
       </TouchableOpacity>
-      {error && <Text style={styles.err}>{error}</Text>}
+      {error && <Text style={[styles.err, { color: c.danger }]}>{error}</Text>}
       {file && Platform.OS === 'web' && media.kind !== 'audio' && (
         <MediaViewer visible={viewer} onClose={() => setViewer(false)} kind={media.kind === 'video' ? 'video' : 'document'} uri={file.uri} title={name} />
       )}
@@ -147,9 +149,9 @@ export default function MessageMedia({ message, mine }: { message: WaMessage; mi
 }
 
 const styles = StyleSheet.create({
-  photo: { width: 220, height: 220, borderRadius: 10, backgroundColor: '#EEE' },
+  photo: { width: 220, height: 220, borderRadius: 12 },
   photoEmpty: { alignItems: 'center', justifyContent: 'center', padding: 12 },
-  small: { fontSize: 12, color: '#5B5670', textAlign: 'center' },
+  small: { fontSize: 12, textAlign: 'center' },
   fileBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8, maxWidth: 240 },
-  err: { fontSize: 11, color: '#B91C1C' },
+  err: { fontSize: 11 },
 });
