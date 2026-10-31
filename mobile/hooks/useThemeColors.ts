@@ -19,11 +19,11 @@ export function useTheme() {
   return { ...theme, colors };
 }
 
-/** Cores da caixa de conversas do WhatsApp (claro/escuro seguindo o sistema; balão enviado e destaque usam a cor da marca da loja). */
+/** Cores da caixa de conversas do WhatsApp (sempre claro; balão enviado e destaque usam a cor da marca da loja). */
 export function useChatColors(): ChatColors {
-  const scheme = useColorScheme();
   const brand = useBrandingColors();
-  const base = scheme === 'dark' ? CHAT.dark : CHAT.light;
+  // Decisão do Victor (31/10/2026): a caixa de conversas fica SEMPRE clara, mesmo com o aparelho em escuro. CHAT.dark fica pronto para uma futura opção de aparência.
+  const base = CHAT.light;
   return {
     ...base,
     bubbleOut: brand.primary,
