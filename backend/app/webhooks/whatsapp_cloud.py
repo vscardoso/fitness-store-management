@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db_unscoped
-from app.services.whatsapp_cloud_service import process_payload, send_greeting, verify_signature
+from app.services.whatsapp_cloud_service import process_payload, send_away, send_greeting, verify_signature
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +70,8 @@ async def receive_webhook(request: Request, background: BackgroundTasks, db: Asy
     # Saudação automática: só depois do commit e depois de responder 200 à Meta (tarefa em segundo plano)
     for tenant_id, conversation_id in result.greetings:
         background.add_task(send_greeting, tenant_id, conversation_id)
+    for tenant_id, conversation_id in result.aways:
+        background.add_task(send_away, tenant_id, conversation_id)
     return {
         "ok": True,
         "saved": result.messages_saved,

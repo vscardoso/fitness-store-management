@@ -24,6 +24,10 @@ class WhatsAppCloudNumber(BaseModel):
     # Saudação automática: manda 1 vez por janela de 24 h quando a cliente escreve (desligada por padrão)
     greeting_enabled = Column(Boolean, nullable=False, default=False, server_default=expression.false())
     greeting_text = Column(Text, nullable=True)
+    # Mensagem de ausência: fora do horário comercial, 1 vez por janela de 24 h (a API da Meta não tem isso)
+    away_enabled = Column(Boolean, nullable=False, default=False, server_default=expression.false())
+    away_text = Column(Text, nullable=True)
+    business_hours = Column(Text, nullable=True)  # JSON {"mon": [["09:00","18:00"]], ... "sun": []}; nulo = sem horário (sempre aberto)
 
 
 class WhatsAppConversation(BaseModel):
@@ -45,6 +49,7 @@ class WhatsAppConversation(BaseModel):
     last_inbound_at = Column(DateTime(timezone=True), nullable=True)  # abre a janela de 24 h
     unread_count = Column(Integer, nullable=False, default=0)
     last_greeting_at = Column(DateTime(timezone=True), nullable=True)  # trava da saudação: 1 por janela de 24 h
+    last_away_at = Column(DateTime(timezone=True), nullable=True)      # trava da ausência: 1 por janela de 24 h
 
     messages = relationship("WhatsAppMessage", back_populates="conversation")
 
@@ -72,3 +77,33 @@ class WhatsAppMessage(BaseModel):
     pricing_raw = Column(Text, nullable=True)              # JSON do `pricing` como a Meta mandou
 
     conversation = relationship("WhatsAppConversation", back_populates="messages")
+
+
+class WhatsAppQuickReply(BaseModel):
+    """Resposta rápida da loja: o atalho (`/preco`) abre o texto no campo de resposta."""
+    __tablename__ = "whatsapp_quick_replies"
+    __table_args__ = (UniqueConstraint("tenant_id", "shortcut", name="uq_whatsapp_quick_reply_shortcut"),)
+
+    tenant_id = Column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
+    shortcut = Column(String(40), nullable=False)   # sem a barra, minúsculo, letras/números/_-
+    text = Column(Text, nullable=False)
+
+
+class WhatsAppLabel(BaseModel):
+    """Etiqueta das conversas (só do Provador: as do app WhatsApp Business não sincronizam com a API)."""
+    __tablename__ = "whatsapp_labels"
+    __table_args__ = (UniqueConstraint("tenant_id", "name", name="uq_whatsapp_label_name"),)
+
+    tenant_id = Column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
+    name = Column(String(40), nullable=False)
+    color_key = Column(String(20), nullable=False, default="primary")  # chave do tema do app (primary, success, warning...)
+
+
+class WhatsAppConversationLabel(BaseModel):
+    """Liga etiqueta e conversa (N:N). Tirar a etiqueta desativa a linha, nunca apaga."""
+    __tablename__ = "whatsapp_conversation_labels"
+    __table_args__ = (UniqueConstraint("conversation_id", "label_id", name="uq_whatsapp_conversation_label"),)
+
+    tenant_id = Column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
+    conversation_id = Column(Integer, ForeignKey("whatsapp_conversations.id"), nullable=False, index=True)
+    label_id = Column(Integer, ForeignKey("whatsapp_labels.id"), nullable=False, index=True)

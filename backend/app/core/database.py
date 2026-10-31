@@ -197,8 +197,11 @@ _SQLITE_EXTRA_COLUMNS = {
     "products": [("code_number", "INTEGER")],
     "catalog_counters": [("next_product_code", "INTEGER NOT NULL DEFAULT 1")],
     "customers": [("anonymized_at", "DATETIME")],
-    "whatsapp_cloud_numbers": [("greeting_enabled", "BOOLEAN NOT NULL DEFAULT 0"), ("greeting_text", "TEXT")],
-    "whatsapp_conversations": [("last_greeting_at", "DATETIME")],
+    "whatsapp_cloud_numbers": [
+        ("greeting_enabled", "BOOLEAN NOT NULL DEFAULT 0"), ("greeting_text", "TEXT"),
+        ("away_enabled", "BOOLEAN NOT NULL DEFAULT 0"), ("away_text", "TEXT"), ("business_hours", "TEXT"),
+    ],
+    "whatsapp_conversations": [("last_greeting_at", "DATETIME"), ("last_away_at", "DATETIME")],
     "whatsapp_messages": [
         ("pricing_billable", "BOOLEAN"), ("pricing_category", "VARCHAR(40)"), ("pricing_type", "VARCHAR(40)"),
         ("pricing_model", "VARCHAR(16)"), ("pricing_raw", "TEXT"),

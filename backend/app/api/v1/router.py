@@ -52,6 +52,7 @@ from app.api.v1.endpoints import (
     stock_counts,
     looks,
     whatsapp_inbox,
+    whatsapp_settings,
     wishlist,
     suggestions,
     expenses,
@@ -213,6 +214,7 @@ api_router.include_router(supplier_returns.router, tags=["Devolução ao fornece
 # Lookbook
 api_router.include_router(looks.router, tags=["Looks"])
 api_router.include_router(whatsapp_inbox.router, tags=["WhatsApp"])
+api_router.include_router(whatsapp_settings.router, tags=["WhatsApp"])
 api_router.include_router(wishlist.router, tags=["Wishlist"])
 api_router.include_router(suggestions.router)
 

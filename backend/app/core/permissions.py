@@ -65,6 +65,9 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     ({"POST"}, r"^/payment-discounts/calculate$", CASHIER),
     ({"GET"}, r"^/payment-discounts/", CASHIER),
     ({"GET"}, r"^/(products|product-variants|categories|looks)(/|$)", CASHIER),
+    # configurações do WhatsApp: só admin altera (ler respostas rápidas e etiquetas é de vendedor para cima)
+    (ANY, r"^/whatsapp/(profile|away)$", ADMIN),
+    (WRITE, r"^/whatsapp/(quick-replies|labels)(/|$)", ADMIN),
     (ANY, r"^/whatsapp/greeting$", ADMIN),  # saudação automática: configuração da loja
     ({"GET"}, r"^/whatsapp/costs$", MANAGER),  # quanto o WhatsApp cobrou: dinheiro, só gerente
     (ANY, r"^/whatsapp(/|$)", SELLER),  # caixa de conversas do WhatsApp da loja

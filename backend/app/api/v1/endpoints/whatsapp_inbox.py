@@ -10,7 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_active_user, get_current_tenant_id
 from app.core.database import get_db
 from app.models.user import User
-from app.models.whatsapp_cloud import WhatsAppConversation, WhatsAppMessage
+from app.models.whatsapp_cloud import (
+    WhatsAppConversation, WhatsAppConversationLabel, WhatsAppLabel, WhatsAppMessage,
+)
 from app.services import whatsapp_cloud_service as svc
 
 router = APIRouter(prefix="/whatsapp", tags=["WhatsApp"])
@@ -20,7 +22,26 @@ class SendBody(BaseModel):
     text: str = Field(..., max_length=4096)
 
 
-def _conv(c: WhatsAppConversation, last: Optional[WhatsAppMessage] = None, customers: Optional[dict] = None) -> dict:
+async def _labels_of(db: AsyncSession, tenant_id: int, conv_ids: list) -> dict:
+    """{conversa: [{id, name, color_key}]} só com etiquetas ativas."""
+    if not conv_ids:
+        return {}
+    rows = (await db.execute(
+        select(WhatsAppConversationLabel.conversation_id, WhatsAppLabel.id, WhatsAppLabel.name, WhatsAppLabel.color_key)
+        .join(WhatsAppLabel, WhatsAppLabel.id == WhatsAppConversationLabel.label_id)
+        .where(
+            WhatsAppConversationLabel.tenant_id == tenant_id, WhatsAppConversationLabel.is_active == True,  # noqa: E712
+            WhatsAppLabel.is_active == True, WhatsAppConversationLabel.conversation_id.in_(conv_ids),  # noqa: E712
+        ).order_by(WhatsAppLabel.name)
+    )).all()
+    out: dict = {}
+    for cid, lid, name, color in rows:
+        out.setdefault(cid, []).append({"id": lid, "name": name, "color_key": color})
+    return out
+
+
+def _conv(c: WhatsAppConversation, last: Optional[WhatsAppMessage] = None, customers: Optional[dict] = None,
+          labels: Optional[list] = None) -> dict:
     cust = (customers or {}).get(c.phone) if c.phone else None
     return {
         "id": c.id,
@@ -30,6 +51,7 @@ def _conv(c: WhatsAppConversation, last: Optional[WhatsAppMessage] = None, custo
         "unread_count": c.unread_count or 0,
         "last_message_at": c.last_message_at,
         "window_open": svc.window_open(c),
+        "labels": labels or [],
         "last_text": (last.text if last else None),
         "last_direction": (last.direction if last else None),
     }
@@ -59,6 +81,7 @@ def _msg(m: WhatsAppMessage) -> dict:
 @router.get("/conversations")
 async def list_conversations(
     q: Optional[str] = Query(None, max_length=80),
+    label_id: Optional[int] = Query(None),
     skip: int = Query(0, ge=0), limit: int = Query(50, ge=1, le=200),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -75,17 +98,24 @@ async def list_conversations(
         if digits:
             conds.append(WhatsAppConversation.phone.like(f"%{digits}%"))
         query = query.where(or_(*conds))
+    if label_id is not None:
+        query = query.where(WhatsAppConversation.id.in_(
+            select(WhatsAppConversationLabel.conversation_id).where(
+                WhatsAppConversationLabel.tenant_id == tenant_id, WhatsAppConversationLabel.label_id == label_id,
+                WhatsAppConversationLabel.is_active == True,  # noqa: E712
+            )))
     convs = (await db.execute(
         query.order_by(WhatsAppConversation.last_message_at.desc().nullslast(), WhatsAppConversation.id.desc())
         .offset(skip).limit(limit)
     )).scalars().all()
     out = []
+    labels = await _labels_of(db, tenant_id, [c.id for c in convs])
     for c in convs:
         last = (await db.execute(
             select(WhatsAppMessage).where(WhatsAppMessage.conversation_id == c.id)
             .order_by(WhatsAppMessage.id.desc()).limit(1)
         )).scalar_one_or_none()
-        out.append(_conv(c, last, customers))
+        out.append(_conv(c, last, customers, labels.get(c.id)))
     return out
 
 
@@ -125,7 +155,8 @@ async def get_conversation(
         .order_by(WhatsAppMessage.id.desc()).limit(limit)
     )).scalars().all()
     customers = await svc.customers_by_phone(db, tenant_id)
-    return {**_conv(conv, msgs[0] if msgs else None, customers), "messages": [_msg(m) for m in reversed(msgs)]}
+    labels = await _labels_of(db, tenant_id, [conv.id])
+    return {**_conv(conv, msgs[0] if msgs else None, customers, labels.get(conv.id)), "messages": [_msg(m) for m in reversed(msgs)]}
 
 
 @router.post("/conversations/{conversation_id}/read")

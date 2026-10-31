@@ -55,6 +55,9 @@ async def maker():
         s.add(Store(id=1, name="Loja PG", slug="loja-pg", subdomain="loja-pg", is_default=True, is_active=True))
         await s.flush()
         s.add(WhatsAppCloudNumber(tenant_id=1, phone_number_id="PNID-PG", greeting_enabled=True, greeting_text="Oi! Teste de saudação."))
+        s.add(WhatsAppCloudNumber(tenant_id=1, phone_number_id="PNID-PG-AUSENTE", greeting_enabled=True, greeting_text="Oi! Saudação.",
+                                  away_enabled=True, away_text="Fechado agora.",
+                                  business_hours=json.dumps({d: [] for d in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")})))
         await s.commit()
     yield mk
     await engine.dispose()
@@ -150,3 +153,24 @@ async def test_conversa_antiga_e_varias_mensagens_ao_mesmo_tempo_uma_saudacao(cl
     rs = await asyncio.gather(*[_post(client, event("PNID-PG", [text_msg(frm=fone, ts=int(time.time()))])) for _ in range(8)])
     assert [r.status_code for r in rs] == [200] * 8 and sum(r.json()["saved"] for r in rs) == 8
     assert client.enviadas.count(fone) == 1 and await _saidas(maker, fone) == 1
+
+
+async def test_ausencia_varias_mensagens_ao_mesmo_tempo_e_nunca_junto_da_saudacao(client, maker):
+    """Número com ausência ligada e loja fechada: 8 mensagens juntas da mesma cliente = 1 ausência e 0 saudação."""
+    from app.models.whatsapp_cloud import WhatsAppCloudNumber, WhatsAppConversation
+
+    fone = "5511987660004"
+    async with maker() as s:
+        number = (await s.execute(select(WhatsAppCloudNumber).where(WhatsAppCloudNumber.phone_number_id == "PNID-PG-AUSENTE"))).scalar_one()
+        antigo = __import__("datetime").datetime.now(__import__("datetime").timezone.utc) - __import__("datetime").timedelta(hours=30)
+        s.add(WhatsAppConversation(tenant_id=1, number_id=number.id, contact_key=fone, phone=fone, wa_id=fone,
+                                   last_inbound_at=antigo, last_message_at=antigo, unread_count=0))
+        await s.commit()
+    rs = await asyncio.gather(*[_post(client, event("PNID-PG-AUSENTE", [text_msg(frm=fone, ts=int(time.time()))])) for _ in range(8)])
+    assert [r.status_code for r in rs] == [200] * 8
+    assert client.enviadas.count(fone) == 1 and await _saidas(maker, fone) == 1
+    async with maker() as s:
+        from app.models.whatsapp_cloud import WhatsAppMessage
+        textos = (await s.execute(select(WhatsAppMessage.text).join(WhatsAppConversation, WhatsAppConversation.id == WhatsAppMessage.conversation_id)
+                                  .where(WhatsAppConversation.phone == fone, WhatsAppMessage.direction == "out"))).scalars().all()
+    assert textos == ["Fechado agora."]

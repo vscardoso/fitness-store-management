@@ -107,6 +107,7 @@ class ProcessResult:
     statuses_ignored: int = 0
     unknown_numbers: list[str] = field(default_factory=list)
     greetings: list[tuple] = field(default_factory=list)  # (tenant_id, conversation_id) a saudar depois do commit
+    aways: list[tuple] = field(default_factory=list)      # idem, para a mensagem de ausência
 
 
 async def _find_number(db: AsyncSession, phone_number_id: Optional[str]) -> Optional[WhatsAppCloudNumber]:
@@ -200,7 +201,11 @@ async def _save_inbound(db: AsyncSession, number: WhatsAppCloudNumber, msg: dict
     await db.flush()
     result.messages_saved += 1
     if opens_window and str(msg.get("type") or "") not in GREETING_SKIP_TYPES:
-        if await _claim_greeting(db, number, conv, sent_at):
+        # Fora do horário comercial (com a ausência ligada) vale SÓ a ausência; no horário vale a saudação.
+        if away_applies(number, sent_at):
+            if await _claim_away(db, number, conv, sent_at):
+                result.aways.append((number.tenant_id, conv.id))
+        elif await _claim_greeting(db, number, conv, sent_at):
             result.greetings.append((number.tenant_id, conv.id))
 
 
@@ -313,11 +318,113 @@ async def _claim_greeting(db: AsyncSession, number: WhatsAppCloudNumber, conv: W
             WhatsAppConversation.id == conv.id,
             or_(WhatsAppConversation.last_greeting_at.is_(None),
                 WhatsAppConversation.last_greeting_at <= sent_at - WINDOW),
+            # saudação e ausência nunca na mesma janela
+            or_(WhatsAppConversation.last_away_at.is_(None),
+                WhatsAppConversation.last_away_at <= sent_at - WINDOW),
         )
         .values(last_greeting_at=sent_at)
         .execution_options(synchronize_session=False)
     )
     return (res.rowcount or 0) == 1
+
+
+DAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")   # datetime.weekday(): segunda = 0
+HOURS_TZ = "America/Sao_Paulo"
+MAX_INTERVALS_PER_DAY = 4
+
+
+def parse_hours(raw) -> Optional[dict]:
+    """JSON do horário (texto ou dict) -> {dia: [(início_min, fim_min), ...]}; None se não houver horário configurado."""
+    if raw is None or raw == "":
+        return None
+    try:
+        data = json.loads(raw) if isinstance(raw, str) else raw
+    except ValueError:
+        return None
+    if not isinstance(data, dict):
+        return None
+    out = {}
+    for d in DAYS:
+        items = []
+        for pair in data.get(d) or []:
+            try:
+                a, b = (int(x[:2]) * 60 + int(x[3:5]) for x in pair)
+            except (ValueError, TypeError, IndexError):
+                return None
+            items.append((a, b))
+        out[d] = items
+    return out
+
+
+def validate_hours(hours: dict) -> dict:
+    """Confere o horário vindo da tela e devolve no formato guardado. Levanta ValueError com frase para a lojista."""
+    if not isinstance(hours, dict):
+        raise ValueError("Horário inválido.")
+    clean = {}
+    for d in DAYS:
+        items = []
+        for pair in (hours.get(d) or []):
+            if not (isinstance(pair, (list, tuple)) and len(pair) == 2):
+                raise ValueError("Horário inválido.")
+            vals = []
+            for x in pair:
+                x = str(x)
+                if len(x) != 5 or x[2] != ":" or not (x[:2].isdigit() and x[3:].isdigit()) or int(x[:2]) > 23 or int(x[3:]) > 59:
+                    raise ValueError("Use horas no formato 09:00.")
+                vals.append(x)
+            if vals[0] >= vals[1]:
+                raise ValueError("O horário de abertura precisa ser antes do de fechamento.")
+            items.append(vals)
+        if len(items) > MAX_INTERVALS_PER_DAY:
+            raise ValueError(f"No máximo {MAX_INTERVALS_PER_DAY} faixas de horário por dia.")
+        items.sort()
+        for (a1, b1), (a2, b2) in zip(items, items[1:]):
+            if a2 < b1:
+                raise ValueError("As faixas de horário do mesmo dia não podem se sobrepor.")
+        clean[d] = items
+    return clean
+
+
+def is_open_at(hours: Optional[dict], when: datetime) -> bool:
+    """A loja está aberta nesse instante (horário de Brasília)? Sem horário configurado = sempre aberta."""
+    if hours is None:
+        return True
+    from zoneinfo import ZoneInfo
+
+    local = (when if when.tzinfo else when.replace(tzinfo=timezone.utc)).astimezone(ZoneInfo(HOURS_TZ))
+    minutes = local.hour * 60 + local.minute
+    return any(a <= minutes < b for a, b in hours.get(DAYS[local.weekday()], []))
+
+
+def away_applies(number: WhatsAppCloudNumber, when: datetime) -> bool:
+    """Ausência ligada, com texto e horário, e a loja está fechada neste instante."""
+    if not number.away_enabled or not (number.away_text or "").strip():
+        return False
+    hours = parse_hours(number.business_hours)
+    return hours is not None and not is_open_at(hours, when)
+
+
+async def _claim_away(db: AsyncSession, number: WhatsAppCloudNumber, conv: WhatsAppConversation,
+                      sent_at: datetime) -> bool:
+    """Mesma trava atômica da saudação, em `last_away_at`: uma ausência por janela de 24 h (e nunca junto da saudação)."""
+    if await _is_system_contact(db, conv):
+        return False
+    res = await db.execute(
+        update(WhatsAppConversation)
+        .where(
+            WhatsAppConversation.id == conv.id,
+            or_(WhatsAppConversation.last_away_at.is_(None), WhatsAppConversation.last_away_at <= sent_at - WINDOW),
+            or_(WhatsAppConversation.last_greeting_at.is_(None), WhatsAppConversation.last_greeting_at <= sent_at - WINDOW),
+        )
+        .values(last_away_at=sent_at)
+        .execution_options(synchronize_session=False)
+    )
+    return (res.rowcount or 0) == 1
+
+
+async def send_away(tenant_id: int, conversation_id: int) -> None:
+    """Manda a mensagem de ausência (depois do commit e do 200). Nunca levanta erro; mesmo caminho do `send_text`."""
+    await _send_automatic(tenant_id, conversation_id, "away_enabled", "away_text", "ausência")
 
 
 async def send_greeting(tenant_id: int, conversation_id: int) -> None:
@@ -326,6 +433,10 @@ async def send_greeting(tenant_id: int, conversation_id: int) -> None:
     Usa o mesmo caminho do texto da loja (`send_text`): só dentro da janela e só grava como enviada depois que a
     Meta aceitar. Qualquer falha vira log e o atendimento segue.
     """
+    await _send_automatic(tenant_id, conversation_id, "greeting_enabled", "greeting_text", "saudação")
+
+
+async def _send_automatic(tenant_id: int, conversation_id: int, enabled_attr: str, text_attr: str, label: str) -> None:
     import app.core.database as dbm
     from app.core.rls import bypass_on
 
@@ -337,8 +448,8 @@ async def send_greeting(tenant_id: int, conversation_id: int) -> None:
                     WhatsAppConversation.id == conversation_id, WhatsAppConversation.tenant_id == tenant_id))).scalar_one_or_none()
                 number = (await db.execute(select(WhatsAppCloudNumber).where(
                     WhatsAppCloudNumber.id == conv.number_id))).scalar_one_or_none() if conv else None
-                text = (number.greeting_text or "").strip() if number else ""
-                if not number or not number.greeting_enabled or not text:
+                text = (getattr(number, text_attr) or "").strip() if number else ""
+                if not number or not getattr(number, enabled_attr) or not text:
                     return  # desligada (ou apagada) entre o recebimento e o envio
                 await send_text(db, tenant_id, conversation_id, text)
                 await db.commit()
@@ -346,9 +457,9 @@ async def send_greeting(tenant_id: int, conversation_id: int) -> None:
                 await db.rollback()
                 raise
     except SendError as e:
-        logger.warning("WhatsApp Cloud: saudação não enviada (conversa %s): %s", conversation_id, e.message)
-    except Exception:  # noqa: BLE001 - a saudação nunca derruba o atendimento
-        logger.exception("WhatsApp Cloud: erro inesperado ao enviar a saudação (conversa %s)", conversation_id)
+        logger.warning("WhatsApp Cloud: %s não enviada (conversa %s): %s", label, conversation_id, e.message)
+    except Exception:  # noqa: BLE001 - mensagem automática nunca derruba o atendimento
+        logger.exception("WhatsApp Cloud: erro inesperado ao enviar a %s (conversa %s)", label, conversation_id)
 
 
 # ── envio de saída ────────────────────────────────────────────────────────────
@@ -753,3 +864,102 @@ async def costs_summary(db: AsyncSession, tenant_id: int, days: int = 30) -> dic
         out["by_category"][category or "desconhecida"] = out["by_category"].get(category or "desconhecida", 0) + 1
         out["by_type"][ptype or "desconhecido"] = out["by_type"].get(ptype or "desconhecido", 0) + 1
     return out
+
+
+# ── perfil comercial do número (Graph API: whatsapp_business_profile) ────────
+
+PROFILE_VERTICALS = (
+    "UNDEFINED", "OTHER", "AUTO", "BEAUTY", "APPAREL", "EDU", "ENTERTAIN", "EVENT_PLAN", "FINANCE", "GROCERY",
+    "GOVT", "HOTEL", "HEALTH", "NONPROFIT", "PROF_SERVICES", "RETAIL", "TRAVEL", "RESTAURANT", "NOT_A_BIZ",
+)
+PROFILE_LIMITS = {"about": 139, "address": 256, "description": 512, "email": 128}
+PROFILE_FIELDS = "about,address,description,email,profile_picture_url,websites,vertical"
+
+
+def validate_profile(data: dict) -> dict:
+    """Confere tamanhos e formatos ANTES de chamar a Meta. Devolve só os campos preenchidos. ValueError = frase pronta."""
+    out: dict = {}
+    names = {"about": "O recado", "address": "O endereço", "description": "A descrição", "email": "O e-mail"}
+    for key, limit in PROFILE_LIMITS.items():
+        value = (data.get(key) or "").strip()
+        if len(value) > limit:
+            raise ValueError(f"{names[key]} passa de {limit} letras.")
+        if value:
+            out[key] = value
+    if out.get("email") and ("@" not in out["email"] or " " in out["email"]):
+        raise ValueError("O e-mail não parece certo.")
+    sites = [str(w).strip() for w in (data.get("websites") or []) if str(w).strip()]
+    if len(sites) > 2:
+        raise ValueError("O WhatsApp aceita no máximo 2 endereços de site.")
+    for w in sites:
+        if not w.lower().startswith("https://") or len(w) > 256 or " " in w:
+            raise ValueError("Os sites precisam começar com https://")
+    if sites:
+        out["websites"] = sites
+    vertical = (data.get("vertical") or "").strip().upper()
+    if vertical:
+        if vertical not in PROFILE_VERTICALS:
+            raise ValueError("Escolha um ramo de atividade da lista.")
+        out["vertical"] = vertical
+    if not out:
+        raise ValueError("Preencha pelo menos um campo do perfil.")
+    return out
+
+
+async def _graph_profile(phone_number_id: str, body: Optional[dict] = None) -> dict:
+    """GET (body=None) ou POST do perfil comercial. Erro da Meta vira SendError legível; nunca devolve 'ok' falso."""
+    if not settings.WHATSAPP_CLOUD_ACCESS_TOKEN:
+        raise SendError("O WhatsApp da loja ainda não está configurado.", 424)
+    url = f"{settings.WHATSAPP_CLOUD_GRAPH_BASE}/{settings.WHATSAPP_CLOUD_API_VERSION}/{phone_number_id}/whatsapp_business_profile"
+    headers = {"Authorization": f"Bearer {settings.WHATSAPP_CLOUD_ACCESS_TOKEN}"}
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            if body is None:
+                resp = await client.get(url, params={"fields": PROFILE_FIELDS}, headers=headers)
+            else:
+                resp = await client.post(url, json={"messaging_product": "whatsapp", **body}, headers=headers)
+    except httpx.HTTPError:
+        raise SendError("Não consegui falar com o WhatsApp agora. Tente de novo em instantes.", 424)
+    try:
+        data = resp.json() if resp.content else {}
+    except ValueError:
+        data = {}
+    if resp.status_code >= 400:
+        code = ((data.get("error") or {}) if isinstance(data, dict) else {}).get("code")
+        logger.warning("WhatsApp Cloud: perfil recusado (%s) code=%s", resp.status_code, code)
+        if resp.status_code in (401, 403) or code == 190:
+            raise SendError("O acesso da loja ao WhatsApp venceu ou não tem permissão. Avise o suporte.", 424)
+        raise SendError("O WhatsApp recusou a alteração do perfil. Confira os campos e tente de novo.", 424)
+    return data if isinstance(data, dict) else {}
+
+
+async def get_profile(db: AsyncSession, tenant_id: int) -> dict:
+    number = await _tenant_number(db, tenant_id)
+    data = await _graph_profile(number.phone_number_id)
+    item = ((data.get("data") or [{}])[0]) if isinstance(data.get("data"), list) else {}
+    return {
+        "about": item.get("about") or "", "address": item.get("address") or "", "description": item.get("description") or "",
+        "email": item.get("email") or "", "websites": item.get("websites") or [], "vertical": item.get("vertical") or "",
+        "profile_picture_url": item.get("profile_picture_url") or None,
+        "limits": {**PROFILE_LIMITS, "websites": 2}, "verticals": list(PROFILE_VERTICALS),
+    }
+
+
+async def update_profile(db: AsyncSession, tenant_id: int, data: dict) -> dict:
+    clean = validate_profile(data)          # tamanhos conferidos antes de chamar a Meta
+    number = await _tenant_number(db, tenant_id)
+    result = await _graph_profile(number.phone_number_id, clean)
+    if result.get("success") is not True:   # a Meta responde {"success": true}; qualquer outra coisa não é "salvo"
+        raise SendError("O WhatsApp não confirmou a alteração do perfil.", 424)
+    return await get_profile(db, tenant_id)
+
+
+async def _tenant_number(db: AsyncSession, tenant_id: int) -> WhatsAppCloudNumber:
+    number = (await db.execute(
+        select(WhatsAppCloudNumber).where(
+            WhatsAppCloudNumber.tenant_id == tenant_id, WhatsAppCloudNumber.is_active == True,  # noqa: E712
+        ).order_by(WhatsAppCloudNumber.id)
+    )).scalars().first()
+    if number is None:
+        raise SendError("Esta loja ainda não tem um número oficial do WhatsApp ligado.", 409)
+    return number
