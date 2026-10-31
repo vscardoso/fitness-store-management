@@ -4,6 +4,25 @@ Testes de integração para endpoints de produtos
 import pytest
 from httpx import AsyncClient
 
+import uuid
+
+
+async def _cria_produto(test_client, auth_token) -> int:
+    """Cada teste cria o próprio produto: id fixo (1) dependia da ordem e de banco limpo."""
+    r = await test_client.post(
+        "/api/v1/products/",
+        json={
+            "name": f"Produto Endpoint {uuid.uuid4().hex[:8]}",
+            "sku": f"EP-{uuid.uuid4().hex[:8].upper()}",
+            "category_id": 1,
+            "cost_price": 50.00,
+            "sale_price": 80.00,
+        },
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert r.status_code == 201, r.text
+    return r.json()["id"]
+
 
 @pytest.mark.asyncio
 async def test_create_product(test_client, auth_token):
@@ -39,7 +58,7 @@ async def test_create_product(test_client, auth_token):
 async def test_get_product(test_client, auth_token):
     """Testa busca de produto por ID"""
     # Arrange
-    product_id = 1
+    product_id = await _cria_produto(test_client, auth_token)
     
     # Act
     response = await test_client.get(
@@ -72,7 +91,7 @@ async def test_list_products(test_client, auth_token):
 async def test_update_product(test_client, auth_token):
     """Testa atualização de produto"""
     # Arrange
-    product_id = 1
+    product_id = await _cria_produto(test_client, auth_token)
     update_data = {
         "name": "Creatina Premium",
         "sale_price": 100.00
@@ -97,7 +116,7 @@ async def test_update_product(test_client, auth_token):
 async def test_delete_product(test_client, auth_token):
     """Testa exclusão de produto"""
     # Arrange
-    product_id = 1
+    product_id = await _cria_produto(test_client, auth_token)
     
     # Act
     response = await test_client.delete(

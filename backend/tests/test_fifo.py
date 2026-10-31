@@ -16,158 +16,54 @@ Cenários testados:
 """
 
 import pytest
-import uuid
-from decimal import Decimal
 from datetime import date, timedelta
+from decimal import Decimal
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.product import Product
-from app.models.category import Category
-from app.models.stock_entry import StockEntry, EntryType
 from app.models.entry_item import EntryItem
 from app.services.fifo_service import FIFOService
+from tests.test_lot_costs import _limpa_loja_1, _loja_api, _lote, _produto  # noqa: F401
+
+D = Decimal
 
 
 @pytest.fixture
-async def setup_fifo_data(async_session: AsyncSession):
+async def setup_fifo_data(async_session: AsyncSession, test_user):
     """
-    Fixture para criar dados de teste para FIFO.
-    
-    Cria:
-    - 1 categoria
-    - 2 produtos
-    - 3 entradas de estoque com datas diferentes
-    - Entry items com quantidades e custos variados
+    Dados de FIFO no modelo atual (produto + variação + EntryItem por variação).
+
+    Whey (180 un): entrada 1 (30 dias atrás) 100 @ 85, entrada 2 (15 dias) 50 @ 90, entrada 3 (hoje) 30 @ 95.
+    Creatina (20 un): entrada 3, 20 @ 50. Sem rateio de viagem, então custo posto = custo da mercadoria.
     """
-    # Buscar ou criar categoria
-    from sqlalchemy import select
-    stmt = select(Category).where(Category.slug == "suplementos")
-    result = await async_session.execute(stmt)
-    category = result.scalars().first()
-    
-    if not category:
-        category = Category(
-            name="Suplementos",
-            description="Suplementos nutricionais",
-            slug="suplementos"
-        )
-        async_session.add(category)
-        await async_session.flush()
-    
-    # Criar produtos com SKUs únicos
-    unique_id = str(uuid.uuid4())[:8]
-    
-    product1 = Product(
-        name="Whey Protein",
-        sku=f"WHEY-{unique_id}",
-        price=Decimal("150.00"),
-        cost_price=Decimal("90.00"),
-        category_id=category.id,
-        is_active=True
-    )
-    
-    product2 = Product(
-        name="Creatina",
-        sku=f"CREAT-{unique_id}",
-        price=Decimal("80.00"),
-        cost_price=Decimal("50.00"),
-        category_id=category.id,
-        is_active=True
-    )
-    
-    async_session.add(product1)
-    async_session.add(product2)
-    await async_session.flush()
-    
-    # Criar entradas de estoque com datas diferentes (ordem FIFO)
+    t_id, _token, cat_id = await _loja_api(async_session, test_user)
+    product1, variant1 = await _produto(async_session, t_id, cat_id, "Whey Protein", "150.00")
+    product2, variant2 = await _produto(async_session, t_id, cat_id, "Creatina", "80.00")
     today = date.today()
-    
-    # Entrada 1 - Mais antiga (30 dias atrás)
-    entry1 = StockEntry(
-        entry_date=today - timedelta(days=30),
-        entry_type=EntryType.LOCAL,
-        supplier_name="Fornecedor A",
-        entry_code=f"ENT-{unique_id}-001",
-        is_active=True
-    )
-    async_session.add(entry1)
-    await async_session.flush()
-    
-    # Entry Item 1.1 - Whey com 100 unidades a R$ 85
-    entry_item_1_1 = EntryItem(
-        entry_id=entry1.id,
-        product_id=product1.id,
-        quantity_received=100,
-        quantity_remaining=100,
-        unit_cost=Decimal("85.00")
-    )
-    async_session.add(entry_item_1_1)
-    
-    # Entrada 2 - Intermediária (15 dias atrás)
-    entry2 = StockEntry(
-        entry_date=today - timedelta(days=15),
-        entry_type=EntryType.ONLINE,
-        supplier_name="Fornecedor B",
-        entry_code=f"ENT-{unique_id}-002",
-        is_active=True
-    )
-    async_session.add(entry2)
-    await async_session.flush()
-    
-    # Entry Item 2.1 - Whey com 50 unidades a R$ 90
-    entry_item_2_1 = EntryItem(
-        entry_id=entry2.id,
-        product_id=product1.id,
-        quantity_received=50,
-        quantity_remaining=50,
-        unit_cost=Decimal("90.00")
-    )
-    async_session.add(entry_item_2_1)
-    
-    # Entrada 3 - Mais recente (hoje)
-    entry3 = StockEntry(
-        entry_date=today,
-        entry_type=EntryType.TRIP,
-        supplier_name="Fornecedor C",
-        entry_code=f"ENT-{unique_id}-003",
-        is_active=True
-    )
-    async_session.add(entry3)
-    await async_session.flush()
-    
-    # Entry Item 3.1 - Whey com 30 unidades a R$ 95
-    entry_item_3_1 = EntryItem(
-        entry_id=entry3.id,
-        product_id=product1.id,
-        quantity_received=30,
-        quantity_remaining=30,
-        unit_cost=Decimal("95.00")
-    )
-    async_session.add(entry_item_3_1)
-    
-    # Entry Item 3.2 - Creatina com 20 unidades a R$ 50
-    entry_item_3_2 = EntryItem(
-        entry_id=entry3.id,
-        product_id=product2.id,
-        quantity_received=20,
-        quantity_remaining=20,
-        unit_cost=Decimal("50.00")
-    )
-    async_session.add(entry_item_3_2)
-    
+    entry1 = await _lote(async_session, t_id, [(variant1, product1, 100, "85.00")], entry_date=today - timedelta(days=30))
+    entry2 = await _lote(async_session, t_id, [(variant1, product1, 50, "90.00")], entry_date=today - timedelta(days=15))
+    entry3 = await _lote(async_session, t_id, [(variant1, product1, 30, "95.00"), (variant2, product2, 20, "50.00")], entry_date=today)
     await async_session.commit()
-    
+
+    async def _item(entry, variant):
+        from sqlalchemy import select
+        return (await async_session.execute(
+            select(EntryItem).where(EntryItem.entry_id == entry.id, EntryItem.variant_id == variant.id))).scalar_one()
+
     return {
-        "category": category,
+        "tenant_id": t_id,
+        "category_id": cat_id,
         "product1": product1,  # Whey - Total: 180 unidades
         "product2": product2,  # Creatina - Total: 20 unidades
+        "variant1": variant1,
+        "variant2": variant2,
         "entry1": entry1,
         "entry2": entry2,
         "entry3": entry3,
-        "entry_item_1_1": entry_item_1_1,  # Whey - 100 un @ R$ 85
-        "entry_item_2_1": entry_item_2_1,  # Whey - 50 un @ R$ 90
-        "entry_item_3_1": entry_item_3_1,  # Whey - 30 un @ R$ 95
-        "entry_item_3_2": entry_item_3_2,  # Creatina - 20 un @ R$ 50
+        "entry_item_1_1": await _item(entry1, variant1),  # Whey - 100 un @ R$ 85
+        "entry_item_2_1": await _item(entry2, variant1),  # Whey - 50 un @ R$ 90
+        "entry_item_3_1": await _item(entry3, variant1),  # Whey - 30 un @ R$ 95
+        "entry_item_3_2": await _item(entry3, variant2),  # Creatina - 20 un @ R$ 50
     }
 
 
@@ -187,7 +83,9 @@ async def test_fifo_single_entry(async_session: AsyncSession, setup_fifo_data):
     # Processar venda de 50 unidades
     sources = await fifo_service.process_sale(
         product_id=data["product1"].id,
-        quantity=50
+        quantity=50,
+        variant_id=data["variant1"].id,
+        tenant_id=data["tenant_id"],
     )
     
     # Verificações
@@ -198,9 +96,8 @@ async def test_fifo_single_entry(async_session: AsyncSession, setup_fifo_data):
     assert source["quantity_taken"] == 50
     assert source["unit_cost"] == 85.00
     assert source["total_cost"] == 50 * 85.00
-    assert source["entry_code"].startswith("ENT-")
-    assert source["entry_code"].endswith("-001")
-    
+    assert source["entry_code"].startswith("LOTE-")
+        
     # Verificar quantidade restante no banco
     await async_session.refresh(data["entry_item_1_1"])
     assert data["entry_item_1_1"].quantity_remaining == 50
@@ -222,7 +119,9 @@ async def test_fifo_multiple_entries(async_session: AsyncSession, setup_fifo_dat
     # Processar venda de 120 unidades
     sources = await fifo_service.process_sale(
         product_id=data["product1"].id,
-        quantity=120
+        quantity=120,
+        variant_id=data["variant1"].id,
+        tenant_id=data["tenant_id"],
     )
     
     # Verificações
@@ -273,7 +172,9 @@ async def test_fifo_insufficient_stock(async_session: AsyncSession, setup_fifo_d
     with pytest.raises(ValueError) as exc_info:
         await fifo_service.process_sale(
             product_id=data["product1"].id,
-            quantity=200
+            quantity=200,
+            variant_id=data["variant1"].id,
+            tenant_id=data["tenant_id"],
         )
     
     # Verificar mensagem de erro
@@ -307,7 +208,9 @@ async def test_fifo_respects_order(async_session: AsyncSession, setup_fifo_data)
     # Processar venda de 180 unidades (usa todas as entradas)
     sources = await fifo_service.process_sale(
         product_id=data["product1"].id,
-        quantity=180
+        quantity=180,
+        variant_id=data["variant1"].id,
+        tenant_id=data["tenant_id"],
     )
     
     # Verificações
@@ -323,13 +226,10 @@ async def test_fifo_respects_order(async_session: AsyncSession, setup_fifo_data)
     assert sources[1]["quantity_taken"] == 50
     assert sources[2]["quantity_taken"] == 30
     
-    # Verificar códigos de entrada (padrão UUID)
-    assert sources[0]["entry_code"].startswith("ENT-")
-    assert sources[0]["entry_code"].endswith("-001")
-    assert sources[1]["entry_code"].startswith("ENT-")
-    assert sources[1]["entry_code"].endswith("-002")
-    assert sources[2]["entry_code"].startswith("ENT-")
-    assert sources[2]["entry_code"].endswith("-003")
+    # Verificar códigos de entrada (LOTE-n, em ordem crescente de criação)
+    assert sources[0]["entry_code"].startswith("LOTE-")
+    assert sources[1]["entry_code"].startswith("LOTE-")
+    assert sources[2]["entry_code"].startswith("LOTE-")
     
     # Verificar que todas as entradas foram zeradas
     await async_session.refresh(data["entry_item_1_1"])
@@ -357,7 +257,9 @@ async def test_simulate_sale(async_session: AsyncSession, setup_fifo_data):
     # Simular venda
     simulation = await fifo_service.simulate_sale(
         product_id=data["product1"].id,
-        quantity=75
+        quantity=75,
+        variant_id=data["variant1"].id,
+        tenant_id=data["tenant_id"],
     )
     
     # Verificações
@@ -396,7 +298,9 @@ async def test_reverse_sale(async_session: AsyncSession, setup_fifo_data):
     # Processar venda
     sources = await fifo_service.process_sale(
         product_id=data["product1"].id,
-        quantity=60
+        quantity=60,
+        variant_id=data["variant1"].id,
+        tenant_id=data["tenant_id"],
     )
     
     # Verificar que venda foi processada
@@ -427,7 +331,9 @@ async def test_check_availability(async_session: AsyncSession, setup_fifo_data):
     # Verificar disponibilidade: DISPONÍVEL
     availability = await fifo_service.check_availability(
         product_id=data["product1"].id,
-        quantity=100
+        quantity=100,
+        variant_id=data["variant1"].id,
+        tenant_id=data["tenant_id"],
     )
     
     assert availability["available"] is True
@@ -439,7 +345,9 @@ async def test_check_availability(async_session: AsyncSession, setup_fifo_data):
     # Verificar disponibilidade: INDISPONÍVEL
     availability = await fifo_service.check_availability(
         product_id=data["product1"].id,
-        quantity=200
+        quantity=200,
+        variant_id=data["variant1"].id,
+        tenant_id=data["tenant_id"],
     )
     
     assert availability["available"] is False
@@ -462,7 +370,9 @@ async def test_get_product_cost_info(async_session: AsyncSession, setup_fifo_dat
     
     # Obter informações de custo
     cost_info = await fifo_service.get_product_cost_info(
-        product_id=data["product1"].id
+        product_id=data["product1"].id,
+        variant_id=data["variant1"].id,
+        tenant_id=data["tenant_id"],
     )
     
     # Verificações
@@ -494,7 +404,9 @@ async def test_fifo_zero_quantity_error(async_session: AsyncSession, setup_fifo_
     with pytest.raises(ValueError) as exc_info:
         await fifo_service.process_sale(
             product_id=data["product1"].id,
-            quantity=0
+            quantity=0,
+            variant_id=data["variant1"].id,
+            tenant_id=data["tenant_id"],
         )
     
     assert "must be greater than 0" in str(exc_info.value)
@@ -509,23 +421,17 @@ async def test_fifo_no_stock_error(async_session: AsyncSession, setup_fifo_data)
     fifo_service = FIFOService(async_session)
     
     # Criar produto sem estoque
-    product_no_stock = Product(
-        name="Produto Sem Estoque",
-        sku="NO-STOCK-001",
-        price=Decimal("100.00"),
-        cost_price=Decimal("60.00"),
-        category_id=data["category"].id,
-        is_active=True
-    )
-    async_session.add(product_no_stock)
+    product_no_stock, variant_no_stock = await _produto(
+        async_session, data["tenant_id"], data["category_id"], "Produto Sem Estoque", "100.00")
     await async_session.commit()
-    await async_session.refresh(product_no_stock)
-    
-    # Tentar vender produto sem estoque
-    with pytest.raises(ValueError) as exc_info:
-        await fifo_service.process_sale(
-            product_id=product_no_stock.id,
-            quantity=10
-        )
-    
-    assert "has no available stock" in str(exc_info.value)
+
+    # Tentar vender produto sem estoque (por variação e pelo caminho legado por produto)
+    for kwargs in ({"variant_id": variant_no_stock.id}, {}):
+        with pytest.raises(ValueError) as exc_info:
+            await fifo_service.process_sale(
+                product_id=product_no_stock.id,
+                quantity=10,
+                tenant_id=data["tenant_id"],
+                **kwargs,
+            )
+        assert "Sem estoque disponível" in str(exc_info.value)

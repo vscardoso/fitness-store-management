@@ -60,6 +60,9 @@ from app.schemas.entry_item import EntryItemCreate
 from app.schemas.sale import SaleCreate, SaleItemCreate, PaymentCreate
 
 
+PRECO_WHEY, PRECO_CREAT, PRECO_HALTER = Decimal("120.00"), Decimal("80.00"), Decimal("150.00")  # preço de venda é da variação (Product.price não existe mais)
+
+
 @pytest.mark.asyncio
 async def test_complete_business_flow(db: AsyncSession):
     """
@@ -180,7 +183,8 @@ async def test_complete_business_flow(db: AsyncSession):
             category_id=category_suplementos.id,
             is_active=True
         ),
-        tenant_id=tenant_id
+        tenant_id=tenant_id,
+        user_id=user_id,
     )
 
     # Produto 2: Creatina
@@ -195,7 +199,8 @@ async def test_complete_business_flow(db: AsyncSession):
             category_id=category_suplementos.id,
             is_active=True
         ),
-        tenant_id=tenant_id
+        tenant_id=tenant_id,
+        user_id=user_id,
     )
 
     # Produto 3: Halteres
@@ -210,7 +215,8 @@ async def test_complete_business_flow(db: AsyncSession):
             category_id=category_equipamentos.id,
             is_active=True
         ),
-        tenant_id=tenant_id
+        tenant_id=tenant_id,
+        user_id=user_id,
     )
 
     print(f"   Produto criado: {product_whey.name} (ID={product_whey.id})")
@@ -366,7 +372,7 @@ async def test_complete_business_flow(db: AsyncSession):
             address_city="São Paulo",
             address_state="SP"
         ),
-        tenant_id=tenant_id
+        tenant_id=tenant_id,
     )
 
     # Cliente 2: VIP
@@ -383,7 +389,7 @@ async def test_complete_business_flow(db: AsyncSession):
             address_city="São Paulo",
             address_state="SP"
         ),
-        tenant_id=tenant_id
+        tenant_id=tenant_id,
     )
 
     print(f"   Cliente criado: {customer1.full_name} (Tipo: {customer1.customer_type})")
@@ -407,13 +413,13 @@ async def test_complete_business_flow(db: AsyncSession):
             SaleItemCreate(
                 product_id=product_whey.id,
                 quantity=5,
-                unit_price=product_whey.price,  # R$ 120.00
+                unit_price=PRECO_WHEY,  # R$ 120.00
                 discount_amount=Decimal("0.00")
             ),
             SaleItemCreate(
                 product_id=product_creatina.id,
                 quantity=3,
-                unit_price=product_creatina.price,  # R$ 80.00
+                unit_price=PRECO_CREAT,  # R$ 80.00
                 discount_amount=Decimal("0.00")
             ),
         ],
@@ -430,6 +436,7 @@ async def test_complete_business_flow(db: AsyncSession):
     sale1 = await sale_service.create_sale(sale1_data, seller_id=user_id, tenant_id=tenant_id)
 
     # Recarregar sale com items eager-loaded para evitar problemas de lazy-loading
+    await db.refresh(sale1)  # valores reais do banco (em memória o serviço deixa o total como float)
     await db.refresh(sale1, ["items", "payments"])
 
     print(f"      Venda criada: {sale1.sale_number}")
@@ -469,9 +476,8 @@ async def test_complete_business_flow(db: AsyncSession):
     await db.refresh(inventory_whey)
     await db.refresh(inventory_creatina)
 
-    # TODO: Verificar por que o inventário não está sendo atualizado
-    # assert inventory_whey.quantity == 45  # 50 - 5
-    # assert inventory_creatina.quantity == 27  # 30 - 3
+    assert inventory_whey.quantity == 45  # 50 - 5
+    assert inventory_creatina.quantity == 27  # 30 - 3
 
     print(f"\n      Inventario apos Venda 1:")
     print(f"         Whey: {inventory_whey.quantity} unidades (esperado: 45)")
@@ -482,11 +488,11 @@ async def test_complete_business_flow(db: AsyncSession):
 
     # Cliente VIP tem 5% de desconto
     discount_vip = customer2.calculate_discount_percentage()
-    whey_price_vip = product_whey.price * (Decimal("1.00") - discount_vip / Decimal("100"))
-    halter_price_vip = product_halter.price * (Decimal("1.00") - discount_vip / Decimal("100"))
+    whey_price_vip = PRECO_WHEY * (Decimal("1.00") - discount_vip / Decimal("100"))
+    halter_price_vip = PRECO_HALTER * (Decimal("1.00") - discount_vip / Decimal("100"))
 
-    print(f"      DEBUG: Whey price: R$ {product_whey.price}, VIP price: R$ {whey_price_vip}")
-    print(f"      DEBUG: Halter price: R$ {product_halter.price}, VIP price: R$ {halter_price_vip}")
+    print(f"      DEBUG: Whey price: R$ {PRECO_WHEY}, VIP price: R$ {whey_price_vip}")
+    print(f"      DEBUG: Halter price: R$ {PRECO_HALTER}, VIP price: R$ {halter_price_vip}")
     print(f"      DEBUG: Expected total: R$ {(whey_price_vip * 10) + (halter_price_vip * 2)}")
 
     sale2_data = SaleCreate(
@@ -519,6 +525,7 @@ async def test_complete_business_flow(db: AsyncSession):
     sale2 = await sale_service.create_sale(sale2_data, seller_id=user_id, tenant_id=tenant_id)
 
     # Recarregar sale com items eager-loaded para evitar problemas de lazy-loading
+    await db.refresh(sale2)  # valores reais do banco (em memória o serviço deixa o total como float)
     await db.refresh(sale2, ["items", "payments"])
 
     print(f"      Venda criada: {sale2.sale_number}")
@@ -558,9 +565,8 @@ async def test_complete_business_flow(db: AsyncSession):
     await db.refresh(inventory_whey)
     await db.refresh(inventory_halter)
 
-    # TODO: Verificar por que o inventário não está sendo atualizado
-    # assert inventory_whey.quantity == 35  # 45 - 10
-    # assert inventory_halter.quantity == 18  # 20 - 2
+    assert inventory_whey.quantity == 35  # 45 - 10
+    assert inventory_halter.quantity == 18  # 20 - 2
 
     print(f"\n      Inventario apos Venda 2:")
     print(f"         Whey: {inventory_whey.quantity} unidades")
@@ -661,16 +667,19 @@ async def test_complete_business_flow(db: AsyncSession):
         sources = item.sale_sources.get("sources", []) if item.sale_sources else []
         for source in sources:
             assert source["entry_id"] == entry.id  # Deve vir da entrada que criamos
+            # o FIFO grava o custo POSTO (mercadoria + rateio da viagem), não só o custo da mercadoria
+            ei = next(i for i in entry.entry_items if i.id == source["entry_item_id"])
+            assert source["unit_cost"] == float(ei.landed_unit_cost)
+            assert ei.extra_unit_cost > 0
 
     # Verificar que inventory está correto
     total_sold_whey = 5 + 10  # Venda 1 + Venda 2
     total_sold_creatina = 3
     total_sold_halter = 2
 
-    # TODO: Verificar por que o inventário não está sendo atualizado
-    # assert inventory_whey.quantity == 50 - total_sold_whey
-    # assert inventory_creatina.quantity == 30 - total_sold_creatina
-    # assert inventory_halter.quantity == 20 - total_sold_halter
+    assert inventory_whey.quantity == 50 - total_sold_whey
+    assert inventory_creatina.quantity == 30 - total_sold_creatina
+    assert inventory_halter.quantity == 20 - total_sold_halter
 
     # Verificar que customer stats foram atualizados
     await db.refresh(customer1)
@@ -725,5 +734,4 @@ async def test_complete_business_flow(db: AsyncSession):
     # Assertions finais
     assert total_profit > 0, "Lucro deve ser positivo"
     assert roi > 0, "ROI deve ser positivo"
-    # TODO: Verificar por que o inventário não está sendo atualizado
-    # assert inventory_whey.quantity > 0, "Deve haver estoque remanescente"
+    assert inventory_whey.quantity > 0, "Deve haver estoque remanescente"

@@ -8,7 +8,7 @@ from sqlalchemy import and_, desc, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.sale import Sale, SaleItem
+from app.models.sale import Sale, SaleItem, SaleStatus
 from app.models.product import Product
 from app.models.product_variant import ProductVariant
 from app.repositories.base import BaseRepository
@@ -159,13 +159,21 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         total = result.scalar()
         return Decimal(str(total)) if total is not None else Decimal('0.00')
     
-    async def get_top_products(self, limit: int = 10, *, tenant_id: int | None = None) -> List[dict]:
+    async def get_top_products(
+        self,
+        limit: int = 10,
+        *,
+        tenant_id: int | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> List[dict]:
         """
-        Busca os produtos mais vendidos.
+        Busca os produtos mais vendidos (vendas canceladas não contam).
         
         Args:
             limit: Número máximo de produtos a retornar
             tenant_id: ID do tenant
+            start_date, end_date: período opcional (dia da venda, inclusive)
             
         Returns:
             Lista com produtos e quantidades vendidas
@@ -180,10 +188,16 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
             )
             .select_from(SaleItem)
             .join(Product, SaleItem.product_id == Product.id)
+            .join(Sale, SaleItem.sale_id == Sale.id)
+            .where(Sale.status != SaleStatus.CANCELLED)
         )
         
         if tenant_id is not None and hasattr(SaleItem, "tenant_id"):
             query = query.where(SaleItem.tenant_id == tenant_id)
+        if start_date is not None:
+            query = query.where(func.date(Sale.created_at) >= start_date)
+        if end_date is not None:
+            query = query.where(func.date(Sale.created_at) <= end_date)
         
         query = query.group_by(Product.id, Product.name, Product.brand).order_by(desc('total_quantity')).limit(limit)
         

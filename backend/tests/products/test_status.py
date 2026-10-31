@@ -1,80 +1,81 @@
-from decimal import Decimal
-import pytest
-from sqlalchemy.ext.asyncio import AsyncSession
-import uuid
+"""Status de estoque por produto (in_stock / depleted / never_stocked) e filtro de publicados.
 
-from app.models.store import Store
-from app.models.category import Category
-from app.models.product import Product
+Semântica atual: `Product.is_catalog=True` significa PUBLICADO no catálogo público. `include_catalog=False` devolve só os
+publicados; `include_catalog=True` devolve todos os ativos da loja (o admin vê também os não publicados).
+"""
+import pytest
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.models.entry_item import EntryItem
-from app.models.stock_entry import StockEntry, EntryType
 from app.services.inventory_service import InventoryService
 from app.services.product_service import ProductService
+from tests.test_lot_costs import _loja, _lote, _produto
+
+pytestmark = pytest.mark.asyncio
 
 
-@pytest.mark.asyncio
+async def _carrega_variacoes(db, *produtos):
+    """Contorno do BUG REAL de get_products_status (ver test_status_em_sessao_nova): deixa `variants` carregado para
+    `Product.sku` não disparar lazy-load assíncrono. Assim os testes abaixo exercitam só a regra de status."""
+    for p in produtos:
+        await db.refresh(p, ["variants"])
+
+
 async def test_products_status_flags(db: AsyncSession):
-    u = uuid.uuid4().hex[:8]
+    tenant_id, _token, cat_id = await _loja(db)
+    prod_a, _va = await _produto(db, tenant_id, cat_id, "A")   # nunca teve entrada
+    prod_b, vb = await _produto(db, tenant_id, cat_id, "B")    # com saldo
+    prod_c, vc = await _produto(db, tenant_id, cat_id, "C")    # teve entrada e zerou
+    await _lote(db, tenant_id, [(vb, prod_b, 5, "2.00")])
+    lote_c = await _lote(db, tenant_id, [(vc, prod_c, 3, "2.00")])
+    item_c = (await db.execute(select(EntryItem).where(EntryItem.entry_id == lote_c.id))).scalar_one()
+    item_c.quantity_remaining = 0  # vendeu tudo
+    await db.commit()
 
-    # Tenant e categoria
-    store = Store(name=f"Tenant Status {u}", slug=f"tenant-status-{u}")
-    db.add(store); await db.flush()
-    cat = Category(name="Geral", slug=f"geral-status-{u}"); cat.tenant_id = store.id
-    db.add(cat); await db.flush()
+    await InventoryService(db).rebuild_all_from_fifo(tenant_id=tenant_id)
+    await _carrega_variacoes(db, prod_a, prod_b, prod_c)
+    statuses = await ProductService(db).get_products_status(tenant_id=tenant_id)
+    by_id = {s.product_id: s for s in statuses}
 
-    # Produtos: A (never_stocked), B (in_stock), C (depleted)
-    prod_a = Product(name="A", sku=f"A-{u}", barcode=f"A-{u}", price=Decimal("10.00"), category_id=cat.id, is_catalog=False, is_active=True); prod_a.tenant_id = store.id
-    prod_b = Product(name="B", sku=f"B-{u}", barcode=f"B-{u}", price=Decimal("10.00"), category_id=cat.id, is_catalog=False, is_active=True); prod_b.tenant_id = store.id
-    prod_c = Product(name="C", sku=f"C-{u}", barcode=f"C-{u}", price=Decimal("10.00"), category_id=cat.id, is_catalog=False, is_active=True); prod_c.tenant_id = store.id
-    db.add_all([prod_a, prod_b, prod_c]); await db.flush()
-
-    # Entradas: B com restante > 0, C com restante == 0
-    entry_b = StockEntry(entry_code=f"ENTRY-B-{u}", entry_date=__import__("datetime").date.today(), entry_type=EntryType.LOCAL, supplier_name="Fornecedor", total_cost=Decimal("0.00")); entry_b.tenant_id = store.id
-    db.add(entry_b); await db.flush()
-    item_b = EntryItem(entry_id=entry_b.id, product_id=prod_b.id, quantity_received=5, quantity_remaining=5, unit_cost=Decimal("2.00")); item_b.tenant_id = store.id
-
-    entry_c = StockEntry(entry_code=f"ENTRY-C-{u}", entry_date=__import__("datetime").date.today(), entry_type=EntryType.LOCAL, supplier_name="Fornecedor", total_cost=Decimal("0.00")); entry_c.tenant_id = store.id
-    db.add(entry_c); await db.flush()
-    item_c = EntryItem(entry_id=entry_c.id, product_id=prod_c.id, quantity_received=3, quantity_remaining=0, unit_cost=Decimal("2.00")); item_c.tenant_id = store.id
-    db.add_all([item_b, item_c]); await db.flush()
-
-    inv_service = InventoryService(db); await inv_service.rebuild_all_from_fifo(tenant_id=store.id)
-    prod_service = ProductService(db); statuses = await prod_service.get_products_status(tenant_id=store.id)
-    by_sku = {s.sku: s for s in statuses}
-    assert by_sku[f"A-{u}"].never_stocked and not by_sku[f"A-{u}"].in_stock and not by_sku[f"A-{u}"].depleted
-    assert by_sku[f"B-{u}"].in_stock and not by_sku[f"B-{u}"].never_stocked and not by_sku[f"B-{u}"].depleted
-    assert by_sku[f"C-{u}"].depleted and not by_sku[f"C-{u}"].in_stock and not by_sku[f"C-{u}"].never_stocked
+    a, b, c = by_id[prod_a.id], by_id[prod_b.id], by_id[prod_c.id]
+    assert a.never_stocked and not a.in_stock and not a.depleted
+    assert b.in_stock and not b.never_stocked and not b.depleted and b.current_stock == 5
+    assert c.depleted and not c.in_stock and not c.never_stocked and c.current_stock == 0
+    assert a.sku and b.sku and c.sku  # SKU vem da primeira variação ativa
 
 
-@pytest.mark.asyncio
 async def test_products_status_include_catalog_and_soft_delete(db: AsyncSession):
-    u = uuid.uuid4().hex[:8]
-    store = Store(name=f"Tenant Status Cat {u}", slug=f"tenant-status-cat-{u}"); db.add(store); await db.flush()
-    cat = Category(name="Geral", slug=f"geral-status-cat-{u}"); cat.tenant_id = store.id; db.add(cat); await db.flush()
+    tenant_id, _token, cat_id = await _loja(db)
+    publicado, v1 = await _produto(db, tenant_id, cat_id, "Publicado")
+    interno, v2 = await _produto(db, tenant_id, cat_id, "Interno")
+    apagado, v3 = await _produto(db, tenant_id, cat_id, "Apagado")
+    publicado.is_catalog = True
+    interno.is_catalog = False
+    apagado.is_catalog = True
+    await _lote(db, tenant_id, [(v1, publicado, 2, "5.00"), (v2, interno, 2, "5.00"), (v3, apagado, 1, "6.00")])
+    apagado.is_active = False  # soft delete
+    await db.commit()
 
-    prod_catalog = Product(name="Template", sku=f"T-{u}", barcode=f"T-{u}", price=Decimal("20.00"), category_id=cat.id, is_catalog=True, is_active=True); prod_catalog.tenant_id = store.id
-    prod_active = Product(name="Ativo", sku=f"AT-{u}", barcode=f"AT-{u}", price=Decimal("30.00"), category_id=cat.id, is_catalog=False, is_active=True); prod_active.tenant_id = store.id
-    prod_delete = Product(name="Del", sku=f"DEL-{u}", barcode=f"DEL-{u}", price=Decimal("40.00"), category_id=cat.id, is_catalog=False, is_active=True); prod_delete.tenant_id = store.id
-    db.add_all([prod_catalog, prod_active, prod_delete]); await db.flush()
-
-    entry = StockEntry(entry_code=f"ENTRY-{u}", entry_date=__import__("datetime").date.today(), entry_type=EntryType.LOCAL, supplier_name="Fornecedor", total_cost=Decimal("0.00")); entry.tenant_id = store.id
-    db.add(entry); await db.flush()
-    item_active = EntryItem(entry_id=entry.id, product_id=prod_active.id, quantity_received=2, quantity_remaining=2, unit_cost=Decimal("5.00")); item_active.tenant_id = store.id
-    item_delete = EntryItem(entry_id=entry.id, product_id=prod_delete.id, quantity_received=1, quantity_remaining=1, unit_cost=Decimal("6.00")); item_delete.tenant_id = store.id
-    db.add_all([item_active, item_delete]); await db.flush()
-
-    prod_delete.is_active = False; await db.flush()
-
-    inv_service = InventoryService(db); await inv_service.rebuild_all_from_fifo(tenant_id=store.id)
+    await InventoryService(db).rebuild_all_from_fifo(tenant_id=tenant_id)
+    await _carrega_variacoes(db, publicado, interno, apagado)
     service = ProductService(db)
-    statuses_no_catalog = await service.get_products_status(tenant_id=store.id, include_catalog=False)
-    skus_no_catalog = {s.sku for s in statuses_no_catalog}
-    assert f"T-{u}" not in skus_no_catalog  # catalog excluded
-    assert f"DEL-{u}" not in skus_no_catalog  # soft-deleted excluded
-    assert f"AT-{u}" in skus_no_catalog
 
-    statuses_with_catalog = await service.get_products_status(tenant_id=store.id, include_catalog=True)
-    skus_with_catalog = {s.sku for s in statuses_with_catalog}
-    assert f"T-{u}" in skus_with_catalog  # catalog included
-    assert f"AT-{u}" in skus_with_catalog
-    assert f"DEL-{u}" not in skus_with_catalog
+    so_publicados = {s.product_id for s in await service.get_products_status(tenant_id=tenant_id, include_catalog=False)}
+    assert publicado.id in so_publicados
+    assert interno.id not in so_publicados   # não publicado fica de fora
+    assert apagado.id not in so_publicados   # soft delete fora
+
+    todos = {s.product_id for s in await service.get_products_status(tenant_id=tenant_id, include_catalog=True)}
+    assert publicado.id in todos
+    assert interno.id in todos               # admin vê também o não publicado
+    assert apagado.id not in todos           # soft delete continua fora
+
+
+async def test_status_em_sessao_nova_nao_quebra(db: AsyncSession):
+    tenant_id, _token, cat_id = await _loja(db)
+    prod, _v = await _produto(db, tenant_id, cat_id, "Sem variações carregadas")
+    await db.commit()
+    db.expunge_all()  # como numa requisição nova: nada do produto em memória
+    statuses = await ProductService(db).get_products_status(tenant_id=tenant_id, include_catalog=True)
+    assert [s.product_id for s in statuses] == [prod.id]

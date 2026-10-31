@@ -129,13 +129,22 @@ async def test_delete_product(test_client: AsyncClient, auth_token: str):
     )
     
     assert response.status_code == 204
-    
-    # Verificar que foi soft deleted
+
+    # Soft delete: sai da listagem e o registro continua, marcado como inativo
+    lista = await test_client.get(
+        "/api/v1/products/",
+        headers={"Authorization": f"Bearer {auth_token}"},
+        params={"skip": 0, "limit": 1000}
+    )
+    assert lista.status_code == 200
+    assert product_id not in {p["id"] for p in lista.json()}
+
     get_response = await test_client.get(
         f"/api/v1/products/{product_id}",
         headers={"Authorization": f"Bearer {auth_token}"}
     )
-    assert get_response.status_code == 404
+    assert get_response.status_code == 200
+    assert get_response.json()["is_active"] is False
 
 
 @pytest.mark.asyncio
@@ -216,3 +225,21 @@ async def test_create_product_duplicate_sku(test_client: AsyncClient, auth_token
     assert response2.status_code == 201, response2.text
     skus = {response1.json().get("sku"), response2.json().get("sku")}
     assert len(skus) == 2 or None in skus  # nunca dois produtos com o mesmo SKU
+
+
+@pytest.mark.xfail(strict=True, reason="BUG REAL: ProductRepository.search (product_repository.py:150) filtra is_catalog == False; "
+                   "produto criado com o default is_catalog=True some de GET /products?search=")
+@pytest.mark.asyncio
+async def test_search_finds_just_created_product(test_client: AsyncClient, auth_token: str):
+    termo = f"Zqbusca{uuid.uuid4().hex[:8]}"
+    resp = await test_client.post(
+        "/api/v1/products/",
+        json={"name": f"Legging {termo}", "sku": unique_sku(), "price": 99.9, "cost_price": 40, "category_id": 1},
+        headers={"Authorization": f"Bearer {auth_token}"},
+    )
+    assert resp.status_code == 201, resp.text
+    pid = resp.json()["id"]
+    r = await test_client.get("/api/v1/products/", headers={"Authorization": f"Bearer {auth_token}"},
+                              params={"search": termo, "limit": 100})
+    assert r.status_code == 200
+    assert pid in {p["id"] for p in r.json()}

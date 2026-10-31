@@ -15,8 +15,9 @@ from app.core.database import get_db
 from app.core.security import create_access_token
 
 
-# URL do banco de teste
-TEST_DATABASE_URL = "sqlite+aiosqlite:///./test.db"
+# URL do banco de teste. TEST_DATABASE_URL permite rodar várias suítes ao mesmo tempo, cada uma com o seu arquivo.
+import os
+TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL", "sqlite+aiosqlite:///./test.db")
 
 
 @pytest.fixture(autouse=True)

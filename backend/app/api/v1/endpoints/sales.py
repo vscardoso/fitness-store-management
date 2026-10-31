@@ -12,6 +12,7 @@ from app.services.sale_service import SaleService
 from app.repositories.sale_repository import SaleRepository
 from app.api.deps import get_current_active_user, require_role, get_current_tenant_id
 from app.models.user import User, UserRole
+from app.models.sale import SaleStatus
 from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/sales", tags=["Vendas"])
@@ -565,7 +566,7 @@ async def get_daily_report(
         sales = await sale_repo.get_by_date_range(report_date, report_date, include_relationships=False, tenant_id=tenant_id)
         
         # Calcular ticket médio (apenas vendas não canceladas)
-        active_sales = [s for s in sales if s.status != "CANCELLED"]
+        active_sales = [s for s in sales if s.status != SaleStatus.CANCELLED]
         active_total = sum(float(s.total_amount) for s in active_sales) if active_sales else 0.0
         
         # Breakdown por status
@@ -670,7 +671,7 @@ async def get_period_report(
         
         # Calcular totais
         total_sales = sum(float(s.total_amount) for s in sales)
-        active_sales = [s for s in sales if s.status != "CANCELLED"]
+        active_sales = [s for s in sales if s.status != SaleStatus.CANCELLED]
         active_total = sum(float(s.total_amount) for s in active_sales)
         
         # Breakdown por status
@@ -690,10 +691,10 @@ async def get_period_report(
             )
             top_products = [
                 {
-                    "product_id": p.product_id,
-                    "product_name": p.product_name if hasattr(p, 'product_name') else f"Produto {p.product_id}",
-                    "quantity_sold": p.quantity_sold,
-                    "revenue": float(p.revenue)
+                    "product_id": p["product_id"],
+                    "product_name": p["product_name"],
+                    "quantity_sold": p["total_quantity"],
+                    "revenue": float(p["total_revenue"])
                 }
                 for p in top_products_raw
             ]

@@ -9,6 +9,12 @@ from httpx import AsyncClient
 from tests.conftest import test_client, auth_token
 
 
+def unique_doc():
+    """CPF-like único por chamada (documento fixo colidia com clientes de outros testes)."""
+    import uuid
+    return str(uuid.uuid4().int)[:11]
+
+
 def unique_email():
     """Gera email único para testes."""
     return f"customer-{uuid.uuid4().hex[:8]}@test.com"
@@ -21,7 +27,7 @@ async def test_create_customer(test_client: AsyncClient, auth_token: str):
         "full_name": "João da Silva",
         "email": unique_email(),
         "phone": "11987654321",
-        "document_number": "12345678901",
+        "document_number": unique_doc(),
         "customer_type": "regular",  # Valores válidos: regular, vip, premium, corporate
         "birth_date": "1990-05-15",
         "address": "Rua Teste, 123",
@@ -68,7 +74,7 @@ async def test_get_customer_by_id(test_client: AsyncClient, auth_token: str):
         "full_name": "Maria Oliveira",
         "email": unique_email(),
         "phone": "11987654321",
-        "document_number": "98765432100",
+        "document_number": unique_doc(),
         "customer_type": "regular",
         "birth_date": "1985-03-20",
         "address": "Av. Paulista, 1000",
@@ -116,7 +122,7 @@ async def test_update_customer(test_client: AsyncClient, auth_token: str):
         "full_name": "Pedro Santos",
         "email": unique_email(),
         "phone": "11987654321",
-        "document_number": "11122233344",
+        "document_number": unique_doc(),
         "customer_type": "premium",
         "birth_date": "1992-07-10",
         "address": "Rua Augusta, 500",
@@ -158,7 +164,7 @@ async def test_delete_customer(test_client: AsyncClient, auth_token: str):
         "full_name": "Ana Costa",
         "email": unique_email(),
         "phone": "11999888777",
-        "document_number": "55566677788",
+        "document_number": unique_doc(),
         "customer_type": "vip",
         "birth_date": "1988-11-25",
         "address": "Rua Oscar Freire, 200",
@@ -198,7 +204,7 @@ async def test_get_customer_sales_history(test_client: AsyncClient, auth_token: 
         "full_name": "Carlos Lima",
         "email": unique_email(),
         "phone": "11988887777",
-        "document_number": "99988877766",
+        "document_number": unique_doc(),
         "customer_type": "regular",
         "birth_date": "1995-02-14",
         "address": "Av. Brigadeiro, 300",

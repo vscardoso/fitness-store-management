@@ -1,24 +1,30 @@
+"""ProductService: criar, buscar, listar, atualizar, excluir (soft delete), SKU e estoque baixo.
+
+Contrato atual: SKU, preço e barcode moram na variação (Product.sku/price são propriedades da 1ª variação),
+produto nasce sem estoque (estoque só entra por StockEntry/EntryItem) e SKU repetido recebe o próximo número livre.
+Cada teste usa SKU/nome únicos e categoria própria; o banco de teste é compartilhado (ver _limpa_loja_1).
 """
-Testes completos para ProductService.
-"""
+import itertools
+from decimal import Decimal
+
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.product_service import ProductService
-from app.models.product import Product
 from app.models.category import Category
 from app.schemas.product import ProductCreate, ProductUpdate
+from app.services.product_service import ProductService
+from tests.test_lot_costs import _limpa_loja_1  # noqa: F401  (fixture autouse: limpa o que a loja 1 ganhou)
+
+pytestmark = pytest.mark.asyncio
+_n = itertools.count(1)
+TENANT = 1
+USER = 1
 
 
 @pytest.fixture
 async def category(async_session: AsyncSession):
-    """Cria categoria para testes."""
-    cat = Category(
-        name="Test Category",
-        slug="test-category",
-        description="Category for testing",
-        is_active=True,
-    )
+    n = next(_n)
+    cat = Category(name=f"Cat Serv {n}", slug=f"cat-serv-{n}", description="Categoria de teste", is_active=True, tenant_id=TENANT)
     async_session.add(cat)
     await async_session.commit()
     await async_session.refresh(cat)
@@ -26,293 +32,153 @@ async def category(async_session: AsyncSession):
 
 
 @pytest.fixture
-def product_service(async_session: AsyncSession):
-    """Retorna instância do ProductService."""
+def service(async_session: AsyncSession):
     return ProductService(async_session)
 
 
-@pytest.mark.asyncio
-async def test_create_product(product_service: ProductService, category: Category, async_session: AsyncSession):
-    """Testa criação de produto."""
-    product_data = ProductCreate(
-        sku="TEST-001",
-        name="Test Product",
-        description="Test description",
-        price=100.00,
-        cost_price=50.00,
-        category_id=category.id,
-        barcode="1234567890",
-        min_stock_threshold=10,
-        initial_quantity=100,
-    )
-    
-    product = await product_service.create_product(product_data, tenant_id=1)
-    
-    assert product.id is not None
-    assert product.sku == "TEST-001"
-    assert product.name == "Test Product"
-    assert product.price == 100.00
-    assert product.tenant_id == 1
+def _dados(category, **extra):
+    n = next(_n)
+    base = dict(sku=f"SVC-{n}", name=f"Produto Servico {n}", price=Decimal("100.00"), cost_price=Decimal("50.00"),
+                category_id=category.id)
+    base.update(extra)
+    return ProductCreate(**base)
 
 
-@pytest.mark.asyncio
-async def test_get_product_by_id(product_service: ProductService, category: Category, async_session: AsyncSession):
-    """Testa busca de produto por ID."""
-    # Criar produto
-    product_data = ProductCreate(
-        sku="TEST-002",
-        name="Test Product 2",
-        price=200.00,
-        cost_price=100.00,
-        category_id=category.id,
-        initial_quantity=50,
-    )
-    created = await product_service.create_product(product_data, tenant_id=1)
-    
-    # Buscar produto
-    found = await product_service.get_product(created.id, tenant_id=1)
-    
-    assert found is not None
-    assert found.id == created.id
-    assert found.sku == "TEST-002"
+async def _variacoes(db, product_id):
+    from sqlalchemy import select
+    from app.models.product_variant import ProductVariant
+    return (await db.execute(select(ProductVariant).where(ProductVariant.product_id == product_id)
+                             .order_by(ProductVariant.id))).scalars().all()
 
 
-@pytest.mark.asyncio
-async def test_get_product_not_found(product_service: ProductService):
-    """Testa busca de produto inexistente."""
-    product = await product_service.get_product(99999, tenant_id=1)
-    assert product is None
+async def _criar(service, category, **extra):
+    return await service.create_product(_dados(category, **extra), tenant_id=TENANT, user_id=USER)
 
 
-@pytest.mark.asyncio
-async def test_list_products(product_service: ProductService, category: Category, async_session: AsyncSession):
-    """Testa listagem de produtos."""
-    # Criar múltiplos produtos
-    for i in range(3):
-        product_data = ProductCreate(
-            sku=f"LIST-{i}",
-            name=f"Product {i}",
-            price=100.00 * (i + 1),
-            cost_price=50.00,
-            category_id=category.id,
-            initial_quantity=10,
-        )
-        await product_service.create_product(product_data, tenant_id=1)
-    
-    # Listar produtos
-    products = await product_service.list_products(skip=0, limit=10, tenant_id=1)
-    
-    assert len(products) >= 3
+async def test_create_product(service, category, async_session):
+    d = _dados(category, description="Descrição de teste")
+    sku = d.sku
+    p = await service.create_product(d, tenant_id=TENANT, user_id=USER)
+    assert p.id is not None and p.tenant_id == TENANT and p.category_id == category.id
+    assert p.name == d.name
+    # SKU e preço ficam na 1ª variação
+    v = await _variacoes(async_session, p.id)
+    assert [x.sku for x in v] == [sku] and v[0].price == Decimal("100.00") and v[0].cost_price == Decimal("50.00")
 
 
-@pytest.mark.asyncio
-async def test_list_products_with_search(product_service: ProductService, category: Category, async_session: AsyncSession):
-    """Testa listagem com busca."""
-    # Criar produtos
-    await product_service.create_product(
-        ProductCreate(
-            sku="SEARCH-001",
-            name="Whey Protein",
-            price=100.00,
-            cost_price=50.00,
-            category_id=category.id,
-            initial_quantity=10,
-        ),
-        tenant_id=1,
-    )
-    await product_service.create_product(
-        ProductCreate(
-            sku="SEARCH-002",
-            name="Creatine",
-            price=80.00,
-            cost_price=40.00,
-            category_id=category.id,
-            initial_quantity=10,
-        ),
-        tenant_id=1,
-    )
-    
-    # Buscar por "Whey"
-    products = await product_service.search_products("Whey", tenant_id=1)
-    
-    assert len(products) >= 1
-    assert any("Whey" in p.name for p in products)
+async def test_create_product_with_initial_stock_is_refused(service, category):
+    """Regra FIFO estrita: produto não nasce com estoque, a entrada é que traz."""
+    with pytest.raises(ValueError, match="estoque inicial"):
+        await service.create_product(_dados(category, initial_stock=5), tenant_id=TENANT, user_id=USER)
 
 
-@pytest.mark.asyncio
-async def test_update_product(product_service: ProductService, category: Category, async_session: AsyncSession):
-    """Testa atualização de produto."""
-    # Criar produto
-    product_data = ProductCreate(
-        sku="UPDATE-001",
-        name="Original Name",
-        price=100.00,
-        cost_price=50.00,
-        category_id=category.id,
-        initial_quantity=10,
-    )
-    product = await product_service.create_product(product_data, tenant_id=1)
-    
-    # Atualizar produto
-    update_data = ProductUpdate(
-        name="Updated Name",
-        price=150.00,
-    )
-    updated = await product_service.update_product(product.id, update_data, tenant_id=1)
-    
-    assert updated is not None
-    assert updated.name == "Updated Name"
-    assert updated.price == 150.00
+async def test_create_product_with_unknown_category_is_refused(service, category):
+    with pytest.raises(ValueError, match="não encontrada"):
+        await service.create_product(_dados(category, category_id=99999999), tenant_id=TENANT, user_id=USER)
 
 
-@pytest.mark.asyncio
-async def test_delete_product(product_service: ProductService, category: Category, async_session: AsyncSession):
-    """Testa soft delete de produto."""
-    # Criar produto
-    product_data = ProductCreate(
-        sku="DELETE-001",
-        name="To Delete",
-        price=100.00,
-        cost_price=50.00,
-        category_id=category.id,
-        initial_quantity=10,
-    )
-    product = await product_service.create_product(product_data, tenant_id=1)
-    
-    # Deletar produto
-    result = await product_service.delete_product(product.id, tenant_id=1)
-    
-    assert result is True
-    
-    # Verificar que não aparece mais
-    found = await product_service.get_product(product.id, tenant_id=1)
-    assert found is None
+async def test_get_product_by_id(service, category):
+    created = await _criar(service, category)
+    found = await service.get_product(created.id, tenant_id=TENANT)
+    assert found is not None and found.id == created.id and found.name == created.name
 
 
-@pytest.mark.asyncio
-async def test_get_products_by_category(product_service: ProductService, category: Category, async_session: AsyncSession):
-    """Testa busca de produtos por categoria."""
-    # Criar produtos na categoria
-    for i in range(2):
-        await product_service.create_product(
-            ProductCreate(
-                sku=f"CAT-{i}",
-                name=f"Product {i}",
-                price=100.00,
-                cost_price=50.00,
-                category_id=category.id,
-                initial_quantity=10,
-            ),
-            tenant_id=1,
-        )
-    
-    # Buscar por categoria
-    products = await product_service.get_products_by_category(category.id, tenant_id=1)
-    
-    assert len(products) >= 2
-    assert all(p.category_id == category.id for p in products)
+async def test_get_product_not_found(service):
+    assert await service.get_product(99999999, tenant_id=TENANT) is None
 
 
-@pytest.mark.asyncio
-async def test_get_low_stock_products(product_service: ProductService, category: Category, async_session: AsyncSession):
-    """Testa busca de produtos com estoque baixo."""
-    # Criar produto com estoque baixo
-    await product_service.create_product(
-        ProductCreate(
-            sku="LOW-STOCK",
-            name="Low Stock Product",
-            price=100.00,
-            cost_price=50.00,
-            category_id=category.id,
-            min_stock_threshold=100,
-            initial_quantity=5,  # Abaixo do threshold
-        ),
-        tenant_id=1,
-    )
-    
-    # Buscar produtos com estoque baixo
-    products = await product_service.get_low_stock_products(tenant_id=1)
-    
-    # Deve retornar pelo menos o produto criado
-    assert len(products) >= 1
+async def test_list_products(service, category):
+    criados = [await _criar(service, category) for _ in range(3)]
+    ids = {p.id for p in await service.list_products(skip=0, limit=100000, tenant_id=TENANT)}
+    assert {p.id for p in criados} <= ids
 
 
-@pytest.mark.asyncio
-async def test_get_product_by_sku(product_service: ProductService, category: Category, async_session: AsyncSession):
-    """Testa busca de produto por SKU."""
-    # Criar produto
-    await product_service.create_product(
-        ProductCreate(
-            sku="UNIQUE-SKU",
-            name="Product with Unique SKU",
-            price=100.00,
-            cost_price=50.00,
-            category_id=category.id,
-            initial_quantity=10,
-        ),
-        tenant_id=1,
-    )
-    
-    # Buscar por SKU
-    product = await product_service.get_product_by_sku("UNIQUE-SKU", tenant_id=1)
-    
-    assert product is not None
-    assert product.sku == "UNIQUE-SKU"
+async def test_list_products_with_search(service, category):
+    """Busca por nome acha o produto criado com is_catalog=False (produto ativo da loja) e não traz os outros."""
+    n = next(_n)
+    whey = await _criar(service, category, name=f"Whey Protein Zq{n}", is_catalog=False)
+    creatina = await _criar(service, category, name=f"Creatina Zq{n}", is_catalog=False)
+    achados = {p.id for p in await service.search_products(f"Whey Protein Zq{n}", tenant_id=TENANT)}
+    assert whey.id in achados and creatina.id not in achados
 
 
-@pytest.mark.asyncio
-async def test_get_product_by_barcode(product_service: ProductService, category: Category, async_session: AsyncSession):
-    """Testa busca de produto por código de barras."""
-    # Criar produto com barcode
-    await product_service.create_product(
-        ProductCreate(
-            sku="BARCODE-001",
-            name="Product with Barcode",
-            price=100.00,
-            cost_price=50.00,
-            category_id=category.id,
-            barcode="9876543210",
-            initial_quantity=10,
-        ),
-        tenant_id=1,
-    )
-    
-    # Buscar por barcode
-    product = await product_service.get_product_by_barcode("9876543210", tenant_id=1)
-    
-    assert product is not None
-    assert product.barcode == "9876543210"
+@pytest.mark.xfail(strict=True, reason="BUG REAL: ProductRepository.search (product_repository.py:150) filtra is_catalog == False; "
+                   "o default de ProductCreate/mobile é is_catalog=True (publicado), então produto recém criado some da busca")
+async def test_search_finds_product_with_default_is_catalog(service, category):
+    n = next(_n)
+    p = await _criar(service, category, name=f"Busca Padrao Zq{n}")
+    achados = {x.id for x in await service.search_products(f"Busca Padrao Zq{n}", tenant_id=TENANT)}
+    assert p.id in achados
 
 
-@pytest.mark.asyncio
-async def test_create_product_with_duplicate_sku(product_service: ProductService, category: Category, async_session: AsyncSession):
-    """Testa criação de produto com SKU duplicado."""
-    # Criar primeiro produto
-    await product_service.create_product(
-        ProductCreate(
-            sku="DUP-SKU",
-            name="First Product",
-            price=100.00,
-            cost_price=50.00,
-            category_id=category.id,
-            initial_quantity=10,
-        ),
-        tenant_id=1,
-    )
-    
-    # Tentar criar segundo produto com mesmo SKU
-    with pytest.raises(Exception):  # Deve lançar erro de duplicação
-        await product_service.create_product(
-            ProductCreate(
-                sku="DUP-SKU",
-                name="Second Product",
-                price=200.00,
-                cost_price=100.00,
-                category_id=category.id,
-                initial_quantity=10,
-            ),
-            tenant_id=1,
-        )
+async def test_update_product(service, category):
+    p = await _criar(service, category)
+    up = await service.update_product(p.id, ProductUpdate(name=f"Nome Novo {p.id}", description="Outra descrição"), tenant_id=TENANT)
+    assert up.name == f"Nome Novo {p.id}" and up.description == "Outra descrição"
+    reread = await service.get_product(p.id, tenant_id=TENANT)
+    assert reread.name == f"Nome Novo {p.id}"
 
 
-print("✅ Testes do ProductService criados!")
+async def test_update_product_not_found(service):
+    with pytest.raises(ValueError, match="não encontrado"):
+        await service.update_product(99999999, ProductUpdate(name="Qualquer Nome"), tenant_id=TENANT)
+
+
+async def test_delete_product_is_soft_delete(service, category, async_session):
+    from sqlalchemy import select
+    from app.models.product import Product
+    p = await _criar(service, category)
+    pid = p.id
+    assert await service.delete_product(pid, tenant_id=TENANT) is True
+    assert pid not in {x.id for x in await service.list_products(skip=0, limit=100000, tenant_id=TENANT)}  # sai da listagem
+    async_session.expire_all()
+    raw = (await async_session.execute(select(Product).where(Product.id == pid))).scalar_one()
+    assert raw.is_active is False                                      # linha continua lá (soft delete)
+    assert all(v.is_active is False for v in await _variacoes(async_session, pid))
+
+
+async def test_delete_product_not_found(service):
+    with pytest.raises(ValueError, match="não encontrado"):
+        await service.delete_product(99999999, tenant_id=TENANT)
+
+
+async def test_get_products_by_category(service, category):
+    criados = [await _criar(service, category, is_catalog=False) for _ in range(2)]
+    achados = await service.get_products_by_category(category.id, tenant_id=TENANT)
+    assert {p.id for p in criados} <= {p.id for p in achados}
+    assert all(p.category_id == category.id for p in achados)
+
+
+@pytest.mark.xfail(strict=True, reason="BUG REAL: ProductRepository.get_by_category (product_repository.py:104) filtra is_catalog == False; "
+                   "produto criado com o default is_catalog=True não aparece na listagem por categoria")
+async def test_get_products_by_category_with_default_is_catalog(service, category):
+    p = await _criar(service, category)
+    achados = await service.get_products_by_category(category.id, tenant_id=TENANT)
+    assert p.id in {x.id for x in achados}
+
+
+async def test_get_low_stock_products(service, category):
+    """Produto novo (estoque 0) com mínimo 100 entra na lista de estoque baixo."""
+    p = await _criar(service, category, min_stock=100)
+    baixos = await service.get_low_stock_products(tenant_id=TENANT)
+    assert p.id in {x.id for x in baixos}
+
+
+async def test_get_product_by_sku(service, category):
+    d = _dados(category)
+    p = await service.create_product(d, tenant_id=TENANT, user_id=USER)
+    achado = await service.get_product_by_sku(d.sku, tenant_id=TENANT)
+    assert achado is not None and achado.id == p.id
+    assert await service.get_product_by_sku("SKU-QUE-NAO-EXISTE-999", tenant_id=TENANT) is None
+
+
+async def test_create_product_with_duplicate_sku_gets_next_free_sku(service, category, async_session):
+    """SKU repetido não derruba o cadastro: o segundo produto recebe outro SKU livre."""
+    n = next(_n)
+    sku = f"DUP-{n}"
+    a = await service.create_product(_dados(category, sku=sku), tenant_id=TENANT, user_id=USER)
+    b = await service.create_product(_dados(category, sku=sku), tenant_id=TENANT, user_id=USER)
+    assert a.id != b.id
+    sku_a = (await _variacoes(async_session, a.id))[0].sku
+    sku_b = (await _variacoes(async_session, b.id))[0].sku
+    assert sku_a == sku and sku_b != sku

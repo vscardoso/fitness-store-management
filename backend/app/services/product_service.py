@@ -1055,8 +1055,10 @@ class ProductService:
         """
         # Seleciona produtos do tenant
         from sqlalchemy import select, and_
+        from sqlalchemy.orm import selectinload
 
-        stmt = select(Product).where(
+        # variants carregadas: Product.sku é propriedade sobre elas (sem isso dá MissingGreenlet e a rota devolve 500)
+        stmt = select(Product).options(selectinload(Product.variants)).where(
             and_(
                 Product.tenant_id == tenant_id,
                 Product.is_active == True,
