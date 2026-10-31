@@ -24,5 +24,11 @@ export function useChatColors(): ChatColors {
   const scheme = useColorScheme();
   const brand = useBrandingColors();
   const base = scheme === 'dark' ? CHAT.dark : CHAT.light;
-  return { ...base, bubbleOut: brand.primary, accent: brand.primary };
+  return {
+    ...base,
+    bubbleOut: brand.primary,
+    accent: brand.primary,
+    // mesmo tom translúcido da marca que a tela já usava (brand.primary + '20')
+    label: { ...base.label, primary: { bg: brand.primary + '20', fg: brand.primary } },
+  };
 }
