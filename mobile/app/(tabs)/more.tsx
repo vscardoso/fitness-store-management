@@ -17,7 +17,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useWhatsappUnread } from '@/hooks/useWhatsappUnread';
 import { isAdminRole, isManagerRole, normalizeRole } from '@/utils/roles';
-import { FEATURES } from '@/constants/features';
+import { FEATURES, temPagamentoIntegrado } from '@/constants/features';
 
 interface MenuItemProps {
   icon: keyof typeof Ionicons.glyphMap;
@@ -238,14 +238,16 @@ export default function MoreScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>PDV</Text>
           <View style={styles.menuCard}>
-            <MenuItem
-              icon="time-outline"
-              title="Pagamentos Pendentes"
-              subtitle="PIX e maquininha aguardando confirmação"
-              onPress={() => router.push('/(tabs)/pdv/' as any)}
-              iconColor="#E4851A"
-              iconBg="#FEF0E0"
-            />
+            {temPagamentoIntegrado() && (
+              <MenuItem
+                icon="time-outline"
+                title="Pagamentos Pendentes"
+                subtitle="PIX e maquininha aguardando confirmação"
+                onPress={() => router.push('/(tabs)/pdv/' as any)}
+                iconColor="#E4851A"
+                iconBg="#FEF0E0"
+              />
+            )}
             {FEATURES.maquininhas && (
               <MenuItem
                 icon="hardware-chip-outline"
@@ -256,7 +258,7 @@ export default function MoreScreen() {
                 iconBg="#E0E9FF"
               />
             )}
-            {isAdminRole(user?.role) && (
+            {isAdminRole(user?.role) && FEATURES.pixIntegrado && (
               <MenuItem
                 icon="qr-code-outline"
                 title="Chave PIX"

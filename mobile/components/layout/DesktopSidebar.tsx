@@ -16,7 +16,7 @@ import { ProvadorLogo } from '@/components/branding/ProvadorLogo';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { BRAND } from '@/constants/Brand';
 import { SIDEBAR_WIDTH } from '@/hooks/useLayout';
-import { FEATURES } from '@/constants/features';
+import { FEATURES, temPagamentoIntegrado } from '@/constants/features';
 
 type Icon = keyof typeof Ionicons.glyphMap;
 
@@ -66,7 +66,7 @@ export default function DesktopSidebar() {
           { label: 'Ponto de venda', icon: 'cart-outline', href: '/(tabs)/sale', match: ['/sale', '/checkout'], shortcut: 'F2' },
           { label: 'Vendas', icon: 'receipt-outline', href: '/(tabs)/sales', match: ['/sales'] },
           { label: 'Condicionais', icon: 'swap-horizontal-outline', href: '/(tabs)/conditional', match: ['/conditional'] },
-          { label: 'Pagamentos pendentes', icon: 'time-outline', href: '/(tabs)/pdv/', match: ['/pdv'] },
+          ...(temPagamentoIntegrado() ? [{ label: 'Pagamentos pendentes', icon: 'time-outline' as Icon, href: '/(tabs)/pdv/', match: ['/pdv'] }] : []),
         ],
       },
       {
@@ -129,7 +129,7 @@ export default function DesktopSidebar() {
           { label: 'Identidade da loja', icon: 'color-palette-outline' as Icon, href: '/settings/branding', match: ['/settings/branding'] },
           { label: 'Equipe', icon: 'people-circle-outline' as Icon, href: '/team', match: ['/team'] },
           { label: 'Descontos de pagamento', icon: 'cash-outline' as Icon, href: '/settings/payment-discounts', match: ['/settings/payment-discounts'] },
-          { label: 'Chave PIX', icon: 'qr-code-outline' as Icon, href: '/settings/pix-key', match: ['/settings/pix-key'] },
+          ...(FEATURES.pixIntegrado ? [{ label: 'Chave PIX', icon: 'qr-code-outline' as Icon, href: '/settings/pix-key', match: ['/settings/pix-key'] }] : []),
           { label: 'Prazo de troca', icon: 'swap-horizontal-outline' as Icon, href: '/settings/returns', match: ['/settings/returns'] },
         ] : []),
         ...(FEATURES.maquininhas ? [{ label: 'Terminais', icon: 'hardware-chip-outline' as Icon, href: '/(tabs)/pdv/terminals', match: ['/pdv/terminals'] }] : []),

@@ -28,9 +28,10 @@ import { useCart } from '@/hooks/useCart';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { Money } from '@/components/ui/PriceDisplay';
+import FeatureGate from '@/components/FeatureGate';
 const C = Colors.light;
 
-export default function TerminalCheckoutScreen() {
+function TerminalCheckoutScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const cart = useCart();
@@ -559,3 +560,11 @@ const styles = StyleSheet.create({
     borderTopColor: C.border,
   },
 });
+
+export default function TerminalCheckoutScreenGate() {
+  return (
+    <FeatureGate feature="maquininhas">
+      <TerminalCheckoutScreen />
+    </FeatureGate>
+  );
+}

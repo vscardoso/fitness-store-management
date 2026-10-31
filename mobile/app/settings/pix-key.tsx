@@ -18,6 +18,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { getStorePIX, updateStorePIX, registerCieloPIXWebhook } from '@/services/storeService';
 import type { StorePIXKey } from '@/services/storeService';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import FeatureGate from '@/components/FeatureGate';
 
 const PIX_TYPES = [
   { value: 'cpf',    label: 'CPF',             placeholder: '000.000.000-00' },
@@ -59,7 +60,7 @@ type DialogState = {
 
 const DIALOG_HIDDEN: DialogState = { visible: false, type: 'info', title: '', message: '' };
 
-export default function PIXKeyScreen() {
+function PIXKeyScreen() {
   const router = useRouter();
   const brandingColors = useBrandingColors();
 
@@ -495,3 +496,11 @@ const styles = StyleSheet.create({
   howTitle: { fontSize: theme.fontSize.sm, fontWeight: '700', color: Colors.light.text, marginBottom: 4 },
   howItem: { fontSize: theme.fontSize.sm, color: Colors.light.textSecondary, lineHeight: 20 },
 });
+
+export default function PIXKeyScreenGate() {
+  return (
+    <FeatureGate feature="pixIntegrado">
+      <PIXKeyScreen />
+    </FeatureGate>
+  );
+}

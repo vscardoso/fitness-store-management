@@ -30,9 +30,10 @@ import type { PixPaymentData } from '@/types/pdv';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { Money } from '@/components/ui/PriceDisplay';
+import FeatureGate from '@/components/FeatureGate';
 const C = Colors.light;
 
-export default function PixCheckoutScreen() {
+function PixCheckoutScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const cart = useCart();
@@ -649,3 +650,11 @@ const styles = StyleSheet.create({
     marginVertical: 2,
   },
 });
+
+export default function PixCheckoutScreenGate() {
+  return (
+    <FeatureGate feature="pixIntegrado">
+      <PixCheckoutScreen />
+    </FeatureGate>
+  );
+}

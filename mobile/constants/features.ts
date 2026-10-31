@@ -8,8 +8,10 @@ const DEFAULTS = {
   lookbook: false,
   /** Demanda da wishlist (produtos mais desejados). Depende do Lookbook e da lista de desejos; não está no ar. */
   wishlist: false,
-  /** Terminais (maquininhas Cielo, Stone, Mercado Pago Point). Sem teste com maquininha real e com credenciais recusadas. */
+  /** Maquininha integrada (Cielo, Stone, Mercado Pago Point). Sem teste com maquininha real e com credenciais recusadas. Cartão fica como registro manual. */
   maquininhas: false,
+  /** PIX integrado (QR gerado pelo servidor, provedor MP ou Cielo, chave PIX, confirmação automática). Nada disso foi validado com PIX real. */
+  pixIntegrado: false,
   /** Meu Perfil: a tela não existe, só mostrava "em breve". */
   meuPerfil: false,
 } as const;
@@ -26,5 +28,8 @@ const fromEnv = new Set<string>(
 export const FEATURES: Record<FeatureKey, boolean> = Object.fromEntries(
   (Object.keys(DEFAULTS) as FeatureKey[]).map((k) => [k, DEFAULTS[k] || fromEnv.has(k)]),
 ) as Record<FeatureKey, boolean>;
+
+/** Pagamentos pendentes só existem com PIX integrado ou maquininha. */
+export const temPagamentoIntegrado = (): boolean => FEATURES.pixIntegrado || FEATURES.maquininhas;
 
 export const isFeatureOn = (k: FeatureKey): boolean => FEATURES[k];

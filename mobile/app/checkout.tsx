@@ -46,7 +46,8 @@ const paymentMethods: { value: PaymentMethod | 'MIXED' | 'TERMINAL'; label: stri
   { value: PaymentMethod.DEBIT_CARD, label: 'Débito', icon: 'card-outline' },
   { value: PaymentMethod.CREDIT_CARD, label: 'Crédito', icon: 'card-outline' },
   { value: PaymentMethod.CASH, label: 'Dinheiro', icon: 'cash-outline' },
-  { value: 'TERMINAL' as any, label: 'PIX', icon: 'qr-code-outline' },
+  // Com maquininha integrada o PIX passa pelo seletor de terminal; sem ela é um pagamento comum, confirmado pela lojista
+  { value: (FEATURES.maquininhas ? 'TERMINAL' : PaymentMethod.PIX) as any, label: 'PIX', icon: 'qr-code-outline' },
   { value: 'MIXED', label: '2 Métodos', icon: 'swap-horizontal-outline' },
 ];
 
@@ -758,7 +759,8 @@ export default function CheckoutScreen() {
       const isPixOnly =
         cart.payments.length === 1 &&
         cart.payments[0].method === PaymentMethod.PIX &&
-        !selectedTerminal;
+        !selectedTerminal &&
+        FEATURES.pixIntegrado;
 
       // PIX: confirmar antes de gerar QR Code (ação irreversível — cria venda PENDING)
       if (isPixOnly) {

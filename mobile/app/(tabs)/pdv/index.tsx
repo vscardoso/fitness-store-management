@@ -45,6 +45,7 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { Money } from '@/components/ui/PriceDisplay';
 import { FEATURES } from '@/constants/features';
+import FeatureGate from '@/components/FeatureGate';
 const C = Colors.light;
 
 interface QRModalState {
@@ -250,7 +251,7 @@ function QRModal({
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 
-export default function PendingSalesScreen() {
+function PendingSalesScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const brandingColors = useBrandingColors();
@@ -602,3 +603,11 @@ const styles = StyleSheet.create({
     color: C.textSecondary,
   },
 });
+
+export default function PendingSalesScreenGate() {
+  return (
+    <FeatureGate feature={["pixIntegrado","maquininhas"]}>
+      <PendingSalesScreen />
+    </FeatureGate>
+  );
+}
