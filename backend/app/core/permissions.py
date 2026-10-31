@@ -47,6 +47,7 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     (WRITE, r"^/pdv/terminals(/|$)", ADMIN),
     ({"POST"}, r"^/pdv/(orders/\{sale_id\}|pix/\{payment_id\})/refund$", ADMIN),
     ({"POST"}, r"^/sales/\{sale_id\}/cancel$", ADMIN),
+    ({"POST"}, r"^/reports/stock-check/writeoff$", ADMIN),  # baixa de estoque pela Conferência
     ({"POST"}, r"^/returns/reconcile-status$", ADMIN),
     ({"POST"}, r"^/conditional-shipments/(notifications|sla)/", ADMIN),
     ({"POST", "PUT", "DELETE"}, r"^/payment-discounts/(\{discount_id\})?$", ADMIN),
