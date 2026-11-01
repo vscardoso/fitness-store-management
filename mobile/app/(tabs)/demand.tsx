@@ -18,7 +18,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import { getDemandReport } from '@/services/wishlistService';
 import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
-import { getImageUrl } from '@/constants/Config';
+import { getThumbUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { DemandItem } from '@/types/look';
@@ -50,7 +50,7 @@ function DemandScreen() {
         <View style={styles.iconContainer}>
           {item.product_image_url ? (
             <Image
-              source={{ uri: getImageUrl(item.product_image_url) }}
+              source={{ uri: getThumbUrl(item.product_image_url, 56) }}
               style={styles.productImage}
               resizeMode="cover"
             />

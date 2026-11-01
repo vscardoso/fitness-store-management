@@ -7,6 +7,7 @@ from typing import AsyncGenerator
 
 from pathlib import Path
 import mimetypes
+import re
 from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -196,12 +197,70 @@ class UploadsStaticFiles(StaticFiles):
     """
 
     IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
+    # Miniaturas sob demanda: GET /uploads/products/12.jpg?w=160. Só estes tamanhos existem (o pedido vira o menor
+    # que o comporta), para ninguém encher o disco pedindo w=101, w=102...
+    THUMB_WIDTHS = (96, 160, 240, 400, 800)
+    THUMB_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+    # Nome com 10 hex únicos (product_media: product_5_ab12cd34ef_media.jpg) nunca é regravado: cache de 1 ano
+    UNIQUE_NAME = re.compile(r"_[0-9a-f]{10}_")
+
+    @classmethod
+    def _thumb_width(cls, scope):
+        from urllib.parse import parse_qs
+        raw = parse_qs((scope.get("query_string") or b"").decode("latin-1")).get("w", [""])[0]
+        if not raw.isdigit():
+            return None
+        want = int(raw)
+        if want < 1:
+            return None
+        return next((w for w in cls.THUMB_WIDTHS if w >= want), cls.THUMB_WIDTHS[-1])
+
+    def _ensure_thumb(self, path: str, width: int):
+        """Devolve o caminho relativo da miniatura (criando ou refazendo se a foto original mudou); None = servir o original."""
+        base = Path(self.directory).resolve()
+        src = (base / path).resolve()
+        try:
+            src.relative_to(base)
+        except ValueError:
+            return None
+        if not src.is_file():
+            return None
+        rel = f"_thumbs/{width}/{Path(path).as_posix()}.jpg"
+        dst = base / rel
+        try:
+            if dst.is_file() and dst.stat().st_mtime >= src.stat().st_mtime:
+                return rel
+            from PIL import Image, ImageOps
+            with Image.open(src) as im:
+                im = ImageOps.exif_transpose(im)
+                if im.mode in ("RGBA", "LA", "P"):
+                    im = im.convert("RGBA")
+                    fundo = Image.new("RGB", im.size, (255, 255, 255))
+                    fundo.paste(im, mask=im.split()[-1])
+                    im = fundo
+                else:
+                    im = im.convert("RGB")
+                im.thumbnail((width, width))
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                tmp = dst.with_name(dst.name + ".tmp")
+                im.save(tmp, format="JPEG", quality=78, optimize=True, progressive=True)
+            os.replace(tmp, dst)
+            return rel
+        except Exception:  # noqa: BLE001  imagem estranha: serve o original em vez de falhar
+            return None
 
     async def get_response(self, path, scope):
+        from starlette.concurrency import run_in_threadpool
         from starlette.exceptions import HTTPException as StarletteHTTPException
         # "" = fotos antigas da galeria, gravadas sem extensão: só saem se o conteúdo for imagem (file_response)
-        if Path(path).suffix.lower() not in self.IMAGE_EXTS | {""}:
+        suffix = Path(path).suffix.lower()
+        if suffix not in self.IMAGE_EXTS | {""}:
             raise StarletteHTTPException(status_code=404)
+        width = self._thumb_width(scope)
+        if width and suffix in self.THUMB_EXTS and not path.startswith("_thumbs/"):
+            thumb = await run_in_threadpool(self._ensure_thumb, path, width)
+            if thumb:
+                path = thumb
         return await super().get_response(path, scope)
 
     def file_response(self, full_path, stat_result, scope, status_code=200):
@@ -218,8 +277,12 @@ class UploadsStaticFiles(StaticFiles):
             response.headers["Content-Type"] = sniffed
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Content-Security-Policy"] = "default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; sandbox"
-        if "logos" in Path(full_path).parts:
-            response.headers["Cache-Control"] = "public, max-age=2592000, immutable"
+        parts = Path(full_path).parts
+        if "logos" in parts or "product_media" in parts or self.UNIQUE_NAME.search(Path(full_path).name):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            # products/12.jpg e variants/variant_3.jpg são regravados com o mesmo nome: confere (ETag) antes de reusar
+            response.headers["Cache-Control"] = "no-cache"
         return response
 
 

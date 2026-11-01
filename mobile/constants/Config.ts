@@ -3,6 +3,8 @@
  * Centralize todas as configs do app aqui
  */
 import Constants from 'expo-constants';
+import { PixelRatio } from 'react-native';
+import { thumbUrlFrom } from '@/utils/thumbUrl';
 
 // ============================================================================
 // CONFIGURAÇÃO DE REDE
@@ -79,6 +81,15 @@ export function getImageUrl(url: string | null | undefined): string | undefined 
   if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('file://') || url.startsWith('data:')) return url;
   // Caminho relativo (/uploads/...) → prefixar com base do backend
   return `${BACKEND_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
+/**
+ * Miniatura de uma foto do backend (/uploads/...) para listas e ícones: o servidor devolve a foto já reduzida
+ * (?w=), em vez de a foto inteira de até 2560 px. `cssSize` é o lado da caixa na tela; a densidade da tela entra na conta.
+ * Fotos de outro endereço (Cloudinary), locais (file://) e data: passam sem alteração.
+ */
+export function getThumbUrl(url: string | null | undefined, cssSize = 64): string | undefined {
+  return thumbUrlFrom(getImageUrl(url), cssSize, PixelRatio.get());
 }
 
 // Configurações do Sentry (Error Tracking)

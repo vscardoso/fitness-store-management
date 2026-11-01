@@ -13,7 +13,7 @@ import { useQuery } from '@tanstack/react-query';
 import BottomSheet from '@/components/ui/BottomSheet';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors, theme } from '@/constants/Colors';
-import { getImageUrl } from '@/constants/Config';
+import { getThumbUrl } from '@/constants/Config';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getGroupedProducts } from '@/services/productService';
 import { formatCurrency } from '@/utils/format';
@@ -134,7 +134,7 @@ export function ProductPickerList({ onPick, onNewVariant, markedVariantIds = [],
                 <TouchableOpacity style={styles.cardHead} onPress={() => tapProduct(g)} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={`Produto ${g.name}`}>
                   <View style={[styles.thumb, { backgroundColor: brand.primary + '14' }]}>
                     {g.image_url ? (
-                      <Image source={{ uri: getImageUrl(g.image_url) }} style={styles.thumbImg} />
+                      <Image source={{ uri: getThumbUrl(g.image_url, 48) }} style={styles.thumbImg} />
                     ) : (
                       <Ionicons name="shirt-outline" size={20} color={brand.primary} />
                     )}

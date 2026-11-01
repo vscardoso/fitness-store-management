@@ -18,7 +18,7 @@ import { getLook, deleteLook } from '@/services/lookService';
 import { setPresetConditional } from '@/utils/presetConditional';
 import { useCartStore } from '@/store/cartStore';
 import { Colors, theme } from '@/constants/Colors';
-import { getImageUrl } from '@/constants/Config';
+import { getThumbUrl } from '@/constants/Config';
 import { formatCurrency } from '@/utils/format';
 import type { LookItemResponse } from '@/types/look';
 import type { ProductGrouped } from '@/types';
@@ -258,7 +258,7 @@ function LookItemCard({ item }: { item: LookItemResponse }) {
         <View style={styles.itemIcon}>
           {item.product_image_url ? (
             <Image
-              source={{ uri: getImageUrl(item.product_image_url) }}
+              source={{ uri: getThumbUrl(item.product_image_url, 56) }}
               style={styles.itemImage}
               resizeMode="cover"
             />
