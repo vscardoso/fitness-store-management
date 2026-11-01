@@ -520,13 +520,13 @@ export default function StockEntryDetailsScreen() {
         <View style={styles.productHeader}>
           <View style={{ flex: 1, minWidth: 0 }}>
             <Text style={styles.productName} numberOfLines={2}>{item.product_name}</Text>
-            {item.variant_label && (
+            {!!item.variant_label && (
               <Text style={styles.variantLabel} numberOfLines={1}>{item.variant_label}</Text>
             )}
-            {item.product_sku && (
+            {!!item.product_sku && (
               <Text style={styles.productSku} numberOfLines={1}>SKU: {item.product_sku}</Text>
             )}
-            {item.supplier_name && (entry?.suppliers_summary?.length ?? 0) > 1 && (
+            {!!item.supplier_name && (entry?.suppliers_summary?.length ?? 0) > 1 && (
               <Text style={styles.productSupplier} numberOfLines={1}>Fornecedor: {item.supplier_name}</Text>
             )}
           </View>
@@ -666,7 +666,7 @@ export default function StockEntryDetailsScreen() {
         </View>
 
         {/* Observações */}
-        {item.notes && (
+        {!!item.notes && (
           <View style={styles.itemNotesContainer}>
             <Ionicons name="document-text-outline" size={14} color={Colors.light.textSecondary} />
             <Text style={styles.itemNotesText} numberOfLines={3}>{item.notes}</Text>
@@ -789,20 +789,20 @@ export default function StockEntryDetailsScreen() {
             {entry.supplier_contact && (
               <InfoRow label="Contato" value={entry.supplier_contact} icon="call-outline" />
             )}
-            {entry.invoice_number && (
+            {!!entry.invoice_number && (
               <InfoRow label="Nota Fiscal" value={entry.invoice_number} icon="document-text-outline" />
             )}
-            {entry.payment_method && (
+            {!!entry.payment_method && (
               <InfoRow label="Pagamento" value={entry.payment_method} icon="cash-outline" />
             )}
-            {entry.trip_code && (
+            {!!entry.trip_code && (
               <InfoRow
                 label="Viagem"
                 value={`${entry.trip_code}${entry.trip_destination ? ` - ${entry.trip_destination}` : ''}`}
                 icon="airplane-outline"
               />
             )}
-            {entry.notes && (
+            {!!entry.notes && (
               <InfoRow label="Observações" value={entry.notes} icon="document-outline" />
             )}
         </View>
