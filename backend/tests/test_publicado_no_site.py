@@ -34,9 +34,15 @@ def _entrada(codigo, itens):
             "supplier_name": "Fornecedor Teste", "items": itens}
 
 
-async def test_entrada_nova_nao_desliga_a_publicacao(test_client: AsyncClient, auth_token: str):
+async def test_produto_novo_nasce_nao_publicado(test_client: AsyncClient, auth_token: str):
+    """Decisão do Victor (01/11/2026): produto novo nasce fora do site; a lojista publica quando quiser."""
     p = await _produto(test_client, auth_token)
-    assert (await _produto_na_lista(test_client, auth_token, p["id"]))["is_catalog"] is True   # nasce publicado (padrão da API)
+    assert (await _produto_na_lista(test_client, auth_token, p["id"]))["is_catalog"] is False
+
+
+async def test_entrada_nova_nao_desliga_a_publicacao(test_client: AsyncClient, auth_token: str):
+    p = await _produto(test_client, auth_token, is_catalog=True)
+    assert (await _produto_na_lista(test_client, auth_token, p["id"]))["is_catalog"] is True
     r = await test_client.post("/api/v1/stock-entries/", headers=_h(auth_token),
                                json=_entrada(f"PUB-{uuid.uuid4().hex[:6]}", [{"product_id": p["id"], "quantity_received": 4, "unit_cost": 20}]))
     assert r.status_code == 201, r.text
@@ -49,7 +55,7 @@ async def test_item_em_entrada_existente_nao_desliga_a_publicacao_e_vale_para_de
     e = await test_client.post("/api/v1/stock-entries/", headers=_h(auth_token),
                                json=_entrada(f"PUB-{uuid.uuid4().hex[:6]}", [{"product_id": base["id"], "quantity_received": 1, "unit_cost": 20}]))
     entry_id = e.json()["id"]
-    publicado = await _produto(test_client, auth_token)                       # publicado, nunca teve entrada
+    publicado = await _produto(test_client, auth_token, is_catalog=True)      # publicado, nunca teve entrada
     interno = await _produto(test_client, auth_token, is_catalog=False)       # não publicado
     for prod in (publicado, interno):
         r = await test_client.post(f"/api/v1/stock-entries/{entry_id}/items", headers=_h(auth_token),
@@ -61,7 +67,7 @@ async def test_item_em_entrada_existente_nao_desliga_a_publicacao_e_vale_para_de
 
 async def test_busca_e_categoria_acham_produto_publicado(test_client: AsyncClient, auth_token: str):
     termo = f"Zqpub{uuid.uuid4().hex[:8]}"
-    p = await _produto(test_client, auth_token, nome=f"Top {termo}")
+    p = await _produto(test_client, auth_token, nome=f"Top {termo}", is_catalog=True)
     r = await test_client.get("/api/v1/products/", headers=_h(auth_token), params={"search": termo})
     assert p["id"] in {x["id"] for x in r.json()}
     r = await test_client.get("/api/v1/products/", headers=_h(auth_token), params={"category_id": 1, "limit": 1000})
@@ -69,7 +75,7 @@ async def test_busca_e_categoria_acham_produto_publicado(test_client: AsyncClien
 
 
 async def test_excluir_a_unica_entrada_de_produto_publicado_desativa_o_produto_como_antes(test_client: AsyncClient, auth_token: str):
-    p = await _produto(test_client, auth_token)
+    p = await _produto(test_client, auth_token, is_catalog=True)
     e = await test_client.post("/api/v1/stock-entries/", headers=_h(auth_token),
                                json=_entrada(f"PUB-{uuid.uuid4().hex[:6]}", [{"product_id": p["id"], "quantity_received": 3, "unit_cost": 20}]))
     assert e.status_code == 201

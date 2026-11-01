@@ -132,10 +132,10 @@ class ProductService:
                 "Isso garante rastreabilidade completa do inventário."
             )
         
-        # is_catalog: controlado pelo usuário. Default=True (publicado no catálogo).
+        # is_catalog = "aparece no site da loja": só a lojista liga. Produto novo nasce NÃO publicado.
         # False = produto interno/rascunho, não aparece no catálogo web.
         if "is_catalog" not in product_dict:
-            product_dict["is_catalog"] = True
+            product_dict["is_catalog"] = False
 
         # REGRA FIFO STRICT: Produtos NÃO podem ser criados sem estoque.
         #

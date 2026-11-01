@@ -17,12 +17,12 @@ import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import { getProducts, searchProducts } from '@/services/productService';
-import { addItemToEntry, updateEntryItem } from '@/services/stockEntryService';
+import { ProductPickerList, groupedToProduct } from '@/components/products/ProductPicker';
+import { addItemToEntry, addVariantToEntry, updateEntryItem } from '@/services/stockEntryService';
 import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
-import type { EntryItemResponse, Product, Supplier } from '@/types';
+import type { EntryItemResponse, Product, ProductGrouped, Supplier } from '@/types';
 
 interface Props {
   visible: boolean;
@@ -42,15 +42,11 @@ interface Choice {
   price: number;
 }
 
-const PAGE = 200;
-
-const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-
 export default function AddProductToEntryModal({ visible, entryId, entryCode, entrySupplierName, entryItems, onClose }: Props) {
   const brand = useBrandingColors();
   const qc = useQueryClient();
-  const [step, setStep] = useState<'list' | 'form' | 'supplier' | 'duplicate'>('list');
-  const [query, setQuery] = useState('');
+  const [step, setStep] = useState<'list' | 'form' | 'supplier' | 'duplicate' | 'newVariant'>('list');
+  const [newVar, setNewVar] = useState<{ product: ProductGrouped; color: string; size: string } | null>(null);
   const [choice, setChoice] = useState<Choice | null>(null);
   const [qty, setQty] = useState('1');
   const [cost, setCost] = useState('');
@@ -58,25 +54,10 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
   const [supplier, setSupplier] = useState<Supplier | null>(null);
   const [error, setError] = useState('');
 
-  // Lista já carregada ao abrir (sem precisar digitar nada)
-  const { data: loaded = [], isLoading, error: loadError, refetch } = useQuery({
-    queryKey: ['entry-add-products'],
-    queryFn: () => getProducts({ limit: PAGE } as any),
-    enabled: visible,
-    staleTime: 60 * 1000,
-  });
-  // Loja com muitos produtos: a busca por nome também consulta o servidor
-  const needsServerSearch = visible && loaded.length >= PAGE && query.trim().length >= 2;
-  const { data: found = [] } = useQuery({
-    queryKey: ['entry-add-products-search', query.trim()],
-    queryFn: () => searchProducts(query.trim()),
-    enabled: needsServerSearch,
-  });
-
   useEffect(() => {
     if (!visible) return;
     setStep('list');
-    setQuery('');
+    setNewVar(null);
     setChoice(null);
     setQty('1');
     setCost('');
@@ -84,13 +65,6 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
     setSupplier(null);
     setError('');
   }, [visible]);
-
-  const products = useMemo(() => {
-    const q = norm(query);
-    const base: Product[] = needsServerSearch ? found : loaded;
-    // Todos os produtos ativos da loja, publicados no site ou não (`is_catalog` é só "aparece no site")
-    return base.filter((p) => !q || norm(p.name).includes(q));
-  }, [loaded, found, query, needsServerSearch]);
 
   const pick = (p: Product, v?: any) => {
     const label = [p.name, v ? [v.color, v.size].filter(Boolean).join(' / ') : ''].filter(Boolean).join(' - ');
@@ -153,6 +127,34 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
     onError: (e: any) => setError(parseApiError(e) || 'Não foi possível somar. Tente de novo.'),
   });
 
+  const addNewVariant = useMutation({
+    mutationFn: () =>
+      addVariantToEntry(entryId, {
+        product_id: newVar!.product.id,
+        color: newVar!.color.trim() || undefined,
+        size: newVar!.size.trim() || undefined,
+        quantity: parseInt(qty, 10),
+        cost_price: unmaskCurrency(cost),
+        price: Number(newVar!.product.variants?.[0]?.price ?? newVar!.product.min_price ?? 0) || undefined,
+      }),
+    onSuccess: () => afterLaunch(),
+    onError: (e: any) => setError(parseApiError(e) || 'Não foi possível lançar. Tente de novo.'),
+  });
+
+  const submitNewVariant = () => {
+    if (!newVar) return;
+    if (!newVar.color.trim() && !newVar.size.trim()) return setError('Informe a cor ou o tamanho.');
+    const n = parseInt(qty, 10);
+    if (!n || n < 1) return setError('Informe a quantidade.');
+    if (unmaskCurrency(cost) <= 0) return setError('Informe quanto você pagou em cada peça.');
+    const exists = (newVar.product.variants ?? []).some(
+      (v) => (v.color || '').trim().toLowerCase() === newVar.color.trim().toLowerCase() && (v.size || '').trim().toLowerCase() === newVar.size.trim().toLowerCase(),
+    );
+    if (exists) return setError('Esta cor e tamanho já existem: volte e escolha a peça na lista.');
+    setError('');
+    addNewVariant.mutate();
+  };
+
   const submit = () => {
     const n = parseInt(qty, 10);
     if (!choice) return setError('Escolha o produto.');
@@ -174,92 +176,53 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
       <BottomSheet
         visible={visible && step !== 'supplier'}
         onDismiss={onClose}
-        title={(step === 'form' || step === 'duplicate') && choice ? choice.label : 'Adicionar produto'}
+        title={step === 'newVariant' && newVar ? newVar.product.name : (step === 'form' || step === 'duplicate') && choice ? choice.label : 'Produto já cadastrado'}
         subtitle={step === 'form' ? (entryCode ? `Entrada ${entryCode}` : undefined) : entryCode ? `Lançar na entrada ${entryCode}` : undefined}
         icon="cube-outline"
-        dismissOnBackdrop={!add.isPending}
+        dismissOnBackdrop={!add.isPending && !addNewVariant.isPending}
         actions={
           step === 'form'
             ? [
                 { label: 'Voltar', onPress: () => setStep('list'), variant: 'secondary', disabled: add.isPending },
                 { label: 'Lançar na entrada', onPress: submit, variant: 'primary', loading: add.isPending, disabled: add.isPending },
               ]
-            : step === 'duplicate'
+            : step === 'newVariant'
+              ? [
+                  { label: 'Voltar', onPress: () => setStep('list'), variant: 'secondary', disabled: addNewVariant.isPending },
+                  { label: 'Lançar na entrada', onPress: submitNewVariant, variant: 'primary', loading: addNewVariant.isPending, disabled: addNewVariant.isPending },
+                ]
+              : step === 'duplicate'
               ? [{ label: 'Voltar', onPress: () => setStep('form'), variant: 'secondary', disabled: add.isPending || sumLine.isPending }]
               : undefined
         }
       >
         {step === 'list' ? (
-          <>
-            <View style={styles.searchBar}>
-              <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />
-              <RNTextInput
-                style={styles.searchInput}
-                placeholder="Buscar produto pelo nome"
-                placeholderTextColor={Colors.light.textTertiary}
-                value={query}
-                onChangeText={setQuery}
-                autoCorrect={false}
-              />
-              {query.length > 0 && (
-                <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
-                  <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
-                </TouchableOpacity>
-              )}
-            </View>
-
-            {isLoading ? (
-              <ActivityIndicator size="small" color={brand.primary} style={{ marginVertical: 24 }} />
-            ) : loadError ? (
-              <View style={styles.emptyState}>
-                <Ionicons name="wifi-outline" size={40} color={Colors.light.textTertiary} />
-                <Text style={styles.emptyTitle}>Não foi possível carregar os produtos</Text>
-                <TouchableOpacity onPress={() => refetch()} activeOpacity={0.75}>
-                  <Text style={[styles.retryText, { color: brand.primary }]}>Tentar novamente</Text>
-                </TouchableOpacity>
-              </View>
-            ) : products.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Ionicons name="search-outline" size={40} color={Colors.light.textTertiary} />
-                <Text style={styles.emptyTitle}>{query ? `Nenhum resultado para "${query}"` : 'Nenhum produto cadastrado'}</Text>
-              </View>
-            ) : (
-              <View>
-                {!query && <Text style={styles.sectionLabel}>PRODUTOS CADASTRADOS</Text>}
-                {products.map((p) => {
-                  const variants = (p.variants || []).filter((v: any) => v.is_active !== false);
-                  return (
-                    <View key={p.id} style={{ marginBottom: theme.spacing.sm }}>
-                      <Text style={styles.productName} numberOfLines={1}>{p.name}</Text>
-                      {variants.length === 0 ? (
-                        <TouchableOpacity style={styles.row} onPress={() => pick(p)} activeOpacity={0.75}>
-                          <View style={[styles.rowIcon, { backgroundColor: brand.primary + '20' }]}>
-                            <Ionicons name="shirt-outline" size={18} color={brand.primary} />
-                          </View>
-                          <Text style={styles.rowTitle}>Usar este produto</Text>
-                        </TouchableOpacity>
-                      ) : (
-                        variants.map((v: any) => (
-                          <TouchableOpacity key={v.id} style={styles.row} onPress={() => pick(p, v)} activeOpacity={0.75}>
-                            <View style={[styles.rowIcon, { backgroundColor: brand.primary + '20' }]}>
-                              <Ionicons name="shirt-outline" size={18} color={brand.primary} />
-                            </View>
-                            <View style={{ flex: 1 }}>
-                              <Text style={styles.rowTitle} numberOfLines={1}>
-                                {[v.color, v.size].filter(Boolean).join(' / ') || 'Única'}
-                              </Text>
-                              <Text style={styles.rowMeta}>{v.current_stock ?? 0} em estoque</Text>
-                            </View>
-                            <Text style={[styles.rowPrice, { color: brand.primary }]}>{formatCurrency(Number(v.price))}</Text>
-                          </TouchableOpacity>
-                        ))
-                      )}
-                    </View>
-                  );
-                })}
-              </View>
-            )}
-          </>
+          <ProductPickerList
+            onPick={(g, v) => pick(groupedToProduct(g), v)}
+            onNewVariant={(g) => {
+              setNewVar({ product: g, color: '', size: '' });
+              setQty('1');
+              const c = Number(g.variants?.[0]?.cost_price ?? 0);
+              setCost(c > 0 ? maskCurrencyBR(String(Math.round(c * 100))) : '');
+              setError('');
+              setStep('newVariant');
+            }}
+            markedVariantIds={(entryItems ?? []).filter((i) => i.is_active !== false && i.variant_id).map((i) => i.variant_id as number)}
+          />
+        ) : step === 'newVariant' && newVar ? (
+          <View>
+            <Text style={styles.note}>
+              Nova cor ou tamanho de {newVar.product.name}: é o mesmo produto, a peça ganha o próximo código dele.
+            </Text>
+            <TextInput mode="outlined" label="Cor" value={newVar.color} onChangeText={(t) => setNewVar({ ...newVar, color: t })} style={styles.input} />
+            <TextInput mode="outlined" label="Tamanho" value={newVar.size} onChangeText={(t) => setNewVar({ ...newVar, size: t })} autoCapitalize="characters" style={styles.input} />
+            <TextInput mode="outlined" label="Quantas peças" value={qty} onChangeText={(t) => setQty(t.replace(/[^0-9]/g, ''))} keyboardType="numeric" style={styles.input} />
+            <TextInput
+              mode="outlined" label="Quanto você pagou em cada peça" value={cost}
+              onChangeText={(t) => setCost(maskCurrencyBR(t))} keyboardType="numeric" left={<TextInput.Affix text="R$" />} style={styles.input}
+            />
+            {!!error && <Text style={styles.error}>{error}</Text>}
+          </View>
         ) : step === 'duplicate' && existingLine ? (
           <View>
             <Text style={styles.note}>

@@ -102,9 +102,10 @@ async def test_list_products_with_search(service, category):
     assert whey.id in achados and creatina.id not in achados
 
 
-async def test_search_finds_product_with_default_is_catalog(service, category):
+async def test_search_finds_product_published_on_site(service, category):
+    """Produto publicado no site (is_catalog=True) também é achado pela busca (antes o repositório o escondia)."""
     n = next(_n)
-    p = await _criar(service, category, name=f"Busca Padrao Zq{n}")
+    p = await _criar(service, category, name=f"Busca Padrao Zq{n}", is_catalog=True)
     achados = {x.id for x in await service.search_products(f"Busca Padrao Zq{n}", tenant_id=TENANT)}
     assert p.id in achados
 
@@ -147,8 +148,9 @@ async def test_get_products_by_category(service, category):
     assert all(p.category_id == category.id for p in achados)
 
 
-async def test_get_products_by_category_with_default_is_catalog(service, category):
-    p = await _criar(service, category)
+async def test_get_products_by_category_with_published_product(service, category):
+    """Produto publicado no site também aparece na listagem por categoria."""
+    p = await _criar(service, category, is_catalog=True)
     achados = await service.get_products_by_category(category.id, tenant_id=TENANT)
     assert p.id in {x.id for x in achados}
 

@@ -96,6 +96,19 @@ async def list_grouped_products_debug(
         )
 
 
+def parse_label_code(raw: str):
+    """Lê o código da etiqueta digitado ou lido: "#123", "123", "#123-1", "PV#123-1", "pv#0123".
+
+    Devolve (número do produto, número da variação ou None); None se não for código.
+    """
+    import re
+
+    m = re.fullmatch(r"\s*(?:pv)?#?\s*(\d{1,7})(?:\s*-\s*(\d{1,4}))?\s*", (raw or "").lower())
+    if not m:
+        return None
+    return int(m.group(1)), (int(m.group(2)) if m.group(2) else None)
+
+
 @router.get(
     "/grouped",
     summary="Listar produtos agrupados por variantes",
@@ -131,9 +144,28 @@ async def list_grouped_products(
             id_query += " AND p.category_id = :cat_id"
             params["cat_id"] = category_id
         
-        if search:
-            id_query += " AND (LOWER(p.name) LIKE LOWER(:search) OR LOWER(p.brand) LIKE LOWER(:search))"
-            params["search"] = f"%{search}%"
+        if search and search.strip():
+            # Nome, marca e SKU de variação; e o código da etiqueta: "#123", "123", "#123-1", "PV#123-1" ou o antigo "#0123"
+            conds = [
+                "LOWER(p.name) LIKE LOWER(:search)",
+                "LOWER(p.brand) LIKE LOWER(:search)",
+                "EXISTS (SELECT 1 FROM product_variants sv WHERE sv.product_id = p.id AND sv.tenant_id = :tid"
+                " AND sv.is_active = true AND LOWER(sv.sku) LIKE LOWER(:search))",
+            ]
+            params["search"] = f"%{search.strip()}%"
+            code = parse_label_code(search)
+            if code is not None:
+                prod_code, var_num = code
+                params["code_prod"] = prod_code
+                if var_num is None:
+                    conds.append("p.code_number = :code_prod")
+                    conds.append("EXISTS (SELECT 1 FROM product_variants cv WHERE cv.product_id = p.id"
+                                 " AND cv.tenant_id = :tid AND cv.short_code = :code_prod)")
+                else:
+                    params["code_var"] = var_num
+                    conds.append("EXISTS (SELECT 1 FROM product_variants cv WHERE cv.product_id = p.id AND cv.tenant_id = :tid"
+                                 " AND cv.product_code = :code_prod AND cv.variant_number = :code_var)")
+            id_query += " AND (" + " OR ".join(conds) + ")"
         
         if has_stock:
             id_query += """

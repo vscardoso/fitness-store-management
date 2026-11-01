@@ -159,7 +159,7 @@ export interface Product {
   is_digital?: boolean;
   is_activewear?: boolean;
   is_active: boolean;
-  is_catalog: boolean; // true = publicado no catálogo da loja (visível para clientes)
+  is_catalog: boolean; // true = aparece no site da loja (só a lojista liga/desliga; não impede venda nem entrada)
   image_url?: string; // URL da imagem do produto
   created_at: string;
   updated_at: string;
@@ -188,7 +188,7 @@ export interface ProductCreate {
   material?: string;
   is_digital?: boolean;
   is_activewear?: boolean;
-  is_catalog?: boolean; // true = publicado no catálogo público (default: true)
+  is_catalog?: boolean; // true = aparece no site da loja (padrão: false, não publicado)
   image_url?: string; // URL da imagem do produto
   initial_stock?: number; // Estoque inicial
   min_stock?: number; // Estoque mínimo

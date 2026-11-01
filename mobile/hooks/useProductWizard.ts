@@ -482,9 +482,9 @@ export function useProductWizard() {
         price: state.productData.price!,
         initial_stock: 0, // Sempre 0 - estoque via entrada FIFO
         min_stock: 5,
-        // is_catalog=true = publicado no catálogo da loja (visível para clientes).
-        // Produto sem estoque aparece com badge "Sem estoque" — nunca some do catálogo.
-        is_catalog: true,
+        // is_catalog = "aparece no site da loja". Produto novo nasce NÃO publicado (decisão do Victor, 01/11/2026):
+        // a lojista publica na tela do produto quando o site estiver ligado ao app.
+        is_catalog: false,
       };
 
       let created;
@@ -549,7 +549,7 @@ export function useProductWizard() {
           current_stock: 0,
           min_stock_threshold: 5,
           is_active: true,
-          is_catalog: true,
+          is_catalog: false,
           _atomicVariants: true, // Flag para o fluxo atômico de variantes
           _hasWizardVariants: true,
           variants: variantsList.map((v, idx) => ({
@@ -1122,7 +1122,7 @@ export function useProductWizard() {
     if (product?._virtual) {
       setState(prev => ({ ...prev, isCreating: true }));
       const { _virtual, ...productPayload } = product;
-      createProduct({ ...productPayload, is_catalog: true } as any).then(async (created) => {
+      createProduct({ ...productPayload, is_catalog: false } as any).then(async (created) => {
         let createdWithImage = created;
         if (state.capturedImage) {
           try {
@@ -1167,7 +1167,7 @@ export function useProductWizard() {
         material: product.material,
         category_id: product.category_id,
         base_price: product.price,
-        is_catalog: true,
+        is_catalog: false,
         variants: variantsList,
       }).then(async (created) => {
         let createdWithImage: any = created;
@@ -1205,7 +1205,7 @@ export function useProductWizard() {
       return;
     }
 
-    // Produto sem entrada: já foi criado com is_catalog=true (publicado, badge "Sem estoque").
+    // Produto sem entrada: criado não publicado (is_catalog=false); aparece na lista com o selo "Sem estoque".
     // Nenhuma ação adicional necessária.
 
     setState(prev => ({

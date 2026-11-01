@@ -39,9 +39,9 @@ export const getGroupedProducts = async (params?: PaginationParams & {
   category_id?: number;
   search?: string;
   has_stock?: boolean;
-}): Promise<ProductGrouped[]> => {
+}, config?: { headers?: Record<string, string> }): Promise<ProductGrouped[]> => {
   try {
-    const { data } = await api.get<ProductGrouped[]>('/products/grouped', { params });
+    const { data } = await api.get<ProductGrouped[]>('/products/grouped', { params, ...(config ?? {}) });
     return data;
   } catch (error) {
     throw error;

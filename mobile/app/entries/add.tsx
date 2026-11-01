@@ -35,7 +35,7 @@ import { trailMark, trailReport } from '@/utils/navTrail';
 import { parseApiError } from '@/utils/apiError';
 import { useFocusEffect } from '@react-navigation/native';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { searchProducts } from '@/services/productService';
+import ProductPickerSheet, { groupedToProduct, productToGrouped } from '@/components/products/ProductPicker';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -375,14 +375,6 @@ export default function AddStockEntryScreen() {
   const { data: trips = [], refetch: refetchTrips } = useTrips({ status: undefined, limit: 100 });
   const { data: products = [], isLoading: isLoadingProducts } = useProducts({ limit: 100 });
 
-  // A lista base traz só os 100 primeiros produtos; loja com mais produtos busca no servidor ao digitar
-  const needsServerSearch = productSearch.trim().length >= 2 && products.length >= 100;
-  const { data: serverFound = [] } = useQuery({
-    queryKey: ['entry-product-search', productSearch.trim()],
-    queryFn: () => searchProducts(productSearch.trim()),
-    enabled: needsServerSearch,
-  });
-  const allAvailableProducts = needsServerSearch ? serverFound : products;
   const showCatalogHint = !isLoadingProducts && products.length === 0;
 
   // Force refetch trips when returning from trip creation
@@ -793,16 +785,6 @@ export default function AddStockEntryScreen() {
   }, [entryCode]);
 
   /**
-   * Filtrar produtos por busca (inclui catálogo e ativos)
-   */
-  const filteredProducts = needsServerSearch
-    ? allAvailableProducts
-    : allAvailableProducts.filter((p: Product) =>
-        p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-        (p.sku && p.sku.toLowerCase().includes(productSearch.toLowerCase()))
-      );
-
-  /**
    * Mutation para criar entrada (modo tradicional)
    */
   const createMutation = useMutation({
@@ -969,35 +951,6 @@ export default function AddStockEntryScreen() {
     if (!value) return 0;
     const cleaned = value.replace(/[^\d,]/g, '').replace(',', '.');
     return parseFloat(cleaned) || 0;
-  };
-
-  /**
-   * Adicionar produto à lista (suporta catálogo e ativos)
-   */
-  const handleAddProduct = (product: Product) => {
-    // Check if this product is already in the list
-    const alreadyAdded = items.some(item => item.product_id === product.id);
-    const activeVariants = (product.variants || []).filter(v => v.is_active !== false);
-    // Produto que já está na lista mas tem variações: abre a escolha para lançar OUTRA cor/tamanho dele
-    const hasRealVariants = activeVariants.some(v => v.color || v.size);
-    if (alreadyAdded && !hasRealVariants) {
-      showFeedbackDialog('Atenção', 'Este produto já foi adicionado à entrada.', 'warning');
-      return;
-    }
-
-    // Produto com mais de 1 variante ativa: precisa escolher qual está sendo reabastecida
-    // (sem isso, o EntryItem fica sem variant_id e o estoque "some" do card de estoque,
-    // que é calculado por variante — só o histórico bruto de entradas mostraria o valor certo)
-    // Com cor/tamanho de verdade, sempre mostra a escolha (inclui a opção de criar uma variação nova)
-    if (activeVariants.length > 1 || hasRealVariants) {
-      setProductMenuVisible(false);
-      setProductSearch('');
-      setVariantPickerProduct(product);
-      return;
-    }
-
-    // 0 ou 1 variante: vincula automaticamente (sem variante = produto legado, mantém null)
-    addProductItem(product, activeVariants[0]);
   };
 
   /**
@@ -1967,122 +1920,51 @@ export default function AddStockEntryScreen() {
           )}
 
           {/* Produtos: escolher o que está entrando */}
-          <BottomSheet
+          {/* Seletor único de produto já cadastrado (busca por nome, código #123 ou SKU; grade de cores e tamanhos) */}
+          <ProductPickerSheet
             visible={productMenuVisible}
-            onDismiss={() => {
-              setProductMenuVisible(false);
-              setProductSearch('');
-            }}
+            onDismiss={() => setProductMenuVisible(false)}
             title="Adicionar produto"
-            subtitle="Escolha o produto que está chegando"
-            icon="cube-outline"
-          >
-            <TextInput
-              placeholder="Buscar produto..."
-              value={productSearch}
-              onChangeText={setProductSearch}
-              mode="outlined"
-              dense
-              left={<TextInput.Icon icon="magnify" />}
-              style={{ marginBottom: 10 }}
-            />
+            subtitle="Escolha o produto e a peça que está chegando"
+            markedVariantIds={items.map((i) => i.variant_id).filter((v): v is number => !!v)}
+            onPick={(g, v) => {
+              const already = v ? items.some((i) => i.variant_id === v.id) : items.some((i) => i.product_id === g.id && !i.variant_id);
+              if (already) {
+                // fecha o seletor antes: o aviso abriria atrás dele
+                setProductMenuVisible(false);
+                setTimeout(() => showFeedbackDialog('Já está nesta entrada', 'Esta peça já está na lista. Para receber mais, mude a quantidade na linha dela.', 'warning'), 250);
+                return;
+              }
+              addProductItem(groupedToProduct(g), v);
+            }}
+            onNewVariant={(g) => {
+              setProductMenuVisible(false);
+              setNewVariantProduct(groupedToProduct(g));
+              setNewVariantColor('');
+              setNewVariantSize('');
+              setNewVariantError('');
+            }}
+          />
 
-            {products.length >= 100 && productSearch.trim().length < 2 && (
-              <Text style={styles.variantSheetHint}>Mostrando só os primeiros 100 produtos. Digite o nome para achar os outros.</Text>
-            )}
-            {isLoadingProducts ? (
-              <Text style={styles.variantSheetHint}>Carregando produtos...</Text>
-            ) : (
-              <>
-                {filteredProducts.map((product: Product) => (
-                  <TouchableOpacity
-                    key={`${product.is_catalog ? 'cat' : 'act'}-${product.id}`}
-                    style={styles.variantSheetRow}
-                    activeOpacity={0.8}
-                    onPress={() => handleAddProduct(product)}
-                  >
-                    <View style={{ flex: 1, minWidth: 0 }}>
-                      <Text style={styles.variantSheetName} numberOfLines={2}>{product.name}</Text>
-                      <Text style={styles.variantSheetMeta}>
-                        Custo {formatCurrency(product.cost_price || 0)}{product.is_catalog ? ' · Catálogo' : ''}
-                      </Text>
-                    </View>
-                    <Ionicons name="add-circle-outline" size={24} color={brandingColors.primary} />
-                  </TouchableOpacity>
-                ))}
-                {filteredProducts.length === 0 && (
-                  <View style={styles.emptyState}>
-                    <Ionicons name="cube-outline" size={40} color={Colors.light.textSecondary} />
-                    <Text style={styles.emptyText}>Nenhum produto encontrado</Text>
-                    <Text style={styles.emptySubtext}>Tente buscar por outro termo</Text>
-                  </View>
-                )}
-              </>
-            )}
-          </BottomSheet>
-
-          {/* Escolha da variação: produto tem mais de 1 variação ativa */}
-          <BottomSheet
-            visible={!!variantPickerProduct}
-            onDismiss={() => setVariantPickerProduct(null)}
-            title="Qual variação?"
-            subtitle={variantPickerProduct?.name}
-            icon="layers-outline"
-          >
-            <Text style={styles.variantSheetHint}>Escolha qual cor e tamanho está recebendo estoque nesta entrada.</Text>
-            {(() => {
-              // Aviso: a mesma peça já está NESTA entrada (em outras entradas isso é normal e não avisa)
-              const jaNaEntrada = (variantPickerProduct?.variants || []).filter(
-                (v) => v.is_active !== false && items.some((i) => i.variant_id === v.id),
-              );
-              if (jaNaEntrada.length === 0) return null;
-              const nomes = jaNaEntrada.map((v) => [v.color, v.size].filter(Boolean).join(' ') || 'Padrão').join(', ');
-              return (
-                <Text style={[styles.variantSheetHint, { color: Colors.light.warning, fontWeight: '600' }]}>
-                  Já estão nesta entrada: {nomes}. Para receber mais peças delas, mude a quantidade na linha da entrada.
-                </Text>
-              );
-            })()}
-            {(variantPickerProduct?.variants || [])
-              .filter(v => v.is_active !== false && !items.some(i => i.variant_id === v.id))
-              .map((variant) => (
-                <TouchableOpacity
-                  key={variant.id}
-                  style={styles.variantSheetRow}
-                  activeOpacity={0.8}
-                  onPress={() => variantPickerProduct && addProductItem(variantPickerProduct, variant)}
-                >
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.variantSheetName} numberOfLines={1}>
-                      {[variant.color, variant.size].filter(Boolean).join(' · ') || 'Variação padrão'}
-                    </Text>
-                    <Text style={styles.variantSheetMeta}>
-                      Custo {formatCurrency(variant.cost_price || 0)} · No estoque: {variant.current_stock}
-                    </Text>
-                  </View>
-                  <Ionicons name="add-circle-outline" size={24} color={brandingColors.primary} />
-                </TouchableOpacity>
-              ))}
-
-            {/* Cor ou tamanho que o produto ainda não tem: cria junto com esta entrada */}
-            <TouchableOpacity
-              style={[styles.variantSheetRow, { borderColor: brandingColors.primary + '55', backgroundColor: brandingColors.primary + '0F' }]}
-              activeOpacity={0.8}
-              onPress={() => {
+          {/* Produto já escolhido por outra tela (ex.: viagem) com várias variações: escolher a peça na grade */}
+          {variantPickerProduct && (
+            <ProductPickerSheet
+              visible
+              onDismiss={() => setVariantPickerProduct(null)}
+              title="Qual peça está chegando?"
+              subtitle={variantPickerProduct.name}
+              fixedProduct={productToGrouped(variantPickerProduct)}
+              markedVariantIds={items.map((i) => i.variant_id).filter((v): v is number => !!v)}
+              onPick={(_g, v) => addProductItem(variantPickerProduct, v)}
+              onNewVariant={() => {
                 setNewVariantProduct(variantPickerProduct);
                 setNewVariantColor('');
                 setNewVariantSize('');
                 setNewVariantError('');
                 setVariantPickerProduct(null);
               }}
-            >
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={[styles.variantSheetName, { color: brandingColors.primary }]}>Nova variação (outra cor ou tamanho)</Text>
-                <Text style={styles.variantSheetMeta}>Faltou uma cor ou tamanho que ainda não existe? Crie aqui, junto com a entrada.</Text>
-              </View>
-              <Ionicons name="sparkles-outline" size={22} color={brandingColors.primary} />
-            </TouchableOpacity>
-          </BottomSheet>
+            />
+          )}
 
           {/* Variação nova de produto já cadastrado: só cor e tamanho; o servidor cria e já lança */}
           <BottomSheet

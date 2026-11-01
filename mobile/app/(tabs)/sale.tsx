@@ -215,19 +215,7 @@ function MobileSaleScreen() {
       return;
     }
 
-    if (product.is_catalog) {
-      haptics.warning();
-      setDialog({
-        visible: true,
-        type: 'warning',
-        title: 'Produto de catálogo',
-        message: 'Este é um produto de catálogo e não pode ser vendido. Importe o produto para seu estoque primeiro.',
-        confirmText: 'Entendi',
-        cancelText: '',
-        onConfirm: () => setDialog({ ...dialog, visible: false }),
-      });
-      return;
-    }
+    // `is_catalog` é só "aparece no site": não impede a venda (quem impede é o estoque)
 
     const cart_key = `p_${product.id}`;
     const existingItem = cart.getItem(cart_key);
