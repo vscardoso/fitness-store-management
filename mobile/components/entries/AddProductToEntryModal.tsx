@@ -22,6 +22,7 @@ import { addItemToEntry, addVariantToEntry, updateEntryItem } from '@/services/s
 import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
+import { findExistingLine, sumBlockReason, summedQuantity } from '@/utils/entryLine';
 import type { EntryItemResponse, Product, ProductGrouped, Supplier } from '@/types';
 
 interface Props {
@@ -99,30 +100,29 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
   };
 
   // A variação já está na entrada: quem lança decide se soma na linha que existe ou cria outra linha
-  const existingLine = useMemo(() => {
-    if (!choice) return undefined;
-    return (entryItems ?? []).find(
-      (i) => i.is_active !== false && i.product_id === choice.productId && (i.variant_id ?? null) === (choice.variantId ?? null),
-    );
-  }, [entryItems, choice]);
+  const existingLine = useMemo(
+    () => (choice ? findExistingLine(entryItems, choice.productId, choice.variantId) : undefined),
+    [entryItems, choice],
+  );
 
-  const sumBlockReason = useMemo(() => {
-    if (!existingLine) return '';
-    const n = parseInt(qty, 10) || 0;
-    if (n < 1) return '';
-    if ((existingLine.quantity_sold ?? 0) > 0) return 'Esta linha já vendeu peças: o histórico de custo não pode ser mexido.';
-    if (Math.round(unmaskCurrency(cost) * 100) !== Math.round(Number(existingLine.unit_cost) * 100))
-      return `Somar só vale com o mesmo custo (a linha atual está a ${formatCurrency(Number(existingLine.unit_cost))}).`;
-    const lineSupplier = existingLine.supplier_name ?? entrySupplierName ?? null;
-    const newSupplier = supplier?.name ?? entrySupplierName ?? null;
-    if (lineSupplier !== newSupplier) return 'O fornecedor é diferente do da linha atual.';
-    const lineList = Number((existingLine as any).list_unit_cost ?? 0);
-    if (Math.round(unmaskCurrency(listPrice) * 100) !== Math.round(lineList * 100)) return 'O preço cheio do fornecedor é diferente do da linha atual.';
-    return '';
-  }, [existingLine, qty, cost, supplier, listPrice, entrySupplierName]);
+  const sumBlockText = useMemo(
+    () =>
+      sumBlockReason(
+        existingLine,
+        {
+          qty: parseInt(qty, 10) || 0,
+          cost: unmaskCurrency(cost),
+          listPrice: unmaskCurrency(listPrice),
+          supplierName: supplier?.name ?? null,
+          entrySupplierName: entrySupplierName ?? null,
+        },
+        formatCurrency,
+      ),
+    [existingLine, qty, cost, supplier, listPrice, entrySupplierName],
+  );
 
   const sumLine = useMutation({
-    mutationFn: () => updateEntryItem(existingLine!.id, { quantity_received: Number(existingLine!.quantity_received) + (parseInt(qty, 10) || 0) }),
+    mutationFn: () => updateEntryItem(existingLine!.id, { quantity_received: summedQuantity(existingLine!, parseInt(qty, 10) || 0) }),
     onSuccess: () => afterLaunch(),
     onError: (e: any) => setError(parseApiError(e) || 'Não foi possível somar. Tente de novo.'),
   });
@@ -229,9 +229,9 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
               Esta peça já está nesta entrada: {existingLine.quantity_received} a {formatCurrency(Number(existingLine.unit_cost))}. Você quer lançar mais {parseInt(qty, 10) || 0}. O que fazer?
             </Text>
             <TouchableOpacity
-              style={[styles.row, { marginTop: theme.spacing.md, opacity: sumBlockReason ? 0.5 : 1 }]}
+              style={[styles.row, { marginTop: theme.spacing.md, opacity: sumBlockText ? 0.5 : 1 }]}
               onPress={() => { setError(''); sumLine.mutate(); }}
-              disabled={!!sumBlockReason || sumLine.isPending || add.isPending}
+              disabled={!!sumBlockText || sumLine.isPending || add.isPending}
               activeOpacity={0.75}
               accessibilityLabel="Somar na linha que já existe"
             >
@@ -241,7 +241,7 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
               <View style={{ flex: 1 }}>
                 <Text style={styles.rowTitle}>Somar na linha que já existe</Text>
                 <Text style={styles.rowMeta}>
-                  {sumBlockReason || `Fica ${Number(existingLine.quantity_received) + (parseInt(qty, 10) || 0)} peças a ${formatCurrency(Number(existingLine.unit_cost))}`}
+                  {sumBlockText || `Fica ${summedQuantity(existingLine, parseInt(qty, 10) || 0)} peças a ${formatCurrency(Number(existingLine.unit_cost))}`}
                 </Text>
               </View>
             </TouchableOpacity>

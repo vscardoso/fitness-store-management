@@ -10,7 +10,7 @@ class EntryItemBase(BaseModel):
     """Base entry item schema."""
     entry_id: int = Field(..., description="ID da entrada de estoque")
     product_id: Optional[int] = Field(None, description="ID do produto (legado - usar variant_id)")
-    quantity_received: int = Field(..., gt=0, description="Quantidade comprada/recebida")
+    quantity_received: int = Field(..., gt=0, le=1_000_000, description="Quantidade comprada/recebida (máx. 1.000.000: acima disso estoura o inteiro do banco)")
     unit_cost: Decimal = Field(..., ge=0, description="Custo unitário")
     notes: Optional[str] = Field(None, max_length=500, description="Observações")
 
@@ -41,7 +41,7 @@ class EntryItemCreate(BaseModel):
     """Schema for creating an entry item (sem entry_id, será definido automaticamente)."""
     product_id: Optional[int] = Field(None, description="ID do produto")
     variant_id: Optional[int] = Field(None, description="ID da variante (definir junto com product_id para FIFO por variante)")
-    quantity_received: int = Field(..., gt=0, description="Quantidade comprada/recebida")
+    quantity_received: int = Field(..., gt=0, le=1_000_000, description="Quantidade comprada/recebida (máx. 1.000.000: acima disso estoura o inteiro do banco)")
     unit_cost: Decimal = Field(..., ge=0, description="Custo unitário")
     selling_price: Optional[Decimal] = Field(None, ge=0, description="Preço de venda do produto (atualiza o produto)")
     supplier_id: Optional[int] = Field(None, description="Fornecedor deste item (padrão: fornecedor da entrada)")
@@ -63,7 +63,7 @@ class EntryItemCreate(BaseModel):
 class EntryItemUpdate(BaseModel):
     """Schema for updating an entry item."""
     product_id: Optional[int] = None
-    quantity_received: Optional[int] = Field(None, gt=0)
+    quantity_received: Optional[int] = Field(None, gt=0, le=1_000_000)
     quantity_remaining: Optional[int] = Field(None, ge=0)
     unit_cost: Optional[Decimal] = Field(None, ge=0)
     sell_price: Optional[Decimal] = Field(None, ge=0, description="Preço de venda do produto")

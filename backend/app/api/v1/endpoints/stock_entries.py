@@ -4,6 +4,7 @@ Endpoints de entradas de estoque (StockEntries) - Gerenciamento de compras e inv
 Todos os endpoints requerem autenticação.
 Operações de modificação (POST, PUT, DELETE) requerem permissões de admin ou seller.
 """
+import logging
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
@@ -28,6 +29,8 @@ from app.api.deps import get_current_active_user, require_role, get_current_tena
 from app.models.user import User, UserRole
 from app.models.stock_entry import EntryType
 from app.services.audit_service import AuditService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/stock-entries", tags=["Entradas de Estoque"])
 
@@ -310,6 +313,7 @@ async def create_stock_entry_with_new_product(
             detail=str(e)
         )
     except Exception as e:
+        logger.exception("Erro inesperado na entrada de estoque")
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -414,6 +418,7 @@ async def create_stock_entry_with_new_product_variants(
             detail=str(e)
         )
     except Exception as e:
+        logger.exception("Erro inesperado na entrada de estoque")
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -455,6 +460,7 @@ async def add_new_product_to_entry(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
+        logger.exception("Erro inesperado na entrada de estoque")
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao lançar o produto na entrada: {e}")
 
@@ -548,6 +554,7 @@ async def create_stock_entry(
             detail=str(e)
         )
     except Exception as e:
+        logger.exception("Erro inesperado na entrada de estoque")
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1183,6 +1190,7 @@ async def update_stock_entry(
             detail=str(e)
         )
     except Exception as e:
+        logger.exception("Erro inesperado na entrada de estoque")
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1246,6 +1254,7 @@ async def delete_stock_entry(
             )
     
     except Exception as e:
+        logger.exception("Erro inesperado na entrada de estoque")
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1347,6 +1356,7 @@ async def update_entry_item(
             )
 
     except Exception as e:
+        logger.exception("Erro inesperado na entrada de estoque")
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1515,6 +1525,7 @@ async def add_item_to_entry(
             )
 
     except Exception as e:
+        logger.exception("Erro inesperado na entrada de estoque")
         await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1566,5 +1577,6 @@ async def correct_entry_item(
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
+        logger.exception("Erro inesperado na entrada de estoque")
         await db.rollback()
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Erro ao corrigir item: {str(e)}")
