@@ -20,7 +20,8 @@ from concurrent.futures import ThreadPoolExecutor
 
 import httpx
 
-BASE = "http://127.0.0.1:8010/api/v1"
+import os
+BASE = os.environ.get("STRESS_BASE", "http://127.0.0.1:8010/api/v1")
 assert BASE.startswith(("http://127.0.0.1", "http://localhost")), "só local"
 TOTAL = int(sys.argv[1]) if len(sys.argv) > 1 else 130
 WORKERS = int(sys.argv[2]) if len(sys.argv) > 2 else 8
