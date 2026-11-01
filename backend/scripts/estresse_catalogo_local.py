@@ -208,7 +208,7 @@ def main():
         ("custo negativo", {"product_id": pid, "variant_id": vid, "quantity_received": 1, "unit_cost": -5}),
         ("quantidade zero", {"product_id": pid, "variant_id": vid, "quantity_received": 0, "unit_cost": 10}),
         ("produto inexistente", {"product_id": 99999999, "quantity_received": 1, "unit_cost": 10}),
-        ("variação de outro produto", {"product_id": ids_est[3], "variant_id": vid, "quantity_received": 1, "unit_cost": 10}),
+        ("variação de outro produto", {"product_id": next(i for i in ids_est if i != pid), "variant_id": vid, "quantity_received": 1, "unit_cost": 10}),
         ("sem custo", {"product_id": pid, "variant_id": vid, "quantity_received": 1}),
         ("texto no lugar de número", {"product_id": pid, "variant_id": vid, "quantity_received": "abc", "unit_cost": 10}),
         ("quantidade enorme", {"product_id": pid, "variant_id": vid, "quantity_received": 10**12, "unit_cost": 10}),
