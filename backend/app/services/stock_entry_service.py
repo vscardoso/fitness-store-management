@@ -327,10 +327,7 @@ class StockEntryService:
                 if not product:
                     raise ValueError(f"Product {item_dict['product_id']} não encontrado")
 
-                # Se produto é de catálogo, marcar como adicionado à loja
-                if product.is_catalog:
-                    product.is_catalog = False
-                    # Commit será feito ao final da transação
+                # `is_catalog` é só "publicado no site" (decisão da lojista): receber estoque não mexe nele.
 
                 # Custo obrigatório (zero só em doação): sem ele o lucro/FIFO fica incorreto
                 self._require_cost(item_dict.get('unit_cost'), product.name, entry_data.entry_type)
@@ -1223,9 +1220,8 @@ class StockEntryService:
                 .values(tenant_id=None)
             )
 
-            # Excluir produtos órfãos varia conforme a origem:
-            # - is_catalog=True  → ainda era template no catálogo: retornar ao pool global
-            # - is_catalog=False → produto estava ativo: desativar + limpar SKU completamente
+            # Produto órfão (sem nenhuma outra entrada): desativar + limpar SKU completamente.
+            # (Antes dependia de `is_catalog`; esse campo agora é só "publicado no site".)
             for product_id in products_to_delete:
                 product_result = await self.db.execute(
                     select(Product).where(
@@ -1267,36 +1263,20 @@ class StockEntryService:
                     inv.quantity = 0
                     inv.tenant_id = None
 
-                if product.is_catalog:
-                    # Produto ainda no estado de catálogo (entrada foi deletada antes de ativá-lo):
-                    # retornar ao pool global — remover vínculo com tenant.
-                    # SKU preservado (NOT NULL) mas renomeado com sufixo para liberar o valor original.
-                    product.tenant_id = None
-                    for variant in product_variants:
-                        # Renomear SKU com sufixo _del_{id} para liberar o valor original sem violar NOT NULL
-                        if variant.sku and not variant.sku.endswith(f'_del_{variant.id}'):
-                            variant.sku = f'{variant.sku}_del_{variant.id}'
-                        variant.tenant_id = None
-                    orphan_products.append({
-                        'id': product.id,
-                        'name': product.name,
-                        'action': 'returned_to_catalog',
-                    })
-                else:
-                    # Produto ativo (is_catalog=False): desativar completamente.
-                    # SKU renomeado com sufixo _del_{id} para liberar o valor original sem violar NOT NULL.
-                    product.is_active = False
-                    product.tenant_id = None
-                    for variant in product_variants:
-                        variant.is_active = False
-                        if variant.sku and not variant.sku.endswith(f'_del_{variant.id}'):
-                            variant.sku = f'{variant.sku}_del_{variant.id}'
-                        variant.tenant_id = None
-                    orphan_products.append({
-                        'id': product.id,
-                        'name': product.name,
-                        'action': 'deactivated',
-                    })
+                # Produto sem outra entrada: desativar completamente (a publicação no site não decide isso).
+                # SKU renomeado com sufixo _del_{id} para liberar o valor original sem violar NOT NULL.
+                product.is_active = False
+                product.tenant_id = None
+                for variant in product_variants:
+                    variant.is_active = False
+                    if variant.sku and not variant.sku.endswith(f'_del_{variant.id}'):
+                        variant.sku = f'{variant.sku}_del_{variant.id}'
+                    variant.tenant_id = None
+                orphan_products.append({
+                    'id': product.id,
+                    'name': product.name,
+                    'action': 'deactivated',
+                })
 
             # Rebuild FIFO para produtos não-órfãos (têm outras entradas ativas)
             non_orphan_ids = affected_product_ids - products_to_delete
@@ -1983,9 +1963,7 @@ class StockEntryService:
         # Custo obrigatório (zero só em doação): sem ele o lucro FIFO fica incorreto
         self._require_cost(unit_cost, product.name, entry.entry_type)
 
-        # Se produto é de catálogo, marcar como adicionado à loja
-        if product.is_catalog:
-            product.is_catalog = False
+        # `is_catalog` é só "publicado no site" (decisão da lojista): receber estoque não mexe nele.
 
         # Variação do item: a informada (validada) ou a única ativa do produto.
         # Produto com várias variações exige dizer qual (senão o estoque iria para a primeira).

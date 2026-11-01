@@ -18,17 +18,19 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getProducts, searchProducts } from '@/services/productService';
-import { addItemToEntry } from '@/services/stockEntryService';
+import { addItemToEntry, updateEntryItem } from '@/services/stockEntryService';
 import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
-import type { Product, Supplier } from '@/types';
+import type { EntryItemResponse, Product, Supplier } from '@/types';
 
 interface Props {
   visible: boolean;
   entryId: number;
   entryCode?: string;
   entrySupplierName?: string;
+  /** Linhas que a entrada já tem: serve para perguntar se soma ou cria linha separada quando a variação se repete */
+  entryItems?: EntryItemResponse[];
   onClose: () => void;
 }
 
@@ -44,10 +46,10 @@ const PAGE = 200;
 
 const norm = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
-export default function AddProductToEntryModal({ visible, entryId, entryCode, entrySupplierName, onClose }: Props) {
+export default function AddProductToEntryModal({ visible, entryId, entryCode, entrySupplierName, entryItems, onClose }: Props) {
   const brand = useBrandingColors();
   const qc = useQueryClient();
-  const [step, setStep] = useState<'list' | 'form' | 'supplier'>('list');
+  const [step, setStep] = useState<'list' | 'form' | 'supplier' | 'duplicate'>('list');
   const [query, setQuery] = useState('');
   const [choice, setChoice] = useState<Choice | null>(null);
   const [qty, setQty] = useState('1');
@@ -86,9 +88,8 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
   const products = useMemo(() => {
     const q = norm(query);
     const base: Product[] = needsServerSearch ? found : loaded;
-    return base
-      .filter((p: any) => !p.is_catalog)
-      .filter((p) => !q || norm(p.name).includes(q));
+    // Todos os produtos ativos da loja, publicados no site ou não (`is_catalog` é só "aparece no site")
+    return base.filter((p) => !q || norm(p.name).includes(q));
   }, [loaded, found, query, needsServerSearch]);
 
   const pick = (p: Product, v?: any) => {
@@ -111,14 +112,45 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
         supplier_id: supplier?.id ?? undefined,
         list_unit_cost: unmaskCurrency(listPrice) > 0 ? unmaskCurrency(listPrice) : undefined,
       }),
-    onSuccess: () => {
-      ['stock-entry', 'lot-analytics', 'lot-costs'].forEach((k) => qc.invalidateQueries({ queryKey: [k, entryId] }));
-      ['stock-entries', 'products', 'grouped-products', 'suppliers', 'entry-add-products'].forEach((k) =>
-        qc.invalidateQueries({ queryKey: [k] }),
-      );
-      onClose();
-    },
+    onSuccess: () => afterLaunch(),
     onError: (e: any) => setError(parseApiError(e) || 'Não foi possível lançar. Tente de novo.'),
+  });
+
+  const afterLaunch = () => {
+    ['stock-entry', 'lot-analytics', 'lot-costs'].forEach((k) => qc.invalidateQueries({ queryKey: [k, entryId] }));
+    ['stock-entries', 'products', 'grouped-products', 'suppliers', 'entry-add-products'].forEach((k) =>
+      qc.invalidateQueries({ queryKey: [k] }),
+    );
+    onClose();
+  };
+
+  // A variação já está na entrada: quem lança decide se soma na linha que existe ou cria outra linha
+  const existingLine = useMemo(() => {
+    if (!choice) return undefined;
+    return (entryItems ?? []).find(
+      (i) => i.is_active !== false && i.product_id === choice.productId && (i.variant_id ?? null) === (choice.variantId ?? null),
+    );
+  }, [entryItems, choice]);
+
+  const sumBlockReason = useMemo(() => {
+    if (!existingLine) return '';
+    const n = parseInt(qty, 10) || 0;
+    if (n < 1) return '';
+    if ((existingLine.quantity_sold ?? 0) > 0) return 'Esta linha já vendeu peças: o histórico de custo não pode ser mexido.';
+    if (Math.round(unmaskCurrency(cost) * 100) !== Math.round(Number(existingLine.unit_cost) * 100))
+      return `Somar só vale com o mesmo custo (a linha atual está a ${formatCurrency(Number(existingLine.unit_cost))}).`;
+    const lineSupplier = existingLine.supplier_name ?? entrySupplierName ?? null;
+    const newSupplier = supplier?.name ?? entrySupplierName ?? null;
+    if (lineSupplier !== newSupplier) return 'O fornecedor é diferente do da linha atual.';
+    const lineList = Number((existingLine as any).list_unit_cost ?? 0);
+    if (Math.round(unmaskCurrency(listPrice) * 100) !== Math.round(lineList * 100)) return 'O preço cheio do fornecedor é diferente do da linha atual.';
+    return '';
+  }, [existingLine, qty, cost, supplier, listPrice, entrySupplierName]);
+
+  const sumLine = useMutation({
+    mutationFn: () => updateEntryItem(existingLine!.id, { quantity_received: Number(existingLine!.quantity_received) + (parseInt(qty, 10) || 0) }),
+    onSuccess: () => afterLaunch(),
+    onError: (e: any) => setError(parseApiError(e) || 'Não foi possível somar. Tente de novo.'),
   });
 
   const submit = () => {
@@ -130,6 +162,7 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
     const list = unmaskCurrency(listPrice);
     if (list > 0 && list < paid) return setError('O preço de tabela não pode ser menor que o preço pago.');
     setError('');
+    if (existingLine) { setStep('duplicate'); return; }
     add.mutate();
   };
 
@@ -141,7 +174,7 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
       <BottomSheet
         visible={visible && step !== 'supplier'}
         onDismiss={onClose}
-        title={step === 'form' && choice ? choice.label : 'Adicionar produto'}
+        title={(step === 'form' || step === 'duplicate') && choice ? choice.label : 'Adicionar produto'}
         subtitle={step === 'form' ? (entryCode ? `Entrada ${entryCode}` : undefined) : entryCode ? `Lançar na entrada ${entryCode}` : undefined}
         icon="cube-outline"
         dismissOnBackdrop={!add.isPending}
@@ -151,7 +184,9 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
                 { label: 'Voltar', onPress: () => setStep('list'), variant: 'secondary', disabled: add.isPending },
                 { label: 'Lançar na entrada', onPress: submit, variant: 'primary', loading: add.isPending, disabled: add.isPending },
               ]
-            : undefined
+            : step === 'duplicate'
+              ? [{ label: 'Voltar', onPress: () => setStep('form'), variant: 'secondary', disabled: add.isPending || sumLine.isPending }]
+              : undefined
         }
       >
         {step === 'list' ? (
@@ -225,6 +260,45 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
               </View>
             )}
           </>
+        ) : step === 'duplicate' && existingLine ? (
+          <View>
+            <Text style={styles.note}>
+              Esta peça já está nesta entrada: {existingLine.quantity_received} a {formatCurrency(Number(existingLine.unit_cost))}. Você quer lançar mais {parseInt(qty, 10) || 0}. O que fazer?
+            </Text>
+            <TouchableOpacity
+              style={[styles.row, { marginTop: theme.spacing.md, opacity: sumBlockReason ? 0.5 : 1 }]}
+              onPress={() => { setError(''); sumLine.mutate(); }}
+              disabled={!!sumBlockReason || sumLine.isPending || add.isPending}
+              activeOpacity={0.75}
+              accessibilityLabel="Somar na linha que já existe"
+            >
+              <View style={[styles.rowIcon, { backgroundColor: brand.primary + '20' }]}>
+                <Ionicons name="add-circle-outline" size={18} color={brand.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowTitle}>Somar na linha que já existe</Text>
+                <Text style={styles.rowMeta}>
+                  {sumBlockReason || `Fica ${Number(existingLine.quantity_received) + (parseInt(qty, 10) || 0)} peças a ${formatCurrency(Number(existingLine.unit_cost))}`}
+                </Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.row, { marginTop: theme.spacing.sm }]}
+              onPress={() => { setError(''); add.mutate(); }}
+              disabled={sumLine.isPending || add.isPending}
+              activeOpacity={0.75}
+              accessibilityLabel="Criar uma linha separada"
+            >
+              <View style={[styles.rowIcon, { backgroundColor: brand.primary + '20' }]}>
+                <Ionicons name="reorder-two-outline" size={18} color={brand.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.rowTitle}>Criar uma linha separada</Text>
+                <Text style={styles.rowMeta}>Guarda este lançamento com o custo, o fornecedor e o preço cheio dele.</Text>
+              </View>
+            </TouchableOpacity>
+            {!!error && <Text style={styles.error}>{error}</Text>}
+          </View>
         ) : (
           <View>
             <TextInput

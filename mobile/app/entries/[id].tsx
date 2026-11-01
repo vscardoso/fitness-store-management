@@ -731,6 +731,7 @@ export default function StockEntryDetailsScreen() {
         entryId={entryId}
         entryCode={entry.entry_code}
         entrySupplierName={entry.supplier_name}
+        entryItems={entry.entry_items}
         onClose={() => setAddProductOpen(false)}
       />
       <SendToSupplierModal

@@ -420,7 +420,7 @@ class SupplierInsightsService:
                    ProductVariant.sku, Product.name)
             .join(Product, Product.id == ProductVariant.product_id)
             .where(ProductVariant.tenant_id == tenant_id, ProductVariant.is_active == True,  # noqa: E712
-                   Product.is_active == True, Product.is_catalog == False)  # noqa: E712
+                   Product.is_active == True)  # noqa: E712
         )).all()
 
         # Fornecedores por produto

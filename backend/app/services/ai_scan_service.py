@@ -17,6 +17,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
 from app.models.product import Product
+from app.models.entry_item import EntryItem
 from app.models.category import Category
 from app.schemas.ai import ProductScanResult, DuplicateMatch
 
@@ -1011,7 +1012,8 @@ Responda APENAS com o JSON, sem texto adicional."""
         conditions = [
             Product.tenant_id == tenant_id,
             Product.is_active == True,
-            Product.is_catalog == False,
+            # só produtos que já tiveram entrada (preço real de compra); `is_catalog` é só "publicado no site"
+            Product.id.in_(select(EntryItem.product_id).where(EntryItem.tenant_id == tenant_id, EntryItem.is_active == True)),  # noqa: E712
         ]
 
         if brand:

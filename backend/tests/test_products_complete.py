@@ -227,8 +227,6 @@ async def test_create_product_duplicate_sku(test_client: AsyncClient, auth_token
     assert len(skus) == 2 or None in skus  # nunca dois produtos com o mesmo SKU
 
 
-@pytest.mark.xfail(strict=True, reason="BUG REAL: ProductRepository.search (product_repository.py:150) filtra is_catalog == False; "
-                   "produto criado com o default is_catalog=True some de GET /products?search=")
 @pytest.mark.asyncio
 async def test_search_finds_just_created_product(test_client: AsyncClient, auth_token: str):
     termo = f"Zqbusca{uuid.uuid4().hex[:8]}"

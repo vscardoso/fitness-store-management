@@ -629,8 +629,8 @@ export default function ProductDetailsScreen() {
                   </Text>
                   <Text style={styles.catalogToggleSub}>
                     {product.is_catalog
-                      ? 'Visível para clientes no site'
-                      : 'Interno — não aparece no site'}
+                      ? 'Quando o site da loja estiver ligado ao app, este produto aparece nele'
+                      : 'Interno: não aparece no site da loja'}
                   </Text>
                 </View>
               </View>

@@ -35,6 +35,7 @@ import { trailMark, trailReport } from '@/utils/navTrail';
 import { parseApiError } from '@/utils/apiError';
 import { useFocusEffect } from '@react-navigation/native';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
+import { searchProducts } from '@/services/productService';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -374,7 +375,14 @@ export default function AddStockEntryScreen() {
   const { data: trips = [], refetch: refetchTrips } = useTrips({ status: undefined, limit: 100 });
   const { data: products = [], isLoading: isLoadingProducts } = useProducts({ limit: 100 });
 
-  const allAvailableProducts = products;
+  // A lista base traz só os 100 primeiros produtos; loja com mais produtos busca no servidor ao digitar
+  const needsServerSearch = productSearch.trim().length >= 2 && products.length >= 100;
+  const { data: serverFound = [] } = useQuery({
+    queryKey: ['entry-product-search', productSearch.trim()],
+    queryFn: () => searchProducts(productSearch.trim()),
+    enabled: needsServerSearch,
+  });
+  const allAvailableProducts = needsServerSearch ? serverFound : products;
   const showCatalogHint = !isLoadingProducts && products.length === 0;
 
   // Force refetch trips when returning from trip creation
@@ -787,10 +795,12 @@ export default function AddStockEntryScreen() {
   /**
    * Filtrar produtos por busca (inclui catálogo e ativos)
    */
-  const filteredProducts = allAvailableProducts.filter((p: Product) =>
-    p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-    (p.sku && p.sku.toLowerCase().includes(productSearch.toLowerCase()))
-  );
+  const filteredProducts = needsServerSearch
+    ? allAvailableProducts
+    : allAvailableProducts.filter((p: Product) =>
+        p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
+        (p.sku && p.sku.toLowerCase().includes(productSearch.toLowerCase()))
+      );
 
   /**
    * Mutation para criar entrada (modo tradicional)
@@ -1977,6 +1987,9 @@ export default function AddStockEntryScreen() {
               style={{ marginBottom: 10 }}
             />
 
+            {products.length >= 100 && productSearch.trim().length < 2 && (
+              <Text style={styles.variantSheetHint}>Mostrando só os primeiros 100 produtos. Digite o nome para achar os outros.</Text>
+            )}
             {isLoadingProducts ? (
               <Text style={styles.variantSheetHint}>Carregando produtos...</Text>
             ) : (
@@ -2017,6 +2030,19 @@ export default function AddStockEntryScreen() {
             icon="layers-outline"
           >
             <Text style={styles.variantSheetHint}>Escolha qual cor e tamanho está recebendo estoque nesta entrada.</Text>
+            {(() => {
+              // Aviso: a mesma peça já está NESTA entrada (em outras entradas isso é normal e não avisa)
+              const jaNaEntrada = (variantPickerProduct?.variants || []).filter(
+                (v) => v.is_active !== false && items.some((i) => i.variant_id === v.id),
+              );
+              if (jaNaEntrada.length === 0) return null;
+              const nomes = jaNaEntrada.map((v) => [v.color, v.size].filter(Boolean).join(' ') || 'Padrão').join(', ');
+              return (
+                <Text style={[styles.variantSheetHint, { color: Colors.light.warning, fontWeight: '600' }]}>
+                  Já estão nesta entrada: {nomes}. Para receber mais peças delas, mude a quantidade na linha da entrada.
+                </Text>
+              );
+            })()}
             {(variantPickerProduct?.variants || [])
               .filter(v => v.is_active !== false && !items.some(i => i.variant_id === v.id))
               .map((variant) => (

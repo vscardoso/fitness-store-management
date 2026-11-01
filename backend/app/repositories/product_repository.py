@@ -101,7 +101,6 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
             and_(
                 Product.category_id == category_id,
                 Product.is_active == True,
-                Product.is_catalog == False
             )
         ).order_by(Product.name)
         if tenant_id is not None:
@@ -147,7 +146,6 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
                     ProductVariant.sku.ilike(search_term)
                 ),
                 Product.is_active == True,
-                Product.is_catalog == False
             )
         ).options(selectinload(Product.variants)).order_by(Product.name).distinct()
         if tenant_id is not None:
@@ -183,7 +181,6 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
             and_(
                 Product.brand.ilike(f"%{brand}%"),
                 Product.is_active == True,
-                Product.is_catalog == False
             )
         ).order_by(Product.name)
         if tenant_id is not None:
@@ -219,7 +216,6 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
             and_(
                 Product.size == size,
                 Product.is_active == True,
-                Product.is_catalog == False
             )
         ).order_by(Product.name)
         if tenant_id is not None:
@@ -255,7 +251,6 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
             and_(
                 Product.color.ilike(f"%{color}%"),
                 Product.is_active == True,
-                Product.is_catalog == False
             )
         ).order_by(Product.name)
         if tenant_id is not None:
@@ -291,7 +286,6 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
             and_(
                 Product.gender == gender,
                 Product.is_active == True,
-                Product.is_catalog == False
             )
         ).order_by(Product.name)
         if tenant_id is not None:
@@ -324,7 +318,6 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         query = select(Product).where(
             and_(
                 Product.is_active == True,
-                Product.is_catalog == False
             )
         ).order_by(Product.name)
         if tenant_id is not None:
@@ -443,7 +436,6 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         query = select(Product).join(Inventory).where(
             and_(
                 Product.is_active == True,
-                Product.is_catalog == False,
                 Product.id.in_(products_with_entries_sq),
             )
         ).options(

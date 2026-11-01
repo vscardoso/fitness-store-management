@@ -102,8 +102,6 @@ async def test_list_products_with_search(service, category):
     assert whey.id in achados and creatina.id not in achados
 
 
-@pytest.mark.xfail(strict=True, reason="BUG REAL: ProductRepository.search (product_repository.py:150) filtra is_catalog == False; "
-                   "o default de ProductCreate/mobile é is_catalog=True (publicado), então produto recém criado some da busca")
 async def test_search_finds_product_with_default_is_catalog(service, category):
     n = next(_n)
     p = await _criar(service, category, name=f"Busca Padrao Zq{n}")
@@ -149,8 +147,6 @@ async def test_get_products_by_category(service, category):
     assert all(p.category_id == category.id for p in achados)
 
 
-@pytest.mark.xfail(strict=True, reason="BUG REAL: ProductRepository.get_by_category (product_repository.py:104) filtra is_catalog == False; "
-                   "produto criado com o default is_catalog=True não aparece na listagem por categoria")
 async def test_get_products_by_category_with_default_is_catalog(service, category):
     p = await _criar(service, category)
     achados = await service.get_products_by_category(category.id, tenant_id=TENANT)
