@@ -15,7 +15,7 @@ import {
 } from '@/services/whatsappService';
 import * as ImagePicker from 'expo-image-picker';
 import { useChatColors } from '@/hooks/useThemeColors';
-import { useKeyboardInset } from '@/hooks/useKeyboardInset';
+import { useKeyboardState } from '@/hooks/useKeyboardInset';
 import { fillQuickReply, filterQuickReplies, slashQuery } from '@/utils/quickReply';
 import { parseApiError } from '@/utils/apiError';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
@@ -42,12 +42,25 @@ export default function WhatsappConversationScreen() {
   const c = useChatColors();
   const queryClient = useQueryClient();
   const insets = useSafeAreaInsets();
-  const keyboard = useKeyboardInset();
+  const { inset: keyboard, open: keyboardOpen } = useKeyboardState();
   const [text, setText] = useState('');
   const [erro, setErro] = useState<string | null>(null);
   const [labelsOpen, setLabelsOpen] = useState(false);
   const [labelsError, setLabelsError] = useState<string | null>(null);
   const listRef = useRef<FlatList<Row>>(null);
+  // Só desce sozinho para a última mensagem quando a pessoa já está no fim: a atualização a cada 10 s e as fotos carregando
+  // puxavam a lista para baixo no meio da leitura das mensagens antigas
+  const atBottom = useRef(true);
+  // a lista cresce em lotes ao abrir e os eventos de rolagem chegam atrasados: logo depois de descermos sozinhos eles
+  // não contam como "a pessoa subiu"
+  const lastAuto = useRef(0);
+  const toEnd = () => {
+    if (!atBottom.current) return;
+    lastAuto.current = Date.now();
+    // scrollToEnd para antes do espaço de baixo da lista no web (a última bolha ficava 16 px cortada); o navegador limita
+    if (Platform.OS === 'web') listRef.current?.scrollToOffset({ offset: 1e7, animated: false });
+    else listRef.current?.scrollToEnd({ animated: false });
+  };
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['whatsapp-conversation', convId],
@@ -68,6 +81,7 @@ export default function WhatsappConversationScreen() {
   }, [convId, unread, queryClient]);
 
   const afterSend = () => {
+    atBottom.current = true;
     setText('');
     setErro(null);
     queryClient.invalidateQueries({ queryKey: ['whatsapp-conversation', convId] });
@@ -177,11 +191,21 @@ export default function WhatsappConversationScreen() {
           keyExtractor={(r) => r.key}
           renderItem={renderRow}
           contentContainerStyle={{ padding: 16, gap: 8, flexGrow: 1 }}
-          onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: false })}
+          // a conversa traz no máximo 200 mensagens: desenha todas, senão a lista só montava as 10 primeiras e não descia
+          // até a última ao abrir
+          initialNumToRender={Math.max(rows.length, 10)}
+          onContentSizeChange={toEnd}
+          onLayout={toEnd}
+          onScroll={(e) => {
+            const { contentOffset, layoutMeasurement, contentSize } = e.nativeEvent;
+            if (Date.now() - lastAuto.current < 600) return;
+            atBottom.current = contentOffset.y + layoutMeasurement.height >= contentSize.height - 80;
+          }}
+          scrollEventThrottle={100}
         />
       )}
       <DebugViewport inset={keyboard} />
-      <View style={[styles.footer, { backgroundColor: c.surface, borderTopColor: c.border, paddingBottom: (keyboard > 0 ? keyboard : insets.bottom) + 10 }]}>
+      <View style={[styles.footer, { backgroundColor: c.surface, borderTopColor: c.border, paddingBottom: (keyboard > 0 ? keyboard : keyboardOpen ? 0 : insets.bottom) + 10 }]}>
         {suggestions.length > 0 && (
           <View style={[styles.suggest, { backgroundColor: c.surface, borderColor: c.border }]}>
             {suggestions.map((r) => (

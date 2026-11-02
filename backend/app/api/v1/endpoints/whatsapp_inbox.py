@@ -1,4 +1,5 @@
 """Caixa de conversas do WhatsApp oficial (Cloud API): listar, abrir, marcar como lida e responder."""
+from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
@@ -133,6 +134,14 @@ async def unread_count(
     return {"unread": int(total or 0)}
 
 
+def _when(m: WhatsAppMessage) -> datetime:
+    """Hora da mensagem para ordenar (sem fuso: o SQLite devolve sem e o Postgres com; tudo é UTC)."""
+    d = m.sent_at or m.created_at
+    if d is None:
+        return datetime.min
+    return d.replace(tzinfo=None) if d.tzinfo else d
+
+
 async def _get_conv(db: AsyncSession, tenant_id: int, conversation_id: int) -> WhatsAppConversation:
     conv = (await db.execute(
         select(WhatsAppConversation).where(
@@ -157,7 +166,10 @@ async def get_conversation(
     )).scalars().all()
     customers = await svc.customers_by_phone(db, tenant_id)
     labels = await _labels_of(db, tenant_id, [conv.id])
-    return {**_conv(conv, msgs[0] if msgs else None, customers, labels.get(conv.id)), "messages": [_msg(m) for m in reversed(msgs)]}
+    # as 200 mais recentes pela chegada, mostradas pela hora da mensagem: a Meta entrega fora de ordem (celular da cliente
+    # sem internet manda várias de uma vez), e o WhatsApp mostra pela hora
+    ordered = sorted(msgs, key=lambda m: (_when(m), m.id))
+    return {**_conv(conv, msgs[0] if msgs else None, customers, labels.get(conv.id)), "messages": [_msg(m) for m in ordered]}
 
 
 @router.post("/conversations/{conversation_id}/read")

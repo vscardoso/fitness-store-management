@@ -1,19 +1,29 @@
 /**
- * Quanto do rodapé o teclado cobre no app web. No iPhone o teclado não diminui a janela, só a área visível
- * (visualViewport), e a barra de campos do iOS (setas e visto) flutua por cima do teclado sem entrar nessa conta:
- * sem a folga dela o campo de texto fica escondido atrás da barra.
+ * Conta do teclado no app web. Medido no iPhone instalado (2026-11-02, iOS com tela de 956): com o teclado aberto
+ * `innerHeight` = `visualViewport.height` = 541, que já termina ACIMA da barra de setas e visto. Ou seja, a área visível
+ * já desconta o teclado e a barra; não há folga extra a somar.
+ *
+ * No app instalado (PWA) o `pwa-boot` encolhe o app inteiro para essa área visível (`--app-h`), então o rodapé já fica
+ * acima do teclado e nenhuma tela deve somar o teclado de novo (`appSized`). No Safari comum e no Android o app não
+ * encolhe: aí o rodapé sobe pela área coberta.
  */
-// Medido no print do iPhone (2026-11-02): a faixa da barra vai de 482 a 544 pt, ~62 pt; 48 deixava a borda do campo por baixo.
-export const IOS_ACCESSORY_BAR = 64;
 
-export function computeKeyboardInset(innerHeight: number, vvHeight: number, vvOffsetTop: number, iosWeb: boolean): number {
+// Diferença entre a tela e a área visível acima da qual consideramos o teclado aberto (barras do Safari mudam ~80 px)
+export const KEYBOARD_MIN = 120;
+
+export function computeKeyboardInset(innerHeight: number, vvHeight: number, vvOffsetTop: number, appSized: boolean): number {
+  if (appSized) return 0;
   const covered = Math.round(innerHeight - vvHeight - vvOffsetTop);
-  if (covered <= 80) return 0;   // barra de endereço ou pequena variação: não é teclado
-  return covered + (iosWeb ? IOS_ACCESSORY_BAR : 0);
+  return covered <= 80 ? 0 : covered;   // barra de endereço ou pequena variação: não é teclado
 }
 
-export function isIosWeb(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent || '';
-  return /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && (navigator.maxTouchPoints ?? 0) > 1);
+export function isKeyboardOpen(screenHeight: number, vvHeight: number): boolean {
+  return screenHeight - vvHeight > KEYBOARD_MIN;
+}
+
+/** App aberto pelo ícone da tela de início (PWA instalado), onde o `pwa-boot` ajusta a altura com o teclado. */
+export function isInstalledWebApp(): boolean {
+  if (typeof window === 'undefined') return false;
+  const nav = navigator as Navigator & { standalone?: boolean };
+  return nav.standalone === true || !!window.matchMedia?.('(display-mode: standalone)').matches;
 }

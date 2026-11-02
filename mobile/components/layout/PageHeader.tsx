@@ -114,7 +114,7 @@ export default function PageHeader({
           <View style={[styles.topRow, isDesktop && styles.topRowDesktop]}>
             {/* Botão voltar à esquerda */}
             {showBackButton ? (
-              <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+              <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Voltar">
                 <Ionicons name="arrow-back" size={24} color="#fff" />
               </TouchableOpacity>
             ) : leftVisual && !isDesktop ? (
@@ -126,7 +126,7 @@ export default function PageHeader({
             {/* Título e subtítulo centralizados */}
             <View style={[styles.headerInfo, isDesktop && styles.headerInfoDesktop]}>
               <Text style={[styles.title, isDesktop && styles.titleDesktop]}>{title}</Text>
-              {subtitle && <Text style={[styles.subtitle, isDesktop && styles.subtitleDesktop]}>{subtitle}</Text>}
+              {!!subtitle && <Text style={[styles.subtitle, isDesktop && styles.subtitleDesktop]}>{subtitle}</Text>}
             </View>
 
             {/* Ações à direita */}
@@ -155,7 +155,7 @@ export default function PageHeader({
           </View>
 
           {/* Elemento customizado (badges, avatar, etc) */}
-          {children && <View style={[styles.customContent, isDesktop && styles.customContentDesktop]}>{children}</View>}
+          {!!children && <View style={[styles.customContent, isDesktop && styles.customContentDesktop]}>{children}</View>}
         </View>
       </LinearGradient>
     </View>

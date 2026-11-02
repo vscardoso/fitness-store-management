@@ -1,28 +1,40 @@
 /**
- * Altura do teclado que cobre a parte de baixo da tela, para folhas e janelas que ficam coladas embaixo.
- *  - app web no iPhone: o teclado NÃO diminui a janela, só a área visível (visualViewport), e a barra de campos do
- *    iOS (setas e visto) flutua por cima do teclado, então entra uma folga extra (utils/keyboardInset.ts);
- *  - Android/Chrome: a janela já encolhe sozinha, então devolve 0;
+ * Teclado para folhas, janelas e rodapés colados embaixo.
+ *  - app web instalado (PWA): o `pwa-boot` encolhe o app para a área visível, então a altura a somar é 0;
+ *  - Safari/Chrome comuns: a área visível (visualViewport) diminui e o rodapé sobe pela parte coberta;
  *  - celular nativo: eventos do teclado do react-native.
+ * Regras e medidas em utils/keyboardInset.ts.
  */
 import { useEffect, useState } from 'react';
 import { Keyboard, Platform } from 'react-native';
 
-import { computeKeyboardInset, isIosWeb } from '@/utils/keyboardInset';
+import { computeKeyboardInset, isInstalledWebApp, isKeyboardOpen } from '@/utils/keyboardInset';
 
-export function useKeyboardInset(enabled: boolean = true): number {
-  const [inset, setInset] = useState(0);
+export interface KeyboardState {
+  /** Quanto somar embaixo para ficar acima do teclado */
+  inset: number;
+  /** Teclado aberto (mesmo quando não há nada a somar): serve para tirar a folga da barra de início do iPhone */
+  open: boolean;
+}
+
+export function useKeyboardState(enabled: boolean = true): KeyboardState {
+  const [state, setState] = useState<KeyboardState>({ inset: 0, open: false });
 
   useEffect(() => {
+    const closed = { inset: 0, open: false };
     if (!enabled) {
-      setInset(0);
+      setState(closed);
       return;
     }
     if (Platform.OS === 'web') {
       const vv = typeof window !== 'undefined' ? window.visualViewport : null;
       if (!vv) return;
-      const ios = isIosWeb();
-      const update = () => setInset(computeKeyboardInset(window.innerHeight, vv.height, vv.offsetTop, ios));
+      const installed = isInstalledWebApp();
+      const update = () => {
+        const inset = computeKeyboardInset(window.innerHeight, vv.height, vv.offsetTop, installed);
+        const open = inset > 0 || isKeyboardOpen(window.screen.height, vv.height);
+        setState((s) => (s.inset === inset && s.open === open ? s : { inset, open }));
+      };
       update();
       vv.addEventListener('resize', update);
       vv.addEventListener('scroll', update);
@@ -33,14 +45,18 @@ export function useKeyboardInset(enabled: boolean = true): number {
     }
     const showEvt = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
     const hideEvt = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
-    const show = Keyboard.addListener(showEvt, (e) => setInset(e.endCoordinates?.height ?? 0));
-    const hide = Keyboard.addListener(hideEvt, () => setInset(0));
+    const show = Keyboard.addListener(showEvt, (e) => setState({ inset: e.endCoordinates?.height ?? 0, open: true }));
+    const hide = Keyboard.addListener(hideEvt, () => setState(closed));
     return () => {
       show.remove();
       hide.remove();
-      setInset(0);
+      setState(closed);
     };
   }, [enabled]);
 
-  return inset;
+  return state;
+}
+
+export function useKeyboardInset(enabled: boolean = true): number {
+  return useKeyboardState(enabled).inset;
 }

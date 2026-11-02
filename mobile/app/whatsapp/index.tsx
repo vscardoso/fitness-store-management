@@ -1,9 +1,10 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import PageHeader from '@/components/layout/PageHeader';
+import AppRefreshControl from '@/components/ui/AppRefreshControl';
 import EmptyState from '@/components/ui/EmptyState';
 import InviteSheet from '@/components/whatsapp/InviteSheet';
 import LabelChip from '@/components/whatsapp/LabelChip';
@@ -86,6 +87,8 @@ export default function WhatsappInboxScreen() {
     <View style={[styles.container, { backgroundColor: c.background }]}>
       <PageHeader
         title="Conversas do WhatsApp"
+        showBackButton
+        backFallback="/(tabs)/more"
         subtitle="Número oficial da loja"
         rightActions={[{ icon: 'person-add-outline', onPress: () => setShowInvite(true) }]}
       />
@@ -131,7 +134,7 @@ export default function WhatsappInboxScreen() {
           keyExtractor={(x) => String(x.id)}
           renderItem={renderItem}
           contentContainerStyle={{ padding: 16, gap: 10, flexGrow: 1 }}
-          refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={() => refetch()} />}
+          refreshControl={<AppRefreshControl refreshing={isRefetching} onRefresh={() => refetch()} colors={[c.accent]} />}
           ListEmptyComponent={
             <EmptyState
               icon="chatbubbles-outline"

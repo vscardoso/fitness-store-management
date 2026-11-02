@@ -589,3 +589,22 @@ async def test_miniatura_rapida_e_cache_evitam_voltar_a_meta(test_client, async_
         svc._cache_put((1, i, False), (b"x" * (3 * 1024 * 1024), "image/jpeg", None))
     assert svc._MEDIA_CACHE_BYTES <= svc._MEDIA_CACHE_LIMIT
     svc._MEDIA_CACHE.clear(); svc._MEDIA_CACHE_BYTES = 0
+
+
+async def test_mensagens_aparecem_pela_hora_mesmo_chegando_fora_de_ordem(test_client, async_session):
+    """A Meta entrega fora de ordem (celular da cliente sem internet manda várias de uma vez): a conversa mostra pela hora."""
+    _sem_override()
+    store, num, h = await _loja(async_session)
+    c = await _conversa(async_session, store, num)   # "oi, tem a legging?" há 1 h
+    cid = c.id
+    base = datetime.now(timezone.utc) - timedelta(hours=3)
+    for i, txt in enumerate(["chegou por último, escrita primeiro", "chegou por último, escrita em segundo"]):
+        async_session.add(WhatsAppMessage(
+            tenant_id=store.id, conversation_id=cid, wamid=f"wamid.atr{next(_seq)}", direction="in", msg_type="text",
+            text=txt, status="received", sent_at=base + timedelta(minutes=i),
+        ))
+    await async_session.commit()
+    r = await test_client.get(f"/api/v1/whatsapp/conversations/{cid}", headers=h)
+    assert r.status_code == 200, r.text
+    assert [m["text"] for m in r.json()["messages"]] == [
+        "chegou por último, escrita primeiro", "chegou por último, escrita em segundo", "oi, tem a legging?"]

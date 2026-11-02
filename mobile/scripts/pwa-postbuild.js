@@ -39,17 +39,8 @@ fs.writeFileSync(
   path.join(__dirname, '..', 'dist', BOOT.slice(1)),
   `window.__APP_BUILD__=${JSON.stringify(BUILD_ID)};\n` +
     "if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js')})}\n" +
-    // App instalado no iPhone: com o teclado aberto a janela encolhe (visualViewport) mas o html seguia com a altura da tela
-    // inteira, a página rolava e o campo de texto ficava atrás da barra de setas do teclado. Enquanto o teclado está aberto,
-    // a altura do app vira a da área visível (--app-h); fechou, volta a 100lvh e a página ao topo.
-    "(function(){var vv=window.visualViewport;if(!vv)return;var r=document.documentElement;" +
-    "var sa=navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);if(!sa)return;var was=false;" +
-    // o iOS já tinha rolado a página (e deslocado a área visível) para mostrar o campo antes de a altura encolher; sem voltar ao
-    // topo o rodapé ficava no alto da tela, com um vazio embaixo (medido: offsetTop 353 e scrollY 353 com a janela de 541)
-    "function reset(){if(vv.offsetTop>0||window.scrollY>0)window.scrollTo(0,0)}" +
-    "function set(){var open=screen.height-vv.height>120;if(open){r.style.setProperty('--app-h',Math.round(vv.height)+'px');was=true;reset();setTimeout(reset,60);setTimeout(reset,250)}" +
-    "else if(was){r.style.removeProperty('--app-h');was=false;window.scrollTo(0,0)}}" +
-    "vv.addEventListener('resize',set);vv.addEventListener('scroll',set);set()})();\n",
+    // teclado do app instalado no iPhone (altura do app e página no topo): ver scripts/pwa-keyboard.js
+    fs.readFileSync(path.join(__dirname, 'pwa-keyboard.js'), 'utf8'),
 );
 // CSP (item 2.7): script só do próprio site (mais o jsQR do leitor de QR); conexões só com a API, consultas de CEP e Sentry. Estilo inline é
 // obrigatório (react-native-web gera <style>). Imagem de qualquer https (logo/foto podem vir de CDN).
