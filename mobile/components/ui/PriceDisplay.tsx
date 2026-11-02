@@ -57,7 +57,9 @@ function useFitFont(base: number, minSize: number, key: unknown) {
       if (next < fs) setFs(next);
     }
   };
-  useLayoutEffect(check);
+  // só quando a fonte, o valor ou o tamanho-base mudam (a largura é tratada pelo onLayout): medir a cada render forçava
+  // um recálculo de layout por preço e travava a rolagem das listas
+  useLayoutEffect(check, [fs, base, key]);
   const nativeFit = Platform.OS === 'web' ? {} : { adjustsFontSizeToFit: true, minimumFontScale: Math.min(1, minSize / base) };
   return { ref, fs, check, nativeFit };
 }

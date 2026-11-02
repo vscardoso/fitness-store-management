@@ -27,7 +27,7 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useIsDesktop } from '@/hooks/useLayout';
 import DesktopProductsTable from '@/components/products/DesktopProductsTable';
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 40;
 
 /** Notebook (app web com 1024 px ou mais): tabela. Celular: a lista de cartões de sempre. */
 export default function ProductsScreen() {
@@ -206,9 +206,9 @@ function MobileProductsScreen() {
     return filtered;
   }, [data, allProductsData, searchQuery, showOnlyWithStock, showLowStock]);
 
-  const handleProductPress = (product: ProductGrouped) => {
+  const handleProductPress = useCallback((product: ProductGrouped) => {
     router.push(`/products/${product.id}`);
-  };
+  }, [router]);
 
   const renderFilterPills = () => (
     <>
@@ -233,13 +233,13 @@ function MobileProductsScreen() {
     </>
   );
 
-  const renderProduct = ({ item }: { item: ProductGrouped }) => {
+  const renderProduct = useCallback(({ item }: { item: ProductGrouped }) => {
     // Se item for null ou undefined, renderizar espaço vazio
     if (!item || !item.id) {
       return <View style={styles.emptyCard} />;
     }
-    return <ProductGroupCard product={item} onPress={() => handleProductPress(item)} />;
-  };
+    return <ProductGroupCard product={item} onPress={handleProductPress} />;
+  }, [handleProductPress]);
 
   const emptyState = useMemo(() => {
     if (searchQuery.trim()) {
@@ -459,7 +459,11 @@ function MobileProductsScreen() {
               fetchNextPage();
             }
           }}
-          onEndReachedThreshold={0.5}
+          onEndReachedThreshold={1.5}
+          initialNumToRender={12}
+          maxToRenderPerBatch={8}
+          windowSize={7}
+          removeClippedSubviews
           ListFooterComponent={
             isFetchingNextPage ? (
               <View style={styles.loadingMore}>

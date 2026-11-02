@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { memo, useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, Image, useWindowDimensions } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
@@ -9,10 +9,11 @@ import type { ProductGrouped } from '@/types';
 
 interface ProductGroupCardProps {
   product: ProductGrouped;
-  onPress: () => void;
+  onPress: (product: ProductGrouped) => void;
 }
 
-export default function ProductGroupCard({ product, onPress }: ProductGroupCardProps) {
+// memo: sem ele a lista inteira se redesenhava (e remedia cada preço) a cada página carregada ou toque
+function ProductGroupCardBase({ product, onPress }: ProductGroupCardProps) {
   const [imageError, setImageError] = useState(false);
   const brandingColors = useBrandingColors();
   // Tela estreita (ex.: 320 px): etiquetas embaixo do nome, para nome e preço usarem a largura toda
@@ -88,7 +89,7 @@ export default function ProductGroupCard({ product, onPress }: ProductGroupCardP
   );
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.72}>
+    <TouchableOpacity onPress={() => onPress(product)} activeOpacity={0.72}>
       <View style={styles.card}>
         <View style={styles.content}>
           <View style={[styles.iconContainer, { backgroundColor: brandingColors.primary + '12' }]}>
@@ -250,3 +251,6 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase',
   },
 });
+
+const ProductGroupCard = memo(ProductGroupCardBase);
+export default ProductGroupCard;
