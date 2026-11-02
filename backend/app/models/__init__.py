@@ -40,6 +40,7 @@ from .catalog_counter import CatalogCounter
 from .error_log import ErrorLog
 from .supplier_return import SupplierReturn
 from .stock_count import StockCount, StockCountItem
+from .cash_register import CashSession, CashMovement
 from .entry_supplier_discount import EntrySupplierDiscount
 
 __all__ = [

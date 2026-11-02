@@ -53,6 +53,7 @@ Pillow>=10.0.0
 pillow-heif>=0.13.0
 qrcode[pil]>=7.4.2
 reportlab==4.2.5  # PDF das etiquetas (texto e QR em vetor)
+openpyxl==3.1.5  # importação de estoque por planilha (XLSX)
 
 # Admin Interface
 sqladmin>=0.32.0

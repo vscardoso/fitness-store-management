@@ -3,6 +3,7 @@
  * Moeda, data, telefone, CPF, etc
  */
 import { VALUE_COLORS, type ValueColorType } from '@/constants/Colors';
+import { formatDateOnly } from './dateOnly';
 
 /**
  * Formata número para moeda brasileira (R$)
@@ -28,6 +29,10 @@ export const parseCurrency = (value: string): number => {
  * Formata data para padrão brasileiro
  */
 export const formatDate = (date: string | Date): string => {
+  if (typeof date === 'string') {
+    const dayOnly = formatDateOnly(date); // "2026-11-02" é um dia, não um instante: sem virar o dia anterior
+    if (dayOnly) return dayOnly;
+  }
   const d = typeof date === 'string' ? new Date(date) : date;
   return d.toLocaleDateString('pt-BR');
 };

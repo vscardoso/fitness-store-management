@@ -50,6 +50,8 @@ from app.api.v1.endpoints import (
     returns,
     supplier_returns,
     stock_counts,
+    cash_register,
+    stock_import,
     looks,
     whatsapp_inbox,
     whatsapp_settings,
@@ -207,6 +209,8 @@ api_router.include_router(
 
 # Conferência de estoque salva
 api_router.include_router(stock_counts.router)
+api_router.include_router(stock_import.router)
+api_router.include_router(cash_register.router)
 
 # Devolução ao fornecedor
 api_router.include_router(supplier_returns.router, tags=["Devolução ao fornecedor"])

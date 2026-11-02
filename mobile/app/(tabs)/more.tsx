@@ -168,9 +168,11 @@ export default function MoreScreen() {
           <Text style={styles.sectionTitle}>Gestão</Text>
           <View style={styles.menuCard}>
             <MenuItem icon="cube-outline" title="Produtos" subtitle="Catálogo e gerenciamento" onPress={() => router.push('/(tabs)/products')} iconColor={brandingColors.primary} iconBg={brandingColors.primary + '20'} />
+            <MenuItem icon="cash-outline" title="Caixa" subtitle="Abrir, colocar e retirar dinheiro, fechar" onPress={() => router.push('/cash' as any)} iconColor="#16A34A" iconBg="#DCFCE7" />
             <MenuItem icon="qr-code-outline" title="Consultar Peça" subtitle="Bipe a etiqueta e veja preço e estoque" onPress={() => router.push('/products/consult' as any)} iconColor="#0EA5E9" iconBg="#E0F2FE" />
             <MenuItem icon="people-outline" title="Clientes" subtitle="Gerenciar clientes e fidelidade" onPress={() => router.push('/(tabs)/customers')} iconColor={Colors.light.info} iconBg={Colors.light.infoLight} />
             {isManager && <MenuItem icon="layers-outline" title="Entradas" subtitle="Compras e controle de entradas" onPress={() => router.push('/entries')} iconColor="#9333EA" iconBg="#F3E8FF" />}
+            {isManager && <MenuItem icon="cloud-upload-outline" title="Importar estoque" subtitle="Traga as peças que a loja já tem, por planilha" onPress={() => router.push('/entries/import' as any)} iconColor="#9333EA" iconBg="#F3E8FF" />}
             {isManager && <MenuItem icon="business-outline" title="Fornecedores" subtitle="Catálogo de fornecedores" onPress={() => router.push('/suppliers' as any)} iconColor="#F97316" iconBg="#FFEDD5" />}
             <MenuItem icon="pricetags-outline" title="Categorias" subtitle="Organizar produtos por categoria" onPress={() => router.push('/(tabs)/categories')} iconColor="#9333EA" iconBg="#F3E8FF" />
             <MenuItem icon="layers-outline" title="Inventário" subtitle="Dashboard de estoque e alertas" onPress={() => router.push('/(tabs)/inventory')} iconColor={Colors.light.warning} iconBg={Colors.light.warningLight} />

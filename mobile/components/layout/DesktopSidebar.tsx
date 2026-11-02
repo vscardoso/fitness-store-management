@@ -66,6 +66,7 @@ export default function DesktopSidebar() {
           { label: 'Ponto de venda', icon: 'cart-outline', href: '/(tabs)/sale', match: ['/sale', '/checkout'], shortcut: 'F2' },
           { label: 'Vendas', icon: 'receipt-outline', href: '/(tabs)/sales', match: ['/sales'] },
           { label: 'Condicionais', icon: 'swap-horizontal-outline', href: '/(tabs)/conditional', match: ['/conditional'] },
+          { label: 'Caixa', icon: 'cash-outline', href: '/cash', match: ['/cash'] },
           ...(temPagamentoIntegrado() ? [{ label: 'Pagamentos pendentes', icon: 'time-outline' as Icon, href: '/(tabs)/pdv/', match: ['/pdv'] }] : []),
         ],
       },
@@ -73,6 +74,7 @@ export default function DesktopSidebar() {
         key: 'estoque', title: 'Estoque', items: [
           { label: 'Produtos', icon: 'cube-outline', href: '/(tabs)/products', match: ['/products'] },
           ...(manager ? [{ label: 'Entradas', icon: 'download-outline' as Icon, href: '/entries', match: ['/entries'] }] : []),
+          ...(manager ? [{ label: 'Importar estoque', icon: 'cloud-upload-outline' as Icon, href: '/entries/import', match: ['/entries/import'] }] : []),
           { label: 'Categorias', icon: 'pricetags-outline', href: '/(tabs)/categories', match: ['/categories'] },
           { label: 'Inventário', icon: 'layers-outline', href: '/(tabs)/inventory', match: ['/inventory'] },
           ...(manager ? [

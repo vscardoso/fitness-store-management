@@ -8,7 +8,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "check-deps": "node scripts/check-deps.js",
-    "test": "node scripts/test-search-match.mts && node scripts/test-entry-line.mts && node scripts/test-thumb-url.mts && node scripts/test-quick-reply.mts && node scripts/test-scan-logic.mts"
+    "test": "node scripts/test-search-match.mts && node scripts/test-entry-line.mts && node scripts/test-thumb-url.mts && node scripts/test-quick-reply.mts && node scripts/test-scan-logic.mts && node scripts/test-date-br.mts && node scripts/test-cash-money.mts"
   },
   "dependencies": {
     "@expo/ngrok": "^4.1.0",
