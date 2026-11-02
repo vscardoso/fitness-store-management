@@ -191,5 +191,29 @@
   {
     "assinatura": "pdv/pix/start - N | Erro interno do servidor",
     "nota": "ABERTO: 500 genérico ao iniciar PIX; investigar junto com as credenciais."
+  },
+  {
+    "assinatura": "C:/Program Files/Git/store/branding",
+    "nota": "500 por coluna stores.catalog_feed_token fora de _SQLITE_EXTRA_COLUMNS em SQLite antigo; corrigido",
+    "resolvido_em": "2026-11-02",
+    "prova_teste": "tests/test_sqlite_colunas_dev.py::test_ajuste_acrescenta_colunas_que_faltam_em_loja_antiga"
+  },
+  {
+    "assinatura": "C:/Program Files/Git/store/stock-writeoff-settings",
+    "nota": "500 por coluna de stores ausente no SQLite antigo; corrigido",
+    "resolvido_em": "2026-11-02",
+    "prova_teste": "tests/test_sqlite_colunas_dev.py::test_ajuste_acrescenta_colunas_que_faltam_em_loja_antiga"
+  },
+  {
+    "assinatura": "C:/Program Files/Git/cash/movements",
+    "nota": "400 esperado: sangria acima do saldo do caixa e recusada com mensagem clara",
+    "resolvido_em": "2026-11-02",
+    "resolvido_manual": true
+  },
+  {
+    "assinatura": "admin@qa.test",
+    "nota": "422 esperado: e-mail .test e recusado pela validacao (usar @exemplo.com)",
+    "resolvido_em": "2026-11-02",
+    "resolvido_manual": true
   }
 ]

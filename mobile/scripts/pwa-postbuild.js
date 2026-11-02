@@ -38,7 +38,15 @@ const BOOT = `/pwa-boot.${BUILD_ID}.js`;
 fs.writeFileSync(
   path.join(__dirname, '..', 'dist', BOOT.slice(1)),
   `window.__APP_BUILD__=${JSON.stringify(BUILD_ID)};\n` +
-    "if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js')})}\n",
+    "if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js')})}\n" +
+    // App instalado no iPhone: com o teclado aberto a janela encolhe (visualViewport) mas o html seguia com a altura da tela
+    // inteira, a página rolava e o campo de texto ficava atrás da barra de setas do teclado. Enquanto o teclado está aberto,
+    // a altura do app vira a da área visível (--app-h); fechou, volta a 100lvh e a página ao topo.
+    "(function(){var vv=window.visualViewport;if(!vv)return;var r=document.documentElement;" +
+    "var sa=navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);if(!sa)return;var was=false;" +
+    "function set(){var open=screen.height-vv.height>120;if(open){r.style.setProperty('--app-h',Math.round(vv.height)+'px');was=true}" +
+    "else if(was){r.style.removeProperty('--app-h');was=false;window.scrollTo(0,0)}}" +
+    "vv.addEventListener('resize',set);vv.addEventListener('scroll',set);set()})();\n",
 );
 // CSP (item 2.7): script só do próprio site (mais o jsQR do leitor de QR); conexões só com a API, consultas de CEP e Sentry. Estilo inline é
 // obrigatório (react-native-web gera <style>). Imagem de qualquer https (logo/foto podem vir de CDN).
@@ -70,10 +78,10 @@ const tags = `
       /* No iPhone instalado, 100% de altura deixava uma faixa branca embaixo: prende o app nas 4 bordas */
       body { height: 100%; margin: 0; background-color: #F8F9FA; }
       /* 100lvh = altura real da tela; no iOS instalado 100% e bottom:0 ficam ~55pt menores */
-      html { height: 100vh; height: 100lvh; touch-action: manipulation; -webkit-text-size-adjust: 100%; }
+      html { height: 100vh; height: 100lvh; height: var(--app-h, 100lvh); touch-action: manipulation; -webkit-text-size-adjust: 100%; }
       /* iOS dá zoom ao focar campo com fonte menor que 16px; o maximum-scale=1 do viewport impede, e isto garante */
       input, textarea, select { font-size: max(16px, 1em); }
-      #root { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; height: 100lvh; }
+      #root { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; height: 100lvh; height: var(--app-h, 100lvh); }
     </style>
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#7C3AED" />
