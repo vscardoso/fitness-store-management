@@ -211,3 +211,6 @@ DEBUG_LOG.txt
 DEBUG_LOG.txt
 backend/coverage.xml
 *.bak-*
+
+# builds de teste locais
+mobile/dist_qa*/
