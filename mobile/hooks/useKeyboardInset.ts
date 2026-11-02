@@ -1,11 +1,14 @@
 /**
  * Altura do teclado que cobre a parte de baixo da tela, para folhas e janelas que ficam coladas embaixo.
- *  - app web no iPhone: o teclado NÃO diminui a janela, só a área visível (visualViewport);
+ *  - app web no iPhone: o teclado NÃO diminui a janela, só a área visível (visualViewport), e a barra de campos do
+ *    iOS (setas e visto) flutua por cima do teclado, então entra uma folga extra (utils/keyboardInset.ts);
  *  - Android/Chrome: a janela já encolhe sozinha, então devolve 0;
  *  - celular nativo: eventos do teclado do react-native.
  */
 import { useEffect, useState } from 'react';
 import { Keyboard, Platform } from 'react-native';
+
+import { computeKeyboardInset, isIosWeb } from '@/utils/keyboardInset';
 
 export function useKeyboardInset(enabled: boolean = true): number {
   const [inset, setInset] = useState(0);
@@ -18,10 +21,8 @@ export function useKeyboardInset(enabled: boolean = true): number {
     if (Platform.OS === 'web') {
       const vv = typeof window !== 'undefined' ? window.visualViewport : null;
       if (!vv) return;
-      const update = () => {
-        const covered = Math.round(window.innerHeight - vv.height - vv.offsetTop);
-        setInset(covered > 80 ? covered : 0);
-      };
+      const ios = isIosWeb();
+      const update = () => setInset(computeKeyboardInset(window.innerHeight, vv.height, vv.offsetTop, ios));
       update();
       vv.addEventListener('resize', update);
       vv.addEventListener('scroll', update);
