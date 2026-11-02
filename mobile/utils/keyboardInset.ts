@@ -3,7 +3,8 @@
  * (visualViewport), e a barra de campos do iOS (setas e visto) flutua por cima do teclado sem entrar nessa conta:
  * sem a folga dela o campo de texto fica escondido atrás da barra.
  */
-export const IOS_ACCESSORY_BAR = 48;
+// Medido no print do iPhone (2026-11-02): a faixa da barra vai de 482 a 544 pt, ~62 pt; 48 deixava a borda do campo por baixo.
+export const IOS_ACCESSORY_BAR = 64;
 
 export function computeKeyboardInset(innerHeight: number, vvHeight: number, vvOffsetTop: number, iosWeb: boolean): number {
   const covered = Math.round(innerHeight - vvHeight - vvOffsetTop);
