@@ -44,7 +44,10 @@ fs.writeFileSync(
     // a altura do app vira a da área visível (--app-h); fechou, volta a 100lvh e a página ao topo.
     "(function(){var vv=window.visualViewport;if(!vv)return;var r=document.documentElement;" +
     "var sa=navigator.standalone===true||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches);if(!sa)return;var was=false;" +
-    "function set(){var open=screen.height-vv.height>120;if(open){r.style.setProperty('--app-h',Math.round(vv.height)+'px');was=true}" +
+    // o iOS já tinha rolado a página (e deslocado a área visível) para mostrar o campo antes de a altura encolher; sem voltar ao
+    // topo o rodapé ficava no alto da tela, com um vazio embaixo (medido: offsetTop 353 e scrollY 353 com a janela de 541)
+    "function reset(){if(vv.offsetTop>0||window.scrollY>0)window.scrollTo(0,0)}" +
+    "function set(){var open=screen.height-vv.height>120;if(open){r.style.setProperty('--app-h',Math.round(vv.height)+'px');was=true;reset();setTimeout(reset,60);setTimeout(reset,250)}" +
     "else if(was){r.style.removeProperty('--app-h');was=false;window.scrollTo(0,0)}}" +
     "vv.addEventListener('resize',set);vv.addEventListener('scroll',set);set()})();\n",
 );
