@@ -12,7 +12,6 @@ import { getAccessToken } from '@/services/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '@/constants/Colors';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
-import { getLastRoute } from '@/utils/lastRoute';
 import { restoreQueryCache } from '@/utils/queryPersist';
 import { getQueryClient } from '@/utils/queryCache';
 
@@ -77,8 +76,8 @@ export default function Index() {
   if (user) {
     const qc = getQueryClient();
     if (qc) restoreQueryCache(qc, user.id);
-    const last = getLastRoute();
-    return <Redirect href={(last ?? '/(tabs)') as any} />;
+    // Fechou e reabriu o app: sempre começa no início (decisão do Victor, 02/11/2026)
+    return <Redirect href="/(tabs)" />;
   }
 
   // Primeira vez? Mostrar onboarding

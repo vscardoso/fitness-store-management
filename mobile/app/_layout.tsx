@@ -5,7 +5,7 @@
 
 import { useEffect, useRef } from 'react';
 import { LogBox } from 'react-native';
-import { Stack, useGlobalSearchParams, usePathname, useRouter, useSegments } from 'expo-router';
+import { Stack, usePathname, useRouter, useSegments } from 'expo-router';
 
 LogBox.ignoreLogs([
   'expo-notifications',
@@ -33,7 +33,6 @@ import { setForceLogoutCallback, setInvalidateQueriesCallback } from '@/services
 import GlobalConfirmModalHost, { installGlobalAlertOverride } from '@/components/ui/GlobalConfirmModal';
 import UpdateBanner from '@/components/layout/UpdateBanner';
 import SystemUpdateOverlay from '@/components/layout/SystemUpdateOverlay';
-import { saveLastRoute } from '@/utils/lastRoute';
 import { startHistoryTrail, trailRoute } from '@/utils/navTrail';
 import { startQueryPersist } from '@/utils/queryPersist';
 import { LegalGate } from '@/components/legal/LegalGate';
@@ -93,20 +92,11 @@ export default function RootLayout() {
   const segments = useSegments();
   const router = useRouter();
   const pathname = usePathname();
-  const searchParams = useGlobalSearchParams();
   // Guarda os dados das telas principais no aparelho para o app abrir já com eles (os novos chegam por trás)
   useEffect(() => startQueryPersist(queryClient, () => useAuthStore.getState().user?.id), []);
   // Trilha de navegação (telas e gestos de voltar) para achar o que aconteceu quando algo sai errado
   useEffect(() => startHistoryTrail(), []);
   useEffect(() => trailRoute(pathname), [pathname]);
-  // Guarda a tela atual: se o app recarregar ou o iPhone fechá-lo, volta para onde estava
-  useEffect(() => {
-    const qs = Object.entries(searchParams)
-      .filter(([, v]) => typeof v === 'string' && (v as string).length > 0 && (v as string).length < 200)
-      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v as string)}`)
-      .join('&');
-    saveLastRoute(qs ? `${pathname}?${qs}` : pathname);
-  }, [pathname, searchParams]);
   const loadUser = useAuthStore((state) => state.loadUser);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const forceLogout = useAuthStore((state) => state.forceLogout);
