@@ -214,9 +214,10 @@ async def test_data_futura_modelo_e_papeis(test_client, async_session, test_user
     assert (await _commit(test_client, h, txt, entry_date="ontem")).status_code == 400
 
     t = await test_client.get("/api/v1/stock-import/template", headers=h)
-    assert t.status_code == 200 and t.text.startswith("﻿Produto;Categoria;Cor;Tamanho;Quantidade;Custo;Preço;Marca")
-    # o modelo baixado é aceito pelo próprio importador
-    assert (await _prev(test_client, h, t.text)).json()["can_import"] is True
+    assert t.status_code == 200 and t.content[:2] == b"PK" and "modelo-estoque-provador.xlsx" in t.headers["content-disposition"]
+    # o modelo baixado é aceito pelo próprio importador, como arquivo Excel
+    rp = await test_client.post("/api/v1/stock-import/preview", headers=h, files={"file": ("modelo.xlsx", t.content)})
+    assert rp.status_code == 200 and rp.json()["can_import"] is True, rp.text
 
     for papel in (UserRole.SELLER, UserRole.CASHIER):
         u = User(email=f"imp.{papel.value}.{next(_n)}@example.com", full_name="Papel", hashed_password=get_password_hash("Senha1234"),

@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_active_user, get_current_tenant_id
 from app.core.database import get_db
 from app.models.user import User
-from app.services.stock_import_service import StockImportError, StockImportService, read_table, template_csv
+from app.services.stock_import_service import StockImportError, StockImportService, read_table, template_xlsx
 
 router = APIRouter(prefix="/stock-import", tags=["Importação de estoque"])
 
@@ -39,12 +39,12 @@ def _day(value: Optional[str]) -> Optional[date]:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Data inválida. Use o formato AAAA-MM-DD.")
 
 
-@router.get("/template", summary="Modelo da planilha (CSV)")
+@router.get("/template", summary="Modelo da planilha (Excel)")
 async def template(current_user: User = Depends(get_current_active_user)):
     return Response(
-        content=template_csv().encode("utf-8"),
-        media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="modelo-estoque-provador.csv"'},
+        content=template_xlsx(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="modelo-estoque-provador.xlsx"'},
     )
 
 

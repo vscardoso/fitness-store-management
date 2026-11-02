@@ -514,10 +514,27 @@ class StockImportService:
         return by_fold
 
 
-def template_csv() -> str:
-    """Modelo para baixar: `;` e BOM, que o Excel em português abre certo."""
-    out = io.StringIO()
-    w = csv.writer(out, delimiter=";", lineterminator="\r\n")
-    w.writerow(TEMPLATE_HEADER)
-    w.writerows(TEMPLATE_EXAMPLES)
-    return "﻿" + out.getvalue()
+def template_xlsx() -> bytes:
+    """Modelo em Excel (.xlsx): cabeçalho em negrito e centralizado, números de verdade nas colunas de valor."""
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Estoque"
+    ws.append(TEMPLATE_HEADER)
+    for ex in TEMPLATE_EXAMPLES:
+        qtd, custo, preco = int(ex[4]), float(ex[5].replace(",", ".")), float(ex[6].replace(",", "."))
+        ws.append([ex[0], ex[1], ex[2], ex[3], qtd, custo, preco, ex[7]])
+    for c in ws[1]:
+        c.font = Font(bold=True)
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    for col, w in zip("ABCDEFGH", (28, 16, 12, 10, 12, 10, 10, 14)):
+        ws.column_dimensions[col].width = w
+    for row in ws.iter_rows(min_row=2, min_col=6, max_col=7):
+        for c in row:
+            c.number_format = "#,##0.00"
+    ws.freeze_panes = "A2"
+    out = io.BytesIO()
+    wb.save(out)
+    return out.getvalue()

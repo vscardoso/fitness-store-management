@@ -92,10 +92,11 @@ export async function commitStockImport(source: ImportSource, entryDate?: string
 
 /** Baixa o modelo (CSV com `;`, que o Excel em português abre certo). */
 export async function downloadImportTemplate(): Promise<void> {
-  const name = 'modelo-estoque-provador.csv';
+  const name = 'modelo-estoque-provador.xlsx';
+  const mime = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
   if (Platform.OS === 'web') {
     const res = await api.get('/stock-import/template', { responseType: 'blob' });
-    const href = URL.createObjectURL(new Blob([res.data], { type: 'text/csv;charset=utf-8' }));
+    const href = URL.createObjectURL(new Blob([res.data], { type: mime }));
     const a = document.createElement('a');
     a.href = href;
     a.download = name;
@@ -105,9 +106,12 @@ export async function downloadImportTemplate(): Promise<void> {
     setTimeout(() => URL.revokeObjectURL(href), 60_000);
     return;
   }
-  const res = await api.get<string>('/stock-import/template', { responseType: 'text' });
+  const res = await api.get<ArrayBuffer>('/stock-import/template', { responseType: 'arraybuffer' });
+  const bytes = new Uint8Array(res.data);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   const path = `${LegacyFileSystem.cacheDirectory}${name}`;
-  await LegacyFileSystem.writeAsStringAsync(path, res.data, { encoding: 'utf8' as any });
+  await LegacyFileSystem.writeAsStringAsync(path, btoa(bin), { encoding: 'base64' as any });
   if (!(await Sharing.isAvailableAsync())) throw new Error('Compartilhamento não disponível neste aparelho.');
-  await Sharing.shareAsync(path, { mimeType: 'text/csv', dialogTitle: 'Modelo de estoque' });
+  await Sharing.shareAsync(path, { mimeType: mime, dialogTitle: 'Modelo de estoque' });
 }
