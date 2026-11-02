@@ -24,6 +24,8 @@ export default function WhatsappCatalogScreen() {
   const [confirm, setConfirm] = useState<Confirm>(null);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
 
   const load = useCallback(() => {
     getCatalogFeed()
@@ -47,17 +49,46 @@ export default function WhatsappCatalogScreen() {
     }
   };
 
+  // navigator.clipboard falha em página sem permissão ou sem gesto do usuário; o plano B é copiar por um campo escondido
+  const copyWeb = async (url: string): Promise<boolean> => {
+    try {
+      await navigator.clipboard.writeText(url);
+      return true;
+    } catch {
+      /* cai no plano B */
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = url;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      const ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch {
+      return false;
+    }
+  };
+
   const copy = async () => {
     if (!st?.url) return;
-    try {
-      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
-        await navigator.clipboard.writeText(st.url);
-        setMessage('Link copiado.');
+    setCopyFailed(false);
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      if (await copyWeb(st.url)) {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 3000);
       } else {
-        await Share.share({ message: st.url });
+        setCopyFailed(true);
       }
+      return;
+    }
+    try {
+      await Share.share({ message: st.url });
     } catch {
-      setError('Não consegui copiar. Selecione o link e copie à mão.');
+      setCopyFailed(true);
     }
   };
 
@@ -67,6 +98,8 @@ export default function WhatsappCatalogScreen() {
     <View style={styles.container}>
       <PageHeader title="Catálogo do WhatsApp" subtitle="Também vale para o Instagram" showBackButton onBack={() => router.back()} />
       <ScrollView contentContainerStyle={styles.content}>
+        {!!error && <Text style={styles.error}>{error}</Text>}
+        {!!message && <Text style={[styles.ok, { color: brand.primary }]}>{message}</Text>}
         <View style={styles.card}>
           <Text style={styles.title}>O que vai para o catálogo</Text>
           <Text style={styles.note}>
@@ -107,10 +140,14 @@ export default function WhatsappCatalogScreen() {
             <>
               <Text selectable style={styles.url}>{st.url}</Text>
               <View style={styles.actions}>
-                <Button mode="contained" buttonColor={brand.primary} onPress={copy} disabled={busy}>Copiar link</Button>
+                <Button mode="contained" buttonColor={copied ? '#16A34A' : brand.primary} icon={copied ? 'check' : 'content-copy'} onPress={copy} disabled={busy}>
+                  {copied ? 'Link copiado' : 'Copiar link'}
+                </Button>
                 <Button mode="outlined" onPress={() => setConfirm('rotate')} disabled={busy}>Gerar outro link</Button>
                 <Button mode="text" textColor={Colors.light.error} onPress={() => setConfirm('disable')} disabled={busy}>Desligar</Button>
               </View>
+              {copied && <Text style={[styles.ok, { color: '#16A34A' }]}>Link copiado. Cole na Meta, no feed de dados do catálogo.</Text>}
+              {copyFailed && <Text style={styles.error}>Não consegui copiar sozinho. Toque no link acima, selecione tudo e copie.</Text>}
             </>
           ) : (
             <>
@@ -140,8 +177,6 @@ export default function WhatsappCatalogScreen() {
           <Text style={styles.note}>Esse passo é feito à mão por quem tem a senha do Instagram, uma vez por loja.</Text>
         </View>
 
-        {!!error && <Text style={styles.error}>{error}</Text>}
-        {!!message && <Text style={[styles.ok, { color: brand.primary }]}>{message}</Text>}
       </ScrollView>
 
       <ConfirmDialog
@@ -193,6 +228,6 @@ const styles = StyleSheet.create({
   stat: { flex: 1, backgroundColor: Colors.light.background, borderRadius: 12, padding: 10, alignItems: 'center' },
   statValue: { fontSize: 20, fontWeight: '700', color: Colors.light.text },
   statLabel: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 },
-  error: { color: Colors.light.error, marginTop: 6 },
-  ok: { marginTop: 6, fontWeight: '600' },
+  error: { color: Colors.light.error, marginTop: 6, marginBottom: 6 },
+  ok: { marginTop: 6, marginBottom: 6, fontWeight: '600' },
 });
