@@ -57,6 +57,8 @@ interface PageHeaderProps {
   showBackButton?: boolean;
   /** Callback customizado para voltar */
   onBack?: () => void;
+  /** Para onde o botão voltar leva quando não há tela anterior (app reaberto direto numa tela interna). Padrão: início */
+  backFallback?: string;
   /** Elemento visual fixo à esquerda (quando não houver botão voltar) */
   leftVisual?: React.ReactNode;
   /** Ações à direita (máx 4) */
@@ -72,6 +74,7 @@ export default function PageHeader({
   subtitle,
   showBackButton = false,
   onBack,
+  backFallback = '/(tabs)',
   leftVisual,
   rightActions = [],
   gradientColors,
@@ -89,8 +92,11 @@ export default function PageHeader({
   const handleBack = () => {
     if (onBack) {
       onBack();
-    } else {
+    } else if (router.canGoBack()) {
       router.back();
+    } else {
+      // o app foi fechado e reaberto direto nesta tela: não há histórico para voltar
+      router.replace(backFallback as any);
     }
   };
 

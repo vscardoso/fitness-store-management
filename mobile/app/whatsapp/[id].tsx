@@ -155,7 +155,7 @@ export default function WhatsappConversationScreen() {
 
   return (
     <KeyboardAvoidingView style={[styles.container, { backgroundColor: c.background }]} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <PageHeader title={data?.name ?? 'Conversa'} subtitle={data?.phone ?? undefined} />
+      <PageHeader title={data?.name ?? 'Conversa'} subtitle={data?.phone ?? undefined} showBackButton backFallback="/whatsapp" />
       <View style={[styles.labelsBar, { backgroundColor: c.surface, borderColor: c.border }]}>
         <View style={styles.labelsList}>
           {(data?.labels ?? []).map((l) => <LabelChip key={l.id} name={l.name} colorKey={l.color_key} small />)}
