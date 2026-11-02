@@ -144,7 +144,7 @@ export default function WhatsappConversationScreen() {
       ]}>
         {m.media && <MessageMedia message={m} mine={mine} />}
         {(m.text || !m.media) && (
-          <Text style={[styles.msgText, { color: mine ? c.bubbleOutText : c.bubbleInText }]}>{m.text ?? `(${m.type})`}</Text>
+          <Text selectable style={[styles.msgText, { color: mine ? c.bubbleOutText : c.bubbleInText }]}>{m.text ?? `(${m.type})`}</Text>
         )}
         <Text style={[styles.meta, { color: mine ? c.bubbleOutMuted : c.textMuted }]}>
           {hour(m.sent_at)}{mine ? `  ${STATUS_LABEL[m.status] ?? m.status}` : ''}

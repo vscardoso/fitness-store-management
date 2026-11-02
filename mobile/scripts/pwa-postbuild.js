@@ -38,7 +38,9 @@ const BOOT = `/pwa-boot.${BUILD_ID}.js`;
 fs.writeFileSync(
   path.join(__dirname, '..', 'dist', BOOT.slice(1)),
   `window.__APP_BUILD__=${JSON.stringify(BUILD_ID)};\n` +
-    "if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js')})}\n",
+    "if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js')})}\n" +
+    // iOS: pinça dá zoom na página inteira mesmo com user-scalable=no; app nativo não faz isso
+    "['gesturestart','gesturechange','gestureend'].forEach(function(t){document.addEventListener(t,function(e){e.preventDefault()},{passive:false})});\n",
 );
 // CSP (item 2.7): script só do próprio site (mais o jsQR do leitor de QR); conexões só com a API, consultas de CEP e Sentry. Estilo inline é
 // obrigatório (react-native-web gera <style>). Imagem de qualquer https (logo/foto podem vir de CDN).
@@ -63,6 +65,12 @@ const CSP = [
   "base-uri 'self'",
   "form-action 'self'",
 ].join('; ');
+// Telas de abertura do iPhone (public/splash, geradas por scripts/gen-splash.py): sem elas o app instalado pisca branco.
+const SPLASH = [[440, 956, 3], [402, 874, 3], [430, 932, 3], [393, 852, 3], [428, 926, 3], [390, 844, 3],
+                [414, 896, 3], [414, 896, 2], [375, 812, 3], [375, 667, 2]];
+const splashTags = SPLASH.filter(([w, h, r]) => fs.existsSync(path.join(__dirname, '..', 'dist', 'splash', `${w * r}x${h * r}.png`)))
+  .map(([w, h, r]) => `    <link rel="apple-touch-startup-image" media="(device-width: ${w}px) and (device-height: ${h}px) and (-webkit-device-pixel-ratio: ${r}) and (orientation: portrait)" href="/splash/${w * r}x${h * r}.png" />`)
+  .join('\n');
 const tags = `
     <script src="${BOOT}"></script>
     <link rel="preload" href="${iconFont}" as="font" type="font/ttf" crossorigin />
@@ -74,6 +82,13 @@ const tags = `
       /* iOS dá zoom ao focar campo com fonte menor que 16px; o maximum-scale=1 do viewport impede, e isto garante */
       input, textarea, select { font-size: max(16px, 1em); }
       #root { position: fixed; top: 0; left: 0; width: 100%; height: 100vh; height: 100lvh; }
+      /* Jeito de app nativo: sem elástico da página, sem destaque azul ao tocar, sem seleção de texto nem menu do
+         Safari ao segurar em botões, links e imagens. Campos de texto e textos marcados como selecionáveis seguem
+         copiáveis (o react-native-web põe user-select:text inline neles). */
+      html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; -webkit-touch-callout: none;
+                   -webkit-user-select: none; user-select: none; }
+      input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+      img, a { -webkit-user-drag: none; -webkit-touch-callout: none; }
     </style>
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#7C3AED" />
@@ -81,7 +96,8 @@ const tags = `
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-title" content="Provador" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />`;
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+${splashTags}`;
 html = html
   .replace(/<title>[^<]*<\/title>/, '<title>Provador</title>')
   .replace('<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />',
