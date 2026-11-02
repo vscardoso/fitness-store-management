@@ -40,7 +40,14 @@ fs.writeFileSync(
   `window.__APP_BUILD__=${JSON.stringify(BUILD_ID)};\n` +
     "if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js')})}\n" +
     // iOS: pinça dá zoom na página inteira mesmo com user-scalable=no; app nativo não faz isso
-    "['gesturestart','gesturechange','gestureend'].forEach(function(t){document.addEventListener(t,function(e){e.preventDefault()},{passive:false})});\n",
+    "['gesturestart','gesturechange','gestureend'].forEach(function(t){document.addEventListener(t,function(e){e.preventDefault()},{passive:false})});\n" +
+    // iOS instalado: ao abrir o teclado a página é empurrada para cima e, ao fechar, não volta; a faixa atrás do relógio
+    // mostra o fundo claro (header "esbranquiçado"). Sem teclado aberto, devolve a página ao topo.
+    "(function(){var vv=window.visualViewport;function open(){return vv&&(window.innerHeight-vv.height)>=80}" +
+    "function reset(){if(open())return;if(window.scrollX||window.scrollY||(vv&&vv.offsetTop>0))window.scrollTo(0,0)}" +
+    "function later(){[50,250,600].forEach(function(ms){setTimeout(reset,ms)})}" +
+    "document.addEventListener('focusout',later);" +
+    "if(vv){vv.addEventListener('resize',later);vv.addEventListener('scroll',later)}})();\n",
 );
 // CSP (item 2.7): script só do próprio site (mais o jsQR do leitor de QR); conexões só com a API, consultas de CEP e Sentry. Estilo inline é
 // obrigatório (react-native-web gera <style>). Imagem de qualquer https (logo/foto podem vir de CDN).
