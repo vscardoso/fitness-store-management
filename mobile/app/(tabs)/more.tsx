@@ -190,6 +190,7 @@ export default function MoreScreen() {
                   <MenuItem icon="business-outline" title="Perfil do WhatsApp" subtitle="Recado, descrição, endereço e sites que a cliente vê" onPress={() => router.push('/settings/whatsapp-profile' as any)} iconColor="#0EA5E9" iconBg="#E0F2FE" />
                   <MenuItem icon="time-outline" title="Horário e ausência" subtitle="Quando a loja atende e o aviso fora do horário" onPress={() => router.push('/settings/whatsapp-hours' as any)} iconColor="#F59E0B" iconBg="#FEF3C7" />
                   <MenuItem icon="chatbubble-ellipses-outline" title="Saudação automática" subtitle="Mensagem quando a cliente escreve para a loja" onPress={() => router.push('/settings/whatsapp-greeting' as any)} iconColor="#16A34A" iconBg="#DCFCE7" />
+                  <MenuItem icon="storefront-outline" title="Catálogo do WhatsApp" subtitle="Link para a Meta mostrar seus produtos publicados" onPress={() => router.push('/settings/whatsapp-catalog' as any)} iconColor="#0EA5E9" iconBg="#E0F2FE" />
                   <MenuItem icon="flash-outline" title="Respostas rápidas" subtitle="Textos prontos que se chamam com /" onPress={() => router.push('/settings/whatsapp-quick-replies' as any)} iconColor="#8B5CF6" iconBg="#EDE9FE" />
                   <MenuItem icon="pricetags-outline" title="Etiquetas" subtitle="Organize e filtre as conversas" onPress={() => router.push('/settings/whatsapp-labels' as any)} iconColor="#EC4899" iconBg="#FCE7F3" />
                 </>

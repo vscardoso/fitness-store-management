@@ -52,6 +52,13 @@ class Store(BaseModel):
         comment="Marca se é o tenant padrão"
     )
 
+    catalog_feed_token: Mapped[Optional[str]] = mapped_column(
+        String(64),
+        unique=True,
+        nullable=True,
+        comment="Token da URL do feed de catálogo para a Meta (nulo = feed desligado)"
+    )
+
     return_window_days: Mapped[int] = mapped_column(
         Integer,
         default=7,

@@ -99,6 +99,7 @@ export default function DesktopSidebar() {
             { label: 'Perfil', icon: 'business-outline' as Icon, href: '/settings/whatsapp-profile', match: ['/settings/whatsapp-profile'] },
             { label: 'Horário e ausência', icon: 'time-outline' as Icon, href: '/settings/whatsapp-hours', match: ['/settings/whatsapp-hours'] },
             { label: 'Saudação automática', icon: 'chatbubble-ellipses-outline' as Icon, href: '/settings/whatsapp-greeting', match: ['/settings/whatsapp-greeting'] },
+            { label: 'Catálogo do WhatsApp', icon: 'storefront-outline' as Icon, href: '/settings/whatsapp-catalog', match: ['/settings/whatsapp-catalog'] },
             { label: 'Respostas rápidas', icon: 'flash-outline' as Icon, href: '/settings/whatsapp-quick-replies', match: ['/settings/whatsapp-quick-replies'] },
             { label: 'Etiquetas', icon: 'pricetags-outline' as Icon, href: '/settings/whatsapp-labels', match: ['/settings/whatsapp-labels'] },
           ] : []),

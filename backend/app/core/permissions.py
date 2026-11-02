@@ -72,6 +72,7 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     # configurações do WhatsApp: só admin altera (ler respostas rápidas e etiquetas é de vendedor para cima)
     (ANY, r"^/whatsapp/(profile|away)$", ADMIN),
     (WRITE, r"^/whatsapp/(quick-replies|labels)(/|$)", ADMIN),
+    (ANY, r"^/catalog-feed(/|$)", ADMIN),  # link do catálogo da Meta: configuração da loja
     (ANY, r"^/whatsapp/greeting$", ADMIN),  # saudação automática: configuração da loja
     ({"GET"}, r"^/whatsapp/costs$", MANAGER),  # quanto o WhatsApp cobrou: dinheiro, só gerente
     (ANY, r"^/whatsapp(/|$)", SELLER),  # caixa de conversas do WhatsApp da loja

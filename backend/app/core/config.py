@@ -188,6 +188,8 @@ class Settings(BaseSettings):
     WHATSAPP_CLOUD_PHONE_NUMBER_ID: str = ""
     WHATSAPP_CLOUD_WABA_ID: str = ""
     WHATSAPP_CLOUD_API_VERSION: str = "v23.0"
+    PUBLIC_API_URL: str = "https://api.provadorfit.com.br"   # base das fotos e do feed de catálogo vistos pela Meta
+    PUBLIC_SITE_URL: str = "https://app.provadorfit.com.br"  # link do produto quando a loja não tem domínio próprio
     WHATSAPP_CLOUD_GRAPH_BASE: str = "https://graph.facebook.com"  # só muda em teste local com uma Meta falsa
 
 

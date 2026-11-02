@@ -51,6 +51,7 @@ from app.api.v1.endpoints import (
     supplier_returns,
     stock_counts,
     cash_register,
+    catalog_feed,
     stock_import,
     looks,
     whatsapp_inbox,
@@ -76,6 +77,7 @@ api_router = APIRouter(prefix="/api/v1")
 
 # Catálogo público — sem autenticação (site wamodafitness.com.br)
 api_router.include_router(public_catalog.router)
+api_router.include_router(catalog_feed.public_router)  # feed CSV lido pela Meta (token na URL)
 
 # Autenticação e autorização
 api_router.include_router(
@@ -211,6 +213,7 @@ api_router.include_router(
 api_router.include_router(stock_counts.router)
 api_router.include_router(stock_import.router)
 api_router.include_router(cash_register.router)
+api_router.include_router(catalog_feed.router)
 
 # Devolução ao fornecedor
 api_router.include_router(supplier_returns.router, tags=["Devolução ao fornecedor"])

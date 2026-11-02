@@ -121,3 +121,27 @@ export const deleteWhatsappLabel = async (id: number): Promise<void> => {
 };
 export const setConversationLabels = async (conversationId: number, labelIds: number[]): Promise<WaLabel[]> =>
   (await api.put<WaLabel[]>(`/whatsapp/conversations/${conversationId}/labels`, { label_ids: labelIds })).data;
+
+// ── catálogo da Meta (feed por loja) ─────────────────────────────────────────
+
+export interface CatalogFeedStatus {
+  enabled: boolean;
+  url: string | null;
+  published_products: number;
+  items: number;
+  skipped_no_photo: number;
+  skipped_no_price: number;
+  skipped_no_name: number;
+  products_no_variants: number;
+  brand_removed: number;
+  missing_photo_products: { id: number; name: string }[];
+}
+
+export const getCatalogFeed = async (): Promise<CatalogFeedStatus> =>
+  (await api.get<CatalogFeedStatus>('/catalog-feed', { headers: { 'X-Skip-Loading': 'true' } })).data;
+
+export const rotateCatalogFeed = async (): Promise<CatalogFeedStatus> =>
+  (await api.post<CatalogFeedStatus>('/catalog-feed/rotate')).data;
+
+export const disableCatalogFeed = async (): Promise<CatalogFeedStatus> =>
+  (await api.delete<CatalogFeedStatus>('/catalog-feed')).data;
