@@ -48,6 +48,7 @@ def _conv(c: WhatsAppConversation, last: Optional[WhatsAppMessage] = None, custo
         "customer_id": cust[0] if cust else None,
         "name": (cust[1] if cust else None) or c.profile_name or c.phone or "Contato sem telefone",
         "phone": c.phone,
+        "profile_name": c.profile_name,   # nome que a pessoa pôs no perfil do WhatsApp (pode não ser nome de gente)
         "unread_count": c.unread_count or 0,
         "last_message_at": c.last_message_at,
         "window_open": svc.window_open(c),

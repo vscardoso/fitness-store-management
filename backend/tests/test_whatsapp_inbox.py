@@ -88,6 +88,7 @@ async def test_lista_abre_e_marca_como_lida(test_client, async_session):
     item = r.json()[0]
     assert item["name"] == "Cliente Teste" and item["unread_count"] == 2 and item["window_open"] is True
     assert item["last_text"] == "oi, tem a legging?"
+    assert item["profile_name"] == "Cliente Teste"   # o app usa para preencher {nome} quando não há cadastro
     assert (await test_client.get("/api/v1/whatsapp/unread-count", headers=h)).json() == {"unread": 2}
     r = await test_client.get(f"/api/v1/whatsapp/conversations/{cid}", headers=h)
     assert [m["direction"] for m in r.json()["messages"]] == ["in"]

@@ -1,6 +1,6 @@
 // Testes das respostas rápidas. Rodar: node scripts/test-quick-reply.mts
 import assert from 'node:assert/strict';
-import { fillQuickReply, filterQuickReplies, slashQuery } from '../utils/quickReply.ts';
+import { fillQuickReply, filterQuickReplies, profileFirstName, slashQuery } from '../utils/quickReply.ts';
 
 let n = 0;
 const t = (name: string, fn: () => void) => { fn(); n += 1; console.log('ok', name); };
@@ -33,5 +33,20 @@ t('{nome} sem cliente: some sem deixar pontuação solta', () => {
   assert.equal(fillQuickReply('Obrigada {nome}', undefined), 'Obrigada');
   assert.equal(fillQuickReply('Sem variável', null), 'Sem variável');
   assert.ok(!fillQuickReply('{nome}', null).includes('{'));
+});
+t('{nome} sem cadastro usa o nome do perfil do WhatsApp', () => {
+  assert.equal(fillQuickReply('Oi, {nome}! Tudo bem?', null, 'Juliana Souza'), 'Oi, Juliana! Tudo bem?');
+  assert.equal(fillQuickReply('Oi, {nome}!', '', 'JULIANA ✨'), 'Oi, Juliana!');
+  assert.equal(fillQuickReply('Oi, {nome}!', undefined, 'ana clara'), 'Oi, Ana!');
+  assert.equal(fillQuickReply('Oi, {nome}!', 'Maria Lima', 'Juliana'), 'Oi, Maria!');   // cadastro vence o perfil
+});
+t('perfil que não é nome não vira nome', () => {
+  for (const ruim of ['👑', '.', '5534991234567', '', null, undefined, '  ', 'A', '🔥🔥 Loja']) {
+    assert.equal(profileFirstName(ruim as any), '', String(ruim));
+  }
+  assert.equal(fillQuickReply('Oi, {nome}! Tudo bem?', null, '👑'), 'Oi! Tudo bem?');
+  assert.equal(profileFirstName('Maria-Clara 💖'), 'Maria-Clara');
+  assert.equal(profileFirstName('José'), 'José');
+  assert.equal(profileFirstName("d'Ávila"), "d'Ávila");
 });
 console.log(`${n} testes ok`);

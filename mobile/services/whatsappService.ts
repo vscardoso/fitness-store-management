@@ -6,6 +6,7 @@ export interface WaConversation {
   customer_id: number | null;
   name: string;
   phone: string | null;
+  profile_name: string | null;
   unread_count: number;
   last_message_at: string | null;
   window_open: boolean;

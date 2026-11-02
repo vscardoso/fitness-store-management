@@ -184,7 +184,7 @@ export default function WhatsappConversationScreen() {
         {suggestions.length > 0 && (
           <View style={[styles.suggest, { backgroundColor: c.surface, borderColor: c.border }]}>
             {suggestions.map((r) => (
-              <TouchableOpacity key={r.id} style={styles.suggestRow} onPress={() => setText(fillQuickReply(r.text, customerName))} accessibilityRole="button">
+              <TouchableOpacity key={r.id} style={styles.suggestRow} onPress={() => setText(fillQuickReply(r.text, customerName, data?.profile_name))} accessibilityRole="button">
                 <Text style={[styles.suggestKey, { color: c.accent }]}>/{r.shortcut}</Text>
                 <Text style={[styles.suggestText, { color: c.textMuted }]} numberOfLines={1}>{r.text}</Text>
               </TouchableOpacity>
