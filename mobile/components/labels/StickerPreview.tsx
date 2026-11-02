@@ -6,6 +6,8 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
+import { stickerScale } from '@/utils/stickerSize';
+
 export interface StickerPreviewData {
   name: string;
   color?: string | null;
@@ -36,13 +38,14 @@ export default function StickerPreview({
   pxPerMm: number;
 }) {
   const s = pxPerMm;
+  const k = stickerScale(widthMm, heightMm);   // letras e QR acompanham a medida, como no PDF
   const unit = heightMm / ZONES.reduce((a, b) => a + b, 0);
   const zone = ZONES.map((z) => z * unit * s);
-  const pad = 3 * s;
-  const fs = (pt: number) => pt * PT * s;
-  const qrSize = Math.min(17, ZONES[3] * unit - 2) * s;
+  const pad = Math.max(2, 3 * k) * s;
+  const fs = (pt: number) => pt * k * PT * s;
+  const qrSize = Math.min(17 * k, ZONES[3] * unit - 2) * s;
   const size = (data.size || 'U').toUpperCase();
-  const box = 8.5 * s;
+  const box = Math.min(8.5 * k, ZONES[1] * unit - 3) * s;
 
   return (
     <View

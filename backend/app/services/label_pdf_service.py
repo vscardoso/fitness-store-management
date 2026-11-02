@@ -1,10 +1,11 @@
 """
-Etiqueta do verso da tag em PDF (adesivo 50x60 mm por padrão), em 4 faixas:
+Etiqueta do verso da tag em PDF (adesivo 60x50 mm por padrão, qualquer medida de 30 a 100 mm), em 4 faixas:
 nome | cor e tamanho | preço | QR e código curto (#0123).
 
 Dois formatos do mesmo desenho:
-- a4: folha A4 adesiva comum, 3 x 4 = 12 por folha, com marcas de corte (impressora de casa);
-- roll: uma etiqueta por página, no tamanho da etiqueta (impressora térmica pelo driver).
+- a4: folha A4 adesiva comum, com marcas de corte (impressora de casa); quantas cabem depende da medida (`a4_grid`);
+- roll: uma etiqueta por página, no tamanho exato da etiqueta (arquivo para a gráfica ou térmica pelo driver).
+Letras, quadrado do tamanho e QR crescem ou diminuem com a etiqueta (`scale_for`), tendo 50 mm como base.
 
 Só entra o que a cliente pode ver: nada de custo, fornecedor, entrada ou data de compra.
 Tudo em preto (térmica não imprime cor nem cinza sem pontilhar).
@@ -28,10 +29,16 @@ BOLD, REGULAR = "Helvetica-Bold", "Helvetica"
 ZONES = (15, 13, 11, 21)  # proporção das faixas (somam 60)
 A4_MARGIN_MM, A4_GAP_MM = 8, 4   # borda da folha e espaço entre etiquetas (cabem as marcas de corte)
 MIN_MM, MAX_MM = 30, 100
+DEFAULT_W_MM, DEFAULT_H_MM = 60, 50   # etiqueta 6 x 5 cm que a W.A compra (2026-11-02)
+
+
+def scale_for(width_mm: float, height_mm: float) -> float:
+    """Fator das letras e do QR: 1 numa etiqueta com o lado menor de 50 mm (o desenho foi medido nela)."""
+    return max(0.6, min(1.6, min(width_mm, height_mm) / 50))
 
 
 def a4_grid(width_mm: float, height_mm: float) -> tuple[int, int]:
-    """Quantas etiquetas cabem na folha A4 (colunas, linhas): 65x55 -> 2x4 = 8; 55x65 -> 3x4 = 12."""
+    """Quantas etiquetas cabem na folha A4 (colunas, linhas): 60x50 -> 3x5 = 15; 50x60 -> 3x4 = 12; 65x55 -> 2x4 = 8."""
     cols = int((210 - 2 * A4_MARGIN_MM + A4_GAP_MM) // (width_mm + A4_GAP_MM))
     rows = int((297 - 2 * A4_MARGIN_MM + A4_GAP_MM) // (height_mm + A4_GAP_MM))
     return max(1, cols), max(1, rows)
@@ -70,7 +77,8 @@ def _ellipsize(text: str, font: str, size: float, max_w: float) -> str:
 
 def draw_label(c: canvas.Canvas, x: float, y: float, w: float, h: float, d: LabelData) -> None:
     """Desenha uma etiqueta com o canto inferior esquerdo em (x, y)."""
-    pad = 3 * mm
+    k = scale_for(w / mm, h / mm)
+    pad = max(2.0, 3 * k) * mm
     inner_w = w - 2 * pad
     unit = h / sum(ZONES)
     tops = []
@@ -87,9 +95,9 @@ def draw_label(c: canvas.Canvas, x: float, y: float, w: float, h: float, d: Labe
 
     # 1. nome: até 2 linhas, centralizado
     name = (d.name or "").strip()
-    size = 10.2
+    size = 10.2 * k
     lines = simpleSplit(name, BOLD, size, inner_w)
-    while len(lines) > 2 and size > 7:
+    while len(lines) > 2 and size > 7 * k:
         size -= 0.25
         lines = simpleSplit(name, BOLD, size, inner_w)
     if len(lines) > 2:
@@ -104,8 +112,8 @@ def draw_label(c: canvas.Canvas, x: float, y: float, w: float, h: float, d: Labe
 
     # 2. cor (esquerda) e tamanho num quadrado (direita)
     zone_h = ZONES[1] * unit
-    box = 8.5 * mm
-    label_size = 5.4
+    box = min(8.5 * k * mm, ZONES[1] * unit - 3 * mm)   # cabe na faixa com o "TAM" em cima
+    label_size = 5.4 * k
     box_y = z2 - zone_h + (zone_h - box - label_size - 1) / 2
     box_x = x + w - pad - box
     c.setFont(BOLD, label_size)
@@ -113,12 +121,12 @@ def draw_label(c: canvas.Canvas, x: float, y: float, w: float, h: float, d: Labe
     c.setLineWidth(1.1)
     c.roundRect(box_x, box_y, box, box, 1.6 * mm, stroke=1, fill=0)
     size_text = (d.size or "U").strip().upper()
-    fs = _fit(size_text, BOLD, 14.7, box - 1.6 * mm, 6)
+    fs = _fit(size_text, BOLD, 14.7 * k, box - 1.6 * mm, 6)
     c.setFont(BOLD, fs)
     c.drawCentredString(box_x + box / 2, box_y + box / 2 - fs * 0.35, size_text)
     color_w = box_x - (x + pad) - 2 * mm
     color_text = (d.color or "Única").strip()
-    cs = _fit(color_text, BOLD, 9, color_w, 6.5)
+    cs = _fit(color_text, BOLD, 9 * k, color_w, 6.5 * k)
     color_text = _ellipsize(color_text, BOLD, cs, color_w)
     mid = z2 - zone_h / 2
     c.setFont(BOLD, label_size)
@@ -129,13 +137,13 @@ def draw_label(c: canvas.Canvas, x: float, y: float, w: float, h: float, d: Labe
     # 3. preço
     zone_h = ZONES[2] * unit
     price = format_price(d.price)
-    ps = _fit(price, BOLD, 18, inner_w, 10)
+    ps = _fit(price, BOLD, min(18 * k, zone_h * 0.8), inner_w, 10 * k)   # zone_h em pontos, como a fonte
     c.setFont(BOLD, ps)
     c.drawCentredString(x + w / 2, z3 - zone_h / 2 - ps * 0.35, price)
 
     # 4. QR (esquerda) e código curto (direita)
     zone_h = ZONES[3] * unit
-    qr_size = min(17 * mm, zone_h - 2 * mm)
+    qr_size = min(17 * k * mm, zone_h - 2 * mm)
     widget = QrCodeWidget(d.qr, barLevel="M", barBorder=1)
     bx1, by1, bx2, by2 = widget.getBounds()
     drawing = Drawing(qr_size, qr_size, transform=[qr_size / (bx2 - bx1), 0, 0, qr_size / (by2 - by1), 0, 0])
@@ -143,7 +151,7 @@ def draw_label(c: canvas.Canvas, x: float, y: float, w: float, h: float, d: Labe
     renderPDF.draw(drawing, c, x + pad - 0.6 * mm, z4 - zone_h + (zone_h - qr_size) / 2)
     code = d.code
     code_w = inner_w - qr_size - 2 * mm
-    cs = _fit(code, BOLD, 19.8, code_w, 10)
+    cs = _fit(code, BOLD, 19.8 * k, code_w, 10 * k)
     mid = z4 - zone_h / 2
     c.setFont(BOLD, label_size)
     c.drawRightString(x + w - pad, mid + cs * 0.55, "CÓDIGO")
@@ -162,7 +170,7 @@ def _crop_marks(c: canvas.Canvas, x: float, y: float, w: float, h: float) -> Non
 
 
 def build_pdf(labels: List[LabelData], layout: str = "a4", start_position: int = 1,
-              width_mm: float = 65, height_mm: float = 55, title: str = "Etiquetas") -> bytes:
+              width_mm: float = DEFAULT_W_MM, height_mm: float = DEFAULT_H_MM, title: str = "Etiquetas") -> bytes:
     """Gera o PDF. `start_position` pula posições já usadas da primeira folha A4 (1 até o total da grade)."""
     if layout not in ("a4", "roll"):
         raise ValueError("Formato inválido: use 'a4' ou 'roll'.")

@@ -1,20 +1,19 @@
 /**
- * Etiqueta do verso da tag (adesivo 50x60 mm) em PDF, gerada no servidor.
+ * Etiqueta do verso da tag (adesivo 6 x 5 cm por padrão, medida livre de 3 a 10 cm) em PDF, gerada no servidor.
  * Web: abre o PDF numa aba (ou baixa, se o navegador bloquear). Celular: grava e abre o compartilhar.
  */
 import { Platform } from 'react-native';
 import * as Sharing from 'expo-sharing';
 import * as LegacyFileSystem from 'expo-file-system/legacy';
 import api from './api';
+import { DEFAULT_STICKER } from '@/utils/stickerSize';
+
+export {
+  cmText, customSticker, DEFAULT_STICKER, parseCm, STICKER_MAX_MM, STICKER_MIN_MM, STICKER_SIZES, stickerScale,
+  stickersPerSheet, type StickerSize,
+} from '@/utils/stickerSize';
 
 export type TagLabelLayout = 'a4' | 'roll';
-
-/** Medidas do adesivo do verso da tag (mm). 6,5 x 5,5 cm é a etiqueta que a loja usa hoje; a outra é a mesma em pé. */
-export const STICKER_SIZES = [
-  { id: '65x55', name: '6,5 × 5,5 cm', note: 'deitada', widthMm: 65, heightMm: 55 },
-  { id: '55x65', name: '5,5 × 6,5 cm', note: 'em pé', widthMm: 55, heightMm: 65 },
-] as const;
-export type StickerSize = (typeof STICKER_SIZES)[number];
 
 export interface TagLabelOptions {
   layout: TagLabelLayout;
@@ -23,19 +22,12 @@ export interface TagLabelOptions {
   heightMm?: number;
 }
 
-/** Quantos adesivos cabem numa folha A4 (mesma conta do servidor, `a4_grid`): 65x55 = 8, 55x65 = 12. */
-export function stickersPerSheet(widthMm: number, heightMm: number): number {
-  const cols = Math.max(1, Math.floor((210 - 16 + 4) / (widthMm + 4)));
-  const rows = Math.max(1, Math.floor((297 - 16 + 4) / (heightMm + 4)));
-  return cols * rows;
-}
-
 function sizeBody(options: TagLabelOptions) {
   return {
     layout: options.layout,
     start_position: options.startPosition ?? 1,
-    width_mm: options.widthMm ?? 65,
-    height_mm: options.heightMm ?? 55,
+    width_mm: options.widthMm ?? DEFAULT_STICKER.widthMm,
+    height_mm: options.heightMm ?? DEFAULT_STICKER.heightMm,
   };
 }
 

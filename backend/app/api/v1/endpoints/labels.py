@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_active_user, get_current_tenant_id
 from app.core.database import get_db
 from app.models.user import User
-from app.services.label_pdf_service import MAX_MM, MIN_MM, a4_grid, build_pdf
+from app.services.label_pdf_service import DEFAULT_H_MM, DEFAULT_W_MM, MAX_MM, MIN_MM, a4_grid, build_pdf
 from app.services.label_print_service import LabelRequestError, labels_for_entry, labels_for_variants
 
 router = APIRouter(prefix="/labels", tags=["Etiquetas"])
@@ -22,8 +22,8 @@ class LabelItem(BaseModel):
 class LabelOptions(BaseModel):
     layout: Literal["a4", "roll"] = "a4"
     start_position: int = Field(1, ge=1, le=100, description="Na folha A4, em que posição começar (pula as já usadas)")
-    width_mm: float = Field(65, ge=MIN_MM, le=MAX_MM, description="Largura do adesivo (65 = 6,5 cm)")
-    height_mm: float = Field(55, ge=MIN_MM, le=MAX_MM, description="Altura do adesivo (55 = 5,5 cm)")
+    width_mm: float = Field(DEFAULT_W_MM, ge=MIN_MM, le=MAX_MM, description="Largura do adesivo em mm (60 = 6 cm)")
+    height_mm: float = Field(DEFAULT_H_MM, ge=MIN_MM, le=MAX_MM, description="Altura do adesivo em mm (50 = 5 cm)")
 
 
 class LabelPdfRequest(LabelOptions):
@@ -37,7 +37,10 @@ def _pdf(content: bytes, filename: str) -> Response:
 
 @router.get("/sizes", summary="Tamanhos de adesivo e quantas cabem por folha A4")
 async def label_sizes(user: User = Depends(get_current_active_user)):
-    presets = [("65x55", "6,5 × 5,5 cm (deitada)", 65, 55), ("55x65", "5,5 × 6,5 cm (em pé)", 55, 65)]
+    presets = [
+        ("60x50", "6 × 5 cm (deitada)", 60, 50), ("50x60", "5 × 6 cm (em pé)", 50, 60),
+        ("65x55", "6,5 × 5,5 cm (deitada)", 65, 55), ("55x65", "5,5 × 6,5 cm (em pé)", 55, 65),
+    ]
     out = []
     for key, name, w, h in presets:
         cols, rows = a4_grid(w, h)

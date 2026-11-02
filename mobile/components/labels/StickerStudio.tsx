@@ -1,16 +1,21 @@
 /**
  * Tela única de etiquetas: adesivo do verso da tag (a frente já vem impressa com a logo WA).
- * Prévia em escala real, medida (6x5 ou 5x6), quantidade por peça e dois destinos:
+ * Prévia em escala real, medida (6 x 5 cm por padrão, outras prontas ou qualquer uma de 3 a 10 cm), quantidade por
+ * peça e dois destinos:
  *  - PDF para a gráfica: uma etiqueta por página, no tamanho exato;
  *  - folha A4 adesiva: impressora comum, com posição inicial para folha já usada.
  */
 import React, { useEffect, useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import { printTagLabels, STICKER_SIZES, stickersPerSheet, type TagLabelLayout } from '@/services/labelService';
+import {
+  cmText, customSticker, DEFAULT_STICKER, parseCm, printTagLabels, STICKER_SIZES, stickersPerSheet,
+  type StickerSize, type TagLabelLayout,
+} from '@/services/labelService';
 import StickerPreview from '@/components/labels/StickerPreview';
 
 export interface StickerItem {
@@ -37,13 +42,22 @@ interface Props {
 }
 
 const MAX_PER_ITEM = 200;
+const SIZE_KEY = '@provador:etiqueta_medida';   // última medida usada neste aparelho
+
+function sizeFrom(w: number, h: number): StickerSize {
+  return STICKER_SIZES.find((s) => s.widthMm === w && s.heightMm === h) ?? customSticker(w, h);
+}
 
 const qrOf = (code?: string | null) => (code ? `PV${code}` : null);
 
 export default function StickerStudio({ items, initialQty, onAddMore, onRemove, onGenerated, emptyText }: Props) {
   const brand = useBrandingColors();
   const { width } = useWindowDimensions();
-  const [sizeId, setSizeId] = useState<(typeof STICKER_SIZES)[number]['id']>('65x55');
+  const [size, setSize] = useState<StickerSize>(DEFAULT_STICKER);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [wText, setWText] = useState('');
+  const [hText, setHText] = useState('');
+  const [customError, setCustomError] = useState<string | null>(null);
   const [qty, setQty] = useState<Record<number, number>>({});
   const [focusId, setFocusId] = useState<number | null>(null);
   const [showSheet, setShowSheet] = useState(false);
@@ -60,7 +74,31 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
     });
   }, [items, initialQty]);
 
-  const size = STICKER_SIZES.find((s) => s.id === sizeId) ?? STICKER_SIZES[0];
+  // volta à medida usada da última vez (sem armazenamento, fica a 6 x 5 cm)
+  useEffect(() => {
+    AsyncStorage.getItem(SIZE_KEY)
+      .then((raw) => {
+        const v = raw ? JSON.parse(raw) : null;
+        if (v && parseCm(cmText(v.w)) === v.w && parseCm(cmText(v.h)) === v.h) setSize(sizeFrom(v.w, v.h));
+      })
+      .catch(() => {});
+  }, []);
+
+  const chooseSize = (s: StickerSize) => {
+    setSize(s);
+    setCustomError(null);
+    AsyncStorage.setItem(SIZE_KEY, JSON.stringify({ w: s.widthMm, h: s.heightMm })).catch(() => {});
+  };
+  const applyCustom = () => {
+    const w = parseCm(wText);
+    const h = parseCm(hText);
+    if (w == null || h == null) {
+      setCustomError('Digite largura e altura em centímetros, de 3 a 10 (ex.: 6 e 5, ou 6,5 e 5,5).');
+      return;
+    }
+    chooseSize(sizeFrom(w, h));
+    setCustomOpen(false);
+  };
   const perSheet = stickersPerSheet(size.widthMm, size.heightMm);
   const chosen = items.map((it) => ({ it, q: qty[it.variantId] ?? 0 })).filter((x) => x.q > 0);
   const total = chosen.reduce((sum, x) => sum + x.q, 0);
@@ -69,7 +107,7 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
   const pxPerMm = Math.max(2.4, Math.min(5, (width - 2 * theme.spacing.md - 2 * theme.spacing.lg) / size.widthMm));
 
   // trocar a medida muda quantas cabem por folha: a posição inicial volta ao 1 para não ficar fora da grade
-  useEffect(() => setStart(1), [sizeId]);
+  useEffect(() => setStart(1), [size.widthMm, size.heightMm]);
 
   const set = (id: number, v: number) => setQty((p) => ({ ...p, [id]: Math.max(0, Math.min(MAX_PER_ITEM, v)) }));
   const fill = (fn: (it: StickerItem) => number) => setQty(Object.fromEntries(items.map((it) => [it.variantId, Math.max(0, Math.min(MAX_PER_ITEM, fn(it)))])));
@@ -119,13 +157,13 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
         {/* Medida */}
         <Text style={styles.sectionTitle}>Medida do adesivo</Text>
         <View style={styles.segment} accessibilityRole="radiogroup">
-          {STICKER_SIZES.map((s) => {
-            const on = s.id === sizeId;
+          {[...STICKER_SIZES, ...(size.id === 'custom' ? [size] : [])].map((s) => {
+            const on = s.widthMm === size.widthMm && s.heightMm === size.heightMm;
             return (
               <TouchableOpacity
                 key={s.id}
                 style={[styles.segmentBtn, on && styles.segmentOn]}
-                onPress={() => setSizeId(s.id)}
+                onPress={() => chooseSize(s)}
                 accessibilityRole="radio"
                 accessibilityState={{ selected: on }}
                 activeOpacity={0.8}
@@ -138,6 +176,40 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
             );
           })}
         </View>
+        <TouchableOpacity
+          style={styles.customToggle}
+          onPress={() => {
+            setWText(cmText(size.widthMm));
+            setHText(cmText(size.heightMm));
+            setCustomError(null);
+            setCustomOpen((v) => !v);
+          }}
+          accessibilityRole="button"
+          accessibilityState={{ expanded: customOpen }}
+        >
+          <Ionicons name="resize-outline" size={16} color={brand.primary} />
+          <Text style={styles.addMoreText}>Outro tamanho</Text>
+        </TouchableOpacity>
+        {customOpen ? (
+          <View style={styles.sheetBox}>
+            <Text style={styles.muted}>Medida da etiqueta em centímetros (de 3 a 10). Largura é o lado de cima.</Text>
+            <View style={styles.customRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Largura (cm)</Text>
+                <TextInput style={styles.input} value={wText} onChangeText={setWText} keyboardType="decimal-pad" placeholder="6" accessibilityLabel="Largura em centímetros" />
+              </View>
+              <Text style={styles.times}>×</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.inputLabel}>Altura (cm)</Text>
+                <TextInput style={styles.input} value={hText} onChangeText={setHText} keyboardType="decimal-pad" placeholder="5" accessibilityLabel="Altura em centímetros" />
+              </View>
+            </View>
+            {customError ? <Text style={styles.error} accessibilityLiveRegion="polite">{customError}</Text> : null}
+            <TouchableOpacity style={styles.secondaryBtn} onPress={applyCustom} accessibilityRole="button">
+              <Text style={styles.secondaryText}>Usar esta medida</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         {/* Peças */}
         <View style={styles.listHead}>
@@ -277,13 +349,18 @@ const makeStyles = (primary: string) =>
     previewNote: { marginTop: theme.spacing.sm, textAlign: 'center', fontSize: theme.fontSize.xs, color: Colors.light.textSecondary },
     sectionTitle: { fontSize: theme.fontSize.base, fontWeight: '800', color: Colors.light.text, marginTop: theme.spacing.md, marginBottom: theme.spacing.sm },
     muted: { fontSize: theme.fontSize.sm, color: Colors.light.textSecondary },
-    segment: { flexDirection: 'row', gap: theme.spacing.sm },
-    segmentBtn: { flex: 1, borderRadius: theme.borderRadius.xl, borderWidth: 1.5, borderColor: Colors.light.border, padding: theme.spacing.md, backgroundColor: Colors.light.card },
+    segment: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm },
+    segmentBtn: { flexGrow: 1, flexBasis: '45%', borderRadius: theme.borderRadius.xl, borderWidth: 1.5, borderColor: Colors.light.border, padding: theme.spacing.md, backgroundColor: Colors.light.card },
     segmentOn: { borderColor: primary, backgroundColor: primary + '12' },
     segmentMain: { fontSize: theme.fontSize.lg, fontWeight: '800', color: Colors.light.text },
     segmentMainOn: { color: primary },
     segmentSub: { fontSize: theme.fontSize.xs, color: Colors.light.textSecondary, marginTop: 2 },
     segmentSubOn: { color: primary },
+    customToggle: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: theme.spacing.sm, alignSelf: 'flex-start' },
+    customRow: { flexDirection: 'row', alignItems: 'flex-end', gap: theme.spacing.sm },
+    inputLabel: { fontSize: theme.fontSize.xs, fontWeight: '700', color: Colors.light.textSecondary, marginBottom: 4 },
+    input: { borderWidth: 1, borderColor: Colors.light.border, borderRadius: theme.borderRadius.md, paddingHorizontal: 12, paddingVertical: 10, fontSize: 16, color: Colors.light.text, backgroundColor: Colors.light.background },
+    times: { fontSize: theme.fontSize.lg, fontWeight: '800', color: Colors.light.textSecondary, paddingBottom: 10 },
     listHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
     addMore: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 6 },
     addMoreText: { color: primary, fontWeight: '700', fontSize: theme.fontSize.sm },
