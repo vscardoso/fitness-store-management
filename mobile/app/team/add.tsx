@@ -26,8 +26,10 @@ import { capitalizeWords } from '@/utils/format';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useBrandingColors } from '@/store/brandingStore';
 import { checkEmailAvailability } from '@/services/authService';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function AddTeamMemberScreen() {
+  const desktopContent = useDesktopContentStyle();
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const router = useRouter();
@@ -170,7 +172,7 @@ export default function AddTeamMemberScreen() {
       >
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, desktopContent]}
           keyboardShouldPersistTaps="handled"
         >
         {/* Card: Informações Pessoais */}

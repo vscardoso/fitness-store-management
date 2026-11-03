@@ -29,8 +29,10 @@ import { openCustomerConversation } from '@/services/whatsappService';
 import { parseApiError } from '@/utils/apiError';
 import { useAuth } from '@/hooks/useAuth';
 import { isAdminRole, isManagerRole, normalizeRole } from '@/utils/roles';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function CustomerDetailsScreen() {
+  const desktopContent = useDesktopContentStyle();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/customers');
@@ -220,7 +222,7 @@ export default function CustomerDetailsScreen() {
 
       <ScrollView 
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, desktopContent]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

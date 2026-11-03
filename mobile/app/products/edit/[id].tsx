@@ -35,8 +35,10 @@ import { GenderToggle } from '@/components/ui/GenderToggle';
 import { SizePicker } from '@/components/ui/SizePicker';
 import { normalizeGender } from '@/utils/gender';
 import LoadedImage from '@/components/ui/LoadedImage';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function EditProductScreen() {
+  const desktopContent = useDesktopContentStyle();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const brandingColors = useBrandingColors();
@@ -496,7 +498,7 @@ export default function EditProductScreen() {
       >
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, desktopContent]}
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         >

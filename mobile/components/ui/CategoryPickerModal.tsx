@@ -19,6 +19,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { dismissKeyboardBehindModal } from '@/utils/dismissKeyboard';
 import { useKeyboardInset } from '@/hooks/useKeyboardInset';
 import type { Category } from '@/types';
+import { useDesktopSheet } from '@/hooks/useLayout';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -71,6 +72,7 @@ export default function CategoryPickerModal({
   showProductCount = false,
   allowCreate = false,
 }: CategoryPickerModalProps) {
+  const desktopSheet = useDesktopSheet();
   const brandingColors = useBrandingColors();
   const [searchQuery, setSearchQuery] = useState('');
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
@@ -263,6 +265,7 @@ export default function CategoryPickerModal({
       <Animated.View
         style={[
           styles.sheet,
+          desktopSheet.absSheet,
           keyboardInset > 0 && { bottom: keyboardInset, maxHeight: Math.max(240, SCREEN_HEIGHT * 0.84 - keyboardInset), paddingBottom: 12 },
           { transform: [{ translateY: slideAnim }] },
         ]}

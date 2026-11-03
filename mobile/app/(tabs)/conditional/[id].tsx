@@ -50,6 +50,7 @@ import {
 } from '@/types/conditional';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import HScroll from '@/components/ui/HScroll';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 /**
  * Traduz os códigos de forma de pagamento para labels legíveis
@@ -82,6 +83,7 @@ const EMPTY_PROCESSING_ITEMS: Record<number, {
 }> = {};
 
 export default function ConditionalShipmentDetailsScreen() {
+  const desktopContent = useDesktopContentStyle();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -657,7 +659,7 @@ export default function ConditionalShipmentDetailsScreen() {
       >
         <ScrollView
           style={styles.scrollContent}
-          contentContainerStyle={styles.scrollContainer}
+          contentContainerStyle={[styles.scrollContainer, desktopContent]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

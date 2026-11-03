@@ -24,8 +24,10 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { useSupplier, useSupplierProducts, useDeleteSupplier, useUpdateSupplier } from '@/hooks/useSuppliers';
 import { formatDate } from '@/utils/format';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function SupplierDetailScreen() {
+  const desktopContent = useDesktopContentStyle();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const brandingColors = useBrandingColors();
@@ -115,7 +117,7 @@ export default function SupplierDetailScreen() {
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, desktopContent]}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl

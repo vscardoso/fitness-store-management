@@ -15,8 +15,10 @@ import {
   createWhatsappLabel, deleteWhatsappLabel, listWhatsappLabels, updateWhatsappLabel, WaLabel,
 } from '@/services/whatsappService';
 import { parseApiError } from '@/utils/apiError';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function WhatsappLabelsScreen() {
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const c = useChatColors();
   const qc = useQueryClient();
@@ -42,7 +44,7 @@ export default function WhatsappLabelsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
       <PageHeader title="Etiquetas" subtitle="Organize as conversas" showBackButton onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, desktopContent]}>
         <Text style={[styles.note, { color: c.textMuted }]}>
           As etiquetas aparecem só para a equipe e ajudam a filtrar a lista de conversas. Elas não aparecem no app WhatsApp Business do celular.
         </Text>

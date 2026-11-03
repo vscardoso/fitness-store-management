@@ -15,6 +15,7 @@ import { Colors, theme } from '@/constants/Colors';
 import type { MonthlyResult, ExpenseByCategoryItem } from '@/types/expense';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useBrandingColors } from '@/store/brandingStore';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -22,6 +23,7 @@ const MONTHS = [
 ];
 
 export default function MonthlyResultScreen() {
+  const desktopContent = useDesktopContentStyle();
   const brandingColors = useBrandingColors();
   const now = new Date();
   const [year, setYear] = useState(now.getFullYear());
@@ -67,7 +69,7 @@ export default function MonthlyResultScreen() {
           <ActivityIndicator size="large" color={brandingColors.primary} />
         </View>
       ) : data ? (
-        <ScrollView contentContainerStyle={styles.content}>
+        <ScrollView contentContainerStyle={[styles.content, desktopContent]}>
           <PLCard data={data} />
           <ExpenseBreakdown items={data.expenses_by_category} total={data.total_expenses} />
         </ScrollView>

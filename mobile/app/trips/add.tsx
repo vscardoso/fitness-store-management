@@ -23,7 +23,9 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { useEffect, useRef } from 'react';
 
 import { Money } from '@/components/ui/PriceDisplay';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 export default function AddTripScreen() {
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const brandingColors = useBrandingColors();
   const params = useLocalSearchParams<{
@@ -397,7 +399,7 @@ export default function AddTripScreen() {
 
       <KeyboardAwareScreen
         style={styles.content}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, desktopContent]}
       >
           {/* Informações Básicas */}
           <View style={styles.sectionCard}>

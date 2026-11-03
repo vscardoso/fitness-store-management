@@ -53,8 +53,10 @@ import { isManagerRole } from '@/utils/roles';
 import SendToSupplierModal from '@/components/entries/SendToSupplierModal';
 import AddProductToEntryModal from '@/components/entries/AddProductToEntryModal';
 import { setPresetEntry } from '@/utils/presetEntry';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function StockEntryDetailsScreen() {
+  const desktopContent = useDesktopContentStyle();
   const { id, from } = useLocalSearchParams<{ id: string; from?: string }>();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/entries');
@@ -753,7 +755,7 @@ export default function StockEntryDetailsScreen() {
       <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, desktopContent]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
           }

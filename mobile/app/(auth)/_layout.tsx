@@ -7,17 +7,19 @@ import { Stack } from 'expo-router';
 import { useEffect } from 'react';
 import { useRouter } from 'expo-router';
 import { useAuthStore } from '@/store/authStore';
+import { useNavReady } from '@/hooks/useNavReady';
 
 export default function AuthLayout() {
   const router = useRouter();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const navReady = useNavReady();
 
   // Se já autenticado, redirecionar para tabs
   useEffect(() => {
-    if (isAuthenticated) {
+    if (navReady && isAuthenticated) {
       router.replace('/(tabs)');
     }
-  }, [isAuthenticated]);
+  }, [isAuthenticated, navReady]);
 
   return (
     <Stack

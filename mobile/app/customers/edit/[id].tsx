@@ -24,8 +24,10 @@ import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { CustomerUpdate } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function EditCustomerScreen() {
+  const desktopContent = useDesktopContentStyle();
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/customers');
@@ -189,7 +191,7 @@ export default function EditCustomerScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         <ScrollView
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, desktopContent]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >

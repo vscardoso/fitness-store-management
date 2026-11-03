@@ -19,6 +19,7 @@ import { getStorePIX, updateStorePIX, registerCieloPIXWebhook } from '@/services
 import type { StorePIXKey } from '@/services/storeService';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import FeatureGate from '@/components/FeatureGate';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 const PIX_TYPES = [
   { value: 'cpf',    label: 'CPF',             placeholder: '000.000.000-00' },
@@ -61,6 +62,7 @@ type DialogState = {
 const DIALOG_HIDDEN: DialogState = { visible: false, type: 'info', title: '', message: '' };
 
 function PIXKeyScreen() {
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const brandingColors = useBrandingColors();
 
@@ -239,7 +241,7 @@ function PIXKeyScreen() {
 
       <Animated.ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, desktopContent]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >

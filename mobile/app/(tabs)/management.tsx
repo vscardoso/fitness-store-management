@@ -24,6 +24,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import { useAuth } from '@/hooks/useAuth';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 const { width } = Dimensions.get('window');
 
@@ -38,6 +39,7 @@ interface ManagementModule {
 }
 
 export default function ManagementScreen() {
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const { user } = useAuth();
   const brandingColors = useBrandingColors();
@@ -201,7 +203,7 @@ export default function ManagementScreen() {
       <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, desktopContent]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

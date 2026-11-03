@@ -11,6 +11,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import { useChatColors } from '@/hooks/useThemeColors';
 import { getWhatsappAway, saveWhatsappAway, WaHours } from '@/services/whatsappService';
 import { parseApiError } from '@/utils/apiError';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 const DAYS: { key: keyof WaHours; label: string }[] = [
   { key: 'mon', label: 'Segunda' }, { key: 'tue', label: 'Terça' }, { key: 'wed', label: 'Quarta' }, { key: 'thu', label: 'Quinta' },
@@ -23,6 +24,7 @@ const maskTime = (t: string) => {
 };
 
 export default function WhatsappHoursScreen() {
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const c = useChatColors();
   const [enabled, setEnabled] = useState(false);
@@ -64,7 +66,7 @@ export default function WhatsappHoursScreen() {
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
       <PageHeader title="Horário e ausência" subtitle="WhatsApp da loja" showBackButton onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.content, desktopContent]} keyboardShouldPersistTaps="handled">
         <View style={[styles.card, { backgroundColor: c.surface, borderColor: c.border }]}>
           <Text style={[styles.title, { color: c.text }]}>Horário em que a loja atende</Text>
           <Text style={[styles.note, { color: c.textMuted }]}>Horário de Brasília. Dia sem faixa conta como fechado. Use o formato 09:00.</Text>

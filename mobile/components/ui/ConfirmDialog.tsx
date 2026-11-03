@@ -11,6 +11,7 @@ import { Portal, Modal, Text, Button, Surface, IconButton } from 'react-native-p
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
+import { useDesktopDialogStyle } from '@/hooks/useLayout';
 
 export interface ConfirmDialogProps {
   visible: boolean;
@@ -20,6 +21,8 @@ export interface ConfirmDialogProps {
   cancelText?: string;
   onConfirm: () => void;
   onCancel?: () => void;
+  /** Fechar pelo X ou clicando fora. Padrão: onCancel. Use quando o botão de cancelar faz outra coisa (ex.: "Excluir foto"). */
+  onDismiss?: () => void;
   type?: 'danger' | 'warning' | 'info' | 'success';
   details?: string[];
   icon?: keyof typeof Ionicons.glyphMap;
@@ -34,12 +37,14 @@ export default function ConfirmDialog({
   cancelText = 'Cancelar',
   onConfirm,
   onCancel = () => {},
+  onDismiss,
   type = 'warning',
   details = [],
   icon,
   loading = false,
 }: ConfirmDialogProps) {
   const brand = useBrandingColors();
+  const dialogDesktop = useDesktopDialogStyle();
   const getTypeConfig = () => {
     switch (type) {
       case 'danger':
@@ -80,15 +85,15 @@ export default function ConfirmDialog({
     <Portal>
       <Modal
         visible={visible}
-        onDismiss={onCancel}
-        contentContainerStyle={styles.modalContainer}
+        onDismiss={onDismiss ?? onCancel}
+        contentContainerStyle={[styles.modalContainer, dialogDesktop]}
       >
         <Surface style={styles.dialog} elevation={3}>
           {/* Close button */}
           <IconButton
             icon="close"
             size={20}
-            onPress={onCancel}
+            onPress={onDismiss ?? onCancel}
             style={styles.closeButton}
             disabled={loading}
           />

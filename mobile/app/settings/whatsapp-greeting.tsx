@@ -12,8 +12,10 @@ import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getWhatsappGreeting, saveWhatsappGreeting } from '@/services/whatsappService';
 import { parseApiError } from '@/utils/apiError';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function WhatsappGreetingScreen() {
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const brand = useBrandingColors();
   const [enabled, setEnabled] = useState(false);
@@ -58,7 +60,7 @@ export default function WhatsappGreetingScreen() {
   return (
     <View style={styles.container}>
       <PageHeader title="Saudação automática" subtitle="WhatsApp da loja" showBackButton onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.content, desktopContent]} keyboardShouldPersistTaps="handled">
         <View style={styles.card}>
           <View style={styles.row}>
             <View style={{ flex: 1 }}>

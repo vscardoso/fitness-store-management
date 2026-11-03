@@ -21,8 +21,10 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getProducts } from '@/services/productService';
 import { useBrandingColors } from '@/store/brandingStore';
 import { Colors } from '@/constants/Colors';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function HelpScreen() {
+  const desktopContent = useDesktopContentStyle();
   const brandingColors = useBrandingColors();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/more');
@@ -86,7 +88,7 @@ export default function HelpScreen() {
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, desktopContent]}
         showsVerticalScrollIndicator={false}
       >
         {/* Progress Card */}

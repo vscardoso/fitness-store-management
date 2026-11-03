@@ -23,6 +23,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, theme } from '@/constants/Colors';
 import type { DuplicateMatch } from '@/types';
+import { useDesktopSheet } from '@/hooks/useLayout';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -64,6 +65,7 @@ export default function SimilarProductsModal({
   onCreateVariant,
   onCreateNew,
 }: SimilarProductsModalProps) {
+  const desktopSheet = useDesktopSheet();
   const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
   const hasExactBarcode = duplicates.some(isExactBarcode);
@@ -105,6 +107,7 @@ export default function SimilarProductsModal({
       <Animated.View
         style={[
           styles.sheet,
+          desktopSheet.absSheet,
           { transform: [{ translateY: slideAnim }] },
         ]}
       >

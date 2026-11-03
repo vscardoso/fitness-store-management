@@ -28,8 +28,10 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import CategoryPickerModal from '@/components/ui/CategoryPickerModal';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { titleCaseInput } from '@/utils/format';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function AddCategoryScreen() {
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const goBack = () => router.back();
   const brandingColors = useBrandingColors();
@@ -141,7 +143,7 @@ export default function AddCategoryScreen() {
       <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, desktopContent]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >

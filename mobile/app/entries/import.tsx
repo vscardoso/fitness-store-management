@@ -26,6 +26,7 @@ import {
   type ImportRowStatus,
   type ImportSource,
 } from '@/services/stockImportService';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 const STATUS_LABEL: Record<ImportRowStatus, string> = {
   novo_produto: 'Produto novo',
@@ -37,6 +38,7 @@ const STATUS_LABEL: Record<ImportRowStatus, string> = {
 const MAX_SHOWN = 200;
 
 export default function ImportStockScreen() {
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const brand = useBrandingColors();
   const queryClient = useQueryClient();
@@ -122,7 +124,7 @@ export default function ImportStockScreen() {
   return (
     <View style={styles.container}>
       <PageHeader title="Importar estoque" subtitle="Traga as peças que a loja já tem" showBackButton onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.content, desktopContent]} keyboardShouldPersistTaps="handled">
         {result ? (
           <View style={styles.card}>
             <Text style={styles.title}>Estoque importado</Text>

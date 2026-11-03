@@ -11,8 +11,10 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import useBackToList from '@/hooks/useBackToList';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useBrandingColors } from '@/store/brandingStore';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function BrandingScreen() {
+  const desktopContent = useDesktopContentStyle();
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const router = useRouter();
@@ -107,7 +109,7 @@ export default function BrandingScreen() {
         showBackButton
         onBack={goBack}
       />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, desktopContent]}>
 
         {/* Logo */}
         <View style={styles.section}>

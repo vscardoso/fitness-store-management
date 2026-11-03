@@ -21,6 +21,7 @@ import EmptyState from '@/components/ui/EmptyState';
 import type { ProductGrouped, ProductVariant } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { formatVariantLabel } from '@/services/productVariantService';
+import { useDesktopSheet } from '@/hooks/useLayout';
 
 interface ProductSelectionModalProps {
   visible: boolean;
@@ -35,6 +36,7 @@ export default function ProductSelectionModal({
   onSelectProduct,
   hasStock,
 }: ProductSelectionModalProps) {
+  const desktopSheet = useDesktopSheet();
   const brandingColors = useBrandingColors();
   const insets = useSafeAreaInsets();
   const searchRef = useRef<TextInput>(null);
@@ -175,7 +177,7 @@ export default function ProductSelectionModal({
     >
       <Pressable style={styles.backdrop} onPress={onDismiss} />
 
-      <View style={[styles.sheet, { paddingBottom: insets.bottom }]}>
+      <View style={[styles.sheet, desktopSheet.absSheet, { paddingBottom: insets.bottom }]}>
         {/* Header gradiente — padrão BottomSheet */}
         <LinearGradient
           colors={[brandingColors.primary, brandingColors.secondary]}

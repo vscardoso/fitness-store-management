@@ -27,6 +27,7 @@ import {
   type CashSession,
   type MovementKind,
 } from '@/services/cashService';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 // Mesmos motivos do servidor (app/services/cash_register_service.py, REASONS); o servidor recusa qualquer outro.
 const REASONS: Record<MovementKind, { id: string; label: string }[]> = {
@@ -52,6 +53,7 @@ const METHOD_LABEL: Record<string, string> = {
 };
 
 export default function CashScreen() {
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const brand = useBrandingColors();
   const queryClient = useQueryClient();
@@ -137,7 +139,7 @@ export default function CashScreen() {
         rightActions={manager ? [{ icon: 'time-outline', onPress: () => router.push('/cash/history' as any) }] : undefined}
       />
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, desktopContent]}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
       >

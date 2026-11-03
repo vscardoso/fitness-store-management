@@ -17,10 +17,12 @@ import {
   setWhatsappCatalogVisible, WhatsappCatalogStatus,
 } from '@/services/whatsappService';
 import { parseApiError } from '@/utils/apiError';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 type Confirm = null | 'rotate' | 'disable';
 
 export default function WhatsappCatalogScreen() {
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const brand = useBrandingColors();
   const [st, setSt] = useState<CatalogFeedStatus | null>(null);
@@ -124,7 +126,7 @@ export default function WhatsappCatalogScreen() {
   return (
     <View style={styles.container}>
       <PageHeader title="Catálogo do WhatsApp" subtitle="Também vale para o Instagram" showBackButton onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, desktopContent]}>
         {!!error && <Text style={styles.error}>{error}</Text>}
         {!!message && <Text style={[styles.ok, { color: brand.primary }]}>{message}</Text>}
         <View style={styles.card}>

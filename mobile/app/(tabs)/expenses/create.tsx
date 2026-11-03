@@ -22,8 +22,10 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import type { ExpenseCategory, ExpenseCreate } from '@/types/expense';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function CreateExpenseScreen() {
+  const desktopContent = useDesktopContentStyle();
   const brandingColors = useBrandingColors();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -128,7 +130,7 @@ export default function CreateExpenseScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
         <ScrollView
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, desktopContent]}
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets={true}
         >

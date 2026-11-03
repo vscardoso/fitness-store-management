@@ -3,6 +3,7 @@ import { Alert, StyleSheet, View } from 'react-native';
 import { Modal, Portal, Text, Button } from 'react-native-paper';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
+import { useDesktopDialogStyle } from '@/hooks/useLayout';
 
 type AlertButton = {
   text?: string;
@@ -51,6 +52,7 @@ function buttonColor(brand: string, style?: AlertButton['style']) {
 
 export default function GlobalConfirmModalHost() {
   const brandingColors = useBrandingColors();
+  const dialogDesktop = useDesktopDialogStyle();
   const [payload, setPayload] = useState<AlertPayload | null>(null);
 
   useEffect(() => {
@@ -75,7 +77,7 @@ export default function GlobalConfirmModalHost() {
       <Modal
         visible={!!payload}
         onDismiss={close}
-        contentContainerStyle={styles.modalContainer}
+        contentContainerStyle={[styles.modalContainer, dialogDesktop]}
       >
         <View style={styles.card}>
           <Text variant="titleMedium" style={styles.title}>

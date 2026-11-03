@@ -802,6 +802,7 @@ export default function VariantPhotosScreen() {
         setPhotoActionMenuDialog({ visible: false, variant: null, isVariantCover: false });
         if (v) setDeletePhotoConfirmDialog({ visible: true, variant: v });
       }}
+      onDismiss={() => setPhotoActionMenuDialog({ visible: false, variant: null, isVariantCover: false })}
       type="info"
       icon="images"
     />

@@ -37,6 +37,7 @@ import type { SaleWithDetails } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { Money } from '@/components/ui/PriceDisplay';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 const statusMap: Record<string, { label: string; color: string; solid?: boolean; icon: keyof typeof Ionicons.glyphMap }> = {
   pending:            { label: 'Pendente',     color: '#F59E0B', icon: 'time-outline' },
   completed:          { label: 'Concluída',    color: VALUE_COLORS.positive, solid: true, icon: 'checkmark-circle' },
@@ -66,6 +67,7 @@ const paymentIcon: Record<string, string> = {
 };
 
 export default function SaleDetailsScreen() {
+  const desktopContent = useDesktopContentStyle();
   const { id } = useLocalSearchParams<{ id: string }>();
   const saleId = Number(id);
   const { goBack } = useBackToList('/(tabs)/sales');
@@ -268,7 +270,7 @@ export default function SaleDetailsScreen() {
       </Animated.View>
 
       <Animated.ScrollView
-        contentContainerStyle={[styles.scrollContent, sale.status === 'pending' && styles.scrollContentPending]}
+        contentContainerStyle={[styles.scrollContent, sale.status === 'pending' && styles.scrollContentPending, desktopContent]}
         style={contentAnimStyle}
       >
 

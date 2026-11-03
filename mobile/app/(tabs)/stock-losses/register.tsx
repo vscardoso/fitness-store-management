@@ -24,8 +24,10 @@ import { useConditionalProcessingStore } from '@/store/conditionalProcessingStor
 import { useBrandingColors } from '@/store/brandingStore';
 import type { Product } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function StockLossRegisterScreen() {
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const queryClient = useQueryClient();
   const brandingColors = useBrandingColors();
@@ -265,7 +267,7 @@ export default function StockLossRegisterScreen() {
         }}
       >
         <KeyboardAvoidingView style={styles.keyboardView} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView contentContainerStyle={[styles.content, desktopContent]} showsVerticalScrollIndicator={false}>
             {isStandaloneMode && (
               <View style={styles.section}>
                 <View style={styles.sectionHeader}>

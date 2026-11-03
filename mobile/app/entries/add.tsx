@@ -67,6 +67,7 @@ import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import { clearPresetEntry } from '@/utils/presetEntry';
 
 import { Money } from '@/components/ui/PriceDisplay';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 /**
  * Capitaliza a primeira letra de cada palavra no nome do fornecedor
  * Ex: "joão silva" -> "João Silva", "MARIA SANTOS" -> "Maria Santos"
@@ -90,6 +91,7 @@ interface EntryItemForm extends EntryItem {
 }
 
 export default function AddStockEntryScreen() {
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const queryClient = useQueryClient();
   const brandingColors = useBrandingColors();
@@ -1547,7 +1549,7 @@ export default function AddStockEntryScreen() {
       <Animated.View style={[styles.content, contentAnimStyle]}>
         <KeyboardAwareScreen
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, desktopContent]}
         >
         {/* Tipo de Entrada */}
         <View style={styles.section}>

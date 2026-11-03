@@ -36,11 +36,13 @@ import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { Money } from '@/components/ui/PriceDisplay';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 /** Texto do usuário dentro do HTML do PDF. */
 const escapeHtml = (v: string) =>
   v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 export default function SalesReportScreen() {
+  const desktopContent = useDesktopContentStyle();
   const { goBack } = useBackToList('/(tabs)/more');
   const brandingColors = useBrandingColors();
   const storeName = useBrandingStore((s) => s.branding.name);
@@ -636,7 +638,7 @@ export default function SalesReportScreen() {
       <Animated.View style={[styles.contentAnimation, contentAnimStyle]}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, desktopContent]}
           refreshControl={
             <RefreshControl
               refreshing={isLoading}

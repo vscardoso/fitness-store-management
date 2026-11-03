@@ -52,6 +52,7 @@ import {
 } from '@/types/productVariant';
 import HScroll from '@/components/ui/HScroll';
 import { formatPercent } from '@/utils/format';
+import { useDesktopSheet } from '@/hooks/useLayout';
 
 // ─────────────────────────────────────────────────────────────
 // Types
@@ -132,6 +133,7 @@ export default function VariantBuilderInline({
   onVariantQuantitiesChange,
   validationError,
 }: VariantBuilderInlineProps) {
+  const desktopSheet = useDesktopSheet();
   // Modal de edição em lote (por cor)
   const [batchEdit, setBatchEdit] = useState<BatchEditState | null>(null);
 
@@ -817,16 +819,16 @@ export default function VariantBuilderInline({
         onRequestClose={() => setBatchEdit(null)}
       >
         <TouchableOpacity
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, desktopSheet.overlay]}
           onPress={() => setBatchEdit(null)}
           activeOpacity={1}
         >
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ width: '100%' }}
+            style={[{ width: '100%' }, desktopSheet.sheet && { maxWidth: desktopSheet.sheet.maxWidth }]}
           >
             <TouchableOpacity
-              style={styles.modalSheet}
+              style={[styles.modalSheet, desktopSheet.sheet]}
               activeOpacity={1}
               onPress={() => {}}
             >

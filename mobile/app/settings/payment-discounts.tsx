@@ -41,6 +41,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import { useBrandingColors } from '@/store/brandingStore';
 import useBackToList from '@/hooks/useBackToList';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useDesktopSheet } from '@/hooks/useLayout';
 
 /**
  * Métodos de pagamento disponíveis
@@ -61,6 +62,7 @@ interface DiscountFormData {
 }
 
 export default function PaymentDiscountsScreen() {
+  const desktopSheet = useDesktopSheet();
   const { goBack } = useBackToList('/(tabs)/more');
   const queryClient = useQueryClient();
   const brandingColors = useBrandingColors();
@@ -463,10 +465,10 @@ export default function PaymentDiscountsScreen() {
         }}
       >
         <KeyboardAvoidingView
-          style={styles.modalOverlay}
+          style={[styles.modalOverlay, desktopSheet.overlay]}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-          <View style={styles.modalContainer}>
+          <View style={[styles.modalContainer, desktopSheet.sheet]}>
             <ScrollView
               style={styles.modalContent}
               keyboardShouldPersistTaps="handled"

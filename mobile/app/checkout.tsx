@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { useNavReady } from '@/hooks/useNavReady';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Text, TextInput } from 'react-native';
 import KeyboardSafeView from '@/components/ui/KeyboardSafeView';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -211,12 +212,13 @@ export default function CheckoutScreen() {
    * vence a corrida e joga o usuário de volta ao PDV antes da navegação).
    */
   const skipEmptyCartRedirect = useRef(false);
+  const navReady = useNavReady();
   useEffect(() => {
-    if (skipEmptyCartRedirect.current) return;
+    if (!navReady || skipEmptyCartRedirect.current) return;
     if (!cart.hasItems()) {
       router.replace('/(tabs)/sale');
     }
-  }, [cart.items]);
+  }, [cart.items, navReady]);
 
   /**
    * Buscar dados do cliente

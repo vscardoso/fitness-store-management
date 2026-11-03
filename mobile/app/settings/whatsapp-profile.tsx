@@ -13,6 +13,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useChatColors } from '@/hooks/useThemeColors';
 import { getWhatsappProfile, saveWhatsappProfile, WaProfile } from '@/services/whatsappService';
 import { parseApiError } from '@/utils/apiError';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 const VERTICAL_LABEL: Record<string, string> = {
   APPAREL: 'Roupas e acessórios', BEAUTY: 'Beleza e cuidados', RETAIL: 'Varejo', HEALTH: 'Saúde', OTHER: 'Outro',
@@ -22,6 +23,7 @@ const VERTICAL_LABEL: Record<string, string> = {
 };
 
 export default function WhatsappProfileScreen() {
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const c = useChatColors();
   const qc = useQueryClient();
@@ -81,7 +83,7 @@ export default function WhatsappProfileScreen() {
   return (
     <View style={[styles.container, { backgroundColor: c.background }]}>
       <PageHeader title="Perfil do WhatsApp" subtitle="O que a cliente vê" showBackButton onBack={() => router.back()} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.content, desktopContent]} keyboardShouldPersistTaps="handled">
         {isLoading ? (
           <Text style={{ color: c.textMuted }}>Lendo o perfil no WhatsApp…</Text>
         ) : error ? (

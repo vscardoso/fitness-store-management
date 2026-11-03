@@ -24,8 +24,10 @@ import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { CustomerCreate } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function AddCustomerScreen() {
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/customers');
   const createMutation = useCreateCustomer();
@@ -193,7 +195,7 @@ export default function AddCustomerScreen() {
         <KeyboardAvoidingView style={styles.content} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView
             style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
+            contentContainerStyle={[styles.scrollContent, desktopContent]}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
