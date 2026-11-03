@@ -317,3 +317,11 @@ async def test_situacao_do_catalogo_no_whatsapp_le_a_meta_e_liga_a_visibilidade(
     assert d["account"] == {"id": "WABA9", "name": None, "has_number": None}
     r = await test_client.post(f"{ADMIN_API}/whatsapp-visible", json={"visible": True}, headers=h)
     assert r.status_code == 424 and "permission" in r.json()["detail"]
+
+
+async def test_vitrine_publica_aceita_a_origem_loja_no_cors(test_client):
+    """A página loja.provadorfit.com.br busca o produto na API: sem a origem dela no CORS o navegador bloqueava."""
+    r = await test_client.get("/api/v1/public/vitrine/nao-existe/produtos/1", headers={"Origin": "https://loja.provadorfit.com.br"})
+    assert r.headers.get("access-control-allow-origin") == "https://loja.provadorfit.com.br"
+    r = await test_client.get("/api/v1/public/vitrine/nao-existe/produtos/1", headers={"Origin": "https://site-estranho.com"})
+    assert r.headers.get("access-control-allow-origin") is None

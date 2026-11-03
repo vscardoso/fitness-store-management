@@ -107,9 +107,18 @@ app = FastAPI(
 
 
 # CORS Middleware
+# A vitrine pública (loja.provadorfit.com.br) busca o produto nesta API: a origem dela entra sempre, mesmo que o
+# CORS_ORIGINS do servidor não a liste (sem isso a página mostrava "Failed to fetch").
+def _with_store_origin(origins: list) -> list:
+    from urllib.parse import urlparse
+    u = urlparse(settings.PUBLIC_STORE_URL or "")
+    store = f"{u.scheme}://{u.netloc}" if u.scheme and u.netloc else None
+    return origins + [store] if store and store not in origins and "*" not in origins else origins
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins,
+    allow_origins=_with_store_origin(settings.cors_origins),
     allow_credentials=settings.CORS_ALLOW_CREDENTIALS,
     allow_methods=settings.cors_allow_methods,
     allow_headers=settings.cors_allow_headers,
