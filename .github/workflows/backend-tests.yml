@@ -60,6 +60,10 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
     
+    - name: Install system tools for PDF tests
+      # testes da etiqueta leem o PDF gerado com pdftotext/pdfinfo (poppler); sem eles 3 testes falhavam só no CI
+      run: sudo apt-get update -qq && sudo apt-get install -y -qq poppler-utils
+
     - name: Install dependencies
       working-directory: ./backend
       run: |
@@ -91,7 +95,7 @@ jobs:
         ACCESS_TOKEN_EXPIRE_MINUTES: 30
         REFRESH_TOKEN_EXPIRE_DAYS: 7
       run: |
-        pytest tests/ -v --cov=app --cov-report=xml --cov-report=term-missing
+        pytest tests/ -v --cov=app --cov-report=xml --cov-report=term-missing --junitxml=test-results.xml
     
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v7
