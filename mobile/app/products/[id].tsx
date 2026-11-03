@@ -131,6 +131,16 @@ export default function ProductDetailsScreen() {
     ?? productMedia[0]?.url
     ?? null;
 
+  // proporção real da foto: a moldura fica do tamanho dela (sem faixas vazias dos lados nem foto cortada)
+  const [photoRatio, setPhotoRatio] = useState<number | null>(null);
+  useEffect(() => {
+    const uri = getImageUrl(displayImageUrl ?? undefined);
+    if (!uri) return;
+    let vivo = true;
+    Image.getSize(uri, (w, h) => { if (vivo && w > 0 && h > 0) setPhotoRatio(w / h); }, () => {});
+    return () => { vivo = false; };
+  }, [displayImageUrl]);
+
   /**
    * Query: Fornecedores do produto
    */
@@ -446,7 +456,14 @@ export default function ProductDetailsScreen() {
               <TouchableOpacity onPress={() => setShowPhotoModal(true)} activeOpacity={0.85}>
                 <Image
                   source={{ uri: getImageUrl(displayImageUrl) }}
-                  style={[styles.productPhotoPreview, isDesktop && styles.productPhotoPreviewDesktop]}
+                  style={[
+                    styles.productPhotoPreview,
+                    photoRatio
+                      ? isDesktop
+                        ? { height: 420, width: 420 * photoRatio, maxWidth: '100%', alignSelf: 'center' }
+                        : { height: undefined, aspectRatio: photoRatio, maxHeight: 520 }
+                      : isDesktop && styles.productPhotoPreviewDesktop,
+                  ]}
                   resizeMode="contain"
                 />
               </TouchableOpacity>
