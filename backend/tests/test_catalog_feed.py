@@ -1,4 +1,5 @@
-"""Feed de catálogo da Meta: só publicado e com foto, preço e nome do produto, sem marca, token por loja, papel de admin."""
+"""Feed de catálogo da Meta: um item por produto publicado e com foto (cores e tamanhos em estoque na descrição),
+preço e nome do produto, sem marca, token por loja, papel de admin."""
 import csv
 import io
 
@@ -48,19 +49,20 @@ async def test_produto_sem_foto_fica_fora_e_aparece_na_lista_do_admin(test_clien
     st = await _ligar(test_client, h)
     texto, linhas = await _csv(test_client, st["url"])
     assert linhas == []                                                  # sem foto: nada vai
-    assert st["items"] == 0 and st["skipped_no_photo"] == 2 and st["published_products"] == 1
+    assert st["items"] == 0 and st["skipped_no_photo"] == 1 and st["published_products"] == 1
     assert [x["id"] for x in st["missing_photo_products"]] == [p.id]
-    # com foto: as duas variações entram
+    # com foto: o produto entra UMA vez, sem variações (cores e tamanhos vão escritos na descrição)
     await _produto_set(async_session, p.id, image_url="/uploads/products/12.jpg")
     st = (await test_client.get(ADMIN_API, headers=h)).json()
     texto, linhas = await _csv(test_client, st["url"])
-    assert len(linhas) == 2 and st["missing_photo_products"] == []
-    assert {x["item_group_id"] for x in linhas} == {f"p{p.id}"}
+    assert len(linhas) == 1 and st["missing_photo_products"] == [] and st["items"] == 1
+    x = linhas[0]
+    assert x["id"] == f"p{p.id}" and "item_group_id" not in x and "color" not in x and "size" not in x
     # a Meta recebe a versão de 1200 px em pé, não a original (que pode estar deitada com rotação só no EXIF)
-    assert all(x["image_link"] == "https://api.provadorfit.com.br/uploads/products/12.jpg?w=1200" for x in linhas)
-    assert all(x["price"] == "100.00 BRL" and x["condition"] == "new" and x["availability"] == "in stock" for x in linhas)
-    assert all(x["title"].startswith("Legging Troca") for x in linhas)
-    assert {x["id"] for x in linhas} == {f"v{va.id}", f"v{vb.id}"}
+    assert x["image_link"] == "https://api.provadorfit.com.br/uploads/products/12.jpg?w=1200"
+    assert x["price"] == "100.00 BRL" and x["condition"] == "new" and x["availability"] == "in stock"
+    assert x["title"].startswith("Legging Troca")
+    assert x["description"].endswith("Cores disponíveis: Azul. Tamanhos disponíveis: M.")
 
 
 async def test_foto_da_variacao_e_foto_absoluta_do_cloudinary(test_client, async_session, test_user):
@@ -71,9 +73,11 @@ async def test_foto_da_variacao_e_foto_absoluta_do_cloudinary(test_client, async
     await async_session.commit()
     st = await _ligar(test_client, h)
     _, linhas = await _csv(test_client, st["url"])
-    por_id = {x["id"]: x for x in linhas}
-    assert por_id[f"v{va.id}"]["image_link"] == "https://res.cloudinary.com/x/capa.jpg"
-    assert por_id[f"v{vb.id}"]["image_link"] == "https://api.provadorfit.com.br/uploads/products/azul.jpg?w=1200"
+    assert [x["image_link"] for x in linhas] == ["https://res.cloudinary.com/x/capa.jpg"]   # a capa do produto vence
+    # produto sem foto própria: usa a capa de uma variação
+    await _produto_set(async_session, p.id, image_url=None)
+    _, linhas = await _csv(test_client, st["url"])
+    assert [x["image_link"] for x in linhas] == ["https://api.provadorfit.com.br/uploads/products/azul.jpg?w=1200"]
 
 
 async def test_marca_nunca_vai_no_feed(test_client, async_session, test_user):
@@ -85,12 +89,12 @@ async def test_marca_nunca_vai_no_feed(test_client, async_session, test_user):
     baixo = texto.lower()
     for marca in ("nike", "lupo", "zorba"):
         assert marca not in baixo, marca
-    assert len(linhas) == 2 and linhas[0]["title"] == "Legging Cintura Alta"
+    assert len(linhas) == 1 and linhas[0]["title"] == "Legging Cintura Alta"
     assert "Alta compressão" in linhas[0]["description"]
     from app.models.store import Store
     loja = (await async_session.execute(select(Store).where(Store.id == t_id))).scalar_one()
     assert linhas[0]["brand"] == loja.name                                # só o nome da loja
-    assert st["brand_removed"] == 2
+    assert st["brand_removed"] == 1
 
 
 async def test_nome_so_de_marca_sai_do_feed(test_client, async_session, test_user):
@@ -98,7 +102,7 @@ async def test_nome_so_de_marca_sai_do_feed(test_client, async_session, test_use
     await _produto_set(async_session, p.id, image_url="/uploads/x.jpg", name="Nike")
     st = await _ligar(test_client, h)
     _, linhas = await _csv(test_client, st["url"])
-    assert linhas == [] and st["skipped_no_name"] == 2
+    assert linhas == [] and st["skipped_no_name"] == 1
 
 
 async def test_despublicado_inativo_sem_preco_e_sem_estoque(test_client, async_session, test_user):
@@ -107,18 +111,20 @@ async def test_despublicado_inativo_sem_preco_e_sem_estoque(test_client, async_s
     await _produto_set(async_session, p.id, image_url="/uploads/x.jpg")
     st = await _ligar(test_client, h)
     _, linhas = await _csv(test_client, st["url"])
-    por_id = {x["id"]: x for x in linhas}
-    assert por_id[f"v{va.id}"]["availability"] == "in stock" and por_id[f"v{vb.id}"]["availability"] == "out of stock"
-    # variação inativa e preço zerado saem
+    # a variação Azul M está sem peça: o produto segue em estoque (a outra tem) e a grade não cita Azul nem M
+    assert len(linhas) == 1 and linhas[0]["availability"] == "in stock"
+    assert "Azul" not in linhas[0]["description"] and "Tamanhos" not in linhas[0]["description"]
+    # variação sem preço não conta; sem nenhuma com preço, o produto sai
     await async_session.execute(update(ProductVariant).where(ProductVariant.id == vb.id).values(price=0))
     await async_session.commit()
     st = (await test_client.get(ADMIN_API, headers=h)).json()
     _, linhas = await _csv(test_client, st["url"])
-    assert [x["id"] for x in linhas] == [f"v{va.id}"] and st["skipped_no_price"] == 1
+    assert [x["id"] for x in linhas] == [f"p{p.id}"] and st["skipped_no_price"] == 0
     await async_session.execute(update(ProductVariant).where(ProductVariant.id == va.id).values(is_active=False))
     await async_session.commit()
+    st = (await test_client.get(ADMIN_API, headers=h)).json()
     _, linhas = await _csv(test_client, st["url"])
-    assert linhas == []
+    assert linhas == [] and st["skipped_no_price"] == 1
     # produto despublicado some inteiro
     await async_session.execute(update(ProductVariant).where(ProductVariant.id == va.id).values(is_active=True))
     await async_session.commit()
@@ -133,7 +139,7 @@ async def test_csv_com_virgula_aspas_e_quebra_de_linha_na_descricao(test_client,
     await _produto_set(async_session, p.id, image_url="/uploads/x.jpg", description='Top "lindo", confortável\nlinha 2\x07')
     st = await _ligar(test_client, h)
     _, linhas = await _csv(test_client, st["url"])
-    assert linhas[0]["description"] == 'Top "lindo", confortável\nlinha 2'
+    assert linhas[0]["description"].startswith('Top "lindo", confortável\nlinha 2\n\nCores disponíveis: Azul.')
 
 
 async def test_novo_link_invalida_o_antigo_e_desligar_apaga(test_client, async_session, test_user):
@@ -176,10 +182,44 @@ async def test_so_admin_configura_e_cada_loja_ve_so_o_seu(test_client, async_ses
     await _produto_set(async_session, p.id, image_url="/uploads/x.jpg")
     st = await _ligar(test_client, h)
     _, linhas = await _csv(test_client, st["url"])
-    assert len(linhas) == 2 and all(x["item_group_id"] == f"p{p.id}" for x in linhas)
+    assert [x["id"] for x in linhas] == [f"p{p.id}"]
     from tests.test_looks import _sem_override
     _sem_override()   # a API dos testes fixa a loja 1; aqui o tenant vem do usuário
     ho = {"Authorization": f"Bearer {token_outra}", "X-Tenant-Id": str(outra_id)}
     st_o = await _ligar(test_client, ho)
     _, linhas_o = await _csv(test_client, st_o["url"])
-    assert [x["item_group_id"] for x in linhas_o] == [f"p{po_id}"] and st_o["url"] != st["url"]
+    assert [x["id"] for x in linhas_o] == [f"p{po_id}"] and st_o["url"] != st["url"]
+
+
+async def test_um_item_por_produto_menor_preco_grade_em_ordem_e_esgotado(test_client, async_session, test_user):
+    """Várias cores, tamanhos fora de ordem e preços diferentes: um item só, menor preço, só o que tem peça."""
+    from app.models.entry_item import EntryItem
+    from app.models.product_variant import ProductVariant
+    from app.models.stock_entry import StockEntry
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, price_b="89.90")
+    await _produto_set(async_session, p.id, image_url="/uploads/x.jpg")
+    entrada = (await async_session.execute(select(StockEntry).where(StockEntry.tenant_id == t_id))).scalars().first()
+    novas = []
+    for i, (cor, tam, qtd) in enumerate((("Preto", "GG", 2), ("Preto", "P", 1), ("Rosa", "G", 0), ("Azul", "P/M", 3))):
+        v = ProductVariant(product_id=p.id, sku=f"GRD-{p.id}-{i}", color=cor, size=tam, price=120, tenant_id=t_id)
+        async_session.add(v)
+        await async_session.flush()
+        if qtd:
+            async_session.add(EntryItem(entry_id=entrada.id, variant_id=v.id, product_id=p.id, tenant_id=t_id,
+                                        quantity_received=qtd, quantity_remaining=qtd, unit_cost=30, is_active=True))
+        novas.append(v)
+    await async_session.commit()
+    st = await _ligar(test_client, h)
+    _, linhas = await _csv(test_client, st["url"])
+    assert len(linhas) == 1
+    x = linhas[0]
+    assert x["price"] == "89.90 BRL"                               # o menor preço das variações
+    # Rosa G está sem peça: fica de fora; tamanhos em ordem natural (P, P/M, M, GG)
+    assert x["description"].endswith("Cores disponíveis: Azul, Preto. Tamanhos disponíveis: P, P/M, M, GG.")
+    # tudo esgotado: continua no catálogo como indisponível e sem grade
+    from sqlalchemy import update as _upd
+    await async_session.execute(_upd(EntryItem).where(EntryItem.product_id == p.id).values(quantity_remaining=0))
+    await async_session.commit()
+    _, linhas = await _csv(test_client, st["url"])
+    assert linhas[0]["availability"] == "out of stock" and "disponíveis" not in linhas[0]["description"]
+

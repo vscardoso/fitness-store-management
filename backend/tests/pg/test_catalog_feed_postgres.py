@@ -92,11 +92,12 @@ async def test_feed_no_postgres_foto_marca_estoque_e_preco(maker):
 
         feed = await svc.build_feed(db, loja)
         linhas = list(csv.DictReader(io.StringIO(svc.render_csv(feed.items))))
-        por_id = {x["id"]: x for x in linhas}
-        assert set(por_id) == {f"v{v1.id}", f"v{v2.id}"}
-        assert por_id[f"v{v1.id}"]["availability"] == "in stock" and por_id[f"v{v2.id}"]["availability"] == "out of stock"
-        assert por_id[f"v{v2.id}"]["image_link"].endswith("/uploads/products/g.jpg")
-        assert por_id[f"v{v1.id}"]["price"] == "129.90 BRL" and por_id[f"v{v1.id}"]["brand"] == "Loja Feed"
+        assert [x["id"] for x in linhas] == [f"p{com_foto.id}"]          # um item por produto
+        x = linhas[0]
+        assert x["availability"] == "in stock"                             # Preto M tem peça (Preto G não)
+        assert x["image_link"].endswith("/uploads/products/1.jpg?w=1200")
+        assert x["price"] == "129.90 BRL" and x["brand"] == "Loja Feed"
+        assert x["description"].endswith("Cores disponíveis: Preto. Tamanhos disponíveis: M.")
         texto = svc.render_csv(feed.items).lower()
         assert "nike" not in texto and "lupo" not in texto
         assert feed.products == 2 and feed.skipped_no_photo == 1 and [m["name"] for m in feed.missing_photo_products] == ["Top Sem Foto"]

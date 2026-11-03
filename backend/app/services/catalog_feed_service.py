@@ -1,8 +1,9 @@
 """Feed de catálogo para a Meta (WhatsApp, Instagram Shopping e anúncios).
 
-Um item por variação (cor + tamanho) dos produtos publicados (`is_catalog`) e ativos. A Meta lê a URL do feed
-sozinha a cada hora ou dia, então marcar ou desmarcar "publicar" no app reflete no catálogo sem enviar nada.
-Nunca expõe custo nem quantidade: só se a variação tem estoque (`in stock` / `out of stock`).
+Um item por PRODUTO publicado (`is_catalog`) e ativo, sem variações na Meta (decisão do Victor, 2026-11-03): as cores e
+os tamanhos com estoque vão escritos no fim da descrição e a cliente escolhe na conversa. Preço = o menor das variações.
+A Meta lê a URL do feed sozinha a cada hora, então marcar ou desmarcar "publicar" no app reflete no catálogo sem enviar
+nada. Nunca expõe custo nem quantidade: só se há peça (`in stock` / `out of stock`).
 """
 import csv
 import io
@@ -15,11 +16,9 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.utils.variant_grid import size_sort_key
 
-COLUMNS = [
-    "id", "title", "description", "availability", "condition", "price", "link", "image_link",
-    "brand", "color", "size", "item_group_id",
-]
+COLUMNS = ["id", "title", "description", "availability", "condition", "price", "link", "image_link", "brand"]
 TITLE_MAX = 200
 DESCRIPTION_MAX = 5000
 _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
@@ -29,11 +28,11 @@ _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f]")
 class FeedResult:
     items: list = field(default_factory=list)
     products: int = 0                # produtos publicados e ativos
-    skipped_no_photo: int = 0        # variações fora do feed por falta de foto
-    skipped_no_price: int = 0        # variações fora do feed por preço zerado
+    skipped_no_photo: int = 0        # produtos fora do feed por falta de foto
+    skipped_no_price: int = 0        # produtos fora do feed sem nenhuma variação com preço
     products_no_variants: int = 0    # produtos publicados sem nenhuma variação ativa
-    skipped_no_name: int = 0         # variações sem nome depois de tirar marca
-    brand_removed: int = 0           # variações em que um nome de marca foi tirado do título ou da descrição
+    skipped_no_name: int = 0         # produtos sem nome depois de tirar marca
+    brand_removed: int = 0           # produtos em que um nome de marca foi tirado do título ou da descrição
     missing_photo_products: list = field(default_factory=list)  # [{"id", "name"}] de quem ficou fora por falta de foto
 
 
@@ -132,46 +131,65 @@ async def build_feed(db: AsyncSession, store) -> FeedResult:
         else:
             by_product.setdefault(product_id, url)
 
-    seen_products = set()
-    missing: dict = {}
+    # agrupa as variações por produto, na ordem da consulta
+    produtos: dict = {}
     for variant_id, product_id, name, description, brand, image_url, color, size, price, qty in rows:
-        seen_products.add(product_id)
-        if variant_id is None:
+        g = produtos.setdefault(product_id, {"name": name, "description": description, "brand": brand,
+                                             "image_url": image_url, "variants": []})
+        if variant_id is not None:
+            g["variants"].append((variant_id, color, size, price, qty or 0))
+
+    missing: dict = {}
+    for product_id, g in produtos.items():
+        name = g["name"]
+        if not g["variants"]:
             res.products_no_variants += 1
             continue
-        if price is None or float(price) <= 0:
+        com_preco = [v for v in g["variants"] if v[3] is not None and float(v[3]) > 0]
+        if not com_preco:
             res.skipped_no_price += 1
             continue
-        photo = _feed_image(by_variant.get(variant_id) or by_product.get(product_id) or image_url)
+        # capa do produto, depois a foto principal, depois a capa de uma variação
+        photo = _feed_image(by_product.get(product_id) or g["image_url"]
+                            or next((by_variant[v[0]] for v in com_preco if v[0] in by_variant), None))
         if not photo:
             res.skipped_no_photo += 1
-            if product_id not in missing:
-                missing[product_id] = {"id": product_id, "name": _clean(name, TITLE_MAX)}
+            missing.setdefault(product_id, {"id": product_id, "name": _clean(name, TITLE_MAX)})
             continue
-        rx = _brand_regex([brand or ""])
+        rx = _brand_regex([g["brand"] or ""])
         clean_name = _strip_brands(_clean(name, TITLE_MAX), rx)
-        clean_desc = _strip_brands(_clean(description, DESCRIPTION_MAX), rx)
-        if (name and clean_name != _clean(name, TITLE_MAX)) or (description and clean_desc != _clean(description, DESCRIPTION_MAX)):
+        clean_desc = _strip_brands(_clean(g["description"], DESCRIPTION_MAX), rx)
+        if (name and clean_name != _clean(name, TITLE_MAX)) or (
+                g["description"] and clean_desc != _clean(g["description"], DESCRIPTION_MAX)):
             res.brand_removed += 1
-        title = clean_name
-        if not title:
+        if not clean_name:
             res.skipped_no_name += 1
             continue
+        em_estoque = [v for v in com_preco if v[4] > 0]
+        cores = list(dict.fromkeys(_clean(v[1], 60) for v in em_estoque if (v[1] or "").strip()))
+        tamanhos = sorted({_clean(v[2], 30) for v in em_estoque if (v[2] or "").strip()}, key=size_sort_key)
+        partes = []
+        if cores:
+            partes.append("Cores disponíveis: " + ", ".join(cores) + ".")
+        if tamanhos:
+            partes.append("Tamanhos disponíveis: " + ", ".join(tamanhos) + ".")
+        grade = " ".join(partes)
+        base = clean_desc or clean_name
+        if grade:
+            base = base[: DESCRIPTION_MAX - len(grade) - 2].rstrip()
         res.items.append({
-            "id": f"v{variant_id}",
-            "title": title,
-            "description": clean_desc or title,
-            "availability": "in stock" if (qty or 0) > 0 else "out of stock",
+            "id": f"p{product_id}",
+            "title": clean_name,
+            "description": f"{base}\n\n{grade}" if grade else base,
+            "availability": "in stock" if em_estoque else "out of stock",
             "condition": "new",
-            "price": f"{float(price):.2f} BRL",
+            "price": f"{min(float(v[3]) for v in com_preco):.2f} BRL",
             "link": _product_link(store, product_id),
             "image_link": photo,
             "brand": _strip_brands(_clean(store.name, 100), rx) or "Loja",   # marca do produto nunca vai: só o nome da loja
-            "color": _clean(color, 60),
-            "size": _clean(size, 30),
-            "item_group_id": f"p{product_id}",
         })
 
+    seen_products = set(produtos)
     res.products = len(seen_products)
     res.missing_photo_products = list(missing.values())[:50]
     return res
