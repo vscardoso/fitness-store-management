@@ -1,6 +1,7 @@
 """Feed de catálogo para a Meta: URL pública por loja (lida pela Meta) e configuração do admin."""
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +10,7 @@ from app.core.database import get_db, get_db_unscoped
 from app.models.store import Store
 from app.models.user import User
 from app.services import catalog_feed_service as svc
+from app.services import whatsapp_cloud_service as wa
 
 public_router = APIRouter(prefix="/public", tags=["Catálogo Público"])
 router = APIRouter(prefix="/catalog-feed", tags=["Catálogo Meta"])
@@ -92,3 +94,31 @@ async def disable(
     store.catalog_feed_token = None
     await db.commit()
     return await _status(db, store)
+
+
+class CatalogVisibleBody(BaseModel):
+    visible: bool
+
+
+@router.get("/whatsapp-status")
+async def whatsapp_catalog_status(
+    db: AsyncSession = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_active_user),
+):
+    """O que a Meta diz do catálogo no número da loja: visível, carrinho e catálogos ligados à conta."""
+    try:
+        return await wa.catalog_status(db, tenant_id)
+    except wa.SendError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)
+
+
+@router.post("/whatsapp-visible")
+async def whatsapp_catalog_visible(
+    body: CatalogVisibleBody,
+    db: AsyncSession = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id),
+    current_user: User = Depends(get_current_active_user),
+):
+    try:
+        return await wa.set_catalog_visible(db, tenant_id, body.visible)
+    except wa.SendError as e:
+        raise HTTPException(status_code=e.status_code, detail=e.message)

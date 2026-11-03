@@ -253,3 +253,48 @@ async def test_vitrine_publica_do_produto_sem_login_sem_marca_e_so_publicado(tes
     assert (await test_client.get(f"/api/v1/public/vitrine/{slug}/produtos/999999")).status_code == 404
     await _produto_set(async_session, p.id, is_catalog=False)
     assert (await test_client.get(url)).status_code == 404
+
+
+async def test_situacao_do_catalogo_no_whatsapp_le_a_meta_e_liga_a_visibilidade(test_client, async_session, test_user, monkeypatch):
+    """Quadro "Situação no WhatsApp": lê o que a Meta diz do número (Meta simulada) e mostra a recusa dela em texto."""
+    from app.core.config import settings
+    from app.models.whatsapp_cloud import WhatsAppCloudNumber
+    from app.services import whatsapp_cloud_service as wa
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    async_session.add(WhatsAppCloudNumber(tenant_id=t_id, phone_number_id=f"pn-cat-{p.id}", waba_id="WABA9",
+                                          display_phone_number="+55 34 3305-0261"))
+    await async_session.commit()
+    monkeypatch.setattr(settings, "WHATSAPP_CLOUD_ACCESS_TOKEN", "token-de-teste")
+    estado = {"visivel": False}
+    chamadas = []
+
+    async def meta(method, path, params=None):
+        chamadas.append((method, path, params))
+        if path.endswith("/whatsapp_commerce_settings") and method == "GET":
+            return 200, {"data": [{"is_catalog_visible": estado["visivel"], "is_cart_enabled": False, "id": "1"}]}
+        if path.endswith("/whatsapp_commerce_settings") and method == "POST":
+            estado["visivel"] = params["is_catalog_visible"] == "true"
+            return 200, {"success": True}
+        if path == "WABA9/product_catalogs":
+            return 200, {"data": [{"id": "2163562461265872", "name": "Catalog_Products"}]}
+        return 404, {}
+
+    monkeypatch.setattr(wa, "_graph_json", meta)
+    r = await test_client.get(f"{ADMIN_API}/whatsapp-status", headers=h)
+    assert r.status_code == 200, r.text
+    d = r.json()
+    assert d["catalog_visible"] is False and d["cart_enabled"] is False and d["problems"] == []
+    assert d["catalogs"] == [{"id": "2163562461265872", "name": "Catalog_Products"}]
+    r = await test_client.post(f"{ADMIN_API}/whatsapp-visible", json={"visible": True}, headers=h)
+    assert r.status_code == 200 and r.json()["catalog_visible"] is True
+    assert ("POST", f"pn-cat-{p.id}/whatsapp_commerce_settings", {"is_catalog_visible": "true"}) in chamadas
+
+    # a Meta recusa: a frase dela chega na tela (sem 500)
+    async def meta_recusa(method, path, params=None):
+        return 403, {"error": {"message": "(#200) Requires whatsapp_business_management permission", "code": 200}}
+
+    monkeypatch.setattr(wa, "_graph_json", meta_recusa)
+    d = (await test_client.get(f"{ADMIN_API}/whatsapp-status", headers=h)).json()
+    assert d["catalog_visible"] is None and len(d["problems"]) == 2 and "whatsapp_business_management" in d["problems"][0]
+    r = await test_client.post(f"{ADMIN_API}/whatsapp-visible", json={"visible": True}, headers=h)
+    assert r.status_code == 424 and "permission" in r.json()["detail"]

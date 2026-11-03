@@ -963,3 +963,66 @@ async def _tenant_number(db: AsyncSession, tenant_id: int) -> WhatsAppCloudNumbe
     if number is None:
         raise SendError("Esta loja ainda não tem um número oficial do WhatsApp ligado.", 409)
     return number
+
+
+# ── catálogo do número (Graph API: whatsapp_commerce_settings e product_catalogs da conta) ───────────────────────
+# Para descobrir por que a lojinha não aparece para a cliente sem adivinhar: o que a Meta diz do número.
+
+
+async def _graph_json(method: str, path: str, params: Optional[dict] = None) -> tuple[int, dict]:
+    """Chamada à Graph API que nunca levanta erro da Meta: devolve (status, corpo). Falha de rede = (0, {})."""
+    url = f"{settings.WHATSAPP_CLOUD_GRAPH_BASE}/{settings.WHATSAPP_CLOUD_API_VERSION}/{path}"
+    headers = {"Authorization": f"Bearer {settings.WHATSAPP_CLOUD_ACCESS_TOKEN}"}
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.request(method, url, params=params, headers=headers)
+    except httpx.HTTPError:
+        return 0, {}
+    try:
+        data = resp.json() if resp.content else {}
+    except ValueError:
+        data = {}
+    return resp.status_code, data if isinstance(data, dict) else {}
+
+
+def _meta_error(status: int, data: dict) -> str:
+    if status == 0:
+        return "Não consegui falar com o WhatsApp agora."
+    err = data.get("error") or {}
+    msg = (err.get("error_user_msg") or err.get("message") or "").strip()
+    return f"A Meta respondeu {status}" + (f": {msg[:300]}" if msg else ".")
+
+
+async def catalog_status(db: AsyncSession, tenant_id: int) -> dict:
+    if not settings.WHATSAPP_CLOUD_ACCESS_TOKEN:
+        raise SendError("O WhatsApp da loja ainda não está configurado.", 424)
+    number = await _tenant_number(db, tenant_id)
+    out: dict = {"phone": number.display_phone_number, "catalog_visible": None, "cart_enabled": None,
+                 "catalogs": [], "problems": []}
+    st, data = await _graph_json("GET", f"{number.phone_number_id}/whatsapp_commerce_settings")
+    if st == 200:
+        cfg = (data.get("data") or [{}])[0] if isinstance(data.get("data"), list) else {}
+        out["catalog_visible"] = bool(cfg.get("is_catalog_visible"))
+        out["cart_enabled"] = bool(cfg.get("is_cart_enabled"))
+    else:
+        out["problems"].append("Configuração de comércio do número: " + _meta_error(st, data))
+    if number.waba_id:
+        st, data = await _graph_json("GET", f"{number.waba_id}/product_catalogs", {"fields": "id,name"})
+        if st == 200:
+            out["catalogs"] = [{"id": str(c.get("id")), "name": c.get("name")} for c in (data.get("data") or [])]
+        else:
+            out["problems"].append("Catálogos ligados à conta: " + _meta_error(st, data))
+    else:
+        out["problems"].append("O número não tem a conta do WhatsApp Business (WABA) gravada no Provador.")
+    return out
+
+
+async def set_catalog_visible(db: AsyncSession, tenant_id: int, visible: bool) -> dict:
+    if not settings.WHATSAPP_CLOUD_ACCESS_TOKEN:
+        raise SendError("O WhatsApp da loja ainda não está configurado.", 424)
+    number = await _tenant_number(db, tenant_id)
+    st, data = await _graph_json("POST", f"{number.phone_number_id}/whatsapp_commerce_settings",
+                                 {"is_catalog_visible": "true" if visible else "false"})
+    if st != 200 or not data.get("success", False):
+        raise SendError("O WhatsApp não aceitou a mudança. " + _meta_error(st, data), 424)
+    return await catalog_status(db, tenant_id)

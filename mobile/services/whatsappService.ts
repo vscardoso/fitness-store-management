@@ -146,3 +146,18 @@ export const rotateCatalogFeed = async (): Promise<CatalogFeedStatus> =>
 
 export const disableCatalogFeed = async (): Promise<CatalogFeedStatus> =>
   (await api.delete<CatalogFeedStatus>('/catalog-feed')).data;
+
+/** O que a Meta diz do catálogo no número da loja (quadro "Situação no WhatsApp"). */
+export interface WhatsappCatalogStatus {
+  phone: string | null;
+  catalog_visible: boolean | null;
+  cart_enabled: boolean | null;
+  catalogs: { id: string; name: string | null }[];
+  problems: string[];
+}
+
+export const getWhatsappCatalogStatus = async (): Promise<WhatsappCatalogStatus> =>
+  (await api.get<WhatsappCatalogStatus>('/catalog-feed/whatsapp-status', { headers: { 'X-Skip-Loading': 'true' } })).data;
+
+export const setWhatsappCatalogVisible = async (visible: boolean): Promise<WhatsappCatalogStatus> =>
+  (await api.post<WhatsappCatalogStatus>('/catalog-feed/whatsapp-visible', { visible })).data;

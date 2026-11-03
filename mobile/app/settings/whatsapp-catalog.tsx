@@ -5,13 +5,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Platform, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import { Button } from 'react-native-paper';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 
 import PageHeader from '@/components/layout/PageHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import { CatalogFeedStatus, disableCatalogFeed, getCatalogFeed, rotateCatalogFeed } from '@/services/whatsappService';
+import {
+  CatalogFeedStatus, disableCatalogFeed, getCatalogFeed, getWhatsappCatalogStatus, rotateCatalogFeed,
+  setWhatsappCatalogVisible, WhatsappCatalogStatus,
+} from '@/services/whatsappService';
 import { parseApiError } from '@/utils/apiError';
 
 type Confirm = null | 'rotate' | 'disable';
@@ -26,6 +30,29 @@ export default function WhatsappCatalogScreen() {
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
   const [copyFailed, setCopyFailed] = useState(false);
+  const [wa, setWa] = useState<WhatsappCatalogStatus | null>(null);
+  const [waError, setWaError] = useState('');
+  const [waBusy, setWaBusy] = useState(false);
+
+  // pergunta à Meta como está o catálogo no número (sem adivinhar por que a lojinha não aparece)
+  const checkWhatsapp = useCallback(() => {
+    setWaBusy(true);
+    setWaError('');
+    getWhatsappCatalogStatus()
+      .then(setWa)
+      .catch((e) => setWaError(parseApiError(e) || 'Não consegui consultar o WhatsApp.'))
+      .finally(() => setWaBusy(false));
+  }, []);
+  useEffect(checkWhatsapp, [checkWhatsapp]);
+
+  const showOnWhatsapp = () => {
+    setWaBusy(true);
+    setWaError('');
+    setWhatsappCatalogVisible(true)
+      .then(setWa)
+      .catch((e) => setWaError(parseApiError(e) || 'Não consegui ligar o catálogo no WhatsApp.'))
+      .finally(() => setWaBusy(false));
+  };
 
   const load = useCallback(() => {
     getCatalogFeed()
@@ -161,12 +188,48 @@ export default function WhatsappCatalogScreen() {
         </View>
 
         <View style={styles.card}>
+          <Text style={styles.title}>Situação no WhatsApp</Text>
+          <Text style={styles.note}>O que a Meta informa agora sobre o catálogo no número {wa?.phone || 'da loja'}.</Text>
+          {!!waError && <Text style={styles.warn}>{waError}</Text>}
+          {wa && (
+            <>
+              <StatusLine
+                ok={wa.catalog_visible}
+                label="Catálogo visível para as clientes"
+                hint={wa.catalog_visible === false ? 'Desligado: a lojinha não aparece na conversa nem no perfil.' : undefined}
+              />
+              <StatusLine ok={wa.cart_enabled === false ? true : wa.cart_enabled === null ? null : false}
+                label={wa.cart_enabled ? 'Carrinho ligado (a caixa do Provador ainda não lê pedidos)' : 'Carrinho desligado'} />
+              <StatusLine
+                ok={wa.catalogs.length > 0}
+                label={wa.catalogs.length > 0
+                  ? `Catálogo ligado à conta: ${wa.catalogs.map((c) => c.name || c.id).join(', ')}`
+                  : 'Nenhum catálogo ligado à conta do WhatsApp'}
+              />
+              {wa.problems.map((p) => <Text key={p} style={styles.warn}>{p}</Text>)}
+              {wa.catalog_visible === false && (
+                <Button mode="contained" buttonColor={brand.primary} style={styles.single} loading={waBusy} disabled={waBusy}
+                  onPress={showOnWhatsapp}>
+                  Mostrar o catálogo no WhatsApp
+                </Button>
+              )}
+            </>
+          )}
+          <Button mode="outlined" style={styles.single} loading={waBusy && !wa} disabled={waBusy} onPress={checkWhatsapp}>
+            Verificar de novo
+          </Button>
+          <Text style={styles.note}>
+            Tudo certo aqui e a lojinha ainda não aparece? A Meta revisa os produtos antes de mostrar (pode levar até 24 horas).
+          </Text>
+        </View>
+
+        <View style={styles.card}>
           <Text style={styles.title}>Passo a passo na Meta</Text>
-          <Text style={styles.step}>1. No Gerenciador de Comércio da Meta, crie um catálogo de comércio eletrônico.</Text>
-          <Text style={styles.step}>2. Em Itens, adicione itens por feed de dados programado e cole o link acima. Deixe a leitura diária.</Text>
-          <Text style={styles.step}>3. Conecte esse catálogo ao número de WhatsApp da loja.</Text>
-          <Text style={styles.step}>4. No app WhatsApp Business, abra Ferramentas, Catálogo, e deixe o catálogo visível no perfil.</Text>
-          <Text style={styles.note}>Depois disso, publicar ou despublicar um produto aqui muda o catálogo sozinho na próxima leitura.</Text>
+          <Text style={styles.step}>1. No Gerenciador de Comércio da Meta, crie um catálogo de produtos online.</Text>
+          <Text style={styles.step}>2. Adicione produtos por arquivo de dados, use o URL acima e deixe a leitura a cada hora, moeda BRL.</Text>
+          <Text style={styles.step}>3. No Gerenciador do WhatsApp, abra Ferramentas da conta, Catálogo, escolha esse catálogo e conecte ao número.</Text>
+          <Text style={styles.step}>4. Ligue "Mostrar ícone do catálogo" e deixe o carrinho desligado.</Text>
+          <Text style={styles.note}>Depois disso, publicar ou despublicar um produto aqui muda o catálogo sozinho em até 1 hora. Cada produto vai uma vez só, com as cores e os tamanhos que têm peça escritos na descrição.</Text>
         </View>
 
         <View style={styles.card}>
@@ -203,6 +266,20 @@ export default function WhatsappCatalogScreen() {
   );
 }
 
+function StatusLine({ ok, label, hint }: { ok: boolean | null; label: string; hint?: string }) {
+  const icon = ok === null ? 'help-circle-outline' : ok ? 'checkmark-circle' : 'close-circle';
+  const color = ok === null ? Colors.light.textTertiary : ok ? Colors.light.success : Colors.light.error;
+  return (
+    <View style={styles.statusLine}>
+      <Ionicons name={icon} size={18} color={color} />
+      <View style={{ flex: 1 }}>
+        <Text style={styles.statusText}>{label}</Text>
+        {!!hint && <Text style={styles.note}>{hint}</Text>}
+      </View>
+    </View>
+  );
+}
+
 function Stat({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
     <View style={styles.stat}>
@@ -229,5 +306,7 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 20, fontWeight: '700', color: Colors.light.text },
   statLabel: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 },
   error: { color: Colors.light.error, marginTop: 6, marginBottom: 6 },
+  statusLine: { flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 10 },
+  statusText: { fontSize: 14, color: Colors.light.text, fontWeight: '600' },
   ok: { marginTop: 6, marginBottom: 6, fontWeight: '600' },
 });
