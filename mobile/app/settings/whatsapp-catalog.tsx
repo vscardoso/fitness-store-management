@@ -206,6 +206,15 @@ export default function WhatsappCatalogScreen() {
                   ? `Catálogo ligado à conta: ${wa.catalogs.map((c) => c.name || c.id).join(', ')}`
                   : 'Nenhum catálogo ligado à conta do WhatsApp'}
               />
+              {wa.account && (
+                <StatusLine
+                  ok={wa.account.has_number}
+                  label={`Conta consultada: ${wa.account.name || 'sem nome'} (${wa.account.id})`}
+                  hint={wa.account.has_number === false
+                    ? 'O número da loja não pertence a esta conta: o Provador está olhando a conta errada.'
+                    : wa.account.has_number === null ? 'A Meta não respondeu se o número é desta conta.' : undefined}
+                />
+              )}
               {wa.problems.map((p) => <Text key={p} style={styles.warn}>{p}</Text>)}
               {wa.catalog_visible === false && (
                 <Button mode="contained" buttonColor={brand.primary} style={styles.single} loading={waBusy} disabled={waBusy}
@@ -300,7 +309,7 @@ const styles = StyleSheet.create({
   listItem: { fontSize: 14, color: Colors.light.text, marginTop: 6 },
   url: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 8, backgroundColor: Colors.light.background, padding: 10, borderRadius: 8 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
-  single: { marginTop: 12 },
+  single: { marginTop: 12, alignSelf: 'flex-start' },   // botão do tamanho do texto, não da largura do cartão
   stats: { flexDirection: 'row', gap: 8, marginTop: 12 },
   stat: { flex: 1, backgroundColor: Colors.light.background, borderRadius: 12, padding: 10, alignItems: 'center' },
   statValue: { fontSize: 20, fontWeight: '700', color: Colors.light.text },

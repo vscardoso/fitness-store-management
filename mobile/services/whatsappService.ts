@@ -154,6 +154,8 @@ export interface WhatsappCatalogStatus {
   cart_enabled: boolean | null;
   catalogs: { id: string; name: string | null }[];
   problems: string[];
+  /** conta do WhatsApp Business que o Provador consulta e se o número é dela */
+  account: { id: string; name: string | null; has_number: boolean | null } | null;
 }
 
 export const getWhatsappCatalogStatus = async (): Promise<WhatsappCatalogStatus> =>
