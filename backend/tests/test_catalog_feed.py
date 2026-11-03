@@ -63,6 +63,19 @@ async def test_produto_sem_foto_fica_fora_e_aparece_na_lista_do_admin(test_clien
     assert x["price"] == "100.00 BRL" and x["condition"] == "new" and x["availability"] == "in stock"
     assert x["title"].startswith("Legging Troca")
     assert x["description"].endswith("Cores disponíveis: Azul. Tamanhos disponíveis: M.")
+    # link do produto: loja com domínio próprio usa o dela; sem domínio, a vitrine pública (nunca o app do sistema)
+    from app.models.store import Store
+    loja = (await async_session.execute(select(Store).where(Store.id == t_id))).scalar_one()
+    dominio, slug = loja.domain, loja.slug
+    assert x["link"] == f"https://{dominio}/produtos/{p.id}"
+    await async_session.execute(update(Store).where(Store.id == t_id).values(domain=None))
+    await async_session.commit()
+    try:
+        _, linhas = await _csv(test_client, st["url"])
+        assert linhas[0]["link"] == f"https://loja.provadorfit.com.br/{slug}/{p.id}"
+    finally:
+        await async_session.execute(update(Store).where(Store.id == t_id).values(domain=dominio))
+        await async_session.commit()
 
 
 async def test_foto_da_variacao_e_foto_absoluta_do_cloudinary(test_client, async_session, test_user):

@@ -99,7 +99,8 @@ def _product_link(store, product_id: int) -> str:
     domain = (store.domain or "").strip()
     if domain:
         return f"https://{domain}/produtos/{product_id}"
-    return f"{settings.PUBLIC_SITE_URL.rstrip('/')}/produtos/{product_id}?store={store.slug}"
+    # endereço só de vitrine: a cliente nunca cai no sistema da lojista (loja.provadorfit.com.br/{loja}/{produto})
+    return f"{settings.PUBLIC_STORE_URL.rstrip('/')}/{store.slug}/{product_id}"
 
 
 async def build_feed(db: AsyncSession, store) -> FeedResult:
@@ -204,7 +205,7 @@ def render_csv(items: list) -> str:
 
 
 # ── Vitrine pública do produto (link do catálogo da Meta) ────────────────────────────────────────────────────────
-# A cliente toca em "ver no site" no catálogo do WhatsApp e cai em /produtos/{id}?store={slug} do app web, sem login.
+# A cliente toca em "ver no site" no catálogo do WhatsApp e cai em loja.provadorfit.com.br/{slug}/{id}, sem login.
 # Mesmas regras do feed: só produto publicado e ativo, sem marca, sem custo nem quantidade; cores e tamanhos só com peça.
 
 
