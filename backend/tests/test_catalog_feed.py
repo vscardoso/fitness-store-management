@@ -223,3 +223,33 @@ async def test_um_item_por_produto_menor_preco_grade_em_ordem_e_esgotado(test_cl
     _, linhas = await _csv(test_client, st["url"])
     assert linhas[0]["availability"] == "out of stock" and "disponíveis" not in linhas[0]["description"]
 
+
+
+async def test_vitrine_publica_do_produto_sem_login_sem_marca_e_so_publicado(test_client, async_session, test_user):
+    """Link do catálogo da Meta: /produtos/{id}?store={slug} lê esta rota sem login."""
+    from app.models.store import Store
+    from app.models.whatsapp_cloud import WhatsAppCloudNumber
+    t_id, h, p, va, vb = await _cenario(async_session, test_user, price_b="89.90", stock_b=0)
+    await _produto_set(async_session, p.id, image_url="/uploads/products/12.jpg", brand="Zorba",
+                       name="Legging Zorba Cintura Alta", description="Tecido Lupo macio.")
+    loja = (await async_session.execute(select(Store).where(Store.id == t_id))).scalar_one()
+    slug = loja.slug
+    async_session.add(WhatsAppCloudNumber(tenant_id=t_id, phone_number_id=f"pn-vitrine-{p.id}", display_phone_number="+55 34 3305-0261"))
+    await async_session.commit()
+    url = f"/api/v1/public/vitrine/{slug}/produtos/{p.id}"
+    r = await test_client.get(url)   # sem cabeçalho de login
+    assert r.status_code == 200, r.text
+    d = r.json()
+    texto = r.text.lower()
+    for proibido in ("zorba", "lupo", "cost", "quantity", "estoque_"):
+        assert proibido not in texto, proibido
+    assert d["name"] == "Legging Cintura Alta" and d["description"] == "Tecido macio."
+    assert d["price_min"] == 89.9 and d["price_max"] == 100.0 and d["in_stock"] is True
+    assert d["colors"] == [] and d["sizes"] == []          # a variação com peça não tem cor/tamanho; Azul M está sem peça
+    assert d["photos"] == ["https://api.provadorfit.com.br/uploads/products/12.jpg?w=1200"]
+    assert d["store"]["name"] == loja.name and d["store"]["whatsapp"] == "553433050261"
+    # não publicado, loja errada, produto de outra loja e slug inexistente: 404
+    assert (await test_client.get(f"/api/v1/public/vitrine/nao-existe/produtos/{p.id}")).status_code == 404
+    assert (await test_client.get(f"/api/v1/public/vitrine/{slug}/produtos/999999")).status_code == 404
+    await _produto_set(async_session, p.id, is_catalog=False)
+    assert (await test_client.get(url)).status_code == 404

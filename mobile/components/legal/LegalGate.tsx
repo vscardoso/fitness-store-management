@@ -5,7 +5,8 @@ import { useAuthStore } from '@/store/authStore';
 import { getLegalStatus } from '@/services/legalService';
 
 // Telas que não exigem o aceite: a própria tela de aceite, os textos e as telas sem login
-export const LEGAL_FREE_ROUTES = new Set(['aceite-termos', 'termos', 'privacidade', '(auth)']);
+// 'produtos' = vitrine pública do produto (link do catálogo da Meta)
+export const LEGAL_FREE_ROUTES = new Set(['aceite-termos', 'termos', 'privacidade', '(auth)', 'produtos']);
 
 /**
  * Leva para a tela de aceite quem está logado e ainda não aceitou a versão atual dos termos.

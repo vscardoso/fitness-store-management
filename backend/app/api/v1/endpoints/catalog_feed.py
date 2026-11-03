@@ -28,6 +28,18 @@ async def public_feed(token: str, db: AsyncSession = Depends(get_db_unscoped)):
     )
 
 
+@public_router.get("/vitrine/{slug}/produtos/{product_id}")
+async def public_showcase(slug: str, product_id: int, db: AsyncSession = Depends(get_db_unscoped)):
+    """Página pública do produto (link do catálogo da Meta). Só produto publicado; nada de custo, quantidade ou marca."""
+    store = (await db.execute(
+        select(Store).where(Store.slug == slug, Store.is_active == True)  # noqa: E712
+    )).scalars().first()
+    data = await svc.build_showcase(db, store, product_id) if store is not None else None
+    if data is None:
+        raise HTTPException(status_code=404, detail="Produto não encontrado ou não está à venda.")
+    return data
+
+
 async def _status(db: AsyncSession, store: Store) -> dict:
     feed = await svc.build_feed(db, store)
     return {

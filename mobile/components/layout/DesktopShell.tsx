@@ -25,7 +25,8 @@ function WebShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const inAuth = segments[0] === '(auth)';
-  const showSidebar = isDesktop && isAuthenticated && !inAuth && !NO_SIDEBAR.includes(pathname);
+  // /produtos/... é a vitrine pública do produto: nunca com a barra do sistema
+  const showSidebar = isDesktop && isAuthenticated && !inAuth && !NO_SIDEBAR.includes(pathname) && !pathname.startsWith('/produtos/');
 
   // F2 de qualquer tela abre o ponto de venda (no PDV o próprio PDV usa o F2 para nova venda)
   useEffect(() => {

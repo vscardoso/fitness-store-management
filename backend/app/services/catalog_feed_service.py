@@ -201,3 +201,72 @@ def render_csv(items: list) -> str:
     w.writeheader()
     w.writerows(items)
     return out.getvalue()
+
+
+# ── Vitrine pública do produto (link do catálogo da Meta) ────────────────────────────────────────────────────────
+# A cliente toca em "ver no site" no catálogo do WhatsApp e cai em /produtos/{id}?store={slug} do app web, sem login.
+# Mesmas regras do feed: só produto publicado e ativo, sem marca, sem custo nem quantidade; cores e tamanhos só com peça.
+
+
+async def build_showcase(db: AsyncSession, store, product_id: int) -> Optional[dict]:
+    tid = store.id
+    rows = (await db.execute(text("""
+        SELECT pv.id, p.name, p.description, p.brand, p.image_url, pv.color, pv.size, pv.price,
+               COALESCE((SELECT SUM(ei.quantity_remaining) FROM entry_items ei JOIN stock_entries se ON se.id = ei.entry_id
+                         WHERE ei.variant_id = pv.id AND ei.tenant_id = :tid AND ei.is_active = true AND se.is_active = true), 0),
+               p.code_number
+        FROM products p
+        LEFT JOIN product_variants pv ON pv.product_id = p.id AND pv.is_active = true
+        WHERE p.id = :pid AND p.tenant_id = :tid AND p.is_active = true AND p.is_catalog = true
+        ORDER BY pv.id
+    """), {"tid": tid, "pid": product_id})).fetchall()
+    if not rows:
+        return None
+    _vid, name, description, brand, image_url, *_rest = rows[0]
+    code_number = rows[0][9]
+    rx = _brand_regex([brand or ""])
+    title = _strip_brands(_clean(name, TITLE_MAX), rx)
+    if not title:
+        return None
+    variants = [(r[0], r[5], r[6], r[7], r[8] or 0) for r in rows if r[0] is not None and r[7] is not None and float(r[7]) > 0]
+    if not variants:
+        return None
+    em_estoque = [v for v in variants if v[4] > 0]
+
+    media = (await db.execute(text("""
+        SELECT pm.url, pm.variant_id, pm.is_cover, pm.position FROM product_media pm
+        WHERE pm.product_id = :pid AND pm.tenant_id = :tid AND pm.is_active = true AND pm.media_type = 'photo'
+        ORDER BY pm.is_cover DESC, pm.position ASC, pm.id ASC
+    """), {"pid": product_id, "tid": tid})).fetchall()
+    fotos = []
+    for url in [image_url] + [m[0] for m in media if m[1] is None] + [m[0] for m in media if m[1] is not None]:
+        foto = _feed_image(url)
+        if foto and foto not in fotos:
+            fotos.append(foto)
+
+    numero = (await db.execute(text("""
+        SELECT display_phone_number FROM whatsapp_cloud_numbers
+        WHERE tenant_id = :tid AND is_active = true AND display_phone_number IS NOT NULL
+        ORDER BY id LIMIT 1
+    """), {"tid": tid})).scalar()
+    whatsapp = "".join(ch for ch in (numero or "") if ch.isdigit()) or None
+
+    precos = sorted({float(v[3]) for v in variants})
+    return {
+        "id": product_id,
+        "code": f"#{code_number}" if code_number else None,
+        "name": title,
+        "description": _strip_brands(_clean(description, DESCRIPTION_MAX), rx) or None,
+        "price_min": precos[0],
+        "price_max": precos[-1],
+        "in_stock": bool(em_estoque),
+        "colors": list(dict.fromkeys(_clean(v[1], 60) for v in em_estoque if (v[1] or "").strip())),
+        "sizes": sorted({_clean(v[2], 30) for v in em_estoque if (v[2] or "").strip()}, key=size_sort_key),
+        "photos": fotos,
+        "store": {
+            "name": _clean(store.name, 100),
+            "logo_url": _absolute(f"/uploads/{store.logo_path}") if store.logo_path else None,
+            "primary_color": store.primary_color,
+            "whatsapp": whatsapp,
+        },
+    }
