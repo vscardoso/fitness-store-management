@@ -19,6 +19,7 @@ import { getGroupedProducts } from '@/services/productService';
 import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import type { Product, ProductGrouped, ProductVariant } from '@/types';
+import LoadedImage from '@/components/ui/LoadedImage';
 
 /** Produto da lista agrupada no formato `Product` que as telas de entrada já usam. */
 export function groupedToProduct(g: ProductGrouped): Product {
@@ -134,7 +135,7 @@ export function ProductPickerList({ onPick, onNewVariant, markedVariantIds = [],
                 <TouchableOpacity style={styles.cardHead} onPress={() => tapProduct(g)} activeOpacity={0.75} accessibilityRole="button" accessibilityLabel={`Produto ${g.name}`}>
                   <View style={[styles.thumb, { backgroundColor: brand.primary + '14' }]}>
                     {g.image_url ? (
-                      <Image source={{ uri: getThumbUrl(g.image_url, 48) }} style={styles.thumbImg} />
+                      <LoadedImage source={{ uri: getThumbUrl(g.image_url, 48) }} style={styles.thumbImg} />
                     ) : (
                       <Ionicons name="shirt-outline" size={20} color={brand.primary} />
                     )}

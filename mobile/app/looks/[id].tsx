@@ -24,6 +24,7 @@ import type { LookItemResponse } from '@/types/look';
 import type { ProductGrouped } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import FeatureGate from '@/components/FeatureGate';
+import LoadedImage from '@/components/ui/LoadedImage';
 
 function LookDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -257,7 +258,7 @@ function LookItemCard({ item }: { item: LookItemResponse }) {
       <Card.Content style={styles.itemContent}>
         <View style={styles.itemIcon}>
           {item.product_image_url ? (
-            <Image
+            <LoadedImage
               source={{ uri: getThumbUrl(item.product_image_url, 56) }}
               style={styles.itemImage}
               resizeMode="cover"

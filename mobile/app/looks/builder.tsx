@@ -37,6 +37,7 @@ import type { ProductGrouped, ProductVariant } from '@/types';
 import type { Look } from '@/types/look';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import FeatureGate from '@/components/FeatureGate';
+import LoadedImage from '@/components/ui/LoadedImage';
 
 interface SelectedItem {
   product: ProductGrouped;
@@ -392,7 +393,7 @@ function ProductSelectCard({
         <Card.Content style={styles.cardContent}>
           <View style={styles.iconContainer}>
             {product.image_url ? (
-              <Image
+              <LoadedImage
                 source={{ uri: getThumbUrl(product.image_url, 56) }}
                 style={styles.productImage}
                 resizeMode="cover"

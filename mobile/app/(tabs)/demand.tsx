@@ -24,6 +24,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import type { DemandItem } from '@/types/look';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import FeatureGate from '@/components/FeatureGate';
+import LoadedImage from '@/components/ui/LoadedImage';
 
 function DemandScreen() {
   const brandingColors = useBrandingColors();
@@ -49,7 +50,7 @@ function DemandScreen() {
       <View style={styles.cardContent}>
         <View style={styles.iconContainer}>
           {item.product_image_url ? (
-            <Image
+            <LoadedImage
               source={{ uri: getThumbUrl(item.product_image_url, 56) }}
               style={styles.productImage}
               resizeMode="cover"

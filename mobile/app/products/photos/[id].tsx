@@ -46,6 +46,7 @@ import {
 import type { ProductVariant } from '@/types/productVariant';
 import type { ProductMedia } from '@/types/productMedia';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import LoadedImage from '@/components/ui/LoadedImage';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -111,6 +112,9 @@ function compareColors(a: string, b: string): number {
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
+
+// conteúdo centralizado e limitado no notebook (no celular não muda nada)
+const CONTENT_MAX = 960;
 export default function VariantPhotosScreen() {
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/products');
@@ -216,8 +220,12 @@ export default function VariantPhotosScreen() {
   const hasVariants = sortedGroups.length > 1;
 
   const CARD_GAP = theme.spacing.sm;
-  // colorItemWidth: 2 cards por linha no conteúdo (padding md em cada lado + gap entre eles)
-  const colorItemWidth = Math.floor((width - theme.spacing.md * 2 - CARD_GAP) / 2);
+  // Largura real da grade (medida no onLayout): a largura da janela incluía a barra lateral do notebook e cada cor
+  // virava um quadrado enorme. Colunas pela largura: 2 no celular, 3 ou 4 em telas largas.
+  const [gridWidth, setGridWidth] = useState(0);
+  const usable = gridWidth || Math.min(width, CONTENT_MAX) - theme.spacing.md * 2;
+  const cols = usable >= 720 ? 4 : usable >= 480 ? 3 : 2;
+  const colorItemWidth = Math.floor((usable - CARD_GAP * (cols - 1)) / cols);
   // cardSize: usado para o card de produto sem variações (centralizado)
   const cardSize = Math.min(200, colorItemWidth);
 
@@ -444,7 +452,7 @@ export default function VariantPhotosScreen() {
       <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.content}
+          contentContainerStyle={[styles.content, { width: '100%', maxWidth: CONTENT_MAX, alignSelf: 'center' }]}
           showsVerticalScrollIndicator={false}
         >
         <View style={styles.productContextCard}>
@@ -519,7 +527,7 @@ export default function VariantPhotosScreen() {
             <View style={styles.mainPhotoLeft}>
               {productImageUrl ? (
                 <View style={styles.mainPhotoThumb}>
-                  <Image source={{ uri: productImageUrl }} style={styles.mainPhotoImg} />
+                  <LoadedImage source={{ uri: productImageUrl }} style={styles.mainPhotoImg} />
                   {(openingPicker === 'product' || uploadingProduct || deletingMedia === -1) && (
                     <View style={styles.uploadingOverlay}>
                       <ActivityIndicator color="#fff" size="small" />
@@ -549,7 +557,10 @@ export default function VariantPhotosScreen() {
         )}
 
         {/* ── Grid de cores: 2 por linha (só com 2+ variações) ─────── */}
-        {hasVariants && <View style={styles.colorGrid}>
+        {hasVariants && <View style={styles.colorGrid} onLayout={(e) => {
+          const w = Math.floor(e.nativeEvent.layout.width);
+          if (w > 0 && Math.abs(w - gridWidth) > 1) setGridWidth(w);
+        }}>
           {sortedGroups.map(([colorName, colorVariants]) => {
             const hex = colorHex(colorName !== 'Sem cor' ? colorName : null);
             const rep = representativeOf(colorVariants);
@@ -582,7 +593,7 @@ export default function VariantPhotosScreen() {
               >
                 {photo ? (
                   <View style={[styles.photoWrap, { width: colorItemWidth, height: colorItemWidth }]}>
-                    <Image source={{ uri: photo }} style={styles.photo} />
+                    <LoadedImage source={{ uri: photo }} style={styles.photo} />
                     {isBusy && (
                       <View style={styles.uploadingOverlay}>
                         <ActivityIndicator color="#fff" size="small" />
@@ -648,7 +659,7 @@ export default function VariantPhotosScreen() {
           >
             {productImageUrl ? (
               <View style={[styles.photoWrap, { width: cardSize, height: cardSize }]}>
-                <Image source={{ uri: productImageUrl }} style={styles.photo} />
+                <LoadedImage source={{ uri: productImageUrl }} style={styles.photo} />
                 {(openingPicker === 'product' || uploadingProduct || deletingMedia === -1) && (
                   <View style={styles.uploadingOverlay}>
                     <ActivityIndicator color="#fff" size="small" />

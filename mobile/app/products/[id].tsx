@@ -38,6 +38,7 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { PriceRange } from '@/components/ui/PriceDisplay';
 import VariantPricesSheet, { distinctPrices } from '@/components/products/VariantPricesSheet';
 import { useIsDesktop } from '@/hooks/useLayout';
+import LoadedImage from '@/components/ui/LoadedImage';
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -454,15 +455,15 @@ export default function ProductDetailsScreen() {
 
             {displayImageUrl ? (
               <TouchableOpacity onPress={() => setShowPhotoModal(true)} activeOpacity={0.85}>
-                <Image
+                <LoadedImage
                   source={{ uri: getImageUrl(displayImageUrl) }}
                   style={[
                     styles.productPhotoPreview,
                     photoRatio
                       ? isDesktop
                         ? { height: 420, width: 420 * photoRatio, maxWidth: '100%', alignSelf: 'center' }
-                        : { height: undefined, aspectRatio: photoRatio, maxHeight: 520 }
-                      : isDesktop && styles.productPhotoPreviewDesktop,
+                        : { width: '100%', aspectRatio: photoRatio }
+                      : { height: isDesktop ? 420 : 280 },
                   ]}
                   resizeMode="contain"
                 />
@@ -1081,7 +1082,7 @@ export default function ProductDetailsScreen() {
           style={styles.photoModalBg}
           onPress={() => setShowPhotoModal(false)}
         >
-          <Image
+          <LoadedImage
             source={{ uri: getImageUrl(displayImageUrl ?? undefined) }}
             style={styles.photoModalImage}
             resizeMode="contain"
@@ -1171,7 +1172,6 @@ const createStyles = (brand: string) => StyleSheet.create({
   // foto inteira (contain): a peça não pode aparecer cortada
   productPhotoPreview: {
     width: '100%',
-    height: 280,
     borderRadius: theme.borderRadius.lg,
     backgroundColor: Colors.light.backgroundSecondary,
     borderWidth: 1,

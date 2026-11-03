@@ -34,6 +34,7 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { GenderToggle } from '@/components/ui/GenderToggle';
 import { SizePicker } from '@/components/ui/SizePicker';
 import { normalizeGender } from '@/utils/gender';
+import LoadedImage from '@/components/ui/LoadedImage';
 
 export default function EditProductScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -597,7 +598,7 @@ export default function EditProductScreen() {
           <View style={styles.cardContent}>
             {/* Preview da foto capa */}
             {product.image_url ? (
-              <Image source={{ uri: getImageUrl(product.image_url) }} style={styles.productPhotoPreview} />
+              <LoadedImage source={{ uri: getImageUrl(product.image_url) }} style={styles.productPhotoPreview} />
             ) : (
               <View style={styles.productPhotoPlaceholder}>
                 <Ionicons name="images-outline" size={28} color={Colors.light.textTertiary} />

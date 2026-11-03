@@ -15,6 +15,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { BRAND } from '@/constants/Brand';
 import { Money } from '@/components/ui/PriceDisplay';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import LoadedImage from '@/components/ui/LoadedImage';
 
 interface Showcase {
   id: number;
@@ -97,7 +98,7 @@ export default function ProdutoVitrine({ store, id }: { store?: string | null; i
     <SafeAreaView style={styles.fill} edges={['top', 'bottom']}>
       <View style={styles.storeBar}>
         <View style={[styles.page, styles.storeRow]}>
-          {data.store.logo_url ? <Image source={{ uri: data.store.logo_url }} style={styles.logo} /> : null}
+          {data.store.logo_url ? <LoadedImage source={{ uri: data.store.logo_url }} style={styles.logo} /> : null}
           <Text style={styles.storeName} numberOfLines={1}>{data.store.name}</Text>
         </View>
       </View>
@@ -115,7 +116,7 @@ export default function ProdutoVitrine({ store, id }: { store?: string | null; i
                 scrollEventThrottle={100}
               >
                 {data.photos.map((src) => (
-                  <Image key={src} source={{ uri: src }} style={[styles.photo, { width: pageW }]} resizeMode="cover"
+                  <LoadedImage key={src} source={{ uri: src }} style={[styles.photo, { width: pageW }]} resizeMode="cover"
                     accessibilityLabel={`Foto de ${data.name}`} />
                 ))}
               </ScrollView>

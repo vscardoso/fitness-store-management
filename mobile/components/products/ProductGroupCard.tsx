@@ -6,6 +6,7 @@ import { getThumbUrl } from '@/constants/Config';
 import { useBrandingColors } from '@/store/brandingStore';
 import { PriceRange } from '@/components/ui/PriceDisplay';
 import type { ProductGrouped } from '@/types';
+import LoadedImage from '@/components/ui/LoadedImage';
 
 interface ProductGroupCardProps {
   product: ProductGrouped;
@@ -94,7 +95,7 @@ function ProductGroupCardBase({ product, onPress }: ProductGroupCardProps) {
         <View style={styles.content}>
           <View style={[styles.iconContainer, { backgroundColor: brandingColors.primary + '12' }]}>
             {product.image_url && !imageError ? (
-              <Image
+              <LoadedImage
                 source={{ uri: getThumbUrl(product.image_url, 52) }}
                 style={styles.productImage}
                 resizeMode="cover"

@@ -10,6 +10,7 @@ import { parseApiError } from '@/utils/apiError';
 import type { WaMessage } from '@/services/whatsappService';
 import MediaViewer from './MediaViewer';
 import { useChatColors } from '@/hooks/useThemeColors';
+import LoadedImage from '@/components/ui/LoadedImage';
 
 const B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 function toBase64(bytes: Uint8Array): string {
@@ -100,7 +101,7 @@ export default function MessageMedia({ message, mine }: { message: WaMessage; mi
       return (
         <>
           <TouchableOpacity onPress={openPhoto} accessibilityLabel="Abrir foto">
-            <Image source={{ uri: file.uri }} style={styles.photo} resizeMode="cover" />
+            <LoadedImage source={{ uri: file.uri }} style={styles.photo} resizeMode="cover" />
           </TouchableOpacity>
           <MediaViewer visible={viewer} onClose={() => setViewer(false)} kind="image" previewUri={file.uri} uri={full?.uri ?? null} title={name} error={viewerError} />
         </>
