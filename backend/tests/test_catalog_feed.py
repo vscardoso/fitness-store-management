@@ -56,7 +56,8 @@ async def test_produto_sem_foto_fica_fora_e_aparece_na_lista_do_admin(test_clien
     texto, linhas = await _csv(test_client, st["url"])
     assert len(linhas) == 2 and st["missing_photo_products"] == []
     assert {x["item_group_id"] for x in linhas} == {f"p{p.id}"}
-    assert all(x["image_link"] == "https://api.provadorfit.com.br/uploads/products/12.jpg" for x in linhas)
+    # a Meta recebe a versão de 1200 px em pé, não a original (que pode estar deitada com rotação só no EXIF)
+    assert all(x["image_link"] == "https://api.provadorfit.com.br/uploads/products/12.jpg?w=1200" for x in linhas)
     assert all(x["price"] == "100.00 BRL" and x["condition"] == "new" and x["availability"] == "in stock" for x in linhas)
     assert all(x["title"].startswith("Legging Troca") for x in linhas)
     assert {x["id"] for x in linhas} == {f"v{va.id}", f"v{vb.id}"}
@@ -72,7 +73,7 @@ async def test_foto_da_variacao_e_foto_absoluta_do_cloudinary(test_client, async
     _, linhas = await _csv(test_client, st["url"])
     por_id = {x["id"]: x for x in linhas}
     assert por_id[f"v{va.id}"]["image_link"] == "https://res.cloudinary.com/x/capa.jpg"
-    assert por_id[f"v{vb.id}"]["image_link"] == "https://api.provadorfit.com.br/uploads/products/azul.jpg"
+    assert por_id[f"v{vb.id}"]["image_link"] == "https://api.provadorfit.com.br/uploads/products/azul.jpg?w=1200"
 
 
 async def test_marca_nunca_vai_no_feed(test_client, async_session, test_user):

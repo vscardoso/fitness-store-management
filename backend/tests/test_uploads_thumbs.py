@@ -42,11 +42,11 @@ async def test_miniatura_e_bem_menor_e_tem_o_tamanho_pedido(test_client: AsyncCl
 async def test_pedido_vira_o_menor_tamanho_permitido_e_acima_do_teto_fica_no_teto(test_client: AsyncClient):
     nome = f"thumb_{uuid.uuid4().hex[:8]}.jpg"
     _foto("products", nome, size=(2000, 2000))
-    for pedido, esperado in ((50, 96), (97, 160), (200, 240), (401, 800), (5000, 800)):
+    for pedido, esperado in ((50, 96), (97, 160), (200, 240), (401, 800), (801, 1200), (5000, 1200)):
         r = await test_client.get(f"/uploads/products/{nome}", params={"w": pedido})
         assert max(Image.open(io.BytesIO(r.content)).size) == esperado, pedido
     existentes = sorted(p.name for p in (BASE / "_thumbs").iterdir() if (p / "products" / f"{nome}.jpg").exists())
-    assert existentes == ["160", "240", "800", "96"] or set(existentes) == {"96", "160", "240", "800"}   # nunca w=97, w=401...
+    assert set(existentes) == {"96", "160", "240", "800", "1200"}   # nunca w=97, w=401...
 
 
 async def test_parametro_invalido_serve_o_original(test_client: AsyncClient):
@@ -119,3 +119,19 @@ async def test_arquivo_que_diz_ser_jpg_mas_e_lixo_serve_sem_quebrar(test_client:
     (BASE / "products" / nome).write_bytes(b"isto nao e uma imagem")
     r = await test_client.get(f"/uploads/products/{nome}", params={"w": 96})
     assert r.status_code == 200    # cai no original (o app mostra o ícone se não abrir), nunca erro 500
+
+
+async def test_foto_deitada_com_rotacao_da_camera_sai_em_pe_no_tamanho_do_catalogo(test_client: AsyncClient):
+    """Foto antiga gravada deitada (4032 x 3024) com a rotação só no EXIF: a Meta ignora o EXIF e mostrava a faixa deitada."""
+    nome = f"exif_{uuid.uuid4().hex[:8]}.jpg"
+    (BASE / "products").mkdir(parents=True, exist_ok=True)
+    im = Image.blend(Image.effect_noise((2400, 1800), 60).convert("RGB"), Image.new("RGB", (2400, 1800), (200, 180, 120)), 0.5)
+    exif = Image.Exif()
+    exif[274] = 6   # câmera: girar 90 graus para mostrar
+    im.save(BASE / "products" / nome, format="JPEG", quality=88, exif=exif.tobytes())
+    r = await test_client.get(f"/uploads/products/{nome}", params={"w": 1200})
+    assert r.status_code == 200 and r.headers["content-type"] == "image/jpeg"
+    out = Image.open(io.BytesIO(r.content))
+    assert out.size == (900, 1200)                      # em pé, lado maior 1200
+    assert out.getexif().get(274) in (None, 1)          # sem rotação pendente para a Meta ignorar
+

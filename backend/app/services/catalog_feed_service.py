@@ -81,6 +81,21 @@ def _absolute(url: Optional[str]) -> Optional[str]:
     return f"{settings.PUBLIC_API_URL.rstrip('/')}/{url.lstrip('/')}"
 
 
+# Foto que vai para a Meta: a versão de 1200 px gerada pelo /uploads, já em pé. As fotos antigas foram gravadas deitadas
+# com a rotação só na marcação da câmera (EXIF), que a Meta ignora: o catálogo mostrava uma faixa da foto deitada.
+FEED_IMAGE_WIDTH = 1200
+
+
+def _feed_image(url: Optional[str]) -> Optional[str]:
+    full = _absolute(url)
+    if not full:
+        return None
+    base = settings.PUBLIC_API_URL.rstrip('/') + "/uploads/"
+    if full.startswith(base) and "?" not in full:
+        return f"{full}?w={FEED_IMAGE_WIDTH}"
+    return full
+
+
 def _product_link(store, product_id: int) -> str:
     domain = (store.domain or "").strip()
     if domain:
@@ -127,7 +142,7 @@ async def build_feed(db: AsyncSession, store) -> FeedResult:
         if price is None or float(price) <= 0:
             res.skipped_no_price += 1
             continue
-        photo = _absolute(by_variant.get(variant_id) or by_product.get(product_id) or image_url)
+        photo = _feed_image(by_variant.get(variant_id) or by_product.get(product_id) or image_url)
         if not photo:
             res.skipped_no_photo += 1
             if product_id not in missing:

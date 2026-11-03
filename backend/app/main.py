@@ -199,7 +199,7 @@ class UploadsStaticFiles(StaticFiles):
     IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
     # Miniaturas sob demanda: GET /uploads/products/12.jpg?w=160. Só estes tamanhos existem (o pedido vira o menor
     # que o comporta), para ninguém encher o disco pedindo w=101, w=102...
-    THUMB_WIDTHS = (96, 160, 240, 400, 800)
+    THUMB_WIDTHS = (96, 160, 240, 400, 800, 1200)   # 1200: foto do catálogo da Meta (feed)
     THUMB_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
     # Nome com 10 hex únicos (product_media: product_5_ab12cd34ef_media.jpg) nunca é regravado: cache de 1 ano
     UNIQUE_NAME = re.compile(r"_[0-9a-f]{10}_")
