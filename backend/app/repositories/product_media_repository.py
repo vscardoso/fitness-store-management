@@ -51,8 +51,10 @@ class ProductMediaRepository:
         is_cover: bool = False,
         media_type: str = "photo",
         variant_id: Optional[int] = None,
+        tenant_id: Optional[int] = None,
     ) -> ProductMedia:
         media = ProductMedia(
+            tenant_id=tenant_id,   # sem isso a foto ficava sem loja (vitrine e RLS não a enxergavam)
             product_id=product_id,
             variant_id=variant_id,
             url=url,

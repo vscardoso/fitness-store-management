@@ -193,6 +193,48 @@ async def delete_product_media(
 
 
 @router.put(
+    "/{product_id}/cover-variant",
+    summary="Usar a foto de uma cor como capa do produto",
+)
+async def set_product_cover_variant(
+    product_id: int,
+    variant_id: int = Body(..., embed=True),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    svc = ProductMediaService(db)
+    try:
+        product = await svc.set_product_cover_variant(product_id, variant_id, tenant_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return {"id": product.id, "image_url": product.image_url}
+
+
+@router.post(
+    "/{product_id}/main-photo/assign",
+    response_model=ProductMediaResponse,
+    summary="Passar a foto principal (sem cor) para uma cor",
+)
+async def assign_main_photo_to_variant(
+    product_id: int,
+    variant_id: int = Body(..., embed=True),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_role([UserRole.ADMIN, UserRole.MANAGER])),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    svc = ProductMediaService(db)
+    try:
+        return await svc.assign_main_photo_to_variant(product_id, variant_id, tenant_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except LookupError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.put(
     "/{product_id}/media/reorder",
     response_model=List[ProductMediaResponse],
     summary="Reordenar fotos da galeria",

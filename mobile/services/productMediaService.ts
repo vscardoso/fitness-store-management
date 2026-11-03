@@ -95,6 +95,18 @@ export async function setProductMediaAsCover(
   return data;
 }
 
+/** "Usar como capa": a foto da cor vira a capa do produto (lista de produtos, catálogo e vitrine). */
+export async function setProductCoverVariant(productId: number, variantId: number): Promise<{ id: number; image_url: string | null }> {
+  const { data } = await api.put(`/products/${productId}/cover-variant`, { variant_id: variantId });
+  return data;
+}
+
+/** Foto principal antiga, sem cor: passa para a cor certa sem enviar de novo. */
+export async function assignMainPhotoToVariant(productId: number, variantId: number): Promise<ProductMedia> {
+  const { data } = await api.post<ProductMedia>(`/products/${productId}/main-photo/assign`, { variant_id: variantId });
+  return data;
+}
+
 export async function deleteProductMedia(
   productId: number,
   mediaId: number,

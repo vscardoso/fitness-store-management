@@ -42,6 +42,8 @@ import {
   uploadProductMediaWithFallback,
   setProductMediaAsCover,
   deleteProductMedia,
+  setProductCoverVariant,
+  assignMainPhotoToVariant,
 } from '@/services/productMediaService';
 import type { ProductVariant } from '@/types/productVariant';
 import type { ProductMedia } from '@/types/productMedia';
@@ -357,10 +359,27 @@ export default function VariantPhotosScreen() {
     return m ? (getImageUrl(m.url) ?? null) : null;
   };
 
+  // CAPA = a cor cuja foto é a foto do produto (lista de produtos, catálogo da Meta e vitrine)
   const isCover = (v: ProductVariant) => {
     const m = variantCoverMap.get(v.id);
-    return !!m && m.is_cover;
+    return !!m && !!product?.image_url && m.url === product.image_url;
   };
+  // foto principal antiga, sem cor (só no produto ou na galeria sem cor): pergunta de qual cor ela é
+  const mainIsAColor = !!product?.image_url && [...variantCoverMap.values()].some((m) => m.url === product.image_url);
+  const looseUrl = hasVariants && product?.image_url && !mainIsAColor ? product.image_url : null;
+  const [assigning, setAssigning] = useState<number | null>(null);
+  const assignLoose = useCallback(async (variant: ProductVariant) => {
+    if (!looseUrl) return;
+    setAssigning(variant.id);
+    try {
+      await assignMainPhotoToVariant(productId, variant.id);
+      await invalidateProductQueries();
+    } catch (err: any) {
+      setUploadErrorDialog({ visible: true, message: err?.response?.data?.detail ?? 'Não foi possível passar a foto para esta cor.' });
+    } finally {
+      setAssigning(null);
+    }
+  }, [productId, looseUrl, invalidateProductQueries]);
 
   const handleSetAsCover = useCallback(async (variant: ProductVariant) => {
     const media = variantCoverMap.get(variant.id);
@@ -377,7 +396,7 @@ export default function VariantPhotosScreen() {
     );
 
     try {
-      await setProductMediaAsCover(productId, media.id);
+      await setProductCoverVariant(productId, variant.id);
       await invalidateProductQueries();
     } catch {
       // Rollback em caso de erro
@@ -507,53 +526,44 @@ export default function VariantPhotosScreen() {
           <Ionicons name="information-circle" size={18} color={Colors.light.info} />
           <Text style={styles.infoText}>
             {hasVariants
-              ? 'Foto principal: exibida na lista de produtos. Fotos por cor: exibidas no catálogo.'
+              ? 'A cor com a estrela CAPA é a foto do produto na lista, no catálogo e na vitrine. Segure a foto de outra cor para usá-la como capa.'
               : 'Toque para adicionar foto • Segure para excluir.'}
           </Text>
         </View>
 
-        {/* ── Foto principal (nível produto) — editável / exclusível ─── */}
-        {hasVariants && (
-          <TouchableOpacity
-            style={styles.mainPhotoCard}
-            onPress={pickAndUploadProduct}
-            onLongPress={() => {
-              if (!productImageUrl) return;
-              setDeleteProductPhotoDialog(true);
-            }}
-            disabled={openingPicker === 'product' || uploadingProduct || deletingMedia === -1}
-            activeOpacity={0.75}
-          >
-            <View style={styles.mainPhotoLeft}>
-              {productImageUrl ? (
-                <View style={styles.mainPhotoThumb}>
-                  <LoadedImage source={{ uri: productImageUrl }} style={styles.mainPhotoImg} />
-                  {(openingPicker === 'product' || uploadingProduct || deletingMedia === -1) && (
-                    <View style={styles.uploadingOverlay}>
-                      <ActivityIndicator color="#fff" size="small" />
-                    </View>
-                  )}
-                </View>
-              ) : (
-                <View style={[styles.mainPhotoThumb, styles.mainPhotoPlaceholder]}>
-                  {openingPicker === 'product' || uploadingProduct ? (
-                    <ActivityIndicator color={brandingColors.primary} size="small" />
-                  ) : (
-                    <Ionicons name="image-outline" size={24} color={Colors.light.textTertiary} />
-                  )}
-                </View>
-              )}
+        {/* ── Foto principal antiga, sem cor: de qual cor ela é? ─── */}
+        {looseUrl && (
+          <View style={styles.looseCard}>
+            <View style={styles.looseTop}>
+              <View style={styles.mainPhotoThumb}>
+                <LoadedImage source={{ uri: getImageUrl(looseUrl) }} style={styles.mainPhotoImg} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.mainPhotoLabel}>Esta foto principal é de qual cor?</Text>
+                <Text style={styles.mainPhotoSub}>Toque na cor: a foto passa para ela e continua sendo a capa, sem enviar de novo.</Text>
+              </View>
             </View>
-            <View style={styles.mainPhotoInfo}>
-              <Text style={styles.mainPhotoLabel}>Foto principal</Text>
-              <Text style={styles.mainPhotoSub}>
-                {productImageUrl ? 'Toque para substituir • Segure para excluir' : 'Toque para adicionar'}
-              </Text>
+            <View style={styles.looseChips}>
+              {sortedGroups.map(([colorName, colorVariants]) => {
+                const rep = representativeOf(colorVariants);
+                return (
+                  <TouchableOpacity
+                    key={colorName}
+                    style={styles.looseChip}
+                    onPress={() => assignLoose(rep)}
+                    disabled={assigning !== null}
+                    accessibilityRole="button"
+                    accessibilityLabel={`A foto é da cor ${colorName}`}
+                  >
+                    {assigning === rep.id
+                      ? <ActivityIndicator size="small" color={brandingColors.primary} />
+                      : colorName !== 'Sem cor' && <View style={[styles.colorDot, { backgroundColor: colorHex(colorName) }]} />}
+                    <Text style={styles.looseChipText}>{colorName}</Text>
+                  </TouchableOpacity>
+                );
+              })}
             </View>
-            {productImageUrl && openingPicker !== 'product' && !uploadingProduct && deletingMedia !== -1 && (
-              <Ionicons name="checkmark-circle" size={18} color={Colors.light.success} />
-            )}
-          </TouchableOpacity>
+          </View>
         )}
 
         {/* ── Grid de cores: 2 por linha (só com 2+ variações) ─────── */}
@@ -751,7 +761,7 @@ export default function VariantPhotosScreen() {
     <ConfirmDialog
       visible={coverErrorDialog}
       title="Erro"
-      message="Não foi possível definir esta variação como capa do produto."
+      message="Não foi possível usar esta cor como capa do produto."
       confirmText="OK"
       onConfirm={() => setCoverErrorDialog(false)}
       onCancel={() => setCoverErrorDialog(false)}
@@ -789,8 +799,8 @@ export default function VariantPhotosScreen() {
     <ConfirmDialog
       visible={photoActionMenuDialog.visible}
       title={product?.name ?? 'Foto da variação'}
-      message="O que deseja fazer com esta foto?"
-      confirmText="Definir como capa"
+      message="Usar esta cor como capa do produto (lista, catálogo e vitrine) ou excluir a foto?"
+      confirmText="Usar como capa"
       cancelText="Excluir foto"
       onConfirm={() => {
         const v = photoActionMenuDialog.variant;
@@ -1004,6 +1014,21 @@ const styles = StyleSheet.create({
   },
 
   // Grid de cores: 2 por linha
+  looseCard: {
+    backgroundColor: Colors.light.card,
+    borderRadius: theme.borderRadius.xl,
+    borderWidth: 1,
+    borderColor: Colors.light.warning + '55',
+    padding: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  looseTop: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
+  looseChips: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm },
+  looseChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: 999, borderWidth: 1.5, borderColor: Colors.light.border, backgroundColor: Colors.light.background,
+  },
+  looseChipText: { fontSize: theme.fontSize.sm, fontWeight: '700', color: Colors.light.text },
   colorGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
