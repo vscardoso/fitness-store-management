@@ -37,6 +37,8 @@ import { startHistoryTrail, trailRoute } from '@/utils/navTrail';
 import { startQueryPersist } from '@/utils/queryPersist';
 import { LegalGate } from '@/components/legal/LegalGate';
 import DesktopShell from '@/components/layout/DesktopShell';
+import ProdutoVitrine from '@/components/vitrine/ProdutoVitrine';
+import { vitrineFromLocation } from '@/utils/vitrineUrl';
 import { registerQueryClient } from '@/utils/queryCache';
 
 // TEMP: Sentry desabilitado por conflito de versão
@@ -88,7 +90,22 @@ function tintColor(hex: string, amount: number): string {
   return `#${ch.join('')}`;
 }
 
+// Endereço só de vitrine (loja.provadorfit.com.br/{slug}/{id}): a cliente vê só o produto, nunca o sistema da lojista
+// (sem login, menus, barra lateral, termos nem tutorial). Lido uma vez: o endereço não muda sem recarregar a página.
+const VITRINE = vitrineFromLocation();
+
 export default function RootLayout() {
+  if (VITRINE) {
+    return (
+      <SafeAreaProvider>
+        <ProdutoVitrine store={VITRINE.slug} id={VITRINE.id} />
+      </SafeAreaProvider>
+    );
+  }
+  return <AppLayout />;
+}
+
+function AppLayout() {
   const segments = useSegments();
   const router = useRouter();
   const pathname = usePathname();
