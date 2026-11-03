@@ -200,11 +200,15 @@ export default function WhatsappCatalogScreen() {
               />
               <StatusLine ok={wa.cart_enabled === false ? true : wa.cart_enabled === null ? null : false}
                 label={wa.cart_enabled ? 'Carrinho ligado (a caixa do Provador ainda não lê pedidos)' : 'Carrinho desligado'} />
+              {/* lista vazia SEM erro = o acesso do Provador (token sem permissão de catálogos) não enxerga; não é prova de que
+                  falta o catálogo: o Gerenciador do WhatsApp é quem mostra a ligação */}
               <StatusLine
-                ok={wa.catalogs.length > 0}
+                ok={wa.catalogs.length > 0 ? true : null}
                 label={wa.catalogs.length > 0
                   ? `Catálogo ligado à conta: ${wa.catalogs.map((c) => c.name || c.id).join(', ')}`
-                  : 'Nenhum catálogo ligado à conta do WhatsApp'}
+                  : 'Catálogo ligado: não confirmado pelo Provador'}
+                hint={wa.catalogs.length > 0 ? undefined
+                  : 'O acesso do Provador à Meta não tem permissão para listar catálogos. Confira a ligação no Gerenciador do WhatsApp, em Ferramentas da conta, Catálogo.'}
               />
               {wa.account && (
                 <StatusLine
