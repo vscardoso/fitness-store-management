@@ -37,6 +37,7 @@ import { VALUE_COLORS } from '@/constants/Colors';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { PriceRange } from '@/components/ui/PriceDisplay';
 import VariantPricesSheet, { distinctPrices } from '@/components/products/VariantPricesSheet';
+import { useIsDesktop } from '@/hooks/useLayout';
 
 export default function ProductDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -49,6 +50,8 @@ export default function ProductDetailsScreen() {
 
   // Validar ID do produto
   const productId = id ? parseInt(id as string) : NaN;
+  // notebook: a tela se esticava na largura toda (cartões vazios e foto cortada numa faixa)
+  const isDesktop = useIsDesktop();
   const isValidId = !isNaN(productId) && productId > 0;
 
   // Se ID inválido, redirecionar imediatamente
@@ -347,7 +350,7 @@ export default function ProductDetailsScreen() {
 
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, isDesktop && styles.scrollContentDesktop]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -441,7 +444,11 @@ export default function ProductDetailsScreen() {
 
             {displayImageUrl ? (
               <TouchableOpacity onPress={() => setShowPhotoModal(true)} activeOpacity={0.85}>
-                <Image source={{ uri: getImageUrl(displayImageUrl) }} style={styles.productPhotoPreview} />
+                <Image
+                  source={{ uri: getImageUrl(displayImageUrl) }}
+                  style={[styles.productPhotoPreview, isDesktop && styles.productPhotoPreviewDesktop]}
+                  resizeMode="contain"
+                />
               </TouchableOpacity>
             ) : (
               <View style={styles.productPhotoPlaceholder}>
@@ -1106,6 +1113,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   loadingText: { marginTop: 12, color: Colors.light.textSecondary, fontSize: 14 },
   scrollView: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 32 },
+  scrollContentDesktop: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24 },
 
   // ── Quick Stats Grid ──
   quickGrid: {
@@ -1143,14 +1151,16 @@ const createStyles = (brand: string) => StyleSheet.create({
     letterSpacing: 0.6,
     marginBottom: 3,
   },
+  // foto inteira (contain): a peça não pode aparecer cortada
   productPhotoPreview: {
     width: '100%',
-    height: 220,
+    height: 280,
     borderRadius: theme.borderRadius.lg,
     backgroundColor: Colors.light.backgroundSecondary,
     borderWidth: 1,
     borderColor: Colors.light.border,
   },
+  productPhotoPreviewDesktop: { height: 420 },
   productPhotoPlaceholder: {
     width: '100%',
     minHeight: 120,
@@ -1190,7 +1200,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  quickValue: { fontSize: 15, fontWeight: '800', color: Colors.light.text },
+  quickValue: { fontSize: 18, fontWeight: '800', color: Colors.light.text },
   quickSub: { fontSize: 10, color: Colors.light.textTertiary, marginTop: 2 },
 
   // ── Cards ──
