@@ -277,6 +277,10 @@ async def test_situacao_do_catalogo_no_whatsapp_le_a_meta_e_liga_a_visibilidade(
             return 200, {"success": True}
         if path == "WABA9/product_catalogs":
             return 200, {"data": [{"id": "2163562461265872", "name": "Catalog_Products"}]}
+        if path == "WABA9":
+            return 200, {"id": "WABA9", "name": "W A Moda Fitness"}
+        if path == "WABA9/phone_numbers":
+            return 200, {"data": [{"id": f"pn-cat-{p.id}", "display_phone_number": "+55 34 3305-0261"}]}
         return 404, {}
 
     monkeypatch.setattr(wa, "_graph_json", meta)
@@ -285,6 +289,7 @@ async def test_situacao_do_catalogo_no_whatsapp_le_a_meta_e_liga_a_visibilidade(
     d = r.json()
     assert d["catalog_visible"] is False and d["cart_enabled"] is False and d["problems"] == []
     assert d["catalogs"] == [{"id": "2163562461265872", "name": "Catalog_Products"}]
+    assert d["account"] == {"id": "WABA9", "name": "W A Moda Fitness", "has_number": True}
     r = await test_client.post(f"{ADMIN_API}/whatsapp-visible", json={"visible": True}, headers=h)
     assert r.status_code == 200 and r.json()["catalog_visible"] is True
     assert ("POST", f"pn-cat-{p.id}/whatsapp_commerce_settings", {"is_catalog_visible": "true"}) in chamadas
@@ -296,5 +301,6 @@ async def test_situacao_do_catalogo_no_whatsapp_le_a_meta_e_liga_a_visibilidade(
     monkeypatch.setattr(wa, "_graph_json", meta_recusa)
     d = (await test_client.get(f"{ADMIN_API}/whatsapp-status", headers=h)).json()
     assert d["catalog_visible"] is None and len(d["problems"]) == 2 and "whatsapp_business_management" in d["problems"][0]
+    assert d["account"] == {"id": "WABA9", "name": None, "has_number": None}
     r = await test_client.post(f"{ADMIN_API}/whatsapp-visible", json={"visible": True}, headers=h)
     assert r.status_code == 424 and "permission" in r.json()["detail"]

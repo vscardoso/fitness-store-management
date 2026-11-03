@@ -998,7 +998,7 @@ async def catalog_status(db: AsyncSession, tenant_id: int) -> dict:
         raise SendError("O WhatsApp da loja ainda não está configurado.", 424)
     number = await _tenant_number(db, tenant_id)
     out: dict = {"phone": number.display_phone_number, "catalog_visible": None, "cart_enabled": None,
-                 "catalogs": [], "problems": []}
+                 "catalogs": [], "problems": [], "account": None}
     st, data = await _graph_json("GET", f"{number.phone_number_id}/whatsapp_commerce_settings")
     if st == 200:
         cfg = (data.get("data") or [{}])[0] if isinstance(data.get("data"), list) else {}
@@ -1007,6 +1007,14 @@ async def catalog_status(db: AsyncSession, tenant_id: int) -> dict:
     else:
         out["problems"].append("Configuração de comércio do número: " + _meta_error(st, data))
     if number.waba_id:
+        # conta do WhatsApp Business que o Provador consulta e se o número é dela (conta errada = catálogo "sumido")
+        out["account"] = {"id": number.waba_id, "name": None, "has_number": None}
+        st, data = await _graph_json("GET", number.waba_id, {"fields": "id,name"})
+        if st == 200:
+            out["account"]["name"] = data.get("name")
+        st, data = await _graph_json("GET", f"{number.waba_id}/phone_numbers", {"fields": "id,display_phone_number"})
+        if st == 200:
+            out["account"]["has_number"] = any(str(n.get("id")) == str(number.phone_number_id) for n in (data.get("data") or []))
         st, data = await _graph_json("GET", f"{number.waba_id}/product_catalogs", {"fields": "id,name"})
         if st == 200:
             out["catalogs"] = [{"id": str(c.get("id")), "name": c.get("name")} for c in (data.get("data") or [])]
