@@ -95,3 +95,4 @@ O app web é o layout do celular esticado:
 
 **Formulários em duas colunas no PC (2026-11-04):** `components/layout/FormGrid.tsx` envolve as seções do formulário (no PC cada seção ocupa meia largura, a sobra de linha ímpar estica; botões ficam fora, na largura toda; no celular devolve os filhos sem View a mais). Aplicado: Novo/Editar cliente, Nova despesa, Nova viagem, Novo membro da equipe e Nova entrada (tipo, dados, fornecedor, frete, nota/pagamento, observações e resumo; a lista de produtos continua na largura toda). Celular: 7 telas iguais pixel a pixel.
 - Parte 2: Editar produto (dados, galeria e categoria em duas colunas; variações na largura toda), Identidade da loja, Troca e devolução, Saudação automática. Celular: 4 telas iguais.
+- Condicionais no PC (2026-11-04): lista em cartões e Novo Envio já na largura padrão; ficha do envio com Informações e Resumo financeiro lado a lado (FormGrid), produtos e ações na largura toda. Celular: 3 telas iguais.

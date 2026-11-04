@@ -51,6 +51,7 @@ import {
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import HScroll from '@/components/ui/HScroll';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import FormGrid from '@/components/layout/FormGrid';
 
 /**
  * Traduz os códigos de forma de pagamento para labels legíveis
@@ -699,6 +700,7 @@ export default function ConditionalShipmentDetailsScreen() {
           </View>
         </View>
 
+        <FormGrid>
         {/* Card Consolidado de Informações */}
         <View style={styles.surfaceCard}>
           <View style={styles.surfaceContent}>
@@ -842,6 +844,8 @@ export default function ConditionalShipmentDetailsScreen() {
             )}
           </View>
         </View>
+
+        </FormGrid>
 
         {/* Lista de Items - SIMPLIFICADO */}
         <View style={styles.itemsSection}>
