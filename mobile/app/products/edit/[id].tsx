@@ -23,7 +23,8 @@ import { getImageUrl } from '@/constants/Config';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCategories, useUpdateProduct } from '@/hooks';
-import { getProductById } from '@/services/productService';
+import { checkProductName, getProductById } from '@/services/productService';
+import { parseApiError } from '@/utils/apiError';
 import { getProductStock } from '@/services/inventoryService';
 import { getProductVariants, updateVariant, formatVariantLabel } from '@/services/productVariantService';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
@@ -310,9 +311,24 @@ export default function EditProductScreen() {
   /**
    * Salvar alterações
    */
-  const handleSave = () => {
+  // Nome igual ao de OUTRO produto da loja: avisa antes de salvar (o servidor recusaria)
+  const [nameTaken, setNameTaken] = useState<{ id: number; name: string; code: string | null } | null>(null);
+
+  const handleSave = async () => {
     if (!isValidId) return;
     if (!validate()) return;
+    const typed = name.trim();
+    if (typed && typed.toLowerCase() !== (product?.name || '').trim().toLowerCase()) {
+      try {
+        const check = await checkProductName(typed);
+        if (check.exists && check.product && check.product.id !== productId) {
+          setNameTaken(check.product);
+          return;
+        }
+      } catch {
+        // sem resposta: o servidor confere de novo ao salvar
+      }
+    }
 
     // Para produtos com variantes, os preços são por variante
     const productData: ProductUpdate = {
@@ -341,7 +357,7 @@ export default function EditProductScreen() {
           {
             onSuccess: () => setShowSuccessDialog(true),
             onError: (error: any) => {
-              setErrorMessage(error?.response?.data?.detail || 'Falha ao atualizar produto. Verifique os dados.');
+              setErrorMessage(parseApiError(error) || 'Falha ao atualizar produto. Verifique os dados.');
               setShowErrorDialog(true);
             },
           }
@@ -362,7 +378,7 @@ export default function EditProductScreen() {
             }
           },
           onError: (error: any) => {
-            setErrorMessage(error?.response?.data?.detail || 'Falha ao atualizar produto. Verifique os dados.');
+            setErrorMessage(parseApiError(error) || 'Falha ao atualizar produto. Verifique os dados.');
             setShowErrorDialog(true);
           },
         }
@@ -383,7 +399,7 @@ export default function EditProductScreen() {
             setShowSuccessDialog(true);
           },
           onError: (error: any) => {
-            setErrorMessage(error?.response?.data?.detail || 'Falha ao atualizar produto. Verifique os dados.');
+            setErrorMessage(parseApiError(error) || 'Falha ao atualizar produto. Verifique os dados.');
             setShowErrorDialog(true);
           },
         }
@@ -1002,6 +1018,22 @@ export default function EditProductScreen() {
         onCancel={() => setShowSuccessDialog(false)}
         type="success"
         icon="checkmark-circle"
+      />
+
+      <ConfirmDialog
+        visible={!!nameTaken}
+        type="warning"
+        icon="copy-outline"
+        title="Já existe um produto com este nome"
+        message={nameTaken ? `"${nameTaken.name}"${nameTaken.code ? ` (${nameTaken.code})` : ''} já está cadastrado. Use outro nome, ou abra o que já existe.` : ''}
+        confirmText="Abrir o que já existe"
+        cancelText="Mudar o nome"
+        onConfirm={() => {
+          const id = nameTaken!.id;
+          setNameTaken(null);
+          router.push(`/products/${id}` as any);
+        }}
+        onCancel={() => setNameTaken(null)}
       />
 
       {/* Dialog de Erro */}
