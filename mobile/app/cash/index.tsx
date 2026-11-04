@@ -28,6 +28,7 @@ import {
   type MovementKind,
 } from '@/services/cashService';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { getFinanceOverview } from '@/services/financeService';
 
 // Mesmos motivos do servidor (app/services/cash_register_service.py, REASONS); o servidor recusa qualquer outro.
 const REASONS: Record<MovementKind, { id: string; label: string }[]> = {
@@ -59,6 +60,8 @@ export default function CashScreen() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const manager = isManagerRole(user?.role);
+  // loja que já funcionava: gaveta, bancos e contas a pagar entram pela implantação do financeiro
+  const { data: finance } = useQuery({ queryKey: ['finance'], queryFn: getFinanceOverview, enabled: manager });
 
   const [openAmount, setOpenAmount] = useState('');
   const [openNote, setOpenNote] = useState('');
@@ -173,6 +176,13 @@ export default function CashScreen() {
               style={styles.input}
             />
             <TextInput mode="outlined" label="Observação (opcional)" value={openNote} onChangeText={setOpenNote} style={styles.input} />
+            {manager && finance && !finance.started && (
+              <TouchableOpacity onPress={() => router.push('/finance' as any)} accessibilityRole="link" style={styles.financeLink}>
+                <Text style={[styles.note, { color: brand.primary, fontWeight: '700' }]}>
+                  A loja já funcionava? Lance também os bancos, a maquininha e as contas a pagar em Contas e saldos.
+                </Text>
+              </TouchableOpacity>
+            )}
             <Button
               mode="contained"
               buttonColor={brand.primary}
@@ -337,6 +347,7 @@ export default function CashScreen() {
 }
 
 const styles = StyleSheet.create({
+  financeLink: { paddingVertical: 4 },
   container: { flex: 1, backgroundColor: Colors.light.background },
   content: { padding: 16, paddingBottom: 48 },
   card: { backgroundColor: Colors.light.card, borderRadius: 16, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: Colors.light.border },

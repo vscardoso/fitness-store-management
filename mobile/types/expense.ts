@@ -19,6 +19,7 @@ export interface Expense {
   /** Despesa de um lote (entrada) ou de uma viagem; sem nenhum dos dois é despesa geral da loja. */
   stock_entry_id?: number | null;
   trip_id?: number | null;
+  account_id?: number | null;
   is_active: boolean;
 }
 
@@ -32,6 +33,7 @@ export interface ExpenseCreate {
   category_id?: number | null;
   stock_entry_id?: number | null;
   trip_id?: number | null;
+  account_id?: number | null;
 }
 
 export interface ExpenseUpdate {
@@ -44,6 +46,7 @@ export interface ExpenseUpdate {
   category_id?: number | null;
   stock_entry_id?: number | null;
   trip_id?: number | null;
+  account_id?: number | null;
 }
 
 export interface ExpenseCategoryCreate {

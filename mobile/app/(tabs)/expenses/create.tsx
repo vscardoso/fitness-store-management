@@ -23,6 +23,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import type { ExpenseCategory, ExpenseCreate } from '@/types/expense';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { getFinanceOverview } from '@/services/financeService';
 
 export default function CreateExpenseScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -39,6 +40,10 @@ export default function CreateExpenseScreen() {
   const [selectedCategory, setSelectedCategory] = useState<ExpenseCategory | null>(null);
   // De onde vem a despesa: da loja (aluguel, luz), de um lote (frete da compra) ou de uma viagem
   const [scope, setScope] = useState<'general' | 'lot' | 'trip'>('general');
+  // Financeiro implantado: de qual conta saiu o dinheiro (gaveta, banco); sem escolher, só entra no resultado do mês
+  const [accountId, setAccountId] = useState<number | null>(null);
+  const { data: finance } = useQuery({ queryKey: ['finance'], queryFn: getFinanceOverview });
+  const payAccounts = (finance?.accounts ?? []).filter((a) => a.kind !== 'card');
   const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
   const [selectedTripId, setSelectedTripId] = useState<number | null>(null);
 
@@ -113,6 +118,7 @@ export default function CreateExpenseScreen() {
       category_id: selectedCategory?.id ?? null,
       stock_entry_id: scope === 'lot' ? selectedEntryId : null,
       trip_id: scope === 'trip' ? selectedTripId : null,
+      account_id: accountId,
     };
     createMutation.mutate(payload);
   };
@@ -182,6 +188,34 @@ export default function CreateExpenseScreen() {
               />
             </View>
           </View>
+
+          {/* Pago com: tira da conta escolhida (só com o financeiro implantado) */}
+          {finance?.started && payAccounts.length > 0 && (
+            <View style={styles.card}>
+              <View style={styles.cardHeader}>
+                <Ionicons name="wallet-outline" size={20} color={brandingColors.primary} />
+                <Text style={styles.cardTitle}>Pago com</Text>
+              </View>
+              <View style={styles.cardContent}>
+                <View style={styles.categoryGrid}>
+                  {[{ id: null as number | null, name: 'Ainda não paguei' }, ...payAccounts.map((a) => ({ id: a.id as number | null, name: a.name }))].map((a) => {
+                    const on = accountId === a.id;
+                    return (
+                      <TouchableOpacity
+                        key={String(a.id)}
+                        style={[styles.categoryChip, { borderColor: brandingColors.primary }, on && { backgroundColor: brandingColors.primary }]}
+                        onPress={() => setAccountId(a.id)}
+                        accessibilityRole="radio"
+                        accessibilityState={{ selected: on }}
+                      >
+                        <Text style={[styles.categoryChipText, { color: on ? '#fff' : Colors.light.text }]}>{a.name}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+          )}
 
           {/* De onde vem a despesa */}
           <View style={styles.card}>

@@ -204,6 +204,7 @@ export default function MoreScreen() {
 <View style={styles.section}>
           <Text style={styles.sectionTitle}>Financeiro</Text>
           <View style={styles.menuCard}>
+            <MenuItem icon="wallet-outline" title="Contas e saldos" subtitle="Gaveta, bancos, maquininha e contas a pagar" onPress={() => router.push('/finance' as any)} iconColor="#0E7490" iconBg="#CFFAFE" />
             <MenuItem icon="receipt-outline" title="Despesas" subtitle="Registrar e gerenciar despesas operacionais" onPress={() => router.push('/(tabs)/expenses')} iconColor={Colors.light.error} iconBg="#FFEBEE" />
             <MenuItem icon="warning-outline" title="Prejuízos" subtitle="Perdas de estoque lançadas em módulo separado" onPress={() => router.push('/(tabs)/stock-losses')} iconColor="#B91C1C" iconBg="#FEE2E2" />
             <MenuItem icon="stats-chart-outline" title="Resultado do Mês" subtitle="Quanto vendeu, quanto gastou e quanto sobrou" onPress={() => router.push('/(tabs)/expenses/resultado')} iconColor="#7C3AED" iconBg="#EDE9FE" />
