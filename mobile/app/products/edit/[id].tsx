@@ -25,6 +25,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCategories, useUpdateProduct } from '@/hooks';
 import { checkProductName, getProductById } from '@/services/productService';
 import { parseApiError } from '@/utils/apiError';
+import { capitalizeWords } from '@/utils/format';
 import { getProductStock } from '@/services/inventoryService';
 import { getProductVariants, updateVariant, formatVariantLabel } from '@/services/productVariantService';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
@@ -532,7 +533,7 @@ export default function EditProductScreen() {
             <TextInput
               value={name}
               onChangeText={(text) => {
-                setName(text);
+                setName(capitalizeWords(text));   // mesma regra do cadastro (assistente)
                 setErrors({ ...errors, name: '' });
               }}
               style={[styles.input, errors.name ? styles.inputError : null]}

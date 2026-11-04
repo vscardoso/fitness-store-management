@@ -32,6 +32,10 @@ class LoadingManager {
    */
   private readonly SHOW_DELAY = 200;
 
+  /** Depois do último pedido, quanto esperar antes de esconder (pedidos em sequência não fazem o véu piscar) */
+  private readonly HIDE_GRACE = 250;
+  private hideTimer: NodeJS.Timeout | null = null;
+
   /**
    * Minimum display time to avoid flicker (300ms)
    */
@@ -53,8 +57,15 @@ class LoadingManager {
   show(message?: string) {
     this.requestCounter++;
 
+    // Pedido logo depois de outro (salvar produto e depois cada variação): o véu continua, não some e volta
+    if (this.hideTimer) {
+      clearTimeout(this.hideTimer);
+      this.hideTimer = null;
+    }
+    if (this.isDisplaying || this.showDelayTimer) return;
+
     // Only start timers on first request
-    if (this.requestCounter === 1) {
+    if (this.requestCounter >= 1) {
       this.currentMessage = message;
 
       // Delay showing loading to avoid flicker on fast requests
@@ -134,14 +145,13 @@ class LoadingManager {
    * Schedule hide with minimum display time
    */
   private scheduleHide() {
-    if (this.minimumDisplayTimer) {
-      // Wait for minimum display time before hiding
-      setTimeout(() => {
-        this.performHide();
-      }, this.MINIMUM_DISPLAY_TIME);
-    } else {
-      this.performHide();
-    }
+    // Espera um pouco antes de esconder: se outro pedido começar nesse tempo, o véu não pisca
+    if (this.hideTimer) clearTimeout(this.hideTimer);
+    const wait = this.minimumDisplayTimer ? Math.max(this.MINIMUM_DISPLAY_TIME, this.HIDE_GRACE) : this.HIDE_GRACE;
+    this.hideTimer = setTimeout(() => {
+      this.hideTimer = null;
+      if (this.requestCounter === 0) this.performHide();
+    }, wait);
   }
 
   /**
@@ -171,6 +181,10 @@ class LoadingManager {
    * Clear all timers
    */
   private clearTimers() {
+    if (this.hideTimer) {
+      clearTimeout(this.hideTimer);
+      this.hideTimer = null;
+    }
     if (this.showDelayTimer) {
       clearTimeout(this.showDelayTimer);
       this.showDelayTimer = null;
