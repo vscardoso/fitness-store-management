@@ -2194,7 +2194,7 @@ export default function AddStockEntryScreen() {
               ? "Produto Criado com Sucesso!"
               : "Entrada Vinculada!"
             : isFromAIScanner
-            ? "Produto Criado com Sucesso FIFO!"
+            ? "Produto Criado com Sucesso!"
             : "Entrada Criada!"
         }
         message={
@@ -2215,27 +2215,27 @@ export default function AddStockEntryScreen() {
                   `Produto: ${wizardProductName || 'N/A'}`,
                   `Entrada: ${createdEntryCode}`,
                   `Variantes: ${items.length} | Total: ${items.reduce((sum, i) => sum + i.quantity_received, 0)} un`,
-                  '✅ Produto + Variantes + Estoque criados atomicamente',
-                  '✅ Rastreabilidade FIFO ativa',
+                  '✅ Produto, variações e estoque criados juntos',
+                  '✅ Cada venda vai usar o custo certo de cada peça',
                 ]
               : [
                   `Produto: ${wizardProductName || 'N/A'}`,
                   `Entrada: ${createdEntryCode}`,
                   `Total: ${items.reduce((sum, i) => sum + i.quantity_received, 0)} un`,
                   '✅ Produto + Estoque criados',
-                  '✅ Rastreabilidade FIFO ativa',
+                  '✅ Cada venda vai usar o custo certo de cada peça',
                 ]
             : isFromAIScanner
             ? [
                 '✅ Produto criado no catálogo',
-                '✅ Entrada de estoque vinculada (FIFO)',
+                '✅ Entrada de estoque vinculada',
                 '✅ Rastreabilidade completa garantida',
                 '📊 Você pode acompanhar:',
-                '  • Custo real por venda (FIFO)',
+                '  • Custo real de cada venda',
                 '  • Lucro por entrada/viagem',
                 '  • Percentual já vendido',
                 '',
-                'Cada venda usará o estoque da entrada mais antiga primeiro (FIFO)',
+                'Cada venda usa primeiro as peças da compra mais antiga',
               ]
             : items.length === 0
             ? [

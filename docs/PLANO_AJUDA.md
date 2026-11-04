@@ -79,7 +79,7 @@ Ficam sem ficha (lista fixa no teste): login, cadastro, esqueci a senha, apresen
 | Fase | Entrega |
 |---|---|
 | 1 (FEITA 04/11) | Estrutura (fichas tipadas, mapa de rotas, "?" no `PageHeader`, folha no celular, painel no notebook, F1), Central nova com busca, testes de cobertura e de botões, fichas de **Vender** |
-| 2 (EM ANDAMENTO) | Fichas de **Estoque** e **Clientes** |
+| 2 (FEITA 04/11) | Fichas de **Estoque** e **Clientes** |
 | 3 | Fichas de **Dinheiro** e **Relatórios** |
 | 4 | Fichas de **WhatsApp** e **Loja**, Primeiros passos, boas-vindas novo |
 | 5 | Remoção dos tutoriais antigos, Playwright em todas as telas (390 e 1440), publicação |
@@ -90,16 +90,21 @@ Cada fase é publicada sozinha (app web e OTA), com typecheck em 0 e testes pass
 
 - **Fase 1 (04/11/2026, feita):** fichas em `mobile/constants/help/` (`types.ts`, `vender.ts`, `index.ts`, `coverage.ts` com as rotas excluídas, escondidas e pendentes), rotas em `utils/helpRoutes.ts`, estado em `store/helpStore.ts`, folha e painel em `components/help/HelpHost.tsx` (`HelpIconButton` para telas com cabeçalho próprio, como o PDV do notebook), corpo da ficha em `components/help/HelpContent.tsx`, "?" automático no `PageHeader` (`showHelp={false}` esconde), F1 no `DesktopShell`, Central nova em `app/(tabs)/help.tsx`. Fichas de Vender: Início, Ponto de venda, Finalizar venda, Venda concluída, Vendas, Detalhe da venda, Condicionais, Novo envio, Envio condicional, Caixa, Histórico do caixa. Testes `npm test` (cobertura e nomes de botão) e Playwright em 390 e 1440 px (42 verificações, vendedora sem a ficha de gerente). Saíram telas mortas: `(tabs)/management`, `(tabs)/payment-discounts` (cópia da de `settings`) e `batches`. Os "?" de tutorial antigo do Início, PDV e Condicionais saíram; os de Produtos, Estoque e Detalhe do produto ficam até a fase 2.
 - Para a próxima fase: tirar as rotas do grupo de `HELP_PENDING` ao escrever as fichas; telas sem `PageHeader` (assistente de produto, scanner, equipe) precisam do `HelpIconButton` no cabeçalho delas. Ainda existem duas telas de Equipe (`(tabs)/team` e `team`) na mesma rota: conferir qual abre na fase 4.
-- **Fase 2 (04/11/2026, PARCIAL, parou aqui):**
-  - Feito e publicado:
-    - Fichas de **Clientes** (`constants/help/clientes.ts`: lista, nova, ficha e editar), testadas no navegador em 390 e 1440 px.
-    - "?" no cabeçalho próprio do assistente de produto (`app/products/wizard.tsx`) e do Scanner IA (`app/products/scan.tsx`), com `HelpIconButton onColor keepSpace`. Ele aparece quando as fichas `/products/wizard` e `/products/scan` existirem.
-    - Saíram os "?" de tutorial antigo de Produtos (celular e tabela do computador), Inventário e Detalhe do produto.
-  - Falta: as fichas de **Estoque** (`constants/help/estoque.ts`, as 31 rotas marcadas `'estoque'` em `HELP_PENDING`).
-    - O levantamento de fornecedores e viagens já está em `docs/AJUDA_LEVANTAMENTO_FASE2.md`, com 9 problemas achados.
-    - Falta levantar produtos, entradas, categorias, inventário e prejuízos.
+- **Fase 2 (04/11/2026, feita):**
+  - Fichas de **Clientes** (4, `constants/help/clientes.ts`) e de **Estoque** (32, `constants/help/estoque.ts`).
+    - Estoque cobre produtos, assistente, Scanner IA, fotos, consulta, etiquetas, entradas (lista, nova, rápida, detalhe, conferir, importar), categorias, inventário, prejuízos, fornecedores (com a tela nova Editar fornecedor) e viagens.
+  - Total de 47 fichas e 168 nomes de botão conferidos pelo teste.
+  - Playwright abriu o "?" de todas as fichas com rota acessível, em 390 e 1440 px: ficha certa, 0 erro de JS, vendedora sem as fichas de gerente.
+  - "?" no cabeçalho próprio do assistente e do Scanner IA. Saíram todos os "?" de tutorial antigo das telas.
+  - Corrigido junto:
+    - tela Editar fornecedor (o botão levava a página inexistente);
+    - "Ver Viagens" abria Entradas;
+    - "CMV" na viagem;
+    - acentos em Viagens, Nova cliente e assistente ("Concluído");
+    - FIFO, Best Sellers, Total Items e Taxa de Venda trocados por palavras da lojista.
+  - Problemas que continuam abertos: ver `docs/AJUDA_LEVANTAMENTO_FASE2.md`.
 
-## Como continuar (prompt para o próximo dev)
+## Como continuar a partir da fase 2 (prompt antigo, já cumprido)
 
 ```
 Projeto Provador em C:\Users\victo\fitness-store-management. Leia CLAUDE.md, docs/PLANO_AJUDA.md e docs/AJUDA_LEVANTAMENTO_FASE2.md.

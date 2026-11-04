@@ -42,16 +42,6 @@ export const HELP_HIDDEN: Record<string, string> = {
 
 /** Fichas das próximas fases (docs/PLANO_AJUDA.md). A lista encolhe a cada fase e some na fase 4. */
 export const HELP_PENDING: Record<string, string> = {
-  '/products': 'estoque', '/products/wizard': 'estoque', '/products/[id]': 'estoque', '/products/edit/[id]': 'estoque',
-  '/products/photos/[id]': 'estoque', '/products/consult': 'estoque', '/products/scan': 'estoque',
-  '/products/label': 'estoque', '/products/label/[id]': 'estoque',
-  '/entries': 'estoque', '/entries/add': 'estoque', '/entries/add-stock': 'estoque', '/entries/[id]': 'estoque',
-  '/entries/check/[id]': 'estoque', '/entries/import': 'estoque',
-  '/categories': 'estoque', '/categories/add': 'estoque', '/categories/edit/[id]': 'estoque', '/inventory': 'estoque',
-  '/stock-losses': 'estoque', '/stock-losses/register': 'estoque', '/stock-losses/[id]': 'estoque',
-  '/suppliers': 'estoque', '/suppliers/[id]': 'estoque', '/suppliers/ranking': 'estoque', '/suppliers/costs': 'estoque',
-  '/suppliers/restock': 'estoque', '/suppliers/returns': 'estoque',
-  '/trips': 'estoque', '/trips/add': 'estoque', '/trips/[id]': 'estoque',
   '/finance': 'dinheiro', '/finance/setup': 'dinheiro', '/finance/payables': 'dinheiro', '/expenses': 'dinheiro',
   '/expenses/create': 'dinheiro', '/expenses/edit': 'dinheiro', '/expenses/resultado': 'dinheiro',
   '/settings/payment-discounts': 'dinheiro',

@@ -326,7 +326,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
             ? 'Produto ainda não foi criado: ele só é gravado quando você lançar na entrada abaixo'
             : isPending
             ? 'Produto ainda não foi criado — escolha uma entrada abaixo para concluir o cadastro'
-            : 'Estoque atual: 0 unidades — vincule a uma entrada para rastreabilidade FIFO'}
+            : 'Estoque atual: 0 unidades. Vincule a uma entrada para registrar o custo das peças'}
         </Text>
       </View>
 

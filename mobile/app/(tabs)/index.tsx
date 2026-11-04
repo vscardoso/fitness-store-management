@@ -1319,7 +1319,7 @@ export default function DashboardScreen() {
                     <Text style={styles.tooltipTitle}>Itens Parados</Text>
                   </View>
                   <View style={styles.tooltipDivider} />
-                  <Text style={styles.tooltipText}>{`Unidades em estoque de lotes mais antigos que ainda não foram vendidas. Pelo FIFO, esses itens devem ser os próximos a sair.`}</Text>
+                  <Text style={styles.tooltipText}>{`Unidades em estoque de lotes mais antigos que ainda não foram vendidas. Na venda, essas peças saem primeiro.`}</Text>
                 </>
               )}
               {activeTooltip === 'compras' && (

@@ -378,7 +378,7 @@ export default function ProductWizardScreen() {
       case 'entry':
         return 'Vincular Estoque';
       case 'complete':
-        return 'Concluido';
+        return 'Concluído';
       default:
         return 'Cadastrar Produto';
     }

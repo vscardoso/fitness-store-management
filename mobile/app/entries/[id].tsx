@@ -850,7 +850,7 @@ export default function StockEntryDetailsScreen() {
             />
           )}
           <StatCard
-            label="Total Items"
+            label="Total de peças"
             value={`${entry.total_items} (${entry.total_quantity} un)`}
             icon="cube-outline"
             valueColor={Colors.light.text}
@@ -862,7 +862,7 @@ export default function StockEntryDetailsScreen() {
             valueColor={Colors.light.success}
           />
           <StatCard
-            label="Taxa de Venda"
+            label="Já vendido"
             value={`${formatPercent(entry.sell_through_rate, 1)}`}
             icon="trending-up"
             valueColor={entry.sell_through_rate >= 70 ? Colors.light.success : entry.sell_through_rate >= 40 ? Colors.light.warning : Colors.light.error}
@@ -882,7 +882,7 @@ export default function StockEntryDetailsScreen() {
           <View style={styles.card}>
               <View style={styles.sectionHeader}>
                 <Ionicons name="trophy-outline" size={20} color={Colors.light.success} />
-                <Text style={styles.sectionTitle}>Best Sellers</Text>
+                <Text style={styles.sectionTitle}>Mais vendidos</Text>
               </View>
               {bestSellers.map((item, index) => (
                 <View key={item.id} style={styles.rankItem}>

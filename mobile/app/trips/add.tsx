@@ -675,7 +675,7 @@ export default function AddTripScreen() {
         cancelText="Nova Viagem"
         onConfirm={() => {
           setShowSuccessDialog(false);
-          router.push('/(tabs)/entries');
+          router.replace('/trips' as any);
         }}
         onCancel={() => {
           // Reset para nova viagem rápida

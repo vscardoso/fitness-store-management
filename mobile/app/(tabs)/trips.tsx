@@ -201,7 +201,7 @@ export default function TripsScreen() {
             <EmptyState
               icon="alert-circle-outline"
               title="Erro ao carregar viagens"
-              description="Verifique sua conexao e tente novamente"
+              description="Verifique sua conexão e tente novamente"
             />
           </View>
         ) : (
@@ -232,7 +232,7 @@ export default function TripsScreen() {
               </View>
               <View style={styles.financialDivider} />
               <View style={styles.financialBlock}>
-                <Text style={styles.financialLabel}>CUSTO MEDIO</Text>
+                <Text style={styles.financialLabel}>CUSTO MÉDIO</Text>
                 <FitText style={[styles.financialValue, { color: VALUE_COLORS.warning }]}>
                   {formatCurrency(stats.avgCost)}
                 </FitText>
@@ -258,7 +258,7 @@ export default function TripsScreen() {
                 <EmptyState
                   icon="airplane-outline"
                   title="Nenhuma viagem cadastrada"
-                  description="Toque no botao + para adicionar uma nova viagem"
+                  description="Toque no botão + para adicionar uma nova viagem"
                 />
               }
             />

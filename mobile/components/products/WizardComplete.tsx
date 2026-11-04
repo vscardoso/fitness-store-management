@@ -345,7 +345,7 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
 
             <View style={styles.fifoTag}>
               <Ionicons name="shield-checkmark" size={16} color={Colors.light.success} />
-              <Text style={styles.fifoText}>Rastreabilidade FIFO ativa</Text>
+              <Text style={styles.fifoText}>Custo de cada peça guardado para as vendas</Text>
             </View>
           </Card.Content>
         </Card>

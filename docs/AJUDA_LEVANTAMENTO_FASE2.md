@@ -57,7 +57,9 @@ Abas: "Fornecedores", "Ranking", "Custos", "Reposição", "Devoluções".
   - Botões "Iniciar" (quando planejada), "Concluir" e "Excluir" (só sem entradas e sem vendas).
   - Cartões "INFORMAÇÕES DA VIAGEM", "CUSTOS DA VIAGEM" e "DESEMPENHO DA VIAGEM" ("Investido", "Receita Gerada", "Sell-through" e "Lucro").
 
-## Problemas achados no levantamento (não corrigidos)
+## Problemas achados no levantamento
+
+Corrigidos em 04/11/2026: 1 (tela `app/suppliers/edit/[id].tsx` criada), 2, 3 e 7. Continuam abertos: 4, 5, 6, 8, 9 e os da lista seguinte.
 
 1. **Editar fornecedor quebra.** "Editar" e o lápis em `app/suppliers/[id].tsx` levam a `/suppliers/edit/{id}`, mas essa tela não existe ("página não encontrada"). Criar a tela de edição (o servidor tem `PUT /suppliers/{id}`; conferir) ou tirar o botão.
 2. **"Ver Viagens" leva a Entradas.** No diálogo de sucesso de Nova Viagem (`app/trips/add.tsx`, perto da linha 674), o botão vai para `/(tabs)/entries` e não para `/trips`.
@@ -68,3 +70,21 @@ Abas: "Fornecedores", "Ranking", "Custos", "Reposição", "Devoluções".
 7. **Textos sem acento.** "CUSTO MEDIO" em `app/(tabs)/trips.tsx`, a seção "Endereco (Opcional)" e as validações em `app/customers/add.tsx`.
 8. **Possível bug no checkout (achado na fase 1).** Se a loja tiver uma maquininha cadastrada no servidor, um pagamento único em crédito, débito ou PIX pode ir para "Enviar para Maquininha" em vez do registro manual, mesmo com `maquininhas` desligado (`app/checkout.tsx`, `loadTerminals`). Não testado.
 9. **Atalhos do Início para quem não pode (achado na fase 1).** "Entradas" e "Relatórios" aparecem para caixa e vendedor, que devem receber recusa ao abrir.
+
+## Outros achados (produtos, entradas, categorias, inventário, prejuízos), abertos
+
+10. **Busca do celular não acha pelo código.** Em Produtos, a busca diz "Buscar por nome, SKU ou marca..." mas só procura nome e marca.
+11. **Excluir sem permissão.** "Excluir Entrada" aparece para gerente, mas só admin exclui. O "+", o lápis e a lixeira de Categorias aparecem para todos; o servidor exige gerente para criar e editar e admin para excluir.
+12. **Motivo do erro perdido em Categorias.** As telas leem `err.response.data.detail`; o interceptor entrega `error.message`, então o motivo real (por exemplo, subcategoria ativa) vira a frase genérica. Não testado.
+13. **Custo "(opcional)" que não é.** Em Adicionar estoque (`app/entries/add-stock.tsx`) o custo é marcado como opcional, mas o servidor recusa custo zero. Produto com várias variações provavelmente é recusado ali (vai sem variação).
+14. **Rótulos do Inventário que não batem com a regra.**
+    - "Estoque Baixo (<3)" e "menos de 3 unidades": a regra é "até o mínimo do produto".
+    - "Lucro do mês" mostra o período escolhido.
+    - "Entradas por Mês" usa só as 10 últimas entradas.
+15. **Prejuízo avulso.**
+    - Data em AAAA-MM-DD e custo com ponto.
+    - Não baixa o estoque (a ficha explica).
+    - O detalhe pode mostrar o custo errado (o texto gravado traz "R$").
+16. **Fornecedor por item na Nova entrada.** A troca só existe em produto sem variação, embora a dica diga para trocar "na lista de itens".
+17. **Lista de Categorias.** Mostra só as categorias principais; subcategoria não abre pela lista.
+18. **Scanner IA.** "Criar Produto" cria o produto antes da entrada (o assistente grava tudo junto); sem categoria sugerida usa a categoria 1.

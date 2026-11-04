@@ -108,24 +108,24 @@ export default function AddCustomerScreen() {
     const newErrors: Record<string, string> = {};
 
     if (!fullName.trim()) {
-      newErrors.fullName = 'Nome completo e obrigatorio';
+      newErrors.fullName = 'Nome completo é obrigatório';
     }
     if (!phone.trim()) {
-      newErrors.phone = 'Telefone e obrigatorio';
+      newErrors.phone = 'Telefone é obrigatório';
     } else if (phone.replace(/\D/g, '').length < 10) {
-      newErrors.phone = 'Telefone invalido';
+      newErrors.phone = 'Telefone inválido';
     }
     if (email && !email.includes('@')) {
-      newErrors.email = 'Email invalido';
+      newErrors.email = 'Email inválido';
     }
     if (cpf && cpf.replace(/\D/g, '').length !== 11) {
-      newErrors.cpf = 'CPF invalido';
+      newErrors.cpf = 'CPF inválido';
     }
     if (birthDate && !isValidDate(birthDate)) {
-      newErrors.birthDate = 'Data invalida (DD/MM/AAAA)';
+      newErrors.birthDate = 'Data inválida (DD/MM/AAAA)';
     }
     if (zipCode && zipCode.replace(/\D/g, '').length !== 8) {
-      newErrors.zipCode = 'CEP invalido';
+      newErrors.zipCode = 'CEP inválido';
     }
 
     setErrors(newErrors);
@@ -141,7 +141,7 @@ export default function AddCustomerScreen() {
 
   const handleSubmit = () => {
     if (!validateForm()) {
-      setErrorMessage('Preencha todos os campos obrigatorios corretamente');
+      setErrorMessage('Preencha todos os campos obrigatórios corretamente');
       setShowErrorDialog(true);
       return;
     }
@@ -310,7 +310,7 @@ export default function AddCustomerScreen() {
                 <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
                   <Ionicons name="location-outline" size={20} color={brandingColors.primary} />
                 </View>
-                <Text style={styles.cardTitle}>Endereco (Opcional)</Text>
+                <Text style={styles.cardTitle}>Endereço (Opcional)</Text>
               </View>
 
               <View style={styles.fieldGroup}>
@@ -330,7 +330,7 @@ export default function AddCustomerScreen() {
               </View>
 
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>Endereco</Text>
+                <Text style={styles.fieldLabel}>Endereço</Text>
                 <TextInput
                   style={styles.input}
                   value={address}
@@ -341,7 +341,7 @@ export default function AddCustomerScreen() {
               </View>
 
               <View style={styles.fieldGroup}>
-                <Text style={styles.fieldLabel}>Numero</Text>
+                <Text style={styles.fieldLabel}>Número</Text>
                 <TextInput
                   style={styles.input}
                   value={addressNumber}

@@ -246,7 +246,7 @@ export default function TripDetailsScreen() {
             <Text style={styles.statusHint}>
               {trip.status === TripStatus.PLANNED && 'Toque em "Iniciar" quando sair para a viagem.'}
               {trip.status === TripStatus.IN_PROGRESS && 'Viagem em curso. Registre as compras e toque em "Concluir" ao voltar.'}
-              {trip.status === TripStatus.COMPLETED && 'Viagem encerrada. Custos incluídos no CMV das vendas realizadas.'}
+              {trip.status === TripStatus.COMPLETED && 'Viagem encerrada. Os custos dela entram no custo das peças vendidas.'}
             </Text>
           </View>
 
