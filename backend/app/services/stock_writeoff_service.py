@@ -49,48 +49,56 @@ class StockWriteoffService:
                 raise WriteoffError("A quantidade da baixa deve ser maior que zero.")
             merged[int(ln["variant_id"])] = merged.get(int(ln["variant_id"]), 0) + q
 
-        moves: Dict[int, int] = {}  # product_id -> total baixado
-        done: List[Dict[str, Any]] = []
         try:
-            for variant_id, qty in merged.items():
-                variant = (await self.db.execute(
-                    select(ProductVariant).where(ProductVariant.id == variant_id, ProductVariant.tenant_id == tenant_id, ProductVariant.is_active == True)  # noqa: E712
-                )).scalars().first()
-                if not variant:
-                    raise WriteoffError(f"Variação {variant_id} não encontrada.")
-                available = await self.items.get_available_for_variant(self.db, variant_id, tenant_id=tenant_id)
-                total = sum(i.quantity_remaining for i in available)
-                if total < qty:
-                    raise WriteoffError(f"Variação {variant_id}: só há {total} em estoque para baixar (pedido: {qty}).")
-                left = qty
-                for item in available:
-                    if left <= 0:
-                        break
-                    take = min(item.quantity_remaining, left)
-                    if not await self.items.decrease_quantity(self.db, item.id, take):
-                        raise WriteoffError(f"Variação {variant_id}: não foi possível baixar o lote {item.id}.")
-                    left -= take
-                moves[variant.product_id] = moves.get(variant.product_id, 0) + qty
-                done.append({"variant_id": variant_id, "quantity": qty})
-
-            text = f"Baixa pela conferência ({reason})" + (f": {note.strip()}" if note and note.strip() else "")
-            for product_id, qty in moves.items():
-                inv = (await self.db.execute(
-                    select(Inventory).where(Inventory.product_id == product_id, Inventory.tenant_id == tenant_id)
-                )).scalars().first()
-                if inv is None:
-                    continue
-                before = inv.quantity
-                after = max(0, before - qty)
-                inv.quantity = after
-                mv = InventoryMovement(
-                    movement_type=REASONS[reason], quantity_before=before, quantity_change=after - before,
-                    quantity_after=after, reference_id=f"conferencia:{user_id}" if user_id else "conferencia", notes=text, inventory_id=inv.id,
-                )
-                mv.tenant_id = tenant_id
-                self.db.add(mv)
+            done = await self.write_off(tenant_id=tenant_id, user_id=user_id, reason=reason, note=note, merged=merged,
+                                        label="Baixa pela conferência")
             await self.db.commit()
         except Exception:
             await self.db.rollback()
             raise
         return {"ok": True, "items": done, "total_pecas": sum(d["quantity"] for d in done)}
+
+    async def write_off(self, *, tenant_id: int, user_id: int | None, reason: str, note: str | None,
+                        merged: Dict[int, int], label: str) -> List[Dict[str, Any]]:
+        """Baixa FIFO (da entrada mais antiga) com movimento de estoque e motivo. Não faz commit: quem chama decide.
+        Usada pela conferência e pela exclusão de variação com peças (motivo 'ajuste')."""
+        moves: Dict[int, int] = {}  # product_id -> total baixado
+        done: List[Dict[str, Any]] = []
+        for variant_id, qty in merged.items():
+            variant = (await self.db.execute(
+                select(ProductVariant).where(ProductVariant.id == variant_id, ProductVariant.tenant_id == tenant_id, ProductVariant.is_active == True)  # noqa: E712
+            )).scalars().first()
+            if not variant:
+                raise WriteoffError(f"Variação {variant_id} não encontrada.")
+            available = await self.items.get_available_for_variant(self.db, variant_id, tenant_id=tenant_id)
+            total = sum(i.quantity_remaining for i in available)
+            if total < qty:
+                raise WriteoffError(f"Variação {variant_id}: só há {total} em estoque para baixar (pedido: {qty}).")
+            left = qty
+            for item in available:
+                if left <= 0:
+                    break
+                take = min(item.quantity_remaining, left)
+                if not await self.items.decrease_quantity(self.db, item.id, take):
+                    raise WriteoffError(f"Variação {variant_id}: não foi possível baixar o lote {item.id}.")
+                left -= take
+            moves[variant.product_id] = moves.get(variant.product_id, 0) + qty
+            done.append({"variant_id": variant_id, "quantity": qty})
+
+        text = f"{label} ({reason})" + (f": {note.strip()}" if note and note.strip() else "")
+        for product_id, qty in moves.items():
+            inv = (await self.db.execute(
+                select(Inventory).where(Inventory.product_id == product_id, Inventory.tenant_id == tenant_id)
+            )).scalars().first()
+            if inv is None:
+                continue
+            before = inv.quantity
+            after = max(0, before - qty)
+            inv.quantity = after
+            mv = InventoryMovement(
+                movement_type=REASONS[reason], quantity_before=before, quantity_change=after - before,
+                quantity_after=after, reference_id=f"conferencia:{user_id}" if user_id else "conferencia", notes=text, inventory_id=inv.id,
+            )
+            mv.tenant_id = tenant_id
+            self.db.add(mv)
+        return done

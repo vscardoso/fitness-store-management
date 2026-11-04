@@ -55,8 +55,9 @@ export default function EditProductScreen() {
   const productId = id ? parseInt(id as string) : NaN;
   const isValidId = !isNaN(productId) && productId > 0;
 
+  // Voltar da edição leva ao produto que estava sendo editado (antes ia para a lista de Produtos)
   const handleBack = () => {
-    router.replace('/(tabs)/products' as any);
+    router.replace((isValidId ? `/products/${productId}` : '/(tabs)/products') as any);
   };
 
   // Estados do formulário

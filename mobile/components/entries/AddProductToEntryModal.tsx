@@ -32,6 +32,8 @@ interface Props {
   entrySupplierName?: string;
   /** Linhas que a entrada já tem: serve para perguntar se soma ou cria linha separada quando a variação se repete */
   entryItems?: EntryItemResponse[];
+  /** Abre direto em "nova cor ou tamanho" deste produto (botão da página do produto) */
+  newVariantOf?: ProductGrouped | null;
   onClose: () => void;
 }
 
@@ -43,7 +45,7 @@ interface Choice {
   price: number;
 }
 
-export default function AddProductToEntryModal({ visible, entryId, entryCode, entrySupplierName, entryItems, onClose }: Props) {
+export default function AddProductToEntryModal({ visible, entryId, entryCode, entrySupplierName, entryItems, newVariantOf, onClose }: Props) {
   const brand = useBrandingColors();
   const qc = useQueryClient();
   const [step, setStep] = useState<'list' | 'form' | 'supplier' | 'duplicate' | 'newVariant'>('list');
@@ -65,6 +67,13 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
     setListPrice('');
     setSupplier(null);
     setError('');
+    if (newVariantOf) {
+      setNewVar({ product: newVariantOf, color: '', size: '' });
+      const c = Number(newVariantOf.variants?.[0]?.cost_price ?? 0);
+      setCost(c > 0 ? maskCurrencyBR(String(Math.round(c * 100))) : '');
+      setStep('newVariant');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
 
   const pick = (p: Product, v?: any) => {

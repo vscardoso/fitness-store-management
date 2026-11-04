@@ -23,6 +23,7 @@ import { getProductById, deleteProduct, updateProduct } from '@/services/product
 import { getProductStock } from '@/services/inventoryService';
 import { getProductVariants, getVariantGrid, formatVariantLabel, deleteVariant } from '@/services/productVariantService';
 import { parseApiError } from '@/utils/apiError';
+import AddProductToEntryModal from '@/components/entries/AddProductToEntryModal';
 import { variantCodeText } from '@/utils/shortCode';
 import VariantKeepModal from '@/components/products/VariantKeepModal';
 import { VariantStockMatrix } from '@/components/products/VariantStockMatrix';
@@ -239,6 +240,7 @@ export default function ProductDetailsScreen() {
   // Verificar ID inválido
   // Usar só algumas variações: desativa as desmarcadas (só variação sem estoque)
   const [keepModalVisible, setKeepModalVisible] = useState(false);
+  const [newVariantOpen, setNewVariantOpen] = useState(false);   // antes do retorno antecipado (regra dos hooks)
   const [pricesSheetOpen, setPricesSheetOpen] = useState(false);
   // Excluir UMA variação pela lixeira do cartão; com peças, o estoque dela é zerado (o servidor só deixa o admin)
   const removeOneVariant = useMutation({
@@ -356,6 +358,25 @@ export default function ProductDetailsScreen() {
   const isOutOfStock = currentStock === 0;
 
   // Dar entrada: vai pela rota de catálogo, que cria uma linha por variação (sem escolher uma a uma)
+  // Nova cor ou tamanho do MESMO produto, lançada na entrada mais recente dele (com quantidade e custo)
+  const lastEntry = (() => {
+    const items: any[] = (product as any)?.entry_items ?? [];
+    return items.reduce((best: any, e: any) => (!best || (e.entry_id ?? 0) > (best.entry_id ?? 0) ? e : best), null);
+  })();
+  const openNewVariant = () => (lastEntry ? setNewVariantOpen(true) : goToEntry());
+  const newVariantButton = (
+    <TouchableOpacity style={[styles.newVariantBtn, { borderColor: brandingColors.primary }]} onPress={openNewVariant} activeOpacity={0.8}
+      accessibilityRole="button" accessibilityLabel="Nova cor ou tamanho">
+      <Ionicons name="add-circle-outline" size={20} color={brandingColors.primary} />
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.newVariantTitle, { color: brandingColors.primary }]}>Nova cor ou tamanho</Text>
+        <Text style={styles.newVariantSub}>
+          {lastEntry ? `Mesmo produto, entra na entrada ${lastEntry.entry_code ?? ''} com quantidade e custo` : 'Mesmo produto: abre uma entrada nova com quantidade e custo'}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+
   const goToEntry = () =>
     router.push({
       pathname: '/entries/add',
@@ -639,7 +660,13 @@ export default function ProductDetailsScreen() {
                   );
                 })}
               </View>
+              {newVariantButton}
             </View>
+          </View>
+        )}
+        {!hasVariants && (
+          <View style={styles.card}>
+            <View style={styles.cardInner}>{newVariantButton}</View>
           </View>
         )}
 
@@ -772,6 +799,14 @@ export default function ProductDetailsScreen() {
         {/* ── ENTRADAS DE ESTOQUE ── */}
         {(() => {
           const entryItems: any[] = (product as any).entry_items ?? [];
+          // Uma linha por ENTRADA (antes era uma por variação: a mesma entrada se repetia 13 vezes)
+          const entryGroups: any[] = Object.values(entryItems.reduce((acc: Record<string, any>, it: any) => {
+            const g = acc[it.entry_id] ?? (acc[it.entry_id] = { ...it, quantity_received: 0, quantity_remaining: 0, items: [] as any[] });
+            g.quantity_received += it.quantity_received ?? 0;
+            g.quantity_remaining += it.quantity_remaining ?? 0;
+            g.items.push(it);
+            return acc;
+          }, {} as Record<string, any>));
           if (entryItems.length === 0) return null;
 
           const totalReceived = entryItems.reduce((s: number, e: any) => s + e.quantity_received, 0);
@@ -788,7 +823,7 @@ export default function ProductDetailsScreen() {
                   </View>
                   <Text style={styles.cardTitle}>Histórico de Entradas</Text>
                   <View style={styles.countBadge}>
-                    <Text style={styles.countBadgeText}>{entryItems.length}</Text>
+                    <Text style={styles.countBadgeText}>{entryGroups.length}</Text>
                   </View>
                 </View>
 
@@ -812,7 +847,7 @@ export default function ProductDetailsScreen() {
 
                 {/* Cards de entrada */}
                 <View style={styles.entryList}>
-                  {entryItems.map((entry: any) => {
+                  {entryGroups.map((entry: any) => {
                     const typeColor = getEntryTypeColor(entry.entry_type);
                     const typeIcon = getEntryTypeIcon(entry.entry_type);
                     const typeLabel = getEntryTypeLabel(entry.entry_type);
@@ -825,13 +860,16 @@ export default function ProductDetailsScreen() {
                       : consumedPct >= 0.7
                         ? Colors.light.warning
                         : Colors.light.success;
-                    const variantLabel = hasVariants && entry.variant_id
-                      ? formatVariantLabel((variants ?? []).find((v: any) => v.id === entry.variant_id) ?? {})
-                      : null;
+                    const variantLabel = entry.items.length > 1
+                      ? `${entry.items.length} variações`
+                      : hasVariants && entry.variant_id
+                        ? formatVariantLabel((variants ?? []).find((v: any) => v.id === entry.variant_id) ?? {})
+                        : null;
+                    const costs = [...new Set(entry.items.map((i: any) => Number(i.unit_cost) || 0).filter((c: number) => c > 0))] as number[];
 
                     return (
                       <TouchableOpacity
-                        key={entry.entry_item_id}
+                        key={entry.entry_id}
                         style={[styles.entryCard, isExausted && styles.entryCardExausted]}
                         onPress={() => router.push({ pathname: `/entries/${entry.entry_id}` as any, params: { from: `/products/${id}` } })}
                         activeOpacity={0.7}
@@ -887,9 +925,11 @@ export default function ProductDetailsScreen() {
                           </View>
 
                           {/* Linha 4: custo unitário (se houver) */}
-                          {entry.unit_cost > 0 && (
+                          {costs.length > 0 && (
                             <Text style={styles.entryCostLabel}>
-                              Custo unit.: {formatCurrency(entry.unit_cost)}
+                              Custo unit.: {costs.length === 1
+                                ? formatCurrency(costs[0])
+                                : `${formatCurrency(Math.min(...costs))} a ${formatCurrency(Math.max(...costs))}`}
                             </Text>
                           )}
                         </View>
@@ -1106,6 +1146,26 @@ export default function ProductDetailsScreen() {
         onClose={() => setKeepModalVisible(false)}
         onConfirm={(ids) => removeVariantsMutation.mutate(ids)}
       />
+
+      {!!lastEntry && (
+        <AddProductToEntryModal
+          visible={newVariantOpen}
+          entryId={lastEntry.entry_id}
+          entryCode={lastEntry.entry_code}
+          newVariantOf={{
+            id: productId,
+            name: product?.name,
+            variants: (variants ?? []).map((v: any) => ({ id: v.id, color: v.color, size: v.size, price: v.price, cost_price: v.cost_price })),
+          } as any}
+          onClose={() => {
+            setNewVariantOpen(false);
+            refetchVariants();
+            refetchProduct();
+            queryClient.invalidateQueries({ queryKey: ['product-variant-grid', productId] });
+            queryClient.invalidateQueries({ queryKey: ['grouped-products'] });
+          }}
+        />
+      )}
 
       {/* Confirm Dialog */}
       <ConfirmDialog
@@ -1418,6 +1478,12 @@ const createStyles = (brand: string) => StyleSheet.create({
     gap: 6,
   },
   variantCardInactive: { opacity: 0.45 },
+  newVariantBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 12, padding: 12,
+    borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 12,
+  },
+  newVariantTitle: { fontSize: 15, fontWeight: '800' },
+  newVariantSub: { fontSize: 12, color: Colors.light.textSecondary, marginTop: 2 },
   variantCardTop: {
     flexDirection: 'row',
     alignItems: 'flex-start',

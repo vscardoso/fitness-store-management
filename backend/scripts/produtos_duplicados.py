@@ -6,8 +6,9 @@ mesmo tamanho, sem diferenciar maiúscula nem espaço) sai por exclusão lógica
 igual não é tocada. Se todas as variações do repetido saírem, o produto repetido sai também.
 
 O estoque fica nas entradas (entry_items.quantity_remaining), não na variação: variação repetida que ainda tem
-peças NÃO é excluída no --apply, a não ser com --com-estoque (aí as peças restantes dela são zeradas, porque eram
-a contagem em dobro). As vendas antigas continuam gravadas.
+peças NÃO é excluída no --apply, a não ser com --com-estoque: aí as peças restantes dela saem por baixa FIFO com
+motivo 'ajuste' (a mesma da conferência, com movimento de estoque registrado), porque eram a contagem em dobro.
+As vendas antigas continuam gravadas.
 
 Uso (a partir de backend/, ou dentro do container do backend):
     python scripts/produtos_duplicados.py --loja 2                  # só mostra o que seria excluído
@@ -24,7 +25,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sqlalchemy import func, select, update  # noqa: E402
+from sqlalchemy import func, select  # noqa: E402
 
 from app.core.database import async_session_maker  # noqa: E402
 from app.core.rls import bypass_on  # noqa: E402
@@ -33,6 +34,7 @@ from app.models.product import Product  # noqa: E402
 from app.models.product_variant import ProductVariant  # noqa: E402
 from app.models.sale import Sale, SaleItem  # noqa: E402
 from app.models.store import Store  # noqa: E402
+from app.services.stock_writeoff_service import StockWriteoffService  # noqa: E402
 
 
 def _key(s) -> str:
@@ -122,7 +124,7 @@ def print_plan(store, rows) -> None:
         tag = "EXCLUIR " if r["dup_stock"] == 0 else "EXCLUIR*"
         print(f"    {tag} {dup_code} {_desc(v)} ({extra})  igual a {keep_code} ({r['keep_stock']} peça(s))")
     if any(r["keep"] is not None and r["dup_stock"] > 0 for r in rows):
-        print("\n  * tem peças em estoque: só sai com --com-estoque (as peças restantes dela são zeradas).")
+        print("\n  * tem peças em estoque: só sai com --com-estoque (as peças restantes saem por baixa de ajuste, FIFO).")
 
 
 async def apply_store(db, rows, with_stock: bool) -> tuple[int, int, int]:
@@ -136,8 +138,10 @@ async def apply_store(db, rows, with_stock: bool) -> tuple[int, int, int]:
             continue
         v = r["dup"]
         if r["dup_stock"] > 0:
-            await db.execute(update(EntryItem).where(EntryItem.variant_id == v.id, EntryItem.is_active == True)  # noqa: E712
-                             .values(quantity_remaining=0))
+            await StockWriteoffService(db).write_off(
+                tenant_id=v.tenant_id, user_id=None, reason="ajuste", note=f"produto repetido, igual a {r['keep'].sku}",
+                merged={v.id: r["dup_stock"]}, label="Baixa de produto repetido",
+            )
         v.is_active = False
         gone_variants += 1
         removed_by_product[r["dup_product"].id] += 1

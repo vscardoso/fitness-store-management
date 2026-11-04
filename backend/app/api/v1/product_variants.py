@@ -517,6 +517,6 @@ async def delete_variant(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Só o admin exclui variação com peças em estoque.")
     service = ProductVariantService(db)
     try:
-        await service.delete_variant(variant_id, tenant_id, zero_stock=zerar_estoque)
+        await service.delete_variant(variant_id, tenant_id, zero_stock=zerar_estoque, user_id=current_user.id)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

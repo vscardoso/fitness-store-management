@@ -42,4 +42,11 @@ t('vazio mostra tudo', () => {
   assert.equal(matchesSearch(peca, ''), true);
   assert.equal(matchesSearch(peca, '   '), true);
 });
+t('código sem zeros: "43" e "#43" acham #043-9; "43-9" acha a peça; "4" não acha', () => {
+  const idx = buildSearchIndex(['Blusa Cropped Tule', 'Preto', 'M'], ['#043-9', 'GENEBLUSAC001']);
+  for (const q of ['43', '#43', '043', '43-9', '#043-9']) assert.equal(matchesSearch(idx, q), true, q);
+  assert.equal(matchesSearch(idx, '43-1'), false);
+  assert.equal(matchesSearch(idx, '4'), false);  // número é o código inteiro: 4 é o #004
+  assert.equal(matchesSearch(idx, '44'), false);
+});
 console.log(`${ok} testes passaram`);

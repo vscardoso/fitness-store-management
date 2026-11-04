@@ -312,12 +312,13 @@ class ProductVariantService:
         tenant_id: int,
         *,
         zero_stock: bool = False,
+        user_id: int | None = None,
     ) -> bool:
         """
         Desativa uma variante (soft delete).
 
-        Com estoque, só com zero_stock=True: as peças restantes dela vão a zero (quantity_remaining=0) e o
-        histórico de entradas e vendas continua. Sem isso, recusa.
+        Com estoque, só com zero_stock=True: as peças restantes saem por baixa FIFO com motivo 'ajuste' (a mesma da
+        conferência: movimento de estoque registrado, histórico de entradas e vendas continua). Sem isso, recusa.
         """
         variant = await self.variant_repo.get_with_stock(self.db, variant_id, tenant_id)
         if not variant:
@@ -326,14 +327,12 @@ class ProductVariantService:
         # Verificar estoque
         current_stock = variant.get_current_stock()
         if current_stock > 0 and zero_stock:
-            from sqlalchemy import update
-            from app.models.entry_item import EntryItem
-            await self.db.execute(
-                update(EntryItem)
-                .where(EntryItem.variant_id == variant_id, EntryItem.tenant_id == tenant_id, EntryItem.is_active == True)  # noqa: E712
-                .values(quantity_remaining=0)
+            from app.services.stock_writeoff_service import StockWriteoffService
+            await StockWriteoffService(self.db).write_off(
+                tenant_id=tenant_id, user_id=user_id, reason="ajuste", note=f"variação {variant.sku} excluída",
+                merged={variant_id: current_stock}, label="Baixa ao excluir variação",
             )
-            logger.info(f"Variante {variant_id}: {current_stock} peça(s) zeradas para excluir")
+            logger.info(f"Variante {variant_id}: baixa FIFO de {current_stock} peça(s) para excluir")
         elif current_stock > 0:
             raise ValueError(
                 f"Não é possível desativar variante com estoque "

@@ -9,14 +9,16 @@ import type { VariantGrid } from '@/types/productVariant';
 import { buildVariantMatrix, type CellStatus } from '@/utils/variantMatrix';
 import { useBrandingColors } from '@/store/brandingStore';
 import HScroll from '@/components/ui/HScroll';
+import { colorNameToHex } from '@/utils/colorHex';
 
 interface Props {
   grid: VariantGrid;
 }
 
-const LABEL_W = 76;
-const CELL_MIN = 38;
-const CELL_MAX = 56;
+// A coluna da cor ocupa o que sobra (a tabela usa a largura toda do cartão); as células ficam entre 40 e 64 px.
+const LABEL_MIN = 104;
+const CELL_MIN = 40;
+const CELL_MAX = 64;
 const CELL_DEFAULT = 52;
 
 const STATUS_COLORS: Record<CellStatus, { fg: string; bg: string }> = {
@@ -35,8 +37,9 @@ export function VariantStockMatrix({ grid }: Props) {
   // se ainda não couber (muitos tamanhos), a tabela rola na horizontal.
   const cols = m.sizes.length + 1;
   const CELL_W = availWidth > 0
-    ? Math.max(CELL_MIN, Math.min(CELL_MAX, Math.floor((availWidth - LABEL_W) / cols)))
+    ? Math.max(CELL_MIN, Math.min(CELL_MAX, Math.floor((availWidth - LABEL_MIN) / cols)))
     : CELL_DEFAULT;
+  const LABEL_W = availWidth > 0 ? Math.max(LABEL_MIN, availWidth - CELL_W * cols) : LABEL_MIN;
 
   if (m.existingCount === 0) return null;
 
@@ -63,17 +66,20 @@ export function VariantStockMatrix({ grid }: Props) {
 
       <HScroll showsHorizontalScrollIndicator={false}>
         <View>
-          <View style={styles.row}>
-            <View style={{ width: LABEL_W }} />
+          <View style={[styles.row, styles.headRow]}>
+            <Text style={[styles.headCell, styles.headLabel, { width: LABEL_W }]}>Cor</Text>
             {m.sizes.map((size) => (
               <Text key={size} style={[styles.headCell, { width: CELL_W }]}>{size}</Text>
             ))}
             <Text style={[styles.headCell, styles.strong, { width: CELL_W }]}>Total</Text>
           </View>
 
-          {m.colors.map((color) => (
-            <View key={color} style={styles.row}>
-              <Text style={[styles.labelCell, { width: LABEL_W }]} numberOfLines={2}>{color}</Text>
+          {m.colors.map((color, idx) => (
+            <View key={color} style={[styles.row, styles.bodyRow, idx % 2 === 1 && styles.zebra]}>
+              <View style={[styles.labelWrap, { width: LABEL_W }]}>
+                <View style={[styles.dot, { backgroundColor: colorNameToHex(color) ?? Colors.light.border }]} />
+                <Text style={styles.labelCell} numberOfLines={1}>{color}</Text>
+              </View>
               {m.sizes.map((size) => {
                 const cell = m.cells[color]?.[size];
                 if (!cell) {
@@ -96,8 +102,8 @@ export function VariantStockMatrix({ grid }: Props) {
             </View>
           ))}
 
-          <View style={styles.row}>
-            <Text style={[styles.labelCell, styles.strong, { width: LABEL_W }]}>Total</Text>
+          <View style={[styles.row, styles.totalRow]}>
+            <Text style={[styles.labelCell, styles.strong, styles.totalLabel, { width: LABEL_W }]}>Total</Text>
             {m.sizes.map((size) => (
               <Text key={size} style={[styles.totalCell, { width: CELL_W }]}>{m.totalBySize[size] ?? 0}</Text>
             ))}
@@ -114,9 +120,17 @@ const createStyles = (brand: string) => StyleSheet.create({
   summaryText: { fontSize: 13, fontWeight: '600', color: Colors.light.text },
   pill: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 10 },
   pillText: { fontSize: 11, fontWeight: '700' },
-  row: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
-  labelCell: { fontSize: 12, fontWeight: '600', color: Colors.light.text, paddingRight: 6 },
+  row: { flexDirection: 'row', alignItems: 'center' },
+  headRow: { paddingBottom: 8, borderBottomWidth: 1, borderBottomColor: Colors.light.border },
+  bodyRow: { paddingVertical: 5, borderRadius: 8 },
+  zebra: { backgroundColor: Colors.light.backgroundSecondary },
+  totalRow: { marginTop: 4, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.light.border },
+  labelWrap: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingLeft: 8, paddingRight: 6 },
+  dot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1, borderColor: 'rgba(0,0,0,0.08)' },
+  labelCell: { flexShrink: 1, fontSize: 13, fontWeight: '600', color: Colors.light.text },
+  totalLabel: { paddingLeft: 8 },
   headCell: { fontSize: 12, fontWeight: '700', color: Colors.light.textSecondary, textAlign: 'center' },
+  headLabel: { textAlign: 'left', paddingLeft: 8 },
   strong: { color: Colors.light.text },
   cellWrap: { alignItems: 'center' },
   cell: { minWidth: 34, paddingVertical: 6, borderRadius: 8, alignItems: 'center' },

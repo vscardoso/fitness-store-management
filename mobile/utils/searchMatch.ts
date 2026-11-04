@@ -32,9 +32,26 @@ export function buildSearchIndex(text: string[], codes: (string | null | undefin
   return { words: w, codes: c };
 }
 
+/** "043-01" -> "43-1": sem zeros à esquerda em cada parte (o código digitado "43" acha a etiqueta "#043-1"). */
+function codeKey(code: string): string {
+  return code.split('-').map((p) => (/^\d+$/.test(p) ? String(Number(p)) : p)).join('-');
+}
+
 /** Todas as palavras digitadas precisam começar alguma palavra (ou um código inteiro) da peça. */
 export function matchesSearch(index: SearchIndex, query: string): boolean {
   const tokens = normalizeText(query).split(/\s+/).map((t) => t.replace(/^#/, '')).filter(Boolean);
   if (!tokens.length) return true;
-  return tokens.every((tk) => index.words.some((w) => w.startsWith(tk)) || index.codes.some((c) => c.startsWith(tk)));
+  return tokens.every((tk) => {
+    if (index.words.some((w) => w.startsWith(tk)) || index.codes.some((c) => c.startsWith(tk))) return true;
+    // código digitado sem os zeros: "43" acha "043-1" (o produto) e "43-1" acha a peça
+    if (/^\d+(-\d+)?$/.test(tk)) {
+      const key = codeKey(tk);
+      return index.codes.some((c) => {
+        if (!/^\d+(-\d+)?$/.test(c)) return false;
+        const ck = codeKey(c);
+        return key.includes('-') ? ck === key : ck.split('-')[0] === key;
+      });
+    }
+    return false;
+  });
 }
