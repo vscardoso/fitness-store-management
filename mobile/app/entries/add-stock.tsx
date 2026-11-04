@@ -41,6 +41,7 @@ import { createStockEntry } from '@/services/stockEntryService';
 import { formatCurrency } from '@/utils/format';
 import { EntryType, StockEntryCreate } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useDesktopContentStyle, useDesktopFooterStyle } from '@/hooks/useLayout';
 
 // ─── Tipos de entrada disponíveis nesse fluxo ────────────────────────────────
 
@@ -71,6 +72,8 @@ function formatMoneyInput(raw: string): string {
 // ─── Tela ─────────────────────────────────────────────────────────────────────
 
 export default function AddStockScreen() {
+  const desktopContent = useDesktopContentStyle();
+  const desktopFooter = useDesktopFooterStyle(16);
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/entries');
   const queryClient = useQueryClient();
@@ -240,7 +243,7 @@ export default function AddStockScreen() {
       <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
         <ScrollView
           style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, desktopContent]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
@@ -407,7 +410,7 @@ export default function AddStockScreen() {
       </Animated.View>
 
       {/* ── Botão fixo no rodapé ── */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, desktopFooter]}>
         <TouchableOpacity
           onPress={handleSubmit}
           disabled={isSubmitting}

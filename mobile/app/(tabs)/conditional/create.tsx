@@ -27,6 +27,7 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { formatCurrency } from '@/utils/format';
 import { cepMask, phoneMask } from '@/utils/masks';
 import { takePresetConditional } from '@/utils/presetConditional';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -61,6 +62,7 @@ const calculateDeadline = (departure: Date, returnDate: Date): { days: number; h
 };
 
 export default function CreateConditionalShipmentScreen() {
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const queryClient = useQueryClient();
   const brandingColors = useBrandingColors();
@@ -441,6 +443,9 @@ export default function CreateConditionalShipmentScreen() {
           onBack={() => step > 1 ? handleBack() : router.back()}
         />
       </Animated.View>
+
+      {/* notebook: passos, conteúdo e rodapé numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopContent]}>
 
       <Animated.View
         style={{
@@ -1060,6 +1065,7 @@ export default function CreateConditionalShipmentScreen() {
             </LinearGradient>
           </TouchableOpacity>
         )}
+      </View>
       </View>
 
       {/* ConfirmDialog */}

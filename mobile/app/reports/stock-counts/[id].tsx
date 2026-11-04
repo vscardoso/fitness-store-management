@@ -12,11 +12,13 @@ import useBackToList from '@/hooks/useBackToList';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getStockCount, type StockCountItem } from '@/services/stockCountService';
 import { formatDateTime, formatInt } from '@/utils/format';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 const PAGE = 30;
 const variantLabel = (i: StockCountItem) => [i.color, i.size].filter(Boolean).join(' / ') || 'Única';
 
 export default function StockCountDetailScreen() {
+  const desktopContent = useDesktopContentStyle();
   const brand = useBrandingColors();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -52,7 +54,7 @@ export default function StockCountDetailScreen() {
         showBackButton
         onBack={goBack}
       />
-      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}>
+      <ScrollView contentContainerStyle={[styles.content, desktopContent]} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}>
         {isLoading ? (
           <ActivityIndicator size="large" color={brand.primary} style={{ marginTop: 40 }} />
         ) : error || !count ? (

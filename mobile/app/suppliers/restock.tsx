@@ -13,6 +13,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { useRestockList } from '@/hooks/useSupplierInsights';
 import { formatCurrency } from '@/utils/format';
 import type { RestockGroup, RestockItem } from '@/services/supplierInsightsService';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 const COVERS = [
   { days: 15, label: '15 dias' },
@@ -58,6 +59,7 @@ async function sendToSupplier(group: RestockGroup) {
 }
 
 export default function SupplierRestockScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const brandingColors = useBrandingColors();
   const [cover, setCover] = useState(30);
@@ -72,6 +74,8 @@ export default function SupplierRestockScreen() {
         showBackButton
         onBack={() => router.replace('/suppliers' as any)}
       />
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
       <SuppliersTabs active="restock" />
 
       <ScrollView
@@ -162,6 +166,7 @@ export default function SupplierRestockScreen() {
           ))
         )}
       </ScrollView>
+      </View>
     </View>
   );
 }

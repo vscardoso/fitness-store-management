@@ -12,6 +12,7 @@ import { listConversations, listWhatsappLabels, WaConversation } from '@/service
 import { useChatColors } from '@/hooks/useThemeColors';
 import { parseApiError } from '@/utils/apiError';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 function when(iso: string | null): string {
   if (!iso) return '';
@@ -28,6 +29,7 @@ function initials(name: string): string {
 }
 
 export default function WhatsappInboxScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const c = useChatColors();
   const [showInvite, setShowInvite] = useState(false);
@@ -92,6 +94,8 @@ export default function WhatsappInboxScreen() {
         subtitle="Número oficial da loja"
         rightActions={[{ icon: 'person-add-outline', onPress: () => setShowInvite(true) }]}
       />
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
       <InviteSheet visible={showInvite} onDismiss={() => setShowInvite(false)} />
       <View style={[styles.searchBox, { backgroundColor: c.surface, borderColor: c.border }]}>
         <Ionicons name="search-outline" size={18} color={c.textMuted} />
@@ -144,6 +148,7 @@ export default function WhatsappInboxScreen() {
           }
         />
       )}
+      </View>
     </View>
   );
 }

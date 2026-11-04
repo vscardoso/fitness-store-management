@@ -21,6 +21,7 @@ import type { Expense } from '@/types/expense';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { Money } from '@/components/ui/PriceDisplay';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 const fmt = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -42,6 +43,7 @@ function useDateRange(period: PeriodFilterValue) {
 }
 
 export default function StockLossListScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const [period, setPeriod] = useState<PeriodFilterValue>('this_month');
   const [refreshing, setRefreshing] = useState(false);
@@ -178,6 +180,8 @@ export default function StockLossListScreen() {
           { icon: 'add-circle-outline', onPress: () => router.push('/(tabs)/stock-losses/register') },
         ]}
       />
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
 
       <Animated.View
         style={[
@@ -252,6 +256,7 @@ export default function StockLossListScreen() {
         />
       </Animated.View>
 
+      </View>
     </View>
   );
 }

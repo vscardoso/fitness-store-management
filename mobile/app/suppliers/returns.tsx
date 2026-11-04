@@ -22,6 +22,7 @@ import {
 import { formatCurrency } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 const STATUS_LABEL: Record<string, string> = {
   sent: 'Com o fornecedor',
@@ -31,6 +32,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export default function SupplierReturnsScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const brand = useBrandingColors();
   const qc = useQueryClient();
@@ -68,6 +70,8 @@ export default function SupplierReturnsScreen() {
   return (
     <View style={styles.container}>
       <PageHeader title="Devoluções ao fornecedor" subtitle="Defeitos e condicional" showBackButton onBack={() => router.back()} />
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
       <SuppliersTabs active="returns" />
       <ScrollView
         contentContainerStyle={styles.content}
@@ -153,6 +157,7 @@ export default function SupplierReturnsScreen() {
           </View>
         ))}
       </ScrollView>
+      </View>
     </View>
   );
 }

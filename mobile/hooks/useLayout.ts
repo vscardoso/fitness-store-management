@@ -66,3 +66,15 @@ export function useDesktopSheet() {
     ? { isDesktop, overlay: desktopSheet.overlay, sheet: desktopSheet.sheet, absSheet: desktopSheet.absSheet }
     : { isDesktop, overlay: undefined, sheet: undefined, absSheet: undefined };
 }
+
+/**
+ * Rodapé fixo (botões no pé da tela) no notebook: o fundo continua de ponta a ponta, mas os botões
+ * ficam alinhados com a coluna central de DESKTOP_CONTENT_MAX. `base` é o recuo que o rodapé já tem.
+ * undefined no celular.
+ */
+export function useDesktopFooterStyle(base = 16) {
+  const { isDesktop, width } = useLayout();
+  if (!isDesktop) return undefined;
+  const area = width - SIDEBAR_WIDTH;
+  return { paddingHorizontal: Math.max(base, (area - DESKTOP_CONTENT_MAX) / 2 + base) };
+}

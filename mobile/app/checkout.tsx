@@ -40,6 +40,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { Money } from '@/components/ui/PriceDisplay';
 import HScroll from '@/components/ui/HScroll';
 import { FEATURES } from '@/constants/features';
+import { useDesktopContentStyle, useDesktopFooterStyle } from '@/hooks/useLayout';
 /**
  * Métodos de pagamento disponíveis
  */
@@ -61,6 +62,8 @@ const installmentOptions = Array.from({ length: 12 }, (_, i) => ({
 }));
 
 export default function CheckoutScreen() {
+  const desktopContent = useDesktopContentStyle();
+  const desktopFooter = useDesktopFooterStyle(16);
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const cart = useCart();
@@ -913,7 +916,7 @@ export default function CheckoutScreen() {
       <View style={styles.content}>
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, desktopContent]}
           showsVerticalScrollIndicator={false}
         >
           {/* Resumo do Carrinho */}
@@ -1526,7 +1529,7 @@ export default function CheckoutScreen() {
         </ScrollView>
 
         {/* Footer com botão de finalizar */}
-        <View style={styles.footer}>
+        <View style={[styles.footer, desktopFooter]}>
           <AppButton
             variant="primary"
             size="lg"

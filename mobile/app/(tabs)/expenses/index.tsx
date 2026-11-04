@@ -21,6 +21,7 @@ import type { Expense } from '@/types/expense';
 import PeriodFilter, { PeriodFilterValue } from '@/components/PeriodFilter';
 
 import { Money } from '@/components/ui/PriceDisplay';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 const fmt = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -42,6 +43,7 @@ function useDateRange(period: PeriodFilterValue) {
 }
 
 export default function ExpenseListScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const queryClient = useQueryClient();
   const brandingColors = useBrandingColors();
@@ -135,6 +137,8 @@ export default function ExpenseListScreen() {
           { icon: 'add', onPress: () => router.push('/(tabs)/expenses/create') },
         ]}
       />
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
 
       {/* Card totalizador + filtro integrado */}
       <View style={styles.summaryCard}>
@@ -191,6 +195,7 @@ export default function ExpenseListScreen() {
           )
         }
       />
+      </View>
     </View>
   );
 }

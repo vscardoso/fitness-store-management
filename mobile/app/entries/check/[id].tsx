@@ -21,6 +21,7 @@ import { getStockEntryById } from '@/services/stockEntryService';
 import { lookupCode, variantLabel } from '@/services/codeResolver';
 import { playScan } from '@/utils/scanFeedback';
 import { formatInt } from '@/utils/format';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 type Counts = Record<number, number>; // variant_id -> peças lidas
 
@@ -32,6 +33,7 @@ interface Line {
 }
 
 export default function EntryReceiveCheckScreen() {
+  const desktopContent = useDesktopContentStyle();
   const brand = useBrandingColors();
   const { id } = useLocalSearchParams<{ id: string }>();
   const entryId = Number(id);
@@ -147,7 +149,7 @@ export default function EntryReceiveCheckScreen() {
   return (
     <View style={styles.container}>
       <PageHeader title="Conferir recebimento" subtitle={entry ? 'Entrada ' + entry.entry_code : undefined} showBackButton onBack={goBack} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.content, desktopContent]} keyboardShouldPersistTaps="handled">
         {isLoading ? (
           <ActivityIndicator size="large" color={brand.primary} style={{ marginTop: 40 }} />
         ) : error || !entry ? (

@@ -33,8 +33,12 @@ import { useSuppliers } from '@/hooks/useSuppliers';
 import type { Supplier } from '@/types';
 import { documentLabel } from '@/utils/masks';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useDesktopContentStyle, useIsDesktop } from '@/hooks/useLayout';
+import FAB from '@/components/FAB';
 
 export default function SuppliersIndexScreen() {
+  const desktopColumn = useDesktopContentStyle();
+  const isDesktop = useIsDesktop();
   const router = useRouter();
   const brandingColors = useBrandingColors();
   const [search, setSearch] = useState('');
@@ -154,6 +158,8 @@ export default function SuppliersIndexScreen() {
           onBack={() => router.push('/(tabs)/more')}
         />
       </Animated.View>
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
 
       <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
         <SuppliersTabs active="list" />
@@ -199,7 +205,10 @@ export default function SuppliersIndexScreen() {
           />
         )}
 
-        {/* FAB — cadastrar novo */}
+        {/* FAB — cadastrar novo (no notebook, o botão com texto do app) */}
+        {isDesktop ? (
+          <FAB onPress={() => setShowCreateSheet(true)} label="Novo fornecedor" />
+        ) : (
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: brandingColors.primary }]}
           onPress={() => setShowCreateSheet(true)}
@@ -214,6 +223,7 @@ export default function SuppliersIndexScreen() {
             <Ionicons name="add" size={28} color="#fff" />
           </LinearGradient>
         </TouchableOpacity>
+        )}
       </Animated.View>
 
       {/* Sheet de cadastro rápido */}
@@ -225,6 +235,7 @@ export default function SuppliersIndexScreen() {
           if (s) router.push(`/suppliers/${s.id}` as any);
         }}
       />
+      </View>
     </View>
   );
 }

@@ -43,6 +43,7 @@ import { useTutorialContext } from '@/components/tutorial';
 import { useBrandingColors } from '@/store/brandingStore';
 
 import { FitText } from '@/components/ui/PriceDisplay';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 const PERIOD_DAYS_OPTIONS = [
   { value: 7, label: '7 dias' },
   { value: 30, label: '30 dias' },
@@ -167,6 +168,7 @@ function AlertCard({ type, title, message, onPress }: AlertCardProps) {
 }
 
 export default function InventoryDashboard() {
+  const desktopColumn = useDesktopContentStyle();
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const router = useRouter();
@@ -346,6 +348,8 @@ export default function InventoryDashboard() {
         </Animated.View>
       </Animated.View>
 
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
       <Animated.View style={[styles.contentAnimation, contentAnimStyle]}>
         <ScrollView
           style={styles.scrollView}
@@ -763,6 +767,7 @@ export default function InventoryDashboard() {
         </ScrollView>
       </Animated.View>
 
+      </View>
     </View>
   );
 }

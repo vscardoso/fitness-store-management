@@ -22,6 +22,8 @@ import { useAuth } from '@/hooks/useAuth';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
+import { FEATURES } from '@/constants/features';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 interface MenuItem {
   id: string;
@@ -35,6 +37,7 @@ interface MenuItem {
 }
 
 export default function ReportsScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const { user, logout } = useAuth();
   const brandingColors = useBrandingColors();
@@ -135,27 +138,19 @@ export default function ReportsScreen() {
       iconBg: brandingColors.primary + '14',
       route: '/reports/history',
     },
-    {
-      id: 'inventory-report',
-      title: 'Relatório de Inventário',
-      subtitle: 'Movimentações de estoque',
-      icon: 'file-tray-stacked-outline',
-      iconColor: Colors.light.warning,
-      iconBg: Colors.light.warning + '14',
-      onPress: () => Alert.alert('Em desenvolvimento', 'Relatório de inventário será implementado em breve!'),
-    },
   ];
 
   const configs: MenuItem[] = [
-    {
+    // Meu Perfil só aparece quando a tela existir (chave meuPerfil em constants/features.ts)
+    ...(FEATURES.meuPerfil ? [{
       id: 'profile',
       title: 'Meu Perfil',
       subtitle: 'Dados pessoais e preferências',
-      icon: 'person-circle-outline',
+      icon: 'person-circle-outline' as const,
       iconColor: brandingColors.primary,
       iconBg: brandingColors.primary + '14',
       onPress: () => Alert.alert('Em desenvolvimento', 'Tela de perfil sera implementada em breve!'),
-    },
+    }] : []),
     {
       id: 'notifications',
       title: 'Notificações',
@@ -163,7 +158,7 @@ export default function ReportsScreen() {
       icon: 'notifications-outline',
       iconColor: Colors.light.warning,
       iconBg: Colors.light.warning + '14',
-      onPress: () => Alert.alert('Em desenvolvimento', 'Configurações serão implementadas em breve!'),
+      route: '/notifications',
     },
     {
       id: 'help',
@@ -172,7 +167,7 @@ export default function ReportsScreen() {
       icon: 'help-circle-outline',
       iconColor: Colors.light.info,
       iconBg: Colors.light.infoLight,
-      onPress: () => Alert.alert('Em desenvolvimento', 'Seção de ajuda será implementada em breve!'),
+      route: '/(tabs)/help',
     },
   ];
 
@@ -214,6 +209,8 @@ export default function ReportsScreen() {
           subtitle={getRoleLabel(user?.role || '')}
         />
       </Animated.View>
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
 
       <Animated.View style={[styles.contentAnimation, contentAnimStyle]}>
         <ScrollView
@@ -260,6 +257,7 @@ export default function ReportsScreen() {
           <Text style={styles.version}>Versão 1.0.1 • Provador</Text>
         </ScrollView>
       </Animated.View>
+      </View>
     </View>
   );
 }

@@ -25,6 +25,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 // ── Ícone por palavra-chave no nome da categoria ──
 const getCategoryIcon = (name: string): keyof typeof Ionicons.glyphMap => {
@@ -50,6 +51,7 @@ const getCategoryColor = (id: number): string => {
 };
 
 export default function CategoriesScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const brandingColors = useBrandingColors();
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
@@ -205,6 +207,8 @@ export default function CategoriesScreen() {
           onBack={() => router.back()}
         />
       </Animated.View>
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
 
       {/* ── Conteúdo animado ── */}
       <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
@@ -279,6 +283,7 @@ export default function CategoriesScreen() {
         type="danger"
         icon="alert-circle"
       />
+      </View>
     </View>
   );
 }

@@ -13,6 +13,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { useSupplierRanking } from '@/hooks/useSupplierInsights';
 import { formatCurrency, formatPercent } from '@/utils/format';
 import type { SupplierRankingRow, SupplierRating } from '@/services/supplierInsightsService';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 const PERIODS = [
   { days: 30, label: '30 dias' },
@@ -78,6 +79,7 @@ function RankCard({ row, onPress }: { row: SupplierRankingRow; onPress: () => vo
 }
 
 export default function SupplierRankingScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const brandingColors = useBrandingColors();
   const [days, setDays] = useState(180);
@@ -92,6 +94,8 @@ export default function SupplierRankingScreen() {
         showBackButton
         onBack={() => router.replace('/suppliers' as any)}
       />
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
       <SuppliersTabs active="ranking" />
 
       <ScrollView
@@ -139,6 +143,7 @@ export default function SupplierRankingScreen() {
           ))
         )}
       </ScrollView>
+      </View>
     </View>
   );
 }

@@ -14,8 +14,10 @@ import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
 import { getLotProfitRanking, type LotProfitRow } from '@/services/stockEntryService';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function LotProfitScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const brand = useBrandingColors();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/more');
@@ -28,6 +30,8 @@ export default function LotProfitScreen() {
   return (
     <View style={styles.container}>
       <PageHeader title="Lucro por lote" subtitle="Compra por compra" showBackButton onBack={goBack} />
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
@@ -57,6 +61,7 @@ export default function LotProfitScreen() {
           />
         ))}
       </ScrollView>
+      </View>
     </View>
   );
 }

@@ -18,8 +18,10 @@ import { buildCartProduct } from '@/services/scanToCart';
 import { playScan } from '@/utils/scanFeedback';
 import { variantCodeText } from '@/utils/shortCode';
 import { formatInt } from '@/utils/format';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function ConsultScreen() {
+  const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const cart = useCart();
   const { goBack } = useBackToList('/(tabs)');
@@ -70,7 +72,7 @@ export default function ConsultScreen() {
   return (
     <View style={styles.container}>
       <PageHeader title="Consultar peça" subtitle="Bipe a etiqueta para ver preço e estoque" showBackButton onBack={goBack} />
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={[styles.content, desktopContent]} keyboardShouldPersistTaps="handled">
         <ScanBar closeOnScan onCode={handleCode} status={status} placeholder="Bipe ou digite o código" />
 
         {!result || !selected ? (

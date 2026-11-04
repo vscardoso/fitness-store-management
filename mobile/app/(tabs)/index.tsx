@@ -43,6 +43,7 @@ import { isManagerRole } from '@/utils/roles';
 
 import { FitText, Money } from '@/components/ui/PriceDisplay';
 import HScroll from '@/components/ui/HScroll';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 const { width } = Dimensions.get('window');
 
 // Interface para ações rápidas
@@ -55,6 +56,7 @@ interface QuickAction {
 }
 
 export default function DashboardScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const { user } = useAuth();
   const router = useRouter();
   const { startTutorial } = useTutorialContext();
@@ -351,6 +353,8 @@ export default function DashboardScreen() {
           ]}
         />
       </Animated.View>
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
 
       <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
       <ScrollView
@@ -1477,6 +1481,7 @@ export default function DashboardScreen() {
       </Animated.View>
 
       <FAB />
+      </View>
     </View>
   );
 }

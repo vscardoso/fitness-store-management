@@ -47,6 +47,7 @@ import { lookupCode } from '@/services/codeResolver';
 import { buildCodeIndex, findVariantLocal } from '@/utils/scanLogic';
 import { playScan } from '@/utils/scanFeedback';
 import { buildSearchIndex, matchesSearch } from '@/utils/searchMatch';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 type Counts = Record<number, string>;
 
@@ -69,6 +70,7 @@ function diffOf(row: StockCheckRow, counts: Counts): number | null {
 }
 
 export default function StockCheckScreen() {
+  const desktopContent = useDesktopContentStyle();
   const brand = useBrandingColors();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/more');
@@ -547,7 +549,7 @@ export default function StockCheckScreen() {
       <PageHeader title="Conferência de estoque" subtitle="Compare o sistema com a contagem" showBackButton onBack={goBack} />
       <ScrollView
         ref={scrollRef}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, desktopContent]}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
       >

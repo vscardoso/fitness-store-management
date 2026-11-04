@@ -37,7 +37,7 @@ import type { SaleWithDetails } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { Money } from '@/components/ui/PriceDisplay';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useDesktopFooterStyle } from '@/hooks/useLayout';
 const statusMap: Record<string, { label: string; color: string; solid?: boolean; icon: keyof typeof Ionicons.glyphMap }> = {
   pending:            { label: 'Pendente',     color: '#F59E0B', icon: 'time-outline' },
   completed:          { label: 'Concluída',    color: VALUE_COLORS.positive, solid: true, icon: 'checkmark-circle' },
@@ -68,6 +68,7 @@ const paymentIcon: Record<string, string> = {
 
 export default function SaleDetailsScreen() {
   const desktopContent = useDesktopContentStyle();
+  const desktopFooter = useDesktopFooterStyle(16);
   const { id } = useLocalSearchParams<{ id: string }>();
   const saleId = Number(id);
   const { goBack } = useBackToList('/(tabs)/sales');
@@ -573,7 +574,7 @@ export default function SaleDetailsScreen() {
 
       {/* ── FOOTER STICKY: ações para vendas PENDING ─────────── */}
       {sale.status === 'pending' && (
-        <View style={styles.pendingFooter}>
+        <View style={[styles.pendingFooter, desktopFooter]}>
           <AppButton
             variant="primary"
             size="lg"

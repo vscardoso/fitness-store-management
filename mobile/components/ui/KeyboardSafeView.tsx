@@ -12,6 +12,7 @@
 import React from 'react';
 import { StyleSheet, ViewStyle } from 'react-native';
 import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
+import { useIsDesktop } from '@/hooks/useLayout';
 
 interface Props {
   children: React.ReactNode;
@@ -19,11 +20,13 @@ interface Props {
 }
 
 export default function KeyboardSafeView({ children, style }: Props) {
+  // 140 px é o espaço da barra de abas do celular; no notebook não há barra embaixo
+  const isDesktop = useIsDesktop();
   return (
     <KeyboardAwareScreen
       style={style}
       contentContainerStyle={styles.content}
-      bottomPadding={140}
+      bottomPadding={isDesktop ? 0 : 140}
     >
       {children}
     </KeyboardAwareScreen>

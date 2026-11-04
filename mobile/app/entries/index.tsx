@@ -54,12 +54,14 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
 import type { Supplier } from '@/types';
 import { takePresetEntry } from '@/utils/presetEntry';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 const PAGE_SIZE = 20;
 
 type FilterType = 'all' | 'active' | 'history';
 
 export default function StockEntriesScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/entries');
   const queryClient = useQueryClient();
@@ -644,6 +646,8 @@ export default function StockEntriesScreen() {
         />
       </Animated.View>
 
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
       <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
       {/* Filtros de Status (Ativas/Histórico/Todas) */}
       <View style={styles.filterContainer}>
@@ -1014,6 +1018,7 @@ export default function StockEntriesScreen() {
           icon="alert-circle"
         />
       </Animated.View>
+      </View>
       </View>
     );
   }

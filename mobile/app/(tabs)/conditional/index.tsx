@@ -39,6 +39,7 @@ import { formatCurrency } from '@/utils/format';
 import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 type FilterType = 'all' | 'pending' | 'overdue';
 
@@ -91,6 +92,7 @@ function SummaryStrip({ counts }: SummaryStripProps) {
 }
 
 export default function ConditionalShipmentsScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const { user } = useAuth();
   const { startTutorial } = useTutorialContext();
@@ -271,6 +273,8 @@ export default function ConditionalShipmentsScreen() {
           ]}
         />
       </Animated.View>
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
 
       <Animated.View style={contentAnimStyle}>
         {/* KPI strip */}
@@ -420,6 +424,7 @@ export default function ConditionalShipmentsScreen() {
       )}
 
       <FAB directRoute="/(tabs)/conditional/create" />
+      </View>
     </View>
   );
 }

@@ -13,6 +13,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { useInbox, useMarkAllRead, useMarkRead } from '@/hooks/useNotificationInbox';
 import { formatDateTime } from '@/utils/format';
 import type { InboxNotification } from '@/services/notificationInboxService';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 const KIND: Record<InboxNotification['kind'], { icon: keyof typeof Ionicons.glyphMap; color: string; bg: string }> = {
   low_stock: { icon: 'alert-circle-outline', color: Colors.light.warning, bg: Colors.light.warning + '22' },
@@ -20,6 +21,7 @@ const KIND: Record<InboxNotification['kind'], { icon: keyof typeof Ionicons.glyp
 };
 
 export default function NotificationsScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const brandingColors = useBrandingColors();
   const { data, isLoading, isRefetching, refetch } = useInbox();
@@ -42,6 +44,8 @@ export default function NotificationsScreen() {
         showBackButton
         onBack={() => router.back()}
       />
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
 
       <ScrollView
         contentContainerStyle={styles.content}
@@ -86,6 +90,7 @@ export default function NotificationsScreen() {
           })
         )}
       </ScrollView>
+      </View>
     </View>
   );
 }

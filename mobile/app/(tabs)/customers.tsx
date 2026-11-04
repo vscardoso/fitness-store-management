@@ -29,8 +29,10 @@ import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { Customer } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function CustomersScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
@@ -158,6 +160,8 @@ export default function CustomersScreen() {
           ]}
         />
       </Animated.View>
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
 
       {/* ── Conteúdo animado ── */}
       <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
@@ -292,6 +296,7 @@ export default function CustomersScreen() {
 
       {/* FAB */}
       <FAB directRoute="/customers/add" />
+      </View>
     </View>
   );
 }

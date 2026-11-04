@@ -23,7 +23,9 @@ import { formatCurrency, formatDate } from '@/utils/format';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { FitText } from '@/components/ui/PriceDisplay';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 export default function TripsScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const brandingColors = useBrandingColors();
 
@@ -183,6 +185,8 @@ export default function TripsScreen() {
           subtitle={`${stats.totalTrips} ${stats.totalTrips === 1 ? 'viagem' : 'viagens'}`}
         />
       </Animated.View>
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
 
       <Animated.View style={{ flex: 1, transform: [{ translateY: contentTranslate }], opacity: contentOpacity }}>
         {isLoading && !isRefetching ? (
@@ -259,6 +263,7 @@ export default function TripsScreen() {
       </Animated.View>
 
       <FAB directRoute="/trips/add" />
+      </View>
     </View>
   );
 }

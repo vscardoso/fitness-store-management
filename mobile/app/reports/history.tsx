@@ -36,6 +36,7 @@ import {
   HistoryGroup,
 } from '@/services/reportService';
 import HScroll from '@/components/ui/HScroll';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 const periodOptions: { value: HistoryPeriod; label: string }[] = [
   { value: 'today', label: 'Hoje' },
@@ -165,6 +166,7 @@ function QuickStats({ events, brandingPrimary }: { events: HistoryEvent[]; brand
 }
 
 export default function HistoryScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/reports');
   const brandingColors = useBrandingColors();
@@ -244,6 +246,8 @@ export default function HistoryScreen() {
           rightActions={[{ icon: 'time-outline', onPress: () => undefined }]}
         />
       </Animated.View>
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
 
       <Animated.View style={[styles.contentAnimation, contentAnimStyle]}>
         <View style={styles.filtersArea}>
@@ -342,6 +346,7 @@ export default function HistoryScreen() {
           </View>
         )}
       </Animated.View>
+      </View>
     </View>
   );
 }

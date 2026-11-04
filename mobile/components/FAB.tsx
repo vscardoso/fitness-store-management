@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
+import { useIsDesktop } from '@/hooks/useLayout';
 
 interface QuickAction {
   id: string;
@@ -36,9 +37,25 @@ interface FABProps {
   bottom?: number;        // Distância do bottom (default: 20, acima do tab bar: 90)
   directRoute?: string;   // Navega diretamente para a rota
   onPress?: () => void;   // Executa ação customizada
+  /** Texto do botão no notebook (lá ele vira um botão com texto). Sem ele, vem da rota. */
+  label?: string;
 }
 
-export default function FAB({ bottom = 20, directRoute, onPress }: FABProps) {
+/** Texto do botão no notebook, pela rota de destino. */
+const ROUTE_LABELS: Record<string, string> = {
+  '/customers/add': 'Novo cliente',
+  '/categories/add': 'Nova categoria',
+  '/entries/add': 'Nova entrada',
+  '/checkout': 'Nova venda',
+  '/team/add': 'Novo usuário',
+  '/trips/add': 'Nova viagem',
+  '/looks/builder': 'Novo look',
+  '/(tabs)/conditional/create': 'Novo envio',
+  '/products/wizard': 'Novo produto',
+};
+
+export default function FAB({ bottom = 20, directRoute, onPress, label }: FABProps) {
+  const isDesktop = useIsDesktop();
   const router = useRouter();
   const brandingColors = useBrandingColors();
   const { width } = useWindowDimensions();
@@ -155,7 +172,8 @@ export default function FAB({ bottom = 20, directRoute, onPress }: FABProps) {
     if (onPress) {
       onPress();
     } else if (directRoute) {
-      router.push(directRoute as any);
+      // no notebook o checkout vazio só volta ao PDV: abre o PDV direto
+      router.push((isDesktop && directRoute === '/checkout' ? '/(tabs)/sale' : directRoute) as any);
     } else {
       openModal();
     }
@@ -163,7 +181,28 @@ export default function FAB({ bottom = 20, directRoute, onPress }: FABProps) {
 
   return (
     <>
-      {/* Botão FAB */}
+      {/* Botão FAB: no notebook vira botão com texto no canto (não há barra de abas embaixo) */}
+      {isDesktop ? (
+        <TouchableOpacity
+          style={[styles.fabDesktop, { shadowColor: brandingColors.primary }]}
+          onPress={handleFABPress}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={label || (directRoute && ROUTE_LABELS[directRoute]) || 'Cadastrar'}
+        >
+          <LinearGradient
+            colors={brandingColors.gradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.fabDesktopGradient}
+          >
+            <Ionicons name="add" size={20} color="#fff" />
+            <Text style={styles.fabDesktopText}>
+              {label || (directRoute && ROUTE_LABELS[directRoute]) || 'Cadastrar'}
+            </Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      ) : (
       <TouchableOpacity
         style={[styles.fab, { bottom, shadowColor: brandingColors.primary }]}
         onPress={handleFABPress}
@@ -180,6 +219,7 @@ export default function FAB({ bottom = 20, directRoute, onPress }: FABProps) {
           </Animated.View>
         </LinearGradient>
       </TouchableOpacity>
+      )}
 
       {/* Modal de Ações */}
       <Modal
@@ -259,6 +299,31 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     zIndex: 1000,
+  },
+  fabDesktop: {
+    position: 'absolute',
+    bottom: 24,
+    right: 24,
+    borderRadius: 24,
+    elevation: 6,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    zIndex: 1000,
+    cursor: 'pointer',
+  } as any,
+  fabDesktopGradient: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 44,
+    paddingHorizontal: 18,
+    borderRadius: 24,
+  },
+  fabDesktopText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
   },
   fabGradient: {
     width: '100%',

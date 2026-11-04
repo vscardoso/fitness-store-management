@@ -35,6 +35,7 @@ import {
   TopProductDetail,
 } from '@/services/reportService';
 import HScroll from '@/components/ui/HScroll';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 const periodOptions: { value: TopProductsPeriod; label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
   { value: 'this_month', label: 'Este mes', icon: 'calendar-outline' },
@@ -164,6 +165,7 @@ function SummaryStats({ data, brandingPrimary }: { data: TopProductsResponse; br
 }
 
 export default function TopProductsScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/reports');
   const brandingColors = useBrandingColors();
@@ -226,6 +228,8 @@ export default function TopProductsScreen() {
           rightActions={[{ icon: 'trending-up-outline', onPress: () => undefined }]}
         />
       </Animated.View>
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
 
       <Animated.View style={[styles.contentAnimation, contentAnimStyle]}>
         <View style={styles.filtersArea}>
@@ -341,6 +345,7 @@ export default function TopProductsScreen() {
           </View>
         )}
       </Animated.View>
+      </View>
     </View>
   );
 }

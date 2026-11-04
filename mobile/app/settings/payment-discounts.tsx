@@ -451,7 +451,7 @@ export default function PaymentDiscountsScreen() {
       </Animated.View>
 
       {/* FAB */}
-      <FAB onPress={handleAddNew} />
+      <FAB onPress={handleAddNew} label="Novo desconto" />
 
       {/* Modal de Formulário */}
       <Modal

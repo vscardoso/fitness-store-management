@@ -15,8 +15,10 @@ import useBackToList from '@/hooks/useBackToList';
 import { useBrandingColors } from '@/store/brandingStore';
 import { listStockCounts, type StockCountSummary } from '@/services/stockCountService';
 import { formatDateTime, formatInt } from '@/utils/format';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function StockCountsScreen() {
+  const desktopContent = useDesktopContentStyle();
   const brand = useBrandingColors();
   const router = useRouter();
   const { goBack } = useBackToList('/reports/stock-check');
@@ -89,7 +91,7 @@ export default function StockCountsScreen() {
           data={data?.results ?? []}
           keyExtractor={(i) => String(i.id)}
           renderItem={renderItem}
-          contentContainerStyle={styles.list}
+          contentContainerStyle={[styles.list, desktopContent]}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
           ListEmptyComponent={
             <View style={styles.empty}>

@@ -11,8 +11,10 @@ import { formatCurrency, formatDateTime } from '@/utils/format';
 import { differenceText } from '@/utils/cashMoney';
 import { parseApiError } from '@/utils/apiError';
 import { getCashSession, getCashSessions } from '@/services/cashService';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function CashHistoryScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const [openId, setOpenId] = useState<number | null>(null);
   const { data, isLoading, isRefetching, refetch, error } = useQuery({ queryKey: ['cash', 'sessions'], queryFn: () => getCashSessions(0, 60) });
@@ -25,6 +27,8 @@ export default function CashHistoryScreen() {
   return (
     <View style={styles.container}>
       <PageHeader title="Histórico do caixa" subtitle="Cada abertura e fechamento" showBackButton onBack={() => router.back()} />
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
       <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}>
         {isLoading && <ActivityIndicator style={{ marginTop: 24 }} />}
         {!!error && <Text style={styles.error}>{parseApiError(error) || 'Não foi possível carregar o histórico.'}</Text>}
@@ -73,6 +77,7 @@ export default function CashHistoryScreen() {
           );
         })}
       </ScrollView>
+      </View>
     </View>
   );
 }

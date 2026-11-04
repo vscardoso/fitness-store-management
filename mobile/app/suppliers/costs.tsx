@@ -10,8 +10,10 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useCostComparison } from '@/hooks/useSupplierInsights';
 import { formatCurrency, formatPercent, formatSignedPercent } from '@/utils/format';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function SupplierCostsScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const brandingColors = useBrandingColors();
   const { data, isLoading, isRefetching, refetch, error } = useCostComparison();
@@ -26,6 +28,8 @@ export default function SupplierCostsScreen() {
         showBackButton
         onBack={() => router.replace('/suppliers' as any)}
       />
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
       <SuppliersTabs active="costs" />
 
       <ScrollView
@@ -112,6 +116,7 @@ export default function SupplierCostsScreen() {
           </>
         )}
       </ScrollView>
+      </View>
     </View>
   );
 }
