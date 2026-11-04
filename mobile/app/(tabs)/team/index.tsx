@@ -248,11 +248,12 @@ export default function TeamScreen() {
       {/* List */}
       <FlatList
           key={listGrid.listKey}
+          style={listGrid.bleedStyle}
           {...listGrid.listProps}
         data={filteredMembers}
         renderItem={listGrid.wrap(renderMember)}
         keyExtractor={(item) => item.id.toString()}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[styles.listContent, listGrid.bleedContent]}
         refreshControl={
           <RefreshControl
             refreshing={isRefetching}

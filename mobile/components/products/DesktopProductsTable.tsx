@@ -3,7 +3,7 @@
  * O celular continua com a lista de cartões (app/(tabs)/products.tsx).
  */
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -186,7 +186,8 @@ export default function DesktopProductsTable() {
   return (
     <View style={styles.screen}>
       {header}
-      <View style={styles.body}>
+      {/* rolagem da página inteira (a barra fica na borda da janela; o conteúdo segue na largura padrão) */}
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>
         <View style={styles.toolbar}>
           <View style={styles.searchBox}>
             <Ionicons name="search-outline" size={18} color="#8A839E" />
@@ -239,7 +240,7 @@ export default function DesktopProductsTable() {
             emptyHint="Tente outro nome ou limpe os filtros."
           />
         )}
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -247,7 +248,8 @@ export default function DesktopProductsTable() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F6F5FA' },
   // no PC largo as colunas espalhavam por 1.800 px: tabela na largura padrão do PC, centralizada
-  body: { flex: 1, padding: 20, gap: 12, width: '100%', maxWidth: 1200, alignSelf: 'center' },
+  scroll: { flex: 1 },
+  body: { flexGrow: 1, padding: 20, gap: 12, width: '100%', maxWidth: 1200, alignSelf: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
   toolbar: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: LINE, backgroundColor: '#FFFFFF' },

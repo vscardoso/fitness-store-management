@@ -192,13 +192,14 @@ export default function SuppliersIndexScreen() {
         ) : (
           <FlatList
           key={listGrid.listKey}
+          style={listGrid.bleedStyle}
           {...listGrid.listProps}
             data={filtered}
             keyExtractor={(item) => item.id.toString()}
             renderItem={listGrid.wrap(renderItem)}
             ListEmptyComponent={renderEmpty}
             showsVerticalScrollIndicator={false}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, listGrid.bleedContent]}
             refreshControl={
               <RefreshControl
                 refreshing={isRefetching}

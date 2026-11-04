@@ -91,11 +91,12 @@ export default function StockCountsScreen() {
       ) : (
         <FlatList
           key={listGrid.listKey}
+          style={listGrid.bleedStyle}
           {...listGrid.listProps}
           data={data?.results ?? []}
           keyExtractor={(i) => String(i.id)}
           renderItem={listGrid.wrap(renderItem)}
-          contentContainerStyle={[styles.list, desktopContent]}
+          contentContainerStyle={[styles.list, desktopContent, listGrid.bleedContent]}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
           ListEmptyComponent={
             <View style={styles.empty}>

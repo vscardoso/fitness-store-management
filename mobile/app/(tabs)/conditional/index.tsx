@@ -404,11 +404,12 @@ export default function ConditionalShipmentsScreen() {
       ) : (
         <FlatList
           key={listGrid.listKey}
+          style={listGrid.bleedStyle}
           {...listGrid.listProps}
           data={filteredShipments}
           renderItem={listGrid.wrap(renderShipmentCard)}
           keyExtractor={item => item.id.toString()}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[styles.listContent, listGrid.bleedContent]}
           showsVerticalScrollIndicator={false}
           refreshControl={
             <RefreshControl

@@ -775,11 +775,12 @@ export default function StockEntriesScreen() {
         {/* Lista de entradas */}
         <FlatList
           key={listGrid.listKey}
+          style={listGrid.bleedStyle}
           {...listGrid.listProps}
           data={filteredEntries}
           renderItem={listGrid.wrap(renderEntryCard)}
           keyExtractor={(item) => item.id.toString()}
-          contentContainerStyle={styles.listContainer}
+          contentContainerStyle={[styles.listContainer, listGrid.bleedContent]}
           refreshControl={
             <RefreshControl
               refreshing={isRefetching}

@@ -3,7 +3,7 @@
  * O celular continua com a lista de cartões (app/(tabs)/sales/index.tsx).
  */
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -192,7 +192,8 @@ export default function DesktopSalesTable() {
   return (
     <View style={styles.screen}>
       {header}
-      <View style={styles.body}>
+      {/* rolagem da página inteira (a barra fica na borda da janela; o conteúdo segue na largura padrão) */}
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.body}>
         <View style={styles.summaryRow}>
           <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Vendas concluídas</Text>
@@ -251,7 +252,7 @@ export default function DesktopSalesTable() {
           emptyTitle="Nenhuma venda encontrada"
           emptyHint="Mude o período ou limpe os filtros."
         />
-      </View>
+      </ScrollView>
     </View>
   );
 }
@@ -259,7 +260,8 @@ export default function DesktopSalesTable() {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F6F5FA' },
   // no PC largo as colunas espalhavam por 1.800 px: tabela na largura padrão do PC, centralizada
-  body: { flex: 1, padding: 20, gap: 12, width: '100%', maxWidth: 1200, alignSelf: 'center' },
+  scroll: { flex: 1 },
+  body: { flexGrow: 1, padding: 20, gap: 12, width: '100%', maxWidth: 1200, alignSelf: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
   summaryRow: { flexDirection: 'row', gap: 12 },
   summaryCard: { flex: 1, backgroundColor: '#FFFFFF', borderRadius: 12, borderWidth: 1, borderColor: LINE, padding: 14, gap: 4 },

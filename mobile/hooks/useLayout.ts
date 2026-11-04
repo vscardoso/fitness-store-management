@@ -110,9 +110,12 @@ export function useDesktopGrid(minCard = 340, gap = 12) {
  * `wrap` devolve o próprio renderItem: a lista fica exatamente como era.
  */
 export function useListGrid(minCard = 340, gap = 12, padX = 16) {
-  const { isDesktop } = useLayout();
+  const { isDesktop, width } = useLayout();
   const [w, setW] = useState(0);
-  const inner = Math.max(0, w - padX * 2);
+  // A lista "vaza" da coluna central até as bordas da área (margem negativa + o mesmo recuo por dentro):
+  // a barra de rolagem fica na borda da janela e os cartões continuam alinhados à coluna.
+  const gutter = isDesktop ? Math.max(0, Math.floor((width - SIDEBAR_WIDTH - DESKTOP_CONTENT_MAX) / 2)) : 0;
+  const inner = Math.max(0, w - (padX + gutter) * 2);
   const cols = isDesktop && inner > 0 ? Math.max(1, Math.floor((inner + gap) / (minCard + gap))) : 1;
   const cardW = cols > 1 ? Math.floor((inner - gap * (cols - 1)) / cols) : 0;
   const listProps = isDesktop
@@ -126,5 +129,12 @@ export function useListGrid(minCard = 340, gap = 12, padX = 16) {
     if (!cardW) return render;
     return (info: T) => createElement(View, { style: { width: cardW } }, render(info));
   }
-  return { listProps, listKey: isDesktop ? `grade-${cols}` : undefined, wrap, cols, inner };
+  /**
+   * `style` da FlatList: largura da área inteira, centralizada sobre a coluna (sobra igual dos dois lados).
+   * Não usar margem negativa: no web a FlatList aplica o `style` em duas camadas e a margem somaria duas vezes.
+   */
+  const bleedStyle = gutter ? ({ width: width - SIDEBAR_WIDTH, alignSelf: 'center' } as const) : undefined;
+  /** Somar ao `contentContainerStyle` da FlatList: devolve os cartões para a coluna. */
+  const bleedContent = gutter ? { paddingHorizontal: padX + gutter } : undefined;
+  return { listProps, listKey: isDesktop ? `grade-${cols}` : undefined, wrap, cols, inner, gutter, bleedStyle, bleedContent };
 }

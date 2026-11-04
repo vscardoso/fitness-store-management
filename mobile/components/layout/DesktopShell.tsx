@@ -47,6 +47,21 @@ function WebShell({ children }: { children: ReactNode }) {
     return () => document.removeEventListener('keydown', onKey, true);
   }, [showSidebar, help, helpOpen, toggleHelp, closeHelp]);
 
+  // Barra de rolagem fina e discreta no PC (a padrão do navegador, cinza grossa com setas, destoava do app)
+  useEffect(() => {
+    if (!isDesktop || typeof document === 'undefined' || document.getElementById('provador-scrollbar')) return;
+    const st = document.createElement('style');
+    st.id = 'provador-scrollbar';
+    st.textContent =
+      '*{scrollbar-width:thin;scrollbar-color:rgba(22,15,40,.22) transparent}' +
+      '*::-webkit-scrollbar{width:8px;height:8px}' +
+      '*::-webkit-scrollbar-track{background:transparent}' +
+      '*::-webkit-scrollbar-thumb{background:rgba(22,15,40,.22);border-radius:8px}' +
+      '*::-webkit-scrollbar-thumb:hover{background:rgba(22,15,40,.38)}' +
+      '*::-webkit-scrollbar-button{display:none;width:0;height:0}';
+    document.head.appendChild(st);
+  }, [isDesktop]);
+
   // F2 de qualquer tela abre o ponto de venda (no PDV o próprio PDV usa o F2 para nova venda)
   useEffect(() => {
     if (!showSidebar || typeof document === 'undefined') return;

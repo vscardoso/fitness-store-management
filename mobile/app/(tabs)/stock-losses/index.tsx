@@ -239,11 +239,12 @@ export default function StockLossListScreen() {
       >
         <FlatList
           key={listGrid.listKey}
+          style={listGrid.bleedStyle}
           {...listGrid.listProps}
           data={losses ?? []}
           keyExtractor={(item) => String(item.id)}
           renderItem={listGrid.wrap(renderItem)}
-          contentContainerStyle={losses?.length ? styles.listContent : styles.emptyContent}
+          contentContainerStyle={[losses?.length ? styles.listContent : styles.emptyContent, listGrid.bleedContent]}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[VALUE_COLORS.negative]} />}
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={

@@ -270,12 +270,13 @@ export default function CustomersScreen() {
             {/* Lista */}
             <FlatList
               key={listGrid.listKey}
+          style={listGrid.bleedStyle}
               onLayout={(listGrid.listProps as { onLayout?: (e: any) => void }).onLayout}
               data={filteredCustomers}
               renderItem={renderCustomer}
               keyExtractor={(item) => item.id.toString()}
               numColumns={listGrid.listKey ? Math.max(2, listGrid.cols) : 2}
-              contentContainerStyle={styles.listContent}
+              contentContainerStyle={[styles.listContent, listGrid.gutter ? { paddingHorizontal: listGrid.gutter } : undefined]}
               columnWrapperStyle={styles.columnWrapper}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"

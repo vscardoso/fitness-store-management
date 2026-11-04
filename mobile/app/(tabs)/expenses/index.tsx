@@ -181,11 +181,12 @@ export default function ExpenseListScreen() {
 
       <FlatList
           key={listGrid.listKey}
+          style={listGrid.bleedStyle}
           {...listGrid.listProps}
         data={expenses ?? []}
         keyExtractor={(item) => String(item.id)}
         renderItem={listGrid.wrap(renderItem)}
-        contentContainerStyle={expenses?.length === 0 ? styles.emptyContainer : styles.listContent}
+        contentContainerStyle={[expenses?.length === 0 ? styles.emptyContainer : styles.listContent, listGrid.bleedContent]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[brandingColors.primary]} />}
         ListEmptyComponent={
           isLoading ? null : (

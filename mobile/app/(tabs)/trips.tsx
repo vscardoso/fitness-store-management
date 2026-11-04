@@ -241,12 +241,13 @@ export default function TripsScreen() {
 
             <FlatList
           key={listGrid.listKey}
+          style={listGrid.bleedStyle}
           {...listGrid.listProps}
               data={trips}
               renderItem={listGrid.wrap(renderTrip)}
               keyExtractor={(item) => item.id.toString()}
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={styles.listContent}
+              contentContainerStyle={[styles.listContent, listGrid.bleedContent]}
               refreshControl={
                 <RefreshControl
                   refreshing={isRefetching}
