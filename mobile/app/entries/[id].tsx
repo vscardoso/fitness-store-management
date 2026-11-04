@@ -545,61 +545,56 @@ export default function StockEntryDetailsScreen() {
                 <Text style={[styles.productChipText, { color: Colors.light.warning }]}>Parado</Text>
               </View>
             )}
-            <TouchableOpacity
-              onPress={() => handleEditItem(item)}
-              style={[styles.editItemButton, { borderColor: hasSales ? Colors.light.warning + '40' : brandingColors.primary + '30', backgroundColor: hasSales ? Colors.light.warning + '12' : brandingColors.primary + '12' }]}
-              activeOpacity={0.7}
-            >
-              <Ionicons
-                name={hasSales ? 'construct-outline' : 'create-outline'}
-                size={14}
-                color={hasSales ? Colors.light.warning : brandingColors.primary}
-              />
-              <Text style={[styles.editItemButtonText, { color: hasSales ? Colors.light.warning : brandingColors.primary }]}>
-                {hasSales ? 'Corrigir' : 'Editar'}
-              </Text>
-            </TouchableOpacity>
           </View>
         </View>
 
-        {/* Ações do item: linha própria, quebra em duas linhas em telas estreitas */}
-        {isManagerRole(user?.role) && (item.quantity_remaining > 0 || item.product_id) && (
-          <View style={styles.itemActionsRow}>
-            {!hasSales && (entry?.entry_items?.length ?? 0) > 1 && (
-              <TouchableOpacity
-                onPress={() => setDeleteItemTarget(item)}
-                style={[styles.editItemButton, { borderColor: Colors.light.error + '40', backgroundColor: Colors.light.error + '12' }]}
-                activeOpacity={0.7}
-                accessibilityLabel="Excluir este produto da entrada"
-              >
-                <Ionicons name="trash-outline" size={14} color={Colors.light.error} />
-                <Text style={[styles.editItemButtonText, { color: Colors.light.error }]}>Excluir</Text>
-              </TouchableOpacity>
-            )}
-            {item.quantity_remaining > 0 && (
-              <TouchableOpacity
-                onPress={() => setSupplierItem(item)}
-                style={[styles.editItemButton, { borderColor: Colors.light.border, backgroundColor: Colors.light.backgroundSecondary }]}
-                activeOpacity={0.7}
-                accessibilityLabel="Devolver peças deste item ao fornecedor"
-              >
-                <Ionicons name="return-down-back-outline" size={14} color={Colors.light.textSecondary} />
-                <Text style={[styles.editItemButtonText, { color: Colors.light.textSecondary }]}>Devolver ao fornecedor</Text>
-              </TouchableOpacity>
-            )}
-            {item.product_id ? (
-              <TouchableOpacity
-                onPress={() => setVariantTarget(item)}
-                style={[styles.editItemButton, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12' }]}
-                activeOpacity={0.7}
-                accessibilityLabel="Lançar outra variação deste produto"
-              >
-                <Ionicons name="add-circle-outline" size={14} color={brandingColors.primary} />
-                <Text style={[styles.editItemButtonText, { color: brandingColors.primary }]}>Outra variação</Text>
-              </TouchableOpacity>
-            ) : null}
-          </View>
-        )}
+        {/* Ações do item: barra de botões iguais, ícone em cima e nome curto embaixo */}
+        <View style={styles.itemToolbar}>
+          <TouchableOpacity
+            onPress={() => handleEditItem(item)}
+            style={[styles.itemTool, { borderColor: hasSales ? Colors.light.warning + '40' : brandingColors.primary + '30', backgroundColor: hasSales ? Colors.light.warning + '12' : brandingColors.primary + '12' }]}
+            activeOpacity={0.7}
+            accessibilityLabel={hasSales ? 'Corrigir este item' : 'Editar este item'}
+          >
+            <Ionicons name={hasSales ? 'construct-outline' : 'create-outline'} size={16} color={hasSales ? Colors.light.warning : brandingColors.primary} />
+            <Text style={[styles.itemToolText, { color: hasSales ? Colors.light.warning : brandingColors.primary }]} numberOfLines={1}>
+              {hasSales ? 'Corrigir' : 'Editar'}
+            </Text>
+          </TouchableOpacity>
+          {isManagerRole(user?.role) && !hasSales && (entry?.entry_items?.length ?? 0) > 1 && (
+            <TouchableOpacity
+              onPress={() => setDeleteItemTarget(item)}
+              style={[styles.itemTool, { borderColor: Colors.light.error + '40', backgroundColor: Colors.light.error + '12' }]}
+              activeOpacity={0.7}
+              accessibilityLabel="Excluir este produto da entrada"
+            >
+              <Ionicons name="trash-outline" size={16} color={Colors.light.error} />
+              <Text style={[styles.itemToolText, { color: Colors.light.error }]} numberOfLines={1}>Excluir</Text>
+            </TouchableOpacity>
+          )}
+          {isManagerRole(user?.role) && item.quantity_remaining > 0 && (
+            <TouchableOpacity
+              onPress={() => setSupplierItem(item)}
+              style={[styles.itemTool, { borderColor: Colors.light.border, backgroundColor: Colors.light.backgroundSecondary }]}
+              activeOpacity={0.7}
+              accessibilityLabel="Devolver peças deste item ao fornecedor"
+            >
+              <Ionicons name="return-down-back-outline" size={16} color={Colors.light.textSecondary} />
+              <Text style={[styles.itemToolText, { color: Colors.light.textSecondary }]} numberOfLines={1}>Devolver</Text>
+            </TouchableOpacity>
+          )}
+          {isManagerRole(user?.role) && !!item.product_id && (
+            <TouchableOpacity
+              onPress={() => setVariantTarget(item)}
+              style={[styles.itemTool, { borderColor: brandingColors.primary + '30', backgroundColor: brandingColors.primary + '12' }]}
+              activeOpacity={0.7}
+              accessibilityLabel="Lançar outra variação deste produto"
+            >
+              <Ionicons name="add-circle-outline" size={16} color={brandingColors.primary} />
+              <Text style={[styles.itemToolText, { color: brandingColors.primary }]} numberOfLines={1}>Variação</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Custo com frete, preço, lucro e markup desta peça */}
         {itemNumbers && (
@@ -1499,6 +1494,26 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: theme.spacing.md,
     gap: theme.spacing.sm,
+  },
+  itemToolbar: {
+    flexDirection: 'row',
+    gap: theme.spacing.xs,
+    marginBottom: theme.spacing.md,
+  },
+  itemTool: {
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 2,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: theme.borderRadius.md,
+    borderWidth: 1,
+  },
+  itemToolText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   itemActionsRow: {
     flexDirection: 'row',

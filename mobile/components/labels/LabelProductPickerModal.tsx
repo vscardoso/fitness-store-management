@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   FlatList,
   SafeAreaView,
+  useWindowDimensions,
 } from 'react-native';
 import { Text, Searchbar } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -23,6 +24,7 @@ import AppButton from '@/components/ui/AppButton';
 import { getGroupedProducts } from '@/services/productService';
 import type { ProductGrouped, ProductVariant } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useIsDesktop } from '@/hooks/useLayout';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -48,6 +50,8 @@ export default function LabelProductPickerModal({
   alreadyAdded = new Set(),
 }: Props) {
   const brandingColors = useBrandingColors();
+  const isDesktop = useIsDesktop();
+  const { height: winH } = useWindowDimensions();
   const [search, setSearch]     = useState('');
   const [showOnlyNotAdded, setShowOnlyNotAdded] = useState(false);
   // key: `${productId}_${variantId}`
@@ -148,6 +152,24 @@ export default function LabelProductPickerModal({
         keys.forEach(k => next.delete(k));
       } else {
         product.variants.forEach(v => next.set(`${product.id}_${v.id}`, { product, variant: v }));
+      }
+      return next;
+    });
+  };
+
+  // Marca (ou desmarca) todas as variações dos produtos visíveis na lista
+  const filteredKeys = useMemo(
+    () => filtered.flatMap((p) => p.variants.map((v) => `${p.id}_${v.id}`)),
+    [filtered],
+  );
+  const allFilteredSelected = filteredKeys.length > 0 && filteredKeys.every((k) => selected.has(k));
+  const toggleAllFiltered = () => {
+    setSelected((prev) => {
+      const next = new Map(prev);
+      if (allFilteredSelected) {
+        filteredKeys.forEach((k) => next.delete(k));
+      } else {
+        filtered.forEach((p) => p.variants.forEach((v) => next.set(`${p.id}_${v.id}`, { product: p, variant: v })));
       }
       return next;
     });
@@ -280,11 +302,13 @@ export default function LabelProductPickerModal({
   return (
     <Modal
       visible={visible}
-      animationType="slide"
-      presentationStyle="pageSheet"
+      animationType={isDesktop ? 'fade' : 'slide'}
+      presentationStyle={isDesktop ? undefined : 'pageSheet'}
+      transparent={isDesktop}
       onRequestClose={onDismiss}
     >
-      <SafeAreaView style={styles.container}>
+      <View style={isDesktop ? styles.desktopOverlay : styles.phoneWrap}>
+      <SafeAreaView style={isDesktop ? [styles.desktopCard, { height: Math.round(winH * 0.88) }] : styles.container}>
         {/* Header */}
         <View style={styles.header}>
           <AppButton variant="ghost" size="sm" icon="close" iconOnly onPress={onDismiss} />
@@ -307,6 +331,7 @@ export default function LabelProductPickerModal({
             inputStyle={styles.searchInput}
           />
 
+          <View style={styles.filterRow}>
           <TouchableOpacity
             style={[
               styles.quickFilterChip,
@@ -332,6 +357,25 @@ export default function LabelProductPickerModal({
               Mostrar só não selecionadas
             </Text>
           </TouchableOpacity>
+          {filteredKeys.length > 0 && (
+            <TouchableOpacity
+              style={[styles.quickFilterChip, { borderColor: brandingColors.primary }]}
+              onPress={toggleAllFiltered}
+              activeOpacity={0.75}
+            >
+              <Ionicons
+                name={allFilteredSelected ? 'close-circle-outline' : 'checkmark-done-outline'}
+                size={14}
+                color={brandingColors.primary}
+              />
+              <Text style={[styles.quickFilterChipText, { color: brandingColors.primary }]}>
+                {allFilteredSelected
+                  ? 'Desmarcar todas'
+                  : search.trim() ? 'Marcar todas da busca' : 'Marcar todas'}
+              </Text>
+            </TouchableOpacity>
+          )}
+          </View>
         </View>
 
         {/* Legenda rápida */}
@@ -382,6 +426,7 @@ export default function LabelProductPickerModal({
           />
         </View>
       </SafeAreaView>
+      </View>
     </Modal>
   );
 }
@@ -390,6 +435,22 @@ export default function LabelProductPickerModal({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
+  phoneWrap: { flex: 1 },
+  desktopOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(15, 10, 30, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  desktopCard: {
+    backgroundColor: Colors.light.backgroundSecondary,
+    width: '100%',
+    maxWidth: 720,
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  filterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
 
   // Header
   header: {

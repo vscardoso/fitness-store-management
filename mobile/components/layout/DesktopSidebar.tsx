@@ -75,6 +75,7 @@ export default function DesktopSidebar() {
           { label: 'Produtos', icon: 'cube-outline', href: '/(tabs)/products', match: ['/products'] },
           ...(manager ? [{ label: 'Entradas', icon: 'download-outline' as Icon, href: '/entries', match: ['/entries'] }] : []),
           ...(manager ? [{ label: 'Importar estoque', icon: 'cloud-upload-outline' as Icon, href: '/entries/import', match: ['/entries/import'] }] : []),
+          { label: 'Estúdio de etiquetas', icon: 'print-outline', href: '/products/label', match: ['/products/label'] },
           { label: 'Categorias', icon: 'pricetags-outline', href: '/(tabs)/categories', match: ['/categories'] },
           { label: 'Inventário', icon: 'layers-outline', href: '/(tabs)/inventory', match: ['/inventory'] },
           ...(manager ? [
