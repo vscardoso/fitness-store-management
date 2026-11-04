@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useIsDesktop } from '@/hooks/useLayout';
+import { useKeyboardState } from '@/hooks/useKeyboardInset';
 
 interface QuickAction {
   id: string;
@@ -56,6 +57,8 @@ const ROUTE_LABELS: Record<string, string> = {
 
 export default function FAB({ bottom = 20, directRoute, onPress, label }: FABProps) {
   const isDesktop = useIsDesktop();
+  // No celular o + some com o teclado aberto: senão fica por cima da lista enquanto a pessoa digita
+  const keyboardOpen = useKeyboardState(!isDesktop).open;
   const router = useRouter();
   const brandingColors = useBrandingColors();
   const { width } = useWindowDimensions();
@@ -202,7 +205,7 @@ export default function FAB({ bottom = 20, directRoute, onPress, label }: FABPro
             </Text>
           </LinearGradient>
         </TouchableOpacity>
-      ) : (
+      ) : keyboardOpen ? null : (
       <TouchableOpacity
         style={[styles.fab, { bottom, shadowColor: brandingColors.primary }]}
         onPress={handleFABPress}

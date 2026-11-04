@@ -15,6 +15,7 @@ import { useCategories } from '@/hooks/useCategories';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getAllGroupedProducts } from '@/services/productService';
 import { formatCurrency } from '@/utils/format';
+import { matchesProduct, productCode, productCodeNumber } from '@/utils/productSearch';
 import type { ProductGrouped } from '@/types';
 
 const INK = '#160F28';
@@ -22,24 +23,8 @@ const MUTED = '#5B5670';
 const LINE = '#E6E3EE';
 type StockFilter = 'all' | 'low' | 'with' | 'none';
 
-const norm = (s?: string | null) => (s ?? '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
 const isLow = (p: ProductGrouped) => p.total_stock > 0 && p.total_stock <= (p.min_stock_threshold ?? 3);
-
-/** Código do produto na etiqueta ("#101"), lido do código da variação ("#101-1"). */
-function productCodeNumber(p: ProductGrouped): number {
-  for (const v of p.variants) {
-    const m = v.display_code?.match(/^#(\d+)-/);
-    if (m) return Number(m[1]);
-    if (v.product_code) return v.product_code;
-  }
-  return 0;
-}
-
-function productCode(p: ProductGrouped): string {
-  const n = productCodeNumber(p);
-  return n ? `#${String(n).padStart(3, '0')}` : '';
-}
 
 export default function DesktopProductsTable() {
   const router = useRouter();
@@ -75,18 +60,12 @@ export default function DesktopProductsTable() {
   }), [products]);
 
   const rows = useMemo(() => {
-    const words = norm(search).split(/\s+/).filter(Boolean);
     return products.filter((p) => {
       if (categoryId != null && p.category_id !== categoryId) return false;
       if (stock === 'low' && !isLow(p)) return false;
       if (stock === 'with' && p.total_stock <= 0) return false;
       if (stock === 'none' && p.total_stock > 0) return false;
-      if (!words.length) return true;
-      const hay = norm([
-        p.name, p.brand, categoryName.get(p.category_id ?? -1), productCode(p),
-        ...p.variants.flatMap((v) => [v.sku, v.color, v.size, v.display_code]),
-      ].filter(Boolean).join(' '));
-      return words.every((w) => hay.includes(w));
+      return matchesProduct(p, search, [categoryName.get(p.category_id ?? -1)]);
     });
   }, [products, search, stock, categoryId, categoryName]);
 

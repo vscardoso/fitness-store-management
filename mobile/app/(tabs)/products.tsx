@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { matchesProduct } from '@/utils/productSearch';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import PageHeader from '@/components/layout/PageHeader';
@@ -94,7 +95,8 @@ function MobileProductsScreen() {
   } = useQuery({
     queryKey: ['grouped-products-all'],
     queryFn: () => getGroupedProducts({ limit: 500, skip: 0 }),
-    enabled: showLowStock,
+    // Busca também: o produto procurado pode estar numa página que ainda não carregou
+    enabled: showLowStock || !!searchQuery.trim(),
   });
 
   // Auto-refresh quando a tela recebe foco;
@@ -172,20 +174,15 @@ function MobileProductsScreen() {
   const products = useMemo(() => {
     // Com filtro de estoque baixo ativo, usa a lista COMPLETA (não paginada)
     // para não perder produtos que estão em páginas ainda não carregadas.
-    const allProducts = showLowStock
-      ? (allProductsData ?? [])
+    const allProducts = (showLowStock || searchQuery.trim()) && allProductsData
+      ? allProductsData
       : (data?.pages?.flat() ?? []);
 
     // 1. FILTRO DE BUSCA (instantâneo, sem request ao backend)
     let filtered = allProducts;
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase().trim();
-      filtered = allProducts.filter((product) => {
-        // Buscar por nome ou marca
-        const matchName = product.name?.toLowerCase().includes(query);
-        const matchBrand = product.brand?.toLowerCase().includes(query);
-        return matchName || matchBrand;
-      });
+      // Nome, marca, SKU, cor, tamanho e código da etiqueta (#054, 054, #054-1): mesma regra do computador
+      filtered = allProducts.filter((product) => matchesProduct(product, searchQuery));
     }
 
     // 2. FILTRO DE ESTOQUE
@@ -342,7 +339,7 @@ function MobileProductsScreen() {
           <View style={styles.searchbarWrapper}>
             <Ionicons name="search-outline" size={18} color={Colors.light.textTertiary} style={styles.searchIcon} />
             <TextInput
-              placeholder="Buscar por nome, SKU ou marca..."
+              placeholder="Buscar por nome, código ou marca..."
               placeholderTextColor={Colors.light.textTertiary}
               onChangeText={setSearchQuery}
               value={searchQuery}

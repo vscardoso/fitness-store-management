@@ -10,6 +10,7 @@ import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
 import { useUIStore } from '@/store/uiStore';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useIsDesktop } from '@/hooks/useLayout';
+import { useKeyboardState } from '@/hooks/useKeyboardInset';
 
 export default function TabsLayout() {
   const { bottom: safeBottom } = useSafeAreaInsets();
@@ -25,6 +26,8 @@ export default function TabsLayout() {
   const triggerDashboardRefresh = useUIStore((s) => s.triggerDashboardRefresh);
   // Notebook: a barra lateral substitui as abas de baixo
   const isDesktop = useIsDesktop();
+  // Teclado aberto no celular: a barra de baixo some (senão sobe junto e cobre a lista, como no iPhone instalado)
+  const keyboardOpen = useKeyboardState(!isDesktop).open;
 
   // Voltar pelo gesto do iPhone / botão do navegador: trocar de aba NÃO cria entrada no histórico do navegador
   // (a troca substitui a entrada), então voltar de "Entradas" (aberta pelo Menu) caía no Início. Aqui lembramos de
@@ -84,7 +87,8 @@ export default function TabsLayout() {
       screenOptions={{
         tabBarActiveTintColor: brandingColors.primary,
         tabBarInactiveTintColor: Colors.light.tabIconDefault,
-        tabBarStyle: isDesktop ? { display: 'none' } : {
+        tabBarHideOnKeyboard: true,
+        tabBarStyle: isDesktop || keyboardOpen ? { display: 'none' } : {
           // Web: área útil de 60px para ícone + rótulo (com 49px o texto era cortado) + área segura
           height: Platform.OS === 'web' ? 68 + webBottom : Platform.OS === 'ios' ? 85 : 65,
           paddingBottom: Platform.OS === 'web' ? webBottom : Platform.OS === 'ios' ? 20 : 8,
