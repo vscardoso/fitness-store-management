@@ -27,6 +27,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { useBrandingColors } from '@/store/brandingStore';
 import { checkEmailAvailability } from '@/services/authService';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import FormGrid from '@/components/layout/FormGrid';
 
 export default function AddTeamMemberScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -175,7 +176,8 @@ export default function AddTeamMemberScreen() {
           contentContainerStyle={[styles.scrollContent, desktopContent]}
           keyboardShouldPersistTaps="handled"
         >
-        {/* Card: Informações Pessoais */}
+        <FormGrid>
+{/* Card: Informações Pessoais */}
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.cardHeader}>
@@ -304,6 +306,8 @@ export default function AddTeamMemberScreen() {
           </Text>
           </Card.Content>
         </Card>
+
+</FormGrid>
 
         {/* Botões de ação */}
         <View style={styles.actions}>

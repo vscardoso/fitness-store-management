@@ -68,6 +68,7 @@ import { clearPresetEntry } from '@/utils/presetEntry';
 
 import { Money } from '@/components/ui/PriceDisplay';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import FormGrid from '@/components/layout/FormGrid';
 /**
  * Capitaliza a primeira letra de cada palavra no nome do fornecedor
  * Ex: "joão silva" -> "João Silva", "MARIA SANTOS" -> "Maria Santos"
@@ -1551,7 +1552,8 @@ export default function AddStockEntryScreen() {
           style={styles.scrollView}
           contentContainerStyle={[styles.scrollContent, desktopContent]}
         >
-        {/* Tipo de Entrada */}
+        <FormGrid>
+{/* Tipo de Entrada */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Tipo de Entrada</Text>
           <View style={styles.typeButtons}>
@@ -1901,6 +1903,8 @@ export default function AddStockEntryScreen() {
           </View>
         </View>
 
+</FormGrid>
+
         {/* Lista de Produtos */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -2004,7 +2008,8 @@ export default function AddStockEntryScreen() {
           {getGroupedItems().map(({ key, indices }) => renderProductGroupCard(key, indices))}
         </View>
 
-        {/* Observações */}
+        <FormGrid>
+{/* Observações */}
         <View style={styles.inputGroup}>
           <TextInput
             label="Observações"
@@ -2082,6 +2087,8 @@ export default function AddStockEntryScreen() {
             </View>
           </View>
         )}
+
+</FormGrid>
 
         {/* Botões */}
         <View style={styles.actions}>

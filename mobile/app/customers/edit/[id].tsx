@@ -25,6 +25,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import type { CustomerUpdate } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import FormGrid from '@/components/layout/FormGrid';
 
 export default function EditCustomerScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -196,7 +197,8 @@ export default function EditCustomerScreen() {
           keyboardShouldPersistTaps="handled"
         >
 
-          {/* ── Seção: Informações Básicas ── */}
+          <FormGrid>
+{/* ── Seção: Informações Básicas ── */}
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
               <View style={[styles.sectionIcon, { backgroundColor: brandingColors.primary + '15' }]}>
@@ -368,6 +370,8 @@ export default function EditCustomerScreen() {
               </View>
             </View>
           </View>
+
+</FormGrid>
 
           {/* ── Botões ── */}
           <View style={styles.actions}>

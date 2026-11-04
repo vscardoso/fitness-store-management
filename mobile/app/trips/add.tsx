@@ -24,6 +24,7 @@ import { useEffect, useRef } from 'react';
 
 import { Money } from '@/components/ui/PriceDisplay';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import FormGrid from '@/components/layout/FormGrid';
 export default function AddTripScreen() {
   const desktopContent = useDesktopContentStyle();
   const router = useRouter();
@@ -401,7 +402,8 @@ export default function AddTripScreen() {
         style={styles.content}
         contentContainerStyle={[styles.scrollContent, desktopContent]}
       >
-          {/* Informações Básicas */}
+          <FormGrid>
+{/* Informações Básicas */}
           <View style={styles.sectionCard}>
             <Text style={styles.sectionTitle}>Informações Básicas</Text>
 
@@ -626,6 +628,8 @@ export default function AddTripScreen() {
               numberOfLines={4}
             />
           </View>
+
+</FormGrid>
 
           {/* Botões de ação */}
           <View style={styles.actions}>

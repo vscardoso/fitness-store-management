@@ -25,6 +25,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import type { CustomerCreate } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import FormGrid from '@/components/layout/FormGrid';
 
 export default function AddCustomerScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -199,7 +200,8 @@ export default function AddCustomerScreen() {
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
           >
-          <View style={styles.card}>
+          <FormGrid>
+<View style={styles.card}>
             <View style={styles.cardInner}>
               <View style={styles.cardHeader}>
                 <View style={[styles.cardHeaderIcon, { backgroundColor: brandingColors.primary + '15' }]}>
@@ -388,6 +390,8 @@ export default function AddCustomerScreen() {
               </View>
             </View>
           </View>
+
+</FormGrid>
 
           <View style={styles.actions}>
             <TouchableOpacity

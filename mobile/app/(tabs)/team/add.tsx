@@ -26,6 +26,8 @@ import { phoneMask } from '@/utils/masks';
 import { capitalizeWords } from '@/utils/format';
 import { useBrandingColors } from '@/store/brandingStore';
 import { checkEmailAvailability } from '@/services/authService';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
+import FormGrid from '@/components/layout/FormGrid';
 
 type DialogState = {
   visible: boolean;
@@ -40,6 +42,7 @@ type DialogState = {
 const DIALOG_HIDDEN: DialogState = { visible: false, type: 'info', title: '', message: '' };
 
 export default function AddTeamMemberScreen() {
+  const desktopContent = useDesktopContentStyle();
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const router = useRouter();
@@ -180,10 +183,11 @@ export default function AddTeamMemberScreen() {
       >
         <ScrollView
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, desktopContent]}
           keyboardShouldPersistTaps="handled"
         >
-        {/* Card: Informações Pessoais */}
+        <FormGrid>
+{/* Card: Informações Pessoais */}
         <Card style={styles.card}>
           <Card.Content>
             <View style={styles.cardHeader}>
@@ -312,6 +316,8 @@ export default function AddTeamMemberScreen() {
           </Text>
           </Card.Content>
         </Card>
+
+</FormGrid>
 
         {/* Botões de ação */}
         <View style={styles.actions}>

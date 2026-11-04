@@ -24,6 +24,7 @@ import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import type { ExpenseCategory, ExpenseCreate } from '@/types/expense';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { getFinanceOverview } from '@/services/financeService';
+import FormGrid from '@/components/layout/FormGrid';
 
 export default function CreateExpenseScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -141,7 +142,8 @@ export default function CreateExpenseScreen() {
           automaticallyAdjustKeyboardInsets={true}
         >
 
-          {/* Valor e Descrição */}
+          <FormGrid>
+{/* Valor e Descrição */}
           <View style={styles.card}>
             <View style={styles.cardHeader}>
               <Ionicons name="receipt-outline" size={20} color={brandingColors.primary} />
@@ -359,6 +361,8 @@ export default function CreateExpenseScreen() {
               )}
             </View>
           </View>
+
+</FormGrid>
 
           {/* Botões de ação */}
           <View style={styles.actions}>
