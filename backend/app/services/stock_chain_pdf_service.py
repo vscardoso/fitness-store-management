@@ -83,7 +83,8 @@ async def load_stock_chain(db: AsyncSession, tenant_id: int, supplier_id: Option
             "code": format_variant_code(pcode, vnum) or (sku or "-"),
             "received": int(received or 0),
             "remaining": int(remaining or 0),
-            "unit_cost": max(cost, Decimal(0)),
+            "base_cost": max(Decimal(unit_cost or 0), Decimal(0)),   # pago na peça
+            "unit_cost": max(cost, Decimal(0)),                       # custo final: pago + rateio de frete/viagem/desconto
             "price": Decimal(price or 0),
         })
     out = list(entries.values())
@@ -112,24 +113,27 @@ def build_stock_chain_pdf(entries: List[Dict[str, Any]], store_name: str = "") -
         Paragraph(
             f"<b>{len(entries)}</b> entradas com peças · <b>{total_pcs}</b> peças · custo em estoque <b>{brl(total_cost)}</b>"
             f" · valor de venda <b>{brl(total_sale)}</b>", body),
+        Paragraph("<font size=8 color='#666666'>Custo: o que foi pago na peça. Custo final: com a parte do frete, da viagem"
+                  " e do desconto da compra. Venda: preço de venda de hoje.</font>", body),
         Spacer(1, 5 * mm),
     ]
     if not entries:
         story.append(Paragraph("Nenhuma peça em estoque.", body))
 
-    widths = [52 * mm, 70 * mm, 38 * mm, 22 * mm, 18 * mm, 18 * mm, 24 * mm, 28 * mm]
+    widths = [40 * mm, 58 * mm, 34 * mm, 20 * mm, 15 * mm, 15 * mm, 21 * mm, 22 * mm, 21 * mm, 25 * mm]
     for e in entries:
         pcs = sum(i["remaining"] for i in e["items"])
         val = sum(i["remaining"] * i["unit_cost"] for i in e["items"])
         title = Paragraph(
             f"{_esc(e['code'])} · {e['date']:%d/%m/%Y} · {_esc(e['type'])} · Fornecedor: {_esc(e['supplier'])}"
             f" <font size=9 color='#666666'>({pcs} peças, {brl(val)})</font>", head)
-        data = [["Fornecedor", "Produto", "Cor · Tamanho", "Código", "Recebido", "Restante", "Custo un.", "Custo restante"]]
+        data = [["Fornecedor", "Produto", "Cor · Tamanho", "Código", "Recebido", "Restante", "Custo", "Custo final", "Venda",
+                 "Custo restante"]]
         for i in e["items"]:
             data.append([
                 Paragraph(_esc(i["supplier"]), small), Paragraph(_esc(i["product"]), small),
                 Paragraph(_esc(i["variant"]), small), i["code"], str(i["received"]), str(i["remaining"]),
-                brl(i["unit_cost"]), brl(i["remaining"] * i["unit_cost"]),
+                brl(i["base_cost"]), brl(i["unit_cost"]), brl(i["price"]), brl(i["remaining"] * i["unit_cost"]),
             ])
         t = Table(data, colWidths=widths, repeatRows=1)
         t.setStyle(TableStyle([
