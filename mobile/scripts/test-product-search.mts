@@ -32,5 +32,12 @@ t('nome sem acento, cor e várias palavras', () => {
   assert.ok(matchesProduct(p, 'GENERICO'));
   assert.equal(matchesProduct(p, 'agasalho azul'), false);
 });
+t('001 acha só o produto 1, não SKU terminado em 001', () => {
+  const um = { name: 'Agasalho', variants: [{ sku: 'AGA-1', display_code: '#001-1' }] };
+  const sku001 = { name: 'Blusa', variants: [{ sku: 'BLU-AZU-001', display_code: '#077-1' }] };
+  assert.ok(matchesProduct(um, '001'));
+  assert.equal(matchesProduct(sku001, '001'), false);
+  assert.ok(matchesProduct(sku001, 'blu-azu-001'));
+});
 t('busca vazia mostra tudo', () => assert.ok(matchesProduct(p, '   ')));
 console.log(`${n} testes ok`);

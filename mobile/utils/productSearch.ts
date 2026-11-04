@@ -2,6 +2,7 @@
  * Busca de produtos da lista (celular e computador usam a mesma regra).
  * Cada palavra digitada precisa aparecer no produto: nome, marca, categoria, SKU, cor, tamanho ou código.
  * Código da etiqueta com ou sem "#" e com ou sem zeros à esquerda: "#054", "054", "54" e "#054-1" acham o produto 54.
+ * Número sozinho é código (ou tamanho exato, como "38"): não procura pedaço de SKU, senão "001" acha todo SKU terminado em 001.
  */
 export interface SearchableVariant {
   sku?: string | null;
@@ -54,7 +55,8 @@ export function matchesProduct(p: SearchableProduct, query: string, extra: (stri
       const key = codeKey(tk);
       const isCode = key.includes('-') ? pieceKeys.includes(key) : number > 0 && Number(key) === number;
       if (isCode) return true;
-      if (tk.startsWith('#')) return false;   // "#" deixa claro que é código: não procura no resto
+      if (tk.startsWith('#') || key.includes('-')) return false;
+      return variants.some((v) => norm(v.size) === tk || norm(v.sku) === tk);
     }
     return hay.includes(tk.replace(/^#/, ''));
   });
