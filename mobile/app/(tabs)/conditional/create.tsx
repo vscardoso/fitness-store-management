@@ -27,7 +27,7 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { formatCurrency } from '@/utils/format';
 import { cepMask, phoneMask } from '@/utils/masks';
 import { takePresetConditional } from '@/utils/presetConditional';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -62,6 +62,8 @@ const calculateDeadline = (departure: Date, returnDate: Date): { days: number; h
 };
 
 export default function CreateConditionalShipmentScreen() {
+  // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
+  const bleed = useScrollBleed();
   const desktopContent = useDesktopContentStyle();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -532,7 +534,8 @@ export default function CreateConditionalShipmentScreen() {
 
       {/* Step 1: Selecionar Cliente */}
       {step === 1 && (
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={bleed.contentStyle} style={[styles.content, bleed.scrollStyle]} showsVerticalScrollIndicator={false}>
           <View>
             <Text style={styles.stepTitle}>Selecione o Cliente</Text>
             <Text style={styles.stepDescription}>
@@ -668,8 +671,9 @@ export default function CreateConditionalShipmentScreen() {
                 <Text style={styles.sectionTitle}>
                   Produtos Selecionados ({selectedProducts.length})
                 </Text>
-                <ScrollView 
-                  style={styles.selectedProductsScroll}
+                <ScrollView
+          contentContainerStyle={bleed.contentStyle} 
+                  style={[styles.selectedProductsScroll, bleed.scrollStyle]}
                   showsVerticalScrollIndicator={false}
                   nestedScrollEnabled={true}
                 >
@@ -757,7 +761,8 @@ export default function CreateConditionalShipmentScreen() {
 
       {/* Step 3: Configurar Envio */}
       {step === 3 && (
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={bleed.contentStyle} style={[styles.content, bleed.scrollStyle]} showsVerticalScrollIndicator={false}>
           <View>
             <Text style={styles.stepTitle}>Configure o Envio</Text>
             <Text style={styles.stepDescription}>
@@ -920,7 +925,8 @@ export default function CreateConditionalShipmentScreen() {
 
       {/* Step 4: Revisão */}
       {step === 4 && (
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={bleed.contentStyle} style={[styles.content, bleed.scrollStyle]} showsVerticalScrollIndicator={false}>
           <View>
             <Text style={styles.stepTitle}>Revisão do Envio</Text>
             <Text style={styles.stepDescription}>

@@ -42,7 +42,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import { useBrandingColors } from '@/store/brandingStore';
 
 import { FitText } from '@/components/ui/PriceDisplay';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
 const PERIOD_DAYS_OPTIONS = [
   { value: 7, label: '7 dias' },
   { value: 30, label: '30 dias' },
@@ -167,6 +167,8 @@ function AlertCard({ type, title, message, onPress }: AlertCardProps) {
 }
 
 export default function InventoryDashboard() {
+  // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
+  const bleed = useScrollBleed();
   const desktopColumn = useDesktopContentStyle();
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
@@ -349,8 +351,8 @@ export default function InventoryDashboard() {
       <View style={[{ flex: 1 }, desktopColumn]}>
       <Animated.View style={[styles.contentAnimation, contentAnimStyle]}>
         <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          style={[styles.scrollView, bleed.scrollStyle]}
+          contentContainerStyle={[styles.scrollContent, bleed.contentStyle]}
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
           }

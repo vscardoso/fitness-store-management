@@ -18,6 +18,7 @@ import { formatCurrency, formatPercent } from '@/utils/format';
 import { PriceRange } from '@/components/ui/PriceDisplay';
 import type { UseProductWizardReturn } from '@/hooks/useProductWizard';
 import type { ProductVariant } from '@/types/productVariant';
+import { useScrollBleed } from '@/hooks/useLayout';
 
 interface WizardCompleteProps {
   wizard: UseProductWizardReturn;
@@ -27,6 +28,8 @@ interface WizardCompleteProps {
 const MAX_VARIANTS_VISIBLE = 6;
 
 export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) {
+  // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
+  const bleed = useScrollBleed();
   const router = useRouter();
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
@@ -97,7 +100,7 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
   };
 
   return (
-    <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
+    <ScrollView style={[styles.scrollView, bleed.scrollStyle]} contentContainerStyle={[styles.container, bleed.contentStyle]}>
       {/* Ícone de Sucesso */}
       <View style={styles.successIcon}>
         <View style={styles.iconCircle}>

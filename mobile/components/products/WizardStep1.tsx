@@ -31,6 +31,7 @@ import { dismissKeyboard } from '@/utils/dismissKeyboard';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { capitalizeWords } from '@/utils/format';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { useScrollBleed } from '@/hooks/useLayout';
 
 interface WizardStep1Props {
   wizard: UseProductWizardReturn;
@@ -43,6 +44,8 @@ export default function WizardStep1({
   categories: categoriesProp,
   onNext,
 }: WizardStep1Props) {
+  // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
+  const bleed = useScrollBleed();
   // Guard defensivo: garante que categories é sempre um array
   const categories = Array.isArray(categoriesProp) ? categoriesProp : [];
   const { state } = wizard;
@@ -523,8 +526,8 @@ export default function WizardStep1({
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
     >
       <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
+        style={[styles.scrollView, bleed.scrollStyle]}
+        contentContainerStyle={[styles.content, bleed.contentStyle]}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
         showsVerticalScrollIndicator={false}

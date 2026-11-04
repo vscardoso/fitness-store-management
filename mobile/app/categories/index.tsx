@@ -25,7 +25,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
 
 // ── Ícone por palavra-chave no nome da categoria ──
 const getCategoryIcon = (name: string): keyof typeof Ionicons.glyphMap => {
@@ -51,6 +51,8 @@ const getCategoryColor = (id: number): string => {
 };
 
 export default function CategoriesScreen() {
+  // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
+  const bleed = useScrollBleed();
   const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const brandingColors = useBrandingColors();
@@ -219,11 +221,12 @@ export default function CategoriesScreen() {
           </View>
         ) : (
           <FlatList
+          style={bleed.scrollStyle}
             data={rootCategories}
             keyExtractor={(item) => item.id.toString()}
             renderItem={renderCategory}
             numColumns={2}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[styles.listContent, bleed.contentStyle]}
             columnWrapperStyle={styles.columnWrapper}
             showsVerticalScrollIndicator={false}
             refreshControl={

@@ -12,7 +12,7 @@ import { listConversations, listWhatsappLabels, WaConversation } from '@/service
 import { useChatColors } from '@/hooks/useThemeColors';
 import { parseApiError } from '@/utils/apiError';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
 
 function when(iso: string | null): string {
   if (!iso) return '';
@@ -29,6 +29,8 @@ function initials(name: string): string {
 }
 
 export default function WhatsappInboxScreen() {
+  // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
+  const bleed = useScrollBleed();
   const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const c = useChatColors();
@@ -134,10 +136,11 @@ export default function WhatsappInboxScreen() {
         <EmptyState icon="alert-circle-outline" title="Não consegui carregar" description={parseApiError(error)} />
       ) : (
         <FlatList
+          style={bleed.scrollStyle}
           data={data}
           keyExtractor={(x) => String(x.id)}
           renderItem={renderItem}
-          contentContainerStyle={{ padding: 16, gap: 10, flexGrow: 1 }}
+          contentContainerStyle={[{ padding: 16, gap: 10, flexGrow: 1 }, bleed.contentStyle]}
           refreshControl={<AppRefreshControl refreshing={isRefetching} onRefresh={() => refetch()} colors={[c.accent]} />}
           ListEmptyComponent={
             <EmptyState

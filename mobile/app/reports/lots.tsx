@@ -14,9 +14,11 @@ import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
 import { getLotProfitRanking, type LotProfitRow } from '@/services/stockEntryService';
-import { useDesktopContentStyle, useDesktopGrid } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useDesktopGrid, useScrollBleed } from '@/hooks/useLayout';
 
 export default function LotProfitScreen() {
+  // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
+  const bleed = useScrollBleed();
   const grid = useDesktopGrid(360, 12);
   const desktopColumn = useDesktopContentStyle();
   const brand = useBrandingColors();
@@ -34,7 +36,8 @@ export default function LotProfitScreen() {
       {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
       <View style={[{ flex: 1 }, desktopColumn]}>
       <ScrollView
-        contentContainerStyle={styles.content}
+          style={bleed.scrollStyle}
+        contentContainerStyle={[styles.content, bleed.contentStyle]}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
       >
         <View style={styles.intro}>

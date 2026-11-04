@@ -138,3 +138,20 @@ export function useListGrid(minCard = 340, gap = 12, padX = 16) {
   const bleedContent = gutter ? { paddingHorizontal: padX + gutter } : undefined;
   return { listProps, listKey: isDesktop ? `grade-${cols}` : undefined, wrap, cols, inner, gutter, bleedStyle, bleedContent };
 }
+
+/**
+ * Área que rola (ScrollView/FlatList vertical) dentro da coluna central do PC: a rolagem ocupa a largura
+ * da área inteira (barra de rolagem na borda da janela) e o conteúdo volta para a coluna.
+ *   const bleed = useScrollBleed();
+ *   <ScrollView style={[..., bleed.scrollStyle]} contentContainerStyle={[..., bleed.contentStyle]}>
+ * Largura (e não margem negativa): a FlatList do web aplica o `style` em duas camadas. No celular: nada.
+ */
+export function useScrollBleed() {
+  const { isDesktop, width } = useLayout();
+  const area = width - SIDEBAR_WIDTH;
+  if (!isDesktop || area <= DESKTOP_CONTENT_MAX) return { scrollStyle: undefined, contentStyle: undefined };
+  return {
+    scrollStyle: { width: area, alignSelf: 'center' } as const,
+    contentStyle: { width: '100%', maxWidth: DESKTOP_CONTENT_MAX, alignSelf: 'center' } as const,
+  };
+}

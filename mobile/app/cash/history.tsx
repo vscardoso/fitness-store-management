@@ -11,9 +11,11 @@ import { formatCurrency, formatDateTime } from '@/utils/format';
 import { differenceText } from '@/utils/cashMoney';
 import { parseApiError } from '@/utils/apiError';
 import { getCashSession, getCashSessions } from '@/services/cashService';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
 
 export default function CashHistoryScreen() {
+  // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
+  const bleed = useScrollBleed();
   const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const [openId, setOpenId] = useState<number | null>(null);
@@ -29,7 +31,8 @@ export default function CashHistoryScreen() {
       <PageHeader title="Histórico do caixa" subtitle="Cada abertura e fechamento" showBackButton onBack={() => router.back()} />
       {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
       <View style={[{ flex: 1 }, desktopColumn]}>
-      <ScrollView contentContainerStyle={styles.content} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}>
+      <ScrollView
+          style={bleed.scrollStyle} contentContainerStyle={[styles.content, bleed.contentStyle]} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}>
         {isLoading && <ActivityIndicator style={{ marginTop: 24 }} />}
         {!!error && <Text style={styles.error}>{parseApiError(error) || 'Não foi possível carregar o histórico.'}</Text>}
         {!isLoading && !error && (data?.length ?? 0) === 0 && <Text style={styles.empty}>Nenhum caixa aberto ainda.</Text>}

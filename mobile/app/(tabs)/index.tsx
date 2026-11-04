@@ -42,7 +42,7 @@ import { isManagerRole } from '@/utils/roles';
 
 import { FitText, Money } from '@/components/ui/PriceDisplay';
 import HScroll from '@/components/ui/HScroll';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
 const { width } = Dimensions.get('window');
 
 // Interface para ações rápidas
@@ -55,6 +55,8 @@ interface QuickAction {
 }
 
 export default function DashboardScreen() {
+  // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
+  const bleed = useScrollBleed();
   const desktopColumn = useDesktopContentStyle();
   const { user } = useAuth();
   const router = useRouter();
@@ -356,8 +358,8 @@ export default function DashboardScreen() {
       <Animated.View style={[{ flex: 1 }, contentAnimStyle]}>
       <ScrollView
         ref={scrollRef}
-        style={styles.scrollView}
-        contentContainerStyle={styles.content}
+        style={[styles.scrollView, bleed.scrollStyle]}
+        contentContainerStyle={[styles.content, bleed.contentStyle]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}

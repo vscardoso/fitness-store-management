@@ -30,6 +30,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { logError } from '@/services/debugLog';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import BottomSheet from '@/components/ui/BottomSheet';
+import { useScrollBleed } from '@/hooks/useLayout';
 
 interface WizardStep3Props {
   wizard: UseProductWizardReturn;
@@ -38,6 +39,8 @@ interface WizardStep3Props {
 const QUICK_QTY_OPTIONS = [1, 5, 10];
 
 export default function WizardStep3({ wizard }: WizardStep3Props) {
+  // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
+  const bleed = useScrollBleed();
   const { state } = wizard;
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary, brandingColors.secondary), [brandingColors.primary, brandingColors.secondary]);
@@ -266,7 +269,7 @@ export default function WizardStep3({ wizard }: WizardStep3Props) {
 
   return (
     <>
-    <ScrollView style={styles.scrollView} contentContainerStyle={styles.container}>
+    <ScrollView style={[styles.scrollView, bleed.scrollStyle]} contentContainerStyle={[styles.container, bleed.contentStyle]}>
       {/* Header — contexto diferente para fluxo pendente vs produto já criado */}
       <View style={styles.successContainer}>
         <View style={styles.successIcon}>

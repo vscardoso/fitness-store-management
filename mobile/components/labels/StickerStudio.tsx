@@ -17,6 +17,7 @@ import {
   type StickerSize, type TagLabelLayout,
 } from '@/services/labelService';
 import StickerPreview from '@/components/labels/StickerPreview';
+import { useScrollBleed } from '@/hooks/useLayout';
 
 export interface StickerItem {
   variantId: number;
@@ -51,6 +52,8 @@ function sizeFrom(w: number, h: number): StickerSize {
 const qrOf = (code?: string | null) => (code ? `PV${code}` : null);
 
 export default function StickerStudio({ items, initialQty, onAddMore, onRemove, onGenerated, emptyText }: Props) {
+  // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
+  const bleed = useScrollBleed();
   const brand = useBrandingColors();
   const { width } = useWindowDimensions();
   const [size, setSize] = useState<StickerSize>(DEFAULT_STICKER);
@@ -135,7 +138,8 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
 
   return (
     <View style={styles.root}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView
+          style={bleed.scrollStyle} contentContainerStyle={[styles.content, bleed.contentStyle]} keyboardShouldPersistTaps="handled">
         {/* Prévia: o adesivo como vai sair, em tamanho proporcional */}
         <View style={styles.previewCard}>
           {shown ? (

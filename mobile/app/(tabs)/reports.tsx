@@ -23,7 +23,7 @@ import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import { FEATURES } from '@/constants/features';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
 
 interface MenuItem {
   id: string;
@@ -37,6 +37,8 @@ interface MenuItem {
 }
 
 export default function ReportsScreen() {
+  // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
+  const bleed = useScrollBleed();
   const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const { user, logout } = useAuth();
@@ -214,8 +216,8 @@ export default function ReportsScreen() {
 
       <Animated.View style={[styles.contentAnimation, contentAnimStyle]}>
         <ScrollView
-          style={styles.scrollView}
-          contentContainerStyle={styles.content}
+          style={[styles.scrollView, bleed.scrollStyle]}
+          contentContainerStyle={[styles.content, bleed.contentStyle]}
           refreshControl={
             <RefreshControl
               refreshing={refreshing}

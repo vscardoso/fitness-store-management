@@ -13,7 +13,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { useInbox, useMarkAllRead, useMarkRead } from '@/hooks/useNotificationInbox';
 import { formatDateTime } from '@/utils/format';
 import type { InboxNotification } from '@/services/notificationInboxService';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
 
 const KIND: Record<InboxNotification['kind'], { icon: keyof typeof Ionicons.glyphMap; color: string; bg: string }> = {
   low_stock: { icon: 'alert-circle-outline', color: Colors.light.warning, bg: Colors.light.warning + '22' },
@@ -21,6 +21,8 @@ const KIND: Record<InboxNotification['kind'], { icon: keyof typeof Ionicons.glyp
 };
 
 export default function NotificationsScreen() {
+  // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
+  const bleed = useScrollBleed();
   const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const brandingColors = useBrandingColors();
@@ -48,7 +50,8 @@ export default function NotificationsScreen() {
       <View style={[{ flex: 1 }, desktopColumn]}>
 
       <ScrollView
-        contentContainerStyle={styles.content}
+          style={bleed.scrollStyle}
+        contentContainerStyle={[styles.content, bleed.contentStyle]}
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
       >
         {unread > 0 && (

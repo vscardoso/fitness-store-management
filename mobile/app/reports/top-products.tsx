@@ -35,7 +35,7 @@ import {
   TopProductDetail,
 } from '@/services/reportService';
 import HScroll from '@/components/ui/HScroll';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
 
 const periodOptions: { value: TopProductsPeriod; label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
   { value: 'this_month', label: 'Este mes', icon: 'calendar-outline' },
@@ -165,6 +165,8 @@ function SummaryStats({ data, brandingPrimary }: { data: TopProductsResponse; br
 }
 
 export default function TopProductsScreen() {
+  // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
+  const bleed = useScrollBleed();
   const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/reports');
@@ -276,8 +278,8 @@ export default function TopProductsScreen() {
           </View>
         ) : data && data.products.length > 0 ? (
           <ScrollView
-            style={styles.scrollView}
-            contentContainerStyle={styles.scrollContent}
+            style={[styles.scrollView, bleed.scrollStyle]}
+            contentContainerStyle={[styles.scrollContent, bleed.contentStyle]}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
