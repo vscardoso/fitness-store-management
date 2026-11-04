@@ -2,7 +2,7 @@
  * Tela única de etiquetas: adesivo do verso da tag (a frente já vem impressa com a logo WA).
  * Prévia em escala real, medida (6 x 5 cm por padrão, outras prontas ou qualquer uma de 3 a 10 cm), quantidade por
  * peça e o papel (fica lembrado no aparelho):
- *  - Folha A4 (padrão): várias por folha com marcas de corte, posição inicial para folha já usada;
+ *  - Folha A4 (padrão): várias por folha, encostadas, com linha de corte no tamanho exato; posição inicial para folha já usada;
  *  - Uma por página: no tamanho exato, para a gráfica ou impressora de etiqueta.
  */
 import React, { useEffect, useMemo, useState } from 'react';
@@ -289,7 +289,7 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
         <Text style={styles.paperTitle}>Papel</Text>
         <View style={styles.paperRow}>
           {([
-            { key: 'a4' as TagLabelLayout, icon: 'grid-outline' as const, title: 'Folha A4', note: `${perSheet} por folha, com marcas de corte` },
+            { key: 'a4' as TagLabelLayout, icon: 'grid-outline' as const, title: 'Folha A4', note: `${perSheet} por folha, com linha de corte` },
             { key: 'roll' as TagLabelLayout, icon: 'document-outline' as const, title: 'Uma por página', note: 'Gráfica ou impressora de etiqueta' },
           ]).map((o) => {
             const on = paper === o.key;

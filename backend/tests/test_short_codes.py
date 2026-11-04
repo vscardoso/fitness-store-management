@@ -251,23 +251,23 @@ async def test_pdf_das_pecas(test_client, async_session):
     await db.commit()
     h = await _user(db, t, UserRole.SELLER)
     if True:
-        body = {"items": [{"variant_id": vs[0].id, "quantity": 3}, {"variant_id": vs[1].id, "quantity": 10}], "layout": "a4", "width_mm": 50, "height_mm": 60}
+        body = {"items": [{"variant_id": vs[0].id, "quantity": 3}, {"variant_id": vs[1].id, "quantity": 14}], "layout": "a4", "width_mm": 50, "height_mm": 60}
         r = await test_client.post("/api/v1/labels/pdf", json=body, headers=h)
         assert r.status_code == 200, r.text
         assert r.headers["content-type"] == "application/pdf" and r.content.startswith(b"%PDF")
-        assert _pages(r.content) == 2  # 13 etiquetas, 12 por folha
+        assert _pages(r.content) == 2  # 17 etiquetas, 16 por folha
         text = _pdf_text(r.content)
         m, gg = vs[0].display_code, vs[1].display_code
         assert {m, gg} == {"#001-1", "#001-2"}      # produto 1 da loja; variações 1 e 2 (Preto antes de Verde na grade)
-        assert text.count(m) == 3 and text.count(gg) == 10
+        assert text.count(m) == 3 and text.count(gg) == 14
         assert "R$ 89,90" in text and "Verde Militar" in text and "Legging Cirrê" in text
         for proibido in ("SKU-", "Entrada", "custo", "Custo"):
             assert proibido not in text  # nada interno na etiqueta da cliente
 
-        body = {"items": [{"variant_id": vs[0].id, "quantity": 3}, {"variant_id": vs[1].id, "quantity": 11}],
-                "layout": "a4", "start_position": 12, "width_mm": 50, "height_mm": 60}  # folha já usada: começa na última posição
+        body = {"items": [{"variant_id": vs[0].id, "quantity": 3}, {"variant_id": vs[1].id, "quantity": 15}],
+                "layout": "a4", "start_position": 16, "width_mm": 50, "height_mm": 60}  # folha já usada: começa na última posição
         r = await test_client.post("/api/v1/labels/pdf", json=body, headers=h)
-        assert _pages(r.content) == 3  # 14 etiquetas: 1 na primeira folha, 12 na segunda, 1 na terceira
+        assert _pages(r.content) == 3  # 18 etiquetas: 1 na primeira folha, 16 na segunda, 1 na terceira
 
         body = {"items": [{"variant_id": vs[0].id, "quantity": 4}], "layout": "roll"}
         r = await test_client.post("/api/v1/labels/pdf", json=body, headers=h)
@@ -296,8 +296,8 @@ async def test_pdf_tamanhos_6x5_5x6_e_grade_da_folha(test_client, async_session)
     assert r.status_code == 200
     tam = {x["id"]: x for x in r.json()}
     assert (tam["60x50"]["width_mm"], tam["60x50"]["height_mm"], tam["60x50"]["per_sheet"]) == (60, 50, 15)
-    assert (tam["50x60"]["width_mm"], tam["50x60"]["height_mm"], tam["50x60"]["per_sheet"]) == (50, 60, 12)
-    assert (tam["65x55"]["width_mm"], tam["65x55"]["height_mm"], tam["65x55"]["per_sheet"]) == (65, 55, 8)
+    assert (tam["50x60"]["width_mm"], tam["50x60"]["height_mm"], tam["50x60"]["per_sheet"]) == (50, 60, 16)
+    assert (tam["65x55"]["width_mm"], tam["65x55"]["height_mm"], tam["65x55"]["per_sheet"]) == (65, 55, 15)
     assert (tam["55x65"]["width_mm"], tam["55x65"]["height_mm"], tam["55x65"]["per_sheet"]) == (55, 65, 12)
     url = "/api/v1/labels/pdf"
     # padrão = 6 x 5 cm deitada (a etiqueta que a W.A compra): uma por página com o tamanho exato (arquivo para a gráfica)
@@ -315,8 +315,8 @@ async def test_pdf_tamanhos_6x5_5x6_e_grade_da_folha(test_client, async_session)
     assert r.status_code == 200 and _pages(r.content) == 2
     r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 1}], "layout": "a4", "start_position": 16}, headers=h)
     assert r.status_code == 400 and "1 a 15" in r.json()["detail"]
-    r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 9}], "layout": "a4", "width_mm": 65, "height_mm": 55}, headers=h)
-    assert _pages(r.content) == 2   # 65x55: 8 por folha
+    r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 16}], "layout": "a4", "width_mm": 65, "height_mm": 55}, headers=h)
+    assert _pages(r.content) == 2   # 65x55: 15 por folha
     # medidas pequenas e grandes no limite: o desenho cabe e o texto sai inteiro
     for w, hh in ((30, 30), (100, 100), (60, 50), (50, 60)):
         r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 1}], "layout": "roll", "width_mm": w, "height_mm": hh}, headers=h)

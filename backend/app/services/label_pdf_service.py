@@ -3,7 +3,8 @@ Etiqueta do verso da tag em PDF (adesivo 60x50 mm por padrão, qualquer medida d
 nome | cor e tamanho | preço | QR e código curto (#0123).
 
 Dois formatos do mesmo desenho:
-- a4: folha A4 adesiva comum, com marcas de corte (impressora de casa); quantas cabem depende da medida (`a4_grid`);
+- a4: folha A4 adesiva lisa (sem pré-corte): etiquetas encostadas, cada uma com a linha de corte no tamanho exato
+  (uma linha serve às duas vizinhas); quantas cabem depende da medida (`a4_grid`);
 - roll: uma etiqueta por página, no tamanho exato da etiqueta (arquivo para a gráfica ou térmica pelo driver).
 Letras, quadrado do tamanho e QR crescem ou diminuem com a etiqueta (`scale_for`), tendo 50 mm como base.
 
@@ -27,7 +28,7 @@ from reportlab.pdfgen import canvas
 
 BOLD, REGULAR = "Helvetica-Bold", "Helvetica"
 ZONES = (15, 13, 11, 21)  # proporção das faixas (somam 60)
-A4_MARGIN_MM, A4_GAP_MM = 8, 4   # borda da folha e espaço entre etiquetas (cabem as marcas de corte)
+A4_MARGIN_MM, A4_GAP_MM = 5, 0   # borda da folha (área que a impressora alcança) e etiquetas encostadas: a linha de corte é a borda
 MIN_MM, MAX_MM = 30, 100
 DEFAULT_W_MM, DEFAULT_H_MM = 60, 50   # etiqueta 6 x 5 cm que a W.A compra (2026-11-02)
 
@@ -38,7 +39,7 @@ def scale_for(width_mm: float, height_mm: float) -> float:
 
 
 def a4_grid(width_mm: float, height_mm: float) -> tuple[int, int]:
-    """Quantas etiquetas cabem na folha A4 (colunas, linhas): 60x50 -> 3x5 = 15; 50x60 -> 3x4 = 12; 65x55 -> 2x4 = 8."""
+    """Quantas etiquetas cabem na folha A4 (colunas, linhas): 60x50 -> 3x5 = 15; 50x60 -> 4x4 = 16; 65x55 -> 3x5 = 15."""
     cols = int((210 - 2 * A4_MARGIN_MM + A4_GAP_MM) // (width_mm + A4_GAP_MM))
     rows = int((297 - 2 * A4_MARGIN_MM + A4_GAP_MM) // (height_mm + A4_GAP_MM))
     return max(1, cols), max(1, rows)
@@ -159,13 +160,11 @@ def draw_label(c: canvas.Canvas, x: float, y: float, w: float, h: float, d: Labe
     c.drawRightString(x + w - pad, mid - cs * 0.6, code)
 
 
-def _crop_marks(c: canvas.Canvas, x: float, y: float, w: float, h: float) -> None:
-    gap, ln = 1.2 * mm, 3 * mm
-    c.setStrokeColorRGB(0.55, 0.55, 0.55)
-    c.setLineWidth(0.3)
-    for cx, cy, sx, sy in ((x, y, -1, -1), (x + w, y, 1, -1), (x, y + h, -1, 1), (x + w, y + h, 1, 1)):
-        c.line(cx + sx * gap, cy, cx + sx * (gap + ln), cy)
-        c.line(cx, cy + sy * gap, cx, cy + sy * (gap + ln))
+def _cut_lines(c: canvas.Canvas, x: float, y: float, w: float, h: float) -> None:
+    """Linha de corte no tamanho exato da etiqueta (cinza fino); vizinhas encostadas dividem a mesma linha."""
+    c.setStrokeColorRGB(0.6, 0.6, 0.6)
+    c.setLineWidth(0.25)
+    c.rect(x, y, w, h, stroke=1, fill=0)
     c.setStrokeColorRGB(0, 0, 0)
 
 
@@ -206,8 +205,8 @@ def build_pdf(labels: List[LabelData], layout: str = "a4", start_position: int =
         row, col = divmod(slot, cols)
         x = x0 + col * (w + gap)
         y = ph - y0 - (row + 1) * h - row * gap
-        _crop_marks(c, x, y, w, h)
         draw_label(c, x, y, w, h, d)
+        _cut_lines(c, x, y, w, h)
         slot += 1
     c.showPage()
     c.save()

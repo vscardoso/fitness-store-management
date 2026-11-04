@@ -1,6 +1,5 @@
 /** Estúdio de etiquetas em lote: escolhe peças de vários produtos e gera o adesivo do verso da tag. */
 import React, { useMemo, useState } from 'react';
-import { useQueries } from '@tanstack/react-query';
 import { View, StyleSheet } from 'react-native';
 
 import PageHeader from '@/components/layout/PageHeader';
@@ -9,7 +8,6 @@ import LabelProductPickerModal, { type PickedItem } from '@/components/labels/La
 import useBackToList from '@/hooks/useBackToList';
 import { Colors } from '@/constants/Colors';
 import { variantCodeText } from '@/utils/shortCode';
-import { getProductVariants } from '@/services/productVariantService';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function LabelStudioScreen() {
@@ -17,17 +15,6 @@ export default function LabelStudioScreen() {
   const { goBack } = useBackToList('/(tabs)/products');
   const [picked, setPicked] = useState<PickedItem[]>([]);
   const [open, setOpen] = useState(false);
-
-  // a lista do seletor não traz o código da etiqueta (#101-1): busca as variações completas de cada produto escolhido
-  const productIds = useMemo(() => [...new Set(picked.map((p) => p.product.id))], [picked]);
-  const fullVariants = useQueries({
-    queries: productIds.map((id) => ({ queryKey: ['product-variants', String(id)], queryFn: () => getProductVariants(id) })),
-  });
-  const codeOf = useMemo(() => {
-    const map = new Map<number, string | null>();
-    for (const q of fullVariants) for (const v of q.data ?? []) map.set(v.id, variantCodeText(v));
-    return map;
-  }, [fullVariants]);
 
   const items: StickerItem[] = useMemo(
     () =>
@@ -37,10 +24,11 @@ export default function LabelStudioScreen() {
         color: variant.color,
         size: variant.size,
         price: Number(variant.price),
-        code: codeOf.get(variant.id) ?? variantCodeText(variant),
+        // a lista agrupada já traz o código da etiqueta (display_code): nada de buscar produto por produto
+        code: variantCodeText(variant),
         stock: variant.current_stock ?? 0,
       })),
-    [picked, codeOf],
+    [picked],
   );
 
   // o seletor devolve a seleção completa: o que saiu dela sai da lista, o que já estava mantém a ordem

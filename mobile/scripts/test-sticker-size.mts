@@ -34,8 +34,8 @@ t('texto da medida e etiqueta livre', () => {
 });
 t('quantas cabem na A4 igual ao servidor (a4_grid)', () => {
   assert.equal(stickersPerSheet(60, 50), 15);
-  assert.equal(stickersPerSheet(50, 60), 12);
-  assert.equal(stickersPerSheet(65, 55), 8);
+  assert.equal(stickersPerSheet(50, 60), 16);
+  assert.equal(stickersPerSheet(65, 55), 15);
   assert.equal(stickersPerSheet(55, 65), 12);
 });
 t('letras e QR acompanham a medida (igual ao scale_for do servidor)', () => {
