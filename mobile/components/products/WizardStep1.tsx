@@ -31,6 +31,7 @@ import { dismissKeyboard } from '@/utils/dismissKeyboard';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { capitalizeWords } from '@/utils/format';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { checkProductName } from '@/services/productService';
 import { useScrollBleed } from '@/hooks/useLayout';
 
 interface WizardStep1Props {
@@ -61,6 +62,23 @@ export default function WizardStep1({
 
   // Guardrails para seleção de duplicado
   const [isLoadingDuplicate, setIsLoadingDuplicate] = useState(false);
+  // Nome igual ao de um produto da loja: pergunta antes de seguir (evita #001 e #002 iguais)
+  const [existing, setExisting] = useState<{ id: number; name: string; code: string | null } | null>(null);
+  const handleNext = async () => {
+    const name = (state.productData.name || '').trim();
+    if (name) {
+      try {
+        const check = await checkProductName(name);
+        if (check.exists && check.product) {
+          setExisting(check.product);
+          return;
+        }
+      } catch {
+        // sem resposta: o passo 2 e o servidor conferem de novo
+      }
+    }
+    onNext();
+  };
   const duplicateSelectInProgressRef = React.useRef(false);
 
   const renderPrimaryAction = (
@@ -497,7 +515,7 @@ export default function WizardStep1({
           </View>
         </TouchableOpacity>
 
-        {renderPrimaryAction('Continuar', onNext, {
+        {renderPrimaryAction('Continuar', handleNext, {
           icon: 'arrow-forward-outline',
           style: styles.nextButton,
           disabled: !state.productData.name || !state.productData.category_id,
@@ -541,6 +559,21 @@ export default function WizardStep1({
         {state.identifyMethod === 'manual' && renderManualForm()}
 
         {/* ConfirmDialog para galeria (saveToGallery) */}
+        <ConfirmDialog
+          visible={!!existing}
+          type="warning"
+          icon="copy-outline"
+          title="Este produto já existe"
+          message={existing ? `Já existe "${existing.name}"${existing.code ? ` (${existing.code})` : ''}. Quer usar o mesmo e lançar o estoque nele?` : ''}
+          confirmText="Usar o mesmo"
+          cancelText="Mudar o nome"
+          onConfirm={() => {
+            const id = existing!.id;
+            setExisting(null);
+            wizard.selectDuplicateProduct(id);   // direto: handleSelectDuplicate só aceita os parecidos do Scanner IA
+          }}
+          onCancel={() => setExisting(null)}
+        />
         <ConfirmDialog
           visible={galleryDialog.visible}
           title={galleryDialog.title}

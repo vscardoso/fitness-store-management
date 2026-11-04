@@ -142,6 +142,14 @@ export const createProduct = async (productData: ProductCreate): Promise<Product
   }
 };
 
+/** Produto ativo da loja com o mesmo nome: o cadastro pergunta se quer usar o que já existe. */
+export const checkProductName = async (
+  name: string,
+): Promise<{ exists: boolean; product?: { id: number; name: string; code: string | null } }> => {
+  const { data } = await api.get('/products/name-check', { params: { name } });
+  return data;
+};
+
 /**
  * Atualizar produto
  */

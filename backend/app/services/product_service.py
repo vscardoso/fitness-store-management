@@ -329,6 +329,10 @@ class ProductService:
         
         update_dict = product_data.model_dump(exclude_unset=True)
 
+        # Renomear para o nome de outro produto ativo da loja criaria o mesmo item duas vezes
+        if update_dict.get("name") and " ".join(update_dict["name"].split()).lower() != " ".join((product.name or "").split()).lower():
+            await self.product_repo.ensure_name_free(tenant_id, update_dict["name"], except_id=product_id)
+
         if update_dict.get("category_id") is not None:
             from app.models.category import Category
             cat_ok = (await self.db.execute(

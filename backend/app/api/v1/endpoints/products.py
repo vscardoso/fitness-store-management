@@ -188,6 +188,20 @@ async def _build_responses_safe(products, db, inventory_repo, tenant_id):
     return ok
 
 
+@router.get("/name-check", summary="Já existe produto com este nome?")
+async def check_product_name(
+    name: str = Query(..., min_length=1),
+    db: AsyncSession = Depends(get_db),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """O cadastro pergunta antes de criar: com o mesmo nome, oferece usar o produto que já existe."""
+    found = await ProductRepository(db).find_by_name(tenant_id, name)
+    if not found:
+        return {"exists": False}
+    code = f"#{found.code_number:03d}" if found.code_number else None
+    return {"exists": True, "product": {"id": found.id, "name": found.name, "code": code}}
+
+
 @router.get(
     "/",
     response_model=List[ProductResponse],

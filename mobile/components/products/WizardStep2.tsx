@@ -28,7 +28,8 @@ import { SizePicker } from '@/components/ui/SizePicker';
 import { normalizeGender } from '@/utils/gender';
 import VariantBuilderInline from '@/components/products/VariantBuilderInline';
 import KeyboardAwareScreen from '@/components/ui/KeyboardAwareScreen';
-import { getActiveProducts } from '@/services/productService';
+import { checkProductName, getActiveProducts } from '@/services/productService';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { collectSkus, generateSKU, generateVariantSKU } from '@/utils/skuGenerator';
 import { capitalizeWords, formatPercent } from '@/utils/format';
 import { formatPriceInput } from '@/utils/priceFormatter';
@@ -50,6 +51,8 @@ export default function WizardStep2({
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const [categoryModalVisible, setCategoryModalVisible] = useState(false);
+  // Nome igual ao de um produto da loja: pergunta se quer usar o mesmo em vez de criar outro (#001 e #002 iguais)
+  const [existing, setExisting] = useState<{ id: number; name: string; code: string | null } | null>(null);
   // Refs para navegação entre campos
   const nameRef = useRef<RNTextInput>(null);
   const skuRef = useRef<RNTextInput>(null);
@@ -208,6 +211,18 @@ export default function WizardStep2({
       return;
     }
 
+    const name = (formData.name || '').trim();
+    if (name) {
+      try {
+        const check = await checkProductName(name);
+        if (check.exists && check.product) {
+          setExisting(check.product);
+          return;
+        }
+      } catch {
+        // sem resposta da consulta: o servidor recusa o nome repetido ao criar
+      }
+    }
     await wizard.createProduct();
   };
 
@@ -571,7 +586,21 @@ export default function WizardStep2({
         onDismiss={() => setCategoryModalVisible(false)}
       />
 
-
+      <ConfirmDialog
+        visible={!!existing}
+        type="warning"
+        icon="copy-outline"
+        title="Este produto já existe"
+        message={existing ? `Já existe "${existing.name}"${existing.code ? ` (${existing.code})` : ''}. Quer usar o mesmo e lançar o estoque nele?` : ''}
+        confirmText="Usar o mesmo"
+        cancelText="Mudar o nome"
+        onConfirm={() => {
+          const id = existing!.id;
+          setExisting(null);
+          wizard.selectDuplicateProduct(id);
+        }}
+        onCancel={() => setExisting(null)}
+      />
     </KeyboardAwareScreen>
   );
 }

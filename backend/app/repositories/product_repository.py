@@ -3,7 +3,7 @@ Repositório para operações de produtos (Product).
 """
 import logging
 from typing import Any, Optional, Sequence
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -23,8 +23,38 @@ class ProductRepository(BaseRepository[Product, Any, Any]):
         self.db = db
     
     async def create(self, obj_in: dict, *, tenant_id: int | None = None) -> Product:
-        """Wrapper para criar produto."""
+        """Cria o produto. Recusa nome igual ao de outro produto ativo da loja (ver ensure_name_free)."""
+        tid = tenant_id if tenant_id is not None else obj_in.get("tenant_id")
+        if tid is not None and obj_in.get("name"):
+            await self.ensure_name_free(tid, obj_in["name"])
         return await super().create(self.db, obj_in, tenant_id=tenant_id)
+
+    async def find_by_name(self, tenant_id: int, name: str, *, except_id: int | None = None):
+        """Produto ativo da loja com o mesmo nome (sem diferenciar maiúscula nem espaço nas pontas): (id, name, code_number)."""
+        key = " ".join(name.split()).lower()
+        if not key:
+            return None
+        query = select(Product.id, Product.name, Product.code_number).where(
+            Product.tenant_id == tenant_id,
+            Product.is_active == True,  # noqa: E712
+            func.lower(func.trim(Product.name)) == key,
+        )
+        if except_id is not None:
+            query = query.where(Product.id != except_id)
+        return (await self.db.execute(query)).first()
+
+    async def ensure_name_free(self, tenant_id: int, name: str, *, except_id: int | None = None) -> None:
+        """Dois produtos ativos com o mesmo nome na loja viram o mesmo item contado duas vezes (#001 e #002 com as
+        mesmas cores). Trava o catálogo da loja (dois toques ao mesmo tempo esperam um pelo outro) e confere o nome sem
+        diferenciar maiúscula nem espaço. Para mais cores ou tamanhos, a variação entra no produto que já existe."""
+        from app.services.sku_service import lock_catalog
+        await lock_catalog(self.db, tenant_id)
+        found = await self.find_by_name(tenant_id, name, except_id=except_id)
+        if found:
+            code = f" (#{found.code_number:03d})" if found.code_number else ""
+            raise ValueError(
+                f'Já existe o produto "{found.name}"{code}. Abra ele e adicione as cores e tamanhos lá, em vez de cadastrar de novo.'
+            )
     
     async def get(self, db: AsyncSession, id: int, *, tenant_id: int | None = None) -> Optional[Product]:
         """

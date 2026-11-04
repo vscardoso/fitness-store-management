@@ -20,7 +20,8 @@ def unique_sku():
 async def test_create_product(test_client: AsyncClient, auth_token: str, async_session: AsyncSession):
     """Teste: Criar produto."""
     product_data = {
-        "name": "Whey Protein Premium",
+        # nome único por chamada: a loja não aceita dois produtos ativos com o mesmo nome
+        "name": f"Whey Protein Premium {uuid.uuid4().hex[:6]}",
         "sku": unique_sku(),
         "price": 149.90,
         "cost_price": 89.90,
@@ -219,7 +220,7 @@ async def test_create_product_duplicate_sku(test_client: AsyncClient, auth_token
     # Tentar criar segundo produto com mesmo SKU
     response2 = await test_client.post(
         "/api/v1/products/",
-        json=product_data,
+        json={**product_data, "name": "Produto 2"},  # mesmo SKU, nome diferente (nome igual é recusado)
         headers={"Authorization": f"Bearer {auth_token}"}
     )
     assert response2.status_code == 201, response2.text

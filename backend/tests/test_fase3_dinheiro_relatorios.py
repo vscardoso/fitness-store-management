@@ -1,4 +1,4 @@
-"""Fase 3 da ajuda: desconto por forma de pagamento removido e criado de novo, e rótulos do Histórico em português na hora do Brasil."""
+"""Fase 3 da ajuda e integridade: desconto de pagamento recriado, Histórico em português e produto com nome repetido."""
 import pytest
 
 from tests.test_lot_costs import _limpa_loja_1  # noqa: F401  (fixture autouse: limpa a loja 1 depois de cada teste)
@@ -49,3 +49,25 @@ async def test_historico_rotulos_em_portugues_e_hora_do_brasil(test_client, asyn
     assert vendas[0]["date"] == agora_br.strftime("%d/%m/%Y")
     assert abs(int(vendas[0]["time"][:2]) - agora_br.hour) in (0, 1, 23)
     assert entradas and all(e["status"][0].isupper() for e in entradas), entradas
+
+
+async def test_produto_com_nome_repetido_e_recusado(test_client, async_session, test_user):
+    """#001 e #002 com o mesmo nome e as mesmas cores (PDF do estoque, 04/11): criar ou renomear para nome existente é recusado."""
+    from tests.test_lot_costs import _loja_api, _produto
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    h = {"Authorization": f"Bearer {token}"}
+    p, _ = await _produto(async_session, t_id, cat, "Macacao Tipo Meia")
+    await async_session.commit()
+    body = {"name": "  " + p.name.upper() + " ", "sku": "DUP-XYZ-1", "price": "50.00", "category_id": cat}
+    r = await test_client.post("/api/v1/products/", headers=h, json=body)
+    assert r.status_code == 400 and "Já existe o produto" in r.json()["detail"], r.text
+    chk = (await test_client.get("/api/v1/products/name-check", headers=h, params={"name": " macacao tipo meia " + p.name.split()[-1]})).json()
+    assert chk["exists"] is True and chk["product"]["id"] == p.id, chk
+    assert (await test_client.get("/api/v1/products/name-check", headers=h, params={"name": "Nome que nao existe"})).json() == {"exists": False}
+    r = await test_client.post("/api/v1/products/", headers=h, json={**body, "name": "Produto Novo Unico"})
+    assert r.status_code in (200, 201), r.text
+    novo = r.json()["id"]
+    r = await test_client.put(f"/api/v1/products/{novo}", headers=h, json={"name": p.name})
+    assert r.status_code == 400 and "Já existe o produto" in r.json()["detail"], r.text
+    r = await test_client.put(f"/api/v1/products/{novo}", headers=h, json={"name": "Produto Novo Unico"})
+    assert r.status_code == 200, r.text
