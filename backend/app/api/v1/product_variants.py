@@ -506,13 +506,17 @@ async def upload_variant_image_base64(
 )
 async def delete_variant(
     variant_id: int,
+    zerar_estoque: bool = Query(False, description="Exclui mesmo com peças: zera o estoque dela (só admin)"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
     tenant_id: int = Depends(get_current_tenant_id),
 ):
-    """Desativa uma variante (soft delete)."""
+    """Desativa uma variante (soft delete). Com estoque, só o admin, com zerar_estoque=true."""
+    from app.models.user import UserRole
+    if zerar_estoque and str(getattr(current_user.role, "value", current_user.role)).lower() != UserRole.ADMIN.value.lower():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Só o admin exclui variação com peças em estoque.")
     service = ProductVariantService(db)
     try:
-        await service.delete_variant(variant_id, tenant_id)
+        await service.delete_variant(variant_id, tenant_id, zero_stock=zerar_estoque)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))

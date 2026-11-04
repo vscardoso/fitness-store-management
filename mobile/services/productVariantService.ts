@@ -113,8 +113,9 @@ export async function updateVariant(
 /**
  * Desativa uma variante
  */
-export async function deleteVariant(variantId: number): Promise<void> {
-  await api.delete(`/product-variants/${variantId}`);
+export async function deleteVariant(variantId: number, zeroStock = false): Promise<void> {
+  // zeroStock: exclui mesmo com peças, zerando o estoque dela (só o admin)
+  await api.delete(`/product-variants/${variantId}`, zeroStock ? { params: { zerar_estoque: true } } : undefined);
 }
 
 /**

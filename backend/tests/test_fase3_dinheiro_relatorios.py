@@ -71,3 +71,23 @@ async def test_produto_com_nome_repetido_e_recusado(test_client, async_session, 
     assert r.status_code == 400 and "Já existe o produto" in r.json()["detail"], r.text
     r = await test_client.put(f"/api/v1/products/{novo}", headers=h, json={"name": "Produto Novo Unico"})
     assert r.status_code == 200, r.text
+
+
+async def test_excluir_uma_variacao_com_estoque_zera_so_ela(test_client, async_session, test_user):
+    """Conjunto Alô com 3 variações de 1 peça (04/11): excluir uma só, zerando o estoque dela; as outras ficam."""
+    from sqlalchemy import select
+    from app.models.entry_item import EntryItem
+    from app.models.product_variant import ProductVariant
+    from tests.test_lot_costs import _loja_api, _produto, _lote
+    from tests.test_troca import _cenario
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    r = await test_client.delete(f"/api/v1/product-variants/{va.id}", headers=h)
+    assert r.status_code == 400 and "estoque" in r.json()["detail"], r.text
+    r = await test_client.delete(f"/api/v1/product-variants/{va.id}?zerar_estoque=true", headers=h)
+    assert r.status_code == 204, r.text
+    async_session.expire_all()
+    assert (await async_session.get(ProductVariant, va.id)).is_active is False
+    restos = (await async_session.execute(select(EntryItem.quantity_remaining).where(EntryItem.variant_id == va.id))).scalars().all()
+    assert restos and all(q == 0 for q in restos)
+    outros = (await async_session.execute(select(EntryItem.quantity_remaining).where(EntryItem.variant_id == vb.id))).scalars().all()
+    assert sum(outros) > 0 and (await async_session.get(ProductVariant, vb.id)).is_active is True

@@ -22,6 +22,7 @@ import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { getProductById, deleteProduct, updateProduct } from '@/services/productService';
 import { getProductStock } from '@/services/inventoryService';
 import { getProductVariants, getVariantGrid, formatVariantLabel, deleteVariant } from '@/services/productVariantService';
+import { parseApiError } from '@/utils/apiError';
 import { variantCodeText } from '@/utils/shortCode';
 import VariantKeepModal from '@/components/products/VariantKeepModal';
 import { VariantStockMatrix } from '@/components/products/VariantStockMatrix';
@@ -239,6 +240,47 @@ export default function ProductDetailsScreen() {
   // Usar só algumas variações: desativa as desmarcadas (só variação sem estoque)
   const [keepModalVisible, setKeepModalVisible] = useState(false);
   const [pricesSheetOpen, setPricesSheetOpen] = useState(false);
+  // Excluir UMA variação pela lixeira do cartão; com peças, o estoque dela é zerado (o servidor só deixa o admin)
+  const removeOneVariant = useMutation({
+    mutationFn: ({ id, zero }: { id: number; zero: boolean }) => deleteVariant(id, zero),
+    onSuccess: async () => {
+      await Promise.all([
+        refetchVariants(),
+        queryClient.invalidateQueries({ queryKey: ['product', productId] }),
+        queryClient.invalidateQueries({ queryKey: ['product-variant-grid', productId] }),
+        queryClient.invalidateQueries({ queryKey: ['grouped-products'] }),
+        queryClient.invalidateQueries({ queryKey: ['products'] }),
+      ]);
+    },
+    onError: (error: any) => {
+      setDialog({
+        visible: true,
+        type: 'danger',
+        title: 'Não foi possível excluir a variação',
+        message: parseApiError(error),
+        confirmText: 'OK',
+        cancelText: '',
+        onConfirm: () => setDialog((d) => ({ ...d, visible: false })),
+      });
+    },
+  });
+  const askRemoveVariant = (variantId: number, label: string, stock: number) => {
+    setDialog({
+      visible: true,
+      type: 'danger',
+      title: 'Excluir esta variação?',
+      message: stock > 0
+        ? `${label}: ${stock} peça${stock !== 1 ? 's' : ''} em estoque ${stock !== 1 ? 'serão zeradas' : 'será zerada'}. As outras variações não mudam e as vendas antigas continuam.`
+        : `${label} sai do produto. As outras variações não mudam.`,
+      confirmText: stock > 0 ? 'Excluir e zerar estoque' : 'Excluir variação',
+      cancelText: 'Cancelar',
+      onConfirm: () => {
+        setDialog((d) => ({ ...d, visible: false }));
+        removeOneVariant.mutate({ id: variantId, zero: stock > 0 });
+      },
+    });
+  };
+
   const removeVariantsMutation = useMutation({
     mutationFn: async (ids: number[]) => {
       for (const id of ids) await deleteVariant(id);
@@ -558,6 +600,17 @@ export default function ProductDetailsScreen() {
                         <Text style={styles.variantCardLabel} numberOfLines={2}>
                           {formatVariantLabel(variant)}
                         </Text>
+                        {variant.is_active && (
+                          <TouchableOpacity
+                            onPress={() => askRemoveVariant(variant.id, formatVariantLabel(variant), displayStock)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Excluir variação ${formatVariantLabel(variant)}`}
+                            disabled={removeOneVariant.isPending}
+                          >
+                            <Ionicons name="trash-outline" size={16} color={Colors.light.textTertiary} />
+                          </TouchableOpacity>
+                        )}
                       </View>
 
                       {/* SKU */}
