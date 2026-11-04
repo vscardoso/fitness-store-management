@@ -24,10 +24,20 @@ const BASE: Record<string, string> = {
   pessego: '#ffcba4', pêssego: '#ffcba4', tangerina: '#f28500', canario: '#ffef00', canário: '#ffef00',
   cobre: '#b87333', bronze: '#cd7f32', telha: '#b5502d', cappuccino: '#a9876a', cafe: '#4b3621', café: '#4b3621',
   cacau: '#3d2314', marfim: '#fffff0', champanhe: '#f7e7ce', neon: '#39ff14',
+  // nomes comuns de moda que caíam no cinza neutro (Lavanda, 04/11/2026)
+  lavanda: '#b57edc', lavender: '#b57edc', perola: '#eae0c8', pérola: '#eae0c8', petroleo: '#1d5e6e', petróleo: '#1d5e6e',
+  royal: '#2f5bd3', agua: '#66cdaa', água: '#66cdaa', aqua: '#66cdaa', tiffany: '#0abab5', ciano: '#06b6d4',
+  anil: '#3f2a8c', indigo: '#4b0082', índigo: '#4b0082', lima: '#84cc16', esmeralda: '#10b981', caqui: '#c3b091',
+  khaki: '#c3b091', kaki: '#c3b091', camel: '#c19a6b', taupe: '#8b7d6b', ameixa: '#8e4585', framboesa: '#c72c48',
+  goiaba: '#e8636f', melancia: '#fc6c85', mel: '#e3a857', ferrugem: '#b7410e', tijolo: '#a0522d', rubi: '#e0115f',
+  carmim: '#960018', nevoa: '#c9ccd1', névoa: '#c9ccd1', fume: '#6e6e6e', fumê: '#6e6e6e', cimento: '#a7a39b',
+  acafrao: '#f4c430', açafrão: '#f4c430', ouro: '#d4af37', baunilha: '#f3e5ab', lilac: '#c4a1ff',
 };
 
 const CLARO = new Set(['claro', 'clara', 'light', 'bebe', 'bebê', 'pastel']);
 const ESCURO = new Set(['escuro', 'escura', 'dark']);
+// "Cinza Médio": um pouco mais escuro que a cor base, para não ficar igual ao cinza neutro de "cor desconhecida"
+const MEDIO = new Set(['medio', 'médio', 'media', 'média']);
 
 function mix(hex: string, target: number, amount: number): string {
   const n = parseInt(hex.slice(1), 16);
@@ -41,10 +51,11 @@ export function colorNameToHex(name?: string | null): string | null {
   if (!name) return null;
   const words = name.toLowerCase().trim().split(/[\s/-]+/).filter(Boolean);
   let base: string | null = null;
-  let tone: 'claro' | 'escuro' | null = null;
+  let tone: 'claro' | 'escuro' | 'medio' | null = null;
   for (const w of words) {
     if (CLARO.has(w)) tone = 'claro';
     else if (ESCURO.has(w)) tone = 'escuro';
+    else if (MEDIO.has(w)) tone = 'medio';
     else if (BASE[w] && base === null) base = BASE[w];
     // "Azul Marinho": o termo mais específico (marinho) vence a cor genérica (azul)
     else if (BASE[w]) base = BASE[w];
@@ -52,5 +63,6 @@ export function colorNameToHex(name?: string | null): string | null {
   if (!base) return null;
   if (tone === 'claro') return mix(base, 255, 0.55);
   if (tone === 'escuro') return mix(base, 0, 0.45);
+  if (tone === 'medio') return mix(base, 0, 0.25);
   return base;
 }
