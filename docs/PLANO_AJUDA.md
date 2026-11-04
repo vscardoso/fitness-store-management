@@ -78,10 +78,15 @@ Ficam sem ficha (lista fixa no teste): login, cadastro, esqueci a senha, apresen
 
 | Fase | Entrega |
 |---|---|
-| 1 | Estrutura (fichas tipadas, mapa de rotas, "?" no `PageHeader`, folha no celular, painel no notebook, F1), Central nova com busca, testes de cobertura e de botões, fichas de **Vender** |
+| 1 (FEITA 04/11) | Estrutura (fichas tipadas, mapa de rotas, "?" no `PageHeader`, folha no celular, painel no notebook, F1), Central nova com busca, testes de cobertura e de botões, fichas de **Vender** |
 | 2 | Fichas de **Estoque** e **Clientes** |
 | 3 | Fichas de **Dinheiro** e **Relatórios** |
 | 4 | Fichas de **WhatsApp** e **Loja**, Primeiros passos, boas-vindas novo |
 | 5 | Remoção dos tutoriais antigos, Playwright em todas as telas (390 e 1440), publicação |
 
 Cada fase é publicada sozinha (app web e OTA), com typecheck em 0 e testes passando. As fichas são escritas lendo o código de cada tela, não de memória.
+
+## Andamento
+
+- **Fase 1 (04/11/2026, feita):** fichas em `mobile/constants/help/` (`types.ts`, `vender.ts`, `index.ts`, `coverage.ts` com as rotas excluídas, escondidas e pendentes), rotas em `utils/helpRoutes.ts`, estado em `store/helpStore.ts`, folha e painel em `components/help/HelpHost.tsx` (`HelpIconButton` para telas com cabeçalho próprio, como o PDV do notebook), corpo da ficha em `components/help/HelpContent.tsx`, "?" automático no `PageHeader` (`showHelp={false}` esconde), F1 no `DesktopShell`, Central nova em `app/(tabs)/help.tsx`. Fichas de Vender: Início, Ponto de venda, Finalizar venda, Venda concluída, Vendas, Detalhe da venda, Condicionais, Novo envio, Envio condicional, Caixa, Histórico do caixa. Testes `npm test` (cobertura e nomes de botão) e Playwright em 390 e 1440 px (42 verificações, vendedora sem a ficha de gerente). Saíram telas mortas: `(tabs)/management`, `(tabs)/payment-discounts` (cópia da de `settings`) e `batches`. Os "?" de tutorial antigo do Início, PDV e Condicionais saíram; os de Produtos, Estoque e Detalhe do produto ficam até a fase 2.
+- Para a próxima fase: tirar as rotas do grupo de `HELP_PENDING` ao escrever as fichas; telas sem `PageHeader` (assistente de produto, scanner, equipe) precisam do `HelpIconButton` no cabeçalho delas. Ainda existem duas telas de Equipe (`(tabs)/team` e `team`) na mesma rota: conferir qual abre na fase 4.

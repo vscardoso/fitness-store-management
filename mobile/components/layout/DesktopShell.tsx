@@ -9,12 +9,14 @@ import { useAuthStore } from '@/store/authStore';
 import { useLayout } from '@/hooks/useLayout';
 import { Colors } from '@/constants/Colors';
 import DesktopSidebar from './DesktopSidebar';
+import { HelpPanel, HelpSheet, useCurrentHelp } from '@/components/help/HelpHost';
+import { useHelpStore } from '@/store/helpStore';
 
 /** Telas sem barra lateral mesmo logado (termos, aceite) */
 const NO_SIDEBAR = ['/termos', '/privacidade', '/aceite-termos'];
 
 export default function DesktopShell({ children }: { children: ReactNode }) {
-  if (Platform.OS !== 'web') return <>{children}</>;
+  if (Platform.OS !== 'web') return <>{children}<HelpSheet /></>;
   return <WebShell>{children}</WebShell>;
 }
 
@@ -27,6 +29,23 @@ function WebShell({ children }: { children: ReactNode }) {
   const inAuth = segments[0] === '(auth)';
   // /produtos/... é a vitrine pública do produto: nunca com a barra do sistema
   const showSidebar = isDesktop && isAuthenticated && !inAuth && !NO_SIDEBAR.includes(pathname) && !pathname.startsWith('/produtos/');
+  const help = useCurrentHelp();
+  const toggleHelp = useHelpStore((s) => s.toggle);
+  const closeHelp = useHelpStore((s) => s.close);
+  const helpOpen = useHelpStore((s) => !!s.openId);
+
+  // F1 abre e fecha a ajuda da tela no notebook (o F1 do navegador abriria a ajuda dele)
+  useEffect(() => {
+    if (!showSidebar || typeof document === 'undefined') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'F1') return;
+      e.preventDefault();
+      if (helpOpen) closeHelp();
+      else if (help) toggleHelp(help.id);
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, [showSidebar, help, helpOpen, toggleHelp, closeHelp]);
 
   // F2 de qualquer tela abre o ponto de venda (no PDV o próprio PDV usa o F2 para nova venda)
   useEffect(() => {
@@ -48,6 +67,7 @@ function WebShell({ children }: { children: ReactNode }) {
       <View style={[styles.main, showSidebar && styles.mainDesktop]}>
         <View style={styles.content}>{children}</View>
       </View>
+      {showSidebar ? <HelpPanel /> : <HelpSheet />}
     </View>
   );
 }

@@ -1,396 +1,125 @@
 /**
- * HelpScreen
- * Tela de ajuda com lista de tutoriais disponíveis
+ * Central de Ajuda: todas as fichas de ajuda (constants/help), agrupadas como a barra lateral, com busca.
+ * Celular: uma coluna, toque abre a ficha na folha de baixo. Notebook: lista à esquerda e a ficha à direita.
+ * Só aparecem as fichas que o papel da pessoa pode ver. Plano: docs/PLANO_AJUDA.md.
  */
-
-import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-} from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { TextInput } from 'react-native-paper';
 import { useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
+
 import PageHeader from '@/components/layout/PageHeader';
-import { useTutorialContext } from '@/contexts/TutorialContext';
-import { TUTORIAL_LIST } from '@/constants/tutorials';
-import useBackToList from '@/hooks/useBackToList';
-import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { getProducts } from '@/services/productService';
-import { useBrandingColors } from '@/store/brandingStore';
+import HelpContent from '@/components/help/HelpContent';
 import { Colors } from '@/constants/Colors';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useBrandingColors } from '@/store/brandingStore';
+import { useHelpStore } from '@/store/helpStore';
+import { useAuth } from '@/hooks/useAuth';
+import { useIsDesktop } from '@/hooks/useLayout';
+import useBackToList from '@/hooks/useBackToList';
+import { buildSearchIndex, matchesSearch } from '@/utils/searchMatch';
+import { canSeeHelp, HELP_ENTRIES, HELP_GROUPS, helpById, helpSearchText, type HelpEntry } from '@/constants/help';
 
 export default function HelpScreen() {
-  const desktopContent = useDesktopContentStyle();
-  const brandingColors = useBrandingColors();
   const router = useRouter();
+  const brand = useBrandingColors();
+  const isDesktop = useIsDesktop();
+  const { user } = useAuth();
   const { goBack } = useBackToList('/(tabs)/more');
-  const {
-    completedTutorials,
-    startTutorial,
-    resetAllTutorials,
-    isTutorialCompleted,
-  } = useTutorialContext();
+  const openSheet = useHelpStore((s) => s.open);
+  const [query, setQuery] = useState('');
+  const [selected, setSelected] = useState<string | null>(null);
 
-  const [resetConfirmDialog, setResetConfirmDialog] = useState(false);
-  const [resetSuccessDialog, setResetSuccessDialog] = useState(false);
-  const [noProductDialog, setNoProductDialog] = useState(false);
+  const visible = useMemo(
+    () => HELP_ENTRIES.filter((e) => canSeeHelp(e, user?.role)).map((e) => ({ e, index: buildSearchIndex(helpSearchText(e)) })),
+    [user?.role],
+  );
+  const found = visible.filter((v) => matchesSearch(v.index, query)).map((v) => v.e);
+  const groups = HELP_GROUPS.map((g) => ({ ...g, items: found.filter((e) => e.group === g.key) })).filter((g) => g.items.length);
+  const current = helpById(selected) ?? (isDesktop ? found[0] : undefined);
 
-  // Calcular progresso geral
-  const totalTutorials = TUTORIAL_LIST.length;
-  const completedCount = completedTutorials.length;
-  const progressPercent = totalTutorials > 0 ? (completedCount / totalTutorials) * 100 : 0;
+  const pick = (e: HelpEntry) => (isDesktop ? setSelected(e.id) : openSheet(e.id));
 
-  // Handler para iniciar tutorial
-  const handleStartTutorial = async (tutorialId: string, screen: string) => {
-    let targetScreen = screen;
-
-    // Tutoriais de telas com parâmetro dinâmico (ex: /products/edit/[id]) não
-    // podem navegar pro literal "[id]" — precisam de um produto real primeiro,
-    // senão a tela abre com "ID inválido".
-    if (screen.includes('[id]')) {
-      try {
-        const products = await getProducts({ limit: 1 });
-        if (!products.length) {
-          setNoProductDialog(true);
-          return;
-        }
-        targetScreen = screen.replace('[id]', String(products[0].id));
-      } catch {
-        setNoProductDialog(true);
-        return;
-      }
-    }
-
-    // Navegar para a tela e iniciar tutorial
-    router.push(targetScreen as any);
-    setTimeout(() => {
-      startTutorial(tutorialId);
-    }, 500);
-  };
-
-  // Handler para resetar tutoriais
-  const handleResetTutorials = () => {
-    setResetConfirmDialog(true);
-  };
+  const list = (
+    <View style={styles.list}>
+      <TextInput mode="outlined" placeholder="Buscar: troca, caixa, PIX..." value={query} onChangeText={setQuery}
+        left={<TextInput.Icon icon="magnify" />} activeOutlineColor={brand.primary} dense accessibilityLabel="Buscar na ajuda" />
+      {!groups.length && <Text style={styles.empty}>Nada encontrado para “{query}”. Tente outra palavra.</Text>}
+      {groups.map((g) => (
+        <View key={g.key} style={styles.group}>
+          <View style={styles.groupHead}>
+            <Ionicons name={g.icon as any} size={16} color={brand.primary} />
+            <Text style={styles.groupTitle}>{g.title}</Text>
+          </View>
+          {g.items.map((e) => {
+            const on = isDesktop && current?.id === e.id;
+            return (
+              <TouchableOpacity key={e.id} onPress={() => pick(e)} activeOpacity={0.75} accessibilityRole="button"
+                style={[styles.item, on && { borderColor: brand.primary, backgroundColor: brand.primary + '0F' }]}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={[styles.itemTitle, on && { color: brand.primary }]}>{e.title}</Text>
+                  <Text style={styles.itemPurpose} numberOfLines={2}>{e.purpose}</Text>
+                </View>
+                <Ionicons name="chevron-forward" size={16} color={Colors.light.textTertiary} />
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ))}
+      <Text style={styles.tip}>
+        Em qualquer tela, toque no “?” no alto para ver a ajuda dela{isDesktop ? ' (ou aperte F1)' : ''}.
+      </Text>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
-      <PageHeader
-        title="Central de Ajuda"
-        subtitle="Aprenda a usar todas as funcionalidades"
-        showBackButton
-        onBack={goBack}
-      />
-
-      <ScrollView
-        style={styles.scrollView}
-        contentContainerStyle={[styles.content, desktopContent]}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Progress Card */}
-        <View style={styles.progressCard}>
-          <View style={styles.progressHeader}>
-            <Ionicons name="trophy" size={24} color="#F59E0B" />
-            <Text style={styles.progressTitle}>Seu Progresso</Text>
-          </View>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
-          </View>
-          <Text style={styles.progressText}>
-            {completedCount} de {totalTutorials} tutoriais concluídos
-          </Text>
-        </View>
-
-        {/* Tutorial List */}
-        <Text style={styles.sectionTitle}>Tutoriais Disponíveis</Text>
-
-        {TUTORIAL_LIST.map((tutorial) => {
-          const isCompleted = isTutorialCompleted(tutorial.id);
-
-          return (
-            <TouchableOpacity
-              key={tutorial.id}
-              style={styles.tutorialCard}
-              onPress={() => handleStartTutorial(tutorial.id, tutorial.screen)}
-              activeOpacity={0.7}
-            >
-              <View
-                style={[
-                  styles.tutorialIcon,
-                  { backgroundColor: isCompleted ? '#ECFDF5' : brandingColors.primary + '15' },
-                ]}
-              >
-                <Ionicons
-                  name={tutorial.icon as any}
-                  size={24}
-                  color={isCompleted ? '#10B981' : brandingColors.primary}
-                />
+      <PageHeader title="Central de Ajuda" subtitle="Como usar cada tela do Provador" showBackButton onBack={goBack} />
+      {isDesktop ? (
+        <View style={styles.split}>
+          <ScrollView style={styles.left} contentContainerStyle={styles.leftContent}>{list}</ScrollView>
+          <ScrollView style={styles.right} contentContainerStyle={styles.rightContent}>
+            {!!current && (
+              <View style={styles.detail}>
+                <Text style={styles.detailTitle}>{current.title}</Text>
+                <HelpContent entry={current} onOpenRelated={setSelected} />
+                {!!current.open && (
+                  <TouchableOpacity style={[styles.openBtn, { backgroundColor: brand.primary }]} accessibilityRole="button"
+                    onPress={() => router.push(current.open as any)}>
+                    <Text style={styles.openText}>Abrir esta tela</Text>
+                  </TouchableOpacity>
+                )}
               </View>
-              <View style={styles.tutorialContent}>
-                <View style={styles.tutorialHeader}>
-                  <Text style={styles.tutorialName}>{tutorial.name}</Text>
-                  {isCompleted && (
-                    <View style={styles.completedBadge}>
-                      <Ionicons name="checkmark" size={12} color="#fff" />
-                    </View>
-                  )}
-                </View>
-                <Text style={styles.tutorialDescription}>
-                  {tutorial.description}
-                </Text>
-                <Text style={styles.tutorialSteps}>
-                  {tutorial.steps.length} passos
-                </Text>
-              </View>
-              <Ionicons
-                name="play-circle"
-                size={28}
-                color={isCompleted ? '#10B981' : brandingColors.primary}
-              />
-            </TouchableOpacity>
-          );
-        })}
-
-        {/* Tips Section */}
-        <Text style={styles.sectionTitle}>Dicas</Text>
-
-        <View style={styles.tipCard}>
-          <View style={styles.tipIcon}>
-            <Ionicons name="bulb" size={20} color="#F59E0B" />
-          </View>
-          <View style={styles.tipContent}>
-            <Text style={styles.tipTitle}>Acesso Rápido</Text>
-            <Text style={styles.tipText}>
-              Toque no botão ? no topo de qualquer tela para iniciar o tutorial daquela seção.
-            </Text>
-          </View>
+            )}
+          </ScrollView>
         </View>
-
-        <View style={styles.tipCard}>
-          <View style={styles.tipIcon}>
-            <Ionicons name="sync" size={20} color="#3B82F6" />
-          </View>
-          <View style={styles.tipContent}>
-            <Text style={styles.tipTitle}>Rever Tutoriais</Text>
-            <Text style={styles.tipText}>
-              Você pode rever qualquer tutorial quantas vezes quiser tocando nele acima.
-            </Text>
-          </View>
-        </View>
-
-        {/* Reset Button */}
-        <TouchableOpacity
-          style={styles.resetButton}
-          onPress={handleResetTutorials}
-        >
-          <Ionicons name="refresh" size={18} color="#EF4444" />
-          <Text style={styles.resetButtonText}>Resetar todos os tutoriais</Text>
-        </TouchableOpacity>
-
-        {/* Spacing */}
-        <View style={{ height: 40 }} />
-      </ScrollView>
-
-      <ConfirmDialog
-        visible={resetConfirmDialog}
-        type="danger"
-        title="Resetar Tutoriais"
-        message="Isso vai permitir que você veja todos os tutoriais novamente. Deseja continuar?"
-        confirmText="Resetar"
-        cancelText="Cancelar"
-        onConfirm={() => {
-          resetAllTutorials();
-          setResetConfirmDialog(false);
-          setResetSuccessDialog(true);
-        }}
-        onCancel={() => setResetConfirmDialog(false)}
-        icon="refresh-outline"
-      />
-
-      <ConfirmDialog
-        visible={resetSuccessDialog}
-        type="success"
-        title="Pronto!"
-        message="Todos os tutoriais foram resetados."
-        confirmText="OK"
-        onConfirm={() => setResetSuccessDialog(false)}
-        onCancel={() => setResetSuccessDialog(false)}
-        icon="checkmark-circle-outline"
-      />
-
-      <ConfirmDialog
-        visible={noProductDialog}
-        type="info"
-        title="Cadastre um produto primeiro"
-        message="Este tutorial usa um produto real como exemplo. Cadastre pelo menos um produto para poder vê-lo."
-        confirmText="OK"
-        onConfirm={() => setNoProductDialog(false)}
-        onCancel={() => setNoProductDialog(false)}
-        icon="cube-outline"
-      />
+      ) : (
+        <ScrollView contentContainerStyle={styles.mobileContent}>{list}</ScrollView>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F3F4F6',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  content: {
-    padding: 20,
-  },
-  progressCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    marginBottom: 16,
-  },
-  progressTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  progressBar: {
-    height: 8,
-    backgroundColor: '#E5E7EB',
-    borderRadius: 4,
-    marginBottom: 10,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#10B981',
-    borderRadius: 4,
-  },
-  progressText: {
-    fontSize: 14,
-    color: '#6B7280',
-    textAlign: 'center',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 16,
-    marginTop: 8,
-  },
-  tutorialCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  tutorialIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 14,
-  },
-  tutorialContent: {
-    flex: 1,
-  },
-  tutorialHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  tutorialName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#1F2937',
-  },
-  completedBadge: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: '#10B981',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  tutorialDescription: {
-    fontSize: 13,
-    color: '#6B7280',
-    marginTop: 2,
-  },
-  tutorialSteps: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 4,
-  },
-  tipCard: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  tipIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#FEF3C7',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  tipContent: {
-    flex: 1,
-  },
-  tipTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  tipText: {
-    fontSize: 13,
-    color: '#6B7280',
-    lineHeight: 18,
-  },
-  resetButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 14,
-    marginTop: 20,
-    gap: 8,
-  },
-  resetButtonText: {
-    fontSize: 14,
-    color: '#EF4444',
-    fontWeight: '500',
-  },
+  container: { flex: 1, backgroundColor: Colors.light.background },
+  mobileContent: { padding: 16, paddingBottom: 48 },
+  split: { flex: 1, flexDirection: 'row' },
+  left: { width: 380, flexGrow: 0, borderRightWidth: 1, borderRightColor: Colors.light.border },
+  leftContent: { padding: 20, paddingBottom: 48 },
+  right: { flex: 1 },
+  rightContent: { padding: 28, paddingBottom: 48 },
+  detail: { maxWidth: 720, gap: 16 },
+  detailTitle: { fontSize: 22, fontWeight: '800', color: Colors.light.text },
+  list: { gap: 16 },
+  group: { gap: 8 },
+  groupHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  groupTitle: { fontSize: 15, fontWeight: '800', color: Colors.light.text },
+  item: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: Colors.light.card, borderRadius: 14,
+    padding: 14, borderWidth: 1, borderColor: Colors.light.border },
+  itemTitle: { fontSize: 15, fontWeight: '700', color: Colors.light.text },
+  itemPurpose: { fontSize: 13, lineHeight: 18, color: Colors.light.textSecondary },
+  empty: { color: Colors.light.textSecondary, textAlign: 'center', marginTop: 12 },
+  tip: { fontSize: 13, color: Colors.light.textTertiary, lineHeight: 19 },
+  openBtn: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
+  openText: { color: '#fff', fontWeight: '700', fontSize: 14 },
 });

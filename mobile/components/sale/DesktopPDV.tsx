@@ -31,6 +31,7 @@ import CustomerSelectionModal from '@/components/sale/CustomerSelectionModal';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { Money } from '@/components/ui/PriceDisplay';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { HelpIconButton } from '@/components/help/HelpHost';
 import type { Customer, ProductGrouped, ProductVariant } from '@/types';
 
 const INK = '#160F28';
@@ -324,6 +325,7 @@ export default function DesktopPDV() {
           <Text style={styles.title}>Ponto de venda</Text>
           <Text style={styles.subtitle}>{user?.store_name || 'Balcão'} · busque ou passe o leitor na etiqueta</Text>
         </View>
+        <HelpIconButton />
         <TouchableOpacity style={styles.ghostBtn} onPress={() => router.push('/(tabs)/sales' as any)}>
           <Text style={styles.ghostBtnText}>Vendas</Text>
         </TouchableOpacity>

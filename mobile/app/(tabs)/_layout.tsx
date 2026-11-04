@@ -183,7 +183,6 @@ export default function TabsLayout() {
       {/* Oculta módulo de Vendas do tab bar, mantendo rota acessível */}
       <Tabs.Screen name="sales" options={{ href: null }} />
 
-      <Tabs.Screen name="management" options={{ href: null }} />
       <Tabs.Screen name="products" options={{ href: null }} />
       <Tabs.Screen name="categories" options={{ href: null }} />
       <Tabs.Screen name="customers" options={{ href: null }} />
@@ -197,8 +196,6 @@ export default function TabsLayout() {
       {/* Entries: oculto do tab bar mas mantém rotas acessíveis com tab bar visível */}
       <Tabs.Screen name="entries" options={{ href: null }} />
       
-      {/* Payment Discounts: oculto do tab bar mas mantém rotas acessíveis com tab bar visível */}
-      <Tabs.Screen name="payment-discounts" options={{ href: null }} />
       
       {/* Team: oculto do tab bar mas mantém rotas acessíveis com tab bar visível */}
       <Tabs.Screen name="team" options={{ href: null }} />

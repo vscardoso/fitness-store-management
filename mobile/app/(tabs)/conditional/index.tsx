@@ -19,7 +19,6 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import PageHeader from '@/components/layout/PageHeader';
-import { useTutorialContext } from '@/components/tutorial';
 import EmptyState from '@/components/ui/EmptyState';
 import FAB from '@/components/FAB';
 import { useAuth } from '@/hooks/useAuth';
@@ -97,7 +96,6 @@ export default function ConditionalShipmentsScreen() {
   const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const { user } = useAuth();
-  const { startTutorial } = useTutorialContext();
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const queryClient = useQueryClient();
@@ -270,9 +268,6 @@ export default function ConditionalShipmentsScreen() {
         <PageHeader
           title="Condicionais"
           subtitle={`${shipmentCount} ${shipmentCount === 1 ? 'envio' : 'envios'}`}
-          rightActions={[
-            { icon: 'help-circle-outline', onPress: () => startTutorial('conditionals') },
-          ]}
         />
       </Animated.View>
       {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}

@@ -460,22 +460,12 @@ function MobileSaleScreen() {
       
       {/* Header */}
       <PageHeader
-        title={user?.store_name || 'WA Moda Fitness'}
+        title={user?.store_name || 'Provador'}
         subtitle="Realize vendas rapidamente"
-        rightActions={[
-          {
-            icon: 'help-circle-outline',
-            onPress: () => {},
-          },
-          ...(cart.itemCount > 0 ? [{
-            icon: 'refresh' as keyof typeof Ionicons.glyphMap,
-            onPress: handleNewSale,
-          }] : []),
-          {
-            icon: 'cart' as keyof typeof Ionicons.glyphMap,
-            onPress: () => {},
-          },
-        ]}
+        rightActions={cart.itemCount > 0 ? [{
+          icon: 'refresh' as keyof typeof Ionicons.glyphMap,
+          onPress: handleNewSale,
+        }] : []}
       />
 
         {/* Cliente selecionado */}

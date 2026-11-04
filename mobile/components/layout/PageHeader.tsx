@@ -40,12 +40,16 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useIsDesktop } from '@/hooks/useLayout';
+import { useCurrentHelp } from '@/components/help/HelpHost';
+import { useHelpStore } from '@/store/helpStore';
 
 interface RightAction {
   icon: keyof typeof Ionicons.glyphMap;
   onPress: () => void;
   color?: string;
   variant?: 'default' | 'danger';
+  /** Nome lido pelo leitor de tela */
+  label?: string;
 }
 
 interface PageHeaderProps {
@@ -67,6 +71,8 @@ interface PageHeaderProps {
   gradientColors?: [string, string];
   /** Elemento customizado abaixo do título (ex: badges, avatar) */
   children?: React.ReactNode;
+  /** false esconde o botão de ajuda "?" (aparece sozinho quando a tela tem ficha em constants/help) */
+  showHelp?: boolean;
 }
 
 export default function PageHeader({
@@ -79,6 +85,7 @@ export default function PageHeader({
   rightActions = [],
   gradientColors,
   children,
+  showHelp = true,
 }: PageHeaderProps) {
   const router = useRouter();
   // iPhone instalado (PWA): o efeito de vidro da barra de status cobre o topo; começa o conteúdo abaixo da área segura
@@ -88,6 +95,12 @@ export default function PageHeader({
   const resolvedGradient = gradientColors ?? brandingColors.gradient;
   // Notebook: faixa baixa com o título à esquerda (o cabeçalho alto de celular comia 1/5 da tela)
   const isDesktop = useIsDesktop();
+  const help = useCurrentHelp();
+  const toggleHelp = useHelpStore((s) => s.toggle);
+  const helpOpen = useHelpStore((s) => !!help && s.openId === help.id);
+  const allActions: RightAction[] = showHelp && help
+    ? [...rightActions.slice(0, 3), { icon: 'help-circle-outline', onPress: () => toggleHelp(help.id), label: 'Ajuda desta tela' }]
+    : rightActions;
 
   const handleBack = () => {
     if (onBack) {
@@ -130,16 +143,19 @@ export default function PageHeader({
             </View>
 
             {/* Ações à direita */}
-            {rightActions.length > 0 ? (
+            {allActions.length > 0 ? (
               <View style={styles.actions}>
-                {rightActions.slice(0, 4).map((action, index) => (
+                {allActions.slice(0, 4).map((action, index) => (
                   <TouchableOpacity
                     key={index}
                     onPress={action.onPress}
                     style={[
                       styles.actionButton,
                       action.variant === 'danger' && styles.actionButtonDanger,
+                      action.label === 'Ajuda desta tela' && helpOpen && styles.actionButtonActive,
                     ]}
+                    accessibilityRole="button"
+                    accessibilityLabel={action.label}
                   >
                     <Ionicons
                       name={action.icon}
@@ -255,6 +271,9 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  actionButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.4)',
   },
   actionButtonDanger: {
     backgroundColor: 'rgba(239, 68, 68, 0.35)',
