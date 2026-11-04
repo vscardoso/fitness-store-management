@@ -79,7 +79,7 @@ Ficam sem ficha (lista fixa no teste): login, cadastro, esqueci a senha, apresen
 | Fase | Entrega |
 |---|---|
 | 1 (FEITA 04/11) | Estrutura (fichas tipadas, mapa de rotas, "?" no `PageHeader`, folha no celular, painel no notebook, F1), Central nova com busca, testes de cobertura e de botões, fichas de **Vender** |
-| 2 | Fichas de **Estoque** e **Clientes** |
+| 2 (EM ANDAMENTO) | Fichas de **Estoque** e **Clientes** |
 | 3 | Fichas de **Dinheiro** e **Relatórios** |
 | 4 | Fichas de **WhatsApp** e **Loja**, Primeiros passos, boas-vindas novo |
 | 5 | Remoção dos tutoriais antigos, Playwright em todas as telas (390 e 1440), publicação |
@@ -90,3 +90,51 @@ Cada fase é publicada sozinha (app web e OTA), com typecheck em 0 e testes pass
 
 - **Fase 1 (04/11/2026, feita):** fichas em `mobile/constants/help/` (`types.ts`, `vender.ts`, `index.ts`, `coverage.ts` com as rotas excluídas, escondidas e pendentes), rotas em `utils/helpRoutes.ts`, estado em `store/helpStore.ts`, folha e painel em `components/help/HelpHost.tsx` (`HelpIconButton` para telas com cabeçalho próprio, como o PDV do notebook), corpo da ficha em `components/help/HelpContent.tsx`, "?" automático no `PageHeader` (`showHelp={false}` esconde), F1 no `DesktopShell`, Central nova em `app/(tabs)/help.tsx`. Fichas de Vender: Início, Ponto de venda, Finalizar venda, Venda concluída, Vendas, Detalhe da venda, Condicionais, Novo envio, Envio condicional, Caixa, Histórico do caixa. Testes `npm test` (cobertura e nomes de botão) e Playwright em 390 e 1440 px (42 verificações, vendedora sem a ficha de gerente). Saíram telas mortas: `(tabs)/management`, `(tabs)/payment-discounts` (cópia da de `settings`) e `batches`. Os "?" de tutorial antigo do Início, PDV e Condicionais saíram; os de Produtos, Estoque e Detalhe do produto ficam até a fase 2.
 - Para a próxima fase: tirar as rotas do grupo de `HELP_PENDING` ao escrever as fichas; telas sem `PageHeader` (assistente de produto, scanner, equipe) precisam do `HelpIconButton` no cabeçalho delas. Ainda existem duas telas de Equipe (`(tabs)/team` e `team`) na mesma rota: conferir qual abre na fase 4.
+- **Fase 2 (04/11/2026, PARCIAL, parou aqui):**
+  - Feito e publicado:
+    - Fichas de **Clientes** (`constants/help/clientes.ts`: lista, nova, ficha e editar), testadas no navegador em 390 e 1440 px.
+    - "?" no cabeçalho próprio do assistente de produto (`app/products/wizard.tsx`) e do Scanner IA (`app/products/scan.tsx`), com `HelpIconButton onColor keepSpace`. Ele aparece quando as fichas `/products/wizard` e `/products/scan` existirem.
+    - Saíram os "?" de tutorial antigo de Produtos (celular e tabela do computador), Inventário e Detalhe do produto.
+  - Falta: as fichas de **Estoque** (`constants/help/estoque.ts`, as 31 rotas marcadas `'estoque'` em `HELP_PENDING`).
+    - O levantamento de fornecedores e viagens já está em `docs/AJUDA_LEVANTAMENTO_FASE2.md`, com 9 problemas achados.
+    - Falta levantar produtos, entradas, categorias, inventário e prejuízos.
+
+## Como continuar (prompt para o próximo dev)
+
+```
+Projeto Provador em C:\Users\victo\fitness-store-management. Leia CLAUDE.md, docs/PLANO_AJUDA.md e docs/AJUDA_LEVANTAMENTO_FASE2.md.
+
+Tarefa: continuar a fase 2 da ajuda por tela, escrevendo mobile/constants/help/estoque.ts.
+- Exporte `ESTOQUE: HelpEntry[]` e some em HELP_ENTRIES (constants/help/index.ts).
+- Uma ficha para cada rota marcada 'estoque' em HELP_PENDING (constants/help/coverage.ts); tire a rota de lá ao escrever a ficha.
+
+Regras das fichas (ver constants/help/types.ts; use vender.ts e clientes.ts como exemplo):
+- Frase curta, palavras da lojista (nada de CMV, FIFO, SKU), sem travessão.
+- Nome de botão entre aspas curvas “assim”, copiado EXATO do código.
+- `sources`: os arquivos onde esses textos estão.
+- `web` e `mobile`: só o que muda entre computador e celular.
+- `roles: ['manager']` nas telas de gerente e admin.
+
+Leia o código de cada tela antes de escrever; não escreva de memória:
+- Produtos: app/(tabs)/products.tsx, components/products/DesktopProductsTable.tsx, app/products/wizard.tsx com
+  components/products/WizardStep*.tsx, products/[id], edit/[id], photos/[id], consult, scan, label/index e label/[id]
+  (com components/labels/StickerStudio.tsx).
+- Entradas: app/entries/* (inclusive add-stock, check/[id] e import).
+- Categorias: app/categories/*.
+- Inventário: app/(tabs)/inventory.tsx.
+- Prejuízos: app/(tabs)/stock-losses/*.
+- Fornecedores e viagens: use o levantamento do doc.
+Telas sem PageHeader precisam de <HelpIconButton /> no cabeçalho próprio (components/help/HelpHost.tsx).
+
+Pronto quando:
+- `npm test` na pasta mobile passa (test-help-coverage e test-help-labels).
+- `npx tsc --noEmit` dá 0 erros.
+- No navegador (build local com `expo export --platform web`, backend de teste, Playwright em 390 e 1440 px), o "?" de cada
+  tela nova abre a ficha certa, sem erro de JS.
+
+Depois: atualizar o andamento em docs/PLANO_AJUDA.md e CLAUDE.md, commit em português e git push.
+
+Os 9 problemas do levantamento NÃO fazem parte da ajuda:
+- 1, 2, 3 e 7 são correções diretas.
+- Os itens 5 e 6 mudam regra: liste ao Victor e pergunte antes de corrigir.
+```
