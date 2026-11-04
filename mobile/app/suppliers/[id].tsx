@@ -25,6 +25,7 @@ import { useSupplier, useSupplierProducts, useDeleteSupplier, useUpdateSupplier 
 import { formatDate } from '@/utils/format';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import FormGrid from '@/components/layout/FormGrid';
 
 export default function SupplierDetailScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -215,9 +216,10 @@ export default function SupplierDetailScreen() {
               <Text style={styles.emptyText}>Nenhum produto registrado para este fornecedor</Text>
             </View>
           ) : (
-            supplierProducts.map((sp) => (
+            <FormGrid>
+            {supplierProducts.map((sp) => (
+              <View key={sp.product_id}>
               <TouchableOpacity
-                key={sp.product_id}
                 style={styles.productCard}
                 onPress={() => router.push(`/products/${sp.product_id}` as any)}
                 activeOpacity={0.75}
@@ -251,7 +253,9 @@ export default function SupplierDetailScreen() {
                   </View>
                 </View>
               </TouchableOpacity>
-            ))
+              </View>
+            ))}
+            </FormGrid>
           )}
         </View>
 

@@ -13,7 +13,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { useSupplierRanking } from '@/hooks/useSupplierInsights';
 import { formatCurrency, formatPercent } from '@/utils/format';
 import type { SupplierRankingRow, SupplierRating } from '@/services/supplierInsightsService';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useDesktopGrid } from '@/hooks/useLayout';
 
 const PERIODS = [
   { days: 30, label: '30 dias' },
@@ -79,6 +79,8 @@ function RankCard({ row, onPress }: { row: SupplierRankingRow; onPress: () => vo
 }
 
 export default function SupplierRankingScreen() {
+  // no PC os cartões ficam em grade (no celular, lista de sempre)
+  const grid = useDesktopGrid(380, 12);
   const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const brandingColors = useBrandingColors();
@@ -138,9 +140,13 @@ export default function SupplierRankingScreen() {
             <Text style={styles.hint}>Registre entradas com fornecedor para ver o ranking.</Text>
           </View>
         ) : (
-          rows.map((r) => (
-            <RankCard key={r.supplier_id} row={r} onPress={() => router.push(`/suppliers/${r.supplier_id}` as any)} />
-          ))
+          <View style={[{ gap: theme.spacing.sm }, grid.gridStyle]} onLayout={grid.onLayout}>
+          {rows.map((r) => (
+            <View key={r.supplier_id} style={grid.cardStyle}>
+            <RankCard row={r} onPress={() => router.push(`/suppliers/${r.supplier_id}` as any)} />
+            </View>
+          ))}
+          </View>
         )}
       </ScrollView>
       </View>
