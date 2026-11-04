@@ -147,6 +147,31 @@ async def get_sales_report_pdf(
 
 
 @router.get(
+    "/stock-chain/pdf",
+    summary="Estoque atual em PDF (entrada, fornecedor e produto)",
+    description="Cada lote com peças restantes, agrupado por entrada (ordem do FIFO), com fornecedor, produto, cor, tamanho, código e custo.",
+)
+async def get_stock_chain_pdf(
+    supplier_id: int | None = Query(None, description="Só um fornecedor (opcional)"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    from fastapi import Response
+    from sqlalchemy import select as _select
+    from app.models.store import Store
+    from app.services.stock_chain_pdf_service import build_stock_chain_pdf, load_stock_chain
+
+    entries = await load_stock_chain(db, tenant_id, supplier_id=supplier_id)
+    store_name = (await db.execute(_select(Store.name).where(Store.id == tenant_id))).scalar() or ""
+    return Response(
+        content=build_stock_chain_pdf(entries, store_name=store_name),
+        media_type="application/pdf",
+        headers={"Content-Disposition": 'inline; filename="estoque-atual.pdf"', "Cache-Control": "no-store"},
+    )
+
+
+@router.get(
     "/cash-flow",
     response_model=CashFlowReportResponse,
     summary="Relatório de fluxo de caixa",

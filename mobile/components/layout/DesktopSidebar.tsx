@@ -122,6 +122,7 @@ export default function DesktopSidebar() {
           key: 'relatorios', title: 'Relatórios', collapsed: true, items: [
             { label: 'Vendas', icon: 'bar-chart-outline', href: '/reports/sales', match: ['/reports/sales'] },
             { label: 'Conferência de estoque', icon: 'checkbox-outline', href: '/reports/stock-check', match: ['/reports/stock-check'] },
+            { label: 'Estoque atual em PDF', icon: 'document-text-outline', href: '/reports/stock-chain', match: ['/reports/stock-chain'] },
             { label: 'Lucro por lote', icon: 'layers-outline', href: '/reports/lots', match: ['/reports/lots'] },
             { label: 'Mais vendidos', icon: 'trending-up', href: '/reports/top-products', match: ['/reports/top-products'] },
             { label: 'Histórico', icon: 'calendar-outline', href: '/reports/history', match: ['/reports/history'] },

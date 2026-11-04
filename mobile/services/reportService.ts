@@ -2,6 +2,9 @@
  * Service para API de relatórios
  */
 import api from './api';
+import { Platform } from 'react-native';
+import * as Sharing from 'expo-sharing';
+import * as LegacyFileSystem from 'expo-file-system/legacy';
 
 export interface PaymentBreakdown {
   method: string;
@@ -297,4 +300,52 @@ export async function openSalesReportPdfWeb(period: string): Promise<void> {
     a.remove();
   }
   setTimeout(() => URL.revokeObjectURL(href), 60_000);
+}
+
+/**
+ * Estoque atual em PDF (entrada, fornecedor e produto), gerado no servidor.
+ * Web: compartilhar do aparelho ou abre/baixa. Celular: grava no cache e abre o compartilhar.
+ */
+export async function openStockChainPdf(supplierId?: number | null): Promise<void> {
+  const qs = supplierId ? `?supplier_id=${supplierId}` : '';
+  const filename = 'estoque-atual.pdf';
+  if (Platform.OS === 'web') {
+    const res = await api.get(`/reports/stock-chain/pdf${qs}`, {
+      responseType: 'blob',
+      headers: { 'X-Loading-Message': 'Gerando PDF...' },
+    });
+    const blob = new Blob([res.data], { type: 'application/pdf' });
+    try {
+      const file = new File([blob], filename, { type: 'application/pdf' });
+      const nav: any = navigator;
+      if (nav.canShare && nav.canShare({ files: [file] }) && /iPhone|iPad|Android/i.test(nav.userAgent || '')) {
+        await nav.share({ files: [file], title: 'Estoque atual' });
+        return;
+      }
+    } catch (e: any) {
+      if (e?.name === 'AbortError') return;
+    }
+    const href = URL.createObjectURL(blob);
+    const win = window.open(href, '_blank');
+    if (!win) {
+      const a = document.createElement('a');
+      a.href = href;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+    setTimeout(() => URL.revokeObjectURL(href), 60_000);
+    return;
+  }
+  const res = await api.get(`/reports/stock-chain/pdf${qs}`, {
+    responseType: 'arraybuffer',
+    headers: { 'X-Loading-Message': 'Gerando PDF...' },
+  });
+  const bytes = new Uint8Array(res.data as ArrayBuffer);
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  const path = `${LegacyFileSystem.cacheDirectory}${filename}`;
+  await LegacyFileSystem.writeAsStringAsync(path, globalThis.btoa(bin), { encoding: 'base64' as any });
+  await Sharing.shareAsync(path, { mimeType: 'application/pdf', UTI: 'com.adobe.pdf', dialogTitle: 'Estoque atual' });
 }

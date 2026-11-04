@@ -47,7 +47,7 @@ export const HELP_PENDING: Record<string, string> = {
   '/settings/payment-discounts': 'dinheiro',
   '/reports': 'relatorios', '/reports/sales': 'relatorios', '/reports/sales-period': 'relatorios',
   '/reports/top-products': 'relatorios', '/reports/lots': 'relatorios', '/reports/history': 'relatorios',
-  '/reports/stock-check': 'relatorios', '/reports/stock-counts': 'relatorios', '/reports/stock-counts/[id]': 'relatorios',
+  '/reports/stock-check': 'relatorios', '/reports/stock-chain': 'relatorios', '/reports/stock-counts': 'relatorios', '/reports/stock-counts/[id]': 'relatorios',
   '/whatsapp': 'whatsapp', '/whatsapp/[id]': 'whatsapp', '/settings/whatsapp-profile': 'whatsapp',
   '/settings/whatsapp-hours': 'whatsapp', '/settings/whatsapp-greeting': 'whatsapp', '/settings/whatsapp-catalog': 'whatsapp',
   '/settings/whatsapp-quick-replies': 'whatsapp', '/settings/whatsapp-labels': 'whatsapp',
