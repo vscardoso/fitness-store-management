@@ -1,9 +1,9 @@
 /**
  * Tela única de etiquetas: adesivo do verso da tag (a frente já vem impressa com a logo WA).
  * Prévia em escala real, medida (6 x 5 cm por padrão, outras prontas ou qualquer uma de 3 a 10 cm), quantidade por
- * peça e dois destinos:
- *  - PDF para a gráfica: uma etiqueta por página, no tamanho exato;
- *  - folha A4 adesiva: impressora comum, com posição inicial para folha já usada.
+ * peça e o papel (fica lembrado no aparelho):
+ *  - Folha A4 (padrão): várias por folha com marcas de corte, posição inicial para folha já usada;
+ *  - Uma por página: no tamanho exato, para a gráfica ou impressora de etiqueta.
  */
 import React, { useEffect, useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
@@ -44,6 +44,7 @@ interface Props {
 
 const MAX_PER_ITEM = 200;
 const SIZE_KEY = '@provador:etiqueta_medida';   // última medida usada neste aparelho
+const PAPER_KEY = '@provador:etiqueta_papel';    // último papel usado (a4 ou roll)
 
 function sizeFrom(w: number, h: number): StickerSize {
   return STICKER_SIZES.find((s) => s.widthMm === w && s.heightMm === h) ?? customSticker(w, h);
@@ -63,7 +64,7 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
   const [customError, setCustomError] = useState<string | null>(null);
   const [qty, setQty] = useState<Record<number, number>>({});
   const [focusId, setFocusId] = useState<number | null>(null);
-  const [showSheet, setShowSheet] = useState(false);
+  const [paper, setPaper] = useState<TagLabelLayout>('a4');
   const [start, setStart] = useState(1);
   const [busy, setBusy] = useState<TagLabelLayout | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -85,7 +86,15 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
         if (v && parseCm(cmText(v.w)) === v.w && parseCm(cmText(v.h)) === v.h) setSize(sizeFrom(v.w, v.h));
       })
       .catch(() => {});
+    AsyncStorage.getItem(PAPER_KEY)
+      .then((raw) => { if (raw === 'a4' || raw === 'roll') setPaper(raw); })
+      .catch(() => {});
   }, []);
+
+  const choosePaper = (p: TagLabelLayout) => {
+    setPaper(p);
+    AsyncStorage.setItem(PAPER_KEY, p).catch(() => {});
+  };
 
   const chooseSize = (s: StickerSize) => {
     setSize(s);
@@ -276,15 +285,32 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
           );
         })}
 
-        {/* Folha A4: só abre se for imprimir em casa */}
-        <TouchableOpacity style={styles.sheetToggle} onPress={() => setShowSheet((v) => !v)} accessibilityRole="button" accessibilityState={{ expanded: showSheet }}>
-          <Ionicons name="document-outline" size={18} color={Colors.light.textSecondary} />
-          <Text style={styles.sheetToggleText}>Imprimir em casa, folha A4 adesiva</Text>
-          <Ionicons name={showSheet ? 'chevron-up' : 'chevron-down'} size={18} color={Colors.light.textTertiary} />
-        </TouchableOpacity>
-        {showSheet ? (
+        {/* Papel: A4 (várias por folha, com marcas de corte) ou uma por página (gráfica/térmica) */}
+        <Text style={styles.paperTitle}>Papel</Text>
+        <View style={styles.paperRow}>
+          {([
+            { key: 'a4' as TagLabelLayout, icon: 'grid-outline' as const, title: 'Folha A4', note: `${perSheet} por folha, com marcas de corte` },
+            { key: 'roll' as TagLabelLayout, icon: 'document-outline' as const, title: 'Uma por página', note: 'Gráfica ou impressora de etiqueta' },
+          ]).map((o) => {
+            const on = paper === o.key;
+            return (
+              <TouchableOpacity
+                key={o.key}
+                style={[styles.paperOpt, on && styles.paperOptOn]}
+                onPress={() => choosePaper(o.key)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: on }}
+              >
+                <Ionicons name={o.icon} size={20} color={on ? brand.primary : Colors.light.textSecondary} />
+                <Text style={[styles.paperOptTitle, on && { color: brand.primary }]}>{o.title}</Text>
+                <Text style={styles.paperOptNote}>{o.note}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+        {paper === 'a4' ? (
           <View style={styles.sheetBox}>
-            <Text style={styles.muted}>Folha já usada? Toque na primeira posição livre. Cabem {perSheet} por folha.</Text>
+            <Text style={styles.muted}>Folha já usada? Toque na primeira posição livre.</Text>
             <View style={styles.grid}>
               {Array.from({ length: perSheet }, (_, i) => i + 1).map((pos) => {
                 const used = pos < start;
@@ -301,16 +327,6 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
                 );
               })}
             </View>
-            <TouchableOpacity
-              style={[styles.secondaryBtn, (total === 0 || !!busy) && styles.disabled]}
-              onPress={() => generate('a4')}
-              disabled={total === 0 || !!busy}
-              accessibilityRole="button"
-            >
-              <Text style={styles.secondaryText}>
-                {busy === 'a4' ? 'Gerando...' : total > 0 ? `Gerar folha A4 (${sheets} folha${sheets !== 1 ? 's' : ''})` : 'Escolha as quantidades'}
-              </Text>
-            </TouchableOpacity>
           </View>
         ) : null}
         <View style={{ height: 120 }} />
@@ -322,16 +338,18 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
         <View style={styles.barRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.barTotal}>{total} etiqueta{total !== 1 ? 's' : ''}</Text>
-            <Text style={styles.barSub}>{size.name} · {size.note}</Text>
+            <Text style={styles.barSub}>
+              {size.name} · {paper === 'a4' ? `A4, ${sheets} folha${sheets !== 1 ? 's' : ''}` : 'uma por página'}
+            </Text>
           </View>
           <TouchableOpacity
             style={[styles.primaryBtn, (total === 0 || !!busy) && styles.disabled]}
-            onPress={() => generate('roll')}
+            onPress={() => generate(paper)}
             disabled={total === 0 || !!busy}
             accessibilityRole="button"
           >
             <Ionicons name="download-outline" size={18} color="#fff" />
-            <Text style={styles.primaryText}>{busy === 'roll' ? 'Gerando...' : 'PDF para a gráfica'}</Text>
+            <Text style={styles.primaryText}>{busy ? 'Gerando...' : 'Gerar PDF'}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -343,6 +361,15 @@ const makeStyles = (primary: string) =>
   StyleSheet.create({
     root: { flex: 1, backgroundColor: Colors.light.background },
     content: { padding: theme.spacing.md, paddingBottom: theme.spacing.xl },
+    paperTitle: { fontSize: 15, fontWeight: '700', color: Colors.light.text, marginTop: theme.spacing.md, marginBottom: theme.spacing.sm },
+    paperRow: { flexDirection: 'row', gap: theme.spacing.sm, marginBottom: theme.spacing.sm },
+    paperOpt: {
+      flex: 1, minWidth: 0, gap: 2, padding: theme.spacing.md,
+      borderRadius: theme.borderRadius.lg, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card,
+    },
+    paperOptOn: { borderColor: primary, backgroundColor: primary + '0D' },
+    paperOptTitle: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
+    paperOptNote: { fontSize: 12, color: Colors.light.textSecondary },
     previewCard: {
       alignItems: 'center',
       backgroundColor: '#f4f4f5',

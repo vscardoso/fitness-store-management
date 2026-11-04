@@ -162,7 +162,7 @@ const PRODUTOS: HelpEntry[] = [
       'Toque em “Adicionar peças” e escolha os produtos.',
       'Ajuste a quantidade de cada peça; “Igual ao estoque” faz uma etiqueta por peça.',
       'Confira a medida do adesivo (o padrão é 6 × 5 cm).',
-      'Toque em “PDF para a gráfica”, ou gere a folha A4 para imprimir em casa.',
+      'Escolha o papel (“Folha A4”, com marcas de corte, ou “Uma por página”, para a gráfica) e toque em “Gerar PDF”.',
     ],
     goodToKnow: [
       'O adesivo leva nome, cor, tamanho, preço, o QR e o código da peça (#101-1); nunca o custo.',
@@ -181,7 +181,7 @@ const PRODUTOS: HelpEntry[] = [
     steps: [
       'Ajuste a quantidade de cada cor e tamanho; “Igual ao estoque” faz uma por peça.',
       'Confira a medida do adesivo.',
-      'Toque em “PDF para a gráfica”, ou gere a folha A4 para imprimir em casa.',
+      'Escolha o papel (“Folha A4”, com marcas de corte, ou “Uma por página”, para a gráfica) e toque em “Gerar PDF”.',
     ],
     goodToKnow: ['Produto sem peças no estoque precisa de uma entrada antes de imprimir.'],
     related: ['etiquetas', 'produto-detalhe'],
