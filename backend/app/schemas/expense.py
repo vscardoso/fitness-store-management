@@ -50,6 +50,8 @@ class ExpenseBase(BaseModel):
     # Despesa de um lote (entrada) OU de uma viagem; sem nenhum dos dois é despesa geral.
     stock_entry_id: Optional[int] = None
     trip_id: Optional[int] = None
+    # Financeiro: conta de onde saiu o dinheiro (gaveta, banco); nulo = só entra no resultado do mês
+    account_id: Optional[int] = None
 
     @model_validator(mode="after")
     def only_one_link(self):
@@ -86,6 +88,7 @@ class ExpenseUpdate(BaseModel):
     category_id: Optional[int] = None
     stock_entry_id: Optional[int] = None
     trip_id: Optional[int] = None
+    account_id: Optional[int] = None
 
     @model_validator(mode="after")
     def only_one_link(self):

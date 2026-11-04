@@ -49,6 +49,9 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     ({"POST"}, r"^/sales/\{sale_id\}/cancel$", ADMIN),
     ({"POST"}, r"^/reports/stock-check/writeoff$", ADMIN),  # baixa de estoque pela Conferência
     (ANY, r"^/stock-import(/|$)", MANAGER),  # importar estoque inicial por planilha
+    ({"POST"}, r"^/finance/(setup|accounts)$", ADMIN),  # implantar o financeiro e criar conta: só admin
+    ({"PUT"}, r"^/finance/accounts/\{account_id\}/pix$", ADMIN),
+    (ANY, r"^/finance(/|$)", MANAGER),  # saldos, transferências e contas a pagar
     (ANY, r"^/cash/sessions(/|$)", MANAGER),  # histórico dos caixas
     (ANY, r"^/cash(/|$)", CASHIER),  # abrir, movimentar e fechar o caixa: todo papel
     ({"POST"}, r"^/returns/reconcile-status$", ADMIN),

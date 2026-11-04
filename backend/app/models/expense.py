@@ -111,6 +111,10 @@ class Expense(BaseModel):
         index=True,
         comment="Lote (entrada) a que esta despesa pertence"
     )
+    # Financeiro: conta de onde saiu o dinheiro (gaveta, banco). Nulo = só entra no resultado do mês.
+    account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("financial_accounts.id"), nullable=True, comment="conta de onde saiu o pagamento"
+    )
     trip_id: Mapped[int | None] = mapped_column(
         ForeignKey("trips.id", ondelete="SET NULL"),
         nullable=True,

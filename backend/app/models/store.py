@@ -1,10 +1,10 @@
 """
 Modelo de loja/tenant para multi-tenancy.
 """
-from sqlalchemy import String, DateTime, Integer
+from sqlalchemy import Date, String, DateTime, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import List, Optional, TYPE_CHECKING
-from datetime import datetime
+from datetime import date, datetime
 from .base import BaseModel
 
 if TYPE_CHECKING:
@@ -102,6 +102,8 @@ class Store(BaseModel):
         default="#10B981",
         comment="Cor de destaque (hex)"
     )
+    # Financeiro: dia do corte da implantação (loja que já funcionava). Nulo = financeiro ainda não implantado.
+    finance_start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     logo_path: Mapped[Optional[str]] = mapped_column(
         String(500),
         nullable=True,

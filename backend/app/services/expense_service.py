@@ -180,6 +180,18 @@ class ExpenseService:
         if (await self.db.execute(stmt)).scalar_one_or_none() is None:
             raise ValueError("Categoria não encontrada")
 
+    async def _validate_account(self, account_id: Optional[int], tenant_id: Optional[int]) -> None:
+        """Conta de onde saiu o pagamento: tem de ser uma conta ativa da loja."""
+        if account_id is None:
+            return
+        from app.models.finance import FinancialAccount
+        found = (await self.db.execute(select(FinancialAccount.id).where(
+            FinancialAccount.id == account_id, FinancialAccount.tenant_id == tenant_id,
+            FinancialAccount.is_active == True,  # noqa: E712
+        ))).scalar_one_or_none()
+        if found is None:
+            raise ValueError("Conta de pagamento não encontrada")
+
     async def _validate_link(self, stock_entry_id: Optional[int], trip_id: Optional[int], tenant_id: Optional[int]) -> None:
         """Lote/viagem informados precisam existir, estar ativos e ser da mesma loja."""
         if stock_entry_id is not None:
@@ -213,6 +225,7 @@ class ExpenseService:
 
         await self._validate_category(data.category_id, tenant_id)
         await self._validate_link(data.stock_entry_id, data.trip_id, tenant_id)
+        await self._validate_account(data.account_id, tenant_id)
         obj = Expense(**data.model_dump(), tenant_id=tenant_id)
         self.db.add(obj)
         await self.db.flush()
@@ -238,6 +251,8 @@ class ExpenseService:
         changes = data.model_dump(exclude_unset=True)
         if "category_id" in changes:
             await self._validate_category(changes["category_id"], tenant_id)
+        if "account_id" in changes:
+            await self._validate_account(changes["account_id"], tenant_id)
         old_entry, old_trip = exp.stock_entry_id, exp.trip_id
         new_entry = changes.get("stock_entry_id", old_entry)
         new_trip = changes.get("trip_id", old_trip)

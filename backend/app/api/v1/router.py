@@ -51,6 +51,7 @@ from app.api.v1.endpoints import (
     supplier_returns,
     stock_counts,
     cash_register,
+    finance,
     catalog_feed,
     stock_import,
     looks,
@@ -213,6 +214,7 @@ api_router.include_router(
 api_router.include_router(stock_counts.router)
 api_router.include_router(stock_import.router)
 api_router.include_router(cash_register.router)
+api_router.include_router(finance.router)
 api_router.include_router(catalog_feed.router)
 
 # Devolução ao fornecedor
