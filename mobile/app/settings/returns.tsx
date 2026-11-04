@@ -13,6 +13,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { getReturnSettings, updateReturnSettings } from '@/services/storeService';
 import { parseApiError } from '@/utils/apiError';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import FormGrid from '@/components/layout/FormGrid';
 
 export default function ReturnSettingsScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -56,7 +57,8 @@ export default function ReturnSettingsScreen() {
     <View style={styles.container}>
       <PageHeader title="Troca e devolução" subtitle="Prazo e regra da loja" showBackButton onBack={() => router.back()} />
       <ScrollView contentContainerStyle={[styles.content, desktopContent]} keyboardShouldPersistTaps="handled">
-        <View style={styles.card}>
+        <FormGrid>
+<View style={styles.card}>
           <Text style={styles.title}>Prazo para trocar ou devolver</Text>
           <Text style={styles.note}>Quantos dias, depois da compra, o cliente pode trocar ou devolver uma peça.</Text>
           <TextInput
@@ -84,6 +86,8 @@ export default function ReturnSettingsScreen() {
 
         {!!error && <Text style={styles.error}>{error}</Text>}
         {!!message && <Text style={[styles.ok, { color: brand.primary }]}>{message}</Text>}
+</FormGrid>
+
         <Button mode="contained" onPress={save} loading={saving} disabled={saving} buttonColor={brand.primary} style={{ marginTop: 8 }}>
           Salvar
         </Button>

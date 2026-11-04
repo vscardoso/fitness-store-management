@@ -12,6 +12,7 @@ import useBackToList from '@/hooks/useBackToList';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import FormGrid from '@/components/layout/FormGrid';
 
 export default function BrandingScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -111,7 +112,8 @@ export default function BrandingScreen() {
       />
       <ScrollView contentContainerStyle={[styles.content, desktopContent]}>
 
-        {/* Logo */}
+        <FormGrid>
+{/* Logo */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Logo</Text>
           <TouchableOpacity style={styles.logoContainer} onPress={pickLogo} activeOpacity={0.8}
@@ -203,6 +205,8 @@ export default function BrandingScreen() {
             Salvar Identidade
           </Button>
         </View>
+</FormGrid>
+
       </ScrollView>
       <ConfirmDialog
         visible={successVisible}

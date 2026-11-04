@@ -36,6 +36,7 @@ import { SizePicker } from '@/components/ui/SizePicker';
 import { normalizeGender } from '@/utils/gender';
 import LoadedImage from '@/components/ui/LoadedImage';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import FormGrid from '@/components/layout/FormGrid';
 
 export default function EditProductScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -502,7 +503,8 @@ export default function EditProductScreen() {
           keyboardShouldPersistTaps="handled"
           automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
         >
-        {/* Informações Básicas */}
+        <FormGrid>
+{/* Informações Básicas */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Ionicons name="information-circle-outline" size={20} color={brandingColors.primary} />
@@ -683,6 +685,8 @@ export default function EditProductScreen() {
             )}
           </View>
         </View>
+
+</FormGrid>
 
         {/* ── Preços & Estoque (Layout Moderno Unificado) ── */}
         

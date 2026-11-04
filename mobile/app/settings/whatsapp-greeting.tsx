@@ -13,6 +13,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { getWhatsappGreeting, saveWhatsappGreeting } from '@/services/whatsappService';
 import { parseApiError } from '@/utils/apiError';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import FormGrid from '@/components/layout/FormGrid';
 
 export default function WhatsappGreetingScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -61,7 +62,8 @@ export default function WhatsappGreetingScreen() {
     <View style={styles.container}>
       <PageHeader title="Saudação automática" subtitle="WhatsApp da loja" showBackButton onBack={() => router.back()} />
       <ScrollView contentContainerStyle={[styles.content, desktopContent]} keyboardShouldPersistTaps="handled">
-        <View style={styles.card}>
+        <FormGrid>
+<View style={styles.card}>
           <View style={styles.row}>
             <View style={{ flex: 1 }}>
               <Text style={styles.title}>Responder sozinha quando a cliente escreve</Text>
@@ -91,6 +93,8 @@ export default function WhatsappGreetingScreen() {
 
         {!!error && <Text style={styles.error}>{error}</Text>}
         {!!message && <Text style={[styles.ok, { color: brand.primary }]}>{message}</Text>}
+</FormGrid>
+
         <Button mode="contained" onPress={save} loading={saving} disabled={saving || !loaded} buttonColor={brand.primary} style={{ marginTop: 8 }}>
           Salvar
         </Button>
