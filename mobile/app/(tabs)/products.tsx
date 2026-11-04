@@ -19,7 +19,7 @@ import { useAuth } from '@/hooks/useAuth';
 import EmptyState from '@/components/ui/EmptyState';
 import ProductGroupCard from '@/components/products/ProductGroupCard';
 import FAB from '@/components/FAB';
-import { getGroupedProducts } from '@/services/productService';
+import { getAllGroupedProducts, getGroupedProducts } from '@/services/productService';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { ProductGrouped } from '@/types';
@@ -93,8 +93,8 @@ function MobileProductsScreen() {
     isLoading: isLoadingAllProducts,
     refetch: refetchAllProducts,
   } = useQuery({
-    queryKey: ['grouped-products-all'],
-    queryFn: () => getGroupedProducts({ limit: 500, skip: 0 }),
+    queryKey: ['grouped-products', 'all'],
+    queryFn: getAllGroupedProducts,
     // Busca também: o produto procurado pode estar numa página que ainda não carregou
     enabled: showLowStock || !!searchQuery.trim(),
   });

@@ -690,6 +690,8 @@ export interface EntryItemResponse extends EntryItem {
   product_price?: number;
   variant_name?: string;
   variant_label?: string;
+  /** Código da etiqueta, ex.: "#026-1" */
+  variant_code?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;

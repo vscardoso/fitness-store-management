@@ -91,3 +91,20 @@ async def test_excluir_uma_variacao_com_estoque_zera_so_ela(test_client, async_s
     assert restos and all(q == 0 for q in restos)
     outros = (await async_session.execute(select(EntryItem.quantity_remaining).where(EntryItem.variant_id == vb.id))).scalars().all()
     assert sum(outros) > 0 and (await async_session.get(ProductVariant, vb.id)).is_active is True
+
+
+async def test_item_da_entrada_traz_o_codigo_da_etiqueta(test_client, async_session, test_user):
+    """Busca '26' na entrada não achava o #026: o item agora traz variant_code."""
+    from sqlalchemy import select
+    from app.models.entry_item import EntryItem
+    from app.models.product_variant import ProductVariant
+    from tests.test_troca import _cenario
+    _, h, p, va, _ = await _cenario(async_session, test_user)
+    va_db = await async_session.get(ProductVariant, va.id)
+    va_db.product_code, va_db.variant_number = 26, 1
+    await async_session.commit()
+    entry_id = (await async_session.execute(select(EntryItem.entry_id).where(EntryItem.variant_id == va.id))).scalars().first()
+    r = await test_client.get(f"/api/v1/stock-entries/{entry_id}", headers=h)
+    assert r.status_code == 200, r.text
+    codes = [i.get("variant_code") for i in r.json()["entry_items"]]
+    assert "#026-1" in codes, codes

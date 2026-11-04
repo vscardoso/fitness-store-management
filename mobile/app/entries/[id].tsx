@@ -22,6 +22,7 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter, useFocusEffect } from 'expo-router';
+import { matchesProduct } from '@/utils/productSearch';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -996,10 +997,14 @@ export default function StockEntryDetailsScreen() {
           )}
           {entry.entry_items && entry.entry_items.length > 0 ? (
             (() => {
-              const fold = (t: string) => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-              const q = fold(itemsQuery.trim());
+              // Nome, cor, tamanho, SKU e código da etiqueta (#026, 026, 26, #026-1): mesma regra da lista de Produtos
+              const q = itemsQuery.trim();
               const all = q
-                ? entry.entry_items.filter(i => fold(`${i.product_name} ${i.variant_label || ''} ${i.product_sku || ''}`).includes(q))
+                ? entry.entry_items.filter(i => matchesProduct(
+                    { name: i.product_name, variants: [{ sku: i.product_sku, display_code: i.variant_code }] },
+                    q,
+                    [i.variant_label],
+                  ))
                 : entry.entry_items;
               if (all.length === 0) {
                 return <Text style={styles.itemsViewInfo}>Nenhum produto encontrado para "{itemsQuery.trim()}".</Text>;

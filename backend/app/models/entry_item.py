@@ -289,6 +289,11 @@ class EntryItem(BaseModel):
             return self.variant.get_variant_label()
         return None
 
+    @property
+    def variant_code(self) -> str | None:
+        """Código da etiqueta da variação, ex.: '#026-1' (a busca da entrada acha por ele)."""
+        return self.variant.display_code if self.variant else None
+
     def get_product_info(self) -> dict:
         """
         Retorna informações básicas do produto/variante associado.

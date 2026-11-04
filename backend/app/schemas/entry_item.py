@@ -115,6 +115,7 @@ class EntryItemResponse(EntryItemBase):
     # Informações da variante
     variant_name: Optional[str] = Field(None, description="Nome completo da variante")
     variant_label: Optional[str] = Field(None, description="Label da variante (cor/tamanho)")
+    variant_code: Optional[str] = Field(None, description="Código da etiqueta, ex.: #026-1")
 
     class Config:
         from_attributes = True
