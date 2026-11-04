@@ -173,7 +173,7 @@ class CashRegisterService:
             "movements": [
                 {"id": m.id, "kind": m.kind, "amount": float(m.amount), "reason": m.reason,
                  "reason_label": REASONS.get(m.kind, {}).get(m.reason, m.reason), "note": m.note,
-                 "created_at": m.created_at, "created_by": m.created_by_name}
+                 "created_at": m.created_at, "created_by": m.created_by_name, "transfer_id": m.transfer_id}
                 for m in movs
             ],
         }
@@ -225,6 +225,7 @@ class CashRegisterService:
 
     async def add_movement(
         self, tenant_id: int, user: User, kind: str, amount: Any, reason: str, note: Optional[str],
+        *, account_id: Optional[int] = None,
     ) -> Dict[str, Any]:
         if kind not in REASONS:
             raise CashError("Tipo de movimento inválido.")
@@ -238,12 +239,43 @@ class CashRegisterService:
             have = _num((await self._live_totals(s, tenant_id, datetime.utcnow()))["expected_amount"])
             if value > have:
                 raise CashError(f"Não há esse dinheiro no caixa: o sistema espera R$ {have:.2f}.".replace(".", ","))
+        transfer_id = await self._linked_transfer(tenant_id, user, kind, value, account_id) if account_id else None
         self.db.add(CashMovement(
             tenant_id=tenant_id, session_id=s.id, kind=kind, amount=value, reason=reason,
             note=(note or "").strip()[:500] or None, created_by_id=user.id, created_by_name=_who(user), is_active=True,
+            transfer_id=transfer_id,
         ))
         await self.db.commit()
         return await self._view(s, tenant_id)
+
+    async def _linked_transfer(self, tenant_id: int, user: User, kind: str, value: Decimal, account_id: int) -> int:
+        """Retirada para uma conta (ex.: depósito no banco) ou reforço vindo de uma conta: grava a transferência
+        gaveta <-> conta na mesma transação. O Financeiro conta só a transferência (o movimento ligado a ela não
+        entra de novo no saldo da gaveta), então nada é contado duas vezes."""
+        from app.core.timezone import today_brazil
+        from app.models.finance import KIND_CASH, AccountTransfer, FinancialAccount
+        from app.models.store import Store
+        store = (await self.db.execute(select(Store).where(Store.id == tenant_id))).scalar_one()
+        if store.finance_start_date is None:
+            raise CashError("Implante o Financeiro primeiro para escolher uma conta.")
+        accounts = (await self.db.execute(select(FinancialAccount).where(
+            FinancialAccount.tenant_id == tenant_id, FinancialAccount.is_active == True,  # noqa: E712
+        ))).scalars().all()
+        drawer = next((a for a in accounts if a.kind == KIND_CASH), None)
+        other = next((a for a in accounts if a.id == account_id), None)
+        if drawer is None:
+            raise CashError("A loja não tem a conta da gaveta no Financeiro.")
+        if other is None or other.id == drawer.id:
+            raise CashError("Conta inválida.")
+        src, dst = (drawer, other) if kind == KIND_WITHDRAWAL else (other, drawer)
+        t = AccountTransfer(
+            tenant_id=tenant_id, from_account_id=src.id, to_account_id=dst.id, occurred_on=today_brazil(),
+            amount=value, created_by_name=_who(user),
+            description=(f"Caixa: retirada para {dst.name}" if kind == KIND_WITHDRAWAL else f"Caixa: reforço vindo de {src.name}")[:200],
+        )
+        self.db.add(t)
+        await self.db.flush()
+        return t.id
 
     async def close(self, tenant_id: int, user: User, counted: Any, note: Optional[str]) -> Dict[str, Any]:
         value = _money(counted, "Dinheiro contado", allow_zero=True)

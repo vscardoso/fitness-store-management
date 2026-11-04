@@ -216,13 +216,14 @@ export const VENDER: HelpEntry[] = [
   {
     id: 'caixa',
     group: 'vender',
-    title: 'Caixa',
+    title: 'Caixa da gaveta',
     routes: ['/cash'],
     open: '/cash',
     purpose: 'Controla o dinheiro da gaveta: abrir, colocar, retirar e fechar contando.',
     steps: [
       'No começo do dia, conte o dinheiro da gaveta, digite o valor e toque em “Abrir caixa”.',
       'Para pôr troco, toque em “Colocar dinheiro”; para tirar, em “Retirar dinheiro”, com o motivo.',
+      'Se o dinheiro foi depositado no banco (ou veio dele), escolha a conta em “Para onde foi o dinheiro?”: o Financeiro já lança a transferência.',
       'No fim do dia, toque em “Fechar caixa”, conte a gaveta e digite o valor contado.',
       'Se sobrou ou faltou, escreva o motivo na observação e confirme.',
     ],
@@ -231,7 +232,7 @@ export const VENDER: HelpEntry[] = [
       { label: 'Recebido de outras formas', text: 'PIX e cartão do turno, que não vão para a gaveta: use para conferir com a maquininha e o banco.' },
     ],
     goodToKnow: [
-      'O caixa é opcional: sem caixa aberto as vendas funcionam normalmente.',
+      'O caixa fica no Financeiro (menu Financeiro > Caixa da gaveta) e é opcional: sem caixa aberto as vendas funcionam normalmente.',
       'As vendas em dinheiro entram sozinhas; você não digita venda no caixa.',
       'Não dá para retirar mais do que há na gaveta, e depois de fechado o resultado não muda.',
     ],

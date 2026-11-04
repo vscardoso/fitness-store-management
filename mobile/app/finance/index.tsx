@@ -11,6 +11,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
 import PageHeader from '@/components/layout/PageHeader';
+import CashStatusCard from '@/components/cash/CashStatusCard';
 import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
@@ -85,6 +86,7 @@ export default function FinanceScreen() {
         <PageHeader title="Financeiro" showBackButton backFallback="/(tabs)/more" />
         <ScrollView contentContainerStyle={[styles.content, desktop]}>
           {!!error && <Text style={styles.error}>{parseApiError(error)}</Text>}
+          <CashStatusCard />
           <View style={styles.card}>
             <Ionicons name="storefront-outline" size={32} color={brand.primary} />
             <Text style={styles.title}>A loja já funcionava antes do Provador?</Text>
@@ -115,6 +117,7 @@ export default function FinanceScreen() {
     <View style={styles.container}>
       <PageHeader title="Financeiro" subtitle={`Desde ${formatDate(data.start_date!)}`} showBackButton backFallback="/(tabs)/more" />
       <ScrollView contentContainerStyle={[styles.content, desktop]} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}>
+        <CashStatusCard />
         <View style={styles.card}>
           <Text style={styles.label}>Total em todas as contas</Text>
           <Text style={[styles.total, data.total < 0 && { color: Colors.light.error }]}>{formatCurrency(data.total)}</Text>

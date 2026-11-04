@@ -69,6 +69,7 @@ export default function CashScreen() {
   const [moveAmount, setMoveAmount] = useState('');
   const [moveReason, setMoveReason] = useState('');
   const [moveNote, setMoveNote] = useState('');
+  const [moveAccount, setMoveAccount] = useState<number | null>(null);
   const [closing, setClosing] = useState(false);
   const [counted, setCounted] = useState('');
   const [closeNote, setCloseNote] = useState('');
@@ -97,7 +98,7 @@ export default function CashScreen() {
     onError: fail,
   });
   const move = useMutation({
-    mutationFn: () => addCashMovement(moveKind as MovementKind, parseMoneyBr(moveAmount) as number, moveReason, moveNote.trim()),
+    mutationFn: () => addCashMovement(moveKind as MovementKind, parseMoneyBr(moveAmount) as number, moveReason, moveNote.trim(), moveAccount),
     onSuccess: () => {
       setMoveKind(null);
       setError('');
@@ -123,8 +124,11 @@ export default function CashScreen() {
     setMoveAmount('');
     setMoveReason(REASONS[kind][0].id);
     setMoveNote('');
+    setMoveAccount(null);
     setError('');
   };
+  // bancos do Financeiro para onde a retirada vai (depósito) / de onde o reforço vem (saque)
+  const otherAccounts = finance?.started ? finance.accounts.filter((a) => a.kind === 'bank') : [];
 
   const openValue = parseMoneyBr(openAmount);
   const moveValue = parseMoneyBr(moveAmount);
@@ -135,10 +139,10 @@ export default function CashScreen() {
   return (
     <View style={styles.container}>
       <PageHeader
-        title="Caixa"
+        title="Caixa da gaveta"
         subtitle={session ? 'Aberto' : 'Fechado'}
         showBackButton
-        onBack={() => router.back()}
+        onBack={() => (router.canGoBack() ? router.back() : router.replace((manager ? '/finance' : '/(tabs)/more') as any))}
         rightActions={manager ? [{ icon: 'time-outline', onPress: () => router.push('/cash/history' as any) }] : undefined}
       />
       <ScrollView
@@ -313,6 +317,30 @@ export default function CashScreen() {
             </TouchableOpacity>
           ))}
         </View>
+        {otherAccounts.length > 0 && (
+          <>
+            <Text style={styles.note}>{moveKind === 'supply' ? 'De onde veio o dinheiro?' : 'Para onde foi o dinheiro?'}</Text>
+            <View style={styles.chips}>
+              {[{ id: null as number | null, name: moveKind === 'supply' ? 'De fora (ex.: do bolso)' : 'Saiu da loja (pagamento, outro)' },
+                ...otherAccounts.map((a) => ({ id: a.id as number | null, name: a.name }))].map((o) => (
+                <TouchableOpacity
+                  key={o.id ?? 'fora'}
+                  onPress={() => setMoveAccount(o.id)}
+                  style={[styles.chip, moveAccount === o.id && { backgroundColor: brand.primary, borderColor: brand.primary }]}
+                >
+                  <Text style={[styles.chipText, moveAccount === o.id && { color: '#fff' }]}>{o.name}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {moveAccount !== null && (
+              <Text style={styles.small}>
+                {moveKind === 'supply'
+                  ? 'O valor sai dessa conta e entra na gaveta no Financeiro.'
+                  : 'O valor sai da gaveta e entra nessa conta no Financeiro (depósito). Não precisa transferir de novo.'}
+              </Text>
+            )}
+          </>
+        )}
         <TextInput mode="outlined" label="Observação (opcional)" value={moveNote} onChangeText={setMoveNote} style={styles.input} />
         {!!error && <Text style={styles.error}>{error}</Text>}
       </BottomSheet>

@@ -168,7 +168,6 @@ export default function MoreScreen() {
           <Text style={styles.sectionTitle}>Gestão</Text>
           <View style={styles.menuCard}>
             <MenuItem icon="cube-outline" title="Produtos" subtitle="Catálogo e gerenciamento" onPress={() => router.push('/(tabs)/products')} iconColor={brandingColors.primary} iconBg={brandingColors.primary + '20'} />
-            <MenuItem icon="cash-outline" title="Caixa" subtitle="Abrir, colocar e retirar dinheiro, fechar" onPress={() => router.push('/cash' as any)} iconColor="#16A34A" iconBg="#DCFCE7" />
             <MenuItem icon="qr-code-outline" title="Consultar Peça" subtitle="Bipe a etiqueta e veja preço e estoque" onPress={() => router.push('/products/consult' as any)} iconColor="#0EA5E9" iconBg="#E0F2FE" />
             <MenuItem icon="people-outline" title="Clientes" subtitle="Gerenciar clientes e fidelidade" onPress={() => router.push('/(tabs)/customers')} iconColor={Colors.light.info} iconBg={Colors.light.infoLight} />
             {isManager && <MenuItem icon="layers-outline" title="Entradas" subtitle="Compras e controle de entradas" onPress={() => router.push('/entries')} iconColor="#9333EA" iconBg="#F3E8FF" />}
@@ -200,18 +199,17 @@ export default function MoreScreen() {
           </View>
         )}
 
-        {/* Financeiro */}
-        {isManager && (
-<View style={styles.section}>
+        {/* Financeiro: o caixa da gaveta faz parte dele (caixa e vendedor só veem o caixa) */}
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Financeiro</Text>
           <View style={styles.menuCard}>
-            <MenuItem icon="wallet-outline" title="Contas e saldos" subtitle="Gaveta, bancos, maquininha e contas a pagar" onPress={() => router.push('/finance' as any)} iconColor="#0E7490" iconBg="#CFFAFE" />
-            <MenuItem icon="receipt-outline" title="Despesas" subtitle="Registrar e gerenciar despesas operacionais" onPress={() => router.push('/(tabs)/expenses')} iconColor={Colors.light.error} iconBg="#FFEBEE" />
-            <MenuItem icon="warning-outline" title="Prejuízos" subtitle="Perdas de estoque lançadas em módulo separado" onPress={() => router.push('/(tabs)/stock-losses')} iconColor="#B91C1C" iconBg="#FEE2E2" />
-            <MenuItem icon="stats-chart-outline" title="Resultado do Mês" subtitle="Quanto vendeu, quanto gastou e quanto sobrou" onPress={() => router.push('/(tabs)/expenses/resultado')} iconColor="#7C3AED" iconBg="#EDE9FE" />
+            <MenuItem icon="cash-outline" title="Caixa da gaveta" subtitle="Abrir, colocar e retirar dinheiro, fechar" onPress={() => router.push('/cash' as any)} iconColor="#16A34A" iconBg="#DCFCE7" />
+            {isManager && <MenuItem icon="wallet-outline" title="Contas e saldos" subtitle="Gaveta, bancos, maquininha e contas a pagar" onPress={() => router.push('/finance' as any)} iconColor="#0E7490" iconBg="#CFFAFE" />}
+            {isManager && <MenuItem icon="receipt-outline" title="Despesas" subtitle="Registrar e gerenciar despesas operacionais" onPress={() => router.push('/(tabs)/expenses')} iconColor={Colors.light.error} iconBg="#FFEBEE" />}
+            {isManager && <MenuItem icon="warning-outline" title="Prejuízos" subtitle="Perdas de estoque lançadas em módulo separado" onPress={() => router.push('/(tabs)/stock-losses')} iconColor="#B91C1C" iconBg="#FEE2E2" />}
+            {isManager && <MenuItem icon="stats-chart-outline" title="Resultado do Mês" subtitle="Quanto vendeu, quanto gastou e quanto sobrou" onPress={() => router.push('/(tabs)/expenses/resultado')} iconColor="#7C3AED" iconBg="#EDE9FE" />}
           </View>
         </View>
-        )}
 
         {/* Relatórios */}
         {isManager && (

@@ -542,3 +542,9 @@ Pedido do Victor: loja que já tem estoque em andamento quando começa a usar o 
 ## Ajuda por tela (2026-11-04, fase 1 de 5)
 
 - Plano e andamento em `docs/PLANO_AJUDA.md`. Uma ficha por tela em `mobile/constants/help/<grupo>.ts`; o "?" do `PageHeader` aparece sozinho quando a rota tem ficha (folha de baixo no celular, painel à direita no notebook, F1 abre e fecha). Tela nova precisa de ficha ou entrar em `constants/help/coverage.ts`: `npm test` quebra (`test-help-coverage.mts`), e nome de botão citado entre aspas curvas na ficha tem que existir no código da tela (`test-help-labels.mts`). Feito (fases 1 e 2): Vender (11 fichas), Estoque (32) e Clientes (4). Próxima: fase 3 (Dinheiro e Relatórios). Problemas de tela achados e ainda abertos em `docs/AJUDA_LEVANTAMENTO_FASE2.md`. Tela nova: `app/suppliers/edit/[id].tsx`.
+
+## Caixa dentro do Financeiro (2026-11-04)
+
+- Decisão do Victor: o caixa não é mais menu à parte. Menu Financeiro > "Caixa da gaveta" (caixa e vendedor veem só ele); barra lateral do PC no grupo Dinheiro; cartão do caixa no topo de Contas e saldos (`components/cash/CashStatusCard.tsx`).
+- Retirada para um banco (depósito) ou reforço vindo de um banco: `POST /cash/movements` com `account_id`; o servidor grava a transferência gaveta <-> banco na mesma transação (`cash_movements.transfer_id`, migração `20261115_cash_transfer`, testada no Postgres: sobe, desce, sobe) e o Financeiro conta só a transferência (movimento ligado não entra de novo no saldo da gaveta). Transferência feita pelo caixa não se apaga em Últimas transferências (409). Sem Financeiro implantado, escolher conta dá 400. Teste: fim de `tests/test_financeiro.py`.
+- Pendente (Victor, 04/11): Despesas e Contas a pagar se sobrepõem; decidir como juntar.

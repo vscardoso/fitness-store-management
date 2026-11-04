@@ -184,3 +184,46 @@ async def test_desfazer_pagamento_e_apagar_transferencia_voltam_o_saldo(test_cli
     assert (await test_client.post(f"{API}/payables/{boleto['id']}/unpay", headers=h)).status_code == 409   # já em aberto
     await test_client.post(f"{API}/payables/{boleto['id']}/pay", headers=h, json={"account_id": nu})
     assert _conta((await test_client.get(f"{API}/accounts", headers=h)).json(), "Nubank")["balance"] == 200.0
+
+
+async def test_retirada_do_caixa_para_o_banco_nao_conta_duas_vezes(test_client, async_session, test_user):
+    """Caixa dentro do Financeiro: retirada para o banco e reforço vindo do banco gravam a transferência junto;
+    a gaveta desce/sobe uma vez só, o banco acompanha e o esperado do caixa também."""
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    await _zerar_implantacao(async_session, t_id)
+    # sem Financeiro implantado, escolher conta é recusado (e nada é gravado)
+    assert (await test_client.post("/api/v1/cash/open", headers=h, json={"opening_amount": 150})).status_code == 201
+    r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "withdrawal", "amount": 10, "reason": "sangria", "account_id": 1})
+    assert r.status_code == 400 and "Implante" in r.json()["detail"]
+    d = (await _implantar(test_client, h, payables=[])).json()
+    gaveta, nu = _conta(d, "Gaveta")["id"], _conta(d, "Nubank")["id"]
+
+    r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "withdrawal", "amount": 100, "reason": "sangria", "account_id": nu})
+    assert r.status_code in (200, 201), r.text
+    assert r.json()["expected_amount"] == 50.0 and r.json()["movements"][-1]["transfer_id"]
+    d = (await test_client.get(f"{API}/accounts", headers=h)).json()
+    assert _conta(d, "Gaveta")["balance"] == 50.0 and _conta(d, "Nubank")["balance"] == 1100.0 and d["total"] == 1400.0
+
+    r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "supply", "amount": 30, "reason": "troco", "account_id": nu})
+    assert r.status_code in (200, 201) and r.json()["expected_amount"] == 80.0
+    d = (await test_client.get(f"{API}/accounts", headers=h)).json()
+    assert _conta(d, "Gaveta")["balance"] == 80.0 and _conta(d, "Nubank")["balance"] == 1070.0
+
+    # retirada sem conta (pagamento em dinheiro) continua descendo só a gaveta
+    r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "withdrawal", "amount": 5, "reason": "pagamento"})
+    d = (await test_client.get(f"{API}/accounts", headers=h)).json()
+    assert r.json()["expected_amount"] == 75.0 and _conta(d, "Gaveta")["balance"] == 75.0 and _conta(d, "Nubank")["balance"] == 1070.0
+
+    # a transferência feita pelo caixa não se apaga pela tela de transferências; conta inválida é recusada
+    t = next(x for x in (await test_client.get(f"{API}/transfers", headers=h)).json() if x["to_account_id"] == nu)
+    assert "Caixa" in t["description"]
+    r = await test_client.delete(f"{API}/transfers/{t['id']}", headers=h)
+    assert r.status_code == 409 and "caixa" in r.json()["detail"]
+    for ruim in (gaveta, 999999):
+        r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "withdrawal", "amount": 1, "reason": "sangria", "account_id": ruim})
+        assert r.status_code == 400
+    # retirada maior que o caixa: recusada e sem transferência gravada
+    antes = len((await test_client.get(f"{API}/transfers", headers=h)).json())
+    r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "withdrawal", "amount": 500, "reason": "sangria", "account_id": nu})
+    assert r.status_code == 400 and len((await test_client.get(f"{API}/transfers", headers=h)).json()) == antes
+    await test_client.post("/api/v1/cash/close", headers=h, json={"counted_amount": 75})

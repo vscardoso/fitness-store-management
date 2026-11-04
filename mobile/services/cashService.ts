@@ -71,8 +71,9 @@ export const getCashReasons = async (): Promise<Record<MovementKind, CashReason[
 export const openCash = async (openingAmount: number, note?: string): Promise<CashSession> =>
   (await api.post<CashSession>('/cash/open', { opening_amount: openingAmount, note: note || null })).data;
 
-export const addCashMovement = async (kind: MovementKind, amount: number, reason: string, note?: string): Promise<CashSession> =>
-  (await api.post<CashSession>('/cash/movements', { kind, amount, reason, note: note || null })).data;
+/** `accountId`: conta do Financeiro para onde foi (retirada) ou de onde veio (reforço) o dinheiro; o servidor grava a transferência junto. */
+export const addCashMovement = async (kind: MovementKind, amount: number, reason: string, note?: string, accountId?: number | null): Promise<CashSession> =>
+  (await api.post<CashSession>('/cash/movements', { kind, amount, reason, note: note || null, account_id: accountId ?? null })).data;
 
 export const closeCash = async (countedAmount: number, note?: string): Promise<CashSession> =>
   (await api.post<CashSession>('/cash/close', { counted_amount: countedAmount, note: note || null })).data;

@@ -179,6 +179,7 @@ class FinanceService:
         rows = (await self.db.execute(
             select(CashMovement.kind, func.coalesce(func.sum(CashMovement.amount), 0)).where(
                 CashMovement.tenant_id == tenant_id, CashMovement.created_at >= start, CashMovement.is_active == True,  # noqa: E712
+                CashMovement.transfer_id.is_(None),   # ligado a uma transferência: o saldo já conta a transferência
             ).group_by(CashMovement.kind)
         )).all()
         totals = {k: _q(a) for k, a in rows}
@@ -455,6 +456,10 @@ class FinanceService:
         )).scalar_one_or_none()
         if t is None:
             raise FinanceNotFound("Transferência não encontrada.")
+        linked = (await self.db.execute(select(CashMovement.id).where(
+            CashMovement.transfer_id == t.id, CashMovement.is_active == True))).first()  # noqa: E712
+        if linked:
+            raise FinanceConflict("Esta transferência foi feita pelo caixa (retirada ou reforço) e não pode ser apagada aqui.")
         t.is_active = False
         self.db.add(t)
         await self.db.commit()

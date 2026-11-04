@@ -65,3 +65,5 @@ class CashMovement(BaseModel):
     note: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     created_by_name: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    # sangria para o banco / reforço vindo do banco: a transferência gravada junto (o Financeiro conta só ela)
+    transfer_id: Mapped[int | None] = mapped_column(ForeignKey("account_transfers.id", ondelete="SET NULL"), nullable=True)

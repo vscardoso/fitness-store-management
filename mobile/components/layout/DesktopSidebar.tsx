@@ -66,7 +66,6 @@ export default function DesktopSidebar() {
           { label: 'Ponto de venda', icon: 'cart-outline', href: '/(tabs)/sale', match: ['/sale', '/checkout'], shortcut: 'F2' },
           { label: 'Vendas', icon: 'receipt-outline', href: '/(tabs)/sales', match: ['/sales'] },
           { label: 'Condicionais', icon: 'swap-horizontal-outline', href: '/(tabs)/conditional', match: ['/conditional'] },
-          { label: 'Caixa', icon: 'cash-outline', href: '/cash', match: ['/cash'] },
           ...(temPagamentoIntegrado() ? [{ label: 'Pagamentos pendentes', icon: 'time-outline' as Icon, href: '/(tabs)/pdv/', match: ['/pdv'] }] : []),
         ],
       },
@@ -107,10 +106,14 @@ export default function DesktopSidebar() {
         ],
       });
     }
+    if (!manager) {
+      g.push({ key: 'dinheiro', title: 'Dinheiro', items: [{ label: 'Caixa da gaveta', icon: 'cash-outline' as Icon, href: '/cash', match: ['/cash'] }] });
+    }
     if (manager) {
       g.push(
         {
           key: 'dinheiro', title: 'Dinheiro', items: [
+            { label: 'Caixa da gaveta', icon: 'cash-outline', href: '/cash', match: ['/cash'] },
             { label: 'Contas e saldos', icon: 'wallet-outline', href: '/finance', match: ['/finance'] },
             { label: 'Contas a pagar', icon: 'receipt-outline', href: '/finance/payables', match: ['/finance/payables'] },
             { label: 'Resultado do mês', icon: 'stats-chart-outline', href: '/(tabs)/expenses/resultado', match: ['/expenses/resultado'] },

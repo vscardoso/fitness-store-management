@@ -23,6 +23,7 @@ class MovementBody(BaseModel):
     amount: float = Field(..., gt=0, le=1_000_000)
     reason: str = Field(..., max_length=20)
     note: Optional[str] = Field(None, max_length=500)
+    account_id: Optional[int] = Field(None, description="Conta do Financeiro de onde veio (reforço) ou para onde foi (retirada) o dinheiro")
 
 
 class CloseBody(BaseModel):
@@ -66,7 +67,7 @@ async def movement(
     current_user: User = Depends(get_current_active_user),
 ):
     try:
-        return await CashRegisterService(db).add_movement(tenant_id, current_user, body.kind, body.amount, body.reason, body.note)
+        return await CashRegisterService(db).add_movement(tenant_id, current_user, body.kind, body.amount, body.reason, body.note, account_id=body.account_id)
     except CashError as exc:
         _raise(exc)
 
