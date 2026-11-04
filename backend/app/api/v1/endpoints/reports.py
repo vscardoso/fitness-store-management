@@ -18,6 +18,7 @@ from app.models.stock_entry import StockEntry
 from app.models.conditional_shipment import ConditionalShipment
 from app.models.customer import Customer
 from app.services.report_service import ReportService
+from app.core.timezone import to_brazil_tz
 from app.schemas.report import (
     SalesReportResponse,
     CashFlowReportResponse,
@@ -25,6 +26,11 @@ from app.schemas.report import (
 )
 
 router = APIRouter(prefix="/reports", tags=["Relatórios"])
+
+
+def _enum_key(v) -> str:
+    """Status/tipo vem como Enum ("completed") ou texto: vira a chave em maiúsculas dos rótulos ("COMPLETED")."""
+    return str(getattr(v, "value", v)).upper()
 
 
 @router.get(
@@ -310,26 +316,29 @@ async def get_history(
             result = await db.execute(sales_query)
             sales = result.all()
 
+            status_labels = {
+                "COMPLETED": "Concluída",
+                "PENDING": "Pendente",
+                "CANCELLED": "Cancelada",
+                "REFUNDED": "Devolvida",
+                "PARTIALLY_REFUNDED": "Devolvida em parte",
+            }
             for sale in sales:
-                status_labels = {
-                    "COMPLETED": "Concluída",
-                    "PENDING": "Pendente",
-                    "CANCELLED": "Cancelada",
-                    "REFUNDED": "Reembolsada",
-                }
+                status = _enum_key(sale.status)
+                when = to_brazil_tz(sale.created_at)
                 events.append({
                     "id": f"sale_{sale.id}",
                     "type": "sale",
                     "type_label": "Venda",
                     "icon": "cart",
-                    "color": "#10B981" if sale.status == "COMPLETED" else "#F59E0B",
+                    "color": "#10B981" if status == "COMPLETED" else "#F59E0B",
                     "title": f"Venda #{sale.sale_number}",
                     "subtitle": sale.customer_name or "Cliente não identificado",
                     "value": float(sale.total_amount),
-                    "status": status_labels.get(sale.status, sale.status),
-                    "timestamp": sale.created_at.isoformat(),
-                    "date": sale.created_at.strftime("%d/%m/%Y"),
-                    "time": sale.created_at.strftime("%H:%M"),
+                    "status": status_labels.get(status, status),
+                    "timestamp": when.isoformat(),
+                    "date": when.strftime("%d/%m/%Y"),
+                    "time": when.strftime("%H:%M"),
                     "link_id": sale.id,
                     "link_type": "sale",
                 })
@@ -371,12 +380,12 @@ async def get_history(
                     "icon": "cube",
                     "color": "#3B82F6",
                     "title": f"Entrada #{entry.entry_code}",
-                    "subtitle": entry_type_labels.get(entry.entry_type, entry.entry_type) + (f" - {entry.supplier_name}" if entry.supplier_name else ""),
+                    "subtitle": entry_type_labels.get(_enum_key(entry.entry_type), _enum_key(entry.entry_type)) + (f" - {entry.supplier_name}" if entry.supplier_name else ""),
                     "value": float(entry.total_cost) if entry.total_cost else 0,
-                    "status": entry_type_labels.get(entry.entry_type, entry.entry_type),
+                    "status": entry_type_labels.get(_enum_key(entry.entry_type), _enum_key(entry.entry_type)),
                     "timestamp": entry.entry_date.isoformat() if entry.entry_date else entry.created_at.isoformat(),
                     "date": entry.entry_date.strftime("%d/%m/%Y") if entry.entry_date else entry.created_at.strftime("%d/%m/%Y"),
-                    "time": entry.created_at.strftime("%H:%M"),
+                    "time": to_brazil_tz(entry.created_at).strftime("%H:%M"),
                     "link_id": entry.id,
                     "link_type": "entry",
                 })
@@ -430,19 +439,21 @@ async def get_history(
             }
 
             for cond in conditionals:
+                status = _enum_key(cond.status)
+                when = to_brazil_tz(cond.created_at)
                 events.append({
                     "id": f"conditional_{cond.id}",
                     "type": "conditional",
                     "type_label": "Condicional",
                     "icon": "airplane",
-                    "color": cond_colors.get(cond.status, "#6B7280"),
+                    "color": cond_colors.get(status, "#6B7280"),
                     "title": f"Condicional #{cond.id}",
                     "subtitle": cond.customer_name or "Cliente",
                     "value": None,
-                    "status": cond_status_labels.get(cond.status, cond.status),
-                    "timestamp": cond.created_at.isoformat(),
-                    "date": cond.created_at.strftime("%d/%m/%Y"),
-                    "time": cond.created_at.strftime("%H:%M"),
+                    "status": cond_status_labels.get(status, status),
+                    "timestamp": when.isoformat(),
+                    "date": when.strftime("%d/%m/%Y"),
+                    "time": when.strftime("%H:%M"),
                     "link_id": cond.id,
                     "link_type": "conditional",
                 })

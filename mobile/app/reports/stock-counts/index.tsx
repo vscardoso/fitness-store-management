@@ -102,7 +102,7 @@ export default function StockCountsScreen() {
             <View style={styles.empty}>
               <Ionicons name="checkbox-outline" size={40} color={Colors.light.textTertiary} />
               <Text style={styles.emptyText}>Nenhuma conferência salva ainda.</Text>
-              <Text style={styles.emptyHint}>Na tela de Conferência de estoque, conte as peças e toque em "Salvar conferência". Ela fica em andamento até você finalizar.</Text>
+              <Text style={styles.emptyHint}>Na tela de Conferência de estoque, conte as peças e toque em “Salvar”. Ela fica em andamento até você finalizar.</Text>
             </View>
           }
         />

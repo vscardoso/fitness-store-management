@@ -5,6 +5,11 @@ export function todayBr(now: Date = new Date()): string {
   return `${pad(now.getDate())}/${pad(now.getMonth() + 1)}/${now.getFullYear()}`;
 }
 
+/** Dia local em AAAA-MM-DD. toISOString() usa UTC e, depois das 21h no Brasil, vira o dia seguinte. */
+export function dateToIso(d: Date): string {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
 /** DD/MM/AAAA -> AAAA-MM-DD; vazio se a data não existe (31/02, mês 13...). */
 export function brToIso(value: string): string {
   const m = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);

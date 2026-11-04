@@ -25,6 +25,10 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { maskCurrencyBR, unmaskCurrency, toBRNumber } from '@/utils/priceFormatter';
 import type { ExpenseCategory, ExpenseUpdate } from '@/types/expense';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { parseApiError } from '@/utils/apiError';
+import { dateToIso } from '@/utils/dateBr';
+import { useAuth } from '@/hooks/useAuth';
+import { isAdminRole } from '@/utils/roles';
 
 /** Converte YYYY-MM-DD → Date (horário meio-dia para evitar bug de fuso) */
 const isoToDate = (iso: string): Date => {
@@ -38,6 +42,9 @@ export default function EditExpenseScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const expenseId = Number(id);
   const queryClient = useQueryClient();
+  // Excluir despesa é só do admin no servidor (permissions.py)
+  const { user } = useAuth();
+  const canDelete = isAdminRole(user?.role);
 
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
@@ -83,7 +90,7 @@ export default function EditExpenseScreen() {
       router.replace('/(tabs)/expenses');
     },
     onError: (err: any) => {
-      setErrorMessage(err?.response?.data?.detail || 'Não foi possível salvar.');
+      setErrorMessage(parseApiError(err) || 'Não foi possível salvar.');
       setErrorDialog(true);
     },
   });
@@ -97,7 +104,7 @@ export default function EditExpenseScreen() {
     },
     onError: (err: any) => {
       setDeleteConfirm(false);
-      setErrorMessage(err?.response?.data?.detail || 'Não foi possível excluir.');
+      setErrorMessage(parseApiError(err) || 'Não foi possível excluir.');
       setErrorDialog(true);
     },
   });
@@ -124,7 +131,7 @@ export default function EditExpenseScreen() {
     updateMutation.mutate({
       amount: parsedAmount,
       description: description.trim(),
-      expense_date: expenseDate.toISOString().split('T')[0],
+      expense_date: dateToIso(expenseDate),
       notes: notes.trim() || null,
       is_recurring: isRecurring,
       recurrence_day: isRecurring && recurrenceDay ? parseInt(recurrenceDay) : null,
@@ -254,7 +261,7 @@ export default function EditExpenseScreen() {
               <View style={styles.switchRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.switchLabel}>Despesa Recorrente</Text>
-                  <Text style={styles.switchSubtitle}>Marca automaticamente todo mês</Text>
+                  <Text style={styles.switchSubtitle}>Marca como gasto fixo do mês. O app não lança o próximo sozinho.</Text>
                 </View>
                 <Switch
                   value={isRecurring}
@@ -301,6 +308,7 @@ export default function EditExpenseScreen() {
           </View>
 
           {/* Excluir */}
+          {canDelete && (
           <TouchableOpacity
             style={styles.deleteButton}
             onPress={() => setDeleteConfirm(true)}
@@ -309,6 +317,7 @@ export default function EditExpenseScreen() {
             <Ionicons name="trash-outline" size={20} color={Colors.light.error} />
             <Text style={styles.deleteText}>Excluir Despesa</Text>
           </TouchableOpacity>
+          )}
 
         </ScrollView>
       </KeyboardAvoidingView>

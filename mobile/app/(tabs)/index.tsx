@@ -280,7 +280,8 @@ export default function DashboardScreen() {
   };
 
   // Ações rápidas
-  const quickActions: QuickAction[] = [
+  // Entradas e Relatórios são de gerente: caixa e vendedor não veem o atalho (o servidor recusaria)
+  const allQuickActions: QuickAction[] = [
     {
       id: 'new-sale',
       title: 'Nova Venda',
@@ -331,6 +332,7 @@ export default function DashboardScreen() {
       onPress: () => router.push('/reports/sales-period' as any),
     },
   ];
+  const quickActions = canSeeDashboard ? allQuickActions : allQuickActions.filter((a) => a.id !== 'entries' && a.id !== 'reports');
 
   return (
     <View style={styles.container}>

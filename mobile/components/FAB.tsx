@@ -207,6 +207,8 @@ export default function FAB({ bottom = 20, directRoute, onPress, label }: FABPro
         style={[styles.fab, { bottom, shadowColor: brandingColors.primary }]}
         onPress={handleFABPress}
         activeOpacity={0.8}
+        accessibilityRole="button"
+        accessibilityLabel={label || (directRoute && ROUTE_LABELS[directRoute]) || 'Cadastrar'}
       >
         <LinearGradient
           colors={brandingColors.gradient}

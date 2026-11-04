@@ -80,7 +80,7 @@ Ficam sem ficha (lista fixa no teste): login, cadastro, esqueci a senha, apresen
 |---|---|
 | 1 (FEITA 04/11) | Estrutura (fichas tipadas, mapa de rotas, "?" no `PageHeader`, folha no celular, painel no notebook, F1), Central nova com busca, testes de cobertura e de botões, fichas de **Vender** |
 | 2 (FEITA 04/11) | Fichas de **Estoque** e **Clientes** |
-| 3 | Fichas de **Dinheiro** e **Relatórios** |
+| 3 (FEITA 04/11) | Fichas de **Dinheiro** e **Relatórios** |
 | 4 | Fichas de **WhatsApp** e **Loja**, Primeiros passos, boas-vindas novo |
 | 5 | Remoção dos tutoriais antigos, Playwright em todas as telas (390 e 1440), publicação |
 
@@ -103,6 +103,13 @@ Cada fase é publicada sozinha (app web e OTA), com typecheck em 0 e testes pass
     - acentos em Viagens, Nova cliente e assistente ("Concluído");
     - FIFO, Best Sellers, Total Items e Taxa de Venda trocados por palavras da lojista.
   - Problemas que continuam abertos: ver `docs/AJUDA_LEVANTAMENTO_FASE2.md`.
+- **Fase 3 (04/11/2026, feita):**
+  - Fichas de **Dinheiro** (8, `constants/help/dinheiro.ts`): Contas e saldos, Implantar a loja, Contas a pagar, Despesas, Nova despesa, Editar despesa, Resultado do mês, Descontos de pagamento.
+  - Fichas de **Relatórios** (9, `constants/help/relatorios.ts`): Relatório de vendas, Vendas do mês, Mais vendidos, Lucro por lote, Estoque atual em PDF, Histórico, Conferência de estoque, Conferências salvas, Conferência salva.
+  - Total de 64 fichas e 246 nomes de botão conferidos. Implantar a loja e Descontos de pagamento são fichas só de admin.
+  - Playwright em 390 e 1440 px: 52 verificações. Ficha certa em todas as telas, 0 erro de JS, gerente sem as fichas de admin, vendedora sem as de gerente, e as correções funcionando na tela.
+  - Corrigido junto e ainda aberto: ver `docs/AJUDA_LEVANTAMENTO_FASE3.md`. Os principais: data da despesa depois das 21h, desconto de pagamento que sumia de vez, Histórico com rótulos em inglês e link quebrado, botões mostrados a quem não pode usar.
+  - A tela órfã `app/(tabs)/reports.tsx` saiu.
 
 ## Como continuar a partir da fase 2 (prompt antigo, já cumprido)
 

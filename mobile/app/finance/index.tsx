@@ -21,7 +21,7 @@ import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { useAuth } from '@/hooks/useAuth';
 import { isAdminRole } from '@/utils/roles';
 import { formatCurrency, formatDate } from '@/utils/format';
-import { parseApiError } from '@/utils/apiError';
+import { parseApiError, showApiError } from '@/utils/apiError';
 import { moneyInput, parseMoneyBr } from '@/utils/cashMoney';
 import {
   addBankAccount, deleteTransfer, getFinanceOverview, listPayables, listTransfers, setPixAccount, transferBetweenAccounts,
@@ -70,10 +70,12 @@ export default function FinanceScreen() {
   const doRemove = useMutation({
     mutationFn: (id: number) => deleteTransfer(id),
     onSuccess: async () => { setRemoving(null); await refresh(); },
+    onError: (e) => { setRemoving(null); showApiError(e, 'Não foi possível apagar'); },
   });
   const doPix = useMutation({
     mutationFn: (id: number) => setPixAccount(id),
     onSuccess: async () => { setDetail(null); await refresh(); },
+    onError: (e) => showApiError(e, 'Não foi possível trocar o banco do PIX'),
   });
 
   if (isLoading) {
@@ -215,7 +217,7 @@ export default function FinanceScreen() {
             </View>
             <Text style={styles.label}>Para: {name(transfer.to)}</Text>
             <View style={styles.chips}>
-              {accounts.filter((a) => a.id !== transfer.from).map((a) => (
+              {accounts.filter((a) => a.id !== transfer.from && a.kind !== 'card').map((a) => (
                 <Chip key={a.id} text={a.name} on={transfer.to === a.id} color={brand.primary} onPress={() => setTransfer({ ...transfer, to: a.id })} />
               ))}
             </View>

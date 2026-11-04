@@ -42,12 +42,6 @@ export const HELP_HIDDEN: Record<string, string> = {
 
 /** Fichas das próximas fases (docs/PLANO_AJUDA.md). A lista encolhe a cada fase e some na fase 4. */
 export const HELP_PENDING: Record<string, string> = {
-  '/finance': 'dinheiro', '/finance/setup': 'dinheiro', '/finance/payables': 'dinheiro', '/expenses': 'dinheiro',
-  '/expenses/create': 'dinheiro', '/expenses/edit': 'dinheiro', '/expenses/resultado': 'dinheiro',
-  '/settings/payment-discounts': 'dinheiro',
-  '/reports': 'relatorios', '/reports/sales': 'relatorios', '/reports/sales-period': 'relatorios',
-  '/reports/top-products': 'relatorios', '/reports/lots': 'relatorios', '/reports/history': 'relatorios',
-  '/reports/stock-check': 'relatorios', '/reports/stock-chain': 'relatorios', '/reports/stock-counts': 'relatorios', '/reports/stock-counts/[id]': 'relatorios',
   '/whatsapp': 'whatsapp', '/whatsapp/[id]': 'whatsapp', '/settings/whatsapp-profile': 'whatsapp',
   '/settings/whatsapp-hours': 'whatsapp', '/settings/whatsapp-greeting': 'whatsapp', '/settings/whatsapp-catalog': 'whatsapp',
   '/settings/whatsapp-quick-replies': 'whatsapp', '/settings/whatsapp-labels': 'whatsapp',

@@ -170,7 +170,7 @@ export default function HistoryScreen() {
   const bleed = useScrollBleed();
   const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
-  const { goBack } = useBackToList('/(tabs)/reports');
+  const { goBack } = useBackToList('/(tabs)/more');
   const brandingColors = useBrandingColors();
 
   const [selectedPeriod, setSelectedPeriod] = useState<HistoryPeriod>('last_30_days');
@@ -228,7 +228,7 @@ export default function HistoryScreen() {
         router.push({ pathname: `/entries/${event.link_id}`, params: { from: '/reports/history' } } as any);
         break;
       case 'conditional':
-        router.push(`/conditionals/${event.link_id}` as any);
+        router.push(`/conditional/${event.link_id}` as any);
         break;
       default:
         break;
@@ -245,7 +245,6 @@ export default function HistoryScreen() {
           subtitle={`${totalCount} atividades no período`}
           showBackButton
           onBack={goBack}
-          rightActions={[{ icon: 'time-outline', onPress: () => undefined }]}
         />
       </Animated.View>
       {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}

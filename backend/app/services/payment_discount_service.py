@@ -4,6 +4,7 @@ Service layer for payment discount business logic.
 from decimal import Decimal
 from typing import Optional
 from datetime import datetime
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.payment_discount import PaymentDiscount
@@ -48,11 +49,25 @@ class PaymentDiscountService:
         )
         
         if existing:
-            raise ValueError(
-                f"Discount for payment method '{discount_data.payment_method}' already exists. "
-                "Use update instead."
+            raise ValueError("Já existe um desconto para esta forma de pagamento. Toque nele para mudar.")
+
+        # Removido antes (is_active=False é a exclusão lógica): a chave única (loja, forma) impede uma linha nova,
+        # então o desconto removido volta com os valores novos.
+        removed = (await self.db.execute(
+            select(PaymentDiscount).where(
+                PaymentDiscount.tenant_id == tenant_id,
+                PaymentDiscount.payment_method == discount_data.payment_method.lower(),
             )
-        
+        )).scalar_one_or_none()
+        if removed:
+            for field, value in discount_data.model_dump().items():
+                setattr(removed, field, value)
+            removed.is_active = True
+            removed.updated_at = datetime.utcnow()
+            await self.db.commit()
+            await self.db.refresh(removed)
+            return removed
+
         # Create discount
         discount_dict = discount_data.model_dump()
         discount_dict['tenant_id'] = tenant_id

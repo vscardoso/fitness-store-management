@@ -49,7 +49,7 @@ export default function MonthlyResultScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader title="Resultado do Mês" showBackButton />
+      <PageHeader title="Resultado do Mês" showBackButton backFallback="/(tabs)/expenses" />
 
       {/* Navegação de mês */}
       <View style={styles.monthNav}>
@@ -84,12 +84,12 @@ function PLCard({ data }: { data: MonthlyResult }) {
   return (
     <View style={styles.plCard}>
       <View style={styles.plContent}>
-        <PLRow label="Quanto você vendeu" hint="Tudo que os clientes pagaram neste mês." value={data.revenue} color={Colors.light.success} icon="trending-up" />
+        <PLRow label="Quanto você vendeu" hint="Tudo que os clientes pagaram neste mês, já sem as devoluções." value={data.revenue} color={Colors.light.success} icon="trending-up" />
         <PLRow label="Quanto custaram as peças vendidas" hint="O que você pagou por elas, já com a parte do frete e da viagem de cada compra." value={-data.cmv} color={Colors.light.warning} icon="cube-outline" isNegative />
         <View style={styles.divider} />
         <PLRow label="Sobrou das vendas" hint="Vendas menos o custo das peças." value={data.gross_profit} color={data.gross_profit >= 0 ? Colors.light.success : Colors.light.error} icon="analytics-outline" bold />
         <Text style={styles.marginLabel}>De cada R$ 100 vendidos, R$ {Number(data.gross_margin_pct).toFixed(0)} sobraram depois de pagar as peças.</Text>
-        <PLRow label="Gastos da loja" hint="Aluguel, luz, salários e outros gastos do mês. Frete e viagem de compras não entram aqui: já estão no custo das peças." value={-data.total_expenses} color={Colors.light.error} icon="receipt-outline" isNegative />
+        <PLRow label="Gastos da loja" hint="Aluguel, luz, salários, peças perdidas e outros gastos do mês. Frete e viagem de compras não entram aqui: já estão no custo das peças." value={-data.total_expenses} color={Colors.light.error} icon="receipt-outline" isNegative />
         {data.trip_costs > 0 && (
           <PLRow label="Custo de Viagens" value={-data.trip_costs} color={Colors.light.error} icon="car-outline" isNegative />
         )}

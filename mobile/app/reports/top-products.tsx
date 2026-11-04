@@ -38,7 +38,7 @@ import HScroll from '@/components/ui/HScroll';
 import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
 
 const periodOptions: { value: TopProductsPeriod; label: string; icon: React.ComponentProps<typeof Ionicons>['name'] }[] = [
-  { value: 'this_month', label: 'Este mes', icon: 'calendar-outline' },
+  { value: 'this_month', label: 'Este mês', icon: 'calendar-outline' },
   { value: 'last_30_days', label: '30 dias', icon: 'time-outline' },
   { value: 'last_3_months', label: '3 meses', icon: 'calendar-number-outline' },
   { value: 'last_6_months', label: '6 meses', icon: 'calendar-clear-outline' },
@@ -87,7 +87,7 @@ function ProductCard({ product, onPress }: { product: TopProductDetail; onPress:
               ) : null}
               {product.sku ? (
                 <View style={styles.skuChip}>
-                  <Text style={styles.skuChipText} numberOfLines={1}>SKU {product.sku}</Text>
+                  <Text style={styles.skuChipText} numberOfLines={1}>Cód. {product.sku}</Text>
                 </View>
               ) : null}
             </View>
@@ -130,7 +130,7 @@ function ProductCard({ product, onPress }: { product: TopProductDetail; onPress:
 
         <View style={styles.detailItem}>
           <Ionicons name="analytics-outline" size={14} color={VALUE_COLORS.warning} />
-          <Text style={styles.detailLabel}>Share</Text>
+          <Text style={styles.detailLabel}>Parte da receita</Text>
           <Text style={[styles.detailValue, { color: VALUE_COLORS.warning }]}>{formatPercent(product.share_revenue, 1)}</Text>
         </View>
       </View>
@@ -169,7 +169,7 @@ export default function TopProductsScreen() {
   const bleed = useScrollBleed();
   const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
-  const { goBack } = useBackToList('/(tabs)/reports');
+  const { goBack } = useBackToList('/(tabs)/more');
   const brandingColors = useBrandingColors();
 
   const [selectedPeriod, setSelectedPeriod] = useState<TopProductsPeriod>('this_month');
@@ -227,7 +227,6 @@ export default function TopProductsScreen() {
           subtitle={subtitle}
           showBackButton
           onBack={goBack}
-          rightActions={[{ icon: 'trending-up-outline', onPress: () => undefined }]}
         />
       </Animated.View>
       {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
@@ -309,7 +308,7 @@ export default function TopProductsScreen() {
               <View style={styles.insightsCard}>
                 <View style={styles.insightsHeader}>
                   <Ionicons name="bulb-outline" size={16} color={VALUE_COLORS.warning} />
-                  <Text style={styles.insightsTitle}>Insights</Text>
+                  <Text style={styles.insightsTitle}>Destaques</Text>
                 </View>
 
                 <Text style={styles.insightText}>

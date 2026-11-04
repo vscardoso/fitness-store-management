@@ -17,7 +17,6 @@ import {
   Platform,
   Keyboard,
   TextInput,
-  Switch,
   Animated,
 } from 'react-native';
 import { useFocusEffect } from 'expo-router';
@@ -42,6 +41,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import useBackToList from '@/hooks/useBackToList';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useDesktopSheet } from '@/hooks/useLayout';
+import { parseApiError } from '@/utils/apiError';
 
 /**
  * Métodos de pagamento disponíveis
@@ -61,6 +61,9 @@ interface DiscountFormData {
   is_active: boolean;
 }
 
+/** 7.00 -> "7", 7.5 -> "7,5" */
+const pct = (v: number | string) => Number(v).toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+
 export default function PaymentDiscountsScreen() {
   const desktopSheet = useDesktopSheet();
   const { goBack } = useBackToList('/(tabs)/more');
@@ -74,7 +77,6 @@ export default function PaymentDiscountsScreen() {
   const contentOpacity = useRef(new Animated.Value(0)).current;
 
   // Estados locais
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [showFormModal, setShowFormModal] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState<DiscountFormData>({
@@ -130,7 +132,7 @@ export default function PaymentDiscountsScreen() {
     },
     onError: (error: any) => {
       haptics.error();
-      setDialogMessage(error.response?.data?.detail || 'Não foi possível criar desconto');
+      setDialogMessage(parseApiError(error) || 'Não foi possível criar desconto');
       setShowErrorDialog(true);
     },
   });
@@ -150,7 +152,7 @@ export default function PaymentDiscountsScreen() {
     },
     onError: (error: any) => {
       haptics.error();
-      setDialogMessage(error.response?.data?.detail || 'Não foi possível atualizar desconto');
+      setDialogMessage(parseApiError(error) || 'Não foi possível atualizar desconto');
       setShowErrorDialog(true);
     },
   });
@@ -166,7 +168,7 @@ export default function PaymentDiscountsScreen() {
     },
     onError: (error: any) => {
       haptics.error();
-      setDialogMessage(error.response?.data?.detail || 'Não foi possível remover desconto');
+      setDialogMessage(parseApiError(error) || 'Não foi possível remover desconto');
       setShowErrorDialog(true);
     },
   });
@@ -191,7 +193,7 @@ export default function PaymentDiscountsScreen() {
     setEditingId(discount.id);
     setFormData({
       payment_method: discount.payment_method,
-      discount_percentage: discount.discount_percentage.toString(),
+      discount_percentage: pct(discount.discount_percentage),
       description: discount.description || '',
       is_active: discount.is_active,
     });
@@ -213,7 +215,7 @@ export default function PaymentDiscountsScreen() {
    */
   const handleSave = () => {
     // Validações
-    const percentage = parseFloat(formData.discount_percentage);
+    const percentage = parseFloat(formData.discount_percentage.replace(',', '.'));
     
     if (isNaN(percentage) || percentage < 0 || percentage > 100) {
       setDialogMessage('Percentual deve ser entre 0 e 100');
@@ -225,7 +227,7 @@ export default function PaymentDiscountsScreen() {
       payment_method: formData.payment_method,
       discount_percentage: percentage,
       description: formData.description || undefined,
-      is_active: formData.is_active,
+      is_active: true,
     };
 
     if (editingId) {
@@ -253,16 +255,6 @@ export default function PaymentDiscountsScreen() {
     setShowDeleteDialog(false);
   };
 
-  /**
-   * Toggle ativo/inativo
-   */
-  const handleToggleActive = (discount: PaymentDiscount) => {
-    updateMutation.mutate({
-      id: discount.id,
-      data: { is_active: !discount.is_active },
-    });
-  };
-
   // Obter label do método de pagamento
   const getMethodLabel = (method: string) => {
     return PAYMENT_METHODS.find(m => m.value === method)?.label || method;
@@ -276,19 +268,8 @@ export default function PaymentDiscountsScreen() {
   /**
    * Filtrar descontos por status
    */
-  const filteredDiscounts = discounts?.filter((discount: PaymentDiscount) => {
-    if (statusFilter === 'all') return true;
-    if (statusFilter === 'active') return discount.is_active;
-    if (statusFilter === 'inactive') return !discount.is_active;
-    return true;
-  });
-
-  /**
-   * Contar descontos por status
-   */
-  const activeCount = discounts?.filter((d: PaymentDiscount) => d.is_active).length || 0;
-  const inactiveCount = discounts?.filter((d: PaymentDiscount) => !d.is_active).length || 0;
-  const totalCount = discounts?.length || 0;
+  // Remover é a exclusão lógica (is_active=False): a lista só traz os descontos em uso.
+  const filteredDiscounts = discounts;
 
   /**
    * Renderizar card de desconto (layout compacto 2 colunas)
@@ -308,21 +289,12 @@ export default function PaymentDiscountsScreen() {
           {getMethodLabel(item.payment_method)}
         </Text>
         <Text style={[styles.discountPercentage, { color: brandingColors.primary }]}>
-          {item.discount_percentage}%
+          {pct(item.discount_percentage)}%
         </Text>
         <Text style={styles.discountLabel}>de desconto</Text>
         {item.description ? (
           <Text style={styles.descriptionText} numberOfLines={2}>{item.description}</Text>
         ) : null}
-        <View style={[
-          styles.statusBadge,
-          { backgroundColor: item.is_active ? Colors.light.success + '18' : Colors.light.error + '18' },
-        ]}>
-          <View style={[styles.statusDot, { backgroundColor: item.is_active ? Colors.light.success : Colors.light.error }]} />
-          <Text style={[styles.statusText, { color: item.is_active ? Colors.light.success : Colors.light.error }]}>
-            {item.is_active ? 'ATIVO' : 'INATIVO'}
-          </Text>
-        </View>
       </View>
     </TouchableOpacity>
   );
@@ -383,47 +355,6 @@ export default function PaymentDiscountsScreen() {
       </Animated.View>
 
       <Animated.View style={{ flex: 1, transform: [{ translateY: contentTranslate }], opacity: contentOpacity }}>
-        {/* Estatísticas */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>ATIVOS</Text>
-            <Text style={styles.statValue}>{activeCount}</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>INATIVOS</Text>
-            <Text style={styles.statValue}>{inactiveCount}</Text>
-          </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statLabel}>TOTAL</Text>
-            <Text style={styles.statValue}>{totalCount}</Text>
-          </View>
-        </View>
-
-        {/* Filtros */}
-        <View style={styles.filterContainer}>
-          {[
-            { key: 'active', label: 'Ativos', count: activeCount, icon: 'checkmark-circle-outline' as const },
-            { key: 'inactive', label: 'Inativos', count: inactiveCount, icon: 'close-circle-outline' as const },
-            { key: 'all', label: 'Todos', count: totalCount, icon: 'pricetags-outline' as const },
-          ].map((f) => {
-            const isActive = statusFilter === f.key;
-            return (
-              <TouchableOpacity
-                key={f.key}
-                style={[styles.filterChip, isActive && { backgroundColor: brandingColors.primary + '15', borderColor: brandingColors.primary }]}
-                onPress={() => setStatusFilter(f.key as any)}
-                activeOpacity={0.7}
-              >
-                <Ionicons name={f.icon} size={16} color={isActive ? brandingColors.primary : Colors.light.textSecondary} />
-                <Text style={[styles.filterChipText, isActive && { color: brandingColors.primary }]}>{f.label}</Text>
-                <View style={[styles.filterBadge, isActive && { backgroundColor: brandingColors.primary }]}>
-                  <Text style={[styles.filterBadgeText, isActive && { color: '#fff' }]}>{f.count}</Text>
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
         {/* Lista */}
         <FlatList
           data={filteredDiscounts}
@@ -443,8 +374,8 @@ export default function PaymentDiscountsScreen() {
           ListEmptyComponent={
             <EmptyState
               icon="pricetags-outline"
-              title={statusFilter !== 'all' ? 'Nenhum desconto encontrado' : 'Nenhum desconto configurado'}
-              description={statusFilter !== 'all' ? 'Tente outro filtro' : 'Toque no botão + para configurar descontos'}
+              title="Nenhum desconto configurado"
+              description="Crie um desconto para quem paga com PIX, dinheiro ou outra forma."
             />
           }
         />
@@ -494,7 +425,7 @@ export default function PaymentDiscountsScreen() {
               </View>
 
               {/* Forma de Pagamento */}
-              <Text style={styles.label}>FORMA DE PAGAMENTO</Text>
+              <Text style={styles.label}>Forma de pagamento</Text>
               <View style={styles.methodButtons}>
                 {PAYMENT_METHODS.map((method) => {
                   const isSelected = formData.payment_method === method.value;
@@ -519,7 +450,7 @@ export default function PaymentDiscountsScreen() {
               </View>
 
               {/* Percentual */}
-              <Text style={styles.label}>PERCENTUAL DE DESCONTO</Text>
+              <Text style={styles.label}>Percentual de desconto</Text>
               <View style={styles.inputWrapper}>
                 <TextInput
                   value={formData.discount_percentage}
@@ -535,7 +466,7 @@ export default function PaymentDiscountsScreen() {
               </View>
 
               {/* Descrição */}
-              <Text style={[styles.label, { marginTop: theme.spacing.md }]}>DESCRIÇÃO (OPCIONAL)</Text>
+              <Text style={[styles.label, { marginTop: theme.spacing.md }]}>Descrição (opcional)</Text>
               <TextInput
                 value={formData.description}
                 onChangeText={(text) => setFormData({ ...formData, description: text })}
@@ -545,19 +476,20 @@ export default function PaymentDiscountsScreen() {
                 multiline
               />
 
-              {/* Switch */}
-              <View style={styles.switchRow}>
-                <View>
-                  <Text style={styles.switchLabel}>Desconto ativo</Text>
-                  <Text style={styles.switchSubLabel}>Disponível no checkout</Text>
-                </View>
-                <Switch
-                  value={formData.is_active}
-                  onValueChange={(value) => setFormData({ ...formData, is_active: value })}
-                  trackColor={{ false: Colors.light.border, true: brandingColors.primary + '60' }}
-                  thumbColor={formData.is_active ? brandingColors.primary : Colors.light.textTertiary}
-                />
-              </View>
+              {editingId !== null && (
+                <TouchableOpacity
+                  style={styles.removeButton}
+                  onPress={() => {
+                    const id = editingId;
+                    setShowFormModal(false);
+                    handleDelete(id, getMethodLabel(formData.payment_method));
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons name="trash-outline" size={18} color={Colors.light.error} />
+                  <Text style={styles.removeButtonText}>Remover desconto</Text>
+                </TouchableOpacity>
+              )}
 
               {/* Botões */}
               <View style={styles.formButtons}>
@@ -906,6 +838,15 @@ const styles = StyleSheet.create({
     fontSize: theme.fontSize.base,
     color: Colors.light.text,
   },
+  removeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    marginTop: theme.spacing.md,
+  },
+  removeButtonText: { color: Colors.light.error, fontWeight: '700', fontSize: 14 },
   textArea: {
     backgroundColor: Colors.light.card,
     borderRadius: theme.borderRadius.xl,

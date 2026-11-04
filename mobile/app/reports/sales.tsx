@@ -37,6 +37,7 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { Money } from '@/components/ui/PriceDisplay';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { dateToIso } from '@/utils/dateBr';
 /** Texto do usuário dentro do HTML do PDF. */
 const escapeHtml = (v: string) =>
   v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -184,14 +185,14 @@ export default function SalesReportScreen() {
         (product, index) => `
         <tr>
           <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; width: 40px; text-align: center;">
-            <div style="background: #eef2ff; color: #6366f1; width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; margin: 0 auto;">#{index + 1}</div>
+            <div style="background: #eef2ff; color: #6366f1; width: 32px; height: 32px; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; margin: 0 auto;">#${index + 1}</div>
           </td>
           <td style="padding: 12px; border-bottom: 1px solid #e5e7eb;">
             <div style="font-weight: 600; color: #1f2937; margin-bottom: 4px;">${
               product.product_name
             }</div>
             <div style="font-size: 12px; color: #4b5563; margin-bottom: 4px;">
-              ${getVariantLabel(product) || 'Variação padrão'}${product.variant_sku ? ` • SKU: ${product.variant_sku}` : ''}
+              ${getVariantLabel(product) || 'Variação padrão'}${product.variant_sku ? ` • Código: ${product.variant_sku}` : ''}
             </div>
             <div style="font-size: 12px; color: #6b7280;">${
               product.quantity_sold
@@ -234,11 +235,8 @@ export default function SalesReportScreen() {
           }
           
           .header {
-            position: fixed;
-            top: -100px;
-            left: 0;
-            right: 0;
             text-align: center;
+            margin-bottom: 24px;
             padding: 20px 40px;
             background: #fff;
             border-bottom: 3px solid #6366f1;
@@ -327,10 +325,7 @@ export default function SalesReportScreen() {
             letter-spacing: 0.5px;
           }
           .footer {
-            position: fixed;
-            bottom: -60px;
-            left: 0;
-            right: 0;
+            margin-top: 24px;
             padding: 20px 40px;
             border-top: 2px solid #e5e7eb;
             text-align: center;
@@ -344,8 +339,7 @@ export default function SalesReportScreen() {
           }
           
           .section {
-            page-brecontent">
-          <div class="ak-inside: avoid;
+            page-break-inside: avoid;
           }
           
           table {
@@ -376,7 +370,7 @@ export default function SalesReportScreen() {
 
         <div class="metrics">
           <div class="metric-card">
-            <div class="metric-label">Total de Vendas</div>
+            <div class="metric-label">Receita</div>
             <div class="metric-value">${formatCurrency(report.total_revenue)}</div>
             <div class="metric-subtitle">${report.total_sales} vendas realizadas</div>
           </div>
@@ -399,11 +393,10 @@ export default function SalesReportScreen() {
 
         <div class="section">
           <div class="section-title">Formas de Pagamento</div>
-        </div>
           <table>
             <thead>
               <tr>
-                <th>Método</th>
+                <th>Forma</th>
                 <th style="text-align: center;">Vendas</th>
                 <th style="text-align: right;">Total</th>
                 <th style="text-align: right;">%</th>
@@ -416,7 +409,7 @@ export default function SalesReportScreen() {
         </div>
 
         <div class="section">
-          <div class="section-title">Top Produtos</div>
+          <div class="section-title">Mais vendidos</div>
           <table>
             <thead>
               <tr>
@@ -444,7 +437,7 @@ export default function SalesReportScreen() {
    * Converte o period selecionado em um range de datas (YYYY-MM-DD)
    */
   const getDateRangeForPeriod = (p: PeriodFilterType): { start_date: string; end_date: string } => {
-    const toISODate = (d: Date) => d.toISOString().split('T')[0];
+    const toISODate = dateToIso;
     const today = new Date();
     const end_date = toISODate(today);
     const start = new Date(today);
@@ -843,7 +836,7 @@ export default function SalesReportScreen() {
                   <View style={[styles.sectionIconWrap, { backgroundColor: VALUE_COLORS.warning + '18' }]}>
                     <Ionicons name="trophy-outline" size={16} color={VALUE_COLORS.warning} />
                   </View>
-                  <Text style={styles.cardTitle}>Top Produtos</Text>
+                  <Text style={styles.cardTitle}>Mais vendidos</Text>
                 </View>
 
                 {report.top_products.length === 0 ? (
@@ -876,7 +869,7 @@ export default function SalesReportScreen() {
                             ) : null}
                             {product.variant_sku && (
                               <View style={styles.skuBadge}>
-                                <Text style={styles.skuBadgeText} numberOfLines={1}>SKU {product.variant_sku}</Text>
+                                <Text style={styles.skuBadgeText} numberOfLines={1}>Cód. {product.variant_sku}</Text>
                               </View>
                             )}
                           </View>

@@ -8,6 +8,8 @@ import type { HelpEntry, HelpGroup, HelpRole } from './types';
 import { VENDER } from './vender';
 import { CLIENTES } from './clientes';
 import { ESTOQUE } from './estoque';
+import { DINHEIRO } from './dinheiro';
+import { RELATORIOS } from './relatorios';
 
 export type { HelpEntry, HelpGroup, HelpRole } from './types';
 
@@ -21,7 +23,7 @@ export const HELP_GROUPS: HelpGroup[] = [
   { key: 'loja', title: 'Loja', icon: 'storefront-outline' },
 ];
 
-export const HELP_ENTRIES: HelpEntry[] = [...VENDER, ...ESTOQUE, ...CLIENTES];
+export const HELP_ENTRIES: HelpEntry[] = [...VENDER, ...ESTOQUE, ...CLIENTES, ...DINHEIRO, ...RELATORIOS];
 
 const BY_ID = new Map(HELP_ENTRIES.map((e) => [e.id, e]));
 

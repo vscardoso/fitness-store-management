@@ -3,7 +3,8 @@
  * quanto você gastou, quanto já vendeu e quanto sobrou.
  */
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity } from 'react-native';
+import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { useQuery } from '@tanstack/react-query';
@@ -44,7 +45,7 @@ export default function LotProfitScreen() {
           <Ionicons name="information-circle-outline" size={20} color={Colors.light.textSecondary} />
           <Text style={styles.introText}>
             Cada lote é uma compra que você deu entrada. Aqui você vê, para cada uma, quanto gastou (mercadoria, viagem e frete), quanto
-            já vendeu e quanto sobrou de lucro. Toque num lote para ver os detalhes.
+            já vendeu e o lucro do que já saiu. Mostra as 30 compras mais recentes; toque num lote para ver os detalhes.
           </Text>
         </View>
 
@@ -96,7 +97,7 @@ function LotCard({ lot, color, onPress }: { lot: LotProfitRow; color: string; on
       <View style={styles.cols}>
         <Col label="Você gastou" value={formatCurrency(lot.total_investment)} />
         <Col label="Já vendeu" value={formatCurrency(lot.real_revenue)} color={sold ? VALUE_COLORS.positive : undefined} />
-        <Col label="Sobrou" value={sold ? formatCurrency(lot.gross_profit) : '—'} color={sold ? profitColor : undefined} />
+        <Col label="Lucro até agora" value={sold ? formatCurrency(lot.gross_profit) : '—'} color={sold ? profitColor : undefined} />
       </View>
 
       <View style={styles.barBg}>

@@ -25,6 +25,8 @@ import type { ExpenseCategory, ExpenseCreate } from '@/types/expense';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { getFinanceOverview } from '@/services/financeService';
 import FormGrid from '@/components/layout/FormGrid';
+import { parseApiError } from '@/utils/apiError';
+import { dateToIso } from '@/utils/dateBr';
 
 export default function CreateExpenseScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -79,7 +81,7 @@ export default function CreateExpenseScreen() {
       router.replace('/(tabs)/expenses');
     },
     onError: (err: any) => {
-      setErrorMessage(err?.response?.data?.detail || 'Não foi possível salvar a despesa.');
+      setErrorMessage(parseApiError(err) || 'Não foi possível salvar a despesa.');
       setErrorDialog(true);
     },
   });
@@ -112,7 +114,7 @@ export default function CreateExpenseScreen() {
     const payload: ExpenseCreate = {
       amount: parsedAmount,
       description: description.trim(),
-      expense_date: expenseDate.toISOString().split('T')[0],
+      expense_date: dateToIso(expenseDate),
       notes: notes.trim() || null,
       is_recurring: isRecurring,
       recurrence_day: isRecurring && recurrenceDay ? parseInt(recurrenceDay) : null,
@@ -340,7 +342,7 @@ export default function CreateExpenseScreen() {
               <View style={styles.switchRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.switchLabel}>Despesa Recorrente</Text>
-                  <Text style={styles.switchSubtitle}>Marca automaticamente todo mês</Text>
+                  <Text style={styles.switchSubtitle}>Marca como gasto fixo do mês. O app não lança o próximo sozinho.</Text>
                 </View>
                 <Switch
                   value={isRecurring}

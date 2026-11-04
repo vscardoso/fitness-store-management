@@ -8,11 +8,12 @@ import {
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter, useFocusEffect } from 'expo-router';
 import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
-import { getExpenses, deleteExpense } from '@/services/expenseService';
+import { getExpenses } from '@/services/expenseService';
+import { formatDateOnly } from '@/utils/dateOnly';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -47,7 +48,6 @@ export default function ExpenseListScreen() {
   const listGrid = useListGrid(340, 12, 16);
   const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
-  const queryClient = useQueryClient();
   const brandingColors = useBrandingColors();
   const [period, setPeriod] = useState<PeriodFilterValue>('this_month');
   const [refreshing, setRefreshing] = useState(false);
@@ -60,26 +60,19 @@ export default function ExpenseListScreen() {
 
   useFocusEffect(useCallback(() => { refetch(); }, [refetch]));
 
-  const deleteMutation = useMutation({
-    mutationFn: deleteExpense,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['expenses'] }),
-  });
-
   const onRefresh = async () => {
     setRefreshing(true);
     await refetch();
     setRefreshing(false);
   };
 
-  const total = useMemo(
-    // Só despesa da loja: a de lote/viagem já está no custo das peças e não conta de novo no mês
-    () => (expenses ?? []).filter((e) => !e.stock_entry_id && !e.trip_id).reduce((s, e) => s + Number(e.amount), 0),
-    [expenses]
-  );
+  // Só despesa da loja: a de lote/viagem já está no custo das peças e não conta de novo no mês
+  const storeExpenses = useMemo(() => (expenses ?? []).filter((e) => !e.stock_entry_id && !e.trip_id), [expenses]);
+  const total = useMemo(() => storeExpenses.reduce((s, e) => s + Number(e.amount), 0), [storeExpenses]);
 
   const renderItem = ({ item }: { item: Expense }) => {
     const cat = item.category;
-    const dateStr = item.expense_date.replace(/-/g, '/');
+    const dateStr = formatDateOnly(item.expense_date) ?? item.expense_date;
     return (
       <TouchableOpacity
         style={styles.card}
@@ -159,18 +152,18 @@ export default function ExpenseListScreen() {
         <View style={styles.summaryBody}>
           <Money style={styles.summaryValue} value={Number(total)} />
           <Text style={styles.summaryMeta}>
-            {expenses?.length ?? 0} {(expenses?.length ?? 0) === 1 ? 'despesa' : 'despesas'}
+            {storeExpenses.length} {storeExpenses.length === 1 ? 'despesa da loja' : 'despesas da loja'}
           </Text>
         </View>
 
-        {/* Botão P&L */}
+        {/* Resultado do mês */}
         <View style={styles.plButton}>
           <AppButton
             variant="primary"
             size="md"
             fullWidth
             icon="stats-chart-outline"
-            label="Ver Resultado P&L"
+            label="Ver resultado do mês"
             onPress={() => router.push('/(tabs)/expenses/resultado')}
           />
         </View>
@@ -193,7 +186,7 @@ export default function ExpenseListScreen() {
             <EmptyState
               icon="receipt-outline"
               title="Nenhuma despesa"
-              description="Registre suas despesas operacionais para calcular o lucro líquido real."
+              description="Anote aluguel, luz e outros gastos para ver quanto sobrou no mês."
               actionLabel="Registrar Despesa"
               onAction={() => router.push('/(tabs)/expenses/create')}
             />

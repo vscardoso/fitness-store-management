@@ -205,7 +205,7 @@ export default function MoreScreen() {
           <View style={styles.menuCard}>
             <MenuItem icon="cash-outline" title="Caixa da gaveta" subtitle="Abrir, colocar e retirar dinheiro, fechar" onPress={() => router.push('/cash' as any)} iconColor="#16A34A" iconBg="#DCFCE7" />
             {isManager && <MenuItem icon="wallet-outline" title="Contas e saldos" subtitle="Gaveta, bancos, maquininha e contas a pagar" onPress={() => router.push('/finance' as any)} iconColor="#0E7490" iconBg="#CFFAFE" />}
-            {isManager && <MenuItem icon="receipt-outline" title="Despesas" subtitle="Registrar e gerenciar despesas operacionais" onPress={() => router.push('/(tabs)/expenses')} iconColor={Colors.light.error} iconBg="#FFEBEE" />}
+            {isManager && <MenuItem icon="receipt-outline" title="Despesas" subtitle="Aluguel, luz e outros gastos da loja" onPress={() => router.push('/(tabs)/expenses')} iconColor={Colors.light.error} iconBg="#FFEBEE" />}
             {isManager && <MenuItem icon="warning-outline" title="Prejuízos" subtitle="Perdas de estoque lançadas em módulo separado" onPress={() => router.push('/(tabs)/stock-losses')} iconColor="#B91C1C" iconBg="#FEE2E2" />}
             {isManager && <MenuItem icon="stats-chart-outline" title="Resultado do Mês" subtitle="Quanto vendeu, quanto gastou e quanto sobrou" onPress={() => router.push('/(tabs)/expenses/resultado')} iconColor="#7C3AED" iconBg="#EDE9FE" />}
           </View>

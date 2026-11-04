@@ -17,7 +17,7 @@ import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import { formatCurrency, formatDate } from '@/utils/format';
-import { parseApiError } from '@/utils/apiError';
+import { parseApiError, showApiError } from '@/utils/apiError';
 import { moneyInput, parseMoneyBr } from '@/utils/cashMoney';
 import {
   cancelPayable, createPayable, getFinanceOverview, isoDay, listPayables, payPayable, unpayPayable, type Payable,
@@ -57,11 +57,13 @@ export default function PayablesScreen() {
   const doCancel = useMutation({
     mutationFn: (id: number) => cancelPayable(id),
     onSuccess: async () => { setCanceling(null); await refresh(); },
+    onError: (e) => { setCanceling(null); showApiError(e, 'Não foi possível cancelar'); },
   });
 
   const doUnpay = useMutation({
     mutationFn: (id: number) => unpayPayable(id),
     onSuccess: async () => { setUnpaying(null); await refresh(); },
+    onError: (e) => { setUnpaying(null); showApiError(e, 'Não foi possível desfazer'); },
   });
 
   const items = data?.items ?? [];
