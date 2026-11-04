@@ -37,7 +37,7 @@ import { VALUE_COLORS } from '@/constants/Colors';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { PriceRange } from '@/components/ui/PriceDisplay';
 import VariantPricesSheet, { distinctPrices } from '@/components/products/VariantPricesSheet';
-import { useIsDesktop } from '@/hooks/useLayout';
+import { useIsDesktop, DESKTOP_CONTENT_MAX } from '@/hooks/useLayout';
 import LoadedImage from '@/components/ui/LoadedImage';
 
 export default function ProductDetailsScreen() {
@@ -1131,7 +1131,7 @@ const createStyles = (brand: string) => StyleSheet.create({
   loadingText: { marginTop: 12, color: Colors.light.textSecondary, fontSize: 14 },
   scrollView: { flex: 1 },
   scrollContent: { padding: 16, paddingBottom: 32 },
-  scrollContentDesktop: { width: '100%', maxWidth: 960, alignSelf: 'center', paddingHorizontal: 24 },
+  scrollContentDesktop: { width: '100%', maxWidth: DESKTOP_CONTENT_MAX, alignSelf: 'center', paddingHorizontal: 24 },
 
   // ── Quick Stats Grid ──
   quickGrid: {

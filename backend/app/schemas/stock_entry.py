@@ -75,7 +75,7 @@ class StockEntryBase(BaseModel):
         """Valida que trip_id seja fornecido se entry_type = 'trip'."""
         entry_type = info.data.get('entry_type')
         if entry_type == EntryType.TRIP and v is None:
-            raise ValueError('trip_id is required when entry_type is "trip"')
+            raise ValueError('Entrada do tipo viagem precisa da viagem: escolha a viagem ou troque o tipo da entrada.')
         return v
 
 

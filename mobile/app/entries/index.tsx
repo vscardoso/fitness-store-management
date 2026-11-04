@@ -54,13 +54,15 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import SupplierPickerSheet from '@/components/suppliers/SupplierPickerSheet';
 import type { Supplier } from '@/types';
 import { takePresetEntry } from '@/utils/presetEntry';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useListGrid } from '@/hooks/useLayout';
 
 const PAGE_SIZE = 20;
 
 type FilterType = 'all' | 'active' | 'history';
 
 export default function StockEntriesScreen() {
+  // no PC a lista vira grade de cartões (no celular continua uma coluna)
+  const listGrid = useListGrid(340, 12, 16);
   const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/entries');
@@ -772,8 +774,10 @@ export default function StockEntriesScreen() {
 
         {/* Lista de entradas */}
         <FlatList
+          key={listGrid.listKey}
+          {...listGrid.listProps}
           data={filteredEntries}
-          renderItem={renderEntryCard}
+          renderItem={listGrid.wrap(renderEntryCard)}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.listContainer}
           refreshControl={

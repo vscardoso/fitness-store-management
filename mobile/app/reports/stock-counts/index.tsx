@@ -15,9 +15,11 @@ import useBackToList from '@/hooks/useBackToList';
 import { useBrandingColors } from '@/store/brandingStore';
 import { listStockCounts, type StockCountSummary } from '@/services/stockCountService';
 import { formatDateTime, formatInt } from '@/utils/format';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useListGrid } from '@/hooks/useLayout';
 
 export default function StockCountsScreen() {
+  // no PC a lista vira grade de cartões (no celular continua uma coluna)
+  const listGrid = useListGrid(340, 12, 16);
   const desktopContent = useDesktopContentStyle();
   const brand = useBrandingColors();
   const router = useRouter();
@@ -88,9 +90,11 @@ export default function StockCountsScreen() {
         </View>
       ) : (
         <FlatList
+          key={listGrid.listKey}
+          {...listGrid.listProps}
           data={data?.results ?? []}
           keyExtractor={(i) => String(i.id)}
-          renderItem={renderItem}
+          renderItem={listGrid.wrap(renderItem)}
           contentContainerStyle={[styles.list, desktopContent]}
           refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
           ListEmptyComponent={

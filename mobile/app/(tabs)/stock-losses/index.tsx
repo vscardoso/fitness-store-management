@@ -21,7 +21,7 @@ import type { Expense } from '@/types/expense';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { Money } from '@/components/ui/PriceDisplay';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useListGrid } from '@/hooks/useLayout';
 const fmt = (d: Date) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
@@ -43,6 +43,8 @@ function useDateRange(period: PeriodFilterValue) {
 }
 
 export default function StockLossListScreen() {
+  // no PC a lista vira grade de cartões (no celular continua uma coluna)
+  const listGrid = useListGrid(340, 12, 16);
   const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const [period, setPeriod] = useState<PeriodFilterValue>('this_month');
@@ -236,9 +238,11 @@ export default function StockLossListScreen() {
         }}
       >
         <FlatList
+          key={listGrid.listKey}
+          {...listGrid.listProps}
           data={losses ?? []}
           keyExtractor={(item) => String(item.id)}
-          renderItem={renderItem}
+          renderItem={listGrid.wrap(renderItem)}
           contentContainerStyle={losses?.length ? styles.listContent : styles.emptyContent}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[VALUE_COLORS.negative]} />}
           showsVerticalScrollIndicator={false}

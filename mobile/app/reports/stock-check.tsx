@@ -47,7 +47,7 @@ import { lookupCode } from '@/services/codeResolver';
 import { buildCodeIndex, findVariantLocal } from '@/utils/scanLogic';
 import { playScan } from '@/utils/scanFeedback';
 import { buildSearchIndex, matchesSearch } from '@/utils/searchMatch';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useDesktopGrid } from '@/hooks/useLayout';
 
 type Counts = Record<number, string>;
 
@@ -140,6 +140,9 @@ export default function StockCheckScreen() {
   const params = useLocalSearchParams<{ resume?: string }>();
   // leitura por QR
   const scrollRef = useRef<ScrollView>(null);
+  // posição da grade dentro da rolagem (as posições dos cartões são relativas a ela)
+  const gridY = useRef(0);
+  const grid = useDesktopGrid(360, 12);
   const groupY = useRef<Record<string, number>>({});
   const rowY = useRef<Record<number, number>>({});
   const countsRef = useRef<Counts>({});
@@ -474,7 +477,7 @@ export default function StockCheckScreen() {
       const gy = groupY.current[key];
       const ry = rowY.current[focusId];
       if (gy !== undefined && ry !== undefined) {
-        scrollRef.current?.scrollTo({ y: Math.max(0, gy + ry - 140), animated: true });
+        scrollRef.current?.scrollTo({ y: Math.max(0, gridY.current + gy + ry - 140), animated: true });
         setFocusId(null);
       } else if (tries++ < 8) {
         timer = setTimeout(tick, 60);
@@ -700,8 +703,13 @@ export default function StockCheckScreen() {
             <Text style={styles.emptyText}>{onlyDiffs ? 'Nenhuma divergência até agora.' : 'Nenhuma variação encontrada.'}</Text>
           </View>
         ) : (
-          shownGroups.map((g) => (
-            <View key={g.key} style={styles.group} onLayout={(e) => { groupY.current[g.key] = e.nativeEvent.layout.y; }}>
+          // no PC os produtos viram cartões em grade (várias colunas); no celular é a lista de sempre
+          <View
+            style={[grid.gridStyle, grid.isGrid && { marginTop: 10 }]}
+            onLayout={(e) => { grid.onLayout(e); gridY.current = e.nativeEvent.layout.y; }}
+          >
+          {shownGroups.map((g) => (
+            <View key={g.key} style={[styles.group, grid.cardStyle, grid.isGrid && styles.groupGrid]} onLayout={(e) => { groupY.current[g.key] = e.nativeEvent.layout.y; }}>
               <View style={styles.groupHead}>
                 <Text style={styles.groupName} numberOfLines={2}>{g.name}</Text>
                 <Text style={styles.groupCat}>{g.category}</Text>
@@ -782,7 +790,8 @@ export default function StockCheckScreen() {
                 );
               })}
             </View>
-          ))
+          ))}
+          </View>
         )}
 
         {grouped.length > shownGroups.length && (
@@ -1027,6 +1036,8 @@ const styles = StyleSheet.create({
   menuRowText: { fontSize: 15, fontWeight: '600', color: Colors.light.text },
   resultLine: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 3 },
   resultText: { fontSize: 12, fontWeight: '800' },
+  // na grade o espaço entre cartões vem do gap da grade
+  groupGrid: { marginTop: 0 },
   group: { backgroundColor: Colors.light.card, borderRadius: 14, borderWidth: 1, borderColor: Colors.light.border, marginTop: 10, overflow: 'hidden' },
   groupHead: { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: Colors.light.backgroundSecondary },
   groupName: { fontSize: 14, fontWeight: '700', color: Colors.light.text },

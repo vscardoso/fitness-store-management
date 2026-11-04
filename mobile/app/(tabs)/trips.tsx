@@ -23,8 +23,10 @@ import { formatCurrency, formatDate } from '@/utils/format';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 
 import { FitText } from '@/components/ui/PriceDisplay';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useListGrid } from '@/hooks/useLayout';
 export default function TripsScreen() {
+  // no PC a lista vira grade de cartões (no celular continua uma coluna)
+  const listGrid = useListGrid(340, 12, 16);
   const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const brandingColors = useBrandingColors();
@@ -238,8 +240,10 @@ export default function TripsScreen() {
             </View>
 
             <FlatList
+          key={listGrid.listKey}
+          {...listGrid.listProps}
               data={trips}
-              renderItem={renderTrip}
+              renderItem={listGrid.wrap(renderTrip)}
               keyExtractor={(item) => item.id.toString()}
               showsVerticalScrollIndicator={false}
               contentContainerStyle={styles.listContent}

@@ -19,7 +19,7 @@ class EntryItemBase(BaseModel):
     def validate_quantity_positive(cls, v):
         """Valida que a quantidade seja positiva."""
         if v <= 0:
-            raise ValueError('quantity_received must be greater than 0')
+            raise ValueError('A quantidade recebida precisa ser maior que zero.')
         return v
 
 
@@ -56,7 +56,7 @@ class EntryItemCreate(BaseModel):
     def validate_quantity_positive(cls, v):
         """Valida que a quantidade seja positiva."""
         if v <= 0:
-            raise ValueError('quantity_received must be greater than 0')
+            raise ValueError('A quantidade recebida precisa ser maior que zero.')
         return v
 
 
@@ -76,7 +76,7 @@ class EntryItemUpdate(BaseModel):
     def validate_quantity_positive(cls, v):
         """Valida que a quantidade seja positiva."""
         if v is not None and v <= 0:
-            raise ValueError('quantity_received must be greater than 0')
+            raise ValueError('A quantidade recebida precisa ser maior que zero.')
         return v
 
     @field_validator('quantity_remaining')
@@ -84,7 +84,7 @@ class EntryItemUpdate(BaseModel):
     def validate_remaining_non_negative(cls, v):
         """Valida que quantity_remaining não seja negativo."""
         if v is not None and v < 0:
-            raise ValueError('quantity_remaining must be non-negative')
+            raise ValueError('A quantidade restante não pode ser negativa.')
         return v
 
 

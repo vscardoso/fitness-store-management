@@ -14,9 +14,10 @@ import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
 import { getLotProfitRanking, type LotProfitRow } from '@/services/stockEntryService';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useDesktopGrid } from '@/hooks/useLayout';
 
 export default function LotProfitScreen() {
+  const grid = useDesktopGrid(360, 12);
   const desktopColumn = useDesktopContentStyle();
   const brand = useBrandingColors();
   const router = useRouter();
@@ -50,16 +51,20 @@ export default function LotProfitScreen() {
           <Text style={styles.empty}>Você ainda não tem lotes. Quando der entrada numa compra, ela aparece aqui.</Text>
         )}
 
+        {/* no PC os lotes ficam em grade de cartões */}
+        <View style={grid.gridStyle} onLayout={grid.onLayout}>
         {(data ?? []).map((lot) => (
+          <View key={lot.entry_id} style={grid.cardStyle}>
           <LotCard
-            key={lot.entry_id}
             lot={lot}
             color={brand.primary}
             onPress={() =>
               router.push({ pathname: `/entries/${lot.entry_id}`, params: { from: '/reports/lots' } } as any)
             }
           />
+          </View>
         ))}
+        </View>
       </ScrollView>
       </View>
     </View>

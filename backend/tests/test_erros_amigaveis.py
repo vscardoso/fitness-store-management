@@ -64,3 +64,27 @@ async def test_erro_tecnico_do_servidor_chega_limpo(test_client, async_session, 
     assert r.status_code == 500
     detail = r.json()["detail"]
     assert "100 letras" in detail and not is_technical(detail), detail
+
+
+def test_regra_do_validador_chega_em_portugues_e_sem_texto_tecnico():
+    """Entrada do tipo viagem sem viagem: antes a pessoa via "Não conseguimos concluir agora"
+    (o texto do Pydantic, em inglês, era tratado como erro técnico). Agora vê a regra."""
+    from pydantic import ValidationError
+    from app.core.friendly_errors import friendly_from_text, is_technical
+    from app.schemas.stock_entry import StockEntryCreate
+
+    try:
+        StockEntryCreate(entry_code="ENT-X", entry_date="2026-11-04", entry_type="trip", supplier_name="X", trip_id=None)
+    except ValidationError as e:
+        bruto = str(e)
+    else:  # pragma: no cover
+        raise AssertionError("deveria recusar entrada de viagem sem viagem")
+    assert is_technical(bruto)
+    msg = friendly_from_text(bruto)
+    assert "viagem" in msg.lower()
+    assert "pydantic" not in msg.lower() and "type=" not in msg
+
+
+def test_erro_tecnico_de_banco_continua_generico():
+    from app.core.friendly_errors import friendly_from_text, GENERIC
+    assert friendly_from_text("sqlalchemy.exc.ProgrammingError: (asyncpg) syntax error") == GENERIC

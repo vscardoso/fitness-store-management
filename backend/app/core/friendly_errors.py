@@ -23,6 +23,11 @@ def is_technical(text: Optional[str]) -> bool:
 def friendly_from_text(text: Optional[str]) -> str:
     """Traduz o texto de um erro técnico para algo que a pessoa entende e sabe resolver."""
     t = (text or "").lower()
+    # Regra de negócio escrita por nós num validador do Pydantic ("Value error, <frase> [type=value_error"):
+    # a frase já é para a pessoa; o resto (nome da classe, link da documentação) é técnico.
+    m = re.search(r"value error, (.+?)\s*\[type=value_error", text or "", re.IGNORECASE | re.DOTALL)
+    if m and m.group(1).strip():
+        return m.group(1).strip()
     if "value too long" in t or "stringdatarighttruncation" in t:
         m = re.search(r"character varying\((\d+)\)", t)
         limit = f" (o limite é {m.group(1)} letras)" if m else ""

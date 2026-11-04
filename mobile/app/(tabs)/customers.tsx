@@ -29,9 +29,11 @@ import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import type { Customer } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useListGrid } from '@/hooks/useLayout';
 
 export default function CustomersScreen() {
+  // no PC a lista vira grade de cartões (no celular continua uma coluna)
+  const listGrid = useListGrid(200, 12, 8);
   const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const { user } = useAuth();
@@ -110,7 +112,7 @@ export default function CustomersScreen() {
   // ── Item de cliente ──
   const renderCustomer = ({ item }: { item: Customer }) => (
     <TouchableOpacity
-      style={styles.cardWrapper}
+      style={[styles.cardWrapper, listGrid.cols > 2 && { width: `${100 / listGrid.cols - 2}%` as any }]}
       onPress={() => router.push(`/customers/${item.id}`)}
       activeOpacity={0.7}
     >
@@ -267,10 +269,12 @@ export default function CustomersScreen() {
 
             {/* Lista */}
             <FlatList
+              key={listGrid.listKey}
+              onLayout={(listGrid.listProps as { onLayout?: (e: any) => void }).onLayout}
               data={filteredCustomers}
               renderItem={renderCustomer}
               keyExtractor={(item) => item.id.toString()}
-              numColumns={2}
+              numColumns={listGrid.listKey ? Math.max(2, listGrid.cols) : 2}
               contentContainerStyle={styles.listContent}
               columnWrapperStyle={styles.columnWrapper}
               showsVerticalScrollIndicator={false}

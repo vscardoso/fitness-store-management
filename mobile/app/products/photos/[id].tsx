@@ -48,6 +48,7 @@ import {
 import type { ProductVariant } from '@/types/productVariant';
 import type { ProductMedia } from '@/types/productMedia';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
+import { DESKTOP_CONTENT_MAX } from '@/hooks/useLayout';
 import LoadedImage from '@/components/ui/LoadedImage';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -116,7 +117,7 @@ function compareColors(a: string, b: string): number {
 
 
 // conteúdo centralizado e limitado no notebook (no celular não muda nada)
-const CONTENT_MAX = 960;
+const CONTENT_MAX = DESKTOP_CONTENT_MAX;
 export default function VariantPhotosScreen() {
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/products');

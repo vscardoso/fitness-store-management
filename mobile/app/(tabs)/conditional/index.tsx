@@ -39,7 +39,7 @@ import { formatCurrency } from '@/utils/format';
 import { Colors, VALUE_COLORS, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
-import { useDesktopContentStyle } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useListGrid } from '@/hooks/useLayout';
 
 type FilterType = 'all' | 'pending' | 'overdue';
 
@@ -92,6 +92,8 @@ function SummaryStrip({ counts }: SummaryStripProps) {
 }
 
 export default function ConditionalShipmentsScreen() {
+  // no PC a lista vira grade de cartões (no celular continua uma coluna)
+  const listGrid = useListGrid(340, 12, 16);
   const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const { user } = useAuth();
@@ -406,8 +408,10 @@ export default function ConditionalShipmentsScreen() {
         />
       ) : (
         <FlatList
+          key={listGrid.listKey}
+          {...listGrid.listProps}
           data={filteredShipments}
-          renderItem={renderShipmentCard}
+          renderItem={listGrid.wrap(renderShipmentCard)}
           keyExtractor={item => item.id.toString()}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}

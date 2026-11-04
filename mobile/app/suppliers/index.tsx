@@ -33,10 +33,12 @@ import { useSuppliers } from '@/hooks/useSuppliers';
 import type { Supplier } from '@/types';
 import { documentLabel } from '@/utils/masks';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
-import { useDesktopContentStyle, useIsDesktop } from '@/hooks/useLayout';
+import { useDesktopContentStyle, useIsDesktop, useListGrid } from '@/hooks/useLayout';
 import FAB from '@/components/FAB';
 
 export default function SuppliersIndexScreen() {
+  // no PC a lista vira grade de cartões (no celular continua uma coluna)
+  const listGrid = useListGrid(340, 12, 16);
   const desktopColumn = useDesktopContentStyle();
   const isDesktop = useIsDesktop();
   const router = useRouter();
@@ -189,9 +191,11 @@ export default function SuppliersIndexScreen() {
           </View>
         ) : (
           <FlatList
+          key={listGrid.listKey}
+          {...listGrid.listProps}
             data={filtered}
             keyExtractor={(item) => item.id.toString()}
-            renderItem={renderItem}
+            renderItem={listGrid.wrap(renderItem)}
             ListEmptyComponent={renderEmpty}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.listContent}

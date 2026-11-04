@@ -30,6 +30,8 @@ import {
 } from '@/services/teamService';
 import { UserRole, type TeamMember } from '@/types';
 import { useBrandingColors } from '@/store/brandingStore';
+import { useListGrid } from '@/hooks/useLayout';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 type DialogState = {
   visible: boolean;
@@ -44,6 +46,9 @@ type DialogState = {
 const DIALOG_HIDDEN: DialogState = { visible: false, type: 'info', title: '', message: '' };
 
 export default function TeamScreen() {
+  const desktopColumn = useDesktopContentStyle();
+  // no PC a lista vira grade de cartões (no celular continua uma coluna)
+  const listGrid = useListGrid(340, 12, 16);
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const router = useRouter();
@@ -211,6 +216,8 @@ export default function TeamScreen() {
         subtitle={`${memberCount} ${memberCount === 1 ? 'membro' : 'membros'}`}
         showBackButton
       />
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
 
       {/* Search */}
       <Searchbar
@@ -240,8 +247,10 @@ export default function TeamScreen() {
 
       {/* List */}
       <FlatList
+          key={listGrid.listKey}
+          {...listGrid.listProps}
         data={filteredMembers}
-        renderItem={renderMember}
+        renderItem={listGrid.wrap(renderMember)}
         keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.listContent}
         refreshControl={
@@ -277,6 +286,7 @@ export default function TeamScreen() {
         onConfirm={dialog.onConfirm ?? (() => setDialog(DIALOG_HIDDEN))}
         onCancel={dialog.onCancel ?? (() => setDialog(DIALOG_HIDDEN))}
       />
+      </View>
     </View>
   );
 }
