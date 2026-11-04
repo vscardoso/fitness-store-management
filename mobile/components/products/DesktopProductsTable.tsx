@@ -12,7 +12,6 @@ import DataTable, { DataColumn } from '@/components/ui/DataTable';
 import EmptyState from '@/components/ui/EmptyState';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useCategories } from '@/hooks/useCategories';
-import { useTutorialContext } from '@/components/tutorial';
 import { useBrandingColors } from '@/store/brandingStore';
 import { getAllGroupedProducts } from '@/services/productService';
 import { formatCurrency } from '@/utils/format';
@@ -45,7 +44,6 @@ function productCode(p: ProductGrouped): string {
 export default function DesktopProductsTable() {
   const router = useRouter();
   const colors = useBrandingColors();
-  const { startTutorial } = useTutorialContext();
   const { filter } = useLocalSearchParams<{ filter?: string }>();
   const { categories } = useCategories();
   const [search, setSearch] = useState('');
@@ -154,7 +152,6 @@ export default function DesktopProductsTable() {
       subtitle={`${summary.total.toLocaleString('pt-BR')} ${summary.total === 1 ? 'produto' : 'produtos'} · ${summary.pieces.toLocaleString('pt-BR')} peças em estoque`}
       rightActions={[
         { icon: 'scan', onPress: () => router.push('/products/wizard?method=scanner') },
-        { icon: 'help-circle-outline', onPress: () => startTutorial('products') },
       ]}
     />
   );

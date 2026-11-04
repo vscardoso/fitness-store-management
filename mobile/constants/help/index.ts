@@ -6,6 +6,7 @@ import { normalizeRole } from '@/utils/roles';
 import { routeMatches, routeSpecificity } from '@/utils/helpRoutes';
 import type { HelpEntry, HelpGroup, HelpRole } from './types';
 import { VENDER } from './vender';
+import { CLIENTES } from './clientes';
 
 export type { HelpEntry, HelpGroup, HelpRole } from './types';
 
@@ -19,7 +20,7 @@ export const HELP_GROUPS: HelpGroup[] = [
   { key: 'loja', title: 'Loja', icon: 'storefront-outline' },
 ];
 
-export const HELP_ENTRIES: HelpEntry[] = [...VENDER];
+export const HELP_ENTRIES: HelpEntry[] = [...VENDER, ...CLIENTES];
 
 const BY_ID = new Map(HELP_ENTRIES.map((e) => [e.id, e]));
 

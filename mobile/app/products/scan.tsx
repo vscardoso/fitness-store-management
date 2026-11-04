@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Text, Button, Card, Chip, ProgressBar } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
+import { HelpIconButton } from '@/components/help/HelpHost';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter } from 'expo-router';
 import { Colors, theme } from '@/constants/Colors';
@@ -519,7 +520,7 @@ export default function ScanProductScreen() {
 
               <Text style={styles.headerTitle}>Scanner IA</Text>
 
-              <View style={styles.headerPlaceholder} />
+              <HelpIconButton onColor keepSpace />
             </View>
 
             <View style={styles.headerInfo}>

@@ -52,7 +52,6 @@ export const HELP_PENDING: Record<string, string> = {
   '/suppliers': 'estoque', '/suppliers/[id]': 'estoque', '/suppliers/ranking': 'estoque', '/suppliers/costs': 'estoque',
   '/suppliers/restock': 'estoque', '/suppliers/returns': 'estoque',
   '/trips': 'estoque', '/trips/add': 'estoque', '/trips/[id]': 'estoque',
-  '/customers': 'clientes', '/customers/add': 'clientes', '/customers/[id]': 'clientes', '/customers/edit/[id]': 'clientes',
   '/finance': 'dinheiro', '/finance/setup': 'dinheiro', '/finance/payables': 'dinheiro', '/expenses': 'dinheiro',
   '/expenses/create': 'dinheiro', '/expenses/edit': 'dinheiro', '/expenses/resultado': 'dinheiro',
   '/settings/payment-discounts': 'dinheiro',

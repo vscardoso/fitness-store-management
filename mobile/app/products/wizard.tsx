@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
+import { HelpIconButton } from '@/components/help/HelpHost';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useRouter, useLocalSearchParams, useNavigation, useFocusEffect } from 'expo-router';
 import { trailMark, trailReport } from '@/utils/navTrail';
@@ -422,7 +423,7 @@ export default function ProductWizardScreen() {
 
             <Text style={styles.headerTitle}>{getHeaderTitle()}</Text>
 
-            {state.currentStep !== 'complete' && <View style={styles.headerPlaceholder} />}
+            {state.currentStep !== 'complete' && <HelpIconButton onColor keepSpace />}
           </View>
 
           <Text style={styles.headerSubtitle}>{getHeaderSubtitle()}</Text>

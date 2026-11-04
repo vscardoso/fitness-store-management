@@ -39,7 +39,6 @@ import { formatCurrency, formatDate, formatPercent } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
 import { EntryType } from '@/types';
 import PageHeader from '@/components/layout/PageHeader';
-import { useTutorialContext } from '@/components/tutorial';
 import { useBrandingColors } from '@/store/brandingStore';
 
 import { FitText } from '@/components/ui/PriceDisplay';
@@ -173,7 +172,6 @@ export default function InventoryDashboard() {
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const router = useRouter();
   const { user } = useAuth();
-  const { startTutorial } = useTutorialContext();
   const [refreshing, setRefreshing] = useState(false);
   const [periodDays, setPeriodDays] = useState(30);
 
@@ -342,7 +340,6 @@ export default function InventoryDashboard() {
             title="Inventário"
             subtitle={`${metrics.totalItems} produtos ativos`}
             rightActions={[
-              { icon: 'help-circle-outline', onPress: () => startTutorial('inventory') },
             ]}
           />
         </Animated.View>

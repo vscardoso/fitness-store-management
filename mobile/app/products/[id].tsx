@@ -30,7 +30,6 @@ import { getImageUrl } from '@/constants/Config';
 import { Colors, theme } from '@/constants/Colors';
 import { documentLabel } from '@/utils/masks';
 import { getEntryTypeLabel, getEntryTypeColor, getEntryTypeIcon } from '@/constants/entryTypes';
-import { useTutorialContext } from '@/components/tutorial';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useProductSuppliers } from '@/hooks/useSuppliers';
 import { VALUE_COLORS } from '@/constants/Colors';
@@ -47,7 +46,6 @@ export default function ProductDetailsScreen() {
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const queryClient = useQueryClient();
-  const { startTutorial } = useTutorialContext();
 
   // Validar ID do produto
   const productId = id ? parseInt(id as string) : NaN;
@@ -355,7 +353,6 @@ export default function ProductDetailsScreen() {
         showBackButton
         onBack={goBack}
         rightActions={[
-          { icon: 'help-circle-outline', onPress: () => startTutorial('product-details') },
         ]}
       />
 

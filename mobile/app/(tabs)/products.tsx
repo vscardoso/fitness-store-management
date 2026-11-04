@@ -21,7 +21,6 @@ import FAB from '@/components/FAB';
 import { getGroupedProducts } from '@/services/productService';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
-import { useTutorialContext } from '@/components/tutorial';
 import type { ProductGrouped } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useIsDesktop } from '@/hooks/useLayout';
@@ -38,7 +37,6 @@ export default function ProductsScreen() {
 function MobileProductsScreen() {
   const router = useRouter();
   const { user } = useAuth();
-  const { startTutorial } = useTutorialContext();
   const brandingColors = useBrandingColors();
   const { filter } = useLocalSearchParams<{ filter?: string }>();
   const [searchQuery, setSearchQuery] = useState('');
@@ -277,7 +275,6 @@ function MobileProductsScreen() {
           subtitle="0 produtos"
           rightActions={[
             { icon: 'scan', onPress: () => router.push('/products/wizard?method=scanner') },
-            { icon: 'help-circle-outline', onPress: () => startTutorial('products') },
           ]}
         />
 
@@ -297,7 +294,6 @@ function MobileProductsScreen() {
           subtitle="0 produtos"
           rightActions={[
             { icon: 'scan', onPress: () => router.push('/products/wizard?method=scanner') },
-            { icon: 'help-circle-outline', onPress: () => startTutorial('products') },
           ]}
         />
 
@@ -329,7 +325,6 @@ function MobileProductsScreen() {
           subtitle={showLowStock ? `${productCount} com estoque baixo` : `${productCount} ${productCount === 1 ? 'produto' : 'produtos'}`}
           rightActions={[
             { icon: 'scan', onPress: () => router.push('/products/wizard?method=scanner') },
-            { icon: 'help-circle-outline', onPress: () => startTutorial('products') },
           ]}
         />
         </Animated.View>

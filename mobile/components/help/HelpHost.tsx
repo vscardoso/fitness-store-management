@@ -27,13 +27,24 @@ export function useCurrentHelp(): HelpEntry | undefined {
   return entry && canSeeHelp(entry, user?.role) ? entry : undefined;
 }
 
-/** "?" para telas com cabeçalho próprio (sem PageHeader), em fundo claro. Some quando a tela não tem ficha. */
-export function HelpIconButton() {
+/**
+ * "?" para telas com cabeçalho próprio (sem PageHeader). `onColor` = cabeçalho colorido (ícone branco, como o PageHeader).
+ * Sem ficha para a tela: some, ou com `keepSpace` deixa o espaço vazio (título continua centralizado).
+ */
+export function HelpIconButton({ onColor = false, keepSpace = false }: { onColor?: boolean; keepSpace?: boolean }) {
   const help = useCurrentHelp();
   const toggle = useHelpStore((s) => s.toggle);
   const on = useHelpStore((s) => !!help && s.openId === help.id);
   const brand = useBrandingColors();
-  if (!help) return null;
+  if (!help) return keepSpace ? <View style={{ width: 40 }} /> : null;
+  if (onColor) {
+    return (
+      <TouchableOpacity onPress={() => toggle(help.id)} accessibilityRole="button" accessibilityLabel="Ajuda desta tela"
+        style={[styles.iconBtnOnColor, on && { backgroundColor: 'rgba(255, 255, 255, 0.4)' }]}>
+        <Ionicons name="help-circle-outline" size={20} color="#fff" />
+      </TouchableOpacity>
+    );
+  }
   return (
     <TouchableOpacity onPress={() => toggle(help.id)} accessibilityRole="button" accessibilityLabel="Ajuda desta tela"
       style={[styles.iconBtn, on && { borderColor: brand.primary, backgroundColor: brand.primary + '14' }]}>
@@ -121,6 +132,8 @@ const styles = StyleSheet.create({
   openBtn: { alignSelf: 'flex-start', borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
   openText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   hint: { fontSize: 12, color: Colors.light.textTertiary },
+  iconBtnOnColor: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255, 255, 255, 0.25)', alignItems: 'center',
+    justifyContent: 'center' },
   iconBtn: { width: 38, height: 38, borderRadius: 9, borderWidth: 1, borderColor: Colors.light.border, alignItems: 'center',
     justifyContent: 'center', backgroundColor: Colors.light.card },
 });
