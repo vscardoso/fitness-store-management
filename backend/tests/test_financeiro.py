@@ -158,3 +158,29 @@ async def test_papeis_e_conta_de_outra_loja(test_client, async_session, test_use
     r = await test_client.post("/api/v1/expenses", headers=h, json={
         "amount": "10", "description": "X", "expense_date": date.today().isoformat(), "account_id": 999999})
     assert r.status_code in (400, 404) and "Conta de pagamento" in r.text
+
+
+async def test_desfazer_pagamento_e_apagar_transferencia_voltam_o_saldo(test_client, async_session, test_user):
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    await _zerar_implantacao(async_session, t_id)
+    d = (await _implantar(test_client, h)).json()
+    gaveta, maq, nu = _conta(d, "Gaveta")["id"], _conta(d, "Maquininha a receber")["id"], _conta(d, "Nubank")["id"]
+    # transferência com valor errado: apagar devolve as duas contas
+    r = await test_client.post(f"{API}/transfers", headers=h, json={"from_account_id": maq, "to_account_id": nu, "amount": "3000"})
+    assert _conta(r.json(), "Nubank")["balance"] == 4000.0
+    lista = (await test_client.get(f"{API}/transfers", headers=h)).json()
+    assert len(lista) == 1 and lista[0]["amount"] == 3000.0
+    r = await test_client.delete(f"{API}/transfers/{lista[0]['id']}", headers=h)
+    assert r.status_code == 200 and _conta(r.json(), "Nubank")["balance"] == 1000.0 and _conta(r.json(), "Maquininha a receber")["balance"] == 300.0
+    assert (await test_client.get(f"{API}/transfers", headers=h)).json() == []
+    assert (await test_client.delete(f"{API}/transfers/{lista[0]['id']}", headers=h)).status_code == 404
+    # pagou pela conta errada: desfazer volta para em aberto e o dinheiro para a gaveta; paga de novo pelo banco
+    boleto = next(x for x in (await test_client.get(f"{API}/payables", headers=h)).json()["items"] if x["description"] == "Boleto fornecedor Brás")
+    await test_client.post(f"{API}/payables/{boleto['id']}/pay", headers=h, json={"account_id": gaveta})
+    assert _conta((await test_client.get(f"{API}/accounts", headers=h)).json(), "Gaveta")["balance"] == -650.0
+    r = await test_client.post(f"{API}/payables/{boleto['id']}/unpay", headers=h)
+    assert r.status_code == 200 and r.json()["status"] == "open" and r.json()["paid_account_id"] is None
+    assert _conta((await test_client.get(f"{API}/accounts", headers=h)).json(), "Gaveta")["balance"] == 150.0
+    assert (await test_client.post(f"{API}/payables/{boleto['id']}/unpay", headers=h)).status_code == 409   # já em aberto
+    await test_client.post(f"{API}/payables/{boleto['id']}/pay", headers=h, json={"account_id": nu})
+    assert _conta((await test_client.get(f"{API}/accounts", headers=h)).json(), "Nubank")["balance"] == 200.0

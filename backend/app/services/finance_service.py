@@ -436,6 +436,30 @@ class FinanceService:
         await self.db.refresh(p)
         return self._payable_public(p)
 
+    async def unpay_payable(self, tenant_id: int, payable_id: int) -> Dict[str, Any]:
+        """Desfazer pagamento (pagou pela conta errada, valor errado): volta para em aberto e o dinheiro volta para a conta."""
+        p = await self._payable(tenant_id, payable_id, lock=True)
+        if p.status != PAYABLE_PAID:
+            raise FinanceConflict("Só conta paga pode ter o pagamento desfeito.")
+        p.status, p.paid_on, p.paid_account_id, p.paid_at = PAYABLE_OPEN, None, None, None
+        self.db.add(p)
+        await self.db.commit()
+        await self.db.refresh(p)
+        return self._payable_public(p)
+
+    async def delete_transfer(self, tenant_id: int, transfer_id: int) -> Dict[str, Any]:
+        """Apagar transferência lançada errado (exclusão lógica): as duas contas voltam ao que eram."""
+        t = (await self.db.execute(
+            select(AccountTransfer).where(AccountTransfer.id == transfer_id, AccountTransfer.tenant_id == tenant_id,
+                                          AccountTransfer.is_active == True).with_for_update()  # noqa: E712
+        )).scalar_one_or_none()
+        if t is None:
+            raise FinanceNotFound("Transferência não encontrada.")
+        t.is_active = False
+        self.db.add(t)
+        await self.db.commit()
+        return await self.balances(tenant_id)
+
     async def cancel_payable(self, tenant_id: int, payable_id: int) -> Dict[str, Any]:
         p = await self._payable(tenant_id, payable_id, lock=True)
         if p.status != PAYABLE_OPEN:

@@ -48,6 +48,16 @@ export interface PayableList {
   overdue_count: number;
 }
 
+export interface AccountTransfer {
+  id: number;
+  from_account_id: number;
+  to_account_id: number;
+  amount: number;
+  occurred_on: string;
+  description: string | null;
+  created_by_name: string | null;
+}
+
 export interface SetupPayload {
   start_date: string;
   cash_balance: number;
@@ -72,6 +82,13 @@ export const transferBetweenAccounts = async (body: {
   from_account_id: number; to_account_id: number; amount: number; description?: string; occurred_on?: string;
 }): Promise<FinanceOverview> => (await api.post<FinanceOverview>('/finance/transfers', body)).data;
 
+export const listTransfers = async (): Promise<AccountTransfer[]> =>
+  (await api.get<AccountTransfer[]>('/finance/transfers', { headers: { 'X-Skip-Loading': 'true' } })).data;
+
+/** Apaga a transferência lançada errado: as duas contas voltam ao que eram. */
+export const deleteTransfer = async (id: number): Promise<FinanceOverview> =>
+  (await api.delete<FinanceOverview>(`/finance/transfers/${id}`)).data;
+
 export const listPayables = async (status?: 'open' | 'paid' | 'canceled'): Promise<PayableList> =>
   (await api.get<PayableList>('/finance/payables', { params: status ? { status } : undefined, headers: { 'X-Skip-Loading': 'true' } })).data;
 
@@ -80,6 +97,10 @@ export const createPayable = async (body: { description: string; amount: number;
 
 export const payPayable = async (id: number, accountId: number, paidOn?: string): Promise<Payable> =>
   (await api.post<Payable>(`/finance/payables/${id}/pay`, { account_id: accountId, paid_on: paidOn })).data;
+
+/** Desfaz o pagamento: a conta volta para em aberto e o dinheiro volta para a conta de onde saiu. */
+export const unpayPayable = async (id: number): Promise<Payable> =>
+  (await api.post<Payable>(`/finance/payables/${id}/unpay`)).data;
 
 export const cancelPayable = async (id: number): Promise<Payable> =>
   (await api.post<Payable>(`/finance/payables/${id}/cancel`)).data;

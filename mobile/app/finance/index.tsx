@@ -12,6 +12,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 
 import PageHeader from '@/components/layout/PageHeader';
 import BottomSheet from '@/components/ui/BottomSheet';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
@@ -22,7 +23,8 @@ import { formatCurrency, formatDate } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { moneyInput, parseMoneyBr } from '@/utils/cashMoney';
 import {
-  addBankAccount, getFinanceOverview, listPayables, setPixAccount, transferBetweenAccounts, type FinanceAccount,
+  addBankAccount, deleteTransfer, getFinanceOverview, listPayables, listTransfers, setPixAccount, transferBetweenAccounts,
+  type AccountTransfer, type FinanceAccount,
 } from '@/services/financeService';
 
 const ICON: Record<string, keyof typeof Ionicons.glyphMap> = { cash: 'cash-outline', bank: 'business-outline', card: 'card-outline' };
@@ -43,6 +45,8 @@ export default function FinanceScreen() {
     queryKey: ['finance-payables', 'open'], queryFn: () => listPayables('open'), enabled: !!data?.started,
   });
 
+  const { data: transfers } = useQuery({ queryKey: ['finance-transfers'], queryFn: listTransfers, enabled: !!data?.started });
+  const [removing, setRemoving] = useState<AccountTransfer | null>(null);
   const [transfer, setTransfer] = useState<{ from: number | null; to: number | null; amount: string; note: string } | null>(null);
   const [newBank, setNewBank] = useState<{ name: string; amount: string } | null>(null);
   const [sheetError, setSheetError] = useState('');
@@ -61,6 +65,10 @@ export default function FinanceScreen() {
     mutationFn: () => addBankAccount(newBank!.name.trim(), parseMoneyBr(newBank!.amount) ?? 0, false),
     onSuccess: async () => { setNewBank(null); await refresh(); },
     onError: (e) => setSheetError(parseApiError(e) || 'Não foi possível criar a conta.'),
+  });
+  const doRemove = useMutation({
+    mutationFn: (id: number) => deleteTransfer(id),
+    onSuccess: async () => { setRemoving(null); await refresh(); },
   });
   const doPix = useMutation({
     mutationFn: (id: number) => setPixAccount(id),
@@ -153,7 +161,32 @@ export default function FinanceScreen() {
             <Text style={styles.overdue}>{payables.overdue_count} vencida(s): {formatCurrency(payables.overdue_total)}</Text>
           )}
         </TouchableOpacity>
+
+        {!!transfers?.length && (
+          <View style={styles.card}>
+            <Text style={styles.title}>Últimas transferências</Text>
+            {transfers.slice(0, 10).map((t) => (
+              <View key={t.id} style={styles.transferRow}>
+                <View style={{ flex: 1, gap: 2 }}>
+                  <Text style={styles.transferText} numberOfLines={1}>{name(t.from_account_id)} → {name(t.to_account_id)}</Text>
+                  <Text style={styles.accountKind} numberOfLines={1}>
+                    {formatDate(t.occurred_on)}{t.description ? ` · ${t.description}` : ''}
+                  </Text>
+                </View>
+                <Text style={styles.transferText}>{formatCurrency(t.amount)}</Text>
+                <TouchableOpacity onPress={() => setRemoving(t)} hitSlop={8} accessibilityRole="button"
+                  accessibilityLabel={`Apagar transferência de ${formatCurrency(t.amount)}`}>
+                  <Ionicons name="trash-outline" size={18} color={Colors.light.textTertiary} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
       </ScrollView>
+
+      <ConfirmDialog visible={!!removing} title="Apagar esta transferência?" type="warning" confirmText="Apagar" cancelText="Voltar"
+        message={removing ? `${formatCurrency(removing.amount)} de ${name(removing.from_account_id)} para ${name(removing.to_account_id)}. As duas contas voltam ao saldo de antes.` : ''}
+        loading={doRemove.isPending} onConfirm={() => removing && doRemove.mutate(removing.id)} onCancel={() => setRemoving(null)} />
 
       <BottomSheet
         visible={!!transfer}
@@ -276,6 +309,8 @@ const styles = StyleSheet.create({
   accountName: { fontSize: 15, fontWeight: '800', color: Colors.light.text },
   accountKind: { fontSize: 12, color: Colors.light.textSecondary },
   balance: { fontSize: 20, fontWeight: '800', color: Colors.light.text },
+  transferRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
+  transferText: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
   overdue: { fontSize: 13, fontWeight: '700', color: Colors.light.error },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   chip: { borderWidth: 1.5, borderColor: Colors.light.border, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },

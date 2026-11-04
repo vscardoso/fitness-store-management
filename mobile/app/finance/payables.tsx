@@ -20,7 +20,7 @@ import { formatCurrency, formatDate } from '@/utils/format';
 import { parseApiError } from '@/utils/apiError';
 import { moneyInput, parseMoneyBr } from '@/utils/cashMoney';
 import {
-  cancelPayable, createPayable, getFinanceOverview, isoDay, listPayables, payPayable, type Payable,
+  cancelPayable, createPayable, getFinanceOverview, isoDay, listPayables, payPayable, unpayPayable, type Payable,
 } from '@/services/financeService';
 
 type Filter = 'open' | 'paid' | 'canceled';
@@ -40,6 +40,7 @@ export default function PayablesScreen() {
   const [form, setForm] = useState<{ description: string; amount: string; due: Date | undefined } | null>(null);
   const [paying, setPaying] = useState<{ p: Payable; account: number | null; day: Date | undefined } | null>(null);
   const [canceling, setCanceling] = useState<Payable | null>(null);
+  const [unpaying, setUnpaying] = useState<Payable | null>(null);
   const [sheetError, setSheetError] = useState('');
 
   const refresh = () => queryClient.invalidateQueries();
@@ -56,6 +57,11 @@ export default function PayablesScreen() {
   const doCancel = useMutation({
     mutationFn: (id: number) => cancelPayable(id),
     onSuccess: async () => { setCanceling(null); await refresh(); },
+  });
+
+  const doUnpay = useMutation({
+    mutationFn: (id: number) => unpayPayable(id),
+    onSuccess: async () => { setUnpaying(null); await refresh(); },
   });
 
   const items = data?.items ?? [];
@@ -120,6 +126,12 @@ export default function PayablesScreen() {
                   </Button>
                 </View>
               )}
+              {p.status === 'paid' && (
+                <Button mode="text" compact textColor={Colors.light.textSecondary} onPress={() => setUnpaying(p)}
+                  accessibilityLabel={`Desfazer pagamento de ${p.description}`}>
+                  Desfazer pagamento
+                </Button>
+              )}
             </View>
           </View>
         ))}
@@ -166,6 +178,10 @@ export default function PayablesScreen() {
       <ConfirmDialog visible={!!canceling} title="Cancelar esta conta?" type="warning" confirmText="Cancelar conta" cancelText="Voltar"
         message={canceling ? `${canceling.description}: ${formatCurrency(canceling.amount)}. Ela sai das contas em aberto e não mexe em nenhum saldo.` : ''}
         loading={doCancel.isPending} onConfirm={() => canceling && doCancel.mutate(canceling.id)} onCancel={() => setCanceling(null)} />
+
+      <ConfirmDialog visible={!!unpaying} title="Desfazer o pagamento?" type="warning" confirmText="Desfazer" cancelText="Voltar"
+        message={unpaying ? `${unpaying.description}: ${formatCurrency(unpaying.amount)} volta para ${accounts.find((a) => a.id === unpaying.paid_account_id)?.name ?? 'a conta'} e a conta fica em aberto de novo.` : ''}
+        loading={doUnpay.isPending} onConfirm={() => unpaying && doUnpay.mutate(unpaying.id)} onCancel={() => setUnpaying(null)} />
     </View>
   );
 }

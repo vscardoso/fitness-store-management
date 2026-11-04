@@ -71,6 +71,15 @@ async def transfer(data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(
         raise _http(e)
 
 
+@router.delete("/transfers/{transfer_id}", summary="Apagar transferência lançada errado")
+async def delete_transfer(transfer_id: int, db: AsyncSession = Depends(get_db),
+                          tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceService(db).delete_transfer(tenant_id, transfer_id)
+    except FinanceError as e:
+        raise _http(e)
+
+
 @router.get("/payables", summary="Contas a pagar")
 async def payables(status: Optional[str] = Query(None), db: AsyncSession = Depends(get_db),
                    tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
@@ -91,6 +100,15 @@ async def pay_payable(payable_id: int, data: Dict[str, Any] = Body(...), db: Asy
                       tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
     try:
         return await FinanceService(db).pay_payable(tenant_id, payable_id, data)
+    except FinanceError as e:
+        raise _http(e)
+
+
+@router.post("/payables/{payable_id}/unpay", summary="Desfazer pagamento (volta para em aberto)")
+async def unpay_payable(payable_id: int, db: AsyncSession = Depends(get_db),
+                        tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceService(db).unpay_payable(tenant_id, payable_id)
     except FinanceError as e:
         raise _http(e)
 
