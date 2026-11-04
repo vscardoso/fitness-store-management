@@ -126,5 +126,5 @@ export function useListGrid(minCard = 340, gap = 12, padX = 16) {
     if (!cardW) return render;
     return (info: T) => createElement(View, { style: { width: cardW } }, render(info));
   }
-  return { listProps, listKey: isDesktop ? `grade-${cols}` : undefined, wrap, cols };
+  return { listProps, listKey: isDesktop ? `grade-${cols}` : undefined, wrap, cols, inner };
 }

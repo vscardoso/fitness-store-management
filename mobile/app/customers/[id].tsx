@@ -30,6 +30,7 @@ import { parseApiError } from '@/utils/apiError';
 import { useAuth } from '@/hooks/useAuth';
 import { isAdminRole, isManagerRole, normalizeRole } from '@/utils/roles';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import FormGrid from '@/components/layout/FormGrid';
 
 export default function CustomerDetailsScreen() {
   const desktopContent = useDesktopContentStyle();
@@ -268,6 +269,7 @@ export default function CustomerDetailsScreen() {
           </TouchableOpacity>
         </View>
 
+        <FormGrid>
         {/* Informações de Contato */}
         <View style={styles.card}>
             <View style={styles.cardHeader}>
@@ -406,6 +408,8 @@ export default function CustomerDetailsScreen() {
               </Text>
             </View>
         </View>
+        </FormGrid>
+
         {/* Histórico de Compras */}
         <View style={styles.card}>
             <View style={styles.cardHeader}>

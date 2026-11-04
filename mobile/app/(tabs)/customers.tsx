@@ -112,7 +112,7 @@ export default function CustomersScreen() {
   // ── Item de cliente ──
   const renderCustomer = ({ item }: { item: Customer }) => (
     <TouchableOpacity
-      style={[styles.cardWrapper, listGrid.cols > 2 && { width: `${100 / listGrid.cols - 2}%` as any }]}
+      style={[styles.cardWrapper, listGrid.cols > 2 && { width: Math.floor(listGrid.inner / listGrid.cols) - 12 }]}
       onPress={() => router.push(`/customers/${item.id}`)}
       activeOpacity={0.7}
     >
