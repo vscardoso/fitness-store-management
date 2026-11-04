@@ -11,8 +11,10 @@ import { Colors } from '@/constants/Colors';
 import { getProductById } from '@/services/productService';
 import { getProductVariants } from '@/services/productVariantService';
 import { variantCodeText } from '@/utils/shortCode';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function ProductLabelScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const { id, variantId } = useLocalSearchParams<{ id: string; variantId?: string }>();
   const { goBack } = useBackToList('/(tabs)/products');
   const queryClient = useQueryClient();
@@ -46,6 +48,8 @@ export default function ProductLabelScreen() {
   return (
     <View style={styles.container}>
       <PageHeader title="Etiquetas" subtitle={product?.name ?? ''} showBackButton onBack={goBack} />
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
       {isLoading || !product ? (
         <View style={styles.center}><Text style={styles.muted}>Carregando...</Text></View>
       ) : (
@@ -56,6 +60,7 @@ export default function ProductLabelScreen() {
           onGenerated={() => queryClient.invalidateQueries({ queryKey: ['product-variants', id] })}
         />
       )}
+      </View>
     </View>
   );
 }

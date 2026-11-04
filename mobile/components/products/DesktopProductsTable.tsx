@@ -249,7 +249,8 @@ export default function DesktopProductsTable() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#F6F5FA' },
-  body: { flex: 1, padding: 20, gap: 12 },
+  // no PC largo as colunas espalhavam por 1.800 px: tabela até 1.280 px, centralizada
+  body: { flex: 1, padding: 20, gap: 12, width: '100%', maxWidth: 1280, alignSelf: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
   toolbar: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8, height: 44, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: LINE, backgroundColor: '#FFFFFF' },

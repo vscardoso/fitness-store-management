@@ -10,8 +10,10 @@ import useBackToList from '@/hooks/useBackToList';
 import { Colors } from '@/constants/Colors';
 import { variantCodeText } from '@/utils/shortCode';
 import { getProductVariants } from '@/services/productVariantService';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function LabelStudioScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const { goBack } = useBackToList('/(tabs)/products');
   const [picked, setPicked] = useState<PickedItem[]>([]);
   const [open, setOpen] = useState(false);
@@ -51,6 +53,8 @@ export default function LabelStudioScreen() {
   return (
     <View style={styles.container}>
       <PageHeader title="Estúdio de etiquetas" subtitle="Escolha as peças e as quantidades" showBackButton onBack={goBack} />
+      {/* notebook: corpo da tela numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
       <StickerStudio
         items={items}
         onAddMore={() => setOpen(true)}
@@ -62,6 +66,7 @@ export default function LabelStudioScreen() {
         onConfirm={(all, ids) => { onConfirm(all, ids); setOpen(false); }}
         alreadyAdded={new Set(picked.map((p) => `${p.product.id}_${p.variant.id}`))}
       />
+      </View>
     </View>
   );
 }

@@ -85,3 +85,5 @@ O app web é o layout do celular esticado:
 - Botão (+) flutuante vira botão com texto no notebook ("Novo cliente", "Nova entrada"...; texto pela rota em `ROUTE_LABELS` do `FAB.tsx` ou `label`). Fornecedores usava um (+) próprio: no notebook usa o do app.
 - Tela antiga de Relatórios: saíram "Relatório de Inventário" (só dizia "em desenvolvimento") e "Meu Perfil" (aparece só com a chave `meuPerfil`); Notificações e Ajuda abrem as telas de verdade.
 - Verificado: 26 telas em 390 px iguais pixel a pixel à versão anterior (só Relatórios mudou, de propósito); fotos em 1920 px; checkout com peça no carrinho; `tsc` 0.
+
+**Revisão do notebook, parte 3 (2026-11-04, Produtos e Vendas):** tabelas de Produtos e Vendas limitadas a 1.280 px centralizadas (em 1920 px as colunas ficavam com vãos enormes entre nome, categoria e preço); Estúdio de etiquetas, Etiquetas do produto e Novo Produto (assistente) na coluna central de 960 px. Ficha do produto, ficha da venda e PDV já estavam bons. Celular: 5 telas em 390 px iguais pixel a pixel.

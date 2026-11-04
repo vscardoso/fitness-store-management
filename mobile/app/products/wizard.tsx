@@ -37,8 +37,10 @@ import WizardStep3 from '@/components/products/WizardStep3';
 import WizardComplete from '@/components/products/WizardComplete';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { logError } from '@/services/debugLog';
+import { useDesktopContentStyle } from '@/hooks/useLayout';
 
 export default function ProductWizardScreen() {
+  const desktopColumn = useDesktopContentStyle();
   const router = useRouter();
   const { goBack } = useBackToList('/(tabs)/products');
   const brandingColors = useBrandingColors();
@@ -427,6 +429,9 @@ export default function ProductWizardScreen() {
         </LinearGradient>
       </View>
 
+      {/* notebook: passos e conteúdo numa coluna central (no celular é só uma View com flex 1) */}
+      <View style={[{ flex: 1 }, desktopColumn]}>
+
       {/* Stepper */}
       {state.currentStep !== 'complete' && (
         <WizardStepper
@@ -516,6 +521,7 @@ export default function ProductWizardScreen() {
           onCancel={wizard.clearWizardDialog}
         />
       )}
+      </View>
     </View>
   );
 }
