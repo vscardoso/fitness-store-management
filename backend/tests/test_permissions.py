@@ -123,6 +123,9 @@ def test_matriz_nunca_e_mais_frouxa_que_o_guard_da_rota():
     ("POST", "/api/v1/auth/register", ["admin"]),
     ("GET", "/api/v1/auth/me", ROLES),
     ("GET", "/api/v1/notifications/inbox", ROLES),
+    ("GET", "/api/v1/whatsapp/connect/status", ["admin"]),
+    ("POST", "/api/v1/whatsapp/connect/embedded-signup", ["admin"]),
+    ("GET", "/api/v1/whatsapp/conversations", ["seller", "manager", "admin"]),
 ])
 async def test_papeis_por_rota(test_client, async_session, test_user, method, path, quem):
     from app.models.user import User, UserRole

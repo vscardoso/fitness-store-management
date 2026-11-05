@@ -188,6 +188,12 @@ class Settings(BaseSettings):
     WHATSAPP_CLOUD_PHONE_NUMBER_ID: str = ""
     WHATSAPP_CLOUD_WABA_ID: str = ""
     WHATSAPP_CLOUD_API_VERSION: str = "v23.0"
+    # Embedded Signup (loja liga o próprio número, inclusive coexistência com o app do celular).
+    WHATSAPP_CLOUD_APP_ID: str = ""         # ID do app na Meta (não é segredo); vazio = conexão pela tela desligada
+    WHATSAPP_CLOUD_ES_CONFIG_ID: str = ""   # ID da configuração do Embedded Signup (Login do Facebook para Empresas)
+    # Chave Fernet que cifra o token de negócio de cada loja. Vazio = derivada do SECRET_KEY
+    # (trocar o SECRET_KEY torna os tokens guardados ilegíveis: a loja precisa conectar de novo).
+    WHATSAPP_TOKEN_ENCRYPTION_KEY: str = ""
 
     # Notificações do app instalado (Web Push). Sem as chaves, o envio fica desligado (não quebra nada).
     # Gerar: python scripts/gerar_chaves_vapid.py ; valores só no .env.prod do VPS

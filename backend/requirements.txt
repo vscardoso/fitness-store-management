@@ -59,3 +59,4 @@ openpyxl==3.1.5  # importação de estoque por planilha (XLSX)
 sqladmin>=0.32.0
 itsdangerous>=2.0.0
 pywebpush==2.5.0
+cryptography>=42.0.0  # Fernet: token de negócio do WhatsApp de cada loja cifrado no banco (app/core/secret_box.py)

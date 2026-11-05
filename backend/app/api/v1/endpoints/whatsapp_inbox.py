@@ -47,8 +47,9 @@ def _conv(c: WhatsAppConversation, last: Optional[WhatsAppMessage] = None, custo
     return {
         "id": c.id,
         "customer_id": cust[0] if cust else None,
-        "name": (cust[1] if cust else None) or c.profile_name or c.phone or "Contato sem telefone",
+        "name": (cust[1] if cust else None) or c.contact_name or c.profile_name or c.phone or "Contato sem telefone",
         "phone": c.phone,
+        "contact_name": c.contact_name,   # nome na agenda do celular da loja (coexistência)
         "profile_name": c.profile_name,   # nome que a pessoa pôs no perfil do WhatsApp (pode não ser nome de gente)
         "unread_count": c.unread_count or 0,
         "last_message_at": c.last_message_at,
@@ -77,6 +78,7 @@ def _msg(m: WhatsAppMessage) -> dict:
     return {
         "id": m.id, "direction": m.direction, "type": m.msg_type, "text": m.text,
         "status": m.status, "sent_at": m.sent_at, "has_error": bool(m.error), "media": _media_info(m),
+        "source": m.source,   # api, phone_app (mandada pelo celular), history (importada) ou nulo (recebida)
     }
 
 
@@ -96,7 +98,8 @@ async def list_conversations(
         like = f"%{term}%"
         digits = "".join(ch for ch in term if ch.isdigit())
         by_name = [ph for ph, (_, nm) in customers.items() if nm and term.lower() in nm.lower()]
-        conds = [WhatsAppConversation.profile_name.ilike(like), WhatsAppConversation.phone.in_(by_name or [""])]
+        conds = [WhatsAppConversation.profile_name.ilike(like), WhatsAppConversation.contact_name.ilike(like),
+                 WhatsAppConversation.phone.in_(by_name or [""])]
         if digits:
             conds.append(WhatsAppConversation.phone.like(f"%{digits}%"))
         query = query.where(or_(*conds))

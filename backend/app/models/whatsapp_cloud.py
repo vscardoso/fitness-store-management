@@ -28,6 +28,23 @@ class WhatsAppCloudNumber(BaseModel):
     away_enabled = Column(Boolean, nullable=False, default=False, server_default=expression.false())
     away_text = Column(Text, nullable=True)
     business_hours = Column(Text, nullable=True)  # JSON {"mon": [["09:00","18:00"]], ... "sun": []}; nulo = sem horário (sempre aberto)
+    # Coexistência (WhatsApp Business app do celular + Cloud API no mesmo número, ligado pelo Embedded Signup).
+    # Número em coexistência: o celular da loja tem a própria saudação/ausência, então as do Provador NÃO disparam.
+    is_coexistence = Column(Boolean, nullable=False, default=False, server_default=expression.false())
+    business_id = Column(String(64), nullable=True)            # portfólio empresarial da loja na Meta (não é segredo)
+    # Token de negócio da loja (troca do código do Embedded Signup). CIFRADO (app/core/secret_box.py);
+    # nunca vai em resposta de API nem em log.
+    access_token_encrypted = Column(Text, nullable=True)
+    connected_at = Column(DateTime(timezone=True), nullable=True)
+    connection_status = Column(String(20), nullable=True)      # connected, disconnected, attention (nulo = ligado à mão)
+    connection_event = Column(String(60), nullable=True)       # último evento do account_update (ex.: PARTNER_REMOVED)
+    connection_event_at = Column(DateTime(timezone=True), nullable=True)
+    connection_detail = Column(Text, nullable=True)            # JSON resumido do evento (motivo da desconexão etc.)
+    contacts_sync_requested_at = Column(DateTime(timezone=True), nullable=True)  # smb_app_data smb_app_state_sync (1 vez)
+    history_sync_requested_at = Column(DateTime(timezone=True), nullable=True)   # smb_app_data history (1 vez)
+    history_sync_status = Column(String(20), nullable=True)    # requested, receiving, done, declined
+    history_sync_progress = Column(Integer, nullable=True)     # 0 a 100 da última fase recebida
+    history_sync_phase = Column(Integer, nullable=True)        # 0, 1 ou 2 (a Meta manda o histórico em 3 fases)
 
 
 class WhatsAppConversation(BaseModel):
@@ -50,6 +67,7 @@ class WhatsAppConversation(BaseModel):
     unread_count = Column(Integer, nullable=False, default=0)
     last_greeting_at = Column(DateTime(timezone=True), nullable=True)  # trava da saudação: 1 por janela de 24 h
     last_away_at = Column(DateTime(timezone=True), nullable=True)      # trava da ausência: 1 por janela de 24 h
+    contact_name = Column(String(255), nullable=True)  # nome salvo na agenda do celular da loja (coexistência)
 
     messages = relationship("WhatsAppMessage", back_populates="conversation")
 
@@ -75,8 +93,27 @@ class WhatsAppMessage(BaseModel):
     pricing_type = Column(String(40), nullable=True)       # regular, free_customer_service, free_entry_point...
     pricing_model = Column(String(16), nullable=True)      # CBP (por conversa) ou PMP (por mensagem)
     pricing_raw = Column(Text, nullable=True)              # JSON do `pricing` como a Meta mandou
+    # De onde veio: api (enviada pelo Provador), phone_app (enviada pelo celular da loja, eco da coexistência),
+    # history (histórico importado na coexistência). Nulo = recebida pelo webhook normal (ou anterior a esta coluna).
+    source = Column(String(12), nullable=True)
 
     conversation = relationship("WhatsAppConversation", back_populates="messages")
+
+
+class WhatsAppContact(BaseModel):
+    """Contato da agenda do celular da loja (coexistência, webhook smb_app_state_sync).
+
+    "remove" no celular só desativa a linha (nunca apaga); o nome fica nas conversas que já tinham.
+    """
+    __tablename__ = "whatsapp_contacts"
+    __table_args__ = (UniqueConstraint("number_id", "phone", name="uq_whatsapp_contact_phone"),)
+
+    tenant_id = Column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
+    number_id = Column(Integer, ForeignKey("whatsapp_cloud_numbers.id"), nullable=False, index=True)
+    phone = Column(String(20), nullable=False)          # normalizado (normalize_phone)
+    full_name = Column(String(255), nullable=True)
+    first_name = Column(String(120), nullable=True)
+    synced_at = Column(DateTime(timezone=True), nullable=True)
 
 
 class WhatsAppQuickReply(BaseModel):

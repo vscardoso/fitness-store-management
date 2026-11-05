@@ -109,6 +109,8 @@ class ProcessResult:
     greetings: list[tuple] = field(default_factory=list)  # (tenant_id, conversation_id) a saudar depois do commit
     aways: list[tuple] = field(default_factory=list)      # idem, para a mensagem de ausência
     pushes: list[tuple] = field(default_factory=list)     # (tenant_id, conversation_id, nome, texto): notificação do app
+    contacts_synced: int = 0                              # agenda do celular (coexistência)
+    account_updates: int = 0                              # eventos de conexão do número (account_update)
 
 
 async def _find_number(db: AsyncSession, phone_number_id: Optional[str]) -> Optional[WhatsAppCloudNumber]:
@@ -202,7 +204,8 @@ async def _save_inbound(db: AsyncSession, number: WhatsAppCloudNumber, msg: dict
     await db.flush()
     result.messages_saved += 1
     result.pushes.append((number.tenant_id, conv.id, profile_name or conv.profile_name or conv.phone or "Cliente", message_text(msg) or ""))
-    if opens_window and str(msg.get("type") or "") not in GREETING_SKIP_TYPES:
+    # Coexistência: o celular da loja tem saudação e ausência próprias; as do Provador nunca disparam.
+    if opens_window and not number.is_coexistence and str(msg.get("type") or "") not in GREETING_SKIP_TYPES:
         # Fora do horário comercial (com a ausência ligada) vale SÓ a ausência; no horário vale a saudação.
         if away_applies(number, sent_at):
             if await _claim_away(db, number, conv, sent_at):
@@ -268,11 +271,32 @@ async def process_payload(db: AsyncSession, payload: dict) -> ProcessResult:
     result = ProcessResult()
     if payload.get("object") != "whatsapp_business_account":
         return result
+    from app.services import whatsapp_coexistence_service as coex
+
     for entry in payload.get("entry") or []:
+        if not isinstance(entry, dict):
+            continue
         for change in entry.get("changes") or []:
-            if change.get("field") != "messages":
+            if not isinstance(change, dict):
                 continue
+            fld = change.get("field")
             value = change.get("value") or {}
+            if not isinstance(value, dict):
+                continue
+            if fld == "account_update":
+                await coex.handle_account_update(db, entry.get("id"), value, result)
+                continue
+            if fld in COEXISTENCE_FIELDS:
+                pnid = (value.get("metadata") or {}).get("phone_number_id")
+                number = await _find_number(db, pnid)
+                if number is None:
+                    logger.warning("WhatsApp Cloud: %s de phone_number_id %s sem loja vinculada, ignorado", fld, pnid)
+                    result.unknown_numbers.append(str(pnid))
+                    continue
+                await COEXISTENCE_FIELDS[fld](coex)(db, number, value, result)
+                continue
+            if fld != "messages":
+                continue
             pnid = (value.get("metadata") or {}).get("phone_number_id")
             number = await _find_number(db, pnid)
             if number is None:
@@ -285,6 +309,14 @@ async def process_payload(db: AsyncSession, payload: dict) -> ProcessResult:
             for st in value.get("statuses") or []:
                 await _apply_status(db, number, st, result)
     return result
+
+
+# Campos da coexistência (celular da loja + Cloud API) -> função de whatsapp_coexistence_service
+COEXISTENCE_FIELDS = {
+    "smb_message_echoes": lambda m: m.handle_echoes,
+    "history": lambda m: m.handle_history,
+    "smb_app_state_sync": lambda m: m.handle_state_sync,
+}
 
 
 # ── saudação automática ───────────────────────────────────────────────────────
@@ -451,8 +483,8 @@ async def _send_automatic(tenant_id: int, conversation_id: int, enabled_attr: st
                 number = (await db.execute(select(WhatsAppCloudNumber).where(
                     WhatsAppCloudNumber.id == conv.number_id))).scalar_one_or_none() if conv else None
                 text = (getattr(number, text_attr) or "").strip() if number else ""
-                if not number or not getattr(number, enabled_attr) or not text:
-                    return  # desligada (ou apagada) entre o recebimento e o envio
+                if not number or not getattr(number, enabled_attr) or not text or number.is_coexistence:
+                    return  # desligada (ou apagada) entre o recebimento e o envio; coexistência usa a do celular
                 await send_text(db, tenant_id, conversation_id, text)
                 await db.commit()
             except Exception:
@@ -534,6 +566,7 @@ def _record_out(db: AsyncSession, tenant_id: int, conv: WhatsAppConversation, da
     msg = WhatsAppMessage(
         tenant_id=tenant_id, conversation_id=conv.id, wamid=wamid, direction="out", msg_type=msg_type,
         text=text, payload=json.dumps(payload, ensure_ascii=False), sent_at=now, status="sent", status_at=now,
+        source="api",
     )
     db.add(msg)
     conv.last_message_at = _later(conv.last_message_at, now)

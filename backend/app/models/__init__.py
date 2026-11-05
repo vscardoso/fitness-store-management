@@ -32,8 +32,8 @@ from .pix_transaction import PixTransaction
 from .label_printer import LabelPrinter, ConnectionType, PrinterProtocol
 from .print_job import PrintJob, PrintJobStatus
 from .whatsapp_cloud import (
-    WhatsAppCloudNumber, WhatsAppConversation, WhatsAppConversationLabel, WhatsAppLabel, WhatsAppMessage,
-    WhatsAppQuickReply,
+    WhatsAppCloudNumber, WhatsAppContact, WhatsAppConversation, WhatsAppConversationLabel, WhatsAppLabel,
+    WhatsAppMessage, WhatsAppQuickReply,
 )
 from .legal_acceptance import LegalAcceptance
 from .catalog_counter import CatalogCounter
@@ -153,4 +153,5 @@ __all__ = [
     "CatalogCounter",
     "WhatsAppConversation",
     "WhatsAppMessage",
+    "WhatsAppContact",
 ]

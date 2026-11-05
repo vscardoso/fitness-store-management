@@ -26,7 +26,7 @@ from app.models.product_variant import ProductVariant
 from app.models.sale import Sale, SaleItem
 from app.models.sale_return import SaleReturn
 from app.models.store import Store
-from app.models.whatsapp_cloud import WhatsAppConversation, WhatsAppMessage
+from app.models.whatsapp_cloud import WhatsAppContact, WhatsAppConversation, WhatsAppMessage
 from app.models.wishlist import Wishlist
 from app.services.audit_service import AuditService
 
@@ -220,6 +220,7 @@ async def export_customer(db: AsyncSession, tenant_id: int, customer_id: int) ->
             {
                 "telefone": c.phone,
                 "nome_no_whatsapp": c.profile_name,
+                "nome_na_agenda_da_loja": c.contact_name,
                 "mensagens": [
                     {"data": _iso(m.sent_at or m.created_at), "de": "cliente" if m.direction == "in" else "loja",
                      "tipo": m.msg_type, "texto": m.text}
@@ -277,6 +278,15 @@ async def anonymize_customer(db: AsyncSession, tenant_id: int, customer_id: int)
         update(Look).where(Look.tenant_id == tenant_id, Look.customer_id == customer_id).values(customer_id=None)
     )).rowcount
     for conv in conversations:
+        if conv.phone:
+            # agenda do celular da loja (coexistência): apaga o nome e o telefone desse contato
+            await db.execute(
+                update(WhatsAppContact).where(
+                    WhatsAppContact.tenant_id == tenant_id, WhatsAppContact.number_id == conv.number_id,
+                    WhatsAppContact.phone == conv.phone,
+                ).values(full_name=None, first_name=None, phone=f"anonimizado-{conv.id}", is_active=False)
+            )
+        conv.contact_name = None
         conv.phone = None
         conv.wa_id = None
         conv.bsuid = None

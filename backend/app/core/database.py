@@ -207,11 +207,16 @@ _SQLITE_EXTRA_COLUMNS = {
     "whatsapp_cloud_numbers": [
         ("greeting_enabled", "BOOLEAN NOT NULL DEFAULT 0"), ("greeting_text", "TEXT"),
         ("away_enabled", "BOOLEAN NOT NULL DEFAULT 0"), ("away_text", "TEXT"), ("business_hours", "TEXT"),
+        ("is_coexistence", "BOOLEAN NOT NULL DEFAULT 0"), ("business_id", "VARCHAR(64)"),
+        ("access_token_encrypted", "TEXT"), ("connected_at", "DATETIME"), ("connection_status", "VARCHAR(20)"),
+        ("connection_event", "VARCHAR(60)"), ("connection_event_at", "DATETIME"), ("connection_detail", "TEXT"),
+        ("contacts_sync_requested_at", "DATETIME"), ("history_sync_requested_at", "DATETIME"),
+        ("history_sync_status", "VARCHAR(20)"), ("history_sync_progress", "INTEGER"), ("history_sync_phase", "INTEGER"),
     ],
-    "whatsapp_conversations": [("last_greeting_at", "DATETIME"), ("last_away_at", "DATETIME")],
+    "whatsapp_conversations": [("last_greeting_at", "DATETIME"), ("last_away_at", "DATETIME"), ("contact_name", "VARCHAR(255)")],
     "whatsapp_messages": [
         ("pricing_billable", "BOOLEAN"), ("pricing_category", "VARCHAR(40)"), ("pricing_type", "VARCHAR(40)"),
-        ("pricing_model", "VARCHAR(16)"), ("pricing_raw", "TEXT"),
+        ("pricing_model", "VARCHAR(16)"), ("pricing_raw", "TEXT"), ("source", "VARCHAR(12)"),
     ],
 }
 
