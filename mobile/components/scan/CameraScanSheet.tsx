@@ -16,6 +16,7 @@ import PageHeader from '@/components/layout/PageHeader';
 import { Colors } from '@/constants/Colors';
 import { createPresenceGate } from '@/utils/scanLogic';
 import { useScreenWakeLock } from '@/hooks/usePwaExtras';
+import WebQrCamera from './WebQrCamera';
 
 export interface CameraStatus {
   kind: 'ok' | 'warn' | 'error';
@@ -49,6 +50,8 @@ export default function CameraScanSheet({ visible, onClose, onCode, status, hint
     }
   }, [visible, gate]);
 
+  const onWebError = React.useCallback(() => setWebFailed(true), []);
+
   const handle = (result: BarcodeScanningResult) => {
     if (gate.accept(result.data, Date.now())) {
       onCode(result.data);
@@ -79,7 +82,9 @@ export default function CameraScanSheet({ visible, onClose, onCode, status, hint
         />
         </View>
         <View style={styles.cameraArea}>
-          {showCamera ? (
+          {showCamera && WEB ? (
+            <WebQrCamera onCode={(text) => handle({ data: text } as BarcodeScanningResult)} onError={onWebError} />
+          ) : showCamera ? (
             <CameraView
               style={StyleSheet.absoluteFill}
               onBarcodeScanned={handle}
@@ -123,7 +128,8 @@ const styles = StyleSheet.create({
   header: { zIndex: 2 },
   cameraArea: { flex: 1, backgroundColor: '#000', overflow: 'hidden', marginTop: -24 },
   frame: {
-    position: 'absolute', top: '30%', alignSelf: 'center', width: 240, height: 240, marginTop: -60,
+    // no meio da câmera: é o quadrado que o leitor do app web analisa (WebQrCamera lê o centro)
+    position: 'absolute', top: '50%', alignSelf: 'center', width: 240, height: 240, marginTop: -120,
     borderWidth: 3, borderColor: 'rgba(255,255,255,0.9)', borderRadius: 24,
   },
   banner: { position: 'absolute', left: 16, right: 16 },
