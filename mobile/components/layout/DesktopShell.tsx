@@ -14,7 +14,7 @@ import { useHelpStore } from '@/store/helpStore';
 import { useAppIconBadge } from '@/hooks/usePwaExtras';
 
 /** Telas sem barra lateral mesmo logado (termos, aceite) */
-const NO_SIDEBAR = ['/termos', '/privacidade', '/aceite-termos'];
+const NO_SIDEBAR = ['/termos', '/privacidade', '/exclusao-de-dados', '/aceite-termos'];
 
 export default function DesktopShell({ children }: { children: ReactNode }) {
   if (Platform.OS !== 'web') return <>{children}<HelpSheet /></>;

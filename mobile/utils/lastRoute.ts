@@ -8,7 +8,7 @@ const KEY = '@provador:ultima_tela';
 const MAX_AGE_MS = 12 * 60 * 60 * 1000;
 
 /** Telas a que nunca se volta sozinho: entrada, apresentação, termos e a própria raiz. */
-const SKIP = ['/', '/(auth)', '/login', '/onboarding', '/signup', '/aceite-termos', '/termos', '/privacidade', '/index'];
+const SKIP = ['/', '/(auth)', '/login', '/onboarding', '/signup', '/aceite-termos', '/termos', '/privacidade', '/exclusao-de-dados', '/index'];
 
 export function isRestorable(path: string): boolean {
   if (!path || SKIP.includes(path)) return false;

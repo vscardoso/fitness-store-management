@@ -11,6 +11,7 @@ export const HELP_EXCLUDED: Record<string, string> = {
   '/onboarding': 'apresentação antes do login',
   '/termos': 'página legal',
   '/privacidade': 'página legal',
+  '/exclusao-de-dados': 'página legal',
   '/aceite-termos': 'página legal',
   '/produtos/[id]': 'vitrine pública para a cliente',
   '/[...rest]': 'página não encontrada',

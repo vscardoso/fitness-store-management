@@ -170,3 +170,28 @@ export const PRIVACY: LegalSection[] = [
     ],
   },
 ];
+
+/** Instruções de exclusão de dados (página pública exigida pela Meta para o app do WhatsApp). */
+export const DATA_DELETION: LegalSection[] = [
+  {
+    title: '1. Quem pode pedir',
+    paragraphs: [
+      'A loja que usa o Provador, qualquer pessoa da equipe dela e qualquer cliente ou contato de WhatsApp de uma loja podem pedir a exclusão dos seus dados pessoais.',
+    ],
+  },
+  {
+    title: '2. Como pedir',
+    paragraphs: [
+      'Mande um e-mail para suporte@provadorfit.com.br com o assunto "Exclusão de dados", informando seu nome, o telefone ou e-mail usado e, se souber, o nome da loja.',
+      'Se você é cliente de uma loja, também pode pedir direto à loja: no Provador, a loja abre a sua ficha e usa "Anonimizar", que apaga nome, telefone, documento, endereço e as conversas de WhatsApp daquele número.',
+      'Se a sua loja conectou o WhatsApp ao Provador, desconectar o número (no WhatsApp Business: Configurações > Conta > Plataforma Business > Desconectar) interrompe o recebimento de novas mensagens; para apagar o que já foi guardado, faça o pedido acima.',
+    ],
+  },
+  {
+    title: '3. O que acontece depois',
+    paragraphs: [
+      'Confirmamos o recebimento e respondemos em até 15 dias. Os dados pessoais são apagados ou anonimizados.',
+      'Alguns registros podem ser mantidos pelo prazo que a lei exige (por exemplo, registros de vendas e fiscais da loja), sem que sejam usados para outra finalidade.',
+    ],
+  },
+];
