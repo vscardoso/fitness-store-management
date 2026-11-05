@@ -261,6 +261,117 @@ class ProductVariantService:
         logger.info(f"Variante atualizada: {variant.sku}")
         return variant
     
+    async def update_variants_bulk(self, product_id: int, items, tenant_id: int) -> List[int]:
+        """Grava as alterações de várias variações do MESMO produto numa transação só (tudo ou nada).
+
+        A conferência de tamanho x cor e de SKU é feita no estado FINAL de todas as variações do produto,
+        então trocar tamanhos entre duas variações funciona; qualquer conflito recusa tudo antes de gravar.
+        (05/11/2026: salvar uma por uma deixou o Macaquinho Tipo Lupo pela metade quando a 3ª deu conflito.)
+        """
+        from sqlalchemy import select, func as sa_func
+
+        rows = (await self.db.execute(select(ProductVariant).where(
+            ProductVariant.product_id == product_id, ProductVariant.tenant_id == tenant_id,
+        ))).scalars().all()
+        by_id = {v.id: v for v in rows}
+        seen = set()
+        for it in items:
+            if it.id not in by_id or not by_id[it.id].is_active:
+                raise ValueError("Variação não encontrada neste produto.")
+            if it.id in seen:
+                raise ValueError("A mesma variação veio duas vezes.")
+            seen.add(it.id)
+        merges = {it.id: it.merge_into for it in items if it.merge_into}
+        changes = {it.id: it.model_dump(exclude_unset=True, exclude={"id", "merge_into"})
+                   for it in items if not it.merge_into}
+        for src, dst in merges.items():
+            if dst == src or dst not in by_id or not by_id[dst].is_active or dst in merges:
+                raise ValueError("Não dá para juntar: a variação de destino não é válida.")
+
+        def label(v, size, color):
+            code = f" ({v.display_code})" if getattr(v, "display_code", None) else ""
+            return f"{color or 'sem cor'} · {size or 'ÚNICO'}{code}"
+
+        # estado final de tamanho x cor (inclui variações excluídas: a restrição do banco vale para elas também)
+        final = {}
+        for v in rows:
+            if v.id in merges:
+                continue   # vai ser desativada: não conta como repetida
+            ch = changes.get(v.id, {})
+            final[v.id] = (ch.get("size", v.size), ch.get("color", v.color))
+        taken = {}
+        for vid, (size, color) in final.items():
+            key = ((size or "").upper(), (color or "").upper())
+            if key in taken:
+                a, b = by_id[taken[key]], by_id[vid]
+                if not a.is_active or not b.is_active:
+                    raise ValueError(f"{color or 'Sem cor'} · {size or 'ÚNICO'} já foi usada numa variação excluída deste produto. Escolha outro tamanho ou cor.")
+                raise ValueError(f"Duas variações ficariam iguais: {label(a, size, color)} e {label(b, size, color)}. "
+                                 f"Mude o tamanho ou a cor de uma delas.")
+            taken[key] = vid
+
+        # SKU: único na loja, conferido no estado final
+        new_skus = {vid: ch["sku"].strip().upper() for vid, ch in changes.items() if ch.get("sku")}
+        if len(set(new_skus.values())) != len(new_skus):
+            raise ValueError("Duas variações ficariam com o mesmo SKU.")
+        for vid, sku in new_skus.items():
+            if sku == (by_id[vid].sku or "").upper():
+                continue
+            other = (await self.db.execute(select(ProductVariant.id).where(
+                ProductVariant.tenant_id == tenant_id, sa_func.upper(ProductVariant.sku) == sku,
+                ProductVariant.id.notin_(list(new_skus.keys())),
+            ))).first()
+            if other:
+                raise ValueError(f"O SKU {sku} já existe em outra peça da loja.")
+
+        if merges:
+            from app.models.conditional_shipment import ConditionalShipment, ConditionalShipmentItem
+            from app.models.entry_item import EntryItem
+            from app.services.stock_lock import lock_stock
+            from sqlalchemy import update as sa_update
+            await lock_stock(self.db, variant_ids=list(merges) + list(merges.values()))
+            aberto = (await self.db.execute(
+                select(ConditionalShipmentItem.id)
+                .join(ConditionalShipment, ConditionalShipment.id == ConditionalShipmentItem.shipment_id)
+                .where(ConditionalShipmentItem.variant_id.in_(list(merges)),
+                       ConditionalShipment.status.in_(["PENDING", "SENT", "OVERDUE"]))
+            )).first()
+            if aberto:
+                raise ValueError("Esta variação está num envio condicional em aberto. Feche o envio antes de juntar.")
+
+        try:
+            # juntar: as entradas da variação repetida passam para a outra (custo, data e entrada de cada peça
+            # ficam iguais, o FIFO continua o mesmo); a repetida é desativada e o SKU dela é liberado
+            for src, dst in merges.items():
+                await self.db.execute(sa_update(EntryItem).where(EntryItem.variant_id == src).values(variant_id=dst))
+                v = by_id[src]
+                v.is_active = False
+                if not (v.sku or "").endswith(f"_del_{src}"):
+                    v.sku = f"{v.sku}_del_{src}"
+            # 1ª passada: tira do caminho tamanho e SKU de quem muda (troca entre variações não bate na restrição)
+            for vid, ch in changes.items():
+                v = by_id[vid]
+                if "size" in ch or "color" in ch:
+                    v.size = f"~{vid}"[:20]
+                if vid in new_skus and new_skus[vid] != (v.sku or "").upper():
+                    v.sku = f"~TMP{vid}"
+            await self.db.flush()
+            for vid, ch in changes.items():
+                v = by_id[vid]
+                v.size = final[vid][0]
+                v.color = final[vid][1]
+                for key, value in ch.items():
+                    if key in ("size", "color"):
+                        continue
+                    setattr(v, key, value.strip().upper() if key == "sku" and isinstance(value, str) else value)
+            await self.db.flush()
+            await self.db.commit()
+        except Exception:
+            await self.db.rollback()
+            raise
+        logger.info("Variações do produto %s atualizadas em lote: %s; juntadas: %s", product_id, list(changes), merges)
+        return list(changes) + list(merges)
+
     async def get_variant(
         self,
         variant_id: int,

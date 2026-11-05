@@ -27,7 +27,7 @@ import { checkProductName, getProductById } from '@/services/productService';
 import { parseApiError } from '@/utils/apiError';
 import { capitalizeWords } from '@/utils/format';
 import { getProductStock } from '@/services/inventoryService';
-import { getProductVariants, updateVariant, formatVariantLabel } from '@/services/productVariantService';
+import { getProductVariants, updateVariantsBulk, formatVariantLabel, type VariantBulkItem } from '@/services/productVariantService';
 import { uploadProductImageWithFallback } from '@/services/uploadService';
 import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import type { ProductUpdate } from '@/types';
@@ -282,9 +282,40 @@ export default function EditProductScreen() {
   /**
    * Salvar variantes alteradas
    */
-  const saveVariantChanges = async () => {
+  // Variações que ficariam iguais (mesma cor e tamanho): a que foi mudada é juntada na que já era assim
+  type MergePair = { src: number; dst: number; label: string; srcCode: string; dstCode: string };
+  const [mergeAsk, setMergeAsk] = useState<MergePair[] | null>(null);
+
+  const findMerges = (): MergePair[] => {
+    if (!variants) return [];
+    const key = (s?: string | null, c?: string | null) => `${(c ?? '').trim().toUpperCase()}|${(s || 'ÚNICO').trim().toUpperCase()}`;
+    const finalOf = (v: any) => {
+      const e = variantEdits[v.id];
+      return { size: (e?.size ?? v.size) || 'ÚNICO', color: (e?.color ?? v.color) || '' };
+    };
+    const changed = (v: any) => key(finalOf(v).size, finalOf(v).color) !== key(v.size, v.color);
+    const seen = new Map<string, any>();
+    const pairs: MergePair[] = [];
+    for (const v of [...variants].filter((x) => x.is_active !== false).sort((a, b) => a.id - b.id)) {
+      const f = finalOf(v);
+      const k = key(f.size, f.color);
+      const other = seen.get(k);
+      if (!other) { seen.set(k, v); continue; }
+      // a que mudou vai para a que já estava assim; se as duas mudaram, a mais nova vai para a mais antiga
+      const [src, dst] = changed(v) && !changed(other) ? [v, other] : changed(other) && !changed(v) ? [other, v] : [v, other];
+      seen.set(k, dst);
+      pairs.push({ src: src.id, dst: dst.id, label: `${f.color || 'Sem cor'} · ${f.size}`,
+        srcCode: src.display_code || `#${src.id}`, dstCode: dst.display_code || `#${dst.id}` });
+    }
+    return pairs;
+  };
+
+  const saveVariantChanges = async (merges: MergePair[] = []) => {
     if (!variants || variants.length === 0) return;
-    const promises = variants.map(async v => {
+    const mergedSrc = new Map(merges.map((m) => [m.src, m.dst]));
+    const items: VariantBulkItem[] = [];
+    variants.forEach(v => {
+      if (mergedSrc.has(v.id)) { items.push({ id: v.id, merge_into: mergedSrc.get(v.id)! }); return; }
       const edit = variantEdits[v.id];
       if (!edit) return;
       const newPrice = parseFloat(edit.price.replace(',', '.'));
@@ -299,7 +330,8 @@ export default function EditProductScreen() {
         Math.abs(newPrice - v.price) > 0.001 ||
         (!isNaN(newCost) && Math.abs(newCost - origCost) > 0.001);
       if (hasChange) {
-        await updateVariant(v.id, {
+        items.push({
+          id: v.id,
           // só manda tamanho/cor quando mudou e não ficou vazio (o servidor normaliza: "p / m" vira "P/M")
           ...(sizeChanged && edit.size.trim() ? { size: edit.size.trim() } : {}),
           ...(colorChanged && edit.color.trim() ? { color: edit.color.trim() } : {}),
@@ -309,7 +341,11 @@ export default function EditProductScreen() {
         });
       }
     });
-    await Promise.all(promises);
+    // todas juntas numa transação só: um conflito recusa tudo e nada fica gravado pela metade
+    if (items.length > 0) {
+      await updateVariantsBulk(productId, items);
+      queryClient.invalidateQueries();
+    }
   };
 
   /**
@@ -318,9 +354,14 @@ export default function EditProductScreen() {
   // Nome igual ao de OUTRO produto da loja: avisa antes de salvar (o servidor recusaria)
   const [nameTaken, setNameTaken] = useState<{ id: number; name: string; code: string | null } | null>(null);
 
-  const handleSave = async () => {
+  const handleSave = async (confirmedMerges?: MergePair[]) => {
     if (!isValidId) return;
     if (!validate()) return;
+    const merges = confirmedMerges ?? findMerges();
+    if (!confirmedMerges && merges.length > 0) {
+      setMergeAsk(merges);
+      return;
+    }
     const typed = name.trim();
     if (typed && typed.toLowerCase() !== (product?.name || '').trim().toLowerCase()) {
       try {
@@ -368,21 +409,21 @@ export default function EditProductScreen() {
         );
       }
     } else {
-      // Produto com variantes: salvar produto + variantes
+      // Produto com variantes: primeiro as variações (todas juntas, tudo ou nada), depois o produto.
+      // Se as variações forem recusadas, nada é gravado e a mensagem diz o motivo.
+      try {
+        await saveVariantChanges(merges);
+      } catch (err: any) {
+        setErrorMessage(parseApiError(err) || 'Não foi possível salvar as variações. Nada foi alterado.');
+        setShowErrorDialog(true);
+        return;
+      }
       updateMutation.mutate(
         { id: productId, data: productData },
         {
-          onSuccess: async () => {
-            try {
-              await saveVariantChanges();
-              setShowSuccessDialog(true);
-            } catch (err: any) {
-              setErrorMessage(err?.response?.data?.detail || 'Produto salvo, mas houve erro ao atualizar variantes.');
-              setShowErrorDialog(true);
-            }
-          },
+          onSuccess: () => setShowSuccessDialog(true),
           onError: (error: any) => {
-            setErrorMessage(parseApiError(error) || 'Falha ao atualizar produto. Verifique os dados.');
+            setErrorMessage(parseApiError(error) || 'As variações foram salvas, mas o produto não. Verifique os dados e salve de novo.');
             setShowErrorDialog(true);
           },
         }
@@ -994,7 +1035,7 @@ export default function EditProductScreen() {
 
           <TouchableOpacity
             style={[styles.actionButton, styles.saveActionButton, updateMutation.isPending && styles.saveActionButtonDisabled]}
-            onPress={handleSave}
+            onPress={() => handleSave()}
             disabled={updateMutation.isPending}
             activeOpacity={0.8}
           >
@@ -1033,6 +1074,24 @@ export default function EditProductScreen() {
         onCancel={() => setShowSuccessDialog(false)}
         type="success"
         icon="checkmark-circle"
+      />
+
+      <ConfirmDialog
+        visible={!!mergeAsk}
+        type="warning"
+        icon="git-merge-outline"
+        title="Juntar variações iguais?"
+        message={mergeAsk ? mergeAsk.map((m) =>
+          `${m.label} ficaria repetida (${m.srcCode} e ${m.dstCode}). As peças da ${m.srcCode} passam para a ${m.dstCode}, com o mesmo custo e entrada, e a ${m.srcCode} é desativada.`,
+        ).join('\n\n') + '\n\nAs etiquetas impressas com o código antigo precisam ser trocadas.' : ''}
+        confirmText="Juntar e salvar"
+        cancelText="Voltar e corrigir"
+        onConfirm={() => {
+          const m = mergeAsk!;
+          setMergeAsk(null);
+          handleSave(m);
+        }}
+        onCancel={() => setMergeAsk(null)}
       />
 
       <ConfirmDialog

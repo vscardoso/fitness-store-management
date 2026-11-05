@@ -12,6 +12,7 @@ from app.services.product_variant_service import ProductVariantService
 from app.schemas.product_variant import (
     ProductVariantCreate,
     ProductVariantUpdate,
+    VariantBulkUpdate,
     ProductVariantResponse,
     ProductVariantWithProductResponse,
     ProductVariantMinimal,
@@ -356,6 +357,25 @@ async def search_variants(
         )
         for v in variants
     ]
+
+
+@router.put(
+    "/product/{product_id}/bulk",
+    summary="Atualizar várias variações do produto de uma vez (tudo ou nada)",
+)
+async def update_variants_bulk(
+    product_id: int,
+    body: VariantBulkUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    service = ProductVariantService(db)
+    try:
+        ids = await service.update_variants_bulk(product_id, body.items, tenant_id)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    return {"updated": ids}
 
 
 @router.patch(

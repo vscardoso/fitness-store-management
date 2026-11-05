@@ -57,6 +57,19 @@ class ProductVariantUpdate(BaseModel):
         return normalize_color(v) if isinstance(v, str) else v
 
 
+class VariantBulkUpdateItem(ProductVariantUpdate):
+    """Uma variação no salvamento em lote da tela Editar produto."""
+    id: int
+    # juntar esta variação em outra do MESMO produto (eram a mesma peça cadastrada duas vezes):
+    # as peças em estoque passam para a outra e esta é desativada; os outros campos desta são ignorados
+    merge_into: Optional[int] = None
+
+
+class VariantBulkUpdate(BaseModel):
+    """Todas as variações alteradas de um produto, gravadas juntas (tudo ou nada)."""
+    items: List[VariantBulkUpdateItem] = Field(..., min_length=1, max_length=500)
+
+
 class ProductVariantResponse(ProductVariantBase):
     """Schema de resposta para variante."""
     id: int

@@ -110,6 +110,24 @@ export async function updateVariant(
   return response.data;
 }
 
+/** Uma variação no salvamento em lote; merge_into junta esta na outra (eram a mesma peça) */
+export interface VariantBulkItem {
+  id: number;
+  size?: string;
+  color?: string;
+  sku?: string;
+  price?: number;
+  cost_price?: number;
+  merge_into?: number;
+}
+
+/**
+ * Grava todas as variações alteradas de um produto numa transação só (tudo ou nada).
+ */
+export async function updateVariantsBulk(productId: number, items: VariantBulkItem[]): Promise<void> {
+  await api.put(`/product-variants/product/${productId}/bulk`, { items });
+}
+
 /**
  * Desativa uma variante
  */
