@@ -156,6 +156,7 @@ export default function StockCheckScreen() {
   }, [params.q]);
   // leitura por QR
   const scrollRef = useRef<ScrollView>(null);
+  const [showTop, setShowTop] = useState(false);   // botão "voltar ao topo" quando a lista está lá embaixo
   // posição da grade dentro da rolagem (as posições dos cartões são relativas a ela)
   const gridY = useRef(0);
   const grid = useDesktopGrid(360, 12);
@@ -779,6 +780,11 @@ export default function StockCheckScreen() {
       <ScrollView
         ref={scrollRef}
         contentContainerStyle={[styles.content, desktopContent]}
+        onScroll={(e) => {
+          const down = e.nativeEvent.contentOffset.y > 600;
+          setShowTop((v) => (v === down ? v : down));
+        }}
+        scrollEventThrottle={100}
         keyboardShouldPersistTaps="handled"
         refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}
       >
@@ -1043,6 +1049,18 @@ export default function StockCheckScreen() {
           </Text>
         )}
       </ScrollView>
+
+      {showTop && (
+        <TouchableOpacity
+          style={[styles.toTop, { backgroundColor: brand.primary }]}
+          onPress={() => scrollRef.current?.scrollTo({ y: 0, animated: true })}
+          accessibilityRole="button"
+          accessibilityLabel="Voltar ao topo"
+          activeOpacity={0.85}
+        >
+          <Ionicons name="arrow-up" size={22} color="#fff" />
+        </TouchableOpacity>
+      )}
 
       <BottomSheet visible={menuOpen} onDismiss={() => setMenuOpen(false)} title="Mais opções" icon="ellipsis-horizontal">
         <MenuRow icon="time-outline" label="Conferências salvas" onPress={() => { setMenuOpen(false); router.push('/reports/stock-counts' as any); }} />
@@ -1316,6 +1334,11 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 13, color: Colors.light.text },
   actions: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2, marginBottom: 6 },
+  toTop: {
+    position: 'absolute', right: 16, bottom: 24, width: 48, height: 48, borderRadius: 24,
+    alignItems: 'center', justifyContent: 'center',
+    shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 6, shadowOffset: { width: 0, height: 3 }, elevation: 6,
+  },
   saveMain: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, height: 46, borderRadius: 14 },
   saveMainText: { color: '#fff', fontSize: 15, fontWeight: '800' },
   finishBtn: { height: 46, paddingHorizontal: 18, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
