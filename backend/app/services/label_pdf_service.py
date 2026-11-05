@@ -104,7 +104,8 @@ def draw_label(c: canvas.Canvas, x: float, y: float, w: float, h: float, d: Labe
     z1, z2, z3, z4 = tops
     c.setFillColorRGB(0, 0, 0)
     c.setStrokeColorRGB(0, 0, 0)
-    c.setLineWidth(0.6)
+    # 1 pt (~0,35 mm): com 0,6 pt a impressora comum desenhava a linha falhada e com espessura variando (foto de 05/11)
+    c.setLineWidth(1.0)
     for top in (z2, z3, z4):  # traços entre as faixas
         c.line(x + pad, top, x + w - pad, top)
 
@@ -158,8 +159,10 @@ def draw_label(c: canvas.Canvas, x: float, y: float, w: float, h: float, d: Labe
 
     # 4. QR (esquerda) e código curto (direita)
     zone_h = ZONES[3] * unit
-    qr_size = min(17 * k * mm, zone_h - 2 * mm)
-    widget = QrCodeWidget(d.qr, barLevel="M", barBorder=1)
+    # QR o maior possível na faixa e com 2 quadradinhos de margem branca: com 1, o leitor da câmera perdia o QR
+    # (colado na linha de corte e no texto). Medido com OpenCV em 5 x 4,5 cm: ver tests/test_fase3_dinheiro_relatorios.py
+    qr_size = min(19 * k * mm, zone_h - 1 * mm)
+    widget = QrCodeWidget(d.qr, barLevel="M", barBorder=2)
     bx1, by1, bx2, by2 = widget.getBounds()
     drawing = Drawing(qr_size, qr_size, transform=[qr_size / (bx2 - bx1), 0, 0, qr_size / (by2 - by1), 0, 0])
     drawing.add(widget)
@@ -176,9 +179,12 @@ def draw_label(c: canvas.Canvas, x: float, y: float, w: float, h: float, d: Labe
 
 def _cut_lines(c: canvas.Canvas, x: float, y: float, w: float, h: float) -> None:
     """Linha de corte no tamanho exato da etiqueta (cinza fino); entre vizinhas fica a faixa em branco do a4_spacing."""
-    c.setStrokeColorRGB(0.6, 0.6, 0.6)
-    c.setLineWidth(0.25)
+    # tracejada e cinza médio: guia a tesoura sem parecer parte da etiqueta (0,25 pt cinza claro quase sumia)
+    c.setStrokeColorRGB(0.45, 0.45, 0.45)
+    c.setLineWidth(0.6)
+    c.setDash(3, 2)
     c.rect(x, y, w, h, stroke=1, fill=0)
+    c.setDash()
     c.setStrokeColorRGB(0, 0, 0)
 
 
