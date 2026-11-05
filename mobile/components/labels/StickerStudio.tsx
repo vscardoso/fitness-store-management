@@ -13,7 +13,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import {
-  cmText, customSticker, DEFAULT_STICKER, parseCm, printTagLabels, STICKER_SIZES, stickersPerSheet,
+  cmText, customSticker, DEFAULT_STICKER, parseCm, printTagLabels, sizeDims, STICKER_SIZES, stickersPerSheet,
   type StickerSize, type TagLabelLayout,
 } from '@/services/labelService';
 import StickerPreview from '@/components/labels/StickerPreview';
@@ -165,7 +165,7 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
             <Text style={styles.muted}>Escolha as peças para ver o adesivo.</Text>
           )}
           <Text style={styles.previewNote}>
-            Adesivo do verso da tag, {size.name} ({size.note}). A frente com a logo WA já vem impressa.
+            Adesivo do verso da tag, {sizeDims(size.widthMm, size.heightMm)} cm. A frente com a logo WA já vem impressa.
             {shown && !shown.code ? ' O código desta peça é criado ao gerar o PDF.' : ''}
           </Text>
         </View>
@@ -184,10 +184,18 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
                 accessibilityState={{ selected: on }}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.segmentMain, on && styles.segmentMainOn]}>{s.name}</Text>
-                <Text style={[styles.segmentSub, on && styles.segmentSubOn]}>
-                  {s.note} · {stickersPerSheet(s.widthMm, s.heightMm)} por folha A4
-                </Text>
+                {/* desenho na proporção real: mostra de bate-pronto qual lado é a largura */}
+                <View style={styles.sizeShapeBox}>
+                  <View style={[styles.sizeShape, on && { borderColor: brand.primary },
+                    { width: 30 * Math.min(1, s.widthMm / Math.max(s.widthMm, s.heightMm)), height: 30 * Math.min(1, s.heightMm / Math.max(s.widthMm, s.heightMm)) }]} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.segmentMain, on && styles.segmentMainOn]}>{s.name}</Text>
+                  <Text style={[styles.segmentSub, on && styles.segmentSubOn]}>{sizeDims(s.widthMm, s.heightMm)}</Text>
+                  <Text style={[styles.segmentSub, on && styles.segmentSubOn]}>
+                    {s.note ? `${s.note} · ` : ''}{stickersPerSheet(s.widthMm, s.heightMm)} por folha A4
+                  </Text>
+                </View>
               </TouchableOpacity>
             );
           })}
@@ -384,7 +392,9 @@ const makeStyles = (primary: string) =>
     sectionTitle: { fontSize: theme.fontSize.base, fontWeight: '800', color: Colors.light.text, marginTop: theme.spacing.md, marginBottom: theme.spacing.sm },
     muted: { fontSize: theme.fontSize.sm, color: Colors.light.textSecondary },
     segment: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm },
-    segmentBtn: { flexGrow: 1, flexBasis: '45%', borderRadius: theme.borderRadius.xl, borderWidth: 1.5, borderColor: Colors.light.border, padding: theme.spacing.md, backgroundColor: Colors.light.card },
+    segmentBtn: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, flexGrow: 1, flexBasis: '45%', borderRadius: theme.borderRadius.xl, borderWidth: 1.5, borderColor: Colors.light.border, padding: theme.spacing.md, backgroundColor: Colors.light.card },
+    sizeShapeBox: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
+    sizeShape: { borderWidth: 2, borderColor: Colors.light.textSecondary, borderRadius: 3 },
     segmentOn: { borderColor: primary, backgroundColor: primary + '12' },
     segmentMain: { fontSize: theme.fontSize.lg, fontWeight: '800', color: Colors.light.text },
     segmentMainOn: { color: primary },

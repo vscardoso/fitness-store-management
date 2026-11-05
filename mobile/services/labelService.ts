@@ -9,7 +9,7 @@ import api from './api';
 import { DEFAULT_STICKER } from '@/utils/stickerSize';
 
 export {
-  cmText, customSticker, DEFAULT_STICKER, parseCm, STICKER_MAX_MM, STICKER_MIN_MM, STICKER_SIZES, stickerScale,
+  cmText, customSticker, DEFAULT_STICKER, parseCm, sizeDims, STICKER_MAX_MM, STICKER_MIN_MM, STICKER_SIZES, stickerScale,
   stickersPerSheet, type StickerSize,
 } from '@/utils/stickerSize';
 

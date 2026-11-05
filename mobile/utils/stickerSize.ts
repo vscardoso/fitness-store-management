@@ -6,12 +6,12 @@ export interface StickerSize { id: string; name: string; note: string; widthMm: 
 
 // a tag da W.A tem 5 x 4,5 cm; o padrão é 4,7 x 4,2 para sobrar borda na colagem (Victor, 05/11/2026); as outras ficam para quem já tem
 export const STICKER_SIZES: StickerSize[] = [
-  { id: '47x42', name: '4,7 × 4,2 cm', note: 'para tag 5 × 4,5', widthMm: 47, heightMm: 42 },
-  { id: '50x45', name: '5 × 4,5 cm', note: 'deitada', widthMm: 50, heightMm: 45 },
-  { id: '60x50', name: '6 × 5 cm', note: 'deitada', widthMm: 60, heightMm: 50 },
-  { id: '50x60', name: '5 × 6 cm', note: 'em pé', widthMm: 50, heightMm: 60 },
-  { id: '65x55', name: '6,5 × 5,5 cm', note: 'deitada', widthMm: 65, heightMm: 55 },
-  { id: '55x65', name: '5,5 × 6,5 cm', note: 'em pé', widthMm: 55, heightMm: 65 },
+  { id: '47x42', name: '4,7 × 4,2 cm', note: 'para a tag de 5 × 4,5', widthMm: 47, heightMm: 42 },
+  { id: '50x45', name: '5 × 4,5 cm', note: '', widthMm: 50, heightMm: 45 },
+  { id: '60x50', name: '6 × 5 cm', note: '', widthMm: 60, heightMm: 50 },
+  { id: '50x60', name: '5 × 6 cm', note: '', widthMm: 50, heightMm: 60 },
+  { id: '65x55', name: '6,5 × 5,5 cm', note: '', widthMm: 65, heightMm: 55 },
+  { id: '55x65', name: '5,5 × 6,5 cm', note: '', widthMm: 55, heightMm: 65 },
 ];
 export const DEFAULT_STICKER = STICKER_SIZES[0];
 // mesmos limites do servidor (label_pdf_service.MIN_MM / MAX_MM)
@@ -38,9 +38,13 @@ export function cmText(mm: number): string {
 
 export function customSticker(widthMm: number, heightMm: number): StickerSize {
   return {
-    id: 'custom', name: `${cmText(widthMm)} × ${cmText(heightMm)} cm`,
-    note: widthMm >= heightMm ? 'deitada' : 'em pé', widthMm, heightMm,
+    id: 'custom', name: `${cmText(widthMm)} × ${cmText(heightMm)} cm`, note: '', widthMm, heightMm,
   };
+}
+
+/** "4,7 de largura × 4,2 de altura": deixa claro que a largura vem primeiro */
+export function sizeDims(widthMm: number, heightMm: number): string {
+  return `${cmText(widthMm)} de largura × ${cmText(heightMm)} de altura`;
 }
 
 const A4_GAP_MM = 2; // espaço mínimo entre etiquetas no corte (igual ao servidor)

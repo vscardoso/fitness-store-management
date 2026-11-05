@@ -1,7 +1,7 @@
 // Testes das medidas do adesivo (utils/stickerSize.ts). Rodar: node scripts/test-sticker-size.mts
 import assert from 'node:assert/strict';
 import {
-  cmText, customSticker, DEFAULT_STICKER, parseCm, stickerScale, stickersPerSheet,
+  cmText, customSticker, DEFAULT_STICKER, parseCm, sizeDims, stickerScale, stickersPerSheet,
 } from '../utils/stickerSize.ts';
 
 let n = 0;
@@ -29,8 +29,7 @@ t('texto da medida e etiqueta livre', () => {
   assert.equal(cmText(60), '6');
   const c = customSticker(45, 35);
   assert.equal(c.name, '4,5 × 3,5 cm');
-  assert.equal(c.note, 'deitada');
-  assert.equal(customSticker(35, 45).note, 'em pé');
+  assert.equal(sizeDims(47, 42), '4,7 de largura × 4,2 de altura');
 });
 t('quantas cabem na A4 igual ao servidor (a4_grid)', () => {
   assert.equal(stickersPerSheet(47, 42), 24);
