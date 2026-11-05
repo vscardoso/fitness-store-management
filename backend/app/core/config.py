@@ -188,6 +188,12 @@ class Settings(BaseSettings):
     WHATSAPP_CLOUD_PHONE_NUMBER_ID: str = ""
     WHATSAPP_CLOUD_WABA_ID: str = ""
     WHATSAPP_CLOUD_API_VERSION: str = "v23.0"
+
+    # Notificações do app instalado (Web Push). Sem as chaves, o envio fica desligado (não quebra nada).
+    # Gerar: python scripts/gerar_chaves_vapid.py ; valores só no .env.prod do VPS
+    VAPID_PUBLIC_KEY: str = ""
+    VAPID_PRIVATE_KEY: str = ""
+    VAPID_SUBJECT: str = "mailto:admin@provadorfit.com.br"
     PUBLIC_API_URL: str = "https://api.provadorfit.com.br"   # base das fotos e do feed de catálogo vistos pela Meta
     PUBLIC_SITE_URL: str = "https://app.provadorfit.com.br"  # app web do sistema (links antigos de produto ainda abrem lá)
     PUBLIC_STORE_URL: str = "https://loja.provadorfit.com.br"  # vitrine pública: link do produto no catálogo da Meta

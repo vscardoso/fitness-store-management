@@ -166,3 +166,16 @@ def get_period_range_utc(start_date: date, end_date: date) -> tuple[datetime, da
     end_utc = end_brazil.astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
 
     return start_utc, end_utc
+
+
+def br_day_start_utc(d: date) -> datetime:
+    """Meia-noite do dia `d` no Brasil, em UTC sem fuso (como created_at é gravado).
+
+    Filtro "dia da venda" deve usar isto, não func.date(created_at): func.date pega o dia em UTC, e uma venda
+    feita depois das 21h no Brasil cairia no dia seguinte."""
+    return datetime.combine(d, datetime.min.time(), BRAZIL_TZ).astimezone(ZoneInfo("UTC")).replace(tzinfo=None)
+
+
+def br_day_end_utc(d: date) -> datetime:
+    """Meia-noite do dia SEGUINTE a `d` no Brasil, em UTC sem fuso (limite exclusivo: created_at < isto)."""
+    return br_day_start_utc(d + timedelta(days=1))

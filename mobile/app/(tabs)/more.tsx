@@ -1,5 +1,6 @@
 import { useUnreadCount } from '@/hooks/useNotificationInbox';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { disableWebPush, enableWebPush, getWebPushState, type WebPushState } from '@/services/webPush';
 import {
   View,
   Text,
@@ -54,6 +55,46 @@ function MenuItem({ icon, title, subtitle, onPress, badge, iconColor, iconBg }: 
       )}
       <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
     </TouchableOpacity>
+  );
+}
+
+const PUSH_TEXT: Record<WebPushState, string> = {
+  on: 'Ligadas: venda nova e mensagem no WhatsApp. Toque para desligar',
+  off: 'Toque para receber venda nova e mensagem no WhatsApp',
+  'needs-install': 'Instale o app na tela de início para receber',
+  denied: 'Bloqueadas no aparelho: libere nos Ajustes do celular',
+  'server-off': 'Ainda não disponíveis',
+  unsupported: '',
+};
+
+/** Notificações do app instalado (Web Push): liga e desliga neste aparelho. Só no app web. */
+function WebPushItem() {
+  const [state, setState] = useState<WebPushState | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    getWebPushState().then(setState).catch(() => setState('unsupported'));
+  }, []);
+  if (!state || state === 'unsupported') return null;
+  const toggle = async () => {
+    if (busy || state === 'needs-install' || state === 'server-off') return;
+    setBusy(true);
+    try {
+      setState(state === 'on' ? await disableWebPush() : await enableWebPush());
+    } catch {
+      setState(await getWebPushState().catch(() => 'off' as WebPushState));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <MenuItem
+      icon={state === 'on' ? 'notifications' : 'notifications-off-outline'}
+      title={busy ? 'Notificações no celular…' : 'Notificações no celular'}
+      subtitle={PUSH_TEXT[state]}
+      onPress={toggle}
+      iconColor={state === 'on' ? '#16A34A' : '#64748B'}
+      iconBg={state === 'on' ? '#DCFCE7' : '#F1F5F9'}
+    />
   );
 }
 
@@ -310,6 +351,7 @@ export default function MoreScreen() {
             )}
             {FEATURES.meuPerfil && <MenuItem icon="person-circle-outline" title="Meu Perfil" subtitle="Dados pessoais e preferências" onPress={() => showDev('Meu Perfil')} iconColor={brandingColors.primary} iconBg={brandingColors.primary + '20'} />}
             <MenuItem icon="notifications-outline" title="Notificações" subtitle="Alertas e lembretes" onPress={() => router.push('/notifications' as any)} badge={unreadAlerts > 0 ? String(unreadAlerts) : undefined} iconColor="#F97316" iconBg="#FFEDD5" />
+            <WebPushItem />
             <MenuItem icon="help-circle-outline" title="Ajuda e Tutoriais" subtitle="Aprenda a usar o app" onPress={() => router.push('/help')} iconColor="#06B6D4" iconBg="#CFFAFE" />
           </View>
         </View>

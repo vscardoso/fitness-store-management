@@ -1,6 +1,7 @@
 """
 Endpoints de relatórios.
 """
+from app.core.timezone import br_day_end_utc, br_day_start_utc
 from datetime import datetime, timedelta, date
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -292,8 +293,8 @@ async def get_history(
         if event_type is None or event_type == "sale":
             sale_conditions = [
                 Sale.is_active == True,
-                func.date(Sale.created_at) >= start_date,
-                func.date(Sale.created_at) <= end_date,
+                Sale.created_at >= br_day_start_utc(start_date),
+                Sale.created_at < br_day_end_utc(end_date),
             ]
             if tenant_id:
                 sale_conditions.append(Sale.tenant_id == tenant_id)
@@ -394,8 +395,8 @@ async def get_history(
         if event_type is None or event_type == "conditional":
             cond_conditions = [
                 ConditionalShipment.is_active == True,
-                func.date(ConditionalShipment.created_at) >= start_date,
-                func.date(ConditionalShipment.created_at) <= end_date,
+                ConditionalShipment.created_at >= br_day_start_utc(start_date),
+                ConditionalShipment.created_at < br_day_end_utc(end_date),
             ]
             if tenant_id:
                 cond_conditions.append(ConditionalShipment.tenant_id == tenant_id)

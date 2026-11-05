@@ -1,6 +1,7 @@
 """
 Service para relatórios com lógica de negócio.
 """
+from app.core.timezone import br_day_end_utc, br_day_start_utc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, and_, or_, case
 from datetime import datetime, timedelta
@@ -336,8 +337,8 @@ class ReportService:
         base_filter = and_(
             Sale.tenant_id == tenant_id,
             Sale.is_active == True,
-            func.date(Sale.created_at) >= start_date.date(),
-            func.date(Sale.created_at) <= end_date.date(),
+            Sale.created_at >= br_day_start_utc(start_date.date()),
+            Sale.created_at < br_day_end_utc(end_date.date()),
         )
 
         # Breakdown por payment_method
@@ -385,8 +386,8 @@ class ReportService:
         base_filter = and_(
             Sale.tenant_id == tenant_id,
             Sale.is_active == True,
-            func.date(Sale.created_at) >= start_date.date(),
-            func.date(Sale.created_at) <= end_date.date(),
+            Sale.created_at >= br_day_start_utc(start_date.date()),
+            Sale.created_at < br_day_end_utc(end_date.date()),
         )
 
         # Top clientes

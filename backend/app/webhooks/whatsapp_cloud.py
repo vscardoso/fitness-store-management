@@ -72,6 +72,16 @@ async def receive_webhook(request: Request, background: BackgroundTasks, db: Asy
         background.add_task(send_greeting, tenant_id, conversation_id)
     for tenant_id, conversation_id in result.aways:
         background.add_task(send_away, tenant_id, conversation_id)
+    # Notificação do app instalado: uma por conversa (a última mensagem dela neste webhook)
+    from app.services import web_push_service
+    last_by_conv = {}
+    for tenant_id, conversation_id, name, text in result.pushes:
+        last_by_conv[(tenant_id, conversation_id)] = (name, text)
+    for (tenant_id, conversation_id), (name, text) in last_by_conv.items():
+        background.add_task(
+            web_push_service.notify_tenant, tenant_id, f"WhatsApp: {name}", (text or "Nova mensagem")[:140],
+            f"/whatsapp/{conversation_id}", roles=("admin", "manager", "seller"), tag=f"wa-{conversation_id}",
+        )
     return {
         "ok": True,
         "saved": result.messages_saved,

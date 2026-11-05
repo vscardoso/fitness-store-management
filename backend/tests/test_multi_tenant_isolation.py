@@ -91,8 +91,9 @@ async def _produto(db: AsyncSession, tenant_id: int, name: str, sku: str) -> Pro
 
 
 def _hoje_utc() -> date:
-    """created_at é gravado em UTC; as consultas por dia usam a data UTC."""
-    return datetime.utcnow().date()
+    """Dia de hoje da loja (Brasil): as consultas por dia usam o dia do Brasil, não o de UTC (venda depois das 21h)."""
+    from app.core.timezone import today_brazil
+    return today_brazil()
 
 
 # ============================================================================

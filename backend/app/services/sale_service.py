@@ -608,7 +608,8 @@ class SaleService:
             Dict: Relatrio com totais e estatsticas
         """
         if date is None:
-            date = datetime.utcnow().date()
+            from app.core.timezone import today_brazil
+            date = today_brazil()   # dia da loja (o servidor roda em UTC)
         else:
             date = date.date() if isinstance(date, datetime) else date
         
@@ -684,7 +685,8 @@ class SaleService:
             Decimal: Total de vendas
         """
         if date is None:
-            date = datetime.utcnow().date()
+            from app.core.timezone import today_brazil
+            date = today_brazil()   # dia da loja (o servidor roda em UTC)
         else:
             date = date.date() if isinstance(date, datetime) else date
         

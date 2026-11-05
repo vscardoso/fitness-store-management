@@ -15,6 +15,19 @@ class PushToken(BaseModel):
     user = relationship("User", back_populates="push_tokens")
 
 
+class WebPushSubscription(BaseModel):
+    """Aparelho inscrito para notificação do app instalado (Web Push), um por navegador/celular."""
+    __tablename__ = "web_push_subscriptions"
+
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    tenant_id = Column(Integer, ForeignKey("stores.id"), nullable=False, index=True)
+    endpoint = Column(Text, nullable=False)
+    endpoint_hash = Column(String(64), nullable=False, unique=True, index=True)  # sha256 do endpoint (índice único)
+    p256dh = Column(String(255), nullable=False)
+    auth = Column(String(255), nullable=False)
+    user_agent = Column(String(255), nullable=True)
+
+
 class NotificationLog(BaseModel):
     """Log de notificações enviadas"""
     __tablename__ = "notification_logs"

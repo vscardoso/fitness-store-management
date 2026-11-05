@@ -395,3 +395,23 @@ async def test_campo_que_nao_e_messages_e_ignorado(client, session_maker):
     payload = event(pnid, [text_msg()])
     payload["object"] = "page"
     assert (await post(client, payload)).json()["saved"] == 0
+
+
+async def test_mensagem_recebida_avisa_o_app_instalado(client, session_maker, monkeypatch):
+    """Mensagem nova vira notificação do app (uma por conversa, com a última mensagem), para admin, gerente e vendedor."""
+    from app.services import web_push_service
+    calls = []
+
+    async def fake_notify(tenant_id, title, body, url="/", **kw):
+        calls.append((tenant_id, title, body, url, kw))
+        return {"sent": 1}
+
+    monkeypatch.setattr(web_push_service, "notify_tenant", fake_notify)
+    tenant, pnid = await _number(session_maker)
+    r = await post(client, event(pnid, [text_msg(body="Oi"), text_msg(body="Tem legging preta M?", ts=1761235300)]))
+    assert r.status_code == 200 and r.json()["saved"] == 2
+    assert len(calls) == 1, calls
+    t, title, body, url, kw = calls[0]
+    [c] = await convs(session_maker, tenant)
+    assert (t, title, body, url) == (tenant, "WhatsApp: Cliente Teste", "Tem legging preta M?", f"/whatsapp/{c.id}")
+    assert set(kw["roles"]) == {"admin", "manager", "seller"}

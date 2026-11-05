@@ -108,6 +108,7 @@ class ProcessResult:
     unknown_numbers: list[str] = field(default_factory=list)
     greetings: list[tuple] = field(default_factory=list)  # (tenant_id, conversation_id) a saudar depois do commit
     aways: list[tuple] = field(default_factory=list)      # idem, para a mensagem de ausência
+    pushes: list[tuple] = field(default_factory=list)     # (tenant_id, conversation_id, nome, texto): notificação do app
 
 
 async def _find_number(db: AsyncSession, phone_number_id: Optional[str]) -> Optional[WhatsAppCloudNumber]:
@@ -200,6 +201,7 @@ async def _save_inbound(db: AsyncSession, number: WhatsAppCloudNumber, msg: dict
     conv.unread_count = (conv.unread_count or 0) + 1
     await db.flush()
     result.messages_saved += 1
+    result.pushes.append((number.tenant_id, conv.id, profile_name or conv.profile_name or conv.phone or "Cliente", message_text(msg) or ""))
     if opens_window and str(msg.get("type") or "") not in GREETING_SKIP_TYPES:
         # Fora do horário comercial (com a ausência ligada) vale SÓ a ausência; no horário vale a saudação.
         if away_applies(number, sent_at):

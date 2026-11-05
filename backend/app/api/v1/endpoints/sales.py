@@ -1,7 +1,8 @@
 """
 Endpoints de vendas - Criação, Listagem e Detalhes.
 """
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from app.core.timezone import br_day_end_utc, br_day_start_utc
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List, Optional
 from datetime import date
@@ -27,6 +28,7 @@ router = APIRouter(prefix="/sales", tags=["Vendas"])
 )
 async def create_sale(
     sale_data: SaleCreate,
+    background: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id),
@@ -116,6 +118,16 @@ async def create_sale(
             entity="sale", entity_id=sale.id,
             detail={"total": float(sale.total_amount), "items": len(sale_data.items)},
         )
+        # Notificação do app instalado para admin e gerente (menos quem vendeu), depois da resposta
+        from app.services import web_push_service
+        if web_push_service.enabled():
+            pieces = sum(int(i.quantity or 0) for i in sale_data.items)
+            total = f"R$ {float(sale.total_amount):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            background.add_task(
+                web_push_service.notify_tenant, tenant_id, f"Venda nova: {total}",
+                f"{pieces} peça{'s' if pieces != 1 else ''} · {current_user.full_name or current_user.email}",
+                f"/sales/{sale.id}", roles=("admin", "manager"), exclude_user_id=current_user.id, tag=f"sale-{sale.id}",
+            )
         return sale
         
     except ValueError as e:
@@ -252,8 +264,8 @@ async def get_daily_total(
     try:
         # Usar data atual se não fornecida
         if target_date is None:
-            from datetime import datetime
-            target_date = datetime.now().date()
+            from app.core.timezone import today_brazil
+            target_date = today_brazil()   # dia da loja (o servidor roda em UTC)
         
         # Buscar total do dia
         total = await sale_service.get_daily_total(target_date, tenant_id=tenant_id)
@@ -556,8 +568,8 @@ async def get_daily_report(
     try:
         # Usar data atual se não fornecida
         if report_date is None:
-            from datetime import datetime
-            report_date = datetime.now().date()
+            from app.core.timezone import today_brazil
+            report_date = today_brazil()   # dia da loja (o servidor roda em UTC)
         
         # Total do dia
         daily_total = await sale_service.get_daily_total(report_date, tenant_id=tenant_id)
@@ -1006,9 +1018,9 @@ async def get_top_products(
 
         # Filtro de período
         if start_date:
-            conditions.append(func.date(Sale.created_at) >= start_date)
+            conditions.append(Sale.created_at >= br_day_start_utc(start_date))
         if end_date:
-            conditions.append(func.date(Sale.created_at) <= end_date)
+            conditions.append(Sale.created_at < br_day_end_utc(end_date))
 
         # Usar base_price em vez de Product.price (que agora é uma property)
         query = (

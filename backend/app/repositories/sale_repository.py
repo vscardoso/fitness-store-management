@@ -1,6 +1,7 @@
 """
 Repositório para operações de vendas (Sale).
 """
+from app.core.timezone import br_day_end_utc, br_day_start_utc
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any, List, Optional, Sequence
@@ -148,7 +149,7 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         Returns:
             Total de vendas do dia
         """
-        conditions = [func.date(Sale.created_at) == target_date]
+        conditions = [Sale.created_at >= br_day_start_utc(target_date), Sale.created_at < br_day_end_utc(target_date)]
         
         if tenant_id is not None and hasattr(Sale, "tenant_id"):
             conditions.append(Sale.tenant_id == tenant_id)
@@ -195,9 +196,9 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         if tenant_id is not None and hasattr(SaleItem, "tenant_id"):
             query = query.where(SaleItem.tenant_id == tenant_id)
         if start_date is not None:
-            query = query.where(func.date(Sale.created_at) >= start_date)
+            query = query.where(Sale.created_at >= br_day_start_utc(start_date))
         if end_date is not None:
-            query = query.where(func.date(Sale.created_at) <= end_date)
+            query = query.where(Sale.created_at < br_day_end_utc(end_date))
         
         query = query.group_by(Product.id, Product.name, Product.brand).order_by(desc('total_quantity')).limit(limit)
         
@@ -320,9 +321,9 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         """
         conditions = []
         if start_date:
-            conditions.append(func.date(Sale.created_at) >= start_date)
+            conditions.append(Sale.created_at >= br_day_start_utc(start_date))
         if end_date:
-            conditions.append(func.date(Sale.created_at) <= end_date)
+            conditions.append(Sale.created_at < br_day_end_utc(end_date))
         if tenant_id is not None and hasattr(Sale, "tenant_id"):
             conditions.append(Sale.tenant_id == tenant_id)
         

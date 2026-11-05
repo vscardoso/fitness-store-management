@@ -81,7 +81,7 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     (ANY, r"^/whatsapp(/|$)", SELLER),  # caixa de conversas do WhatsApp da loja
     ({"GET"}, r"^/auth/(me)$", CASHIER),
     ({"POST"}, r"^/auth/logout$", CASHIER),
-    (ANY, r"^/notifications/(inbox|token)(/|$)", CASHIER),
+    (ANY, r"^/notifications/(inbox|token|web-push)(/|$)", CASHIER),
 
     # ── vendedor ─────────────────────────────────────────────────────────────
     ({"PUT"}, r"^/customers/\{customer_id\}$", SELLER),

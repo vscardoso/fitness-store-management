@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.schemas.notification import (
@@ -85,6 +86,57 @@ async def register_push_token(
         db, current_user.id, tenant_id, token_data.token, token_data.device_type
     )
     return token
+
+
+class WebPushKeys(BaseModel):
+    p256dh: str = Field(..., min_length=10, max_length=255)
+    auth: str = Field(..., min_length=4, max_length=255)
+
+
+class WebPushSubscribeRequest(BaseModel):
+    endpoint: str = Field(..., min_length=10, max_length=2000)
+    keys: WebPushKeys
+
+
+class WebPushUnsubscribeRequest(BaseModel):
+    endpoint: str = Field(..., min_length=10, max_length=2000)
+
+
+@router.get("/web-push/key")
+async def web_push_key(current_user: User = Depends(get_current_active_user)):
+    """Chave pública para o app instalado se inscrever (Web Push). enabled=false: servidor sem as chaves."""
+    from app.core.config import settings
+    from app.services import web_push_service
+    return {"enabled": web_push_service.enabled(), "public_key": settings.VAPID_PUBLIC_KEY or None}
+
+
+@router.post("/web-push/subscribe", status_code=status.HTTP_201_CREATED)
+async def web_push_subscribe(
+    body: WebPushSubscribeRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Inscreve este aparelho para receber as notificações do app instalado."""
+    from app.services import web_push_service
+    if not body.endpoint.startswith("https://"):
+        raise HTTPException(status_code=400, detail="Inscrição inválida.")
+    sub = await web_push_service.subscribe(
+        db, user_id=current_user.id, tenant_id=tenant_id, endpoint=body.endpoint,
+        p256dh=body.keys.p256dh, auth=body.keys.auth, user_agent=request.headers.get("user-agent"),
+    )
+    return {"ok": True, "id": sub.id}
+
+
+@router.post("/web-push/unsubscribe")
+async def web_push_unsubscribe(
+    body: WebPushUnsubscribeRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+):
+    from app.services import web_push_service
+    return {"ok": await web_push_service.unsubscribe(db, user_id=current_user.id, endpoint=body.endpoint)}
 
 
 @router.post("/send", response_model=NotificationResponse, dependencies=[Depends(require_role([UserRole.ADMIN]))])
