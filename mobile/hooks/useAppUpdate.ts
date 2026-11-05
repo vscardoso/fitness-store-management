@@ -11,7 +11,8 @@ import {
   shouldAutoReload,
 } from '@/utils/appUpdate';
 
-const CHECK_EVERY_MS = 5 * 60 * 1000;
+// 30 s: o aviso "Atualizar agora" aparece logo depois de cada publicação (com 5 min a loja não via e fechava o app)
+const CHECK_EVERY_MS = 30 * 1000;
 
 /**
  * Só no app web: confere de tempos em tempos se há versão nova publicada. Quando há:

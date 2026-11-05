@@ -11,9 +11,9 @@ export default function UpdateBanner() {
   if (Platform.OS !== 'web' || !updateAvailable) return null;
   return (
     <View style={[styles.bar, { backgroundColor: brand.primary }]} accessibilityRole="alert">
-      <Text style={styles.text}>Versão nova pronta. Continue o que está fazendo: ela entra sozinha quando você terminar esta tela.</Text>
+      <Text style={styles.text}>Versão nova do app. Toque em Atualizar: o que você já contou ou salvou continua.</Text>
       <TouchableOpacity style={styles.button} onPress={reload} activeOpacity={0.85}>
-        <Text style={[styles.buttonText, { color: brand.primary }]}>Atualizar agora</Text>
+        <Text style={[styles.buttonText, { color: brand.primary }]}>Atualizar</Text>
       </TouchableOpacity>
     </View>
   );
