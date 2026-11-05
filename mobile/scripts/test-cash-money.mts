@@ -25,14 +25,18 @@ t('0,1 + 0,2 não vira 0,30000000000000004', () => {
   assert.equal(parseMoneyBr('19,99'), 19.99);
 });
 t('máscara enquanto digita', () => {
-  assert.equal(moneyInput('1a2b'), '12');
-  assert.equal(moneyInput('12,345'), '12,34');
-  assert.equal(moneyInput('1,2,3'), '1,23');
-  assert.equal(moneyInput('12.5'), '12,5');
-  assert.equal(moneyInput('007'), '7');
-  assert.equal(moneyInput('0'), '0');
-  assert.equal(moneyInput(','), ',');
-  assert.equal(moneyInput('R$ 9'), '9');
+  // cada dígito entra pelos centavos, igual à máscara do resto do app
+  assert.equal(moneyInput('7'), '0,07');
+  assert.equal(moneyInput('700'), '7,00');
+  assert.equal(moneyInput('70000'), '700,00');
+  assert.equal(moneyInput('123456'), '1.234,56');
+  assert.equal(moneyInput('7,00'), '7,00');          // apagar/digitar sobre o valor formatado continua certo
+  assert.equal(moneyInput('7,000'), '70,00');
+  assert.equal(moneyInput('1a2b'), '0,12');
+  assert.equal(moneyInput('007'), '0,07');
+  assert.equal(moneyInput('0'), '');
+  assert.equal(moneyInput('R$ 9'), '0,09');
+  assert.equal(parseMoneyBr(moneyInput('123456')), 1234.56);
 });
 t('diferença do fechamento', () => {
   assert.deepEqual(differenceText(0, brl), { text: 'Bateu certinho', kind: 'ok' });

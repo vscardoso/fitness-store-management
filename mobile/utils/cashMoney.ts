@@ -10,14 +10,17 @@ export function parseMoneyBr(raw: string): number | null {
   return Math.round(parseFloat(s) * 100) / 100;
 }
 
-/** Máscara enquanto digita: só números e uma vírgula, no máximo 2 casas depois dela. */
+/**
+ * Máscara de valor enquanto digita, igual ao resto do app (maskCurrencyBR): cada dígito entra pelos centavos.
+ * "7" -> "0,07", "700" -> "7,00", "70000" -> "700,00", "123456" -> "1.234,56". (05/11/2026: a versão antiga só
+ * filtrava os caracteres e "700" ficava "700", sem centavos nem ponto de milhar.)
+ */
 export function moneyInput(raw: string): string {
-  let s = (raw ?? '').replace(/[^\d,.]/g, '').replace(/\./g, ',');
-  const first = s.indexOf(',');
-  if (first >= 0) s = s.slice(0, first + 1) + s.slice(first + 1).replace(/,/g, '');
-  const [int, dec] = s.split(',');
-  const intPart = int.replace(/^0+(?=\d)/, '');
-  return dec === undefined ? intPart : `${intPart},${dec.slice(0, 2)}`;
+  const digits = (raw ?? '').replace(/\D/g, '').replace(/^0+/, '').slice(0, 13);
+  if (!digits) return '';
+  const cents = digits.padStart(3, '0');
+  const int = cents.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return `${int},${cents.slice(-2)}`;
 }
 
 /** Diferença do fechamento em palavras: sobrou, faltou ou bateu. */
