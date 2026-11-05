@@ -23,7 +23,7 @@ class StockCountCreate(BaseModel):
     name: Optional[str] = Field(None, max_length=120)
     note: Optional[str] = Field(None, max_length=2000)
     category_id: Optional[int] = None
-    items: List[CountedItem] = Field(..., min_length=1, max_length=50_000)
+    items: List[CountedItem] = Field(default_factory=list, max_length=50_000)
     finish: bool = Field(False, description="True = já cria finalizada (sem andamento)")
 
 
@@ -33,6 +33,21 @@ class StockCountUpdate(BaseModel):
     items: List[CountedItem] = Field(default_factory=list, max_length=50_000)
     revision: int = Field(..., ge=1, description="A revisão que o aparelho abriu; se mudou, outra pessoa salvou antes")
     finish: bool = Field(False, description="True = finaliza: vira relatório fechado")
+
+
+class CountOp(BaseModel):
+    variant_id: int
+    delta: Optional[int] = Field(None, ge=-1000, le=1000, description="+1 ao bipar, -1 na seta")
+    set: Optional[int] = Field(None, ge=0, le=1_000_000, description="Quantidade digitada")
+    clear: bool = Field(False, description="Volta a peça para 'não contada'")
+
+
+class StockCountApply(BaseModel):
+    ops: List[CountOp] = Field(default_factory=list, max_length=2000)
+    name: Optional[str] = Field(None, max_length=120)
+    note: Optional[str] = Field(None, max_length=2000)
+    finish: bool = False
+    revision: Optional[int] = Field(None, ge=1, description="Para finalizar: a revisão que a tela está mostrando (tem que ser a última)")
 
 
 class StockCountSummary(BaseModel):
@@ -71,6 +86,7 @@ class StockCountItemOut(BaseModel):
     system_quantity: int
     counted_quantity: int
     difference: int
+    counted_by_name: Optional[str] = None
 
 
 class StockCountDetail(BaseModel):
@@ -121,6 +137,25 @@ async def update_count(
         return await StockCountService(db).save(
             tenant_id=tenant_id, user=current_user, count_id=count_id, name=body.name, note=body.note,
             category_id=None, counts=counts, finish=body.finish, revision=body.revision,
+        )
+    except StockCountError as exc:
+        _raise(exc)
+
+
+@router.post("/{count_id}/apply", response_model=StockCountSummary,
+             summary="Conferência compartilhada: soma as bipadas deste aparelho sem apagar as dos outros")
+async def apply_ops(
+    count_id: int,
+    body: StockCountApply,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    try:
+        return await StockCountService(db).apply(
+            tenant_id=tenant_id, user=current_user, count_id=count_id,
+            ops=[o.model_dump() for o in body.ops], name=body.name, note=body.note, finish=body.finish,
+            revision=body.revision,
         )
     except StockCountError as exc:
         _raise(exc)

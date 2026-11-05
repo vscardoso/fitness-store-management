@@ -37,6 +37,7 @@ export interface StockCountItem {
   system_quantity: number;
   counted_quantity: number;
   difference: number;
+  counted_by_name?: string | null;
 }
 
 export interface StockCountDetail {
@@ -82,6 +83,32 @@ export async function updateStockCount(
   return data;
 }
 
+/** Uma operação da conferência compartilhada: +1/-1 (delta), quantidade digitada (set) ou "não contada" (clear). */
+export interface CountOp {
+  variant_id: number;
+  delta?: number;
+  set?: number;
+  clear?: boolean;
+}
+
+/**
+ * Conferência compartilhada: manda as bipadas deste aparelho (somam com as dos outros, ninguém apaga ninguém).
+ * Para finalizar, `revision` tem que ser a última (409 se chegou contagem nova de outra pessoa).
+ */
+export async function applyStockCount(
+  id: number,
+  params: { ops?: CountOp[]; name?: string; note?: string; finish?: boolean; revision?: number },
+): Promise<StockCountSummary> {
+  const { data } = await api.post<StockCountSummary>(`/reports/stock-counts/${id}/apply`, {
+    ops: params.ops ?? [],
+    ...(params.name !== undefined ? { name: params.name.trim() } : {}),
+    ...(params.note !== undefined ? { note: params.note.trim() } : {}),
+    finish: !!params.finish,
+    ...(params.revision ? { revision: params.revision } : {}),
+  }, { headers: { 'X-Skip-Loading': 'true' } });
+  return data;
+}
+
 export async function listStockCounts(
   params: { limit?: number; offset?: number; status?: StockCountStatus } = {},
 ): Promise<{ total: number; results: StockCountSummary[] }> {
@@ -91,8 +118,12 @@ export async function listStockCounts(
   return data;
 }
 
-export async function getStockCount(id: number, onlyDiffs = false): Promise<StockCountDetail> {
-  const { data } = await api.get<StockCountDetail>(`/reports/stock-counts/${id}`, { params: { only_diffs: onlyDiffs } });
+export async function getStockCount(id: number, onlyDiffs = false, quiet = false): Promise<StockCountDetail> {
+  // quiet: atualização automática da conferência compartilhada (sem a lupa de carregando a cada poucos segundos)
+  const { data } = await api.get<StockCountDetail>(`/reports/stock-counts/${id}`, {
+    params: { only_diffs: onlyDiffs },
+    ...(quiet ? { headers: { 'X-Skip-Loading': 'true' } } : {}),
+  });
   return data;
 }
 

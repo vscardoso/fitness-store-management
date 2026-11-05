@@ -74,7 +74,8 @@ async def test_recusas_sem_gravar_nada(test_client, async_session, test_user):
     antes = ((await async_session.execute(select(func.count(StockCount.id)))).scalar(),
              (await async_session.execute(select(func.count(StockCountItem.id)))).scalar())
     url = "/api/v1/reports/stock-counts"
-    assert (await test_client.post(url, json={"items": []}, headers=h)).status_code == 422                       # vazio
+    r = await test_client.post(url, json={"items": [], "finish": True}, headers=h)                          # finalizar vazia não
+    assert r.status_code == 400
     assert (await test_client.post(url, json={"items": [{"variant_id": vid, "counted_quantity": -1}]}, headers=h)).status_code == 422
     r = await test_client.post(url, json={"items": [{"variant_id": vid, "counted_quantity": 1}, {"variant_id": 99999999, "counted_quantity": 1}]}, headers=h)
     assert r.status_code == 400 and "não existem" in r.json()["detail"]                                         # peça de fora: nada grava
@@ -185,6 +186,11 @@ async def test_andamento_recusas_e_isolamento(test_client, async_session, test_u
     _, _, token_b = await _nova_loja(async_session, "pro")
     hb = {"Authorization": f"Bearer {token_b}"}
     assert (await test_client.put(f"{url}/{cid}", json={"revision": 3, "items": []}, headers=hb)).status_code == 404
-    # criar já finalizada
+    # com uma em andamento não se abre outra (uma conferência só por loja)
+    r = await test_client.post(url, json={"category_id": cat, "finish": True, "items": [{"variant_id": vid, "counted_quantity": 4}]}, headers=ha)
+    assert r.status_code == 409 and f"[#{cid}]" in r.json()["detail"]
+    # fecha a em andamento e aí cria uma já finalizada
+    r = await test_client.put(f"{url}/{cid}", json={"revision": 3, "items": [{"variant_id": vid, "counted_quantity": 1}], "finish": True}, headers=ha)
+    assert r.status_code == 200, r.text
     r = await test_client.post(url, json={"category_id": cat, "finish": True, "items": [{"variant_id": vid, "counted_quantity": 4}]}, headers=ha)
     assert r.status_code == 201 and r.json()["status"] == "finished" and r.json()["finished_at"]   # criar já finalizada

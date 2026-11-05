@@ -52,3 +52,5 @@ class StockCountItem(BaseModel):
     system_quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     counted_quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     difference: Mapped[int] = mapped_column(Integer, nullable=False, comment="contado - sistema (negativo = falta)")
+    counted_by_name: Mapped[str | None] = mapped_column(String(120), nullable=True,
+                                                        comment="Quem contou por último (conferência compartilhada)")

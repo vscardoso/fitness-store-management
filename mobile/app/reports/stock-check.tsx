@@ -38,7 +38,10 @@ import {
 import { isAdminRole } from '@/utils/roles';
 import { parseApiError } from '@/utils/apiError';
 import { Switch } from 'react-native-paper';
-import { countsKey, createStockCount, getStockCount, updateStockCount, type CountedItemInput } from '@/services/stockCountService';
+import {
+  applyStockCount, createStockCount, getStockCount, listStockCounts,
+  type CountedItemInput, type CountOp, type StockCountDetail, type StockCountSummary,
+} from '@/services/stockCountService';
 import { variantCodeText } from '@/utils/shortCode';
 import HScroll from '@/components/ui/HScroll';
 import { formatInt, formatDateTime } from '@/utils/format';
@@ -58,6 +61,7 @@ interface Draft {
   name: string;
   note: string;
   categoryId: number | null;
+  createdBy?: string | null;
 }
 
 const esc = (t: string) => t.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -77,6 +81,7 @@ export default function StockCheckScreen() {
   const { goBack } = useBackToList('/(tabs)/more');
   const tenantId = useAuthStore((s) => s.tenant_id);
   const isAdmin = isAdminRole(useAuthStore((s) => s.user?.role));
+  const myName = useAuthStore((s) => s.user?.full_name || s.user?.email || '');
 
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [onlyInStock, setOnlyInStock] = useState(false);
@@ -141,7 +146,6 @@ export default function StockCheckScreen() {
   const [conflict, setConflict] = useState('');
   const [savedAt, setSavedAt] = useState<string | null>(null);
   const [pendingResume, setPendingResume] = useState<number | null>(null);
-  const lastSavedRef = useRef('');
   const resumedRef = useRef<string | null>(null);
   const params = useLocalSearchParams<{ resume?: string; q?: string }>();
   useScreenWakeLock(true);   // a tela não apaga no meio da contagem
@@ -162,7 +166,11 @@ export default function StockCheckScreen() {
   const [highlightId, setHighlightId] = useState<number | null>(null);
   const [focusId, setFocusId] = useState<number | null>(null);
 
-  const storageKey = `@provador:conferencia:${tenantId ?? 'loja'}`;
+  // v2 (05/11/2026, conferência compartilhada): as contagens antigas guardadas só no aparelho são descartadas
+  const storageKey = `@provador:conferencia2:${tenantId ?? 'loja'}`;
+  useEffect(() => {
+    AsyncStorage.multiRemove([`@provador:conferencia:${tenantId ?? 'loja'}`, `@provador:conferencia_andamento:${tenantId ?? 'loja'}`]).catch(() => {});
+  }, [tenantId]);
 
   // Contagem salva no aparelho: continua de onde parou
   useEffect(() => {
@@ -263,7 +271,7 @@ export default function StockCheckScreen() {
   }, [rows, counts]);
 
   // Qual conferência em andamento este aparelho está continuando (a contagem em si já fica salva acima)
-  const draftKey = `@provador:conferencia_andamento:${tenantId ?? 'loja'}`;
+  const draftKey = `@provador:conferencia_andamento2:${tenantId ?? 'loja'}`;
   const [draftLoaded, setDraftLoaded] = useState(false);
   useEffect(() => {
     AsyncStorage.getItem(draftKey)
@@ -279,9 +287,165 @@ export default function StockCheckScreen() {
     else AsyncStorage.removeItem(draftKey).catch(() => {});
   }, [draft, draftLoaded, draftKey]);
 
-  const setCount = useCallback((variantId: number, text: string) => {
-    setCounts((prev) => ({ ...prev, [variantId]: text.replace(/[^0-9]/g, '') }));
+  // ===== Conferência compartilhada =====
+  // Uma conferência aberta por loja; todo aparelho que abre esta tela entra nela. Cada bipada vai para o servidor
+  // como operação (+1, -1, quantidade digitada, limpar) e soma com as dos outros; a tela puxa as dos outros a cada 4 s.
+  const [countedBy, setCountedBy] = useState<Record<number, string>>({});
+  const [people, setPeople] = useState<string[]>([]);
+  const [joinAsk, setJoinAsk] = useState<StockCountSummary | null>(null);
+  const [openChecked, setOpenChecked] = useState(false);
+  const [syncError, setSyncError] = useState('');
+  const draftRef = useRef<Draft | null>(null);
+  useEffect(() => {
+    draftRef.current = draft;
+  }, [draft]);
+  const opsRef = useRef<CountOp[]>([]);
+  const flushing = useRef(false);
+  const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const flushRef = useRef<() => Promise<void>>(async () => {});
+  const creatingRef = useRef(false);
+
+  const setDraftNow = useCallback((d: Draft | null) => {
+    draftRef.current = d;
+    setDraft(d);
   }, []);
+
+  const scheduleFlush = useCallback((ms: number) => {
+    if (flushTimer.current) clearTimeout(flushTimer.current);
+    flushTimer.current = setTimeout(() => { flushRef.current(); }, ms);
+  }, []);
+
+  // Põe na tela o que está no servidor; operações deste aparelho ainda não enviadas continuam valendo por cima
+  const applyDetail = useCallback((detail: StockCountDetail) => {
+    const next: Counts = {};
+    const by: Record<number, string> = {};
+    const who = new Set<string>();
+    detail.items.forEach((i) => {
+      if (i.variant_id == null) return;
+      next[i.variant_id] = String(i.counted_quantity);
+      if (i.counted_by_name) {
+        by[i.variant_id] = i.counted_by_name;
+        who.add(i.counted_by_name);
+      }
+    });
+    opsRef.current.forEach((op) => {
+      if (op.clear) delete next[op.variant_id];
+      else if (op.set != null) next[op.variant_id] = String(op.set);
+      else next[op.variant_id] = String(Math.max(0, (parseInt(next[op.variant_id] ?? '0', 10) || 0) + (op.delta ?? 0)));
+    });
+    if (detail.count.created_by_name) who.add(detail.count.created_by_name);
+    setCounts(next);
+    setCountedBy(by);
+    setPeople(Array.from(who));
+    const c = detail.count;
+    setDraftNow({ id: c.id, revision: c.revision, name: c.name ?? '', note: c.note ?? '', categoryId: c.category_id, createdBy: c.created_by_name });
+    setSavedAt(c.updated_at ?? c.created_at);
+  }, [setDraftNow]);
+
+  const endedByOther = useCallback(() => {
+    opsRef.current = [];
+    setDraftNow(null);
+    setCounts({});
+    setCountedBy({});
+    setPeople([]);
+    setMessage('Esta conferência foi finalizada. O relatório está em Conferências salvas.');
+  }, [setDraftNow]);
+
+  flushRef.current = async () => {
+    const d = draftRef.current;
+    if (!d || flushing.current || !opsRef.current.length) return;
+    flushing.current = true;
+    const batch = opsRef.current;
+    opsRef.current = [];
+    try {
+      const res = await applyStockCount(d.id, { ops: batch });
+      if (draftRef.current && draftRef.current.id === res.id) setDraftNow({ ...draftRef.current, revision: res.revision });
+      setSavedAt(new Date().toISOString());
+      setSyncError('');
+    } catch (e: any) {
+      const st = e?.response?.status;
+      if (st === 409 || st === 404) endedByOther();
+      else {
+        opsRef.current = [...batch, ...opsRef.current];
+        setSyncError('Sem conexão: as contagens deste aparelho vão ser enviadas assim que a internet voltar.');
+      }
+    } finally {
+      flushing.current = false;
+      if (opsRef.current.length && draftRef.current) scheduleFlush(2500);
+    }
+  };
+
+  const queueOp = useCallback((op: CountOp) => {
+    if (!draftRef.current) return;   // sem conferência no servidor ainda: a 1ª contagem cria (abaixo) com tudo
+    opsRef.current.push(op);
+    scheduleFlush(300);
+  }, [scheduleFlush]);
+
+  // Entra numa conferência do servidor (sumLocal: soma os números que estavam só neste aparelho)
+  const joinCount = useCallback(async (id: number, sumLocal: boolean) => {
+    const local = sumLocal ? { ...countsRef.current } : {};
+    try {
+      const det = await getStockCount(id);
+      if (det.count.status !== 'open') {
+        endedByOther();
+        return;
+      }
+      opsRef.current = [];
+      applyDetail(det);
+      setCategoryId(null);
+      setConflict('');
+      Object.entries(local).forEach(([vid, raw]) => {
+        const n = parseInt(raw, 10);
+        if (Number.isFinite(n) && n > 0) {
+          opsRef.current.push({ variant_id: Number(vid), delta: n });
+          setCounts((prev) => ({ ...prev, [vid]: String((parseInt(prev[Number(vid)] ?? '0', 10) || 0) + n) }));
+        }
+      });
+      if (opsRef.current.length) scheduleFlush(200);
+      setMessage(`Você está na conferência${det.count.name ? ' "' + det.count.name + '"' : ''} começada por ${det.count.created_by_name || 'outra pessoa'}.`);
+    } catch (e: any) {
+      setMessage(e?.message || 'Não foi possível abrir a conferência. Tente de novo.');
+    }
+  }, [applyDetail, endedByOther, scheduleFlush]);
+
+  const syncNow = useCallback(async () => {
+    const d = draftRef.current;
+    if (!d) return;
+    if (flushTimer.current) clearTimeout(flushTimer.current);
+    await flushRef.current();
+    const det = await getStockCount(d.id, false, true);
+    if (det.count.status !== 'open') {
+      endedByOther();
+      return;
+    }
+    applyDetail(det);
+  }, [applyDetail, endedByOther]);
+
+  // Puxa o que os outros contaram, a cada 4 s
+  useEffect(() => {
+    if (!draft?.id) return;
+    const id = draft.id;
+    const t = setInterval(async () => {
+      if (flushing.current || opsRef.current.length) return;
+      try {
+        const det = await getStockCount(id, false, true);
+        if (det.count.status !== 'open') {
+          endedByOther();
+          return;
+        }
+        if (det.count.revision !== draftRef.current?.revision && !opsRef.current.length && !flushing.current) applyDetail(det);
+      } catch {
+        // sem rede: tenta de novo no próximo
+      }
+    }, 4000);
+    return () => clearInterval(t);
+  }, [draft?.id, applyDetail, endedByOther]);
+
+  const setCount = useCallback((variantId: number, text: string) => {
+    const clean = text.replace(/[^0-9]/g, '');
+    setCounts((prev) => ({ ...prev, [variantId]: clean }));
+    queueOp(clean === '' ? { variant_id: variantId, clear: true } : { variant_id: variantId, set: parseInt(clean, 10) });
+  }, [queueOp]);
 
   // O que vai para o servidor: TODAS as peças contadas do escopo da conferência (nunca só as que o filtro mostra agora)
   const scopeCategory = draft ? draft.categoryId : categoryId;
@@ -304,31 +468,51 @@ export default function StockCheckScreen() {
       setSaving(true);
       setSaveError('');
       try {
-        const res = draft
-          ? await updateStockCount(draft.id, {
-              revision: draft.revision, name: opts.name ?? draft.name, note: opts.note ?? draft.note, items, finish: opts.finish,
-            })
-          : await createStockCount({ name: opts.name, note: opts.note, categoryId: scopeCategory, items, finish: opts.finish });
+        let res: StockCountSummary;
+        if (draft) {
+          // manda o que falta deste aparelho; finalizar só com tudo enviado e a tela na última versão
+          if (flushTimer.current) clearTimeout(flushTimer.current);
+          await flushRef.current();
+          if (opsRef.current.length) {
+            setSaveError('Ainda há contagens deste aparelho para enviar (sem conexão). Tente de novo em instantes.');
+            return false;
+          }
+          res = await applyStockCount(draft.id, {
+            name: opts.name ?? draft.name, note: opts.note ?? draft.note, finish: opts.finish,
+            revision: opts.finish ? draftRef.current?.revision : undefined,
+          });
+        } else {
+          res = await createStockCount({ name: opts.name, note: opts.note, categoryId: null, items, finish: opts.finish });
+        }
         queryClient.invalidateQueries({ queryKey: ['stock-counts'] });
-        lastSavedRef.current = countsKey(items);
         setConflict('');
         setSavedAt(new Date().toISOString());
         if (opts.finish) {
-          setDraft(null);
+          setDraftNow(null);
           setCounts({});
-          lastSavedRef.current = '';
+          setCountedBy({});
+          setPeople([]);
           setSaveOpen(false);
           setFinishOpen(false);
           router.push({ pathname: '/reports/stock-counts/[id]', params: { id: String(res.id) } } as any);
         } else {
-          setDraft({ id: res.id, revision: res.revision, name: res.name ?? '', note: res.note ?? '', categoryId: res.category_id });
+          setDraftNow({ id: res.id, revision: res.revision, name: res.name ?? '', note: res.note ?? '', categoryId: res.category_id, createdBy: res.created_by_name });
           setSaveOpen(false);
         }
         return true;
       } catch (e: any) {
-        if (e?.response?.status === 409) {
-          setConflict(e?.response?.data?.detail || 'Outra pessoa salvou esta conferência depois de você. Recarregue a versão salva.');
+        const detail: string = e?.response?.data?.detail || e?.message || '';
+        const joinId = /\[#(\d+)\]/.exec(detail);
+        if (e?.response?.status === 409 && joinId) {
+          // outra pessoa abriu a conferência antes: entra nela somando o que este aparelho contou
+          setSaveOpen(false);
+          await joinCount(Number(joinId[1]), true);
+        } else if (e?.response?.status === 409 && draft) {
+          // chegou contagem nova de outra pessoa (ou ela já finalizou): atualiza a tela para conferir de novo
           setFinishOpen(false);
+          setSaveOpen(false);
+          try { await syncNow(); } catch { /* o aviso abaixo basta */ }
+          setMessage(detail || 'Chegaram contagens novas. Confira e finalize de novo.');
         } else if (!opts.silent) {
           setSaveError(e?.message || 'Não foi possível salvar a conferência. Tente de novo.');
         }
@@ -337,47 +521,59 @@ export default function StockCheckScreen() {
         setSaving(false);
       }
     },
-    [payloadItems, draft, scopeCategory, queryClient, router],
+    [payloadItems, draft, queryClient, router, joinCount, syncNow, setDraftNow],
   );
 
-  // Salva sozinho, 20 s depois da última mudança, quando há conferência em andamento
-  useEffect(() => {
-    if (!draft || conflict || saving || !allData) return;
-    if (countsKey(payloadItems()) === lastSavedRef.current) return;
-    const t = setTimeout(() => {
-      persist({ silent: true });
-    }, 20000);
-    return () => clearTimeout(t);
-  }, [draft, conflict, saving, allData, payloadItems, persist]);
+  // Abre uma conferência do servidor (lista de conferências > Continuar) e põe os números dela na tela
+  const loadDraft = useCallback((id: number) => joinCount(id, false), [joinCount]);
 
-  // Abre uma conferência em andamento do servidor e põe os números dela na tela
-  const loadDraft = useCallback(async (id: number) => {
-    try {
-      const detail = await getStockCount(id);
-      if (detail.count.status !== 'open') {
-        setMessage('Esta conferência já foi finalizada e não pode mais ser continuada.');
-        return;
+  // Ao abrir a tela: atualiza a conferência que este aparelho já estava seguindo, ou entra na que está aberta na loja
+  useEffect(() => {
+    if (!loaded || !draftLoaded || openChecked) return;
+    (async () => {
+      try {
+        if (draftRef.current) {
+          await joinCount(draftRef.current.id, false);
+        } else {
+          const { results } = await listStockCounts({ status: 'open', limit: 1 });
+          const open = results[0];
+          if (open) {
+            const hasLocal = Object.values(countsRef.current).some((v) => v !== '');
+            if (hasLocal) setJoinAsk(open);
+            else await joinCount(open.id, false);
+          }
+        }
+      } catch {
+        // sem rede: a primeira contagem tenta de novo
+      } finally {
+        setOpenChecked(true);
       }
-      const next: Counts = {};
-      detail.items.forEach((i) => {
-        if (i.variant_id != null) next[i.variant_id] = String(i.counted_quantity);
+    })();
+  }, [loaded, draftLoaded, openChecked, joinCount]);
+
+  // Sem conferência na loja: a primeira peça contada já cria uma (aí os outros aparelhos entram nela)
+  useEffect(() => {
+    if (!loaded || !draftLoaded || !openChecked || draft || joinAsk || creatingRef.current) return;
+    const items = Object.entries(counts)
+      .filter(([, v]) => v !== '' && Number.isFinite(parseInt(v, 10)))
+      .map(([vid, v]) => ({ variant_id: Number(vid), counted_quantity: parseInt(v, 10) }));
+    if (!items.length) return;
+    creatingRef.current = true;
+    createStockCount({ categoryId: null, items })
+      .then((res) => {
+        setDraftNow({ id: res.id, revision: res.revision, name: res.name ?? '', note: res.note ?? '', categoryId: res.category_id, createdBy: res.created_by_name });
+        setSavedAt(res.created_at);
+        queryClient.invalidateQueries({ queryKey: ['stock-counts'] });
+      })
+      .catch(async (e: any) => {
+        const m = /\[#(\d+)\]/.exec(e?.response?.data?.detail || e?.message || '');
+        if (m) await joinCount(Number(m[1]), true);   // outro aparelho abriu antes: entra somando
+        else setSyncError('Não foi possível começar a conferência no servidor. Os números continuam neste aparelho.');
+      })
+      .finally(() => {
+        creatingRef.current = false;
       });
-      setCounts(next);
-      setCategoryId(detail.count.category_id);
-      setDraft({
-        id: detail.count.id, revision: detail.count.revision, name: detail.count.name ?? '',
-        note: detail.count.note ?? '', categoryId: detail.count.category_id,
-      });
-      lastSavedRef.current = countsKey(
-        detail.items.filter((i) => i.variant_id != null).map((i) => ({ variant_id: i.variant_id as number, counted_quantity: i.counted_quantity })),
-      );
-      setConflict('');
-      setSavedAt(detail.count.updated_at ?? detail.count.created_at);
-      setMessage('');
-    } catch (e: any) {
-      setMessage(e?.message || 'Não foi possível abrir a conferência. Tente de novo.');
-    }
-  }, []);
+  }, [counts, loaded, draftLoaded, openChecked, draft, joinAsk, joinCount, setDraftNow, queryClient]);
 
   // Veio da lista de conferências ("Continuar")
   useEffect(() => {
@@ -393,13 +589,13 @@ export default function StockCheckScreen() {
 
   // seta de + e -: sem número ainda, o primeiro + conta 1 e o primeiro - conta 0; nunca passa de 0 para baixo
   const stepCount = useCallback((variantId: number, delta: 1 | -1) => {
-    setCounts((prev) => {
-      const raw = prev[variantId];
-      const cur = raw === undefined || raw === '' ? null : parseInt(raw, 10) || 0;
-      const next = cur === null ? (delta > 0 ? 1 : 0) : Math.max(0, cur + delta);
-      return { ...prev, [variantId]: String(next) };
-    });
-  }, []);
+    const raw = countsRef.current[variantId];
+    const cur = raw === undefined || raw === '' ? null : parseInt(raw, 10) || 0;
+    const next = cur === null ? (delta > 0 ? 1 : 0) : Math.max(0, cur + delta);
+    setCounts((prev) => ({ ...prev, [variantId]: String(next) }));
+    countsRef.current = { ...countsRef.current, [variantId]: String(next) };
+    queueOp(cur === null && delta < 0 ? { variant_id: variantId, set: 0 } : { variant_id: variantId, delta });
+  }, [queueOp]);
 
   // Leitura do QR: acha a peça na lista (na hora, sem servidor), soma 1, rola até a linha e destaca
   const handleScan = useCallback(
@@ -434,6 +630,8 @@ export default function StockCheckScreen() {
       const cur = before === undefined || before === '' ? 0 : parseInt(before, 10) || 0;
       const next = cur + 1;
       setCounts((prev) => ({ ...prev, [vid]: String(next) }));
+      countsRef.current = { ...countsRef.current, [vid]: String(next) };
+      queueOp({ variant_id: vid, delta: 1 });
       setLastScan(vid);
       const diff = next - row.system_quantity;
       playScan(diff > 0 ? 'warn' : 'ok');
@@ -445,7 +643,7 @@ export default function StockCheckScreen() {
       setHighlightId(vid);
       setFocusId(vid);
     },
-    [codeIndex, allIndex, rowById, allData],
+    [codeIndex, allIndex, rowById, allData, queueOp],
   );
 
   // Um campo só: digitar filtra a lista; Enter (ou o leitor, que manda Enter) com um código inteiro conta 1 peça
@@ -654,13 +852,16 @@ export default function StockCheckScreen() {
         {/* Conferência em andamento */}
         {!!draft && (
           <View style={styles.draftBanner}>
-            <Ionicons name="cloud-done-outline" size={16} color="#92400E" />
-            <Text style={styles.draftText} numberOfLines={2}>
-              Em andamento{draft.name ? ': ' + draft.name : ''}
-              {savedAt ? ' · salva às ' + formatDateTime(savedAt).slice(-5) : ''} · salva sozinha
+            <Ionicons name="people-outline" size={16} color="#92400E" />
+            <Text style={styles.draftText} numberOfLines={3}>
+              Conferência compartilhada{draft.name ? ': ' + draft.name : ''}
+              {draft.createdBy ? ' · começada por ' + draft.createdBy : ''}
+              {people.length ? ' · contando: ' + people.join(', ') : ''}
+              {savedAt ? ' · atualizada às ' + formatDateTime(savedAt).slice(-5) : ''}
             </Text>
           </View>
         )}
+        {!!syncError && <Text style={[styles.conflictText, { marginTop: 6 }]}>{syncError}</Text>}
         {!!conflict && (
           <View style={styles.conflictBanner}>
             <Text style={styles.conflictText}>{conflict}</Text>
@@ -691,8 +892,12 @@ export default function StockCheckScreen() {
             onPress={() => {
               if (!summary.counted || !allData) return;
               setSaveError('');
-              if (draft) setFinishOpen(true);
-              else {
+              if (draft) {
+                // antes de perguntar: manda o que falta e traz o que os outros contaram (a pessoa vê tudo atualizado)
+                syncNow()
+                  .then(() => setFinishOpen(true))
+                  .catch(() => setSaveError('Sem conexão para atualizar a conferência. Tente de novo.'));
+              } else {
                 setSaveMode('finish');
                 setSaveOpen(true);
               }
@@ -759,6 +964,9 @@ export default function StockCheckScreen() {
                       <Text style={styles.meta} numberOfLines={1}>
                         {code ? code + ' · ' : ''}sistema {formatInt(r.system_quantity)}
                       </Text>
+                      {!!countedBy[r.variant_id] && countedBy[r.variant_id] !== myName && (
+                        <Text style={styles.meta} numberOfLines={1}>contado por {countedBy[r.variant_id]}</Text>
+                      )}
                       {d !== null && (
                         <View style={styles.resultLine}>
                           {d === 0 ? (
@@ -949,11 +1157,32 @@ export default function StockCheckScreen() {
         visible={finishOpen}
         type="warning"
         title="Finalizar a conferência?"
-        message={`Você contou ${formatInt(summary.counted)} de ${formatInt(rows.length)} variações (${formatInt(pending)} sem contagem ficam como "não contadas"). Depois de finalizar, ela vira relatório e não dá mais para mudar.`}
+        message={`${people.length > 1 ? 'Contaram: ' + people.join(', ') + '. ' : ''}Foram contadas ${formatInt(summary.counted)} de ${formatInt(rows.length)} variações (${formatInt(pending)} sem contagem ficam como "não contadas"). Os números da tela são os de todo mundo, atualizados agora. Depois de finalizar, ela vira relatório e ninguém muda mais.`}
         confirmText="Finalizar"
         cancelText="Voltar"
         onConfirm={() => persist({ finish: true })}
         onCancel={() => setFinishOpen(false)}
+      />
+
+      <ConfirmDialog
+        visible={!!joinAsk}
+        type="info"
+        icon="people-outline"
+        title="Já tem uma conferência em andamento"
+        message={joinAsk ? `${joinAsk.name ? '"' + joinAsk.name + '", c' : 'C'}omeçada por ${joinAsk.created_by_name || 'outra pessoa'}. A loja conta numa conferência só. Este aparelho tem números contados só nele: somar os números dele à conferência (se ele contou peças diferentes) ou entrar sem eles (se outra pessoa já contou as mesmas peças)?` : ''}
+        confirmText="Entrar e somar os meus"
+        cancelText="Entrar sem os meus"
+        onConfirm={() => {
+          const id = joinAsk!.id;
+          setJoinAsk(null);
+          joinCount(id, true);
+        }}
+        onCancel={() => {
+          const id = joinAsk!.id;
+          setJoinAsk(null);
+          joinCount(id, false);
+        }}
+        onDismiss={() => {}}
       />
 
       <ConfirmDialog
@@ -976,15 +1205,12 @@ export default function StockCheckScreen() {
         type="warning"
         title="Limpar a contagem?"
         message={draft
-          ? 'Os números serão apagados deste aparelho e ele deixa de continuar a conferência em andamento. Ela continua guardada na lista de conferências salvas, como estava no último salvamento. O estoque não muda.'
+          ? 'Esta conferência é compartilhada: limpar daqui apagaria a contagem de todo mundo. Para encerrar, use Finalizar.'
           : 'Os números que você digitou serão apagados deste aparelho. O estoque do sistema não muda.'}
-        confirmText="Limpar"
+        confirmText={draft ? 'Entendi' : 'Limpar'}
         cancelText="Cancelar"
         onConfirm={() => {
-          setCounts({});
-          setDraft(null);
-          lastSavedRef.current = '';
-          setConflict('');
+          if (!draft) setCounts({});
           setConfirmClear(false);
         }}
         onCancel={() => setConfirmClear(false)}

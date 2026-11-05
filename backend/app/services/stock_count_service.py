@@ -32,6 +32,27 @@ class StockCountConflict(StockCountError):
     pass
 
 
+def _who(user: User) -> str:
+    return (user.full_name or user.email or "")[:120]
+
+
+def _summarize(items, total_variants: int) -> Dict[str, int]:
+    ok = short = over = system_total = counted_total = 0
+    for it in items:
+        diff = it.counted_quantity - it.system_quantity
+        system_total += it.system_quantity
+        counted_total += it.counted_quantity
+        if diff == 0:
+            ok += 1
+        elif diff < 0:
+            short += -diff
+        else:
+            over += diff
+    return dict(total_variants=total_variants, counted_variants=len(items), ok_variants=ok,
+                diff_variants=len(items) - ok, short_pieces=short, over_pieces=over,
+                system_pieces=system_total, counted_pieces=counted_total)
+
+
 class StockCountService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -59,7 +80,19 @@ class StockCountService:
                     "Outra pessoa salvou esta conferência depois que você a abriu. Atualize a tela para ver os números dela."
                 )
             category_id = existing.category_id   # a categoria é a da criação
-        if (existing is None or finish) and not counts:
+        if existing is None:
+            # uma conferência só por loja: com uma em andamento, todo mundo conta nela (não abre outra em paralelo)
+            aberta = (await self.db.execute(select(StockCount.id, StockCount.name).where(
+                StockCount.tenant_id == tenant_id, StockCount.is_active == True,  # noqa: E712
+                StockCount.status == "open").limit(1))).first()
+            if aberta:
+                raise StockCountConflict(
+                    f"Já existe uma conferência em andamento{(' (' + aberta.name + ')') if aberta.name else ''}. "
+                    f"Entre nela para contar junto [#{aberta.id}]."
+                )
+        # começar vazia é permitido (conferência compartilhada: a 1ª bipada já cria e os outros aparelhos entram);
+        # finalizar vazia não
+        if finish and not counts:
             raise StockCountError("Nenhuma peça foi contada. Conte ao menos uma peça antes de salvar.")
 
         report = await StockCheckService(self.db).report(tenant_id=tenant_id, category_id=category_id)
@@ -95,6 +128,7 @@ class StockCountService:
                 tenant_id=tenant_id, variant_id=vid, product_id=r["product_id"], product_name=r["product_name"][:255],
                 category_name=r["category_name"], color=r["color"], size=r["size"], sku=r["sku"],
                 display_code=r["display_code"], system_quantity=r["system_quantity"], counted_quantity=qty, difference=diff,
+                counted_by_name=_who(user),
             ))
 
         summary = dict(
@@ -132,6 +166,90 @@ class StockCountService:
                 it.count_id = count.id
             self.db.add_all(items)
             await self.db.commit()   # tudo ou nada: cabeçalho e itens juntos
+        except Exception:
+            await self.db.rollback()
+            raise
+        await self.db.refresh(count)
+        return count
+
+    async def apply(
+        self, *, tenant_id: int, user: User, count_id: int, ops: List[Dict[str, Any]],
+        name: Optional[str] = None, note: Optional[str] = None, finish: bool = False, revision: Optional[int] = None,
+    ) -> StockCount:
+        """Conferência compartilhada: aplica as bipadas de um aparelho na conferência em andamento, sem apagar as dos outros.
+
+        Cada operação é sobre UMA peça: `delta` (+1 ao bipar, -1 na seta), `set` (quantidade digitada) ou `clear`
+        (volta a "não contada"). A linha da conferência é travada durante a gravação, então duas pessoas bipando a mesma
+        peça ao mesmo tempo somam as duas. `finish` fecha a conferência (vira relatório e não muda mais).
+        """
+        count = (await self.db.execute(
+            select(StockCount).where(StockCount.id == count_id, StockCount.tenant_id == tenant_id,
+                                     StockCount.is_active == True).with_for_update()  # noqa: E712
+        )).scalar_one_or_none()
+        if count is None:
+            raise StockCountNotFound("Conferência não encontrada.")
+        if count.status == "finished":
+            raise StockCountConflict("Esta conferência já foi finalizada por outra pessoa e não pode mais mudar.")
+        if finish and (ops or revision is None or revision != count.revision):
+            # só finaliza quem está vendo a conferência inteira e atualizada: nada pendente deste aparelho e
+            # nenhuma contagem nova de outra pessoa depois da última atualização da tela
+            raise StockCountConflict(
+                "Chegaram contagens novas de outra pessoa. A tela foi atualizada: confira os números e finalize de novo."
+            )
+        try:
+            items = {i.variant_id: i for i in (await self.db.execute(select(StockCountItem).where(
+                StockCountItem.count_id == count.id, StockCountItem.tenant_id == tenant_id))).scalars().all()}
+            report = None
+            who = _who(user)
+            for op in ops:
+                vid = int(op["variant_id"])
+                item = items.get(vid)
+                if op.get("clear"):
+                    if item is not None:
+                        await self.db.delete(item)
+                        items.pop(vid)
+                    continue
+                if item is None:
+                    if report is None:
+                        report = await StockCheckService(self.db).report(tenant_id=tenant_id, category_id=count.category_id)
+                        report = {r["variant_id"]: r for r in report["rows"]}
+                    r = report.get(vid)
+                    if r is None:
+                        raise StockCountError("Esta peça não existe mais nesta loja (ou está fora da categoria da conferência). "
+                                              "Atualize a tela.")
+                    item = StockCountItem(
+                        tenant_id=tenant_id, count_id=count.id, variant_id=vid, product_id=r["product_id"],
+                        product_name=r["product_name"][:255], category_name=r["category_name"], color=r["color"],
+                        size=r["size"], sku=r["sku"], display_code=r["display_code"], system_quantity=r["system_quantity"],
+                        counted_quantity=0, difference=0,
+                    )
+                    self.db.add(item)
+                    items[vid] = item
+                    base = 0
+                else:
+                    base = item.counted_quantity
+                new = int(op["set"]) if op.get("set") is not None else base + int(op.get("delta") or 0)
+                item.counted_quantity = max(0, min(new, 1_000_000))
+                item.difference = item.counted_quantity - item.system_quantity
+                item.counted_by_name = who
+            if finish and not items:
+                raise StockCountError("Nenhuma peça foi contada. Conte ao menos uma peça antes de finalizar.")
+            await self.db.flush()
+            total_variants = count.total_variants
+            if not total_variants:
+                rep = await StockCheckService(self.db).report(tenant_id=tenant_id, category_id=count.category_id)
+                total_variants = rep["total_variants"]
+            for k, v in _summarize(items.values(), total_variants).items():
+                setattr(count, k, v)
+            if name is not None:
+                count.name = name.strip()[:120] or None
+            if note is not None:
+                count.note = note.strip() or None
+            count.revision = (count.revision or 1) + 1
+            if finish:
+                count.status = "finished"
+                count.finished_at = datetime.utcnow()
+            await self.db.commit()
         except Exception:
             await self.db.rollback()
             raise
