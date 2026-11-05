@@ -968,112 +968,57 @@ export default function DashboardScreen() {
           </View>
         )}
 
-        {/* ========== YoY COMPARAÇÃO ========== */}
-        {yoyData && yoyData.months && yoyData.months.length > 0 && (() => {
-          const maxVal = Math.max(...yoyData.months.map(m => Math.max(m.current_total, m.prev_total)), 1);
+        {/* ========== VENDAS POR MÊS ========== */}
+        {/* Só os meses com venda (até os 6 últimos); o ano passado só aparece quando teve venda naquele mês */}
+        {yoyData && yoyData.months && (() => {
+          const shown = yoyData.months.filter((m) => m.current_total > 0 || m.prev_total > 0).slice(-6);
+          if (shown.length === 0) return null;
+          const maxVal = Math.max(...shown.map((m) => Math.max(m.current_total, m.prev_total)), 1);
+          const hasPrev = yoyData.totals.prev_total > 0;
           const isPositive = yoyData.totals.total_change_percent >= 0;
           return (
-            <View style={styles.yoyCard}>
-              {/* Header */}
+            <View style={[styles.yoyCard, { paddingVertical: theme.spacing.md }]}>
               <View style={styles.yoyHeader}>
-                <View>
-                  <Text style={styles.yoyTitle}>📅 Mês a Mês</Text>
-                  <Text style={styles.yoySubtitle}>{yoyData.totals.prev_year} vs {yoyData.totals.current_year}</Text>
-                </View>
-                <View style={[styles.yoyChangeBadge, { backgroundColor: isPositive ? '#ECFDF5' : '#FEF2F2' }]}>
-                  <Ionicons
-                    name={isPositive ? 'trending-up' : 'trending-down'}
-                    size={16}
-                    color={isPositive ? VALUE_COLORS.positive : VALUE_COLORS.negative}
-                  />
-                  <Text style={[styles.yoyChangePct, { color: isPositive ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
-                    {formatSignedPercent(yoyData.totals.total_change_percent, 1)} no ano
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.yoyTitle}>Vendas por mês</Text>
+                  <Text style={styles.yoySubtitle}>
+                    {yoyData.totals.current_year}: {formatCurrency(yoyData.totals.current_total)}
+                    {hasPrev ? ` · ${yoyData.totals.prev_year}: ${formatCurrency(yoyData.totals.prev_total)}` : ''}
                   </Text>
                 </View>
+                {hasPrev && (
+                  <View style={[styles.yoyChangeBadge, { backgroundColor: isPositive ? '#ECFDF5' : '#FEF2F2' }]}>
+                    <Ionicons name={isPositive ? 'trending-up' : 'trending-down'} size={14}
+                      color={isPositive ? VALUE_COLORS.positive : VALUE_COLORS.negative} />
+                    <Text style={[styles.yoyChangePct, { color: isPositive ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
+                      {formatSignedPercent(yoyData.totals.total_change_percent, 1)}
+                    </Text>
+                  </View>
+                )}
               </View>
-
-              {/* Resumo anual */}
-              <View style={styles.yoyTotalsRow}>
-                <View style={styles.yoyTotalCard}>
-                  <Text style={styles.yoyTotalYear}>{yoyData.totals.prev_year}</Text>
-                  <Text style={styles.yoyTotalValue}>{formatCurrency(yoyData.totals.prev_total)}</Text>
-                </View>
-                <View style={styles.yoyTotalArrow}>
-                  <Ionicons name="arrow-forward" size={18} color="#9CA3AF" />
-                </View>
-                <View style={[styles.yoyTotalCard, styles.yoyTotalCardCurrent]}>
-                  <Text style={[styles.yoyTotalYear, { color: brandingColors.primary }]}>{yoyData.totals.current_year}</Text>
-                  <Text style={[styles.yoyTotalValue, { color: '#1F2937', fontWeight: '800' as const }]}>
-                    {formatCurrency(yoyData.totals.current_total)}
-                  </Text>
-                </View>
-              </View>
-
-              {/* Legenda */}
-              <View style={styles.yoyLegend}>
-                <View style={styles.yoyLegendItem}>
-                  <View style={[styles.yoyLegendDot, { backgroundColor: '#CBD5E1' }]} />
-                  <Text style={styles.yoyLegendText}>{yoyData.totals.prev_year}</Text>
-                </View>
-                <View style={styles.yoyLegendItem}>
-                  <View style={[styles.yoyLegendDot, { backgroundColor: brandingColors.primary }]} />
-                  <Text style={styles.yoyLegendText}>{yoyData.totals.current_year}</Text>
-                </View>
-              </View>
-
-              {/* Lista mês a mês */}
-              <View style={styles.yoyMonthList}>
-                {yoyData.months.map((month, idx) => {
-                  const prevW = (month.prev_total / maxVal) * 100;
-                  const currW = (month.current_total / maxVal) * 100;
-                  const chg = month.change_percent;
-                  const chgColor = chg > 0 ? VALUE_COLORS.positive : chg < 0 ? VALUE_COLORS.negative : VALUE_COLORS.neutral;
-                  const chgBg = chg > 0 ? '#ECFDF5' : chg < 0 ? '#FEF2F2' : '#F3F4F6';
-                  return (
-                    <View
-                      key={month.month}
-                      style={[styles.yoyMonthRow, idx < yoyData.months.length - 1 && styles.yoyMonthRowBorder]}
-                    >
-                      {/* Nome do mês */}
-                      <Text style={styles.yoyMonthName}>{month.month_name}</Text>
-
-                      {/* Barras horizontais */}
-                      <View style={styles.yoyMonthBarsH}>
-                        {/* Ano anterior */}
-                        <View style={styles.yoyBarHRow}>
-                          <View style={[styles.yoyBarHTrack]}>
-                            <View style={[styles.yoyBarHFill, styles.yoyBarHPrev, { width: `${prevW}%` as any }]} />
-                          </View>
-                          <Text style={styles.yoyBarHValue}>{formatCurrency(month.prev_total)}</Text>
-                        </View>
-                        {/* Ano atual */}
-                        <View style={styles.yoyBarHRow}>
-                          <View style={[styles.yoyBarHTrack]}>
-                            <View style={[styles.yoyBarHFill, styles.yoyBarHCurr, { backgroundColor: brandingColors.primary, width: `${currW}%` as any }]} />
-                          </View>
-                          <Text style={[styles.yoyBarHValue, { color: '#1F2937', fontWeight: '600' as const }]}>
-                            {formatCurrency(month.current_total)}
-                          </Text>
-                        </View>
-                      </View>
-
-                      {/* Badge de variação */}
-                      <View style={[styles.yoyMonthBadge, { backgroundColor: chgBg }]}>
-                        {chg !== 0 && (
-                          <Ionicons
-                            name={chg > 0 ? 'arrow-up' : 'arrow-down'}
-                            size={10}
-                            color={chgColor}
-                          />
-                        )}
-                        <Text style={[styles.yoyMonthBadgeText, { color: chgColor }]}>
-                          {formatSignedPercent(chg)}
-                        </Text>
-                      </View>
+              {shown.map((m) => (
+                <View key={m.month} style={styles.monthLine}>
+                  <Text style={styles.monthName}>{m.month_name.slice(0, 3)}</Text>
+                  <View style={styles.monthBars}>
+                    <View style={styles.monthTrack}>
+                      <View style={[styles.yoyBarHFill, { backgroundColor: brandingColors.primary, width: `${(m.current_total / maxVal) * 100}%` as any }]} />
                     </View>
-                  );
-                })}
-              </View>
+                    {m.prev_total > 0 && (
+                      <View style={[styles.monthTrack, { height: 4 }]}>
+                        <View style={[styles.yoyBarHFill, styles.yoyBarHPrev, { height: 4, width: `${(m.prev_total / maxVal) * 100}%` as any }]} />
+                      </View>
+                    )}
+                  </View>
+                  <View style={styles.monthValues}>
+                    <Text style={styles.monthValue}>{formatCurrency(m.current_total)}</Text>
+                    {m.prev_total > 0 && (
+                      <Text style={[styles.monthPrev, { color: m.change_percent >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
+                        {formatSignedPercent(m.change_percent)} vs {yoyData.totals.prev_year}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              ))}
             </View>
           );
         })()}
@@ -2636,6 +2581,13 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
 
   // YoY Comparação
+  monthLine: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 6 },
+  monthName: { width: 34, fontSize: 13, fontWeight: '700', color: '#374151' },
+  monthBars: { flex: 1, gap: 3 },
+  monthTrack: { width: '100%', height: 8, backgroundColor: '#F3F4F6', borderRadius: 4, overflow: 'hidden' },
+  monthValues: { minWidth: 96, alignItems: 'flex-end' },
+  monthValue: { fontSize: 13, fontWeight: '700', color: '#1F2937' },
+  monthPrev: { fontSize: 10, fontWeight: '600' },
   yoyCard: {
     backgroundColor: '#fff',
     borderRadius: 16,
