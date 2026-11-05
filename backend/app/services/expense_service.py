@@ -249,6 +249,8 @@ class ExpenseService:
         if not exp:
             return None
         changes = data.model_dump(exclude_unset=True)
+        if exp.payable_id and set(changes) & {"amount", "expense_date", "account_id"}:
+            raise ValueError("Esta despesa veio de uma conta paga: para mudar valor, data ou conta, desfaça o pagamento em Despesas a pagar.")
         if "category_id" in changes:
             await self._validate_category(changes["category_id"], tenant_id)
         if "account_id" in changes:
@@ -280,6 +282,8 @@ class ExpenseService:
         exp = await _exp_repo.get(self.db, expense_id, tenant_id=tenant_id)
         if not exp:
             return False
+        if exp.payable_id:
+            raise ValueError("Esta despesa veio de uma conta paga: desfaça o pagamento em Despesas a pagar.")
         exp.is_active = False
         await self.db.flush()
         await self._reallocate({exp.stock_entry_id}, {exp.trip_id}, tenant_id)

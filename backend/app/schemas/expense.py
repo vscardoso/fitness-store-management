@@ -100,6 +100,7 @@ class ExpenseUpdate(BaseModel):
 class ExpenseResponse(ExpenseBase):
     id: int
     is_active: bool
+    payable_id: Optional[int] = None  # veio de uma despesa a pagar (mudar valor/apagar = desfazer o pagamento)
     category: Optional[ExpenseCategoryResponse] = None
 
     model_config = {"from_attributes": True}

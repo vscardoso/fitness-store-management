@@ -189,7 +189,8 @@ def _run_alembic_upgrade() -> None:
 _SQLITE_EXTRA_COLUMNS = {
     "stock_entries": [("supplier_id", "INTEGER"), ("discount_amount", "NUMERIC(10,2) NOT NULL DEFAULT 0")],
     "entry_items": [("supplier_id", "INTEGER"), ("list_unit_cost", "NUMERIC(10,2)"), ("extra_unit_cost", "NUMERIC(10,2) NOT NULL DEFAULT 0")],
-    "expenses": [("stock_entry_id", "INTEGER"), ("trip_id", "INTEGER"), ("account_id", "INTEGER")],
+    "expenses": [("stock_entry_id", "INTEGER"), ("trip_id", "INTEGER"), ("account_id", "INTEGER"), ("payable_id", "INTEGER")],
+    "payables": [("counts_as_expense", "BOOLEAN NOT NULL DEFAULT 0"), ("expense_category_id", "INTEGER")],
     "stores": [
         ("return_window_days", "INTEGER NOT NULL DEFAULT 7"), ("allow_money_refund", "BOOLEAN NOT NULL DEFAULT 1"),
         ("allow_stock_writeoff", "BOOLEAN NOT NULL DEFAULT 0"), ("catalog_feed_token", "VARCHAR(64)"),

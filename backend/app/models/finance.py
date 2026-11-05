@@ -83,3 +83,8 @@ class Payable(BaseModel):
                                         comment="implantacao | manual")
     notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Despesas e contas a pagar são uma coisa só: ao pagar, a despesa da loja vira uma Expense (entra no resultado do mês);
+    # compra de mercadoria e dívida de antes da implantação só tiram o dinheiro da conta.
+    counts_as_expense: Mapped[bool] = mapped_column(nullable=False, default=False, server_default=text("false"),
+                                                    comment="ao pagar, entra no resultado do mês como despesa")
+    expense_category_id: Mapped[Optional[int]] = mapped_column(ForeignKey("expense_categories.id"), nullable=True)

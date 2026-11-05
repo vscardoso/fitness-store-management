@@ -231,7 +231,10 @@ async def delete_expense(
     tenant_id: Optional[int] = Depends(get_current_tenant_id),
 ):
     svc = ExpenseService(db)
-    ok = await svc.delete_expense(expense_id, tenant_id)
+    try:
+        ok = await svc.delete_expense(expense_id, tenant_id)
+    except ValueError as e:
+        raise HTTPException(status_code=409, detail=str(e))
     if not ok:
         raise HTTPException(status_code=404, detail="Despesa não encontrada")
 

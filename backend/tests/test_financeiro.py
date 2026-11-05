@@ -227,3 +227,50 @@ async def test_retirada_do_caixa_para_o_banco_nao_conta_duas_vezes(test_client, 
     r = await test_client.post("/api/v1/cash/movements", headers=h, json={"kind": "withdrawal", "amount": 500, "reason": "sangria", "account_id": nu})
     assert r.status_code == 400 and len((await test_client.get(f"{API}/transfers", headers=h)).json()) == antes
     await test_client.post("/api/v1/cash/close", headers=h, json={"counted_amount": 75})
+
+
+async def test_despesa_a_pagar_vira_despesa_ao_pagar_sem_contar_duas_vezes(test_client, async_session, test_user):
+    """Despesas e contas a pagar juntas: a despesa da loja a pagar entra no resultado do mês ao ser paga, o dinheiro
+    sai da conta uma vez só; compra de mercadoria e dívida da implantação só tiram da conta."""
+    from app.models.expense import Expense
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    await _zerar_implantacao(async_session, t_id)
+    d = (await _implantar(test_client, h, payables=[{"description": "Boleto antigo", "amount": "300", "due_date": date.today().isoformat()}])).json()
+    nu = _conta(d, "Nubank")["id"]
+    antiga = (await test_client.get(f"{API}/payables", headers=h)).json()["items"][0]
+    assert antiga["counts_as_expense"] is False                        # dívida de antes da implantação
+
+    cat = (await test_client.post("/api/v1/expenses/categories", headers=h, json={"name": "Aluguel teste", "color": "#123456", "icon": "home"}))
+    cat_id = cat.json()["id"] if cat.status_code in (200, 201) else None
+    r = await test_client.post(f"{API}/payables", headers=h, json={
+        "description": "Aluguel", "amount": "1200", "due_date": date.today().isoformat(), "expense_category_id": cat_id})
+    aluguel = r.json()
+    assert r.status_code == 200 and aluguel["counts_as_expense"] is True
+    r = await test_client.post(f"{API}/payables", headers=h, json={
+        "description": "Boleto Brás", "supplier_name": "Fornecedor X", "amount": "500", "due_date": date.today().isoformat()})
+    boleto = r.json()
+    assert boleto["counts_as_expense"] is False                        # de fornecedor: compra de mercadoria
+
+    for x in (aluguel, boleto, antiga):
+        assert (await test_client.post(f"{API}/payables/{x['id']}/pay", headers=h, json={"account_id": nu})).status_code == 200
+    d = (await test_client.get(f"{API}/accounts", headers=h)).json()
+    assert _conta(d, "Nubank")["balance"] == 1000.0 - 1200 - 500 - 300   # cada pagamento sai uma vez só
+    gerada = (await async_session.execute(select(Expense).where(Expense.payable_id == aluguel["id"], Expense.is_active == True))).scalars().all()  # noqa: E712
+    assert len(gerada) == 1 and float(gerada[0].amount) == 1200.0 and gerada[0].category_id == cat_id
+    assert (await async_session.execute(select(Expense).where(Expense.payable_id.in_([boleto["id"], antiga["id"]])))).scalars().all() == []
+
+    # resultado do mês: o aluguel pago entra como despesa
+    res = await test_client.get(f"/api/v1/expenses/resultado-mes?year={date.today().year}&month={date.today().month}", headers=h)
+    assert res.status_code == 200, res.text
+    assert float(res.json()["total_expenses"]) >= 1200.0
+
+    # a despesa gerada não se apaga nem muda de valor por fora: desfaz pelo pagamento
+    r = await test_client.delete(f"/api/v1/expenses/{gerada[0].id}", headers=h)
+    assert r.status_code == 409 and "desfaça o pagamento" in r.json()["detail"]
+    r = await test_client.put(f"/api/v1/expenses/{gerada[0].id}", headers=h, json={"amount": "10"})
+    assert r.status_code == 400
+    assert (await test_client.post(f"{API}/payables/{aluguel['id']}/unpay", headers=h)).status_code == 200
+    async_session.expire_all()
+    assert (await async_session.execute(select(Expense).where(Expense.payable_id == aluguel["id"], Expense.is_active == True))).scalars().all() == []  # noqa: E712
+    d = (await test_client.get(f"{API}/accounts", headers=h)).json()
+    assert _conta(d, "Nubank")["balance"] == 1000.0 - 500 - 300

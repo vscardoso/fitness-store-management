@@ -209,6 +209,7 @@ class FinanceService:
         expenses = dict((await self.db.execute(
             select(Expense.account_id, func.coalesce(func.sum(Expense.amount), 0)).where(
                 Expense.tenant_id == tenant_id, Expense.is_active == True, Expense.account_id.is_not(None),  # noqa: E712
+                Expense.payable_id.is_(None),   # nascida do pagamento de uma despesa a pagar: o pagamento já tirou da conta
                 Expense.expense_date >= store.finance_start_date,
             ).group_by(Expense.account_id)
         )).all())
@@ -312,7 +313,21 @@ class FinanceService:
             desc = supplier_name or ""
         if not desc:
             raise FinanceError(f"{label}: informe o que é (ex.: boleto do fornecedor, aluguel).")
+        # despesa da loja (entra no resultado ao pagar) ou compra de mercadoria / dívida de antes (só tira da conta);
+        # padrão: as da implantação são dívidas de antes; as novas são despesa da loja, salvo se for de fornecedor
+        counts = it.get("counts_as_expense")
+        counts = (origin != "implantacao" and supplier_id is None and not supplier_name) if counts is None else bool(counts)
+        category_id = it.get("expense_category_id") if counts else None
+        if category_id is not None:
+            from app.models.expense import ExpenseCategory
+            cat = (await self.db.execute(select(ExpenseCategory).where(
+                ExpenseCategory.id == category_id, ExpenseCategory.is_active == True,  # noqa: E712
+                or_(ExpenseCategory.tenant_id == tenant_id, ExpenseCategory.tenant_id.is_(None)),
+            ))).scalar_one_or_none()
+            if cat is None:
+                raise FinanceError(f"{label}: categoria de despesa não encontrada.")
         return Payable(
+            counts_as_expense=counts, expense_category_id=category_id,
             tenant_id=tenant_id, description=desc, supplier_id=supplier_id, supplier_name=supplier_name,
             amount=money(it.get("amount"), f"{label} ({desc})"),
             due_date=parse_day(it.get("due_date"), f"{label} ({desc}): vencimento", allow_future=True),
@@ -390,6 +405,7 @@ class FinanceService:
             "overdue": p.status == PAYABLE_OPEN and p.due_date < today,
             "paid_on": p.paid_on.isoformat() if p.paid_on else None, "paid_account_id": p.paid_account_id,
             "origin": p.origin, "notes": p.notes,
+            "counts_as_expense": bool(p.counts_as_expense), "expense_category_id": p.expense_category_id,
         }
 
     async def list_payables(self, tenant_id: int, status: Optional[str] = None) -> Dict[str, Any]:
@@ -433,6 +449,12 @@ class FinanceService:
             raise FinanceError("A data do pagamento não pode ser antes da implantação.")
         p.status, p.paid_on, p.paid_account_id, p.paid_at = PAYABLE_PAID, day, acc.id, datetime.utcnow()
         self.db.add(p)
+        if p.counts_as_expense:
+            # despesa da loja: entra no resultado do mês do pagamento (o dinheiro sai uma vez só, pelo pagamento)
+            self.db.add(Expense(
+                tenant_id=tenant_id, amount=_q(p.amount), description=p.description[:200], expense_date=day,
+                category_id=p.expense_category_id, account_id=acc.id, payable_id=p.id, notes=p.notes, is_active=True,
+            ))
         await self.db.commit()
         await self.db.refresh(p)
         return self._payable_public(p)
@@ -444,6 +466,9 @@ class FinanceService:
             raise FinanceConflict("Só conta paga pode ter o pagamento desfeito.")
         p.status, p.paid_on, p.paid_account_id, p.paid_at = PAYABLE_OPEN, None, None, None
         self.db.add(p)
+        await self.db.execute(update(Expense).where(
+            Expense.payable_id == p.id, Expense.tenant_id == tenant_id, Expense.is_active == True,  # noqa: E712
+        ).values(is_active=False))
         await self.db.commit()
         await self.db.refresh(p)
         return self._payable_public(p)

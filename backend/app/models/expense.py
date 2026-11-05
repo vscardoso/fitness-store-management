@@ -115,6 +115,10 @@ class Expense(BaseModel):
     account_id: Mapped[int | None] = mapped_column(
         ForeignKey("financial_accounts.id"), nullable=True, comment="conta de onde saiu o pagamento"
     )
+    # despesa nascida do pagamento de uma despesa a pagar (o Financeiro conta o pagamento, não esta linha)
+    payable_id: Mapped[int | None] = mapped_column(
+        ForeignKey("payables.id", ondelete="SET NULL"), nullable=True, comment="despesa a pagar que gerou esta despesa"
+    )
     trip_id: Mapped[int | None] = mapped_column(
         ForeignKey("trips.id", ondelete="SET NULL"),
         nullable=True,
