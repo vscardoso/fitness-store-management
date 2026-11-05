@@ -183,6 +183,12 @@ export default function LabelProductPickerModal({
   };
 
   const totalSelected = selected.size;
+  // o Estúdio começa com uma etiqueta por peça em estoque (sem estoque, 1): mostra quantas etiquetas vão sair
+  const selectedPieces = useMemo(() => {
+    let n = 0;
+    selected.forEach(({ variant }) => { n += (variant.current_stock ?? 0) > 0 ? (variant.current_stock as number) : 1; });
+    return n;
+  }, [selected]);
   const totalAlreadyAdded = useMemo(() => {
     if (!products) return 0;
 
@@ -420,7 +426,7 @@ export default function LabelProductPickerModal({
             icon="pricetags-outline"
             label={totalSelected === 0
               ? 'Selecione produtos acima'
-              : `Aplicar: ${totalSelected} ${totalSelected === 1 ? 'cor e tamanho' : 'cores e tamanhos'}`}
+              : `Aplicar: ${totalSelected} ${totalSelected === 1 ? 'cor e tamanho' : 'cores e tamanhos'} = ${selectedPieces} ${selectedPieces === 1 ? 'etiqueta' : 'etiquetas'}`}
             onPress={handleConfirm}
             disabled={totalSelected === 0}
           />
