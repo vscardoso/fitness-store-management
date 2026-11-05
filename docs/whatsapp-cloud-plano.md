@@ -182,3 +182,17 @@ Tudo em Mais > WhatsApp (e no grupo WhatsApp da barra lateral do notebook), só 
 
 ### Correção de cores da caixa de conversas (2026-10-31)
 O commit eb7891b trocou cores que já existiam (cor da marca da loja, fundo, borda, texto) e criou balão roxo escuro no tema escuro. Corrigido: `CHAT.light` em `mobile/constants/tokens.ts` reproduz exatamente as cores antigas da tela; balão enviado e destaque usam a cor da marca (`useBrandingColors`) via `useChatColors()`; o tema escuro usa só tokens de `Colors.ts`. Regra: cor existente não se muda; token novo só para elemento novo. `npx tsc --noEmit` do mobile em 0 erros.
+
+## Estudo: celular da loja (99650-0091) no Provador por coexistência (2026-11-05)
+
+Fonte: documentação oficial da Meta lida em 05/11/2026 (`developers.facebook.com/docs/whatsapp/embedded-signup/custom-flows/onboarding-business-app-users`, páginas de Calling). Nada foi feito ainda.
+
+- **Quem pode ligar**: "You must already be a Solution Partner or Tech Provider." O app Provador Fit precisa virar **Tech Provider** (portfólio verificado já temos) e ter **acesso avançado** aprovado na revisão do app para `whatsapp_business_management` e `whatsapp_business_messaging`. A ligação é pelo **Embedded Signup** (versão atual; v2/v3 descontinuadas em 15/10/2026), que teremos de montar numa página do Provador. Isso também serve, no futuro, para outras lojas ligarem o próprio WhatsApp.
+- **Requisitos do número**: WhatsApp Business app 2.24.17 ou mais novo. Lista de países e Brasil: NÃO encontrado na página.
+- **Fluxo**: a loja digita o número, recebe mensagem da conta oficial do Facebook no app, toca Conectar e confirma o compartilhamento do histórico, cola o código. Temos **24 horas** para puxar histórico e contatos (uma vez só); senão, desconecta e refaz.
+- **Espelhamento**: "Messages sent and received are mirrored between the Cloud API and WhatsApp Business app." O que a loja manda pelo celular chega por webhook `smb_message_echoes` (temos de gravar na conversa). Histórico: 6 meses (180 dias), em 3 fases, pelo webhook `history`; grupos não vêm; mídia antiga vem como "placeholder" (arquivo só das últimas 2 semanas). Contatos pelo `smb_app_state_sync`.
+- **Muda no app do celular**: listas de transmissão desligadas (as existentes ficam só leitura); mensagens temporárias, visualização única e localização em tempo real desligadas nas conversas individuais; WhatsApp Web e aparelhos conectados são desconectados (reconectar depois; WhatsApp para Windows não é suportado). Catálogo, etiquetas, respostas rápidas, ausência e chamadas continuam no app, mas NÃO pela API.
+- **Celular precisa ser aberto**: a Meta avisa desconexão com "primary device inactive for approximately 14 days". Desconectar só pelo app (Configurações > Conta > Plataforma Business > Desconectar).
+- **Custo e limites**: o que a loja manda pelo app continua grátis e não abre nem estende a janela de 24 h da API; o que sai pela API segue o preço da Cloud API. Vazão fixa de 20 mensagens por segundo.
+- **Chamadas**: na coexistência "Voice and video calls: No change" no app e "Not supported" na Cloud API. Ou seja, as ligações continuam tocando no celular e o Provador NÃO recebe aviso de ligação: não dá para bloquear nem responder automaticamente pela API nesse modo. (Em número só da API, ligação vem desligada por padrão e há webhook `calls`; não se aplica à coexistência.)
+- NÃO encontrado na Meta: Brasil na lista de países, restrições de nome/selo oficial na coexistência, número exato de dias de inatividade além do "aproximadamente 14".
