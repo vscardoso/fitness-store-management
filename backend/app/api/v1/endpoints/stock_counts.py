@@ -37,7 +37,9 @@ class StockCountUpdate(BaseModel):
 
 class CountOp(BaseModel):
     variant_id: int
-    delta: Optional[int] = Field(None, ge=-1000, le=1000, description="+1 ao bipar, -1 na seta")
+    # só +1 (bipar/seta) ou -1: somar números em bloco por cima da conferência é recusado (05/11/2026, a versão antiga do
+    # app somava a cópia que o próprio celular guardava e dobrava a conferência; quantidade digitada vai em `set`)
+    delta: Optional[int] = Field(None, ge=-1, le=1, description="+1 ao bipar, -1 na seta")
     set: Optional[int] = Field(None, ge=0, le=1_000_000, description="Quantidade digitada")
     clear: bool = Field(False, description="Volta a peça para 'não contada'")
 

@@ -115,3 +115,18 @@ async def test_apagar_em_andamento_e_comecar_de_novo(test_client, async_session,
     d = (await test_client.get(f"{url}/{novo}", headers=h)).json()
     await test_client.post(f"{url}/{novo}/apply", json={"finish": True, "revision": d["count"]["revision"]}, headers=h)
     assert (await test_client.delete(f"{url}/{novo}", headers=h)).status_code == 409
+
+
+async def test_soma_em_bloco_e_recusada(test_client, async_session, test_user):
+    """A versão antiga do app mandava delta = número inteiro guardado no celular e dobrava a conferência."""
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    await _produto_com_variacoes(async_session, t_id, cat, "Top Bloco", [("Preto", "M", 1)])
+    await async_session.commit()
+    h = {"Authorization": f"Bearer {token}"}
+    vid = (await test_client.get(f"/api/v1/reports/stock-check?category_id={cat}", headers=h)).json()["rows"][0]["variant_id"]
+    cid = (await test_client.post("/api/v1/reports/stock-counts", json={"items": [{"variant_id": vid, "counted_quantity": 1}]}, headers=h)).json()["id"]
+    url = f"/api/v1/reports/stock-counts/{cid}/apply"
+    assert (await test_client.post(url, json={"ops": [{"variant_id": vid, "delta": 2}]}, headers=h)).status_code == 422
+    assert (await test_client.post(url, json={"ops": [{"variant_id": vid, "delta": 1}]}, headers=h)).status_code == 200
+    d = (await test_client.get(f"/api/v1/reports/stock-counts/{cid}", headers=h)).json()
+    assert d["items"][0]["counted_quantity"] == 2
