@@ -73,7 +73,10 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
   useEffect(() => {
     setQty((prev) => {
       const next = { ...prev };
-      for (const it of items) if (next[it.variantId] == null) next[it.variantId] = initialQty?.[it.variantId] ?? 1;
+      // uma etiqueta por PEÇA: começa com a quantidade em estoque (sem estoque, 1); "1 de cada" continua no atalho
+      for (const it of items) {
+        if (next[it.variantId] == null) next[it.variantId] = initialQty?.[it.variantId] ?? (it.stock > 0 ? Math.min(MAX_PER_ITEM, it.stock) : 1);
+      }
       return next;
     });
   }, [items, initialQty]);

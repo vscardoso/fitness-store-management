@@ -420,7 +420,7 @@ export default function LabelProductPickerModal({
             icon="pricetags-outline"
             label={totalSelected === 0
               ? 'Selecione produtos acima'
-              : `Aplicar seleção (${totalSelected})`}
+              : `Aplicar: ${totalSelected} ${totalSelected === 1 ? 'cor e tamanho' : 'cores e tamanhos'}`}
             onPress={handleConfirm}
             disabled={totalSelected === 0}
           />
