@@ -108,3 +108,17 @@ async def test_item_da_entrada_traz_o_codigo_da_etiqueta(test_client, async_sess
     assert r.status_code == 200, r.text
     codes = [i.get("variant_code") for i in r.json()["entry_items"]]
     assert "#026-1" in codes, codes
+
+
+def test_folha_a4_tem_espaco_entre_etiquetas_sem_perder_nenhuma():
+    """Corte torto não pega a vizinha: a sobra da folha vira espaço entre colunas e linhas (até 8 mm)."""
+    from decimal import Decimal
+    from app.services.label_pdf_service import a4_grid, a4_spacing, build_pdf, LabelData
+    assert a4_grid(60, 50) == (3, 5) and a4_spacing(60, 50) == (8, 8)
+    assert a4_grid(50, 60) == (4, 4) and a4_spacing(50, 60) == (0, 8)   # 4 colunas já ocupam a largura toda
+    for w, h in ((60, 50), (50, 60), (65, 55), (30, 30), (100, 100)):
+        cols, rows = a4_grid(w, h)
+        gx, gy = a4_spacing(w, h)
+        assert cols * w + (cols - 1) * gx <= 200 + 1e-6 and rows * h + (rows - 1) * gy <= 287 + 1e-6, (w, h)
+    pdf = build_pdf([LabelData(name="Blusa", color="Preto", size="M", price=Decimal("49.90"), code="#043-9", qr="PV#043-9")] * 16)
+    assert pdf.startswith(b"%PDF") and pdf.count(b"/Type /Page") >= 2   # 15 por folha: 16 pedem 2 folhas

@@ -28,7 +28,10 @@ from reportlab.pdfgen import canvas
 
 BOLD, REGULAR = "Helvetica-Bold", "Helvetica"
 ZONES = (15, 13, 11, 21)  # proporção das faixas (somam 60)
-A4_MARGIN_MM, A4_GAP_MM = 5, 0   # borda da folha (área que a impressora alcança) e etiquetas encostadas: a linha de corte é a borda
+A4_MARGIN_MM, A4_GAP_MM = 5, 0   # borda da folha (área que a impressora alcança); a conta de quantas cabem é sem espaço
+# A sobra da folha vira espaço entre as etiquetas (até 8 mm), sem perder nenhuma por folha: o corte que sai torto cai
+# na faixa em branco e não pega a etiqueta do lado (pedido do Victor, 05/11/2026)
+A4_SPACING_MAX_MM = 8
 MIN_MM, MAX_MM = 30, 100
 DEFAULT_W_MM, DEFAULT_H_MM = 60, 50   # etiqueta 6 x 5 cm que a W.A compra (2026-11-02)
 
@@ -43,6 +46,17 @@ def a4_grid(width_mm: float, height_mm: float) -> tuple[int, int]:
     cols = int((210 - 2 * A4_MARGIN_MM + A4_GAP_MM) // (width_mm + A4_GAP_MM))
     rows = int((297 - 2 * A4_MARGIN_MM + A4_GAP_MM) // (height_mm + A4_GAP_MM))
     return max(1, cols), max(1, rows)
+
+
+def a4_spacing(width_mm: float, height_mm: float) -> tuple[float, float]:
+    """Espaço entre colunas e entre linhas (mm): a sobra da folha dividida pelos vãos, no máximo A4_SPACING_MAX_MM.
+    60x50 -> (8, 8); 50x60 -> (0, 8) (4 colunas já usam a largura toda; nunca tira etiqueta da folha)."""
+    cols, rows = a4_grid(width_mm, height_mm)
+    free_w = 210 - 2 * A4_MARGIN_MM - cols * width_mm
+    free_h = 297 - 2 * A4_MARGIN_MM - rows * height_mm
+    gx = min(A4_SPACING_MAX_MM, free_w / (cols - 1)) if cols > 1 else 0
+    gy = min(A4_SPACING_MAX_MM, free_h / (rows - 1)) if rows > 1 else 0
+    return round(max(0.0, gx), 2), round(max(0.0, gy), 2)
 
 
 @dataclass
@@ -161,7 +175,7 @@ def draw_label(c: canvas.Canvas, x: float, y: float, w: float, h: float, d: Labe
 
 
 def _cut_lines(c: canvas.Canvas, x: float, y: float, w: float, h: float) -> None:
-    """Linha de corte no tamanho exato da etiqueta (cinza fino); vizinhas encostadas dividem a mesma linha."""
+    """Linha de corte no tamanho exato da etiqueta (cinza fino); entre vizinhas fica a faixa em branco do a4_spacing."""
     c.setStrokeColorRGB(0.6, 0.6, 0.6)
     c.setLineWidth(0.25)
     c.rect(x, y, w, h, stroke=1, fill=0)
@@ -192,9 +206,9 @@ def build_pdf(labels: List[LabelData], layout: str = "a4", start_position: int =
     per_page = cols * rows
     if not 1 <= start_position <= per_page:
         raise ValueError(f"Posição inicial deve ser de 1 a {per_page}.")
-    gap = A4_GAP_MM * mm
-    x0 = (pw - (cols * w + (cols - 1) * gap)) / 2      # grade centralizada na folha
-    y0 = (ph - (rows * h + (rows - 1) * gap)) / 2
+    gap_x, gap_y = (s * mm for s in a4_spacing(width_mm, height_mm))
+    x0 = (pw - (cols * w + (cols - 1) * gap_x)) / 2      # grade centralizada na folha
+    y0 = (ph - (rows * h + (rows - 1) * gap_y)) / 2
     c = canvas.Canvas(buf, pagesize=A4)
     c.setTitle(title)
     slot = start_position - 1
@@ -203,8 +217,8 @@ def build_pdf(labels: List[LabelData], layout: str = "a4", start_position: int =
             c.showPage()
             slot = 0
         row, col = divmod(slot, cols)
-        x = x0 + col * (w + gap)
-        y = ph - y0 - (row + 1) * h - row * gap
+        x = x0 + col * (w + gap_x)
+        y = ph - y0 - (row + 1) * h - row * gap_y
         draw_label(c, x, y, w, h, d)
         _cut_lines(c, x, y, w, h)
         slot += 1

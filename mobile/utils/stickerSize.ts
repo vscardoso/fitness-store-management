@@ -41,7 +41,7 @@ export function customSticker(widthMm: number, heightMm: number): StickerSize {
   };
 }
 
-/** Quantos adesivos cabem numa folha A4 (mesma conta do servidor, `a4_grid`: borda 5 mm, etiquetas encostadas): 60x50 = 15, 50x60 = 16, 65x55 = 15. */
+/** Quantos adesivos cabem numa folha A4 (mesma conta do servidor, `a4_grid`: borda 5 mm; a sobra vira espaço entre elas, `a4_spacing`): 60x50 = 15, 50x60 = 16, 65x55 = 15. */
 export function stickersPerSheet(widthMm: number, heightMm: number): number {
   const cols = Math.max(1, Math.floor((210 - 10) / widthMm));
   const rows = Math.max(1, Math.floor((297 - 10) / heightMm));
