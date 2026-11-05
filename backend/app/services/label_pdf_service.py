@@ -1,5 +1,5 @@
 """
-Etiqueta do verso da tag em PDF (adesivo 50x45 mm por padrão, qualquer medida de 30 a 100 mm), em 4 faixas:
+Etiqueta do verso da tag em PDF (adesivo 47x42 mm por padrão, qualquer medida de 30 a 100 mm), em 4 faixas:
 nome | cor e tamanho | preço | QR e código curto (#0123).
 
 Dois formatos do mesmo desenho:
@@ -33,7 +33,8 @@ A4_MARGIN_MM, A4_GAP_MM = 5, 2   # borda da folha (área que a impressora alcan�
 # na faixa em branco e não pega a etiqueta do lado (pedido do Victor, 05/11/2026)
 A4_SPACING_MAX_MM = 8
 MIN_MM, MAX_MM = 30, 100
-DEFAULT_W_MM, DEFAULT_H_MM = 50, 45   # tag da W.A: 5 cm de largura x 4,5 cm de altura (Victor, 05/11/2026)
+# tag da W.A tem 5 x 4,5 cm; o adesivo é 3 mm menor em cada medida para sobrar borda e o erro de corte/colagem não aparecer (Victor, 05/11/2026)
+DEFAULT_W_MM, DEFAULT_H_MM = 47, 42
 
 
 def scale_for(width_mm: float, height_mm: float) -> float:
@@ -43,7 +44,7 @@ def scale_for(width_mm: float, height_mm: float) -> float:
 
 def a4_grid(width_mm: float, height_mm: float) -> tuple[int, int]:
     """Quantas etiquetas cabem na folha A4 (colunas, linhas), com pelo menos A4_GAP_MM entre elas:
-    50x45 -> 3x6 = 18; 60x50 -> 3x5 = 15; 50x60 -> 3x4 = 12; 65x55 -> 3x5 = 15."""
+    47x42 -> 4x6 = 24; 50x45 -> 3x6 = 18; 60x50 -> 3x5 = 15; 50x60 -> 3x4 = 12; 65x55 -> 3x5 = 15."""
     cols = int((210 - 2 * A4_MARGIN_MM + A4_GAP_MM) // (width_mm + A4_GAP_MM))
     rows = int((297 - 2 * A4_MARGIN_MM + A4_GAP_MM) // (height_mm + A4_GAP_MM))
     return max(1, cols), max(1, rows)

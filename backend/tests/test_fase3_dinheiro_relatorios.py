@@ -115,12 +115,13 @@ def test_folha_a4_tem_espaco_entre_etiquetas_sem_perder_nenhuma():
     from decimal import Decimal
     from app.services.label_pdf_service import a4_grid, a4_spacing, build_pdf, LabelData
     assert a4_grid(60, 50) == (3, 5) and a4_spacing(60, 50) == (8, 8)
-    assert a4_grid(50, 45) == (3, 6) and a4_spacing(50, 45) == (8, 3.4)   # padrão: tag da W.A
+    assert a4_grid(47, 42) == (4, 6) and a4_spacing(47, 42) == (4, 7)     # padrão: tag da W.A com borda
+    assert a4_grid(50, 45) == (3, 6) and a4_spacing(50, 45) == (8, 3.4)
     assert a4_grid(50, 60) == (3, 4) and a4_spacing(50, 60) == (8, 8)     # 4 colunas ficariam coladas: vira 3
-    for w, h in ((50, 45), (60, 50), (50, 60), (65, 55), (30, 30), (100, 100)):
+    for w, h in ((47, 42), (50, 45), (60, 50), (50, 60), (65, 55), (30, 30), (100, 100)):
         cols, rows = a4_grid(w, h)
         gx, gy = a4_spacing(w, h)
         assert cols * w + (cols - 1) * gx <= 200 + 1e-6 and rows * h + (rows - 1) * gy <= 287 + 1e-6, (w, h)
         assert (cols == 1 or gx >= 2) and (rows == 1 or gy >= 2), (w, h)   # nunca uma etiqueta encostada na outra
-    pdf = build_pdf([LabelData(name="Blusa", color="Preto", size="M", price=Decimal("49.90"), code="#043-9", qr="PV#043-9")] * 19)
-    assert pdf.startswith(b"%PDF") and pdf.count(b"/Type /Page") >= 2   # 18 por folha: 19 pedem 2 folhas
+    pdf = build_pdf([LabelData(name="Blusa", color="Preto", size="M", price=Decimal("49.90"), code="#043-9", qr="PV#043-9")] * 25)
+    assert pdf.startswith(b"%PDF") and pdf.count(b"/Type /Page") >= 2   # 24 por folha: 25 pedem 2 folhas

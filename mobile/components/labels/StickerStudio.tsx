@@ -1,6 +1,6 @@
 /**
  * Tela única de etiquetas: adesivo do verso da tag (a frente já vem impressa com a logo WA).
- * Prévia em escala real, medida (5 x 4,5 cm por padrão, outras prontas ou qualquer uma de 3 a 10 cm), quantidade por
+ * Prévia em escala real, medida (4,7 x 4,2 cm por padrão, outras prontas ou qualquer uma de 3 a 10 cm), quantidade por
  * peça e o papel (fica lembrado no aparelho):
  *  - Folha A4 (padrão): várias por folha, encostadas, com linha de corte no tamanho exato; posição inicial para folha já usada;
  *  - Uma por página: no tamanho exato, para a gráfica ou impressora de etiqueta.
@@ -81,7 +81,7 @@ export default function StickerStudio({ items, initialQty, onAddMore, onRemove, 
     });
   }, [items, initialQty]);
 
-  // volta à medida usada da última vez (sem armazenamento, fica a 5 x 4,5 cm)
+  // volta à medida usada da última vez (sem armazenamento, fica a 4,7 x 4,2 cm)
   useEffect(() => {
     AsyncStorage.getItem(SIZE_KEY)
       .then((raw) => {

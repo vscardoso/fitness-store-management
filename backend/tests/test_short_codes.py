@@ -295,31 +295,32 @@ async def test_pdf_tamanhos_6x5_5x6_e_grade_da_folha(test_client, async_session)
     r = await test_client.get("/api/v1/labels/sizes", headers=h)
     assert r.status_code == 200
     tam = {x["id"]: x for x in r.json()}
+    assert (tam["47x42"]["width_mm"], tam["47x42"]["height_mm"], tam["47x42"]["per_sheet"]) == (47, 42, 24)
     assert (tam["50x45"]["width_mm"], tam["50x45"]["height_mm"], tam["50x45"]["per_sheet"]) == (50, 45, 18)
     assert (tam["60x50"]["width_mm"], tam["60x50"]["height_mm"], tam["60x50"]["per_sheet"]) == (60, 50, 15)
     assert (tam["50x60"]["width_mm"], tam["50x60"]["height_mm"], tam["50x60"]["per_sheet"]) == (50, 60, 12)
     assert (tam["65x55"]["width_mm"], tam["65x55"]["height_mm"], tam["65x55"]["per_sheet"]) == (65, 55, 15)
     assert (tam["55x65"]["width_mm"], tam["55x65"]["height_mm"], tam["55x65"]["per_sheet"]) == (55, 65, 12)
     url = "/api/v1/labels/pdf"
-    # padrão = 5 x 4,5 cm deitada (a tag da W.A): uma por página com o tamanho exato (arquivo para a gráfica)
+    # padrão = 4,7 x 4,2 cm (tag da W.A de 5 x 4,5 com borda): uma por página com o tamanho exato (arquivo para a gráfica)
     r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 3}], "layout": "roll"}, headers=h)
-    assert r.status_code == 200 and _mediabox_mm(r.content) == [(50.0, 45.0)] * 3
-    for w, hh in ((60, 50), (50, 60), (65, 55), (55, 65), (45, 35)):   # em pé, as antigas e uma medida livre
+    assert r.status_code == 200 and _mediabox_mm(r.content) == [(47.0, 42.0)] * 3
+    for w, hh in ((50, 45), (60, 50), (50, 60), (65, 55), (55, 65), (45, 35)):   # em pé, as antigas e uma medida livre
         r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 2}], "layout": "roll", "width_mm": w, "height_mm": hh}, headers=h)
         assert r.status_code == 200 and _mediabox_mm(r.content) == [(float(w), float(hh))] * 2, (w, hh)
-    # folha A4: 50x45 cabem 18; 19 etiquetas = 2 folhas; começando na posição 18, 2 etiquetas = 2 folhas
-    r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 19}], "layout": "a4"}, headers=h)
+    # folha A4: 47x42 cabem 24; 25 etiquetas = 2 folhas; começando na posição 24, 2 etiquetas = 2 folhas
+    r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 25}], "layout": "a4"}, headers=h)
     assert _pages(r.content) == 2 and set(_mediabox_mm(r.content)) == {(210.0, 297.0)}
-    r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 18}], "layout": "a4"}, headers=h)
+    r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 24}], "layout": "a4"}, headers=h)
     assert _pages(r.content) == 1
-    r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 2}], "layout": "a4", "start_position": 18}, headers=h)
+    r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 2}], "layout": "a4", "start_position": 24}, headers=h)
     assert r.status_code == 200 and _pages(r.content) == 2
-    r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 1}], "layout": "a4", "start_position": 19}, headers=h)
-    assert r.status_code == 400 and "1 a 18" in r.json()["detail"]
+    r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 1}], "layout": "a4", "start_position": 25}, headers=h)
+    assert r.status_code == 400 and "1 a 24" in r.json()["detail"]
     r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 16}], "layout": "a4", "width_mm": 65, "height_mm": 55}, headers=h)
     assert _pages(r.content) == 2   # 65x55: 15 por folha
     # medidas pequenas e grandes no limite: o desenho cabe e o texto sai inteiro
-    for w, hh in ((30, 30), (100, 100), (50, 45), (60, 50), (50, 60)):
+    for w, hh in ((30, 30), (100, 100), (47, 42), (50, 45), (60, 50), (50, 60)):
         r = await test_client.post(url, json={"items": [{"variant_id": vid, "quantity": 1}], "layout": "roll", "width_mm": w, "height_mm": hh}, headers=h)
         txt = _pdf_text(r.content)
         assert r.status_code == 200 and "R$ 89,90" in txt and "Bege" in txt, (w, hh)
@@ -351,7 +352,7 @@ async def test_pdf_recusas_e_permissao(test_client, async_session):
         assert (await test_client.post(url, json={"items": [{"variant_id": cat_id, "quantity": 1}]}, headers=seller)).status_code == 400
         many = {"items": [{"variant_id": vid, "quantity": 200}] * 4}
         assert (await test_client.post(url, json=many, headers=seller)).status_code == 400  # 800 > 600
-        assert (await test_client.post(url, json={**one, "start_position": 19}, headers=seller)).status_code == 400  # 50x45: 18 por folha
+        assert (await test_client.post(url, json={**one, "start_position": 25}, headers=seller)).status_code == 400  # 47x42: 24 por folha
         assert (await test_client.post(url, json={**one, "layout": "zpl"}, headers=seller)).status_code == 422
 
 
