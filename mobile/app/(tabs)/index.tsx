@@ -10,6 +10,8 @@ import {
   Text,
   Image,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { stockWithout } from '@/utils/stockValuation';
 import { useQuery } from '@tanstack/react-query';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -54,6 +56,8 @@ interface QuickAction {
   onPress: () => void;
 }
 
+const EXCLUDED_KEY = '@provador:estoque-sem-categorias';
+
 export default function DashboardScreen() {
   // PC: a rolagem ocupa a largura toda (barra na borda da janela), conteúdo na coluna
   const bleed = useScrollBleed();
@@ -65,6 +69,18 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState<PeriodFilterValue>('this_month');
   const [activeTooltip, setActiveTooltip] = useState<string | null>(null);
+  // Categorias tiradas do valor do estoque (ex.: "sem Tênis"); fica salvo neste aparelho
+  const [excludedCats, setExcludedCats] = useState<number[]>([]);
+  React.useEffect(() => {
+    AsyncStorage.getItem(EXCLUDED_KEY).then((v) => { if (v) setExcludedCats(JSON.parse(v)); }).catch(() => {});
+  }, []);
+  const toggleExcluded = (id: number) => {
+    setExcludedCats((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
+      AsyncStorage.setItem(EXCLUDED_KEY, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  };
   const brandingColors = useBrandingColors();
   const styles = useMemo(() => createStyles(brandingColors.primary), [brandingColors.primary]);
   const logoUri = useBrandingStore((state) => state.branding.logoUri);
@@ -265,9 +281,11 @@ export default function DashboardScreen() {
   const purchasesChangePercent = purchasesComparison?.total_change_percent || 0;
 
   // Estoque
-  const stockCost = valuation?.cost_value || dashboardStats?.stock?.invested_value || 0;
-  const stockRetail = valuation?.retail_value || dashboardStats?.stock?.potential_revenue || 0;
-  const stockProfit = valuation?.potential_margin || (stockRetail - stockCost);
+  const filteredStock = valuation ? stockWithout(valuation, valuation.by_category, excludedCats) : null;
+  const stockCost = filteredStock?.cost ?? dashboardStats?.stock?.invested_value ?? 0;
+  const stockRetail = filteredStock?.retail ?? dashboardStats?.stock?.potential_revenue ?? 0;
+  const stockProfit = filteredStock?.profit ?? (stockRetail - stockCost);
+  const stockCats = (valuation?.by_category ?? []).filter((c) => c.cost_value > 0 || c.retail_value > 0);
   // Margem de lucro sobre o preço de venda (não markup sobre o custo)
   const stockMarginPercent = stockRetail > 0 ? ((stockRetail - stockCost) / stockRetail) * 100 : 0;
 
@@ -1116,6 +1134,31 @@ export default function DashboardScreen() {
         <Text style={styles.sectionTitle}>Seu Estoque</Text>
         <View style={styles.stockCard}>
           <View style={styles.stockContent}>
+            {/* Tirar categorias da conta: toque para deixar de fora (ex.: sem Tênis) */}
+            {stockCats.length > 1 && (
+              <View style={styles.catFilter}>
+                <Text style={styles.catFilterHint}>
+                  {excludedCats.length ? 'Fora da conta (toque para voltar):' : 'Toque numa categoria para tirar da conta:'}
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catFilterRow}>
+                  {stockCats.map((c) => {
+                    const off = excludedCats.includes(c.category_id);
+                    return (
+                      <TouchableOpacity
+                        key={c.category_id}
+                        onPress={() => toggleExcluded(c.category_id)}
+                        style={[styles.catChip, off && styles.catChipOff]}
+                        accessibilityRole="button"
+                        accessibilityLabel={off ? `Voltar ${c.category_name} para a conta` : `Tirar ${c.category_name} da conta`}
+                      >
+                        {off && <Ionicons name="close-circle" size={14} color={Colors.light.error} />}
+                        <Text style={[styles.catChipText, off && styles.catChipTextOff]}>{off ? `Sem ${c.category_name}` : c.category_name}</Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+            )}
             {/* Linha 1: Capital Investido e Potencial de Venda */}
             <View style={styles.stockRow}>
               <View style={styles.stockItem}>
@@ -1849,6 +1892,16 @@ const createStyles = (brand: string) => StyleSheet.create({
   },
 
   // Card de Estoque
+  catFilter: { gap: 6, marginBottom: 12 },
+  catFilterHint: { fontSize: 12, color: '#6B7280' },
+  catFilterRow: { gap: 6, paddingRight: 8 },
+  catChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 6,
+    borderRadius: 999, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card,
+  },
+  catChipOff: { borderColor: Colors.light.error + '66', backgroundColor: Colors.light.error + '12' },
+  catChipText: { fontSize: 12, fontWeight: '700', color: Colors.light.text },
+  catChipTextOff: { color: Colors.light.error },
   stockCard: {
     borderRadius: 16,
     marginBottom: 16,
