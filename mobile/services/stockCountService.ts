@@ -109,6 +109,11 @@ export async function applyStockCount(
   return data;
 }
 
+/** Apaga a conferência em andamento para recomeçar (todos os aparelhos voltam ao zero). */
+export async function discardStockCount(id: number): Promise<void> {
+  await api.delete(`/reports/stock-counts/${id}`);
+}
+
 export async function listStockCounts(
   params: { limit?: number; offset?: number; status?: StockCountStatus } = {},
 ): Promise<{ total: number; results: StockCountSummary[] }> {

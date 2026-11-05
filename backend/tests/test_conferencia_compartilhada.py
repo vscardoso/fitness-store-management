@@ -93,3 +93,25 @@ async def test_peca_de_fora_e_conferencia_de_outra_loja_sao_recusadas(test_clien
     assert r.status_code == 400
     r = await test_client.post("/api/v1/reports/stock-counts/999999/apply", json={"ops": []}, headers=h)
     assert r.status_code == 404
+
+
+async def test_apagar_em_andamento_e_comecar_de_novo(test_client, async_session, test_user):
+    t_id, token, cat = await _loja_api(async_session, test_user)
+    await _produto_com_variacoes(async_session, t_id, cat, "Short Zerar", [("Preto", "M", 1)])
+    await async_session.commit()
+    h = {"Authorization": f"Bearer {token}"}
+    vid = (await test_client.get(f"/api/v1/reports/stock-check?category_id={cat}", headers=h)).json()["rows"][0]["variant_id"]
+    url = "/api/v1/reports/stock-counts"
+    cid = (await test_client.post(url, json={"items": [{"variant_id": vid, "counted_quantity": 4}]}, headers=h)).json()["id"]
+    assert (await test_client.delete(f"{url}/{cid}", headers=h)).status_code == 204
+    # os aparelhos que contavam nela recebem 404 (e limpam a tela)
+    assert (await test_client.get(f"{url}/{cid}", headers=h)).status_code == 404
+    assert (await test_client.post(f"{url}/{cid}/apply", json={"ops": [{"variant_id": vid, "delta": 1}]}, headers=h)).status_code == 404
+    # começa outra do zero (a apagada não trava)
+    r = await test_client.post(url, json={"items": [{"variant_id": vid, "counted_quantity": 1}]}, headers=h)
+    assert r.status_code == 201, r.text
+    novo = r.json()["id"]
+    # finalizada não se apaga
+    d = (await test_client.get(f"{url}/{novo}", headers=h)).json()
+    await test_client.post(f"{url}/{novo}/apply", json={"finish": True, "revision": d["count"]["revision"]}, headers=h)
+    assert (await test_client.delete(f"{url}/{novo}", headers=h)).status_code == 409

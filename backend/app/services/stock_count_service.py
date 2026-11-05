@@ -256,6 +256,20 @@ class StockCountService:
         await self.db.refresh(count)
         return count
 
+    async def discard(self, *, tenant_id: int, count_id: int) -> None:
+        """Apaga a conferência EM ANDAMENTO para recomeçar do zero (exclusão lógica). Os aparelhos que contavam nela
+        recebem 404 e limpam a tela sozinhos. Conferência finalizada é relatório: não se apaga por aqui."""
+        count = (await self.db.execute(
+            select(StockCount).where(StockCount.id == count_id, StockCount.tenant_id == tenant_id,
+                                     StockCount.is_active == True).with_for_update()  # noqa: E712
+        )).scalar_one_or_none()
+        if count is None:
+            raise StockCountNotFound("Conferência não encontrada.")
+        if count.status != "open":
+            raise StockCountConflict("Conferência finalizada não pode ser apagada.")
+        count.is_active = False
+        await self.db.commit()
+
     async def list(self, *, tenant_id: int, status: Optional[str] = None, limit: int = 50, offset: int = 0) -> List[StockCount]:
         stmt = select(StockCount).where(StockCount.tenant_id == tenant_id, StockCount.is_active == True)  # noqa: E712
         if status:

@@ -39,7 +39,7 @@ import { isAdminRole } from '@/utils/roles';
 import { parseApiError } from '@/utils/apiError';
 import { Switch } from 'react-native-paper';
 import {
-  applyStockCount, createStockCount, getStockCount, listStockCounts,
+  applyStockCount, createStockCount, discardStockCount, getStockCount, listStockCounts,
   type CountedItemInput, type CountOp, type StockCountDetail, type StockCountSummary,
 } from '@/services/stockCountService';
 import { variantCodeText } from '@/utils/shortCode';
@@ -293,6 +293,8 @@ export default function StockCheckScreen() {
   const [countedBy, setCountedBy] = useState<Record<number, string>>({});
   const [people, setPeople] = useState<string[]>([]);
   const [joinAsk, setJoinAsk] = useState<StockCountSummary | null>(null);
+  const [discardAsk, setDiscardAsk] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
   const [openChecked, setOpenChecked] = useState(false);
   const [syncError, setSyncError] = useState('');
   const draftRef = useRef<Draft | null>(null);
@@ -344,6 +346,7 @@ export default function StockCheckScreen() {
 
   const endedByOther = useCallback(() => {
     opsRef.current = [];
+    countsRef.current = {};
     setDraftNow(null);
     setCounts({});
     setCountedBy({});
@@ -394,17 +397,21 @@ export default function StockCheckScreen() {
       applyDetail(det);
       setCategoryId(null);
       setConflict('');
+      // Números que estavam só neste aparelho entram SÓ nas peças que a conferência ainda não tem; nunca somam
+      // por cima (05/11/2026: somar a cópia que o próprio aparelho guardava dobrou a conferência inteira duas vezes)
+      const onServer = new Set(det.items.map((i) => i.variant_id));
       Object.entries(local).forEach(([vid, raw]) => {
         const n = parseInt(raw, 10);
-        if (Number.isFinite(n) && n > 0) {
-          opsRef.current.push({ variant_id: Number(vid), delta: n });
-          setCounts((prev) => ({ ...prev, [vid]: String((parseInt(prev[Number(vid)] ?? '0', 10) || 0) + n) }));
+        if (Number.isFinite(n) && n > 0 && !onServer.has(Number(vid))) {
+          opsRef.current.push({ variant_id: Number(vid), set: n });
+          setCounts((prev) => ({ ...prev, [vid]: String(n) }));
         }
       });
       if (opsRef.current.length) scheduleFlush(200);
       setMessage(`Você está na conferência${det.count.name ? ' "' + det.count.name + '"' : ''} começada por ${det.count.created_by_name || 'outra pessoa'}.`);
     } catch (e: any) {
-      setMessage(e?.message || 'Não foi possível abrir a conferência. Tente de novo.');
+      if (e?.response?.status === 404) endedByOther();   // conferência apagada: limpa este aparelho
+      else setMessage(e?.message || 'Não foi possível abrir a conferência. Tente de novo.');
     }
   }, [applyDetail, endedByOther, scheduleFlush]);
 
@@ -434,7 +441,8 @@ export default function StockCheckScreen() {
           return;
         }
         if (det.count.revision !== draftRef.current?.revision && !opsRef.current.length && !flushing.current) applyDetail(det);
-      } catch {
+      } catch (e: any) {
+        if (e?.response?.status === 404) endedByOther();   // conferência apagada: limpa este aparelho
         // sem rede: tenta de novo no próximo
       }
     }, 4000);
@@ -532,15 +540,13 @@ export default function StockCheckScreen() {
     if (!loaded || !draftLoaded || openChecked) return;
     (async () => {
       try {
-        if (draftRef.current) {
-          await joinCount(draftRef.current.id, false);
-        } else {
+        if (draftRef.current) await joinCount(draftRef.current.id, false);
+        if (!draftRef.current) {   // não seguia nenhuma, ou a que seguia foi apagada/finalizada: entra na aberta
           const { results } = await listStockCounts({ status: 'open', limit: 1 });
           const open = results[0];
           if (open) {
             const hasLocal = Object.values(countsRef.current).some((v) => v !== '');
-            if (hasLocal) setJoinAsk(open);
-            else await joinCount(open.id, false);
+            await joinCount(open.id, hasLocal);   // números só deste aparelho completam o que falta, nunca somam
           }
         }
       } catch {
@@ -1046,6 +1052,9 @@ export default function StockCheckScreen() {
 
       <BottomSheet visible={menuOpen} onDismiss={() => setMenuOpen(false)} title="Mais opções" icon="ellipsis-horizontal">
         <MenuRow icon="time-outline" label="Conferências salvas" onPress={() => { setMenuOpen(false); router.push('/reports/stock-counts' as any); }} />
+        {!!draft && (
+          <MenuRow icon="trash-outline" label="Apagar a conferência e começar de novo" onPress={() => { setMenuOpen(false); setDiscardAsk(true); }} />
+        )}
         <MenuRow icon="print-outline" label="Imprimir lista para contar" onPress={() => { setMenuOpen(false); printList(false); }} />
         <MenuRow
           icon="document-text-outline"
@@ -1162,6 +1171,34 @@ export default function StockCheckScreen() {
         cancelText="Voltar"
         onConfirm={() => persist({ finish: true })}
         onCancel={() => setFinishOpen(false)}
+      />
+
+      <ConfirmDialog
+        visible={discardAsk}
+        type="danger"
+        icon="trash-outline"
+        title="Apagar a conferência e começar de novo?"
+        message={`Apaga a contagem de todo mundo${people.length ? ' (' + people.join(', ') + ')' : ''} e todos os celulares voltam ao zero. O estoque não muda. Não dá para desfazer.`}
+        confirmText={discarding ? 'Apagando...' : 'Apagar e começar de novo'}
+        cancelText="Cancelar"
+        loading={discarding}
+        onConfirm={async () => {
+          if (!draft || discarding) return;
+          setDiscarding(true);
+          try {
+            if (flushTimer.current) clearTimeout(flushTimer.current);
+            await discardStockCount(draft.id);
+            endedByOther();
+            setMessage('Conferência apagada. Pode começar de novo: a primeira peça bipada abre uma nova para todos.');
+            queryClient.invalidateQueries({ queryKey: ['stock-counts'] });
+          } catch (e: any) {
+            setMessage(e?.message || 'Não foi possível apagar a conferência. Tente de novo.');
+          } finally {
+            setDiscarding(false);
+            setDiscardAsk(false);
+          }
+        }}
+        onCancel={() => setDiscardAsk(false)}
       />
 
       <ConfirmDialog

@@ -161,6 +161,20 @@ async def apply_ops(
         _raise(exc)
 
 
+@router.delete("/{count_id}", status_code=status.HTTP_204_NO_CONTENT,
+               summary="Apagar a conferência em andamento para começar de novo")
+async def discard_count(
+    count_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    try:
+        await StockCountService(db).discard(tenant_id=tenant_id, count_id=count_id)
+    except StockCountError as exc:
+        _raise(exc)
+
+
 @router.get("", response_model=StockCountList, summary="Conferências salvas (mais recentes primeiro)")
 async def list_counts(
     status_filter: Optional[str] = Query(None, alias="status", pattern="^(open|finished)$"),
