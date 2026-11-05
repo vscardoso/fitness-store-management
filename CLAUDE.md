@@ -543,6 +543,13 @@ Pedido do Victor: loja que já tem estoque em andamento quando começa a usar o 
 
 - Plano e andamento em `docs/PLANO_AJUDA.md`. Uma ficha por tela em `mobile/constants/help/<grupo>.ts`; o "?" do `PageHeader` aparece sozinho quando a rota tem ficha (folha de baixo no celular, painel à direita no notebook, F1 abre e fecha). Tela nova precisa de ficha ou entrar em `constants/help/coverage.ts`: `npm test` quebra (`test-help-coverage.mts`), e nome de botão citado entre aspas curvas na ficha tem que existir no código da tela (`test-help-labels.mts`). Feito (fases 1 a 3): Vender (11 fichas), Estoque (32), Clientes (4), Dinheiro (8) e Relatórios (9). Próxima: fase 4 (WhatsApp, Loja, Primeiros passos). Problemas de tela achados e ainda abertos em `docs/AJUDA_LEVANTAMENTO_FASE2.md` e `docs/AJUDA_LEVANTAMENTO_FASE3.md` (fase 3: Vendas do mês e Mais vendidos contam diferente do Relatório de vendas, aguardando decisão). Data de dia para o servidor: `dateToIso` (`utils/dateBr.ts`), nunca `toISOString()` (vira o dia seguinte depois das 21h). Tela nova: `app/suppliers/edit/[id].tsx`.
 
+## Notificações do app instalado (Web Push, 2026-11-05)
+
+- Servidor: `app/services/web_push_service.py` (pywebpush, VAPID), tabela `web_push_subscriptions` (migração `20261116_web_push`), rotas `/notifications/web-push/key|subscribe|unsubscribe`. Disparos: venda nova (admin e gerente, menos quem vendeu) e mensagem nova no WhatsApp (admin, gerente, vendedor). Sem chaves o envio fica desligado.
+- Produção: chaves geradas DENTRO do VPS em 05/11/2026 (`scripts/gerar_chaves_vapid.py` >> `.env.prod`, chmod 600) e repassadas pelo `docker-compose.prod.yml` do servidor (arquivo próprio, não o do repo). Backups `*.bak-vapid-20261105-111524`. Conferir: `docker exec provador-backend python -c "from app.services import web_push_service as w; print(w.enabled())"` = True.
+- App: `public/sw.js` (push e clique), `services/webPush.ts`, Menu "Notificações no celular". No iPhone só com o app aberto pelo ícone da tela de início (iOS 16.4+). Navegador de teste sem janela não registra push: a inscrição real só se confere num aparelho.
+- Ícone com número (conversas sem resposta) e tela acesa na conferência e ao bipar: `hooks/usePwaExtras.ts`.
+
 ## Caixa dentro do Financeiro (2026-11-04)
 
 - Decisão do Victor: o caixa não é mais menu à parte. Menu Financeiro > "Caixa da gaveta" (caixa e vendedor veem só ele); barra lateral do PC no grupo Dinheiro; cartão do caixa no topo de Contas e saldos (`components/cash/CashStatusCard.tsx`).
