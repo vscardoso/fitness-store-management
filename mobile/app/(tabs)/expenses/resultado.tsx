@@ -16,6 +16,7 @@ import type { MonthlyResult, ExpenseByCategoryItem } from '@/types/expense';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
+import ProductMonthList from '@/components/expenses/ProductMonthList';
 
 const MONTHS = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -71,6 +72,7 @@ export default function MonthlyResultScreen() {
       ) : data ? (
         <ScrollView contentContainerStyle={[styles.content, desktopContent]}>
           <PLCard data={data} />
+          <ProductMonthList year={year} month={month} />
           <ExpenseBreakdown items={data.expenses_by_category} total={data.total_expenses} />
         </ScrollView>
       ) : null}

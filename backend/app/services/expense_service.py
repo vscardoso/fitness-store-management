@@ -337,6 +337,14 @@ class ExpenseService:
 
         return await self._build_period_result(start_day, end_day, tenant_id, period_label)
 
+    async def monthly_by_product(self, year: int, month: int, tenant_id: Optional[int]) -> List[dict]:
+        """Produtos vendidos no mês com receita, custo e lucro (soma = receita e custo do Resultado do Mês)."""
+        import calendar
+        from app.services.money_ledger import period_by_product
+        first_day = date(year, month, 1)
+        last_day = date(year, month, calendar.monthrange(year, month)[1])
+        return await period_by_product(self.db, tenant_id, first_day, last_day)
+
     async def _build_period_result(
         self,
         first_day: date,

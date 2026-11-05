@@ -107,6 +107,19 @@ async def monthly_result(
     return await svc.monthly_result(y, m, tenant_id)
 
 
+@router.get("/resultado-mes/produtos", summary="Resultado do mês por produto")
+async def monthly_result_by_product(
+    year: Optional[int] = Query(None, description="Ano (padrão: ano atual)"),
+    month: Optional[int] = Query(None, ge=1, le=12, description="Mês 1-12 (padrão: mês atual)"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: Optional[int] = Depends(get_current_tenant_id),
+):
+    """Cada produto vendido no mês: peças, preço médio, quanto entrou, custo e lucro (mesma conta do Resultado do Mês)."""
+    today = today_brazil()
+    return await ExpenseService(db).monthly_by_product(year or today.year, month or today.month, tenant_id)
+
+
 @router.get("/resultado-periodo", response_model=MonthlyResultResponse)
 async def result_by_period(
     days: int = Query(30, ge=1, le=365, description="Janela móvel em dias corridos (ex.: 7, 30, 60, 90)"),

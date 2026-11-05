@@ -78,3 +78,23 @@ export async function getResultByPeriod(days: number): Promise<MonthlyResult> {
   });
   return data;
 }
+
+/** Um produto vendido no mês: mesma conta do Resultado do Mês (a soma bate com o total). */
+export interface ProductMonthResult {
+  product_id: number | null;
+  name: string;
+  pieces_sold: number;
+  pieces_returned: number;
+  pieces_net: number;
+  revenue: number;
+  cost: number;
+  profit: number;
+  average_price: number;
+  average_cost: number;
+  margin_percent: number;
+}
+
+export async function getMonthlyResultByProduct(year: number, month: number): Promise<ProductMonthResult[]> {
+  const { data } = await api.get('/expenses/resultado-mes/produtos', { params: { year, month } });
+  return data;
+}

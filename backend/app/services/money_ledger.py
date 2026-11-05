@@ -207,3 +207,95 @@ async def period_totals(
 
 def day_range(days_back: int, today: date) -> tuple[date, date]:
     return today - timedelta(days=days_back - 1), today
+
+
+async def period_by_product(
+    db: AsyncSession,
+    tenant_id: Optional[int],
+    start: Optional[date],
+    end: Optional[date],
+) -> list[dict]:
+    """Resultado do período por PRODUTO, pelas mesmas regras de `period_totals` (a soma bate com o total):
+    - receita de cada item = parte do valor da venda proporcional ao subtotal do item (desconto da venda rateado);
+    - devolução abate do produto devolvido, no período em que aconteceu (valor da devolução rateado pelos itens);
+    - custo = FIFO das peças vendidas - custo das peças que voltaram ao estoque (defeito fica como custo).
+    """
+    from app.models.product import Product
+
+    s_utc = e_utc = None
+    if start and end:
+        s_utc, e_utc = get_period_range_utc(start, end)
+
+    def in_range(col):
+        return [col >= s_utc, col <= e_utc] if s_utc is not None else []
+
+    def tenant(col):
+        return [col == tenant_id] if tenant_id is not None else []
+
+    rows: dict = defaultdict(lambda: {"revenue": D0, "cost": D0, "sold": 0, "returned": 0, "gross": D0})
+
+    sale_filter = [*tenant(Sale.tenant_id), Sale.is_active == True, Sale.status.in_(VALID_STATUS), *in_range(Sale.created_at)]  # noqa: E712
+    items = (await db.execute(
+        select(SaleItem.sale_id, SaleItem.product_id, SaleItem.quantity, SaleItem.unit_cost, SaleItem.subtotal,
+               SaleItem.unit_price, Sale.total_amount)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .where(and_(*sale_filter), SaleItem.is_active == True))).all()  # noqa: E712
+    sub_by_sale: dict = defaultdict(lambda: D0)
+    for sid, _pid, qty, _c, sub, price, _t in items:
+        sub_by_sale[sid] += _d(sub) if sub is not None else _d(price) * int(qty)
+    for sid, pid, qty, cost, sub, price, total in items:
+        item_sub = _d(sub) if sub is not None else _d(price) * int(qty)
+        base = sub_by_sale[sid]
+        share = (item_sub / base * _d(total)) if base > 0 else D0
+        r = rows[pid]
+        r["revenue"] += share
+        r["gross"] += share
+        r["cost"] += _d(cost) * int(qty)
+        r["sold"] += int(qty)
+
+    ret_filter = [
+        *tenant(SaleReturn.tenant_id), SaleReturn.is_active == True, SaleReturn.status == "completed",  # noqa: E712
+        Sale.status != SaleStatus.CANCELLED, *in_range(SaleReturn.created_at),
+    ]
+    ritems = (await db.execute(
+        select(SaleReturn.id, SaleReturn.total_refund, ReturnItem.product_id, ReturnItem.quantity_returned,
+               ReturnItem.unit_cost, ReturnItem.restock, ReturnItem.refund_amount, ReturnItem.unit_price)
+        .join(SaleReturn, SaleReturn.id == ReturnItem.return_id)
+        .join(Sale, Sale.id == SaleReturn.sale_id)
+        .where(and_(*ret_filter), ReturnItem.is_active == True))).all()  # noqa: E712
+    ref_by_ret: dict = defaultdict(lambda: D0)
+    for rid, _tot, _pid, qty, _c, _rs, ref, price in ritems:
+        ref_by_ret[rid] += _d(ref) if ref is not None else _d(price) * int(qty)
+    for rid, tot, pid, qty, cost, restock, ref, price in ritems:
+        item_ref = _d(ref) if ref is not None else _d(price) * int(qty)
+        base = ref_by_ret[rid]
+        share = (item_ref / base * _d(tot)) if base > 0 else D0
+        r = rows[pid]
+        r["revenue"] -= share
+        r["returned"] += int(qty)
+        if restock:
+            r["cost"] -= _d(cost) * int(qty)
+
+    names = {}
+    ids = [p for p in rows if p is not None]
+    if ids:
+        names = dict((await db.execute(select(Product.id, Product.name).where(Product.id.in_(ids)))).all())
+    out = []
+    for pid, r in rows.items():
+        pieces = r["sold"] - r["returned"]
+        profit = r["revenue"] - r["cost"]
+        out.append({
+            "product_id": pid,
+            "name": names.get(pid) or "Produto sem cadastro",
+            "pieces_sold": r["sold"],
+            "pieces_returned": r["returned"],
+            "pieces_net": pieces,
+            "revenue": round(float(r["revenue"]), 2),
+            "cost": round(float(r["cost"]), 2),
+            "profit": round(float(profit), 2),
+            "average_price": round(float(r["gross"] / r["sold"]), 2) if r["sold"] else 0.0,
+            "average_cost": round(float(r["cost"] / pieces), 2) if pieces > 0 else 0.0,
+            "margin_percent": round(float(profit / r["revenue"] * 100), 1) if r["revenue"] > 0 else 0.0,
+        })
+    out.sort(key=lambda x: (-x["profit"], x["name"]))
+    return out
