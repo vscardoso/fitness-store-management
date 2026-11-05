@@ -4,6 +4,18 @@ Objetivo: ligar o WhatsApp Business do celular da loja (99650-0091) ao Provador 
 Base: documentação oficial da Meta lida em 05/11/2026 (ver `docs/whatsapp-cloud-plano.md`, seção "Estudo: celular da loja").
 Nada aqui é segredo: IDs de app não são segredo; token e App Secret nunca vão para este arquivo.
 
+## Links diretos (app Provador Fit, ID 2218667769031250)
+
+Os endereços do painel da Meta mudam às vezes; se algum cair na página inicial, use o menu da esquerda do painel do app.
+- Configurações básicas: https://developers.facebook.com/apps/2218667769031250/settings/basic/
+- Casos de uso (WhatsApp > Personalizar > Tech Provider onboarding): https://developers.facebook.com/apps/2218667769031250/use_cases/
+- Revisão do app (permissões): https://developers.facebook.com/apps/2218667769031250/app-review/permissions/
+- Pedidos de revisão enviados: https://developers.facebook.com/apps/2218667769031250/app-review/requests/
+- WhatsApp > Configuração da API (mensagem de teste): https://developers.facebook.com/apps/2218667769031250/whatsapp-business/wa-dev-console/
+- WhatsApp Manager, modelos de mensagem: https://business.facebook.com/wa/manage/message-templates/
+- Política de privacidade (para colar no app): https://app.provadorfit.com.br/privacidade
+- Termos (para colar no app): https://app.provadorfit.com.br/termos
+
 ## 1. Ajustes básicos do app (Painel do app Provador Fit > Configurações do app > Básico)
 
 - Ícone do app (1024 x 1024): usar `mobile/assets/icon.png` (logo Provador).
