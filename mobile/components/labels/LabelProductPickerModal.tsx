@@ -157,9 +157,11 @@ export default function LabelProductPickerModal({
     });
   };
 
-  // Marca (ou desmarca) todas as variações dos produtos visíveis na lista
+  // Marca (ou desmarca) as variações COM ESTOQUE dos produtos visíveis (etiqueta de peça zerada não tem onde ir;
+  // a zerada continua podendo ser marcada uma a uma)
+  const inStock = (v: ProductVariant) => (v.current_stock ?? 0) > 0;
   const filteredKeys = useMemo(
-    () => filtered.flatMap((p) => p.variants.map((v) => `${p.id}_${v.id}`)),
+    () => filtered.flatMap((p) => p.variants.filter(inStock).map((v) => `${p.id}_${v.id}`)),
     [filtered],
   );
   const allFilteredSelected = filteredKeys.length > 0 && filteredKeys.every((k) => selected.has(k));
@@ -167,9 +169,9 @@ export default function LabelProductPickerModal({
     setSelected((prev) => {
       const next = new Map(prev);
       if (allFilteredSelected) {
-        filteredKeys.forEach((k) => next.delete(k));
+        filtered.forEach((p) => p.variants.forEach((v) => next.delete(`${p.id}_${v.id}`)));
       } else {
-        filtered.forEach((p) => p.variants.forEach((v) => next.set(`${p.id}_${v.id}`, { product: p, variant: v })));
+        filtered.forEach((p) => p.variants.filter(inStock).forEach((v) => next.set(`${p.id}_${v.id}`, { product: p, variant: v })));
       }
       return next;
     });
@@ -377,7 +379,7 @@ export default function LabelProductPickerModal({
               <Text style={[styles.quickFilterChipText, { color: brandingColors.primary }]}>
                 {allFilteredSelected
                   ? 'Desmarcar todas'
-                  : search.trim() ? 'Marcar todas da busca' : 'Marcar todas'}
+                  : search.trim() ? 'Marcar as da busca com estoque' : 'Marcar todas com estoque'}
               </Text>
             </TouchableOpacity>
           )}
