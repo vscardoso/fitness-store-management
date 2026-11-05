@@ -177,7 +177,8 @@ export default function EditProductScreen() {
       const initial: Record<number, { sku: string; price: string; cost_price: string; size: string; color: string }> = {};
       variants.forEach(v => {
         initial[v.id] = {
-          size: v.size ?? '',
+          // variação sem tamanho é a de tamanho único (a grade já mostra "Único"): ao salvar, grava ÚNICO
+          size: v.size || 'ÚNICO',
           color: v.color ?? '',
           sku: v.sku,
           price: (Number(v.price) || 0).toFixed(2),
@@ -812,7 +813,7 @@ export default function EditProductScreen() {
 
               {[...(variants ?? [])].sort((a, b) => a.id - b.id).map(variant => {
                 const edit = variantEdits[variant.id] ?? {
-                  size: variant.size ?? '',
+                  size: variant.size || 'ÚNICO',
                   color: variant.color ?? '',
                   sku: variant.sku,
                   price: (Number(variant.price) || 0).toFixed(2),

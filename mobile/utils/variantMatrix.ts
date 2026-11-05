@@ -34,12 +34,14 @@ export function stockStatus(stock: number): CellStatus {
 }
 
 export function buildVariantMatrix(grid: VariantGrid): VariantMatrix {
-  const sizes = [...grid.available_sizes];
+  // tamanho vazio e 'ÚNICO' gravado são a mesma coisa: uma coluna "Único" só
+  const sizeKey = (s?: string | null) => (!s || s.toUpperCase() === 'ÚNICO' || s.toUpperCase() === 'UNICO' ? 'Único' : s);
+  const sizes = [...new Set(grid.available_sizes.map(sizeKey))];
   const colors = [...grid.available_colors];
 
   // Variantes sem cor ou sem tamanho entram em linha/coluna "Único"
   if (grid.grid.some((g) => !g.color)) colors.push('Único');
-  if (grid.grid.some((g) => !g.size)) sizes.push('Único');
+  if (grid.grid.some((g) => !g.size) && !sizes.includes('Único')) sizes.push('Único');
 
   const cells: VariantMatrix['cells'] = {};
   const totalByColor: Record<string, number> = {};
@@ -51,7 +53,7 @@ export function buildVariantMatrix(grid: VariantGrid): VariantMatrix {
 
   for (const item of grid.grid) {
     const color = item.color ?? 'Único';
-    const size = item.size ?? 'Único';
+    const size = sizeKey(item.size);
     const stock = Math.max(0, Number(item.stock) || 0);
     const status = stockStatus(stock);
     if (!cells[color]) cells[color] = {};
