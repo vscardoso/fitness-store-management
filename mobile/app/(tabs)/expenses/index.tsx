@@ -13,6 +13,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import PageHeader from '@/components/layout/PageHeader';
 import EmptyState from '@/components/ui/EmptyState';
 import { getExpenses } from '@/services/expenseService';
+import { getFinanceOverview, listPayables } from '@/services/financeService';
 import { formatDateOnly } from '@/utils/dateOnly';
 import { formatCurrency } from '@/utils/format';
 import { Colors, theme } from '@/constants/Colors';
@@ -53,6 +54,11 @@ export default function ExpenseListScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const dateRange = useDateRange(period);
 
+  // despesas a pagar (só com o Financeiro implantado): a mesma lista de despesas, ainda não paga
+  const { data: finance } = useQuery({ queryKey: ['finance'], queryFn: getFinanceOverview });
+  const { data: payables } = useQuery({
+    queryKey: ['finance-payables', 'open'], queryFn: () => listPayables('open'), enabled: !!finance?.started,
+  });
   const { data: expenses, isLoading, refetch } = useQuery({
     queryKey: ['expenses', dateRange],
     queryFn: () => getExpenses({ start_date: dateRange.start_date, end_date: dateRange.end_date }),
@@ -169,6 +175,27 @@ export default function ExpenseListScreen() {
         </View>
       </View>
 
+      {!!finance?.started && (
+        <TouchableOpacity
+          style={styles.payablesCard}
+          onPress={() => router.push('/finance/payables' as any)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Abrir despesas a pagar"
+        >
+          <Ionicons name="time-outline" size={20} color={payables?.overdue_count ? Colors.light.error : brandingColors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.payablesTitle}>A pagar: {formatCurrency(payables?.open_total ?? 0)}</Text>
+            <Text style={[styles.summaryMeta, !!payables?.overdue_count && { color: Colors.light.error, fontWeight: '700' }]}>
+              {payables?.overdue_count
+                ? `${payables.overdue_count} vencida(s): ${formatCurrency(payables.overdue_total)}`
+                : 'Despesas que ainda vão ser pagas'}
+            </Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
+        </TouchableOpacity>
+      )}
+
       {/* Spacer antes da lista */}
       <View style={{ height: theme.spacing.sm }} />
 
@@ -202,6 +229,19 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.light.backgroundSecondary },
 
   // ── Card totalizador ──────────────────────────────────────────────────────
+  payablesCard: {
+    marginHorizontal: theme.spacing.md,
+    marginTop: theme.spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+  },
+  payablesTitle: { fontSize: 15, fontWeight: '700', color: Colors.light.text },
   summaryCard: {
     marginHorizontal: theme.spacing.md,
     marginTop: theme.spacing.md,

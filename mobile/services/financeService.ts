@@ -39,6 +39,9 @@ export interface Payable {
   paid_account_id: number | null;
   origin: 'implantacao' | 'manual';
   notes: string | null;
+  /** despesa da loja: ao pagar entra no resultado do mês; falso = compra de mercadoria ou dívida de antes da implantação */
+  counts_as_expense: boolean;
+  expense_category_id: number | null;
 }
 
 export interface PayableList {
@@ -92,7 +95,10 @@ export const deleteTransfer = async (id: number): Promise<FinanceOverview> =>
 export const listPayables = async (status?: 'open' | 'paid' | 'canceled'): Promise<PayableList> =>
   (await api.get<PayableList>('/finance/payables', { params: status ? { status } : undefined, headers: { 'X-Skip-Loading': 'true' } })).data;
 
-export const createPayable = async (body: { description: string; amount: number; due_date: string; notes?: string }): Promise<Payable> =>
+export const createPayable = async (body: {
+  description: string; amount: number; due_date: string; notes?: string | null;
+  counts_as_expense?: boolean; expense_category_id?: number | null;
+}): Promise<Payable> =>
   (await api.post<Payable>('/finance/payables', body)).data;
 
 export const payPayable = async (id: number, accountId: number, paidOn?: string): Promise<Payable> =>

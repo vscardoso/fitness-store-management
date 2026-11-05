@@ -22,6 +22,7 @@ import { moneyInput, parseMoneyBr } from '@/utils/cashMoney';
 import {
   cancelPayable, createPayable, getFinanceOverview, isoDay, listPayables, payPayable, unpayPayable, type Payable,
 } from '@/services/financeService';
+import { getExpenseCategories } from '@/services/expenseService';
 
 type Filter = 'open' | 'paid' | 'canceled';
 const FILTERS: { id: Filter; label: string }[] = [
@@ -37,7 +38,10 @@ export default function PayablesScreen() {
   const { data: overview } = useQuery({ queryKey: ['finance'], queryFn: getFinanceOverview });
   const accounts = overview?.accounts ?? [];
 
-  const [form, setForm] = useState<{ description: string; amount: string; due: Date | undefined } | null>(null);
+  const [form, setForm] = useState<{
+    description: string; amount: string; due: Date | undefined; isExpense: boolean; categoryId: number | null;
+  } | null>(null);
+  const { data: categories } = useQuery({ queryKey: ['expense-categories'], queryFn: getExpenseCategories, enabled: !!form });
   const [paying, setPaying] = useState<{ p: Payable; account: number | null; day: Date | undefined } | null>(null);
   const [canceling, setCanceling] = useState<Payable | null>(null);
   const [unpaying, setUnpaying] = useState<Payable | null>(null);
@@ -45,7 +49,10 @@ export default function PayablesScreen() {
 
   const refresh = () => queryClient.invalidateQueries();
   const doCreate = useMutation({
-    mutationFn: () => createPayable({ description: form!.description.trim(), amount: parseMoneyBr(form!.amount) ?? 0, due_date: isoDay(form!.due!) }),
+    mutationFn: () => createPayable({
+      description: form!.description.trim(), amount: parseMoneyBr(form!.amount) ?? 0, due_date: isoDay(form!.due!),
+      counts_as_expense: form!.isExpense, expense_category_id: form!.isExpense ? form!.categoryId : null,
+    }),
     onSuccess: async () => { setForm(null); await refresh(); },
     onError: (e) => setSheetError(parseApiError(e) || 'Não foi possível salvar.'),
   });
@@ -71,7 +78,7 @@ export default function PayablesScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader title="Contas a pagar" showBackButton backFallback="/finance" />
+      <PageHeader title="Despesas a pagar" subtitle="Ao pagar, a despesa entra no resultado do mês" showBackButton backFallback="/(tabs)/expenses" />
       <ScrollView contentContainerStyle={[styles.content, desktop]} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}>
         <View style={styles.card}>
           <View style={styles.summary}>
@@ -87,8 +94,8 @@ export default function PayablesScreen() {
             )}
           </View>
           <Button mode="contained" icon="plus" buttonColor={brand.primary} style={styles.left}
-            onPress={() => { setSheetError(''); setForm({ description: '', amount: '', due: undefined }); }}>
-            Nova conta a pagar
+            onPress={() => { setSheetError(''); setForm({ description: '', amount: '', due: undefined, isExpense: true, categoryId: null }); }}>
+            Nova despesa a pagar
           </Button>
         </View>
 
@@ -113,6 +120,9 @@ export default function PayablesScreen() {
                   : p.status === 'canceled' ? 'Cancelada'
                   : `${p.overdue ? 'Venceu' : 'Vence'} em ${formatDate(p.due_date)}`}
                 {p.origin === 'implantacao' ? ' · da implantação' : ''}
+              </Text>
+              <Text style={styles.itemSub}>
+                {p.counts_as_expense ? 'Despesa da loja: entra no resultado ao pagar' : 'Mercadoria ou dívida anterior: só tira da conta'}
               </Text>
             </View>
             <View style={{ alignItems: 'flex-end', gap: 6 }}>
@@ -139,7 +149,7 @@ export default function PayablesScreen() {
         ))}
       </ScrollView>
 
-      <BottomSheet visible={!!form} onDismiss={() => setForm(null)} title="Nova conta a pagar" icon="receipt-outline"
+      <BottomSheet visible={!!form} onDismiss={() => setForm(null)} title="Nova despesa a pagar" icon="receipt-outline"
         actions={[{ label: 'Salvar', variant: 'primary', loading: doCreate.isPending,
           disabled: !form?.description.trim() || !(parseMoneyBr(form?.amount ?? '') ?? 0) || !form?.due,
           onPress: () => { setSheetError(''); doCreate.mutate(); } }]}>
@@ -151,6 +161,31 @@ export default function PayablesScreen() {
             <TextInput mode="outlined" label="Valor" value={form.amount} keyboardType="decimal-pad" left={<TextInput.Affix text="R$" />}
               onChangeText={(t) => setForm({ ...form, amount: moneyInput(t) })} activeOutlineColor={brand.primary} />
             <DateTimeInput label="Vencimento" value={form.due} onChange={(d) => setForm({ ...form, due: d })} mode="date" />
+            <Text style={styles.label}>Tipo</Text>
+            <View style={styles.filters}>
+              {([[true, 'Despesa da loja'], [false, 'Compra de mercadoria']] as const).map(([v, label]) => (
+                <TouchableOpacity key={label} onPress={() => setForm({ ...form, isExpense: v })}
+                  style={[styles.chip, form.isExpense === v && { borderColor: brand.primary, backgroundColor: brand.primary + '14' }]}
+                  accessibilityRole="radio" accessibilityState={{ selected: form.isExpense === v }}>
+                  <Text style={[styles.chipText, form.isExpense === v && { color: brand.primary }]}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={styles.itemSub}>
+              {form.isExpense
+                ? 'Aluguel, luz, salário: ao pagar, entra no resultado do mês.'
+                : 'Boleto de peças compradas: o custo já entra pela entrada de estoque, então ao pagar só tira o dinheiro da conta.'}
+            </Text>
+            {form.isExpense && !!categories?.length && (
+              <View style={styles.filters}>
+                {categories.map((c) => (
+                  <TouchableOpacity key={c.id} onPress={() => setForm({ ...form, categoryId: form.categoryId === c.id ? null : c.id })}
+                    style={[styles.chip, form.categoryId === c.id && { borderColor: brand.primary, backgroundColor: brand.primary + '14' }]}>
+                    <Text style={[styles.chipText, form.categoryId === c.id && { color: brand.primary }]}>{c.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
           </View>
         )}
       </BottomSheet>

@@ -23,7 +23,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { maskCurrencyBR, unmaskCurrency } from '@/utils/priceFormatter';
 import type { ExpenseCategory, ExpenseCreate } from '@/types/expense';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
-import { getFinanceOverview } from '@/services/financeService';
+import { createPayable, getFinanceOverview } from '@/services/financeService';
 import FormGrid from '@/components/layout/FormGrid';
 import { parseApiError } from '@/utils/apiError';
 import { dateToIso } from '@/utils/dateBr';
@@ -45,6 +45,9 @@ export default function CreateExpenseScreen() {
   const [scope, setScope] = useState<'general' | 'lot' | 'trip'>('general');
   // Financeiro implantado: de qual conta saiu o dinheiro (gaveta, banco); sem escolher, só entra no resultado do mês
   const [accountId, setAccountId] = useState<number | null>(null);
+  // "Vou pagar depois": vira despesa a pagar (entra no resultado do mês quando for paga)
+  const [payLater, setPayLater] = useState(false);
+  const [dueDate, setDueDate] = useState<Date | undefined>(undefined);
   const { data: finance } = useQuery({ queryKey: ['finance'], queryFn: getFinanceOverview });
   const payAccounts = (finance?.accounts ?? []).filter((a) => a.kind !== 'card');
   const [selectedEntryId, setSelectedEntryId] = useState<number | null>(null);
@@ -67,6 +70,18 @@ export default function CreateExpenseScreen() {
   const { data: categories } = useQuery({
     queryKey: ['expense-categories'],
     queryFn: getExpenseCategories,
+  });
+
+  const laterMutation = useMutation({
+    mutationFn: createPayable,
+    onSuccess: () => {
+      queryClient.invalidateQueries();
+      router.replace('/finance/payables' as any);
+    },
+    onError: (err: any) => {
+      setErrorMessage(parseApiError(err) || 'Não foi possível salvar a despesa a pagar.');
+      setErrorDialog(true);
+    },
   });
 
   const createMutation = useMutation({
@@ -108,6 +123,24 @@ export default function CreateExpenseScreen() {
     if (scope === 'trip' && !selectedTripId) {
       setErrorMessage('Escolha de qual viagem é esta despesa.');
       setErrorDialog(true);
+      return;
+    }
+
+    if (payLater) {
+      if (scope !== 'general') {
+        setErrorMessage('Gasto de lote ou de viagem a pagar: lance quando pagar (ele entra no custo das peças).');
+        setErrorDialog(true);
+        return;
+      }
+      if (!dueDate) {
+        setErrorMessage('Informe o vencimento.');
+        setErrorDialog(true);
+        return;
+      }
+      laterMutation.mutate({
+        description: description.trim(), amount: parsedAmount, due_date: dateToIso(dueDate), notes: notes.trim() || null,
+        counts_as_expense: true, expense_category_id: selectedCategory?.id ?? null,
+      });
       return;
     }
 
@@ -172,13 +205,16 @@ export default function CreateExpenseScreen() {
                 style={styles.input}
               />
 
-              <DateTimeInput
-                label="Data do pagamento *"
-                value={expenseDate}
-                onChange={(d) => d && setExpenseDate(d)}
-                mode="date"
-                maximumDate={new Date()}
-              />
+              {/* vai pagar depois: a data é a do pagamento, informada ao pagar */}
+              {!payLater && (
+                <DateTimeInput
+                  label="Data do pagamento *"
+                  value={expenseDate}
+                  onChange={(d) => d && setExpenseDate(d)}
+                  mode="date"
+                  maximumDate={new Date()}
+                />
+              )}
 
               <TextInput
                 label="Observações"
@@ -202,13 +238,14 @@ export default function CreateExpenseScreen() {
               </View>
               <View style={styles.cardContent}>
                 <View style={styles.categoryGrid}>
-                  {[{ id: null as number | null, name: 'Ainda não paguei' }, ...payAccounts.map((a) => ({ id: a.id as number | null, name: a.name }))].map((a) => {
-                    const on = accountId === a.id;
+                  {[...payAccounts.map((a) => ({ id: a.id as number | null, name: a.name, later: false })),
+                    { id: null as number | null, name: 'Vou pagar depois', later: true }].map((a) => {
+                    const on = a.later ? payLater : !payLater && accountId === a.id;
                     return (
                       <TouchableOpacity
-                        key={String(a.id)}
+                        key={a.later ? 'depois' : String(a.id)}
                         style={[styles.categoryChip, { borderColor: brandingColors.primary }, on && { backgroundColor: brandingColors.primary }]}
-                        onPress={() => setAccountId(a.id)}
+                        onPress={() => { setPayLater(a.later); setAccountId(a.later ? null : a.id); }}
                         accessibilityRole="radio"
                         accessibilityState={{ selected: on }}
                       >
@@ -217,6 +254,14 @@ export default function CreateExpenseScreen() {
                     );
                   })}
                 </View>
+                {payLater ? (
+                  <>
+                    <DateTimeInput label="Vencimento" value={dueDate} onChange={setDueDate} mode="date" />
+                    <Text style={styles.scopeHelp}>Fica em Despesas a pagar; quando você pagar, entra no resultado do mês e sai da conta escolhida.</Text>
+                  </>
+                ) : accountId === null ? (
+                  <Text style={styles.scopeHelp}>Escolha de onde saiu o dinheiro, ou "Vou pagar depois".</Text>
+                ) : null}
               </View>
             </View>
           )}
@@ -373,7 +418,7 @@ export default function CreateExpenseScreen() {
               onPress={() => router.back()}
               style={[styles.button, { borderColor: brandingColors.primary }]}
               textColor={brandingColors.primary}
-              disabled={createMutation.isPending}
+              disabled={createMutation.isPending || laterMutation.isPending}
             >
               Cancelar
             </Button>
@@ -382,8 +427,8 @@ export default function CreateExpenseScreen() {
               mode="contained"
               onPress={handleSave}
               style={[styles.button, { backgroundColor: brandingColors.primary }]}
-              loading={createMutation.isPending}
-              disabled={createMutation.isPending}
+              loading={createMutation.isPending || laterMutation.isPending}
+              disabled={createMutation.isPending || laterMutation.isPending}
               icon="check"
             >
               Salvar Despesa

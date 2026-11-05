@@ -19,7 +19,7 @@ export const DINHEIRO: HelpEntry[] = [
     parts: [
       { label: 'Caixa da gaveta', text: 'se o caixa do turno está aberto e quanto deve ter na gaveta. Toque para abrir, colocar, retirar ou fechar.' },
       { label: 'Total em todas as contas', text: 'a soma da gaveta, dos bancos e do que a maquininha ainda vai pagar.' },
-      { label: 'Contas a pagar', text: 'quanto está em aberto e quanto já venceu. Toque para abrir a lista.' },
+      { label: 'Despesas a pagar', text: 'quanto está em aberto e quanto já venceu. Toque para abrir a lista.' },
       { label: 'Últimas transferências', text: 'as 10 mais recentes, com a lixeira para apagar.' },
     ],
     goodToKnow: [
@@ -57,12 +57,13 @@ export const DINHEIRO: HelpEntry[] = [
   {
     id: 'contas-pagar',
     group: 'dinheiro',
-    title: 'Contas a pagar',
+    title: 'Despesas a pagar',
     routes: ['/finance/payables'],
     open: '/finance/payables',
-    purpose: 'Anota boletos e contas a vencer e marca de qual conta saiu o dinheiro quando forem pagos.',
+    purpose: 'Despesas e boletos que ainda vão vencer. Ao pagar, sai da conta escolhida e a despesa da loja entra no resultado do mês.',
     steps: [
-      'Toque em “Nova conta a pagar”, preencha o que é, o valor e o vencimento e toque em “Salvar”.',
+      'Toque em “Nova despesa a pagar”, preencha o que é, o valor e o vencimento, escolha “Despesa da loja” ou “Compra de mercadoria” e toque em “Salvar”.',
+      'Também dá para lançar pela Nova Despesa, escolhendo pagar depois.',
       'Use os filtros “Em aberto”, “Pagas” e “Canceladas”.',
       'Na hora de pagar, toque em “Pagar”, escolha a conta e o dia e toque em “Confirmar pagamento”.',
       'Pagou errado? Toque em “Desfazer pagamento” e o dinheiro volta para a conta.',
@@ -73,9 +74,9 @@ export const DINHEIRO: HelpEntry[] = [
       { label: 'Vencidas', text: 'quantas passaram do vencimento; aparecem com borda vermelha.' },
     ],
     goodToKnow: [
-      'Para pagar, as contas da loja precisam estar implantadas.',
+      'Despesa da loja (aluguel, luz) entra no resultado do mês no dia em que é paga. Compra de mercadoria não entra: o custo das peças já conta pela entrada de estoque.',
+      'As que vieram da implantação são dívidas de antes e só tiram o dinheiro da conta.',
       'Cancelar só vale para conta em aberto e não mexe em saldo. Conta paga: desfaça o pagamento antes.',
-      'A data do pagamento não pode ser no futuro.',
     ],
     roles: ['manager'],
     related: ['contas-saldos', 'despesas'],
@@ -114,7 +115,7 @@ export const DINHEIRO: HelpEntry[] = [
     purpose: 'Lança um gasto da loja, de uma compra ou de uma viagem.',
     steps: [
       'Preencha valor, descrição e data.',
-      'Em “Pago com”, escolha de qual conta saiu, ou “Ainda não paguei”.',
+      'Em “Pago com”, escolha de qual conta saiu, ou “Vou pagar depois” e o vencimento (fica em Despesas a pagar).',
       'Em “De onde vem este gasto?”, escolha “Da loja”, “De um lote” ou “De uma viagem”.',
       'Escolha a categoria, se quiser.',
       'Toque em “Salvar Despesa”.',

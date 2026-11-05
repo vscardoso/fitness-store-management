@@ -158,7 +158,7 @@ export default function FinanceScreen() {
         <TouchableOpacity style={styles.card} onPress={() => router.push('/finance/payables' as any)} activeOpacity={0.8} accessibilityRole="button">
           <View style={styles.accountHead}>
             <Ionicons name="receipt-outline" size={22} color={brand.primary} />
-            <Text style={[styles.title, { flex: 1 }]}>Contas a pagar</Text>
+            <Text style={[styles.title, { flex: 1 }]}>Despesas a pagar</Text>
             <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
           </View>
           <Text style={styles.note}>Em aberto: {formatCurrency(payables?.open_total ?? 0)}</Text>
