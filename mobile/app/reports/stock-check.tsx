@@ -86,6 +86,7 @@ export default function StockCheckScreen() {
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [onlyInStock, setOnlyInStock] = useState(false);
   const [onlyDiffs, setOnlyDiffs] = useState(false);
+  const [onlyPending, setOnlyPending] = useState(false);   // "Falta bipar": só o que ninguém contou ainda
   const [search, setSearch] = useState('');
   const [counts, setCounts] = useState<Counts>({});
   const [loaded, setLoaded] = useState(false);
@@ -222,13 +223,12 @@ export default function StockCheckScreen() {
     const q = search.trim();
     return rows.filter((r) => {
       if (q && !matchesSearch(searchIndex.get(r.variant_id)!, q)) return false;
-      if (onlyDiffs) {
-        const d = diffOf(r, counts);
-        return d !== null && d !== 0;
-      }
+      const d = diffOf(r, counts);
+      if (onlyPending && d !== null) return false;
+      if (onlyDiffs) return d !== null && d !== 0;
       return true;
     });
-  }, [rows, search, searchIndex, onlyDiffs, counts]);
+  }, [rows, search, searchIndex, onlyDiffs, onlyPending, counts]);
 
   const grouped = useMemo(() => {
     const out: { key: string; name: string; category: string; rows: StockCheckRow[] }[] = [];
@@ -246,7 +246,7 @@ export default function StockCheckScreen() {
   const [shown, setShown] = useState(PAGE);
   useEffect(() => {
     setShown(PAGE);
-  }, [search, onlyDiffs, categoryId, onlyInStock]);
+  }, [search, onlyDiffs, onlyPending, categoryId, onlyInStock]);
   const shownGroups = useMemo(() => grouped.slice(0, shown), [grouped, shown]);
 
   const summary = useMemo(() => {
@@ -846,7 +846,8 @@ export default function StockCheckScreen() {
 
         {/* Filtros */}
         <HScroll showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
-          <Chip label="Só divergências" active={onlyDiffs} onPress={() => setOnlyDiffs((v) => !v)} color={brand.primary} />
+          <Chip label="Falta bipar" active={onlyPending} onPress={() => { setOnlyPending((v) => !v); setOnlyDiffs(false); }} color={brand.primary} />
+          <Chip label="Só divergências" active={onlyDiffs} onPress={() => { setOnlyDiffs((v) => !v); setOnlyPending(false); }} color={brand.primary} />
           <Chip label="Só com estoque" active={onlyInStock} onPress={() => setOnlyInStock((v) => !v)} color={brand.primary} />
           <View style={styles.chipDivider} />
           <Chip label="Todas" active={categoryId === null} onPress={() => setCategoryId(null)} color={brand.primary} disabled={!!draft && draft.categoryId !== null} />
@@ -877,22 +878,15 @@ export default function StockCheckScreen() {
           </View>
         )}
         <View style={styles.actions}>
-          <TouchableOpacity
-            style={[styles.saveMain, { backgroundColor: brand.primary, opacity: summary.counted && allData && !saving ? 1 : 0.45 }]}
-            onPress={() => {
-              if (!summary.counted || !allData || saving) return;
-              setSaveError('');
-              if (draft) persist();
-              else {
-                setSaveMode('draft');
-                setSaveOpen(true);
-              }
-            }}
-            activeOpacity={0.85}
-          >
-            <Ionicons name="save-outline" size={17} color="#fff" />
-            <Text style={styles.saveMainText}>{draft ? 'Salvar andamento' : 'Salvar'}</Text>
-          </TouchableOpacity>
+          {/* sem botão de salvar: cada bipada já vai para o servidor na hora (pedido do Victor, 05/11/2026) */}
+          <View style={[styles.saveMain, { backgroundColor: syncError ? '#FEE2E2' : '#ECFDF5' }]} accessibilityRole="text">
+            <Ionicons name={syncError ? 'cloud-offline-outline' : 'cloud-done-outline'} size={17} color={syncError ? '#991B1B' : VALUE_COLORS.positive} />
+            <Text style={[styles.saveMainText, { color: syncError ? '#991B1B' : VALUE_COLORS.positive }]} numberOfLines={1}>
+              {syncError ? 'Sem conexão: enviando depois'
+                : draft ? 'Salvo automaticamente' + (savedAt ? ' às ' + formatDateTime(savedAt).slice(-5) : '')
+                : 'Bipe a primeira peça'}
+            </Text>
+          </View>
           <TouchableOpacity
             style={[styles.finishBtn, { borderColor: VALUE_COLORS.positive, opacity: summary.counted && allData ? 1 : 0.45 }]}
             onPress={() => {
@@ -938,7 +932,7 @@ export default function StockCheckScreen() {
         ) : grouped.length === 0 ? (
           <View style={styles.empty}>
             <Ionicons name="search-outline" size={40} color={Colors.light.textTertiary} />
-            <Text style={styles.emptyText}>{onlyDiffs ? 'Nenhuma divergência até agora.' : 'Nenhuma variação encontrada.'}</Text>
+            <Text style={styles.emptyText}>{onlyPending ? 'Tudo contado: nenhuma peça falta bipar.' : onlyDiffs ? 'Nenhuma divergência até agora.' : 'Nenhuma variação encontrada.'}</Text>
           </View>
         ) : (
           // no PC os produtos viram cartões em grade (várias colunas); no celular é a lista de sempre

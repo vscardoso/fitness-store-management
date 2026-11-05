@@ -157,8 +157,8 @@ export const RELATORIOS: HelpEntry[] = [
     steps: [
       'Bipe cada peça com “Bipar”, com o leitor ou digitando o código: cada leitura soma 1.',
       'Ou digite o número contado na linha da peça.',
-      'Use “Só divergências” para ver só o que não bate.',
-      'Toque em “Salvar” para continuar depois, em qualquer aparelho.',
+      'Use “Falta bipar” para ver só o que ninguém contou ainda e “Só divergências” para ver o que não bate.',
+      'Não precisa salvar: cada bipada vai na hora para a conferência da loja, e outro celular que abrir a tela conta junto.',
       'Quando terminar, toque em “Finalizar”.',
     ],
     parts: [
@@ -167,8 +167,8 @@ export const RELATORIOS: HelpEntry[] = [
     ],
     goodToKnow: [
       'Contar não muda o estoque.',
-      'Depois de salva, a conferência se salva sozinha a cada mudança.',
-      'No menu de três pontinhos: imprimir a lista, imprimir o resultado e limpar a contagem.',
+      'Uma conferência só por loja: quem abre a tela entra na que está em andamento.',
+      'No menu de três pontinhos: imprimir a lista e o resultado, ou apagar a conferência e começar de novo (vale para todos os celulares).',
       'O admin pode ligar a baixa de peças que faltam; a baixa não tem volta.',
     ],
     roles: ['manager'],
