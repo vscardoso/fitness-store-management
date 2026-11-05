@@ -94,6 +94,9 @@ jobs:
         ALGORITHM: HS256
         ACCESS_TOKEN_EXPIRE_MINUTES: 30
         REFRESH_TOKEN_EXPIRE_DAYS: 7
+        # Os testes usam date.today() como "o dia da loja" (o cliente está no Brasil). Em UTC, entre 21h e 24h do
+        # Brasil o runner já está no dia seguinte e os testes de "venda de hoje" falhavam sem o app estar errado.
+        TZ: America/Sao_Paulo
       run: |
         pytest tests/ -v --cov=app --cov-report=xml --cov-report=term-missing --junitxml=test-results.xml
     
