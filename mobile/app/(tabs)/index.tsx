@@ -975,7 +975,7 @@ export default function DashboardScreen() {
           if (shown.length === 0) return null;
           const maxVal = Math.max(...shown.map((m) => Math.max(m.current_total, m.prev_total)), 1);
           const hasPrev = yoyData.totals.prev_total > 0;
-          const isPositive = yoyData.totals.total_change_percent >= 0;
+          const isPositive = (yoyData.totals.total_change_percent ?? 0) >= 0;
           return (
             <View style={[styles.yoyCard, { paddingVertical: theme.spacing.md }]}>
               <View style={styles.yoyHeader}>
@@ -991,7 +991,7 @@ export default function DashboardScreen() {
                     <Ionicons name={isPositive ? 'trending-up' : 'trending-down'} size={14}
                       color={isPositive ? VALUE_COLORS.positive : VALUE_COLORS.negative} />
                     <Text style={[styles.yoyChangePct, { color: isPositive ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
-                      {formatSignedPercent(yoyData.totals.total_change_percent, 1)}
+                      {formatSignedPercent(yoyData.totals.total_change_percent ?? 0, 1)}
                     </Text>
                   </View>
                 )}
@@ -1012,8 +1012,8 @@ export default function DashboardScreen() {
                   <View style={styles.monthValues}>
                     <Text style={styles.monthValue}>{formatCurrency(m.current_total)}</Text>
                     {m.prev_total > 0 && (
-                      <Text style={[styles.monthPrev, { color: m.change_percent >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
-                        {formatSignedPercent(m.change_percent)} vs {yoyData.totals.prev_year}
+                      <Text style={[styles.monthPrev, { color: (m.change_percent ?? 0) >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
+                        {formatSignedPercent(m.change_percent ?? 0)} vs {yoyData.totals.prev_year}
                       </Text>
                     )}
                   </View>

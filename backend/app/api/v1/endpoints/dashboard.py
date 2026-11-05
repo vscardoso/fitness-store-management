@@ -89,6 +89,14 @@ def get_period_dates(period: PeriodFilter) -> tuple[date, date]:
     return start, end
 
 
+def pct_change(current: float, previous: float, ndigits: int = 2) -> Optional[float]:
+    """Variação % contra o período anterior; None quando o anterior foi zero ou negativo (não há base:
+    mostrar "+100%" depois de um dia sem venda engana. O app esconde o selo quando vem None)."""
+    if previous is None or previous <= 0:
+        return None
+    return round((current - previous) / previous * 100, ndigits)
+
+
 def get_previous_period_dates(start: date, end: date) -> tuple[date, date]:
     """Calcula o período anterior de mesma duração para comparação."""
     duration = (end - start).days + 1
@@ -291,11 +299,7 @@ async def get_dashboard_stats(
     total_sales_yesterday = float(_yday.revenue)
     sales_count_yesterday = _yday.sales_count
 
-    sales_trend_percent = 0.0
-    if total_sales_yesterday > 0:
-        sales_trend_percent = ((total_sales_today - total_sales_yesterday) / total_sales_yesterday) * 100
-    elif total_sales_today > 0:
-        sales_trend_percent = 100.0
+    sales_trend_percent = pct_change(total_sales_today, total_sales_yesterday)
 
     average_ticket = _today.average_ticket
 
@@ -327,7 +331,7 @@ async def get_dashboard_stats(
             "margin_today": round(margin_today, 2),
             "total_yesterday": total_sales_yesterday,
             "count_yesterday": sales_count_yesterday,
-            "trend_percent": round(sales_trend_percent, 2),
+            "trend_percent": sales_trend_percent,
             "total_all": total_sales_all,
             "count_all": sales_count_all,
             "total_cmv": total_cmv,
@@ -714,9 +718,9 @@ async def get_monthly_sales_stats(
     prev_profit = float(prv.profit)
 
     # Calcular variações percentuais
-    total_change = ((total - prev_total) / prev_total * 100) if prev_total > 0 else (100.0 if total > 0 else 0.0)
-    count_change = ((count - prev_count) / prev_count * 100) if prev_count > 0 else (100.0 if count > 0 else 0.0)
-    profit_change = ((profit - prev_profit) / prev_profit * 100) if prev_profit > 0 else (100.0 if profit > 0 else 0.0)
+    total_change = pct_change(total, prev_total)
+    count_change = pct_change(count, prev_count)
+    profit_change = pct_change(profit, prev_profit)
 
     # Labels para período
     period_labels = {
@@ -750,9 +754,9 @@ async def get_monthly_sales_stats(
             "prev_total": prev_total,
             "prev_count": prev_count,
             "prev_profit": prev_profit,
-            "total_change_percent": round(total_change, 2),
-            "count_change_percent": round(count_change, 2),
-            "profit_change_percent": round(profit_change, 2),
+            "total_change_percent": total_change,
+            "count_change_percent": count_change,
+            "profit_change_percent": profit_change,
         },
 
         # Metadados do período
@@ -1198,11 +1202,7 @@ async def get_yoy_comparison(
         curr_total, curr_profit = curr["total"], curr["total"] - curr["cmv"]
         prev_total, prev_profit = prev["total"], prev["total"] - prev["cmv"]
 
-        change = round(
-            ((curr_total - prev_total) / prev_total * 100) if prev_total > 0 else
-            (100.0 if curr_total > 0 else 0.0),
-            1
-        )
+        change = pct_change(curr_total, prev_total, 1)
 
         months.append({
             "month": m,
@@ -1219,11 +1219,7 @@ async def get_yoy_comparison(
     curr_year_profit = sum(d["current_profit"] for d in months)
     prev_year_profit = sum(d["prev_profit"] for d in months)
 
-    total_change = round(
-        ((curr_year_total - prev_year_total) / prev_year_total * 100) if prev_year_total > 0 else
-        (100.0 if curr_year_total > 0 else 0.0),
-        1
-    )
+    total_change = pct_change(curr_year_total, prev_year_total, 1)
 
     _result = {
         "months": months,
@@ -1339,8 +1335,8 @@ async def get_period_purchases(
     prev_count = int(prev_stats.entries_count) if prev_stats.entries_count else 0
 
     # Calcular variacoes
-    total_change = ((total_invested - prev_total) / prev_total * 100) if prev_total > 0 else (100.0 if total_invested > 0 else 0.0)
-    count_change = ((entries_count - prev_count) / prev_count * 100) if prev_count > 0 else (100.0 if entries_count > 0 else 0.0)
+    total_change = pct_change(total_invested, prev_total)
+    count_change = pct_change(entries_count, prev_count)
 
     # Labels para tipo de entrada
     type_labels = {
@@ -1378,8 +1374,8 @@ async def get_period_purchases(
         "comparison": {
             "prev_total": prev_total,
             "prev_count": prev_count,
-            "total_change_percent": round(total_change, 2),
-            "count_change_percent": round(count_change, 2),
+            "total_change_percent": total_change,
+            "count_change_percent": count_change,
         },
 
         # Metadados do periodo

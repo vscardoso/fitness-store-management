@@ -27,7 +27,7 @@ export interface DashboardStats {
     margin_today: number;
     total_yesterday?: number;
     count_yesterday?: number;
-    trend_percent?: number;
+    trend_percent?: number | null;
   };
   customers: {
     total: number;
@@ -86,9 +86,10 @@ export interface PeriodComparison {
   prev_total: number;
   prev_count: number;
   prev_profit: number;
-  total_change_percent: number;
-  count_change_percent: number;
-  profit_change_percent: number;
+  // null = período anterior sem venda (não há base para comparar; o app esconde o selo)
+  total_change_percent: number | null;
+  count_change_percent: number | null;
+  profit_change_percent: number | null;
 }
 
 // Métricas de vendas por período
@@ -168,8 +169,8 @@ export interface PeriodPurchasesStats {
   comparison: {
     prev_total: number;
     prev_count: number;
-    total_change_percent: number;
-    count_change_percent: number;
+    total_change_percent: number | null;
+    count_change_percent: number | null;
   };
   period: {
     filter: string;
@@ -300,7 +301,7 @@ export interface YoYMonth {
   current_profit: number;
   prev_total: number;
   prev_profit: number;
-  change_percent: number;
+  change_percent: number | null;
 }
 
 export interface YoYData {
@@ -312,7 +313,7 @@ export interface YoYData {
     current_profit: number;
     prev_total: number;
     prev_profit: number;
-    total_change_percent: number;
+    total_change_percent: number | null;
   };
 }
 
