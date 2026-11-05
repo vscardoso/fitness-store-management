@@ -29,12 +29,14 @@ interface Props {
   right?: React.ReactNode;
   /** A câmera fecha sozinha ao ler uma peça (venda e consulta). Sem isso, fica aberta para ler várias (conferência). */
   closeOnScan?: boolean;
+  /** Campo de quem usa no lugar do campo de código (conferência: um campo só, que busca e conta ao dar Enter) */
+  field?: React.ReactNode;
 }
 
 const COLORS = { ok: '#16A34A', warn: '#B45309', error: '#DC2626' } as const;
 const BG = { ok: '#DCFCE7', warn: '#FEF3C7', error: '#FEE2E2' } as const;
 
-export default function ScanBar({ onCode, status, placeholder, paused, right, closeOnScan }: Props) {
+export default function ScanBar({ onCode, status, placeholder, paused, right, closeOnScan, field }: Props) {
   const brand = useBrandingColors();
   const [cameraOpen, setCameraOpen] = useState(false);
   const [muted, setMuted] = useState(isScanMuted());
@@ -91,7 +93,7 @@ export default function ScanBar({ onCode, status, placeholder, paused, right, cl
           <Ionicons name="qr-code-outline" size={20} color="#fff" />
           <Text style={styles.camText}>Bipar</Text>
         </TouchableOpacity>
-        <TextInput
+        {field ?? <TextInput
           ref={inputRef}
           style={styles.input}
           value={typed}
@@ -103,7 +105,7 @@ export default function ScanBar({ onCode, status, placeholder, paused, right, cl
           autoCorrect={false}
           returnKeyType="done"
           blurOnSubmit={false}
-        />
+        />}
         {right}
         <TouchableOpacity
           onPress={() => setScanMuted(!muted)}

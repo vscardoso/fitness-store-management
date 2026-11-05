@@ -90,7 +90,8 @@ export default function StockCheckScreen() {
   const [writeoffOn, setWriteoffOn] = useState(false);
   const [writeoffBusy, setWriteoffBusy] = useState(false);
   const [wo, setWo] = useState<{ row: StockCheckRow; qty: number } | null>(null);
-  const [woReason, setWoReason] = useState<WriteoffReason>('perda');
+  // Sem motivo marcado: a pessoa escolhe sempre (antes vinha "Perda" marcado e dava baixa sem perguntar)
+  const [woReason, setWoReason] = useState<WriteoffReason | null>(null);
   const [woNote, setWoNote] = useState('');
   const [woError, setWoError] = useState('');
   const [woSaving, setWoSaving] = useState(false);
@@ -109,6 +110,10 @@ export default function StockCheckScreen() {
   };
   const confirmWriteoff = async () => {
     if (!wo) return;
+    if (!woReason) {
+      setWoError('Escolha o motivo da baixa.');
+      return;
+    }
     setWoSaving(true);
     setWoError('');
     try {
@@ -137,7 +142,11 @@ export default function StockCheckScreen() {
   const [pendingResume, setPendingResume] = useState<number | null>(null);
   const lastSavedRef = useRef('');
   const resumedRef = useRef<string | null>(null);
-  const params = useLocalSearchParams<{ resume?: string }>();
+  const params = useLocalSearchParams<{ resume?: string; q?: string }>();
+  // Atalho "Ajustar quantidade" da página do produto: abre a conferência já filtrada pelo código dele
+  useEffect(() => {
+    if (params.q) setSearch(String(params.q));
+  }, [params.q]);
   // leitura por QR
   const scrollRef = useRef<ScrollView>(null);
   // posição da grade dentro da rolagem (as posições dos cartões são relativas a ela)
@@ -237,17 +246,18 @@ export default function StockCheckScreen() {
     let falta = 0;
     let sobra = 0;
     let ok = 0;
+    let okPieces = 0;
     rows.forEach((r) => {
       const d = diffOf(r, counts);
       if (d === null) return;
       counted += 1;
       countedPieces += r.system_quantity + d;
       systemOfCounted += r.system_quantity;
-      if (d === 0) ok += 1;
+      if (d === 0) { ok += 1; okPieces += r.system_quantity; }
       else if (d < 0) falta += -d;
       else sobra += d;
     });
-    return { counted, countedPieces, systemOfCounted, falta, sobra, ok, diffs: counted - ok };
+    return { counted, countedPieces, systemOfCounted, falta, sobra, ok, okPieces, diffs: counted - ok };
   }, [rows, counts]);
 
   // Qual conferência em andamento este aparelho está continuando (a contagem em si já fica salva acima)
@@ -436,6 +446,16 @@ export default function StockCheckScreen() {
     [codeIndex, allIndex, rowById, allData],
   );
 
+  // Um campo só: digitar filtra a lista; Enter (ou o leitor, que manda Enter) com um código inteiro conta 1 peça
+  const submitSearch = () => {
+    const raw = search.trim();
+    if (!raw) return;
+    if (findVariantLocal(codeIndex, raw) !== null || findVariantLocal(allIndex, raw) !== null) {
+      handleScan(raw);
+      setSearch('');
+    }
+  };
+
   const undoScan = useCallback(() => {
     if (lastScan === null) return;
     stepCount(lastScan, -1);
@@ -560,9 +580,9 @@ export default function StockCheckScreen() {
         <View style={styles.summary}>
           <View style={styles.summaryTop}>
             <Text style={styles.summaryMain}>
-              <Text style={styles.summaryBig}>{formatInt(summary.counted)}</Text> de {formatInt(rows.length)} contadas
+              <Text style={styles.summaryBig}>{formatInt(summary.countedPieces)}</Text> de {formatInt(data?.total_pieces)} peças contadas
             </Text>
-            <Text style={styles.summarySys}>{formatInt(data?.total_pieces)} peças no sistema</Text>
+            <Text style={styles.summarySys}>{formatInt(summary.counted)} de {formatInt(rows.length)} cores e tamanhos</Text>
           </View>
           <View style={styles.progressTrack}>
             <View
@@ -574,7 +594,7 @@ export default function StockCheckScreen() {
           </View>
           {summary.counted > 0 ? (
             <View style={styles.summaryStats}>
-              <Text style={[styles.stat, { color: VALUE_COLORS.positive }]}>{formatInt(summary.ok)} conferem</Text>
+              <Text style={[styles.stat, { color: VALUE_COLORS.positive }]}>{formatInt(summary.okPieces)} conferem</Text>
               <Text style={[styles.stat, { color: summary.falta > 0 ? VALUE_COLORS.negative : Colors.light.textSecondary }]}>{formatInt(summary.falta)} faltam</Text>
               <Text style={[styles.stat, { color: summary.sobra > 0 ? VALUE_COLORS.warning : Colors.light.textSecondary }]}>{formatInt(summary.sobra)} sobram</Text>
             </View>
@@ -587,7 +607,28 @@ export default function StockCheckScreen() {
         <ScanBar
           onCode={handleScan}
           status={scanStatus}
-          placeholder="Bipe ou digite o código"
+          field={
+            <View style={styles.searchBar}>
+              <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />
+              <RNTextInput
+                style={styles.searchInput}
+                placeholder="Buscar ou bipar: produto, cor ou código"
+                placeholderTextColor={Colors.light.textTertiary}
+                value={search}
+                onChangeText={setSearch}
+                onSubmitEditing={submitSearch}
+                returnKeyType="done"
+                blurOnSubmit={false}
+                autoCorrect={false}
+                accessibilityLabel="Buscar ou bipar"
+              />
+              {search.length > 0 && (
+                <TouchableOpacity onPress={() => setSearch('')} hitSlop={8} accessibilityLabel="Limpar busca">
+                  <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
+                </TouchableOpacity>
+              )}
+            </View>
+          }
           right={
             lastScan !== null ? (
               <TouchableOpacity onPress={undoScan} style={styles.undoBtn} accessibilityRole="button" accessibilityLabel="Desfazer última leitura">
@@ -598,22 +639,6 @@ export default function StockCheckScreen() {
         />
 
         {/* Filtros */}
-        <View style={styles.searchBar}>
-          <Ionicons name="search-outline" size={16} color={Colors.light.textTertiary} />
-          <RNTextInput
-            style={styles.searchInput}
-            placeholder="Buscar produto, cor, tamanho ou código"
-            placeholderTextColor={Colors.light.textTertiary}
-            value={search}
-            onChangeText={setSearch}
-            autoCorrect={false}
-          />
-          {search.length > 0 && (
-            <TouchableOpacity onPress={() => setSearch('')} hitSlop={8}>
-              <Ionicons name="close-circle" size={16} color={Colors.light.textTertiary} />
-            </TouchableOpacity>
-          )}
-        </View>
         <HScroll showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
           <Chip label="Só divergências" active={onlyDiffs} onPress={() => setOnlyDiffs((v) => !v)} color={brand.primary} />
           <Chip label="Só com estoque" active={onlyInStock} onPress={() => setOnlyInStock((v) => !v)} color={brand.primary} />
@@ -745,7 +770,7 @@ export default function StockCheckScreen() {
                             <TouchableOpacity
                               accessibilityRole="button"
                               accessibilityLabel={`Dar baixa de ${-d} peças`}
-                              onPress={() => { setWo({ row: r, qty: Math.min(-d, r.system_quantity) }); setWoReason('perda'); setWoNote(''); setWoError(''); }}
+                              onPress={() => { setWo({ row: r, qty: Math.min(-d, r.system_quantity) }); setWoReason(null); setWoNote(''); setWoError(''); }}
                               hitSlop={8}
                             >
                               <Text style={[styles.woBtnText, { color: brand.primary }]}>Dar baixa</Text>
@@ -845,12 +870,13 @@ export default function StockCheckScreen() {
         icon="remove-circle-outline"
         actions={[
           { label: 'Cancelar', onPress: () => setWo(null), variant: 'secondary', disabled: woSaving },
-          { label: wo ? `Dar baixa de ${wo.qty}` : 'Dar baixa', onPress: confirmWriteoff, variant: 'primary', loading: woSaving, icon: 'checkmark' },
+          { label: wo ? `Dar baixa de ${wo.qty}` : 'Dar baixa', onPress: confirmWriteoff, variant: 'primary', loading: woSaving, icon: 'checkmark', disabled: !woReason || woSaving },
         ]}
       >
         <Text style={styles.saveHelp}>
           Tira {wo?.qty ?? 0} peça(s) do estoque do sistema, das entradas mais antigas. Não dá para desfazer por aqui; fica registrado com o motivo.
         </Text>
+        <Text style={styles.woQuestion}>Qual o motivo? *</Text>
         <View style={styles.woReasons}>
           {(['perda', 'avaria', 'furto', 'ajuste'] as WriteoffReason[]).map((k) => (
             <TouchableOpacity
@@ -1107,7 +1133,8 @@ const styles = StyleSheet.create({
   woTitle: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
   woNote: { fontSize: 12, lineHeight: 17, color: Colors.light.textSecondary, marginTop: 2 },
   woBtnText: { fontSize: 12, fontWeight: '800' },
-  woReasons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 },
+  woQuestion: { fontSize: 15, fontWeight: '800', color: Colors.light.text, marginTop: 12 },
+  woReasons: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 },
   woChip: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 999, borderWidth: 1, borderColor: Colors.light.border },
   error: { color: Colors.light.error, marginBottom: 6 },
   footer: { textAlign: 'center', color: Colors.light.textSecondary, fontSize: 13, marginTop: 16 },

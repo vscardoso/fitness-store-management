@@ -63,6 +63,7 @@ export default function EditProductScreen() {
 
   // Estados do formulário
   const [name, setName] = useState('');
+  const [nameHeight, setNameHeight] = useState(52);
   const [sku, setSku] = useState('');
 
   const [description, setDescription] = useState('');
@@ -533,10 +534,21 @@ export default function EditProductScreen() {
             <TextInput
               value={name}
               onChangeText={(text) => {
-                setName(capitalizeWords(text));   // mesma regra do cadastro (assistente)
+                // mesma regra do cadastro (assistente); quebra de linha vira espaço (o campo quebra só para ler)
+                setName(capitalizeWords(text.replace(/[\r\n]+/g, ' ')));
                 setErrors({ ...errors, name: '' });
               }}
-              style={[styles.input, errors.name ? styles.inputError : null]}
+              // nome comprido quebra em várias linhas e fica inteiro à vista, sem deslizar o texto
+              multiline
+              blurOnSubmit
+              returnKeyType="done"
+              // No navegador a medida já inclui o espaçamento interno; no app nativo, não. Só muda se mudou de verdade
+              // (somar sempre fazia a altura crescer a cada medição: atualização infinita)
+              onContentSizeChange={(e) => {
+                const h = Math.ceil(e.nativeEvent.contentSize.height) + (Platform.OS === 'web' ? 0 : 28);
+                setNameHeight((old) => (Math.abs(old - h) > 2 ? h : old));
+              }}
+              style={[styles.input, styles.nameInput, { height: Math.max(52, nameHeight) }, errors.name ? styles.inputError : null]}
               placeholder="Ex: Legging Fitness Preta"
               placeholderTextColor={Colors.light.textTertiary}
             />
@@ -1146,6 +1158,7 @@ const createStyles = (brand: string) => StyleSheet.create({
     color: brand,
     marginBottom: theme.spacing.sm,
   },
+  nameInput: { paddingTop: 14, paddingBottom: 14, textAlignVertical: 'top', lineHeight: 22 },
   input: {
     minHeight: 52,
     borderWidth: 1,

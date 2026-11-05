@@ -25,6 +25,8 @@ import { getProductVariants, getVariantGrid, formatVariantLabel, deleteVariant }
 import { parseApiError } from '@/utils/apiError';
 import AddProductToEntryModal from '@/components/entries/AddProductToEntryModal';
 import { variantCodeText } from '@/utils/shortCode';
+import { useAuth } from '@/hooks/useAuth';
+import { isAdminRole } from '@/utils/roles';
 import VariantKeepModal from '@/components/products/VariantKeepModal';
 import { VariantStockMatrix } from '@/components/products/VariantStockMatrix';
 import { formatCurrency, formatDate, formatPercent } from '@/utils/format';
@@ -241,6 +243,8 @@ export default function ProductDetailsScreen() {
   // Usar só algumas variações: desativa as desmarcadas (só variação sem estoque)
   const [keepModalVisible, setKeepModalVisible] = useState(false);
   const [newVariantOpen, setNewVariantOpen] = useState(false);   // antes do retorno antecipado (regra dos hooks)
+  const { user } = useAuth();
+  const isAdmin = isAdminRole(user?.role);
   const [pricesSheetOpen, setPricesSheetOpen] = useState(false);
   // Excluir UMA variação pela lixeira do cartão; com peças, o estoque dela é zerado (o servidor só deixa o admin)
   const removeOneVariant = useMutation({
@@ -364,6 +368,23 @@ export default function ProductDetailsScreen() {
     return items.reduce((best: any, e: any) => (!best || (e.entry_id ?? 0) > (best.entry_id ?? 0) ? e : best), null);
   })();
   const openNewVariant = () => (lastEntry ? setNewVariantOpen(true) : goToEntry());
+  // Ajustar quantidade: só o admin, e pela conferência (conta a peça, baixa FIFO com motivo registrado)
+  const productCode = (() => {
+    const code = (variants ?? []).map((v: any) => variantCodeText(v)).find(Boolean) as string | undefined;
+    return code ? code.split('-')[0] : '';
+  })();
+  const adjustButton = isAdmin ? (
+    <TouchableOpacity style={[styles.newVariantBtn, { borderColor: Colors.light.border }]} activeOpacity={0.8}
+      onPress={() => router.push({ pathname: '/reports/stock-check', params: { q: productCode || product?.name || '' } } as any)}
+      accessibilityRole="button" accessibilityLabel="Ajustar quantidade">
+      <Ionicons name="clipboard-outline" size={20} color={Colors.light.text} />
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.newVariantTitle, { color: Colors.light.text }]}>Ajustar quantidade</Text>
+        <Text style={styles.newVariantSub}>Pela conferência: conte as peças e dê baixa com o motivo</Text>
+      </View>
+    </TouchableOpacity>
+  ) : null;
+
   const newVariantButton = (
     <TouchableOpacity style={[styles.newVariantBtn, { borderColor: brandingColors.primary }]} onPress={openNewVariant} activeOpacity={0.8}
       accessibilityRole="button" accessibilityLabel="Nova cor ou tamanho">
@@ -661,12 +682,13 @@ export default function ProductDetailsScreen() {
                 })}
               </View>
               {newVariantButton}
+              {adjustButton}
             </View>
           </View>
         )}
         {!hasVariants && (
           <View style={styles.card}>
-            <View style={styles.cardInner}>{newVariantButton}</View>
+            <View style={styles.cardInner}>{newVariantButton}{adjustButton}</View>
           </View>
         )}
 
