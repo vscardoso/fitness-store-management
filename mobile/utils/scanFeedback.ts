@@ -53,7 +53,7 @@ function makeWavDataUri(freqs: { f: number; ms: number }[]): string {
     const n = Math.floor((rate * ms) / 1000);
     for (let i = 0; i < n; i += 1) {
       const env = Math.min(1, i / 200, (n - i) / 400); // sobe e desce rápido: sem estalo
-      samples.push(Math.round(Math.sin((2 * Math.PI * f * i) / rate) * 0.55 * 32767 * Math.max(0, env)));
+      samples.push(Math.round(Math.sin((2 * Math.PI * f * i) / rate) * 0.95 * 32767 * Math.max(0, env)));   // alto: loja tem barulho
     }
     if (k < freqs.length - 1) for (let i = 0; i < rate * 0.05; i += 1) samples.push(0);
   });
@@ -76,11 +76,12 @@ function audioFor(kind: ScanKind): any {
   if (!audios[kind]) {
     if (!tones[kind]) {
       tones[kind] = makeWavDataUri(
-        kind === 'ok' ? [{ f: 1040, ms: 110 }] : kind === 'warn' ? [{ f: 700, ms: 100 }, { f: 700, ms: 100 }] : [{ f: 240, ms: 320 }],
+        kind === 'ok' ? [{ f: 1800, ms: 170 }] : kind === 'warn' ? [{ f: 700, ms: 100 }, { f: 700, ms: 100 }] : [{ f: 240, ms: 320 }],
       );
     }
     const a = new AudioCtor(tones[kind]);
     a.preload = 'auto';
+    a.volume = 1;
     audios[kind] = a;
   }
   return audios[kind];
@@ -125,7 +126,7 @@ function beep(freq: number, ms: number, delayMs = 0) {
     osc.type = 'sine';
     osc.frequency.value = freq;
     gain.gain.setValueAtTime(0.0001, t0);
-    gain.gain.exponentialRampToValueAtTime(0.25, t0 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.9, t0 + 0.01);
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + ms / 1000);
     osc.connect(gain);
     gain.connect(audioCtx.destination);
@@ -137,7 +138,7 @@ function beep(freq: number, ms: number, delayMs = 0) {
 }
 
 function beepFallback(kind: ScanKind) {
-  if (kind === 'ok') beep(1040, 90);
+  if (kind === 'ok') beep(1800, 160);
   else if (kind === 'warn') {
     beep(660, 90);
     beep(660, 90, 140);

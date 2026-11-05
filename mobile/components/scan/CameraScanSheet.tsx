@@ -39,7 +39,8 @@ const WEB = Platform.OS === 'web';
 export default function CameraScanSheet({ visible, onClose, onCode, status, hint, closeOnScan }: Props) {
   const [permission, requestPermission] = useCameraPermissions();
   const [webFailed, setWebFailed] = useState(false);
-  const gate = useRef(createPresenceGate(1200, 2500)).current;   // mesma etiqueta: conta de novo só depois de 2,5 s
+  // depois de cada leitura, 2 s sem ler nada; a mesma etiqueta só conta de novo depois de 2,5 s e fora da vista
+  const gate = useRef(createPresenceGate(1200, 2500, 2000)).current;
   const insets = useSafeAreaInsets();
   useScreenWakeLock(visible);   // tela acesa enquanto a câmera de bipar está aberta
 

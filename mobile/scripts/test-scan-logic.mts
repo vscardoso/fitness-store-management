@@ -140,12 +140,13 @@ console.log(`\n${n} testes passaram`);
 
 {
   // leitor rápido: a câmera perde a etiqueta por 1 s e acha de novo -> não conta outra vez antes de 2,5 s
-  const g = createPresenceGate(1200, 2500);
+  const g = createPresenceGate(1200, 2500, 2000);
   assert.equal(g.accept('PV#045-1', 0), true);
   assert.equal(g.accept('PV#045-1', 80), false);
   assert.equal(g.accept('PV#045-1', 1500), false);    // sumiu 1,4 s e voltou: mesma peça ainda
-  assert.equal(g.accept('PV#077-3', 1600), true);     // outra etiqueta conta na hora
+  assert.equal(g.accept('PV#077-3', 1600), false);    // outra etiqueta dentro dos 2 s de pausa: espera
+  assert.equal(g.accept('PV#077-3', 2100), true);     // passou a pausa: conta
   assert.equal(g.accept('PV#077-3', 2900), false);
-  assert.equal(g.accept('PV#077-3', 5000), true);     // segunda peça igual, 3,4 s depois e fora da vista antes: conta
+  assert.equal(g.accept('PV#077-3', 5000), true);     // segunda peça igual, 2,9 s depois e fora da vista antes: conta
   console.log('ok presença com tempo mínimo entre leituras iguais');
 }
