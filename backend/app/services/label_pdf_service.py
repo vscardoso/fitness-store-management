@@ -1,5 +1,5 @@
 """
-Etiqueta do verso da tag em PDF (adesivo 60x50 mm por padrão, qualquer medida de 30 a 100 mm), em 4 faixas:
+Etiqueta do verso da tag em PDF (adesivo 50x45 mm por padrão, qualquer medida de 30 a 100 mm), em 4 faixas:
 nome | cor e tamanho | preço | QR e código curto (#0123).
 
 Dois formatos do mesmo desenho:
@@ -28,12 +28,12 @@ from reportlab.pdfgen import canvas
 
 BOLD, REGULAR = "Helvetica-Bold", "Helvetica"
 ZONES = (15, 13, 11, 21)  # proporção das faixas (somam 60)
-A4_MARGIN_MM, A4_GAP_MM = 5, 0   # borda da folha (área que a impressora alcança); a conta de quantas cabem é sem espaço
+A4_MARGIN_MM, A4_GAP_MM = 5, 2   # borda da folha (área que a impressora alcança) e espaço MÍNIMO entre etiquetas no corte
 # A sobra da folha vira espaço entre as etiquetas (até 8 mm), sem perder nenhuma por folha: o corte que sai torto cai
 # na faixa em branco e não pega a etiqueta do lado (pedido do Victor, 05/11/2026)
 A4_SPACING_MAX_MM = 8
 MIN_MM, MAX_MM = 30, 100
-DEFAULT_W_MM, DEFAULT_H_MM = 60, 50   # etiqueta 6 x 5 cm que a W.A compra (2026-11-02)
+DEFAULT_W_MM, DEFAULT_H_MM = 50, 45   # tag da W.A: 5 cm de largura x 4,5 cm de altura (Victor, 05/11/2026)
 
 
 def scale_for(width_mm: float, height_mm: float) -> float:
@@ -42,7 +42,8 @@ def scale_for(width_mm: float, height_mm: float) -> float:
 
 
 def a4_grid(width_mm: float, height_mm: float) -> tuple[int, int]:
-    """Quantas etiquetas cabem na folha A4 (colunas, linhas): 60x50 -> 3x5 = 15; 50x60 -> 4x4 = 16; 65x55 -> 3x5 = 15."""
+    """Quantas etiquetas cabem na folha A4 (colunas, linhas), com pelo menos A4_GAP_MM entre elas:
+    50x45 -> 3x6 = 18; 60x50 -> 3x5 = 15; 50x60 -> 3x4 = 12; 65x55 -> 3x5 = 15."""
     cols = int((210 - 2 * A4_MARGIN_MM + A4_GAP_MM) // (width_mm + A4_GAP_MM))
     rows = int((297 - 2 * A4_MARGIN_MM + A4_GAP_MM) // (height_mm + A4_GAP_MM))
     return max(1, cols), max(1, rows)
@@ -50,7 +51,7 @@ def a4_grid(width_mm: float, height_mm: float) -> tuple[int, int]:
 
 def a4_spacing(width_mm: float, height_mm: float) -> tuple[float, float]:
     """Espaço entre colunas e entre linhas (mm): a sobra da folha dividida pelos vãos, no máximo A4_SPACING_MAX_MM.
-    60x50 -> (8, 8); 50x60 -> (0, 8) (4 colunas já usam a largura toda; nunca tira etiqueta da folha)."""
+    50x45 -> (8, 3.4); 60x50 -> (8, 8); nunca menos que A4_GAP_MM nem tira etiqueta da folha."""
     cols, rows = a4_grid(width_mm, height_mm)
     free_w = 210 - 2 * A4_MARGIN_MM - cols * width_mm
     free_h = 297 - 2 * A4_MARGIN_MM - rows * height_mm

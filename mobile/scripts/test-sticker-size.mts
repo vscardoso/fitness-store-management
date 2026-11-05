@@ -7,9 +7,9 @@ import {
 let n = 0;
 const t = (name: string, fn: () => void) => { fn(); n += 1; console.log('ok', name); };
 
-t('padrão é a etiqueta de 6 x 5 cm deitada', () => {
-  assert.equal(DEFAULT_STICKER.widthMm, 60);
-  assert.equal(DEFAULT_STICKER.heightMm, 50);
+t('padrão é a tag de 5 x 4,5 cm deitada', () => {
+  assert.equal(DEFAULT_STICKER.widthMm, 50);
+  assert.equal(DEFAULT_STICKER.heightMm, 45);
 });
 t('centímetros com vírgula ou ponto viram milímetros', () => {
   assert.equal(parseCm('6'), 60);
@@ -33,8 +33,9 @@ t('texto da medida e etiqueta livre', () => {
   assert.equal(customSticker(35, 45).note, 'em pé');
 });
 t('quantas cabem na A4 igual ao servidor (a4_grid)', () => {
+  assert.equal(stickersPerSheet(50, 45), 18);
   assert.equal(stickersPerSheet(60, 50), 15);
-  assert.equal(stickersPerSheet(50, 60), 16);
+  assert.equal(stickersPerSheet(50, 60), 12);
   assert.equal(stickersPerSheet(65, 55), 15);
   assert.equal(stickersPerSheet(55, 65), 12);
 });
