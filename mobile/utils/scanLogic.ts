@@ -34,23 +34,30 @@ export function createScanGate(windowMs = 1500) {
  * 1,5 s, 3 s...). Aqui o MESMO código só conta de novo depois de SAIR da vista da câmera por `gapMs`: segurar o
  * adesivo parado conta 1 só; tirar da vista e mostrar outra peça igual conta mais 1.
  */
-export function createPresenceGate(gapMs = 800) {
+export function createPresenceGate(gapMs = 800, minRepeatMs = 0) {
   let lastCode = '';
   let lastSeenAt = -Infinity;
+  let lastAcceptAt = -Infinity;
   return {
-    /** Chamar a cada quadro em que a câmera viu um código. Devolve true quando deve contar. */
+    /**
+     * Chamar a cada quadro em que a câmera viu um código. Devolve true quando deve contar.
+     * `minRepeatMs`: o MESMO código não conta de novo antes desse tempo, mesmo que a câmera tenha perdido a etiqueta
+     * por um instante (05/11/2026: com o leitor rápido, mexer o celular contava a mesma peça 2 ou 3 vezes).
+     */
     accept(code: string, now: number): boolean {
       const c = normalizeScan(code);
       if (!c) return false;
-      const again = c === lastCode && now - lastSeenAt <= gapMs; // continua na vista
+      const again = c === lastCode && (now - lastSeenAt <= gapMs || now - lastAcceptAt < minRepeatMs);
       lastSeenAt = now;
       if (again) return false;
       lastCode = c;
+      lastAcceptAt = now;
       return true;
     },
     reset() {
       lastCode = '';
       lastSeenAt = -Infinity;
+      lastAcceptAt = -Infinity;
     },
   };
 }
