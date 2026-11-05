@@ -67,34 +67,74 @@ const PUSH_TEXT: Record<WebPushState, string> = {
   unsupported: '',
 };
 
+/** Por que não dá para ligar agora, e o que fazer (o toque sempre responde algo, nunca fica parado). */
+const PUSH_HELP: Partial<Record<WebPushState, { title: string; message: string }>> = {
+  'needs-install': {
+    title: 'Abra pelo ícone do app',
+    message: 'No iPhone, as notificações só funcionam com o app instalado. No Safari, toque em Compartilhar e em "Adicionar à Tela de Início"; depois abra o Provador pelo ícone e toque aqui de novo.',
+  },
+  denied: {
+    title: 'Notificações bloqueadas',
+    message: 'O celular está bloqueando as notificações do Provador. No iPhone: Ajustes > Notificações > Provador > Permitir Notificações. Depois volte e toque aqui de novo.',
+  },
+  'server-off': {
+    title: 'Ainda não disponíveis',
+    message: 'O servidor ainda não está enviando notificações. Tente de novo em alguns minutos.',
+  },
+};
+
 /** Notificações do app instalado (Web Push): liga e desliga neste aparelho. Só no app web. */
 function WebPushItem() {
   const [state, setState] = useState<WebPushState | null>(null);
   const [busy, setBusy] = useState(false);
+  const [help, setHelp] = useState<{ title: string; message: string } | null>(null);
   useEffect(() => {
     getWebPushState().then(setState).catch(() => setState('unsupported'));
   }, []);
   if (!state || state === 'unsupported') return null;
   const toggle = async () => {
-    if (busy || state === 'needs-install' || state === 'server-off') return;
+    if (busy) return;
     setBusy(true);
     try {
-      setState(state === 'on' ? await disableWebPush() : await enableWebPush());
-    } catch {
+      // confere de novo na hora: o Menu pode ter aberto antes de as notificações ficarem disponíveis
+      const now = await getWebPushState().catch(() => state);
+      let next: WebPushState = now;
+      if (now === 'on') next = await disableWebPush();
+      else if (now === 'off') next = await enableWebPush();
+      setState(next);
+      if (next !== 'on' && next !== 'off' && PUSH_HELP[next]) setHelp(PUSH_HELP[next]!);
+      else if (now === 'off' && next === 'off') {
+        setHelp({ title: 'Permissão não concedida', message: 'Para receber, toque aqui de novo e escolha "Permitir" quando o celular perguntar.' });
+      }
+    } catch (e: any) {
       setState(await getWebPushState().catch(() => 'off' as WebPushState));
+      setHelp({ title: 'Não foi possível ligar', message: `O celular recusou a inscrição (${e?.message || 'erro desconhecido'}). Feche o app, abra de novo pelo ícone e tente outra vez.` });
     } finally {
       setBusy(false);
     }
   };
   return (
-    <MenuItem
-      icon={state === 'on' ? 'notifications' : 'notifications-off-outline'}
-      title={busy ? 'Notificações no celular…' : 'Notificações no celular'}
-      subtitle={PUSH_TEXT[state]}
-      onPress={toggle}
-      iconColor={state === 'on' ? '#16A34A' : '#64748B'}
-      iconBg={state === 'on' ? '#DCFCE7' : '#F1F5F9'}
-    />
+    <>
+      <MenuItem
+        icon={state === 'on' ? 'notifications' : 'notifications-off-outline'}
+        title={busy ? 'Notificações no celular…' : 'Notificações no celular'}
+        subtitle={PUSH_TEXT[state]}
+        onPress={toggle}
+        iconColor={state === 'on' ? '#16A34A' : '#64748B'}
+        iconBg={state === 'on' ? '#DCFCE7' : '#F1F5F9'}
+      />
+      <ConfirmDialog
+        visible={!!help}
+        type="info"
+        icon="notifications-outline"
+        title={help?.title ?? ''}
+        message={help?.message ?? ''}
+        confirmText="Entendi"
+        cancelText=""
+        onConfirm={() => setHelp(null)}
+        onCancel={() => setHelp(null)}
+      />
+    </>
   );
 }
 
