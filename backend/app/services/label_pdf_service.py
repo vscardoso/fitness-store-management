@@ -27,7 +27,9 @@ from reportlab.pdfgen import canvas
 
 
 BOLD, REGULAR = "Helvetica-Bold", "Helvetica"
-ZONES = (15, 13, 11, 21)  # proporção das faixas (somam 60)
+# proporção das faixas (somam 60): nome, cor/tamanho, preço, QR+código. A do QR cresceu de 21 para 25 (05/11/2026):
+# no adesivo de 4,7 x 4,2 o QR tinha só 11,5 mm e o iPhone sofria para ler; agora 13,8 mm
+ZONES = (13, 12, 10, 25)
 A4_MARGIN_MM, A4_GAP_MM = 5, 2   # borda da folha (área que a impressora alcança) e espaço MÍNIMO entre etiquetas no corte
 # A sobra da folha vira espaço entre as etiquetas (até 8 mm), sem perder nenhuma por folha: o corte que sai torto cai
 # na faixa em branco e não pega a etiqueta do lado (pedido do Victor, 05/11/2026)
@@ -163,7 +165,7 @@ def draw_label(c: canvas.Canvas, x: float, y: float, w: float, h: float, d: Labe
     zone_h = ZONES[3] * unit
     # QR o maior possível na faixa e com 2 quadradinhos de margem branca: com 1, o leitor da câmera perdia o QR
     # (colado na linha de corte e no texto). Medido com OpenCV em 5 x 4,5 cm: ver tests/test_fase3_dinheiro_relatorios.py
-    qr_size = min(19 * k * mm, zone_h - 1 * mm)
+    qr_size = min(21 * k * mm, zone_h - 1 * mm)
     widget = QrCodeWidget(d.qr, barLevel="M", barBorder=2)
     bx1, by1, bx2, by2 = widget.getBounds()
     drawing = Drawing(qr_size, qr_size, transform=[qr_size / (bx2 - bx1), 0, 0, qr_size / (by2 - by1), 0, 0])
