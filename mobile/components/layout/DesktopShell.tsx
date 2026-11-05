@@ -11,6 +11,7 @@ import { Colors } from '@/constants/Colors';
 import DesktopSidebar from './DesktopSidebar';
 import { HelpPanel, HelpSheet, useCurrentHelp } from '@/components/help/HelpHost';
 import { useHelpStore } from '@/store/helpStore';
+import { useAppIconBadge } from '@/hooks/usePwaExtras';
 
 /** Telas sem barra lateral mesmo logado (termos, aceite) */
 const NO_SIDEBAR = ['/termos', '/privacidade', '/aceite-termos'];
@@ -23,6 +24,7 @@ export default function DesktopShell({ children }: { children: ReactNode }) {
 function WebShell({ children }: { children: ReactNode }) {
   const { isDesktop } = useLayout();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  useAppIconBadge();   // número no ícone do app instalado: conversas do WhatsApp sem resposta
   const segments = useSegments();
   const pathname = usePathname();
   const router = useRouter();

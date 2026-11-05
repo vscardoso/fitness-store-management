@@ -45,6 +45,7 @@ import { formatInt, formatDateTime } from '@/utils/format';
 import ScanBar, { type ScanStatus } from '@/components/scan/ScanBar';
 import { lookupCode } from '@/services/codeResolver';
 import { buildCodeIndex, findVariantLocal } from '@/utils/scanLogic';
+import { useScreenWakeLock } from '@/hooks/usePwaExtras';
 import { playScan } from '@/utils/scanFeedback';
 import { buildSearchIndex, matchesSearch } from '@/utils/searchMatch';
 import { useDesktopContentStyle, useDesktopGrid } from '@/hooks/useLayout';
@@ -143,6 +144,7 @@ export default function StockCheckScreen() {
   const lastSavedRef = useRef('');
   const resumedRef = useRef<string | null>(null);
   const params = useLocalSearchParams<{ resume?: string; q?: string }>();
+  useScreenWakeLock(true);   // a tela não apaga no meio da contagem
   // Atalho "Ajustar quantidade" da página do produto: abre a conferência já filtrada pelo código dele
   useEffect(() => {
     if (params.q) setSearch(String(params.q));

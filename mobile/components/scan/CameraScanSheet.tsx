@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PageHeader from '@/components/layout/PageHeader';
 import { Colors } from '@/constants/Colors';
 import { createPresenceGate } from '@/utils/scanLogic';
+import { useScreenWakeLock } from '@/hooks/usePwaExtras';
 
 export interface CameraStatus {
   kind: 'ok' | 'warn' | 'error';
@@ -39,6 +40,7 @@ export default function CameraScanSheet({ visible, onClose, onCode, status, hint
   const [webFailed, setWebFailed] = useState(false);
   const gate = useRef(createPresenceGate(800)).current;
   const insets = useSafeAreaInsets();
+  useScreenWakeLock(visible);   // tela acesa enquanto a câmera de bipar está aberta
 
   useEffect(() => {
     if (visible) {
