@@ -57,6 +57,36 @@ export function useKeyboardState(enabled: boolean = true): KeyboardState {
   return state;
 }
 
+/**
+ * Área que a pessoa está VENDO agora no app web (visualViewport): topo e altura em px.
+ * Janela/folha presa embaixo deve caber nessa caixa: com o teclado aberto ela termina acima dele, em qualquer caso
+ * (Safari, app instalado, Android). No iPhone instalado a camada da janela (Modal) não encolhe com o teclado,
+ * então somar 0 deixava os campos da folha atrás do teclado (05/11/2026, "Nova cor ou tamanho").
+ * Fora do web devolve null.
+ */
+export function useVisibleBox(enabled: boolean = true): { top: number; height: number } | null {
+  const [box, setBox] = useState<{ top: number; height: number } | null>(null);
+  useEffect(() => {
+    if (!enabled || Platform.OS !== 'web' || typeof window === 'undefined' || !window.visualViewport) {
+      setBox(null);
+      return;
+    }
+    const vv = window.visualViewport;
+    const update = () => {
+      const next = { top: Math.round(vv.offsetTop), height: Math.round(vv.height) };
+      setBox((b) => (b && b.top === next.top && b.height === next.height ? b : next));
+    };
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }, [enabled]);
+  return box;
+}
+
 export function useKeyboardInset(enabled: boolean = true): number {
   return useKeyboardState(enabled).inset;
 }

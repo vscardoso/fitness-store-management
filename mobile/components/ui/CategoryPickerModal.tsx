@@ -9,6 +9,7 @@ import {
   TextInput,
   Animated,
   Text,
+  Platform,
 } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import SheetHeader from '@/components/ui/SheetHeader';
@@ -17,7 +18,7 @@ import { useCreateCategory } from '@/hooks/useCategories';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useBrandingColors } from '@/store/brandingStore';
 import { dismissKeyboardBehindModal } from '@/utils/dismissKeyboard';
-import { useKeyboardInset } from '@/hooks/useKeyboardInset';
+import { useKeyboardInset, useVisibleBox } from '@/hooks/useKeyboardInset';
 import type { Category } from '@/types';
 import { useDesktopSheet } from '@/hooks/useLayout';
 
@@ -97,7 +98,9 @@ export default function CategoryPickerModal({
   };
 
   // Teclado do campo anterior (ex.: nome do produto) fecha ao abrir; o do campo de busca/nova categoria sobe a folha
-  const keyboardInset = useKeyboardInset(visible);
+  const keyboardInset = useKeyboardInset(visible && Platform.OS !== 'web');
+  // web: a folha fica dentro da área visível (acima do teclado, inclusive no app instalado do iPhone)
+  const visibleBox = useVisibleBox(visible && Platform.OS === 'web');
 
   // ── Animação de entrada/saída ──
   useEffect(() => {
@@ -262,10 +265,14 @@ export default function CategoryPickerModal({
       </Animated.View>
 
       {/* Sheet deslizante */}
+      <View pointerEvents="box-none" style={visibleBox
+        ? { position: 'absolute', left: 0, right: 0, top: visibleBox.top, height: visibleBox.height }
+        : StyleSheet.absoluteFill}>
       <Animated.View
         style={[
           styles.sheet,
           desktopSheet.absSheet,
+          visibleBox && { maxHeight: Math.max(240, visibleBox.height * 0.9) },
           keyboardInset > 0 && { bottom: keyboardInset, maxHeight: Math.max(240, SCREEN_HEIGHT * 0.84 - keyboardInset), paddingBottom: 12 },
           { transform: [{ translateY: slideAnim }] },
         ]}
@@ -375,6 +382,7 @@ export default function CategoryPickerModal({
           windowSize={5}
         />
       </Animated.View>
+      </View>
     </Modal>
   );
 }
