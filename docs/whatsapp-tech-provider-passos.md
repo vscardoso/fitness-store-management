@@ -62,3 +62,8 @@ Gravação: abrir o WhatsApp Manager (business.facebook.com > WhatsApp Manager >
 - No Provador (Mais > WhatsApp > Conectar o WhatsApp do celular), tocar em Conectar, escolher a W.A, digitar o 99650-0091, aceitar a mensagem que chega no app ("Conectar" e "Conectar à Plataforma Business"), permitir compartilhar o histórico e colar o código.
 - O Provador puxa contatos e até 6 meses de conversas (prazo da Meta: 24 horas).
 - Antes: avisar a equipe que o WhatsApp Web e outros aparelhos vão desconectar e precisam ser conectados de novo, e que as listas de transmissão ficam só leitura.
+
+## Andamento
+
+- 05 e 06/11/2026: configurações básicas do app preenchidas (privacidade, termos, exclusão de dados em `app.provadorfit.com.br/exclusao-de-dados`, ícone, categoria); integração como Independent Tech Provider iniciada; modelo `peca_separada` (Utilidade, pt_BR) criado no WhatsApp Manager para o vídeo 2; revisão do app ENVIADA só com `whatsapp_business_messaging` e `whatsapp_business_management` (as outras permissões dos casos de uso foram tiradas da revisão). Operadores declarados: Hetzner Online GmbH e Google LLC. Prazo informado pela Meta: até 20 dias.
+- Risco conhecido: o vídeo 1 não mostra o fluxo de conexão (Embedded Signup), porque a tela ainda não existia. Se reprovar por isso, fazer a tela, regravar e reenviar.
