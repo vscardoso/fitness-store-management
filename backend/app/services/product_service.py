@@ -673,6 +673,17 @@ class ProductService:
 
         inventory = await self.inventory_repo.get_by_product(product_id, tenant_id=tenant_id)
 
+        # entradas que têm item deste produto: o total delas é refeito depois de excluir (06/11/2026: excluir o
+        # produto deixava o total da entrada somando os itens excluídos; ESTOQUE-ANTINGO ficou R$ 578 acima)
+        affected_entries = [r[0] for r in (await self.db.execute(
+            _text(
+                "SELECT DISTINCT ei.entry_id FROM entry_items ei "
+                "LEFT JOIN product_variants pv ON pv.id = ei.variant_id "
+                "WHERE (ei.product_id = :pid OR pv.product_id = :pid) AND ei.tenant_id = :tid AND ei.is_active = true"
+            ),
+            {"pid": product_id, "tid": tenant_id},
+        )).all()]
+
         # ── 3. Se há estoque (sem vendas): limpar entry_items + inventory ────
         if real_stock > 0:
             logger.info(
@@ -729,6 +740,22 @@ class ProductService:
                 .values(sku=new_sku, is_active=False)
             )
         logger.info(f"Variantes do produto {product_id} desativadas e SKUs renomeados (_del_<id>)")
+
+        # Total das entradas afetadas = só os itens que continuam ativos (mesma conta de excluir um item da entrada)
+        if affected_entries:
+            from app.services import lot_cost_service
+            for eid in affected_entries:
+                await self.db.execute(
+                    _text(
+                        "UPDATE stock_entries SET total_cost = COALESCE(("
+                        "  SELECT SUM(quantity_received * unit_cost) FROM entry_items"
+                        "  WHERE entry_id = :eid AND is_active = true), 0) "
+                        "WHERE id = :eid AND tenant_id = :tid"
+                    ),
+                    {"eid": eid, "tid": tenant_id},
+                )
+            await self.db.flush()
+            await lot_cost_service.recompute_entries(self.db, affected_entries, tenant_id=tenant_id)
 
         # Soft delete do produto
         await self.product_repo.update(self.db, id=product_id, obj_in={'is_active': False}, tenant_id=tenant_id)
