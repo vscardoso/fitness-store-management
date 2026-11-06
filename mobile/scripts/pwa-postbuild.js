@@ -85,6 +85,8 @@ const tags = `
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />`;
 html = html
+  // idioma da página: o iPhone escrevia "from Provador" nas notificações com a página marcada como inglês (05/11/2026)
+  .replace(/<html lang="[^"]*"/, '<html lang="pt-BR"')
   .replace(/<title>[^<]*<\/title>/, '<title>Provador</title>')
   .replace('<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />',
            '<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no, viewport-fit=cover" />')

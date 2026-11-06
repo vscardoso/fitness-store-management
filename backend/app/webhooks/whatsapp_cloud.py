@@ -79,7 +79,7 @@ async def receive_webhook(request: Request, background: BackgroundTasks, db: Asy
         last_by_conv[(tenant_id, conversation_id)] = (name, text)
     for (tenant_id, conversation_id), (name, text) in last_by_conv.items():
         background.add_task(
-            web_push_service.notify_tenant, tenant_id, f"WhatsApp: {name}", (text or "Nova mensagem")[:140],
+            web_push_service.notify_tenant, tenant_id, f"Nova mensagem de {name}", (text or "Mensagem sem texto (foto, áudio ou arquivo)")[:140],
             f"/whatsapp/{conversation_id}", roles=("admin", "manager", "seller"), tag=f"wa-{conversation_id}",
         )
     return {

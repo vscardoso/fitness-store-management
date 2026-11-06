@@ -413,5 +413,5 @@ async def test_mensagem_recebida_avisa_o_app_instalado(client, session_maker, mo
     assert len(calls) == 1, calls
     t, title, body, url, kw = calls[0]
     [c] = await convs(session_maker, tenant)
-    assert (t, title, body, url) == (tenant, "WhatsApp: Cliente Teste", "Tem legging preta M?", f"/whatsapp/{c.id}")
+    assert (t, title, body, url) == (tenant, "Nova mensagem de Cliente Teste", "Tem legging preta M?", f"/whatsapp/{c.id}")
     assert set(kw["roles"]) == {"admin", "manager", "seller"}
