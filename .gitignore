@@ -207,10 +207,10 @@ web/.claude/skills/ui-ux-pro-max/scripts/
 web/.claude/skills/frontend-design/
 web/skills/
 DEBUG_LOG.txt
-
-DEBUG_LOG.txt
 backend/coverage.xml
 *.bak-*
+# Cópia antiga e vulnerável do requirements (já entrou por engano em 5f92528)
+backend/requirements.demo.txt
 
 # builds de teste locais
 mobile/dist_qa*/

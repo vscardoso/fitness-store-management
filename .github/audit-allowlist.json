@@ -4,7 +4,7 @@
     "pytest": "Só roda em desenvolvimento/CI, não em produção. Correção exige pytest 9 + pytest-asyncio 1.x (reescrever fixtures). Rever em 2026-12."
   },
   "npm-mobile": {
-    "postcss": "Ferramenta de build do Expo 51 (não vai no app). Correção só no Expo 52+. Rever na troca de versão do Expo.",
+    "postcss": "Ferramenta de build do Expo (não vai no app). Ainda aparece no Expo 54 (conferido em 2026-11-05). Rever na troca de versão do Expo.",
     "image-size": "Usado pelo Metro/Expo CLI no build (não vai no app). Rever na troca de versão do Expo.",
     "ws": "Servidor de desenvolvimento do Metro (não vai no app). Rever na troca de versão do Expo."
   },
