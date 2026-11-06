@@ -63,16 +63,28 @@ class CodeLookupService:
         if found is None:
             found = await self._variant_row(func.upper(ProductVariant.sku) == text.upper(), tenant_id)   # leitor e digitação variam a caixa
             match = "sku" if found else match
-        if found is None:
-            # código antigo: PV#0123, #0123 ou só o número (por último, ver o aviso no topo)
-            body = text.upper()
-            for prefix in _PREFIXED:
-                if body.startswith(prefix):
-                    body = body[len(prefix):]
-                    break
-            if body.isdigit() and len(body) <= 9 and int(body) > 0:
-                found = await self._variant_row(ProductVariant.short_code == int(body), tenant_id)
-                match = "label" if found else match
+        body = text.upper()
+        for prefix in _PREFIXED:
+            if body.startswith(prefix):
+                body = body[len(prefix):]
+                break
+        legacy = body.isdigit() and len(body) >= 4 and body.startswith("0")   # #0123: código antigo de 4 dígitos
+        if found is None and body.isdigit() and not legacy and 0 < int(body) < 100000:
+            # número sozinho (26, 026, #026) é o código do PRODUTO, como na busca de Produtos: traz a 1ª variação
+            # com estoque e as irmãs (antes caía no código antigo #0026 e achava outra peça ou nada; 06/11/2026)
+            n = int(body)
+            found = await self._variant_row(
+                (ProductVariant.product_code == n)
+                & ProductVariant.id.in_(select(EntryItem.variant_id).where(
+                    EntryItem.tenant_id == tenant_id, EntryItem.is_active == True, EntryItem.quantity_remaining > 0)),  # noqa: E712
+                tenant_id)
+            if found is None:
+                found = await self._variant_row(ProductVariant.product_code == n, tenant_id)
+            match = "product" if found else match
+        if found is None and legacy:
+            # código antigo: PV#0123 ou #0123 (por último, ver o aviso no topo)
+            found = await self._variant_row(ProductVariant.short_code == int(body), tenant_id)
+            match = "label" if found else match
         if found is None:
             return None
 

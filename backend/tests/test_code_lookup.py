@@ -95,3 +95,26 @@ async def test_nao_acha_outra_loja_nem_lixo_e_exige_login(test_client, async_ses
         assert r.status_code in (404, 422), (lixo, r.status_code)
     assert (await test_client.get(URL, params={"code": "a"})).status_code == 401
     assert (await test_client.get(URL, headers=hb)).status_code == 422    # sem o parâmetro
+
+
+async def test_numero_sozinho_e_o_codigo_do_produto(test_client, async_session):
+    """Consultar peça digitando "26" ou "#026": acha o produto #026 (antes caía no código antigo #0026)."""
+    _sem_override()
+    db = async_session
+    t, c = await _loja(db)
+    p, vs = await _produto(db, t, c, nome="Consulta Numero", grade=(("Azul", "M"), ("Preto", "G")))
+    await db.commit()
+    for v in vs:
+        await db.refresh(v)
+    await _estoque(db, t, p, vs[1], 2)        # só a Preto G tem peça: é ela que aparece primeiro
+    await db.commit()
+    h = await _user(db, t, UserRole.CASHIER)
+    n = vs[0].product_code
+    for texto in (str(n), f"{n:03d}", f"#{n:03d}", f"#{n}"):
+        r = await test_client.get(URL, params={"code": texto}, headers=h)
+        assert r.status_code == 200, (texto, r.text)
+        j = r.json()
+        assert j["match"] == "product" and j["product"]["id"] == p.id and j["variant"]["id"] == vs[1].id, texto
+        assert {s["id"] for s in j["siblings"]} == {vs[0].id, vs[1].id}
+    # código que não existe: 404 (não acha outra peça pelo código antigo)
+    assert (await test_client.get(URL, params={"code": "99999"}, headers=h)).status_code == 404

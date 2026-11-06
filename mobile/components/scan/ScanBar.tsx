@@ -31,12 +31,14 @@ interface Props {
   closeOnScan?: boolean;
   /** Campo de quem usa no lugar do campo de código (conferência: um campo só, que busca e conta ao dar Enter) */
   field?: React.ReactNode;
+  /** Busca sozinha quando a pessoa para de digitar (consulta: só lê, não conta nem vende) */
+  searchAsYouType?: boolean;
 }
 
 const COLORS = { ok: '#16A34A', warn: '#B45309', error: '#DC2626' } as const;
 const BG = { ok: '#DCFCE7', warn: '#FEF3C7', error: '#FEE2E2' } as const;
 
-export default function ScanBar({ onCode, status, placeholder, paused, right, closeOnScan, field }: Props) {
+export default function ScanBar({ onCode, status, placeholder, paused, right, closeOnScan, field, searchAsYouType }: Props) {
   const brand = useBrandingColors();
   const [cameraOpen, setCameraOpen] = useState(false);
   const [muted, setMuted] = useState(isScanMuted());
@@ -72,10 +74,27 @@ export default function ScanBar({ onCode, status, placeholder, paused, right, cl
   }, [paused, cameraOpen, wedge, emit]);
 
   const submitTyped = () => {
+    if (!typed.trim()) return;
+    if (searchAsYouType) {
+      onCode(normalizeScan(typed));   // na consulta o texto fica no campo e o Enter busca de novo
+      return;
+    }
     emit(typed);
     setTyped('');
     inputRef.current?.focus?.();
   };
+
+  // Consulta: busca 0,7 s depois que a pessoa para de digitar (no iPhone ninguém aperta Enter).
+  // onCode muda a cada desenho de quem usa: vai por ref, senão o resultado redesenha e busca de novo sem parar
+  const onCodeRef = useRef(onCode);
+  onCodeRef.current = onCode;
+  useEffect(() => {
+    if (!searchAsYouType) return;
+    const code = normalizeScan(typed);
+    if (!code) return;
+    const t = setTimeout(() => onCodeRef.current(code), 700);
+    return () => clearTimeout(t);
+  }, [typed, searchAsYouType]);
 
   return (
     <View style={styles.wrap}>
@@ -103,9 +122,10 @@ export default function ScanBar({ onCode, status, placeholder, paused, right, cl
           placeholderTextColor={Colors.light.textTertiary}
           autoCapitalize="characters"
           autoCorrect={false}
-          returnKeyType="done"
+          returnKeyType="search"
           blurOnSubmit={false}
         />}
+
         {right}
         <TouchableOpacity
           onPress={() => setScanMuted(!muted)}

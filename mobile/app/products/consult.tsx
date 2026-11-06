@@ -42,7 +42,9 @@ export default function ConsultScreen() {
       setResult(found);
       setSelectedId(found.variant.id);
       playScan(found.variant.current_stock > 0 ? 'ok' : 'warn');
-      setStatus({ kind: found.variant.current_stock > 0 ? 'ok' : 'warn', text: found.product.name + ' · ' + variantLabel(found.variant) });
+      setStatus(found.match === 'product' && found.siblings.length > 1
+        ? { kind: 'ok', text: found.product.name + ': escolha a cor e o tamanho abaixo' }
+        : { kind: found.variant.current_stock > 0 ? 'ok' : 'warn', text: found.product.name + ' · ' + variantLabel(found.variant) });
     } catch (e: any) {
       playScan('error');
       setStatus({ kind: 'error', text: e?.message || 'Não foi possível consultar o código. Tente de novo.' });
@@ -73,7 +75,7 @@ export default function ConsultScreen() {
     <View style={styles.container}>
       <PageHeader title="Consultar peça" subtitle="Bipe a etiqueta para ver preço e estoque" showBackButton onBack={goBack} />
       <ScrollView contentContainerStyle={[styles.content, desktopContent]} keyboardShouldPersistTaps="handled">
-        <ScanBar closeOnScan onCode={handleCode} status={status} placeholder="Bipe ou digite o código" />
+        <ScanBar closeOnScan searchAsYouType onCode={handleCode} status={status} placeholder="Bipe ou digite o código (ex.: 26 ou 26-1)" />
 
         {!result || !selected ? (
           <View style={styles.empty}>

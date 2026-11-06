@@ -14,7 +14,7 @@ export interface LookupVariant {
 }
 
 export interface LookupResult {
-  match: 'label' | 'sku';
+  match: 'label' | 'sku' | 'product';   // product: número sozinho (26 = #026), veio a 1ª variação com estoque
   variant: LookupVariant;
   product: {
     id: number;
