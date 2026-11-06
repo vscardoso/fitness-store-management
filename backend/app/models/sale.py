@@ -34,6 +34,7 @@ class PaymentMethod(str, Enum):
     BANK_TRANSFER = "bank_transfer"
     INSTALLMENTS = "installments"
     LOYALTY_POINTS = "loyalty_points"
+    ON_ACCOUNT = "on_account"   # fiado: a cliente paga depois (parcelas em receivables)
 
 
 class Sale(BaseModel):

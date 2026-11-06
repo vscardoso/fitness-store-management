@@ -145,10 +145,12 @@ class FinanceService:
                 Payment.sale_id == sale_id, Payment.status == "confirmed", Payment.is_active == True,  # noqa: E712
             ).group_by(Payment.payment_method)
         )).all()
+        # o fiado não é dinheiro: a devolução do fiado abate as parcelas (receivable_abated) e o resto sai pelas outras formas
+        rows = [(getattr(m, "value", m), a) for m, a in rows if getattr(m, "value", m) != PaymentMethod.ON_ACCOUNT.value]
         total = sum((Decimal(str(a)) for _m, a in rows), D0)
         if total <= 0:
-            return {}
-        return {getattr(m, "value", m): Decimal(str(a)) / total for m, a in rows}
+            return {PaymentMethod.CASH.value: Decimal("1")}   # venda toda no fiado já paga em parte: devolve em dinheiro
+        return {m: Decimal(str(a)) / total for m, a in rows}
 
     async def _refunds_by_method(self, tenant_id: int, start: datetime) -> Dict[str, Decimal]:
         """Dinheiro devolvido ao cliente, por forma (mesma regra do caixa, para todas as formas)."""
@@ -166,13 +168,14 @@ class FinanceService:
                     out[r.settlement_method] = out.get(r.settlement_method, D0) + (-net)
                 continue
             method = (r.refund_method or "original").lower()
-            if method == "store_credit":
+            money_back = _q(r.total_refund) - _q(getattr(r, "receivable_abated", 0))
+            if method == "store_credit" or money_back <= 0:
                 continue
             if method == "original":
                 for m, share in (await self._payment_shares(sale_id)).items():
-                    out[m] = out.get(m, D0) + _q(r.total_refund) * share
+                    out[m] = out.get(m, D0) + money_back * share
             else:
-                out[method] = out.get(method, D0) + _q(r.total_refund)
+                out[method] = out.get(method, D0) + money_back
         return {m: _q(v) for m, v in out.items()}
 
     async def _cash_register_net(self, tenant_id: int, start: datetime) -> Decimal:
@@ -194,6 +197,8 @@ class FinanceService:
         sales = await self._sales_by_method(tenant_id, start)
         refunds = await self._refunds_by_method(tenant_id, start)
         register = await self._cash_register_net(tenant_id, start)
+        from app.services.receivable_service import ReceivableService
+        fiado = await ReceivableService(self.db).received_by_method(tenant_id, store.finance_start_date)
         ids = [a.id for a in accounts]
 
         transfers = (await self.db.execute(
@@ -222,17 +227,18 @@ class FinanceService:
                 methods = [m for m, k in METHOD_TO_KIND.items() if k == KIND_CASH]
             sales_in = _q(sum((sales.get(m, D0) for m in methods), D0))
             refunds_out = _q(sum((refunds.get(m, D0) for m in methods), D0))
+            fiado_in = _q(sum((fiado.get(m, D0) for m in methods), D0))
             t_in = _q(sum((_q(t.amount) for t in transfers if t.to_account_id == a.id), D0))
             t_out = _q(sum((_q(t.amount) for t in transfers if t.from_account_id == a.id), D0))
             reg = register if a.kind == KIND_CASH else D0
             pay = _q(paid.get(a.id, 0))
             exp = _q(expenses.get(a.id, 0))
-            balance = _q(a.opening_balance) + sales_in - refunds_out + reg + t_in - t_out - pay - exp
+            balance = _q(a.opening_balance) + sales_in + fiado_in - refunds_out + reg + t_in - t_out - pay - exp
             out.append({
                 "id": a.id, "name": a.name, "kind": a.kind, "kind_label": KIND_LABEL[a.kind],
                 "receives_pix": bool(a.receives_pix), "balance": float(balance),
                 "breakdown": {
-                    "opening": float(_q(a.opening_balance)), "sales": float(sales_in), "refunds": float(refunds_out),
+                    "opening": float(_q(a.opening_balance)), "sales": float(sales_in), "refunds": float(refunds_out), "receivables_received": float(fiado_in),
                     "cash_register": float(reg), "transfers_in": float(t_in), "transfers_out": float(t_out),
                     "payables_paid": float(pay), "expenses_paid": float(exp),
                 },

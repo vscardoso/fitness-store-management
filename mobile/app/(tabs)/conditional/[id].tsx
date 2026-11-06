@@ -68,6 +68,7 @@ const translatePaymentMethod = (method: string): string => {
     pix: 'Pix',
     bank_transfer: 'Transferência Bancária',
     installments: 'Parcelado',
+    on_account: 'Fiado',
     loyalty_points: 'Pontos de Fidelidade',
   };
   return labels[method] || method;

@@ -450,6 +450,12 @@ class ReturnService:
                     allow_refund=allow_refund,
                 )
 
+            # 6.2 Fiado: devolução (sem troca) abate primeiro o que a cliente ainda deve desta venda; só o resto é dinheiro
+            receivable_abated = Decimal('0')
+            if not exchange_lines:
+                from app.services.receivable_service import ReceivableService
+                receivable_abated = await ReceivableService(self.db).abate_for_return(sale.id, total_refund)
+
             sale_return = SaleReturn(
                 return_number=return_number,
                 sale_id=sale.id,
@@ -457,6 +463,7 @@ class ReturnService:
                 reason=return_data.reason,
                 total_refund=float(total_refund),
                 refund_method=return_data.refund_method or "original",
+                receivable_abated=float(receivable_abated),
                 exchange_sale_id=exchange_sale.id if exchange_sale else None,
                 net_amount=float(net_amount) if net_amount is not None else None,
                 settlement_method=return_data.settlement_method if exchange_sale else None,

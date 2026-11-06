@@ -23,6 +23,8 @@ from app.services.payment_discount_service import PaymentDiscountService
 from app.services.stock_lock import lock_stock
 
 
+from app.services.receivable_service import ReceivableService
+
 class SaleService:
     """Servio para operaes de negcio com vendas."""
     
@@ -176,6 +178,13 @@ class SaleService:
                     f"Faltam: R$ {(total_amount - payments_total):.2f}"
                 )
             
+            # 3.0 Fiado: precisa de cliente e não tem troco (o valor é o que ela vai dever)
+            if any(getattr(p.payment_method, 'value', p.payment_method) == 'on_account' for p in sale_data.payments):
+                if not sale_data.customer_id:
+                    raise ValueError("Venda no fiado precisa de cliente: escolha a cliente antes de finalizar.")
+                if payments_total > total_amount:
+                    raise ValueError("No fiado o valor não pode passar do total da venda.")
+
             # 3.1 Troco: pago acima do total só existe em dinheiro, e o pagamento gravado é o que ficou na loja
             #     (o app manda o valor RECEBIDO; antes o troco ficava gravado como pagamento)
             excess = payments_total - total_amount
@@ -288,6 +297,12 @@ class SaleService:
                     is_active=True
                 )
                 self.db.add(payment)
+                if payment_data.payment_method.value == 'on_account':
+                    await ReceivableService(self.db).create_for_sale(
+                        tenant_id=tenant_id, sale_id=sale.id, customer_id=sale_data.customer_id, amount=paid,
+                        installments=payment_data.installments or 1, first_due_date=payment_data.first_due_date,
+                        interval_days=payment_data.interval_days, created_by=None,
+                    )
             
             await self.db.flush()
             
@@ -423,6 +438,9 @@ class SaleService:
                     "Para desfazer o que sobrou, use Devolução nas peças restantes."
                 )
             
+            # Fiado: as parcelas em aberto somem junto; com parcela já recebida, recusa (usar Devolução)
+            await ReceivableService(self.db).cancel_for_sale(sale.id)
+
             print(f" Cancelando venda {sale.sale_number}...")
             
             # 1. Reverter estoque usando FIFO

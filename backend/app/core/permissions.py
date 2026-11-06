@@ -52,6 +52,9 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     ({"POST"}, r"^/finance/(setup|accounts)$", ADMIN),  # implantar o financeiro e criar conta: só admin
     ({"PUT"}, r"^/finance/accounts/\{account_id\}/pix$", ADMIN),
     (ANY, r"^/finance(/|$)", MANAGER),  # saldos, transferências e contas a pagar
+    ({"POST"}, r"^/receivables/receive$", CASHIER),  # receber fiado é dinheiro entrando, como no caixa
+    ({"GET"}, r"^/receivables(/|$)", CASHIER),  # quem recebe no balcão precisa ver quanto ela deve
+    (ANY, r"^/receivables(/|$)", MANAGER),  # fiado antigo, cancelar lançamento, desfazer recebimento
     (ANY, r"^/cash/sessions(/|$)", MANAGER),  # histórico dos caixas
     (ANY, r"^/cash(/|$)", CASHIER),  # abrir, movimentar e fechar o caixa: todo papel
     ({"POST"}, r"^/returns/reconcile-status$", ADMIN),

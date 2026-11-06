@@ -28,6 +28,8 @@ const getPaymentMethodLabel = (method: PaymentMethod | string): string => {
     bank_transfer: 'Transferência Bancária',
     INSTALLMENTS: 'Parcelado',
     installments: 'Parcelado',
+    ON_ACCOUNT: 'Fiado',
+    on_account: 'Fiado',
     LOYALTY_POINTS: 'Pontos de Fidelidade',
     loyalty_points: 'Pontos de Fidelidade',
   };

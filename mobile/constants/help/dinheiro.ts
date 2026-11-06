@@ -83,6 +83,33 @@ export const DINHEIRO: HelpEntry[] = [
     sources: ['app/finance/payables.tsx'],
   },
   {
+    id: 'fiado',
+    group: 'dinheiro',
+    title: 'Fiado',
+    routes: ['/finance/receivables'],
+    open: '/finance/receivables',
+    purpose: 'Quem deve para a loja, quanto e quando vence. Ao receber, o dinheiro entra na conta da forma de pagamento.',
+    steps: [
+      'Para vender no fiado: no carrinho escolha a cliente, no pagamento toque em “Fiado”, escolha em quantas vezes, o intervalo e o vencimento e toque em “Confirmar fiado”.',
+      'Quando ela pagar, toque em “Receber” ao lado do nome, digite quanto ela pagou, escolha como pagou e toque em “Confirmar recebimento”. Pode ser só uma parte.',
+      'Use os filtros “Em aberto”, “Vencidas”, “Pagas” e “Todas”.',
+      'Fiado de antes do app (caderno, planilha): toque em “Lançar fiado antigo”, escolha a cliente, o valor, as vezes e o vencimento e toque em “Lançar”.',
+      'Recebeu errado? Toque em “Recebimentos” na parcela e depois em “Desfazer”.',
+    ],
+    parts: [
+      { label: 'A receber', text: 'tudo que as clientes ainda devem.' },
+      { label: 'Vencido', text: 'o que passou do vencimento; a cliente aparece com borda vermelha.' },
+    ],
+    goodToKnow: [
+      'A venda no fiado conta como venda no dia em que foi feita. O dinheiro só entra na gaveta, no banco ou na maquininha quando ela paga (em dinheiro com o caixa aberto, entra no que a gaveta deve ter).',
+      'Devolução de peça comprada no fiado abate primeiro o que ela ainda deve; só o que passar volta em dinheiro.',
+      'Venda no fiado com parcela já recebida não pode ser cancelada: use a Devolução.',
+      'Lançar fiado antigo, cancelar lançamento e desfazer recebimento são do gerente ou do admin.',
+    ],
+    related: ['contas-saldos', 'caixa'],
+    sources: ['app/finance/receivables.tsx', 'app/checkout.tsx'],
+  },
+  {
     id: 'despesas',
     group: 'dinheiro',
     title: 'Despesas',

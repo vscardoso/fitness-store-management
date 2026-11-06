@@ -24,6 +24,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import type { Sale } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import CustomerPrivacyCard from '@/components/customers/CustomerPrivacyCard';
+import CustomerFiadoCard from '@/components/customers/CustomerFiadoCard';
 import InviteSheet from '@/components/whatsapp/InviteSheet';
 import { openCustomerConversation } from '@/services/whatsappService';
 import { parseApiError } from '@/utils/apiError';
@@ -500,6 +501,7 @@ export default function CustomerDetailsScreen() {
             <Text style={styles.inviteText}>Convidar para o WhatsApp da loja</Text>
           </TouchableOpacity>
         )}
+        {isValidId && <CustomerFiadoCard customerId={customerId} />}
         <InviteSheet visible={showInvite} onDismiss={() => setShowInvite(false)} customerName={customer?.full_name} customerPhone={customer?.phone} />
 
         <CustomerPrivacyCard

@@ -192,6 +192,7 @@ _SQLITE_EXTRA_COLUMNS = {
     "expenses": [("stock_entry_id", "INTEGER"), ("trip_id", "INTEGER"), ("account_id", "INTEGER"), ("payable_id", "INTEGER")],
     "payables": [("counts_as_expense", "BOOLEAN NOT NULL DEFAULT 0"), ("expense_category_id", "INTEGER")],
     "stock_count_items": [("counted_by_name", "VARCHAR(120)")],
+    "sale_returns": [("receivable_abated", "NUMERIC(10,2) NOT NULL DEFAULT 0")],
     "stores": [
         ("return_window_days", "INTEGER NOT NULL DEFAULT 7"), ("allow_money_refund", "BOOLEAN NOT NULL DEFAULT 1"),
         ("allow_stock_writeoff", "BOOLEAN NOT NULL DEFAULT 0"), ("catalog_feed_token", "VARCHAR(64)"),

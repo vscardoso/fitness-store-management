@@ -89,6 +89,13 @@ class SaleReturn(BaseModel):
         nullable=True,
         comment="Saldo da troca: peças novas - valor devolvido (positivo: cliente paga; negativo: loja devolve)"
     )
+    receivable_abated: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2),
+        nullable=False,
+        default=0,
+        server_default="0",
+        comment="Parte do reembolso que só abateu o fiado em aberto da venda (não é dinheiro devolvido)"
+    )
     settlement_method: Mapped[str | None] = mapped_column(
         String(20),
         nullable=True,

@@ -50,6 +50,7 @@ const METHOD_LABEL: Record<string, string> = {
   credit_card: 'Cartão de crédito',
   bank_transfer: 'Transferência',
   installments: 'Parcelado',
+  on_account: 'Fiado',
   loyalty_points: 'Pontos de fidelidade',
 };
 

@@ -53,6 +53,7 @@ const paymentLabel: Record<string, string> = {
   pix: 'Pix',
   bank_transfer: 'Transferência',
   installments: 'Parcelado',
+  on_account: 'Fiado',
   loyalty_points: 'Pontos de Fidelidade',
 };
 
@@ -62,6 +63,7 @@ const paymentIcon: Record<string, string> = {
   debit_card: 'card',
   pix: 'qr-code-outline',
   bank_transfer: 'swap-horizontal',
+  on_account: 'book-outline',
   installments: 'card',
   loyalty_points: 'star-outline',
 };

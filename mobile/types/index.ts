@@ -360,6 +360,7 @@ export enum PaymentMethod {
   DEBIT_CARD = 'debit_card',
   PIX = 'pix',
   TRANSFER = 'transfer',
+  ON_ACCOUNT = 'on_account', // fiado: a cliente paga depois, em parcelas
 }
 
 export interface SaleItem {

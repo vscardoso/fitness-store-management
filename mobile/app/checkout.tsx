@@ -41,6 +41,9 @@ import { Money } from '@/components/ui/PriceDisplay';
 import HScroll from '@/components/ui/HScroll';
 import { FEATURES } from '@/constants/features';
 import { useDesktopContentStyle, useDesktopFooterStyle } from '@/hooks/useLayout';
+import DateTimeInput from '@/components/ui/DateTimeInput';
+import { dateToIso } from '@/utils/dateBr';
+import { FIADO_INTERVALS, type FiadoInterval, defaultFirstDue, dueDates, splitAmount } from '@/utils/fiadoPlan';
 /**
  * Métodos de pagamento disponíveis
  */
@@ -50,6 +53,7 @@ const paymentMethods: { value: PaymentMethod | 'MIXED' | 'TERMINAL'; label: stri
   { value: PaymentMethod.CASH, label: 'Dinheiro', icon: 'cash-outline' },
   // Com maquininha integrada o PIX passa pelo seletor de terminal; sem ela é um pagamento comum, confirmado pela lojista
   { value: (FEATURES.maquininhas ? 'TERMINAL' : PaymentMethod.PIX) as any, label: 'PIX', icon: 'qr-code-outline' },
+  { value: PaymentMethod.ON_ACCOUNT, label: 'Fiado', icon: 'book-outline' },
   { value: 'MIXED', label: '2 Métodos', icon: 'swap-horizontal-outline' },
 ];
 
@@ -78,6 +82,11 @@ export default function CheckoutScreen() {
   const [installments, setInstallments] = useState(1);
   const [pendingCreditCard, setPendingCreditCard] = useState(false);
   const [pendingTerminal, setPendingTerminal] = useState(false);
+  // fiado: parcelas, intervalo e primeiro vencimento (mandados junto do pagamento on_account)
+  const [pendingFiado, setPendingFiado] = useState(false);
+  const [fiadoInstallments, setFiadoInstallments] = useState(1);
+  const [fiadoInterval, setFiadoInterval] = useState<FiadoInterval>(30);
+  const [fiadoFirstDue, setFiadoFirstDue] = useState<Date>(() => defaultFirstDue(30));
   const [terminalPaymentType, setTerminalPaymentType] = useState<'credit_card' | 'debit_card' | 'pix'>('credit_card');
   const [terminalInstallments, setTerminalInstallments] = useState(1);
   const [selectedTerminal, setSelectedTerminal] = useState<PDVTerminal | null>(null);
@@ -732,6 +741,8 @@ export default function CheckoutScreen() {
         payment_method: p.method,
         amount: p.amount,
         installments: p.installments || 1,
+        // fiado: vencimentos (no modo de 2 formas vale o padrão: 1 vez, daqui a um mês)
+        ...(p.method === PaymentMethod.ON_ACCOUNT ? { first_due_date: dateToIso(fiadoFirstDue), interval_days: fiadoInterval } : {}),
       }));
 
       // Determinar método de pagamento principal
@@ -1000,7 +1011,8 @@ export default function CheckoutScreen() {
                 {paymentMethods.filter(m => m.value !== 'MIXED').map((method) => {
                   const isSelected = cart.payments.length > 0
                     ? cart.payments[0].method === method.value
-                    : (pendingCreditCard && method.value === PaymentMethod.CREDIT_CARD);
+                    : (pendingCreditCard && method.value === PaymentMethod.CREDIT_CARD)
+                      || (pendingFiado && method.value === PaymentMethod.ON_ACCOUNT);
 
                   return (
                     <TouchableOpacity
@@ -1026,6 +1038,30 @@ export default function CheckoutScreen() {
                         }
 
                         const paymentMethod = method.value as PaymentMethod;
+                        setPendingFiado(false);
+
+                        // Fiado: precisa de cliente; mostra parcelas e vencimento antes de confirmar
+                        if (paymentMethod === PaymentMethod.ON_ACCOUNT) {
+                          if (!cart.customer_id) {
+                            setDialog({
+                              visible: true,
+                              type: 'warning',
+                              title: 'Fiado precisa de cliente',
+                              message: 'Volte ao carrinho e escolha a cliente que vai pagar depois.',
+                              confirmText: 'Entendi',
+                              cancelText: '',
+                              onConfirm: () => setDialog(d => ({ ...d, visible: false })),
+                            });
+                            return;
+                          }
+                          if (cart.payments.length > 0) cart.clearPayments();
+                          setPendingCreditCard(false);
+                          setPendingTerminal(false);
+                          setSelectedMethod(paymentMethod);
+                          setPendingFiado(true);
+                          haptics.selection();
+                          return;
+                        }
 
                         // Cartão de crédito: sempre via maquininha Cielo — mostra seletor de parcelas antes de enviar
                         if (paymentMethod === PaymentMethod.CREDIT_CARD) {
@@ -1081,7 +1117,7 @@ export default function CheckoutScreen() {
                   );
                 })}
 
-                {cart.payments.length === 0 && !pendingCreditCard && (
+                {cart.payments.length === 0 && !pendingCreditCard && !pendingFiado && (
                   <TouchableOpacity
                     style={[styles.paymentMethodChip, styles.mixedModeButton]}
                     onPress={() => {
@@ -1096,6 +1132,85 @@ export default function CheckoutScreen() {
                 )}
               </View>
             )}
+
+            {/* Fiado: parcelas, intervalo e primeiro vencimento (modo simples) */}
+            {pendingFiado && !isMixedMode && (() => {
+              const total = calculateTotalWithDiscount(PaymentMethod.ON_ACCOUNT);
+              const values = splitAmount(total, fiadoInstallments);
+              const dates = dueDates(fiadoFirstDue, fiadoInstallments, fiadoInterval);
+              return (
+                <View style={styles.installmentPicker}>
+                  <View style={styles.installmentPickerHeader}>
+                    <View style={styles.installmentPickerIconWrap}>
+                      <Ionicons name="book-outline" size={14} color={brandingColors.primary} />
+                    </View>
+                    <View style={styles.installmentPickerHeaderText}>
+                      <Text style={styles.installmentPickerLabel}>Fiado para {customer?.full_name || 'a cliente'}</Text>
+                      <Text style={styles.installmentPickerHint}>Em quantas vezes ela vai pagar</Text>
+                    </View>
+                  </View>
+                  <HScroll showsHorizontalScrollIndicator={false} style={styles.installmentScroll}>
+                    <View style={styles.installmentChipsRow}>
+                      {installmentOptions.map((opt) => (
+                        <TouchableOpacity
+                          key={opt.value}
+                          style={[styles.installmentChip, fiadoInstallments === opt.value && styles.installmentChipActive]}
+                          onPress={() => { setFiadoInstallments(opt.value); haptics.selection(); }}
+                        >
+                          <Text style={[styles.installmentChipText, fiadoInstallments === opt.value && styles.installmentChipTextActive]}>
+                            {opt.value === 1 ? '1 vez' : opt.label}
+                          </Text>
+                          {opt.value > 1 && (
+                            <Text style={[styles.installmentChipSub, fiadoInstallments === opt.value && styles.installmentChipSubActive]}>
+                              {formatCurrency(total / opt.value)}
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </HScroll>
+                  {fiadoInstallments > 1 && (
+                    <View style={[styles.installmentChipsRow, { marginTop: 10 }]}>
+                      {FIADO_INTERVALS.map((iv) => (
+                        <TouchableOpacity
+                          key={iv.value}
+                          style={[styles.installmentChip, fiadoInterval === iv.value && styles.installmentChipActive]}
+                          onPress={() => { setFiadoInterval(iv.value); setFiadoFirstDue(defaultFirstDue(iv.value)); haptics.selection(); }}
+                        >
+                          <Text style={[styles.installmentChipText, fiadoInterval === iv.value && styles.installmentChipTextActive]}>{iv.label}</Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                  <View style={{ marginTop: 10 }}>
+                    <DateTimeInput
+                      label={fiadoInstallments > 1 ? 'Primeiro vencimento' : 'Vencimento'}
+                      mode="date"
+                      value={fiadoFirstDue}
+                      minimumDate={new Date()}
+                      onChange={(d) => { if (d) setFiadoFirstDue(d); }}
+                    />
+                  </View>
+                  <Text style={[styles.installmentPickerHint, { marginTop: 8 }]}>
+                    {values.map((v, k) => `${dates[k].toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}: ${formatCurrency(v)}`).join('  ·  ')}
+                  </Text>
+                  <AppButton
+                    variant="primary"
+                    size="md"
+                    fullWidth
+                    icon="checkmark-circle-outline"
+                    label={fiadoInstallments === 1 ? 'Confirmar fiado' : `Confirmar fiado em ${fiadoInstallments}x`}
+                    onPress={() => {
+                      cart.clearPayments();
+                      cart.addPayment(PaymentMethod.ON_ACCOUNT, total, fiadoInstallments);
+                      setPendingFiado(false);
+                      haptics.success();
+                    }}
+                    style={{ marginTop: 12 }}
+                  />
+                </View>
+              );
+            })()}
 
             {/* Seletor de parcelas (crédito, modo simples) */}
             {pendingCreditCard && !isMixedMode && (

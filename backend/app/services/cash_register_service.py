@@ -124,10 +124,12 @@ class CashRegisterService:
         supplies = _num(sum((m.amount for m in movs if m.kind == KIND_SUPPLY), D0))
         withdrawals = _num(sum((m.amount for m in movs if m.kind == KIND_WITHDRAWAL), D0))
         opening = _num(s.opening_amount)
-        expected = opening + cash_sales - cash_refunds + supplies - withdrawals
+        from app.services.receivable_service import ReceivableService
+        fiado_cash = await ReceivableService(self.db).cash_received_between(tenant_id, start, end)
+        expected = opening + cash_sales + fiado_cash - cash_refunds + supplies - withdrawals
         return {
             "opening_amount": float(opening), "cash_sales": float(cash_sales), "cash_refunds": float(cash_refunds),
-            "supplies": float(supplies), "withdrawals": float(withdrawals), "expected_amount": float(expected),
+            "receivables_cash": float(fiado_cash), "supplies": float(supplies), "withdrawals": float(withdrawals), "expected_amount": float(expected),
             "sales_count": int(sales_count), "other_methods": other,
         }
 
@@ -146,10 +148,13 @@ class CashRegisterService:
                     total += -net
                 continue
             method = (r.refund_method or "original").lower()
+            money_back = _num(r.total_refund) - _num(getattr(r, "receivable_abated", 0))   # o abatido no fiado não sai da gaveta
+            if money_back <= 0:
+                continue
             if method == "cash":
-                total += _num(r.total_refund)
+                total += money_back
             elif method == "original":
-                total += _num(r.total_refund) * await self._cash_share(sale_id)
+                total += money_back * await self._cash_share(sale_id)
         return total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
     async def _cash_share(self, sale_id: int) -> Decimal:
@@ -158,9 +163,10 @@ class CashRegisterService:
                 Payment.sale_id == sale_id, Payment.status == "confirmed", Payment.is_active == True,  # noqa: E712
             ).group_by(Payment.payment_method)
         )).all()
+        rows = [(getattr(m, "value", m), a) for m, a in rows if getattr(m, "value", m) != PaymentMethod.ON_ACCOUNT.value]
         total = sum((Decimal(str(a)) for _m, a in rows), D0)
-        cash = sum((Decimal(str(a)) for m, a in rows if getattr(m, "value", m) == PaymentMethod.CASH.value), D0)
-        return (cash / total) if total > 0 else D0
+        cash = sum((Decimal(str(a)) for m, a in rows if m == PaymentMethod.CASH.value), D0)
+        return (cash / total) if total > 0 else Decimal("1")   # toda no fiado (já paga em parte): devolve em dinheiro
 
     def _public(self, s: CashSession, totals: Dict[str, Any], movs: List[CashMovement]) -> Dict[str, Any]:
         return {

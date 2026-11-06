@@ -1,7 +1,7 @@
 """Sale schemas for request/response validation."""
 
 from typing import List, Optional, Dict, Any
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
 from pydantic import BaseModel, Field, ConfigDict, field_validator
@@ -34,6 +34,9 @@ class PaymentCreate(BaseModel):
     payment_method: PaymentMethod
     payment_reference: Optional[str] = None
     installments: int = Field(default=1, ge=1, le=12)
+    # só no fiado (on_account): primeiro vencimento e intervalo entre parcelas (7, 15 ou 30 dias; padrão 30)
+    first_due_date: Optional[date] = None
+    interval_days: Optional[int] = Field(default=None, ge=7, le=30)
 
 
 class SaleCreate(BaseModel):

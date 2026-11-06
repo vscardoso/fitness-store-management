@@ -24,6 +24,7 @@ PAYMENTS = {
     "pix": "PIX",
     "bank_transfer": "Transferência",
     "installments": "Parcelado",
+    "on_account": "Fiado",
     "loyalty_points": "Pontos",
 }
 
