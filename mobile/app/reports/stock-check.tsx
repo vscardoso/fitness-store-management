@@ -232,11 +232,19 @@ export default function StockCheckScreen() {
   }, [rows, search, searchIndex, onlyDiffs, onlyPending, counts]);
 
   const grouped = useMemo(() => {
+    // um cartão por produto, mesmo quando as cores de dois produtos de mesmo nome se intercalam na lista
+    // (06/11/2026: "Conjunto Calça Ciclista" #020 e #027 viravam cartões repetidos com a mesma chave e, ao filtrar
+    // "Só divergências", a tela deixava cartões antigos que conferiam)
     const out: { key: string; name: string; category: string; rows: StockCheckRow[] }[] = [];
+    const byProduct = new Map<number, (typeof out)[number]>();
     visible.forEach((r) => {
-      const last = out[out.length - 1];
-      if (last && last.key === `${r.product_id}`) last.rows.push(r);
-      else out.push({ key: `${r.product_id}`, name: r.product_name, category: r.category_name, rows: [r] });
+      const g = byProduct.get(r.product_id);
+      if (g) g.rows.push(r);
+      else {
+        const novo = { key: `${r.product_id}`, name: r.product_name, category: r.category_name, rows: [r] };
+        byProduct.set(r.product_id, novo);
+        out.push(novo);
+      }
     });
     return out;
   }, [visible]);
