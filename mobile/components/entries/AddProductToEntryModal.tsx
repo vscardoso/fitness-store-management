@@ -68,7 +68,9 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
     setSupplier(null);
     setError('');
     if (newVariantOf) {
-      setNewVar({ product: newVariantOf, color: '', size: '' });
+      // produto de uma cor só: a cor já vem preenchida (o caso comum é lançar outro tamanho da mesma peça)
+      const cores = [...new Set((newVariantOf.variants ?? []).map((v) => (v.color || '').trim()).filter(Boolean))];
+      setNewVar({ product: newVariantOf, color: cores.length === 1 ? cores[0] : '', size: '' });
       const c = Number(newVariantOf.variants?.[0]?.cost_price ?? 0);
       setCost(c > 0 ? maskCurrencyBR(String(Math.round(c * 100))) : '');
       setStep('newVariant');
@@ -150,9 +152,26 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
     onError: (e: any) => setError(parseApiError(e) || 'Não foi possível lançar. Tente de novo.'),
   });
 
+  // cores e tamanhos que o produto já tem: viram botões para tocar (lista intuitiva, sem digitar)
+  const existingColors = useMemo(
+    () => [...new Set((newVar?.product.variants ?? []).map((v) => (v.color || '').trim()).filter(Boolean))],
+    [newVar?.product],
+  );
+  const existingSizes = useMemo(() => {
+    const own = (newVar?.product.variants ?? []).map((v) => (v.size || '').trim().toUpperCase()).filter(Boolean);
+    const numeric = own.some((s) => /^\d+$/.test(s));
+    const base = numeric ? ['33', '34', '35', '36', '37', '38', '39', '40', '41', '42'] : ['PP', 'P', 'M', 'G', 'GG', 'XG'];
+    const ordem = ['ÚNICO', 'PP', 'P', 'P/M', 'M', 'M/G', 'G', 'G/GG', 'GG', 'XG', 'XGG'];
+    const rank = (s: string) => (/^\d+$/.test(s) ? Number(s) : 1000 + (ordem.indexOf(s) >= 0 ? ordem.indexOf(s) : 99));
+    return [...new Set([...own, ...base])].sort((a, b) => rank(a) - rank(b));
+  }, [newVar?.product]);
+
   const submitNewVariant = () => {
     if (!newVar) return;
     if (!newVar.color.trim() && !newVar.size.trim()) return setError('Informe a cor ou o tamanho.');
+    // produto que tem cor: a peça nova precisa de cor (senão vira uma linha "Único" separada na grade)
+    if (existingColors.length && !newVar.color.trim()) return setError('Escolha a cor da peça.');
+    if ((newVar.product.variants ?? []).some((v) => (v.size || '').trim()) && !newVar.size.trim()) return setError('Escolha o tamanho da peça.');
     const n = parseInt(qty, 10);
     if (!n || n < 1) return setError('Informe a quantidade.');
     if (unmaskCurrency(cost) <= 0) return setError('Informe quanto você pagou em cada peça.');
@@ -223,8 +242,37 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
             <Text style={styles.note}>
               Nova cor ou tamanho de {newVar.product.name}: é o mesmo produto, a peça ganha o próximo código dele.
             </Text>
-            <TextInput mode="outlined" label="Cor" value={newVar.color} onChangeText={(t) => setNewVar({ ...newVar, color: t })} style={styles.input} />
-            <TextInput mode="outlined" label="Tamanho" value={newVar.size} onChangeText={(t) => setNewVar({ ...newVar, size: t })} autoCapitalize="characters" style={styles.input} />
+            {existingColors.length > 0 && (
+              <View style={styles.chipRow}>
+                {existingColors.map((c) => {
+                  const on = newVar.color.trim().toLowerCase() === c.toLowerCase();
+                  return (
+                    <TouchableOpacity key={c} onPress={() => setNewVar({ ...newVar, color: c })}
+                      style={[styles.chip, on && { borderColor: brand.primary, backgroundColor: brand.primary + '14' }]}>
+                      <Text style={[styles.chipText, on && { color: brand.primary, fontWeight: '700' }]}>{c}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+            <TextInput mode="outlined" label={existingColors.length ? 'Cor (toque acima ou digite outra)' : 'Cor'} value={newVar.color}
+              onChangeText={(t) => setNewVar({ ...newVar, color: t })} style={styles.input} />
+            <View style={styles.chipRow}>
+              {existingSizes.map((s) => {
+                const on = newVar.size.trim().toUpperCase() === s;
+                return (
+                  <TouchableOpacity key={s} onPress={() => setNewVar({ ...newVar, size: s })}
+                    style={[styles.chip, on && { borderColor: brand.primary, backgroundColor: brand.primary + '14' }]}>
+                    <Text style={[styles.chipText, on && { color: brand.primary, fontWeight: '700' }]}>{s}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <TextInput mode="outlined" label="Tamanho (toque acima ou digite outro)" value={newVar.size}
+              onChangeText={(t) => setNewVar({ ...newVar, size: t })} autoCapitalize="characters" style={styles.input} />
+            {(!!newVar.color.trim() || !!newVar.size.trim()) && (
+              <Text style={styles.note}>Vai entrar: {[newVar.color.trim(), newVar.size.trim().toUpperCase()].filter(Boolean).join(' · ')}</Text>
+            )}
             <TextInput mode="outlined" label="Quantas peças" value={qty} onChangeText={(t) => setQty(t.replace(/[^0-9]/g, ''))} keyboardType="numeric" style={styles.input} />
             <TextInput
               mode="outlined" label="Quanto você pagou em cada peça" value={cost}
@@ -343,6 +391,9 @@ export default function AddProductToEntryModal({ visible, entryId, entryCode, en
 }
 
 const styles = StyleSheet.create({
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 },
+  chip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 999, borderWidth: 1, borderColor: Colors.light.border, backgroundColor: Colors.light.card },
+  chipText: { fontSize: 13, color: Colors.light.text },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
