@@ -200,6 +200,17 @@ Responda APENAS com o JSON, sem texto adicional."""
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    # Modelo que falhou por indisponibilidade fica de fora por um tempo (em memória do processo): sem isso cada análise
+    # esperava 13 s por modelo fora do ar antes de chegar no que funciona (06/11/2026: 30 s por análise; o
+    # gemini-3.1-flash-lite respondia em 4 s). Se todos estiverem de fora, tenta todos de novo.
+    _model_down_until: Dict[str, float] = {}
+    MODEL_COOLDOWN_S = 600
+
+    @classmethod
+    def _models_in_order(cls, models: List[str], now: float) -> List[str]:
+        up = [m for m in models if cls._model_down_until.get(m, 0) <= now]
+        return up or list(models)
+
     def _call_gemini(self, image_bytes: bytes, media_type: str, prompt: str) -> str:
         try:
             from google import genai
@@ -219,7 +230,8 @@ Responda APENAS com o JSON, sem texto adicional."""
             if m.strip() and m.strip() != settings.GEMINI_MODEL
         ]
         last_error: Optional[Exception] = None
-        for model in models:
+        import time as _time
+        for model in self._models_in_order(models, _time.monotonic()):
             try:
                 response = client.models.generate_content(
                     model=model,
@@ -232,12 +244,14 @@ Responda APENAS com o JSON, sem texto adicional."""
                         thinking_config=types.ThinkingConfig(thinking_budget=512),
                     ),
                 )
+                type(self)._model_down_until.pop(model, None)
                 return response.text
             except Exception as e:  # noqa: BLE001
                 text = str(e)
                 if not any(code in text for code in ("429", "500", "503", "504", "404", "RESOURCE_EXHAUSTED", "UNAVAILABLE", "NOT_FOUND", "DEADLINE", "imed out", "Timeout")):
                     raise
-                logger.warning(f"Gemini {model} indisponível, tentando o próximo modelo: {text[:160]}")
+                type(self)._model_down_until[model] = _time.monotonic() + self.MODEL_COOLDOWN_S
+                logger.warning(f"Gemini {model} indisponível (fica de fora {self.MODEL_COOLDOWN_S // 60} min), tentando o próximo modelo: {text[:160]}")
                 last_error = e
         # Todos os modelos Gemini falharam: primeiro o Groq (grátis, rápido), por último o GLM da Z.ai (fila pode atrasar)
         if settings.GROQ_API_KEY:
