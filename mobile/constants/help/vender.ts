@@ -180,17 +180,18 @@ export const VENDER: HelpEntry[] = [
     purpose: 'Monta um envio condicional em 4 passos: cliente, peças, entrega e revisão.',
     steps: [
       'Escolha a cliente; se ela não existe, toque em “Cadastrar nova cliente”.',
-      'Toque em “Adicionar Produto” e escolha as peças e quantidades.',
+      'Bipe a etiqueta de cada peça (câmera em “Bipar”, leitor ou código digitado): cada leitura soma 1. Ou toque em “Adicionar Produto” e escolha na lista.',
       'Confira o endereço (vem do cadastro da cliente) e defina a data de ida e a de devolução.',
       'Revise tudo e toque em “Criar Envio”.',
     ],
     goodToKnow: [
       'As peças do envio ficam reservadas e não podem ser vendidas para outra cliente.',
+      'O número do produto sozinho (ex.: 26) só serve quando o produto tem uma cor e um tamanho; com vários, bipe a etiqueta da peça.',
       'O prazo conta a partir da data de devolução que você escolheu.',
       'Digite o CEP com 8 números e o endereço é preenchido sozinho.',
     ],
     related: ['condicional-detalhe', 'condicionais'],
-    sources: ['app/(tabs)/conditional/create.tsx'],
+    sources: ['app/(tabs)/conditional/create.tsx', 'components/scan/ScanBar.tsx'],
   },
   {
     id: 'condicional-detalhe',
@@ -200,7 +201,7 @@ export const VENDER: HelpEntry[] = [
     purpose: 'Marca o envio como enviado e, quando a cliente devolve, registra o que ela comprou e o que voltou.',
     steps: [
       'Quando o pacote sair, toque em “Marcar como Enviado” (o prazo começa a contar).',
-      'Na volta, em cada peça informe quanto a cliente comprou e quanto devolveu, ou use “Comprou Tudo” e “Devolveu Tudo”.',
+      'Na volta, bipe as etiquetas das peças que voltaram (cada leitura conta 1 devolvida) e toque em “Ela ficou com o resto”. Ou, em cada peça, informe as quantidades ou use “Comprou Tudo” e “Devolveu Tudo”.',
       'Peça que voltou estragada ou sumiu: use “Prejuízo do Item”.',
       'Se ela comprou algo, escolha a forma de pagamento.',
       'Toque em “Finalizar e Concluir” (ou “Finalizar Devolução” se ela não comprou nada).',
@@ -211,7 +212,7 @@ export const VENDER: HelpEntry[] = [
       '“Cancelar Envio” devolve todas as peças ao estoque e pede o motivo.',
     ],
     related: ['condicionais'],
-    sources: ['app/(tabs)/conditional/[id].tsx', 'components/conditional/MarkAsSentModal.tsx'],
+    sources: ['app/(tabs)/conditional/[id].tsx', 'components/conditional/MarkAsSentModal.tsx', 'components/scan/ScanBar.tsx'],
   },
   {
     id: 'caixa',

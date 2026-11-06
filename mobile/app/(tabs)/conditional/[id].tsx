@@ -52,6 +52,10 @@ import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import HScroll from '@/components/ui/HScroll';
 import { useDesktopContentStyle } from '@/hooks/useLayout';
 import FormGrid from '@/components/layout/FormGrid';
+import ScanBar, { type ScanStatus } from '@/components/scan/ScanBar';
+import { lookupCode } from '@/services/codeResolver';
+import { playScan } from '@/utils/scanFeedback';
+import { keepTheRest, markReturnedPiece } from '@/utils/conditionalScan';
 
 /**
  * Traduz os códigos de forma de pagamento para labels legíveis
@@ -296,6 +300,43 @@ export default function ConditionalShipmentDetailsScreen() {
       quantity_lost: 0,
     });
   }, [updateItem]);
+
+  /**
+   * Volta do condicional: cada etiqueta bipada marca 1 peça daquela cor/tamanho como devolvida.
+   * Lê o rascunho direto do store (leituras seguidas não podem partir do valor antigo).
+   */
+  const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
+  const handleReturnScan = useCallback(async (code: string) => {
+    if (!shipment?.items) return;
+    try {
+      const found = await lookupCode(code);
+      if (!found) {
+        playScan('error');
+        setScanStatus({ kind: 'error', text: 'Código ' + code + ' não encontrado nesta loja.' });
+        return;
+      }
+      const drafts = useConditionalProcessingStore.getState().drafts[shipmentId] ?? {};
+      const r = markReturnedPiece(shipment.items, drafts, found);
+      if (r.itemId != null && r.updates) updateItem(r.itemId, r.updates);
+      playScan(r.outcome.kind);
+      setScanStatus(r.outcome);
+    } catch (e: any) {
+      playScan('error');
+      setScanStatus({ kind: 'error', text: e?.message || 'Não foi possível consultar o código. Tente de novo.' });
+    }
+  }, [shipment?.items, shipmentId, updateItem]);
+
+  // "Ela ficou com o resto": o que não foi bipado nem marcado vira comprado
+  const handleKeepRest = useCallback(() => {
+    if (!shipment?.items) return;
+    const drafts = useConditionalProcessingStore.getState().drafts[shipmentId] ?? {};
+    const changes = keepTheRest(shipment.items, drafts);
+    changes.forEach((c) => updateItem(c.itemId, { quantity_kept: c.quantity_kept }));
+    const pieces = changes.reduce((sum, c) => sum + c.quantity_kept - (drafts[c.itemId]?.quantity_kept ?? 0), 0);
+    setScanStatus(pieces > 0
+      ? { kind: 'ok', text: `${pieces} ${pieces === 1 ? 'peça marcada' : 'peças marcadas'} como comprada${pieces === 1 ? '' : 's'}` }
+      : { kind: 'warn', text: 'Todas as peças já estão marcadas.' });
+  }, [shipment?.items, shipmentId, updateItem]);
 
   const handleOpenCancelModal = useCallback(() => {
     setActiveModal({ visible: true, type: 'cancel', reason: '' });
@@ -865,6 +906,30 @@ export default function ConditionalShipmentDetailsScreen() {
             <View style={styles.itemsModuleBadge}>
               <Ionicons name="sparkles-outline" size={12} color={Colors.light.textSecondary} />
               <Text style={styles.itemsModuleBadgeText}>Use "Prejuízo do Item" para danos e perdas</Text>
+            </View>
+          )}
+
+          {(shipment.status === 'SENT' || shipment.status === 'OVERDUE') && (
+            <View style={styles.returnScan}>
+              <Text style={styles.returnScanTitle}>Bipe as peças que voltaram</Text>
+              <Text style={styles.returnScanHint}>
+                Cada etiqueta bipada conta como 1 peça devolvida. Depois toque em "Ela ficou com o resto" para marcar o que não voltou como comprado.
+              </Text>
+              <ScanBar
+                onCode={handleReturnScan}
+                status={scanStatus}
+                placeholder="Bipe ou digite o código da etiqueta"
+                paused={activeModal.visible}
+              />
+              <TouchableOpacity
+                onPress={handleKeepRest}
+                style={[styles.quickButton, styles.quickButtonOutlined]}
+                activeOpacity={0.75}
+                accessibilityRole="button"
+              >
+                <Ionicons name="bag-check-outline" size={16} color={brandingColors.primary} />
+                <Text style={[styles.quickButtonText, { color: brandingColors.primary }]}>Ela ficou com o resto</Text>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -1860,6 +1925,24 @@ const createStyles = (brand: string) => StyleSheet.create({
   quickActions: {
     flexDirection: 'row',
     gap: 8,
+  },
+  returnScan: {
+    gap: 8,
+    padding: theme.spacing.md,
+    marginBottom: theme.spacing.md,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: Colors.light.border,
+    backgroundColor: Colors.light.card,
+  },
+  returnScanTitle: {
+    fontSize: theme.fontSize.md,
+    fontWeight: '700',
+    color: Colors.light.text,
+  },
+  returnScanHint: {
+    fontSize: theme.fontSize.sm,
+    color: Colors.light.textSecondary,
   },
   quickButton: {
     flex: 1,

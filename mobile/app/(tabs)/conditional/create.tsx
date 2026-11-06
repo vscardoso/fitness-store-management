@@ -28,6 +28,10 @@ import { formatCurrency } from '@/utils/format';
 import { cepMask, phoneMask } from '@/utils/masks';
 import { takePresetConditional } from '@/utils/presetConditional';
 import { useDesktopContentStyle, useScrollBleed } from '@/hooks/useLayout';
+import ScanBar, { type ScanStatus } from '@/components/scan/ScanBar';
+import { lookupCode } from '@/services/codeResolver';
+import { playScan } from '@/utils/scanFeedback';
+import { addScannedPiece } from '@/utils/conditionalScan';
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -207,6 +211,30 @@ export default function CreateConditionalShipmentScreen() {
       }]);
     }
     setShowProductModal(false);
+  };
+
+  // Leitura contínua (câmera, leitor USB/Bluetooth ou código digitado): cada etiqueta bipada soma 1 peça no envio.
+  // A lista vai por ref: leituras seguidas não podem ler a lista antiga (a segunda leitura apagaria a primeira).
+  const [scanStatus, setScanStatus] = useState<ScanStatus | null>(null);
+  const selectedRef = React.useRef(selectedProducts);
+  selectedRef.current = selectedProducts;
+  const handleScanCode = async (code: string) => {
+    try {
+      const found = await lookupCode(code);
+      if (!found) {
+        playScan('error');
+        setScanStatus({ kind: 'error', text: 'Código ' + code + ' não encontrado nesta loja.' });
+        return;
+      }
+      const r = addScannedPiece(selectedRef.current, found);
+      selectedRef.current = r.list;
+      setSelectedProducts(r.list);
+      playScan(r.outcome.kind);
+      setScanStatus(r.outcome);
+    } catch (e: any) {
+      playScan('error');
+      setScanStatus({ kind: 'error', text: e?.message || 'Não foi possível consultar o código. Tente de novo.' });
+    }
   };
 
   const handleRemoveProduct = (productId: number, variantId?: number) => {
@@ -660,9 +688,16 @@ export default function CreateConditionalShipmentScreen() {
           <View style={styles.stepHeader}>
             <Text style={styles.stepTitle}>Adicione os Produtos</Text>
             <Text style={styles.stepDescription}>
-              Selecione as roupas que serão enviadas
+              Bipe as etiquetas das peças ou escolha na lista
             </Text>
           </View>
+
+          <ScanBar
+            onCode={handleScanCode}
+            status={scanStatus}
+            placeholder="Bipe ou digite o código da etiqueta"
+            paused={showProductModal}
+          />
 
           {/* Produtos Selecionados */}
           {selectedProducts.length > 0 && (
@@ -745,7 +780,7 @@ export default function CreateConditionalShipmentScreen() {
               <Ionicons name="shirt-outline" size={64} color={Colors.light.textSecondary} />
               <Text style={styles.emptyStateTitle}>Nenhum produto selecionado</Text>
               <Text style={styles.emptyStateDescription}>
-                Toque em "Adicionar Produto" para selecionar os itens do envio
+                Bipe as etiquetas ou toque em "Adicionar Produto" para escolher na lista
               </Text>
             </View>
           )}
