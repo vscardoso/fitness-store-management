@@ -20,7 +20,7 @@ Três blocos, de cima para baixo:
 Leitura: é um **fechamento de caixa mensal** (regime de caixa), não um resultado contábil. O que ela precisa ver é "o dinheiro bate?" e "quem me deve".
 
 Dúvidas para a dona (não travam o desenho):
-- o verde no bloco 3 é "já recebido" ou "confirmado"?
+- ~~o verde no bloco 3~~: respondido em 06/11/2026, verde = **valor a receber** (fiado em aberto, lançar com "Lançar fiado antigo").
 - o que é o amarelo 10.162,25 (não sai de nenhuma soma óbvia)?
 - fiado tem entrada? as parcelas são semanais (13/11 e 20/11 sugerem que sim)? cobra juros ou multa? (assumido: não)
 
