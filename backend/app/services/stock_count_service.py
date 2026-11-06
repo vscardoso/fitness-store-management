@@ -53,6 +53,24 @@ def _summarize(items, total_variants: int) -> Dict[str, int]:
                 system_pieces=system_total, counted_pieces=counted_total)
 
 
+def _follow(item: StockCountItem, live: int) -> bool:
+    """Acompanha o estoque que mudou DEPOIS da bipada (venda, condicional, devolução, entrada) numa conferência aberta.
+
+    O "sistema" da peça passa a ser o estoque de agora. Saída (venda) primeiro sai das peças que ainda não foram
+    bipadas; só o que passar delas desconta da contagem (a peça bipada foi vendida e não está mais na prateleira).
+    Entrada não soma na contagem: a peça nova aparece como "falta" até alguém bipar.
+    """
+    sys_q = item.system_quantity
+    if live == sys_q:
+        return False
+    if live < sys_q:
+        not_scanned = max(0, sys_q - item.counted_quantity)
+        item.counted_quantity = max(0, item.counted_quantity - max(0, (sys_q - live) - not_scanned))
+    item.system_quantity = live
+    item.difference = item.counted_quantity - live
+    return True
+
+
 class StockCountService:
     def __init__(self, db: AsyncSession):
         self.db = db
@@ -65,6 +83,23 @@ class StockCountService:
         if count is None:
             raise StockCountNotFound("Conferência não encontrada.")
         return count
+
+    async def _follow_stock(self, tenant_id: int, count: StockCount, items) -> bool:
+        """Conferência aberta: põe cada peça contada em dia com o estoque de agora (ver `_follow`). True se mudou algo."""
+        items = list(items)
+        if count.status != "open" or not items:
+            return False
+        live = await StockCheckService(self.db).quantities(tenant_id=tenant_id, variant_ids=[i.variant_id for i in items])
+        changed = False
+        for it in items:
+            if it.variant_id is not None and _follow(it, live.get(it.variant_id, 0)):
+                changed = True
+        if changed:
+            for k, v in _summarize(items, count.total_variants or 0).items():
+                if k != "total_variants" or v:
+                    setattr(count, k, v)
+            count.revision = (count.revision or 1) + 1
+        return changed
 
     async def save(
         self, *, tenant_id: int, user: User, count_id: Optional[int], name: Optional[str], note: Optional[str],
@@ -199,6 +234,13 @@ class StockCountService:
         try:
             items = {i.variant_id: i for i in (await self.db.execute(select(StockCountItem).where(
                 StockCountItem.count_id == count.id, StockCountItem.tenant_id == tenant_id))).scalars().all()}
+            if await self._follow_stock(tenant_id, count, items.values()) and finish:
+                # vendeu ou entrou peça desde a última atualização da tela: grava e pede para conferir de novo
+                await self.db.commit()
+                raise StockCountConflict(
+                    "O estoque mudou (venda ou entrada) enquanto você conferia. A tela foi atualizada: "
+                    "confira os números e finalize de novo."
+                )
             report = None
             who = _who(user)
             for op in ops:
@@ -288,6 +330,20 @@ class StockCountService:
             count = await self._load(tenant_id, count_id)
         except StockCountNotFound:
             return None
+        if count.status == "open":
+            # venda/entrada feita durante a conferência entra na hora (trava a conferência só enquanto confere)
+            count = (await self.db.execute(
+                select(StockCount).where(StockCount.id == count_id).with_for_update().execution_options(populate_existing=True)
+            )).scalar_one()
+            all_items = (await self.db.execute(select(StockCountItem).where(
+                StockCountItem.count_id == count_id, StockCountItem.tenant_id == tenant_id))).scalars().all()
+            try:
+                await self._follow_stock(tenant_id, count, all_items)
+                await self.db.commit()   # sem mudança, só solta a trava
+                await self.db.refresh(count)
+            except Exception:
+                await self.db.rollback()
+                raise
         stmt = select(StockCountItem).where(StockCountItem.count_id == count_id, StockCountItem.tenant_id == tenant_id)
         if only_diffs:
             stmt = stmt.where(StockCountItem.difference != 0)

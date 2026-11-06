@@ -207,6 +207,11 @@ export default function StockCheckScreen() {
     return Array.from(map.entries()).sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'));
   }, [allData]);
 
+  const liveRef = useRef<Map<number, number> | null>(null);
+  useEffect(() => {
+    liveRef.current = allData ? new Map(allData.rows.map((r) => [r.variant_id, r.system_quantity])) : null;
+  }, [allData]);
+
   const rows = data?.rows ?? [];
   useEffect(() => {
     countsRef.current = counts;
@@ -328,6 +333,12 @@ export default function StockCheckScreen() {
 
   // Põe na tela o que está no servidor; operações deste aparelho ainda não enviadas continuam valendo por cima
   const applyDetail = useCallback((detail: StockCountDetail) => {
+    // o servidor acompanha venda/entrada feita durante a conferência: se o estoque de uma peça contada mudou,
+    // baixa a lista de novo para a comparação usar o estoque de agora
+    const live = liveRef.current;
+    if (live && detail.items.some((i) => i.variant_id != null && live.has(i.variant_id) && live.get(i.variant_id) !== i.system_quantity)) {
+      queryClient.invalidateQueries({ queryKey: ['stock-check'] });
+    }
     const next: Counts = {};
     const by: Record<number, string> = {};
     const who = new Set<string>();
@@ -351,7 +362,7 @@ export default function StockCheckScreen() {
     const c = detail.count;
     setDraftNow({ id: c.id, revision: c.revision, name: c.name ?? '', note: c.note ?? '', categoryId: c.category_id, createdBy: c.created_by_name });
     setSavedAt(c.updated_at ?? c.created_at);
-  }, [setDraftNow]);
+  }, [setDraftNow, queryClient]);
 
   const endedByOther = useCallback(() => {
     opsRef.current = [];

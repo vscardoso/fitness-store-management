@@ -571,3 +571,9 @@ Pedido do Victor: loja que já tem estoque em andamento quando começa a usar o 
 - Leituras seguidas leem a lista atual (ref na criação, `useConditionalProcessingStore.getState()` na volta): ler o estado do desenho anterior apagava a leitura anterior.
 - Teste no navegador (390 px, backend local descartável): 8 verificações na criação (envio de 4 peças, R$ 359,60) e 9 na volta; resultado no banco: `COMPLETED_PARTIAL_SALE`, venda de R$ 99,90 e estoque de volta (P 2, M 0, Top 3). NÃO testado: câmera em aparelho, leitor físico, notebook.
 - Achado, não corrigido: `with-new-product-variants` com código de entrada com menos de 5 letras responde 400 com a frase genérica ("Não conseguimos concluir agora") em vez de dizer que o código é curto (validação do `StockEntryCreate` dentro do serviço).
+
+## Conferência acompanha vendas feitas durante a contagem (2026-11-06)
+
+- Antes: a tela comparava a contagem com o estoque de agora, então peça bipada e vendida em seguida virava divergência (caso real: #048-1 contado 1 de 1 e vendido às 10:05).
+- Agora, em conferência aberta, cada leitura (`GET /reports/stock-counts/{id}`, inclusive a de 4 em 4 s) e cada `apply` põem as peças contadas em dia com o estoque (`_follow` em `stock_count_service.py`, estoque por `StockCheckService.quantities`): a venda sai primeiro das peças ainda não bipadas e só o que passar desconta da contagem; peça que entra (devolução, entrada) não soma e fica como falta até ser bipada. Mudou algo: sobe a `revision` (os aparelhos puxam) e finalizar com a tela de antes da venda dá 409. O app baixa a lista de estoque de novo quando o servidor informa estoque diferente (`liveRef` em `reports/stock-check.tsx`).
+- Limite: variação com várias peças em que a peça vendida era justamente uma já bipada fica com 1 sobra (não dá para saber qual peça saiu). Testes: fim de `tests/test_conferencia_compartilhada.py` (falham com `_follow` desligado).

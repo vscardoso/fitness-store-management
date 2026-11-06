@@ -99,3 +99,39 @@ class StockCheckService:
             "total_variants": len(out),
             "total_pieces": sum(r["system_quantity"] for r in out),
         }
+
+    async def quantities(self, *, tenant_id: int, variant_ids) -> Dict[int, int]:
+        """Estoque de agora de algumas variações, pela mesma regra do `report` (item antigo sem variação soma na
+        primeira variação ativa do produto). Usado pela conferência em andamento para acompanhar vendas e entradas."""
+        ids = {int(v) for v in variant_ids if v}
+        if not ids:
+            return {}
+        vrows = (await self.db.execute(
+            select(ProductVariant.id, ProductVariant.product_id).where(ProductVariant.id.in_(ids), ProductVariant.tenant_id == tenant_id)
+        )).all()
+        pids = {pid for _, pid in vrows}
+        first = dict((await self.db.execute(
+            select(ProductVariant.product_id, func.min(ProductVariant.id))
+            .join(Product, Product.id == ProductVariant.product_id)
+            .where(ProductVariant.product_id.in_(pids), ProductVariant.tenant_id == tenant_id,
+                   ProductVariant.is_active == True, Product.is_active == True)  # noqa: E712
+            .group_by(ProductVariant.product_id)
+        )).all()) if pids else {}
+        live = (EntryItem.tenant_id == tenant_id, EntryItem.is_active == True, StockEntry.is_active == True)  # noqa: E712
+        by_variant = dict((await self.db.execute(
+            select(EntryItem.variant_id, func.coalesce(func.sum(EntryItem.quantity_remaining), 0))
+            .join(StockEntry, StockEntry.id == EntryItem.entry_id)
+            .where(*live, EntryItem.variant_id.in_(ids)).group_by(EntryItem.variant_id)
+        )).all())
+        legacy = dict((await self.db.execute(
+            select(EntryItem.product_id, func.coalesce(func.sum(EntryItem.quantity_remaining), 0))
+            .join(StockEntry, StockEntry.id == EntryItem.entry_id)
+            .where(*live, EntryItem.variant_id.is_(None), EntryItem.product_id.in_(pids)).group_by(EntryItem.product_id)
+        )).all()) if pids else {}
+        out: Dict[int, int] = {}
+        for vid, pid in vrows:
+            q = int(by_variant.get(vid, 0))
+            if first.get(pid) == vid:
+                q += int(legacy.get(pid, 0))
+            out[vid] = q
+        return out
