@@ -52,16 +52,17 @@ const apiOrigin = (() => {
 const CSP = [
   "default-src 'self'",
   // leitor de QR do expo-camera: worker criado de blob: que importa o jsQR deste endereço fixo
-  "script-src 'self' https://cdn.jsdelivr.net/npm/jsqr@1.2.0/dist/jsQR.min.js",
+  // Embedded Signup da Meta (Conectar o WhatsApp): SDK do Facebook e a janela de login dele
+  "script-src 'self' https://cdn.jsdelivr.net/npm/jsqr@1.2.0/dist/jsQR.min.js https://connect.facebook.net",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  `connect-src 'self' blob: data: ${apiOrigin} https://viacep.com.br https://brasilapi.com.br https://ws.apicep.com https://*.ingest.us.sentry.io`,
+  `connect-src 'self' blob: data: ${apiOrigin} https://viacep.com.br https://brasilapi.com.br https://ws.apicep.com https://*.ingest.us.sentry.io https://*.facebook.com https://connect.facebook.net`,
   "media-src 'self' blob: data:",
   "worker-src 'self' blob:",
   "manifest-src 'self'",
   "object-src 'self' blob:",
-  "frame-src 'self' blob:",
+  "frame-src 'self' blob: https://*.facebook.com",
   "base-uri 'self'",
   "form-action 'self'",
 ].join('; ');

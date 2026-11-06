@@ -44,7 +44,7 @@ export const HELP_HIDDEN: Record<string, string> = {
 /** Fichas das próximas fases (docs/PLANO_AJUDA.md). A lista encolhe a cada fase e some na fase 4. */
 export const HELP_PENDING: Record<string, string> = {
   '/whatsapp': 'whatsapp', '/whatsapp/[id]': 'whatsapp', '/settings/whatsapp-profile': 'whatsapp',
-  '/settings/whatsapp-hours': 'whatsapp', '/settings/whatsapp-greeting': 'whatsapp', '/settings/whatsapp-catalog': 'whatsapp',
+  '/settings/whatsapp-hours': 'whatsapp', '/settings/whatsapp-greeting': 'whatsapp', '/settings/whatsapp-connect': 'whatsapp', '/settings/whatsapp-catalog': 'whatsapp',
   '/settings/whatsapp-quick-replies': 'whatsapp', '/settings/whatsapp-labels': 'whatsapp',
   '/more': 'loja', '/settings/branding': 'loja', '/team': 'loja', '/team/add': 'loja', '/team/[id]': 'loja',
   '/settings/returns': 'loja', '/notifications': 'loja', '/help': 'loja',

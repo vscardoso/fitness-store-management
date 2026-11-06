@@ -268,6 +268,7 @@ export default function MoreScreen() {
               <MenuItem icon="logo-whatsapp" title="Conversas" subtitle="Responda as clientes no número da loja" onPress={() => router.push('/whatsapp' as any)} badge={waUnread > 0 ? String(waUnread) : undefined} iconColor="#16A34A" iconBg="#DCFCE7" />
               {isAdminRole(user?.role) && (
                 <>
+                  <MenuItem icon="link-outline" title="Conectar o WhatsApp" subtitle="Usar o número do celular da loja também no Provador" onPress={() => router.push('/settings/whatsapp-connect' as any)} iconColor="#16A34A" iconBg="#DCFCE7" />
                   <MenuItem icon="business-outline" title="Perfil do WhatsApp" subtitle="Recado, descrição, endereço e sites que a cliente vê" onPress={() => router.push('/settings/whatsapp-profile' as any)} iconColor="#0EA5E9" iconBg="#E0F2FE" />
                   <MenuItem icon="time-outline" title="Horário e ausência" subtitle="Quando a loja atende e o aviso fora do horário" onPress={() => router.push('/settings/whatsapp-hours' as any)} iconColor="#F59E0B" iconBg="#FEF3C7" />
                   <MenuItem icon="chatbubble-ellipses-outline" title="Saudação automática" subtitle="Mensagem quando a cliente escreve para a loja" onPress={() => router.push('/settings/whatsapp-greeting' as any)} iconColor="#16A34A" iconBg="#DCFCE7" />

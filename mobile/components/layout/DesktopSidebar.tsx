@@ -96,6 +96,7 @@ export default function DesktopSidebar() {
         key: 'whatsapp', title: 'WhatsApp', items: [
           { label: 'Conversas', icon: 'logo-whatsapp' as Icon, href: '/whatsapp', match: ['/whatsapp'], badge: waUnread },
           ...(admin ? [
+            { label: 'Conectar o WhatsApp', icon: 'link-outline' as Icon, href: '/settings/whatsapp-connect', match: ['/settings/whatsapp-connect'] },
             { label: 'Perfil', icon: 'business-outline' as Icon, href: '/settings/whatsapp-profile', match: ['/settings/whatsapp-profile'] },
             { label: 'Horário e ausência', icon: 'time-outline' as Icon, href: '/settings/whatsapp-hours', match: ['/settings/whatsapp-hours'] },
             { label: 'Saudação automática', icon: 'chatbubble-ellipses-outline' as Icon, href: '/settings/whatsapp-greeting', match: ['/settings/whatsapp-greeting'] },
