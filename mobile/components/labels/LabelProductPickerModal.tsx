@@ -25,6 +25,7 @@ import { getGroupedProducts } from '@/services/productService';
 import type { ProductGrouped, ProductVariant } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useIsDesktop } from '@/hooks/useLayout';
+import { matchesProduct } from '@/utils/productSearch';
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 
@@ -101,16 +102,21 @@ export default function LabelProductPickerModal({
   // Filtro de busca
   const filtered = useMemo(() => {
     if (!products) return [];
-    const q = search.trim().toLowerCase();
+    const q = search.trim();
+    // código da peça ("10-2", "#010-2"): mostra só aquela cor e tamanho do produto
+    const pieceKey = /^#?\d+-\d+$/.test(q) ? q.replace(/^#/, '').split('-').map((s) => String(Number(s))).join('-') : null;
     return products
       .map((product: ProductGrouped) => {
-        const hasSearchMatch =
-          !q ||
-          product.name.toLowerCase().includes(q) ||
-          (product.brand ?? '').toLowerCase().includes(q) ||
-          product.variants.some((variant) => (variant.sku ?? '').toLowerCase().includes(q));
-
-        if (!hasSearchMatch) return null;
+        // mesma busca da tela de Produtos: número sozinho é o código do produto (10 = #010), não pedaço de SKU
+        if (q && !matchesProduct(product as any, q)) return null;
+        if (pieceKey) {
+          const only = product.variants.filter((v: any) => {
+            const m = /^#(\d+)-(\d+)$/.exec(v.display_code ?? '');
+            return !!m && `${Number(m[1])}-${Number(m[2])}` === pieceKey;
+          });
+          if (!only.length) return null;
+          product = { ...product, variants: only };
+        }
 
         if (!showOnlyNotAdded) {
           return product;
@@ -218,7 +224,8 @@ export default function LabelProductPickerModal({
     const allChecked    = variantStates.length > 0 && variantStates.every((state) => state.picked);
     const someChecked   = variantStates.some((state) => state.picked);
     const hasAlreadyAdded = variantStates.some((state) => state.already);
-    const singleVariant = product.variants.length === 1;
+    // busca por código da peça (#010-2): mostra a linha com cor e tamanho, mesmo sobrando uma só
+    const singleVariant = product.variants.length === 1 && !/^#?\d+-\d+$/.test(search.trim());
 
     return (
       <View style={styles.productCard}>
