@@ -39,7 +39,7 @@ async def _voltou_nas_camadas(db, sale_item_id):
     return sum(int(f.get("quantity_returned", 0)) for f in fontes["sources"])
 
 
-async def _fotografia(client, db, h, p, va, cliente_id=None):
+async def _fotografia(client, db, h, p, va, cliente_id=None, t_id=1):
     """Todos os lugares onde o app mostra a peça, lidos pela API/banco."""
     g = (await client.get(f"{API}/products/grouped?search=Legging", headers=h)).json()
     prod = next(x for x in g if x["id"] == p.id)
@@ -48,6 +48,8 @@ async def _fotografia(client, db, h, p, va, cliente_id=None):
     sc = (await client.get(f"{API}/reports/stock-check", headers=h)).json()
     linha = next(r for r in sc["rows"] if r["variant_id"] == va.id)
     look = (await client.get(f"{API}/product-variants/lookup", params={"code": var["display_code"]}, headers=h)).json()
+    from app.core.dashboard_cache import invalidate_dashboard_cache
+    invalidate_dashboard_cache(t_id)    # o painel guarda os números por alguns minutos: sem isso um teste anterior contamina este
     dash = (await client.get(f"{API}/dashboard/stats", headers=h)).json()
     snap = {
         "fifo": await _estoque(db, va.id),                       # soma das entradas (a verdade do estoque)
