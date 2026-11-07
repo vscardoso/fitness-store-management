@@ -4,7 +4,8 @@ name: Deploy VPS
 on:
   push:
     branches: [main]
-    paths: ['backend/**', 'deploy/**', '.github/workflows/deploy-vps.yml']
+    # testes e textos não entram na imagem: mudar só eles não pode reiniciar o backend de produção
+    paths: ['backend/**', '!backend/tests/**', '!backend/**/*.md', 'deploy/**', '.github/workflows/deploy-vps.yml']
   workflow_dispatch:
     inputs:
       forcar:
