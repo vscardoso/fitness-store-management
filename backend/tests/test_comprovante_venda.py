@@ -168,6 +168,11 @@ class _Meta:
         return _Meta.upload
 
 
+import itertools  # noqa: E402
+
+_wamid = itertools.count(1)   # id de mensagem único (a tabela exige wamid único; a lista de chamadas pode ser zerada no teste)
+
+
 def _meta(monkeypatch, erro=None):
     from app.core.config import settings
     from app.services import whatsapp_cloud_service as svc
@@ -178,7 +183,7 @@ def _meta(monkeypatch, erro=None):
         chamadas.append((phone_number_id, body))
         if erro:
             raise erro
-        return {"messages": [{"id": f"wamid.comp{len(chamadas)}"}]}
+        return {"messages": [{"id": f"wamid.comp{next(_wamid)}"}]}
 
     monkeypatch.setattr(svc, "_post_graph", falso)
     monkeypatch.setattr(svc.httpx, "AsyncClient", _Meta)
@@ -285,3 +290,86 @@ async def test_envio_oficial_meta_recusa_e_nada_fica_gravado(test_client, async_
     r = await test_client.post(f"/api/v1/sales/{sid}/receipt/send-whatsapp", headers=h)
     assert r.status_code == 424 and "recusou" in r.json()["detail"]
     assert (await async_session.execute(select(func.count()).select_from(WhatsAppMessage))).scalar() == antes
+
+
+async def test_comprovante_depois_da_devolucao_mostra_devolvido_troca_e_pontos(test_client, async_session, test_user):
+    """O comprovante reflete a devolução: o que voltou, quanto foi estornado, o que ficou da venda e os pontos."""
+    from app.models.customer import Customer
+    from tests.test_troca import _cenario, _config
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    await _config(async_session, t_id, allow_money_refund=True, return_window_days=7)
+    c = Customer(full_name="Maria da Silva", phone="(34) 99650-0091", tenant_id=t_id)
+    async_session.add(c)
+    await async_session.commit()
+    sid = await _venda(test_client, h, p, va, 3, cliente_id=c.id)       # R$ 300, ganha 30 pontos (1 por R$ 10)
+    antes = (await test_client.get(f"/api/v1/sales/{sid}/receipt", headers=h)).json()
+    assert antes["receipt"]["returns"] == [] and antes["receipt"]["points_earned"] == 30
+    assert "Devolução" not in antes["text"]
+
+    item_id = (await test_client.get(f"/api/v1/sales/{sid}", headers=h)).json()["items"][0]["id"]
+    r = await test_client.post(f"/api/v1/returns/{sid}", headers=h, json={"reason": "não serviu", "items": [{"sale_item_id": item_id, "quantity": 1}]})
+    assert r.status_code == 201, r.text
+
+    d = (await test_client.get(f"/api/v1/sales/{sid}/receipt", headers=h)).json()
+    rec = d["receipt"]
+    assert rec["refunded"] == 100 and rec["net_total"] == 200 and len(rec["returns"]) == 1
+    assert rec["returns"][0]["items"][0]["quantity"] == 1 and rec["returns"][0]["exchange"] is None
+    assert rec["points_earned"] == 30 and rec["points_kept"] == 20          # devolveu 1/3: perde 10 dos 30 pontos
+    assert "Devolução em" in d["text"] and "Estornado: R$ 100,00" in d["text"] and "Ficou da venda: R$ 200,00" in d["text"]
+    assert "ganhou 30, ficou com 20" in d["text"]
+    assert "motivo" not in d["text"].lower() and "não serviu" not in d["text"]       # o motivo é interno
+    pdf = _texto_pdf((await test_client.get(f"/api/v1/sales/{sid}/receipt/pdf", headers=h)).content)
+    assert "DEVOLUÇÃO" in pdf and "FICOU DA VENDA" in pdf and "R$ 200,00" in pdf and "ficou com 20" in pdf
+    assert "não serviu" not in pdf
+
+    # troca: a peça nova aparece e a diferença
+    sid2 = await _venda(test_client, h, p, va, 2, cliente_id=c.id)
+    item2 = (await test_client.get(f"/api/v1/sales/{sid2}", headers=h)).json()["items"][0]["id"]
+    r = await test_client.post(f"/api/v1/returns/{sid2}", headers=h, json={
+        "reason": "tamanho", "items": [{"sale_item_id": item2, "quantity": 1, "replacement_variant_id": vb.id}]})
+    assert r.status_code == 201, r.text
+    d2 = (await test_client.get(f"/api/v1/sales/{sid2}/receipt", headers=h)).json()
+    ret = d2["receipt"]["returns"][0]
+    assert ret["exchange"] and ret["exchange"]["items"][0]["quantity"] == 1
+    assert "Levou no lugar" in d2["text"]
+    assert "TROCA" in _texto_pdf((await test_client.get(f"/api/v1/sales/{sid2}/receipt/pdf", headers=h)).content)
+
+
+async def test_aviso_de_devolucao_pelo_whatsapp_da_loja(test_client, async_session, test_user, monkeypatch):
+    """Depois de uma devolução comum, o comprovante atualizado vai pelo número da loja: PDF com legenda na janela de 24 h,
+    modelo aprovado de devolução fora dela."""
+    from app.core.config import settings
+    from tests.test_troca import _cenario, _config
+    chamadas = _meta(monkeypatch)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    await _config(async_session, t_id, allow_money_refund=True, return_window_days=7)
+    c = await _zap(async_session, t_id)
+    sid = await _venda(test_client, h, p, va, 3, cliente_id=c.id)
+    item_id = (await test_client.get(f"/api/v1/sales/{sid}", headers=h)).json()["items"][0]["id"]
+    r = await test_client.post(f"/api/v1/returns/{sid}", headers=h, json={"reason": "não serviu", "items": [{"sale_item_id": item_id, "quantity": 1}]})
+    assert r.status_code == 201, r.text
+
+    r = await test_client.post(f"/api/v1/sales/{sid}/receipt/send-whatsapp", headers=h)
+    assert r.status_code == 200 and r.json()["mode"] == "pdf", r.text
+    legenda = chamadas[0][1]["document"]["caption"]
+    assert "devolução registrada (R$ 100,00)" in legenda and "Ficou da venda: R$ 200,00" in legenda and "Pontos desta compra: 20" in legenda
+    assert "não serviu" not in legenda                                     # o motivo é interno
+
+    # fora da janela de 24 h
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import select, update
+    from app.models.whatsapp_cloud import WhatsAppConversation
+    await async_session.execute(update(WhatsAppConversation).where(WhatsAppConversation.tenant_id == t_id).values(
+        last_inbound_at=datetime.now(timezone.utc) - timedelta(hours=30)))
+    await async_session.commit()
+    chamadas.clear()
+    monkeypatch.setattr(settings, "WHATSAPP_RETURN_TEMPLATE", "")
+    monkeypatch.setattr(settings, "WHATSAPP_RECEIPT_TEMPLATE", "comprovante_venda")      # o da venda NÃO serve para devolução
+    r = await test_client.post(f"/api/v1/sales/{sid}/receipt/send-whatsapp", headers=h)
+    assert r.status_code == 409 and not chamadas
+    monkeypatch.setattr(settings, "WHATSAPP_RETURN_TEMPLATE", "devolucao_registrada")
+    r = await test_client.post(f"/api/v1/sales/{sid}/receipt/send-whatsapp", headers=h)
+    assert r.status_code == 200 and r.json()["mode"] == "template", r.text
+    tpl = chamadas[0][1]["template"]
+    params = [x["text"] for x in tpl["components"][0]["parameters"]]
+    assert tpl["name"] == "devolucao_registrada" and params[0] == "Maria" and params[3] == "R$ 100,00"

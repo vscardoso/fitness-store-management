@@ -16,11 +16,16 @@ from reportlab.lib.utils import simpleSplit
 from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.pdfgen import canvas
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.timezone import to_brazil_tz
 from app.models.customer import Customer
+from app.models.product import Product
+from app.models.product_variant import ProductVariant
 from app.models.receivable import Receivable
+from app.models.sale import Sale
+from app.models.sale_return import SaleReturn
 from app.models.store import Store
 from app.models.whatsapp_cloud import WhatsAppCloudNumber
 
@@ -66,6 +71,71 @@ def wa_phone(digits: Optional[str]) -> Optional[str]:
     if len(d) in (10, 11):
         return "55" + d
     return None
+
+
+def _variant_text(v: Any) -> str:
+    return " · ".join(x for x in (getattr(v, "color", None), getattr(v, "size", None)) if x)
+
+
+async def _returns_data(db: AsyncSession, sale: Any, tenant_id: int) -> Dict[str, Any]:
+    """Devoluções, trocas e pontos da venda, do jeito que a cliente entende (sem motivo interno, sem custo)."""
+    rets = (await db.execute(
+        select(SaleReturn).where(SaleReturn.sale_id == sale.id, SaleReturn.tenant_id == tenant_id,
+                                 SaleReturn.is_active == True, SaleReturn.status == "completed")  # noqa: E712
+        .options(selectinload(SaleReturn.items)).order_by(SaleReturn.id)
+    )).scalars().all()
+    earned = float(sale.loyalty_points_earned or 0)
+    if not rets:
+        return {"returns": [], "refunded": 0.0, "net_total": float(sale.total_amount), "points_earned": int(earned),
+                "points_kept": int(earned)}
+    product_ids = {i.product_id for r in rets for i in r.items if i.product_id}
+    variant_ids = {i.variant_id for r in rets for i in r.items if i.variant_id}
+    names = dict((await db.execute(select(Product.id, Product.name).where(Product.id.in_(product_ids or {0})))).all())
+    variants = {v.id: v for v in (await db.execute(select(ProductVariant).where(ProductVariant.id.in_(variant_ids or {0})))).scalars().all()}
+    exchange_ids = [r.exchange_sale_id for r in rets if r.exchange_sale_id]
+    exchanges = {}
+    if exchange_ids:
+        for ex in (await db.execute(
+            select(Sale).where(Sale.id.in_(exchange_ids)).options(selectinload(Sale.items))
+        )).scalars().all():
+            exchanges[ex.id] = ex
+    ex_item_products = {i.product_id for ex in exchanges.values() for i in ex.items if i.product_id}
+    ex_item_variants = {i.variant_id for ex in exchanges.values() for i in ex.items if i.variant_id}
+    if ex_item_products:
+        names.update(dict((await db.execute(select(Product.id, Product.name).where(Product.id.in_(ex_item_products)))).all()))
+    if ex_item_variants:
+        variants.update({v.id: v for v in (await db.execute(select(ProductVariant).where(ProductVariant.id.in_(ex_item_variants)))).scalars().all()})
+
+    total = float(sale.total_amount or 0)
+    out = []
+    refunded = 0.0
+    exchange_points = 0.0
+    for r in rets:
+        refund = float(r.total_refund or 0)
+        refunded += refund
+        ex = exchanges.get(r.exchange_sale_id) if r.exchange_sale_id else None
+        if ex is not None:
+            exchange_points += float(ex.loyalty_points_earned or 0)
+        out.append({
+            "number": r.return_number,
+            "date": to_brazil_tz(r.created_at).strftime("%d/%m/%Y %H:%M") if r.created_at else "",
+            "items": [{"name": names.get(i.product_id, "Produto"), "variant": _variant_text(variants.get(i.variant_id)),
+                       "quantity": int(i.quantity_returned), "refund": float(i.refund_amount or 0)} for i in r.items],
+            "refund": round(refund, 2),
+            "exchange": None if ex is None else {
+                "sale_number": ex.sale_number,
+                "items": [{"name": names.get(i.product_id, "Produto"), "variant": _variant_text(variants.get(i.variant_id)),
+                           "quantity": int(i.quantity), "total": float(i.subtotal or 0)} for i in ex.items if getattr(i, "is_active", True)],
+                "net_amount": float(r.net_amount) if r.net_amount is not None else None,
+                "settlement": PAYMENT_LABELS.get(str(r.settlement_method or ""), str(r.settlement_method or "")),
+            },
+            "method": {"original": "mesma forma do pagamento", "cash": "dinheiro", "store_credit": "crédito na loja"}.get(
+                str(r.refund_method or "original"), "mesma forma do pagamento"),
+        })
+    revoked = earned * (refunded / total) if total > 0 else 0.0
+    kept = max(0.0, earned - revoked) + exchange_points
+    return {"returns": out, "refunded": round(refunded, 2), "net_total": round(total - refunded, 2),
+            "points_earned": int(earned), "points_kept": int(kept)}
 
 
 async def build_receipt_data(db: AsyncSession, sale: Any, tenant_id: int, change: Optional[float] = None) -> Dict[str, Any]:
@@ -118,6 +188,7 @@ async def build_receipt_data(db: AsyncSession, sale: Any, tenant_id: int, change
         fiado = [{"number": r.installment_number, "total": r.installments_total, "amount": float(r.amount),
                   "due": r.due_date.strftime("%d/%m/%Y")} for r in rows]
 
+    ret = await _returns_data(db, sale, tenant_id)
     customer: Optional[Customer] = getattr(sale, "customer", None)
     created = sale.created_at
     if isinstance(created, datetime):
@@ -141,7 +212,11 @@ async def build_receipt_data(db: AsyncSession, sale: Any, tenant_id: int, change
         "payments": payments,
         "fiado": fiado,
         "change": float(change) if change and change > 0 else 0.0,
-        "points_earned": int(_dec(sale.loyalty_points_earned)),
+        "points_earned": ret["points_earned"],
+        "points_kept": ret["points_kept"],
+        "returns": ret["returns"],
+        "refunded": ret["refunded"],
+        "net_total": ret["net_total"],
         "cancelled": status == "cancelled",
         "return_window_days": int(store.return_window_days) if store is not None and store.return_window_days else 0,
         "exchange_only": bool(store is not None and not store.allow_money_refund),
@@ -186,9 +261,30 @@ def build_receipt_text(d: Dict[str, Any]) -> str:
         out.append("Fiado, vencimentos:")
         for f in d["fiado"]:
             out.append(f"{f['number']}/{f['total']}: {brl(f['amount'])} em {f['due']}")
-    if d["points_earned"] > 0:
+    for r in d["returns"]:
         out.append("")
-        out.append(f"Você ganhou {d['points_earned']} pontos de fidelidade.")
+        out.append(f"*Devolução em {r['date']}*")
+        for it in r["items"]:
+            label = it["name"] + (f" ({it['variant']})" if it["variant"] else "")
+            out.append(f"- {it['quantity']}x {label}: {brl(it['refund'])}")
+        if r["exchange"]:
+            out.append("Levou no lugar:")
+            for it in r["exchange"]["items"]:
+                label = it["name"] + (f" ({it['variant']})" if it["variant"] else "")
+                out.append(f"- {it['quantity']}x {label}: {brl(it['total'])}")
+            net = r["exchange"]["net_amount"]
+            if net:
+                out.append(f"Diferença {'paga' if net > 0 else 'devolvida'}: {brl(abs(net))}")
+        else:
+            out.append(f"Estornado: {brl(r['refund'])} ({r['method']})")
+    if d["returns"]:
+        out.append(f"*Ficou da venda: {brl(d['net_total'])}*")
+    if d["points_earned"] > 0 or d["points_kept"] > 0:
+        out.append("")
+        if d["returns"] and d["points_kept"] != d["points_earned"]:
+            out.append(f"Pontos de fidelidade desta compra: ganhou {d['points_earned']}, ficou com {d['points_kept']} depois da devolução.")
+        else:
+            out.append(f"Você ganhou {d['points_earned']} pontos de fidelidade.")
     ex = _exchange_line(d)
     if ex:
         out.append("")
@@ -325,9 +421,34 @@ def build_receipt_pdf(d: Dict[str, Any], size: str = "80") -> bytes:
         p.text("Vencimentos do fiado", 8, bold=True)
         for f in d["fiado"]:
             p.pair(f"{f['number']}/{f['total']} em {f['due']}", brl(f["amount"]), 8)
-    if d["points_earned"] > 0:
+    for r in d["returns"]:
+        p.rule()
+        p.text("DEVOLUÇÃO" if not r["exchange"] else "TROCA", 8.5, bold=True, align="center")
+        p.text(r["date"], 7, align="center")
+        p.gap(2)
+        for it in r["items"]:
+            label = it["name"] + (f" · {it['variant']}" if it["variant"] else "")
+            p.pair(f"{it['quantity']} x {label}", "-" + brl(it["refund"]), 8)
+        if r["exchange"]:
+            p.gap(2)
+            p.text("Levou no lugar:", 8, bold=True)
+            for it in r["exchange"]["items"]:
+                label = it["name"] + (f" · {it['variant']}" if it["variant"] else "")
+                p.pair(f"{it['quantity']} x {label}", brl(it["total"]), 8)
+            net = r["exchange"]["net_amount"]
+            if net:
+                p.pair("Diferença " + ("paga" if net > 0 else "devolvida"), brl(abs(net)), 8)
+        else:
+            p.pair("Estornado (" + r["method"] + ")", brl(r["refund"]), 8, bold=True)
+    if d["returns"]:
         p.gap(3)
-        p.text(f"Você ganhou {d['points_earned']} pontos de fidelidade.", 7.5, align="center")
+        p.pair("FICOU DA VENDA", brl(d["net_total"]), 10, bold=True)
+    if d["points_earned"] > 0 or d["points_kept"] > 0:
+        p.gap(3)
+        if d["returns"] and d["points_kept"] != d["points_earned"]:
+            p.text(f"Pontos desta compra: ganhou {d['points_earned']}, ficou com {d['points_kept']} depois da devolução.", 7.5, align="center")
+        else:
+            p.text(f"Você ganhou {d['points_earned']} pontos de fidelidade.", 7.5, align="center")
     p.rule()
     ex = _exchange_line(d)
     if ex:
@@ -372,10 +493,23 @@ async def send_via_store_whatsapp(db: AsyncSession, sale: Any, data: Dict[str, A
     info = await store_whatsapp_info(db, tenant_id)
     if wa.window_open(conv):
         pdf = build_receipt_pdf(data, "a6")
-        await wa.send_media(db, tenant_id, conv.id, data=pdf, filename=f"comprovante-{sale.sale_number}.pdf",
-                            caption=f"Comprovante da venda {sale.sale_number} - {brl(data['total'])}. Obrigada pela preferência!")
+        if data["returns"]:
+            caption = (f"Atualizamos o comprovante da venda {sale.sale_number}: devolução registrada ({brl(data['refunded'])}). "
+                       f"Ficou da venda: {brl(data['net_total'])}.")
+            if data["points_kept"] != data["points_earned"]:
+                caption += f" Pontos desta compra: {data['points_kept']}."
+        else:
+            caption = f"Comprovante da venda {sale.sale_number} - {brl(data['total'])}. Obrigada pela preferência!"
+        await wa.send_media(db, tenant_id, conv.id, data=pdf, filename=f"comprovante-{sale.sale_number}.pdf", caption=caption)
         mode = "pdf"
-    elif settings.WHATSAPP_RECEIPT_TEMPLATE:
+    elif data["returns"] and settings.WHATSAPP_RETURN_TEMPLATE:
+        # fora da janela de 24 h só vale modelo aprovado: o da devolução (cliente, loja, venda, valor estornado)
+        await wa.send_template(
+            db, tenant_id, conv.id, name=settings.WHATSAPP_RETURN_TEMPLATE, language=settings.WHATSAPP_RECEIPT_TEMPLATE_LANG,
+            body_params=[_first_name(customer.full_name), data["store_name"] or "nossa loja", sale.sale_number, brl(data["refunded"])],
+        )
+        mode = "template"
+    elif settings.WHATSAPP_RECEIPT_TEMPLATE and not data["returns"]:
         await wa.send_template(
             db, tenant_id, conv.id, name=settings.WHATSAPP_RECEIPT_TEMPLATE, language=settings.WHATSAPP_RECEIPT_TEMPLATE_LANG,
             body_params=[_first_name(customer.full_name), data["store_name"] or "nossa loja", sale.sale_number, brl(data["total"])],

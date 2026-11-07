@@ -204,6 +204,7 @@ class Settings(BaseSettings):
     PUBLIC_SITE_URL: str = "https://app.provadorfit.com.br"  # app web do sistema (links antigos de produto ainda abrem lá)
     PUBLIC_STORE_URL: str = "https://loja.provadorfit.com.br"  # vitrine pública: link do produto no catálogo da Meta
     WHATSAPP_RECEIPT_TEMPLATE: str = ""      # nome do modelo aprovado do comprovante (vazio = só envia dentro da janela de 24 h)
+    WHATSAPP_RETURN_TEMPLATE: str = ""       # modelo aprovado do aviso de devolução/troca (vazio = só dentro da janela de 24 h)
     WHATSAPP_RECEIPT_TEMPLATE_LANG: str = "pt_BR"
     WHATSAPP_CLOUD_GRAPH_BASE: str = "https://graph.facebook.com"  # só muda em teste local com uma Meta falsa
 

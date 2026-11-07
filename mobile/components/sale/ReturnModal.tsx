@@ -25,6 +25,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { haptics } from '@/utils/haptics';
 import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { getReceipt, sendReceiptViaStoreWhatsapp } from '@/services/receiptService';
 
 // Nativo: o ConfirmDialog (Portal do Paper) precisa de um Host dentro da folha para aparecer por cima dela. Na web ele já é uma janela própria.
 const DialogHost = ({ children }: { children: React.ReactNode }) => (Platform.OS === 'web' ? <>{children}</> : <Portal.Host>{children}</Portal.Host>);
@@ -74,6 +75,8 @@ export default function ReturnModal({
     confirmText?: string;
     cancelText?: string;
     onConfirm: () => void;
+    /** Cancelar com ação própria (ex.: "Avisar a cliente"); sem isso só fecha o diálogo */
+    onCancel?: () => void;
   }>({
     visible: false,
     type: 'info',
@@ -260,6 +263,35 @@ export default function ReturnModal({
       });
       
       haptics.success();
+      // Devolução comum: oferece avisar a cliente pelo WhatsApp da loja (comprovante atualizado, estorno e pontos).
+      // Estorno por erro de lançamento não avisa: foi erro da loja.
+      let canNotify = false;
+      if (!correction) {
+        try {
+          const info = await getReceipt(saleId);
+          canNotify = !!info.store_whatsapp.connected && !!info.whatsapp_url;
+        } catch { /* sem aviso: a devolução já foi gravada */ }
+      }
+      const finish = () => { closeDialog(); onSuccess(); onDismiss(); };
+      const notify = async () => {
+        closeDialog();
+        try {
+          const r = await sendReceiptViaStoreWhatsapp(saleId);
+          setDialog({
+            visible: true, type: 'success', title: 'Cliente avisada',
+            message: `${r.customer} recebeu o comprovante atualizado pelo WhatsApp da loja.`,
+            confirmText: 'OK', cancelText: '', onConfirm: finish,
+          });
+        } catch (e: any) {
+          setDialog({
+            visible: true, type: 'warning', title: 'Não consegui avisar a cliente',
+            message: `${e?.response?.data?.detail || e?.message || 'Tente de novo pelo botão de comprovante da venda.'}
+
+A devolução já está registrada.`,
+            confirmText: 'OK', cancelText: '', onConfirm: finish,
+          });
+        }
+      };
       setDialog({
         visible: true,
         type: 'success',
@@ -268,8 +300,9 @@ export default function ReturnModal({
           ? `Troca concluída.${netToPay > 0.005 ? ` Diferença recebida: ${formatCurrency(netToPay)}.` : ''}\n\nO estoque foi atualizado automaticamente.`
           : `A devolução de ${formatCurrency(totalRefund)} foi processada com sucesso.\n\nO estoque foi atualizado automaticamente.`,
         confirmText: 'OK',
-        cancelText: '',
-        onConfirm: () => { closeDialog(); onSuccess(); onDismiss(); },
+        cancelText: canNotify ? 'Avisar a cliente' : '',
+        onConfirm: finish,
+        onCancel: canNotify ? notify : undefined,
       });
     } catch (error: any) {
       haptics.error();
@@ -581,7 +614,7 @@ export default function ReturnModal({
             confirmText={dialog.confirmText}
             cancelText={dialog.cancelText}
             onConfirm={dialog.onConfirm}
-            onCancel={closeDialog}
+            onCancel={dialog.onCancel ?? closeDialog}
           />
         </DialogHost>
       </BottomSheet>
