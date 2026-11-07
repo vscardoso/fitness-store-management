@@ -118,7 +118,8 @@ async def create_sale(
             entity="sale", entity_id=sale.id,
             detail={"total": float(sale.total_amount), "items": len(sale_data.items)},
         )
-        # Notificação do app instalado para admin e gerente (menos quem vendeu), depois da resposta
+        # Notificação do app instalado para admin e gerente, depois da resposta. Quem vendeu TAMBÉM recebe (nos outros
+        # aparelhos dele: vender no notebook e ver o aviso no celular é o uso normal do dono).
         from app.services import web_push_service
         if web_push_service.enabled():
             pieces = sum(int(i.quantity or 0) for i in sale_data.items)
@@ -126,7 +127,7 @@ async def create_sale(
             background.add_task(
                 web_push_service.notify_tenant, tenant_id, f"Venda nova: {total}",
                 f"{pieces} peça{'s' if pieces != 1 else ''} · {current_user.full_name or current_user.email}",
-                f"/sales/{sale.id}", roles=("admin", "manager"), exclude_user_id=current_user.id, tag=f"sale-{sale.id}",
+                f"/sales/{sale.id}", roles=("admin", "manager"), tag=f"sale-{sale.id}",
             )
         return sale
         

@@ -7,7 +7,7 @@ from sqlalchemy import select
 
 from tests.test_lot_costs import _limpa_loja_1  # noqa: F401  (fixture autouse)
 from tests.test_relatorio_vendas_pdf import _limpa_vendas  # noqa: F401  (fixture autouse)
-from tests.test_troca import _cenario, _estoque
+from tests.test_troca import _cenario, _config, _estoque
 from tests.test_financeiro import _implantar, _zerar_implantacao
 
 pytestmark = pytest.mark.asyncio
@@ -76,6 +76,7 @@ def _estoque_igual(snap, fifo, produto_total, painel_pecas, com_inventario=True)
 async def test_estorno_devolve_a_peca_e_acerta_todos_os_numeros(test_client, async_session, test_user):
     from app.models.customer import Customer
     t_id, h, p, va, vb = await _cenario(async_session, test_user)       # A: 10 peças, B: 10 peças, custo 40, preço 100
+    await _config(async_session, t_id, allow_money_refund=True, return_window_days=7)
     c = Customer(full_name="Cliente Estorno", phone="34999990000", tenant_id=t_id)
     async_session.add(c)
     await async_session.commit()
@@ -129,6 +130,7 @@ async def test_estorno_devolve_a_peca_e_acerta_todos_os_numeros(test_client, asy
 async def test_estorno_com_peca_com_defeito_nao_volta_ao_estoque(test_client, async_session, test_user):
     """Defeito (restock falso) é o único caso em que a peça NÃO volta: o resto das contas continua certo."""
     t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    await _config(async_session, t_id, allow_money_refund=True, return_window_days=7)
     sale_id, item_id = await _venda(test_client, h, p, va, 2)
     r = await test_client.post(f"{API}/returns/{sale_id}", headers=h, json={
         "reason": "Veio rasgada", "items": [{"sale_item_id": item_id, "quantity": 1, "restock": False}]})

@@ -44,6 +44,7 @@ logging.getLogger("sqlalchemy.engine").setLevel(logging.WARNING)
 logging.getLogger("sqlalchemy.pool").setLevel(logging.WARNING)
 logging.getLogger("apscheduler").setLevel(logging.WARNING)
 logging.getLogger("app.core.scheduler").setLevel(logging.WARNING)
+logging.getLogger("app.services.web_push_service").setLevel(logging.INFO)   # cada envio de push fica no log
 
 
 @asynccontextmanager

@@ -25,7 +25,7 @@ async def _atrasar(db, sale_id, dias):
 async def test_estorno_so_admin_fora_do_prazo_e_em_loja_que_so_troca(test_client, async_session, test_user):
     from app.models.user import UserRole
     t_id, admin, p, va, vb = await _cenario(async_session, test_user)
-    await _config(async_session, t_id, allow_money_refund=False, return_window_days=7)
+    await _config(async_session, t_id, allow_money_refund=False, return_window_days=7)   # a loja 1 é reaproveitada: volta no fim
     sale_id, item_id = await _vender(test_client, admin, p, va, 2, "100.00")
     antes = await _estoque(async_session, va.id)
     await _atrasar(async_session, sale_id, 30)                      # bem fora do prazo de 7 dias
@@ -83,3 +83,14 @@ async def test_estorno_nao_deixa_passar_do_que_foi_vendido_e_loja_comum_segue_ig
     r = await test_client.post(f"/api/v1/returns/{sale_id}", headers=admin, json={
         "reason": "erro", "is_correction": True, "items": [{"sale_item_id": item_id, "quantity": 1}]})
     assert r.status_code == 400
+
+
+@pytest.fixture(autouse=True)
+async def _loja_volta_a_devolver_dinheiro(async_session):
+    """A loja 1 é reaproveitada entre testes: não deixa 'só troca' valendo para o teste seguinte."""
+    yield
+    await async_session.rollback()
+    from app.models.store import Store
+    from sqlalchemy import update
+    await async_session.execute(update(Store).where(Store.id == 1).values(allow_money_refund=True, return_window_days=7))
+    await async_session.commit()

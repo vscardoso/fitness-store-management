@@ -116,7 +116,7 @@ async def test_inscricao_envio_e_aparelho_que_sumiu(test_client, async_session, 
     srv.srv.shutdown()
 
 
-async def test_venda_nova_avisa_admin_e_gerente_menos_quem_vendeu(test_client, async_session, test_user, monkeypatch):
+async def test_venda_nova_avisa_admin_e_gerente_inclusive_quem_vendeu(test_client, async_session, test_user, monkeypatch):
     from app.services import web_push_service
     from tests.test_troca import _vender
     calls = []
@@ -133,4 +133,61 @@ async def test_venda_nova_avisa_admin_e_gerente_menos_quem_vendeu(test_client, a
     tenant, title, body, url, kw = calls[0]
     assert (tenant, title, url) == (t_id, "Venda nova: R$ 200,00", f"/sales/{sale_id}")
     assert body.startswith("2 peças · ")
-    assert set(kw["roles"]) == {"admin", "manager"} and kw["exclude_user_id"] is not None
+    assert set(kw["roles"]) == {"admin", "manager"} and "exclude_user_id" not in kw   # quem vende também vê no outro aparelho
+
+
+async def test_devolucao_troca_e_estorno_mandam_push(test_client, async_session, test_user, monkeypatch):
+    """Devolução parcial, total, troca e estorno avisam admin e gerente no celular (título e texto certos, abre a venda)."""
+    from datetime import datetime, timedelta, timezone
+    from sqlalchemy import select
+    from app.models.sale import Sale
+    from app.services import web_push_service
+    from tests.test_troca import _vender
+    calls = []
+
+    async def fake_notify(tenant_id, title, body, url="/", **kw):
+        calls.append((tenant_id, title, body, url, kw))
+        return {"sent": 1}
+
+    monkeypatch.setattr(web_push_service, "enabled", lambda: True)
+    monkeypatch.setattr(web_push_service, "notify_tenant", fake_notify)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    sale_id, item_id = await _vender(test_client, h, p, va, 4, "100.00")
+    calls.clear()                                                    # ignora o push da venda
+
+    def devolve(qtd, **extra):
+        return test_client.post(f"/api/v1/returns/{sale_id}", headers=h, json={
+            "reason": "teste", "items": [{"sale_item_id": item_id, "quantity": qtd, **extra}]})
+
+    r = await devolve(1)                                             # parcial
+    assert r.status_code == 201, r.text
+    assert len(calls) == 1 and calls[0][1] == "Devolução parcial: R$ 100,00" and calls[0][3] == f"/sales/{sale_id}"
+    assert calls[0][2].startswith("Venda #") and set(calls[0][4]["roles"]) == {"admin", "manager"}
+
+    r = await devolve(3)                                             # o resto: devolução total
+    assert r.status_code == 201, r.text
+    assert calls[-1][1] == "Devolução total: R$ 300,00"
+
+    # troca (peça nova da mesma venda de outra variação): título de troca
+    sale2, item2 = await _vender(test_client, h, p, va, 2, "100.00")
+    calls.clear()
+    r = await test_client.post(f"/api/v1/returns/{sale2}", headers=h, json={
+        "reason": "tamanho", "items": [{"sale_item_id": item2, "quantity": 1, "replacement_variant_id": vb.id}]})
+    assert r.status_code == 201, r.text
+    assert len(calls) == 1 and calls[0][1].startswith("Troca na venda #"), calls
+
+    # estorno do admin fora do prazo
+    sale3, item3 = await _vender(test_client, h, p, va, 2, "100.00")
+    venda = (await async_session.execute(select(Sale).where(Sale.id == sale3))).scalar_one()
+    venda.created_at = datetime.now(timezone.utc) - timedelta(days=30)
+    await async_session.commit()
+    calls.clear()
+    r = await test_client.post(f"/api/v1/returns/{sale3}", headers=h, json={
+        "reason": "lancei errado", "is_correction": True, "items": [{"sale_item_id": item3, "quantity": 1}]})
+    assert r.status_code == 201, r.text
+    assert len(calls) == 1 and calls[0][1] == "Estorno por erro de lançamento: R$ 100,00", calls
+
+    # devolução recusada não manda push
+    calls.clear()
+    r = await devolve(1)
+    assert r.status_code == 400 and not calls

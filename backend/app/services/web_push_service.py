@@ -105,5 +105,8 @@ async def notify_tenant(tenant_id: int, title: str, body: str, url: str = "/", *
             await db.execute(delete(WebPushSubscription).where(WebPushSubscription.id.in_(gone)))
             await db.commit()
         sent = sum(1 for st in results if st is None)
-        logger.info("Web Push loja %s: %s enviada(s), %s aparelho(s) removido(s)", tenant_id, sent, len(gone))
+        failed = [st for st in results if st is not None and st not in (404, 410)]
+        # visível no log do servidor (este módulo roda em INFO, ver main.py): sem isso não dá para saber se um push saiu
+        logger.info("Web Push loja %s: %s enviada(s), %s aparelho(s) removido(s), %s falha(s) %s | %s",
+                    tenant_id, sent, len(gone), len(failed), failed or "", title[:60])
         return {"sent": sent, "removed": len(gone)}

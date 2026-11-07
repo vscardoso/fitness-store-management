@@ -1,7 +1,7 @@
 """
 Endpoints de devolução de vendas.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
@@ -16,6 +16,40 @@ from app.api.deps import get_current_active_user, get_current_tenant_id
 from app.models.user import User
 
 router = APIRouter(prefix="/returns", tags=["Devoluções"])
+
+
+def _brl(v) -> str:
+    return f"R$ {float(v or 0):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+async def _push_return(db, background, sale_return, sale_id: int, tenant_id: int, user: User, *, correction: bool) -> None:
+    """Avisa admin e gerente no celular (parcial, total, troca ou estorno), depois da resposta. Nunca derruba a devolução."""
+    try:
+        from sqlalchemy import select
+        from app.models.sale import Sale
+        from app.services import web_push_service
+        if not web_push_service.enabled():
+            return
+        raw = (await db.execute(select(Sale.status).where(Sale.id == sale_id))).scalar()
+        st = str(getattr(raw, "value", raw) or "").lower()
+        short = str(sale_return.sale_number or "").split("-")[-1]
+        total = _brl(sale_return.total_refund)
+        if correction:
+            title = f"Estorno por erro de lançamento: {total}"
+        elif sale_return.exchange_sale_id:
+            title = f"Troca na venda #{short}"
+        elif st == "refunded":
+            title = f"Devolução total: {total}"
+        else:
+            title = f"Devolução parcial: {total}"
+        body = f"Venda #{short} · {user.full_name or user.email}"
+        if sale_return.exchange_sale_id and sale_return.net_amount is not None and float(sale_return.net_amount) != 0:
+            body += f" · diferença {_brl(abs(float(sale_return.net_amount)))}"
+        background.add_task(web_push_service.notify_tenant, tenant_id, title, body, f"/sales/{sale_id}",
+                            roles=("admin", "manager"), tag=f"return-{sale_return.id}")
+    except Exception:  # noqa: BLE001  (o aviso é um extra: a devolução já foi gravada)
+        import logging
+        logging.getLogger(__name__).exception("Web Push da devolução falhou")
 
 
 def _role_value(user: User) -> str:
@@ -81,6 +115,7 @@ async def check_return_eligibility(
 async def process_return(
     sale_id: int,
     return_data: SaleReturnCreate,
+    background: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id),
@@ -131,6 +166,7 @@ async def process_return(
                 detail={"reason": return_data.reason, "return_number": sale_return.return_number,
                         "total_refund": str(sale_return.total_refund)},
             )
+        await _push_return(db, background, sale_return, sale_id, tenant_id, current_user, correction=bool(return_data.is_correction))
         return sale_return
         
     except ValueError as e:
