@@ -353,7 +353,7 @@ export default function SaleDetailsScreen() {
             </View>
             <View style={styles.profitSep} />
             <View style={styles.profitCol}>
-              <Text style={styles.profitLbl}>Margem</Text>
+              <Text style={styles.profitLbl}>Margem de lucro</Text>
               <Text style={[styles.profitVal, { color: (sale.profit_margin_percent ?? 0) >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }]}>
                 {formatPercent((sale.profit_margin_percent ?? 0), 1)}
               </Text>
@@ -415,7 +415,7 @@ export default function SaleDetailsScreen() {
                           styles.marginBadgeText,
                           { color: (item.margin_percent ?? 0) >= 30 ? '#2E7D32' : '#F57C00' },
                         ]}>
-                          {formatPercent((item.margin_percent ?? 0), 0)}
+                          {`Lucro ${formatCurrency(item.profit ?? 0)} · ${formatPercent((item.margin_percent ?? 0), 0)}`}
                         </Text>
                       </View>
                     )}

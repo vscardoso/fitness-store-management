@@ -1458,7 +1458,7 @@ export default function DashboardScreen() {
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
                   <Text style={[styles.recentItemValue, rv.negative && { color: VALUE_COLORS.negative }]}>
-                    {rv.negative ? '−' : ''}{formatCurrency(rv.amount || (sale as any).total || 0)}
+                    {formatCurrency(rv.kind === 'normal' ? (rv.amount || (sale as any).total || 0) : rv.amount)}
                   </Text>
                   {!!rv.sub && <Text style={[styles.recentItemDate, { color: VALUE_COLORS.negative }]}>{rv.sub}</Text>}
                 </View>

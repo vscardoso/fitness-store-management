@@ -174,7 +174,7 @@ export default function SalesPeriodScreen() {
           {/* Coluna direita: valor + badge + chevron — sem sobreposição */}
           <View style={styles.salePriceCol}>
             <Text style={[styles.saleAmount, rv.negative && styles.saleAmountEstorno]}>
-              {rv.negative ? '−' : ''}{formatCurrency(rv.amount)}
+              {formatCurrency(rv.amount)}
             </Text>
             {rv.tag ? (
               <View style={styles.estornoBadge}>

@@ -146,7 +146,7 @@ export const VENDER: HelpEntry[] = [
     ],
     parts: [
       { label: 'Pagamento', text: 'como a venda foi paga, com as parcelas do crédito.' },
-      { label: 'Rentabilidade', text: 'custo, lucro e margem da venda, só para gerente e admin.' },
+      { label: 'Rentabilidade', text: 'quanto custaram as peças, quanto sobrou de lucro e a margem de lucro (a parte do valor vendido que é lucro). Cada peça mostra o seu lucro em reais e em porcentagem. Só gerente e admin veem.' },
       { label: 'Devoluções', text: 'cada troca ou devolução já feita nesta venda, com valor e motivo.' },
     ],
     goodToKnow: [
