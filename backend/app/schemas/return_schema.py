@@ -30,6 +30,11 @@ class SaleReturnCreate(BaseModel):
     settlement_method: Literal["cash", "pix", "debit_card", "credit_card"] = Field(
         "cash", description="Troca: como o cliente paga a diferença (se houver)"
     )
+    is_correction: bool = Field(
+        False,
+        description="Estorno por erro de lançamento (só admin): vale fora do prazo de troca e devolve o dinheiro mesmo "
+                    "em loja que só troca peça. A peça volta ao estoque e o motivo fica marcado como estorno.",
+    )
 
 
 class ReturnItemResponse(BaseModel):

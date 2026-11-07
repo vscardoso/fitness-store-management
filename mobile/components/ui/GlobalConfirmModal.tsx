@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, StyleSheet, View } from 'react-native';
+import { Alert, Platform, StyleSheet, View } from 'react-native';
 import { Modal, Portal, Text, Button } from 'react-native-paper';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopDialogStyle } from '@/hooks/useLayout';
+import WebDialogLayer from '@/components/ui/WebDialogLayer';
 
 type AlertButton = {
   text?: string;
@@ -72,13 +73,7 @@ export default function GlobalConfirmModalHost() {
 
   const close = () => setPayload(null);
 
-  return (
-    <Portal>
-      <Modal
-        visible={!!payload}
-        onDismiss={close}
-        contentContainerStyle={[styles.modalContainer, dialogDesktop]}
-      >
+  const card = (
         <View style={styles.card}>
           <Text variant="titleMedium" style={styles.title}>
             {payload?.title}
@@ -108,6 +103,21 @@ export default function GlobalConfirmModalHost() {
             ))}
           </View>
         </View>
+  );
+
+  // Web: por cima de qualquer folha ou janela aberta (Alert.alert dentro de uma folha ficava atrás dela)
+  if (Platform.OS === 'web') {
+    return <WebDialogLayer visible={!!payload} onDismiss={close}>{card}</WebDialogLayer>;
+  }
+
+  return (
+    <Portal>
+      <Modal
+        visible={!!payload}
+        onDismiss={close}
+        contentContainerStyle={[styles.modalContainer, dialogDesktop]}
+      >
+        {card}
       </Modal>
     </Portal>
   );

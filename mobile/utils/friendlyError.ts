@@ -11,7 +11,8 @@ const TECH_MARKERS = [
 ];
 
 export const GENERIC_ERROR = 'Não conseguimos concluir agora. Tente de novo; se continuar, avise o suporte.';
-export const OFFLINE_ERROR = 'Sem conexão com a internet. Confira o Wi-Fi ou o 4G e tente de novo.';
+// Serve para os dois casos que o app não distingue sozinho: sinal fraco e servidor reiniciando numa atualização (dura segundos)
+export const OFFLINE_ERROR = 'Não consegui falar com o servidor. Se o sistema acabou de atualizar, aguarde uns segundos e tente de novo. Se continuar, confira o Wi-Fi ou o 4G.';
 
 const FIELD_LABELS: Record<string, string> = {
   name: 'Nome', product_name: 'Nome do produto', brand: 'Marca', product_brand: 'Marca', material: 'Material',

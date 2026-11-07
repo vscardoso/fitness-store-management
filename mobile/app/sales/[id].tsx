@@ -79,8 +79,10 @@ export default function SaleDetailsScreen() {
   const queryClient = useQueryClient();
   const receiptRef = useRef<View>(null);
   const { user } = useAuthStore();
+  const isAdmin = String(user?.role ?? '').toLowerCase() === 'admin';
   const brandingColors = useBrandingColors();
   const [returnModalVisible, setReturnModalVisible] = useState(false);
+  const [correctionMode, setCorrectionMode] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [cancelling, setCancelling] = useState(false);
@@ -572,12 +574,25 @@ export default function SaleDetailsScreen() {
               fullWidth
               icon="refresh-outline"
               label={sale.status === 'partially_refunded' ? 'Nova Devolução' : 'Realizar Devolução'}
-              onPress={() => setReturnModalVisible(true)}
+              onPress={() => { setCorrectionMode(false); setReturnModalVisible(true); }}
               style={styles.returnButton}
             />
             {returnDays != null && (
               <Text style={styles.returnInfoText}>Prazo de até {returnDays} {returnDays === 1 ? 'dia' : 'dias'} após a venda</Text>
             )}
+          </View>
+        )}
+        {isAdmin && (sale.status === 'completed' || sale.status === 'partially_refunded') && (
+          <View style={styles.returnSection}>
+            <AppButton
+              variant="ghost"
+              size="md"
+              fullWidth
+              icon="construct-outline"
+              label="Estornar erro de lançamento"
+              onPress={() => { setCorrectionMode(true); setReturnModalVisible(true); }}
+            />
+            <Text style={styles.returnInfoText}>Só o administrador. Vale a qualquer tempo, devolve o dinheiro e a peça volta ao estoque.</Text>
           </View>
         )}
       </Animated.ScrollView>
@@ -617,6 +632,7 @@ export default function SaleDetailsScreen() {
         visible={returnModalVisible}
         saleId={saleId}
         saleNumber={sale.sale_number}
+        correction={correctionMode}
         onDismiss={() => setReturnModalVisible(false)}
         onSuccess={handleReturnSuccess}
       />

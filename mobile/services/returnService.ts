@@ -8,9 +8,9 @@ import api from './api';
 /**
  * Verificar elegibilidade para devolução
  */
-export const checkReturnEligibility = async (saleId: number): Promise<ReturnEligibility> => {
+export const checkReturnEligibility = async (saleId: number, correction = false): Promise<ReturnEligibility> => {
   try {
-    const { data } = await api.get<ReturnEligibility>(`/returns/eligibility/${saleId}`);
+    const { data } = await api.get<ReturnEligibility>(`/returns/eligibility/${saleId}${correction ? '?correction=true' : ''}`);
     return data;
   } catch (error) {
     throw error;
@@ -82,6 +82,8 @@ export interface ReturnRequest {
   refund_method?: 'original' | 'store_credit' | 'cash';
   /** como o cliente paga a diferença da troca */
   settlement_method?: 'cash' | 'pix' | 'debit_card' | 'credit_card';
+  /** Estorno por erro de lançamento (só admin): vale fora do prazo e devolve o dinheiro mesmo em loja que só troca */
+  is_correction?: boolean;
 }
 
 export interface ReturnItemResponse {

@@ -1,7 +1,7 @@
 """
 Endpoints de devolução de vendas.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import List
 
@@ -18,6 +18,10 @@ from app.models.user import User
 router = APIRouter(prefix="/returns", tags=["Devoluções"])
 
 
+def _role_value(user: User) -> str:
+    return str(getattr(user.role, "value", user.role) or "").lower()
+
+
 @router.get(
     "/eligibility/{sale_id}",
     response_model=ReturnEligibilityResponse,
@@ -26,6 +30,7 @@ router = APIRouter(prefix="/returns", tags=["Devoluções"])
 )
 async def check_return_eligibility(
     sale_id: int,
+    correction: bool = Query(False, description="Estorno por erro de lançamento (só admin): ignora o prazo de troca"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
     tenant_id: int = Depends(get_current_tenant_id),
@@ -47,13 +52,18 @@ async def check_return_eligibility(
     return_service = ReturnService(db)
     
     try:
+        if correction and _role_value(current_user) != "admin":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Só o administrador pode fazer estorno por erro de lançamento.")
         eligibility = await return_service.check_eligibility(
             sale_id,
             tenant_id=tenant_id,
+            ignore_window=correction,
         )
-        eligibility.allow_money_refund = await return_service._allow_money_refund(tenant_id)
+        eligibility.allow_money_refund = True if correction else await return_service._allow_money_refund(tenant_id)
         return eligibility
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -102,7 +112,10 @@ async def process_return(
         HTTPException 500: Se houver erro no processamento
     """
     return_service = ReturnService(db)
-    
+
+    if return_data.is_correction and _role_value(current_user) != "admin":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Só o administrador pode fazer estorno por erro de lançamento.")
+
     try:
         sale_return = await return_service.process_return(
             sale_id=sale_id,
@@ -110,6 +123,14 @@ async def process_return(
             processed_by_id=current_user.id,
             tenant_id=tenant_id,
         )
+        if return_data.is_correction:
+            from app.services.audit_service import AuditService
+            await AuditService.log(db, "SALE_RETURN_CORRECTION",
+                tenant_id=tenant_id, user_id=current_user.id, user_email=current_user.email,
+                entity="sale", entity_id=sale_id,
+                detail={"reason": return_data.reason, "return_number": sale_return.return_number,
+                        "total_refund": str(sale_return.total_refund)},
+            )
         return sale_return
         
     except ValueError as e:

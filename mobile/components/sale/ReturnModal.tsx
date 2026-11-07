@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View,
   StyleSheet,
+  Platform,
 } from 'react-native';
 import {
   Text,
@@ -24,6 +25,9 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { haptics } from '@/utils/haptics';
 import BottomSheet from '@/components/ui/BottomSheet';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+
+// Nativo: o ConfirmDialog (Portal do Paper) precisa de um Host dentro da folha para aparecer por cima dela. Na web ele já é uma janela própria.
+const DialogHost = ({ children }: { children: React.ReactNode }) => (Platform.OS === 'web' ? <>{children}</> : <Portal.Host>{children}</Portal.Host>);
 import {
   checkReturnEligibility,
   processReturn,
@@ -39,6 +43,8 @@ interface ReturnModalProps {
   saleNumber: string;
   onDismiss: () => void;
   onSuccess: () => void;
+  /** Estorno por erro de lançamento (só admin): vale fora do prazo e devolve o dinheiro mesmo em loja que só troca */
+  correction?: boolean;
 }
 
 export default function ReturnModal({
@@ -47,6 +53,7 @@ export default function ReturnModal({
   saleNumber,
   onDismiss,
   onSuccess,
+  correction = false,
 }: ReturnModalProps) {
   const brandingColors = useBrandingColors();
   const [loading, setLoading] = useState(true);
@@ -95,7 +102,7 @@ export default function ReturnModal({
   const loadEligibility = async () => {
     setLoading(true);
     try {
-      const data = await checkReturnEligibility(saleId);
+      const data = await checkReturnEligibility(saleId, correction);
       setEligibility(data);
       
       // Começa sem nada marcado: um toque direto em "Processar" não pode devolver a venda inteira
@@ -249,6 +256,7 @@ export default function ReturnModal({
         reason: reason.trim(),
         refund_method: 'original',
         settlement_method: settlement,
+        is_correction: correction || undefined,
       });
       
       haptics.success();
@@ -286,16 +294,17 @@ export default function ReturnModal({
   const daysRemaining = eligibility 
     ? Math.max(0, eligibility.max_return_days - eligibility.days_since_sale)
     : 0;
-  const isUrgent = daysRemaining <= 2 && daysRemaining >= 0;
+  const isUrgent = !correction && daysRemaining <= 2 && daysRemaining >= 0;
   // o servidor aceita até o último dia (dias <= prazo): no último dia é "Último dia!", não "expirado"
-  const isExpired = eligibility && eligibility.days_since_sale > eligibility.max_return_days;
+  // No estorno do administrador o prazo não vale: o aviso de prazo vencido (vermelho) só confunde
+  const isExpired = !correction && eligibility && eligibility.days_since_sale > eligibility.max_return_days;
 
   return (
     <>
       <BottomSheet
         visible={visible}
         onDismiss={onDismiss}
-        title="Troca e devolução"
+        title={correction ? 'Estorno por erro de lançamento' : 'Troca e devolução'}
         subtitle={saleNumber}
         icon="return-up-back-outline"
         dismissOnBackdrop={!processing}
@@ -309,7 +318,7 @@ export default function ReturnModal({
                   disabled: processing,
                 },
                 {
-                  label: hasExchange ? 'Confirmar troca' : 'Processar Devolução',
+                  label: hasExchange ? 'Confirmar troca' : (correction ? 'Confirmar estorno' : 'Processar Devolução'),
                   onPress: handleProcessReturn,
                   variant: hasExchange ? 'primary' : 'danger',
                   loading: processing,
@@ -319,7 +328,7 @@ export default function ReturnModal({
             : [{ label: 'Fechar', onPress: onDismiss, variant: 'secondary' }]
         }
       >
-        <Portal.Host>
+        <DialogHost>
           {loading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={brandingColors.primary} />
@@ -351,17 +360,27 @@ export default function ReturnModal({
                   isExpired && styles.infoBannerTitleError,
                   isUrgent && !isExpired && styles.infoBannerTitleWarning,
                 ]}>
-                  {isExpired
+                  {correction
+                    ? 'Estorno do administrador'
+                    : isExpired
                     ? 'Prazo expirado'
                     : daysRemaining === 0
                       ? 'Último dia!'
                       : `${daysRemaining} dias restantes`}
                 </Text>
                 <Text style={styles.infoBannerSubtext}>
-                  Prazo de {eligibility.max_return_days} dias após a compra
+                  {correction
+                    ? `Venda de ${eligibility.days_since_sale} ${eligibility.days_since_sale === 1 ? 'dia' : 'dias'} atrás: o prazo de troca não vale aqui`
+                    : `Prazo de ${eligibility.max_return_days} dias após a compra`}
                 </Text>
               </View>
             </View>
+
+            {correction && (
+              <Text style={styles.infoBannerSubtext}>
+                Devolve o dinheiro da peça e ela volta ao estoque. Use só para corrigir um erro de lançamento. Fica registrado em seu nome.
+              </Text>
+            )}
 
             {!allowRefund && (
               <Text style={styles.infoBannerSubtext}>
@@ -564,7 +583,7 @@ export default function ReturnModal({
             onConfirm={dialog.onConfirm}
             onCancel={closeDialog}
           />
-        </Portal.Host>
+        </DialogHost>
       </BottomSheet>
     </>
   );

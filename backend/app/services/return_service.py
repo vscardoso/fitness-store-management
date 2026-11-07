@@ -59,9 +59,10 @@ class ReturnService:
         sale_id: int,
         *,
         tenant_id: int,
+        ignore_window: bool = False,
     ) -> ReturnEligibilityResponse:
         """
-        Verifica se uma venda é elegível para devolução.
+        Verifica se uma venda é elegível para devolução. `ignore_window` (estorno do admin) pula o prazo de troca.
         
         Regras:
         - Venda deve estar COMPLETED
@@ -135,7 +136,7 @@ class ReturnService:
             )
         
         # Verificar prazo de 7 dias
-        if days_since_sale > max_days:
+        if days_since_sale > max_days and not ignore_window:
             return ReturnEligibilityResponse(
                 sale_id=sale.id,
                 sale_number=sale.sale_number,
@@ -267,7 +268,8 @@ class ReturnService:
                 product_ids=[r[1] for r in _rows if not r[0]],
             )
             # 1. Verificar elegibilidade
-            eligibility = await self.check_eligibility(sale_id, tenant_id=tenant_id)
+            correction = bool(return_data.is_correction)   # estorno por erro de lançamento (o endpoint já exigiu admin)
+            eligibility = await self.check_eligibility(sale_id, tenant_id=tenant_id, ignore_window=correction)
             
             if not eligibility.is_eligible:
                 raise ValueError(eligibility.reason)
@@ -291,7 +293,7 @@ class ReturnService:
             total_refund = Decimal('0')
             items_to_return_to_stock = []
             exchange_lines: list = []
-            allow_refund = await self._allow_money_refund(tenant_id)
+            allow_refund = True if correction else await self._allow_money_refund(tenant_id)
             
             # Calcular quantidades já devolvidas
             returned_quantities = await self._get_returned_quantities(sale_id)
@@ -460,7 +462,7 @@ class ReturnService:
                 return_number=return_number,
                 sale_id=sale.id,
                 status="completed",
-                reason=return_data.reason,
+                reason=("Estorno por erro de lançamento: " + return_data.reason) if correction else return_data.reason,
                 total_refund=float(total_refund),
                 refund_method=return_data.refund_method or "original",
                 receivable_abated=float(receivable_abated),

@@ -11,6 +11,9 @@ import { loadingManager } from './loadingManager';
 import { OFFLINE_ERROR, friendlyFromText, safeMessage, validationMessage } from '@/utils/friendlyError';
 import { logError } from './debugLog';
 import { reportApiFailure } from './systemStatus';
+
+/** Espera antes de cada nova tentativa de leitura quando o servidor não responde (ms). */
+export const READ_RETRY_DELAYS_MS = [1000, 2000, 4000, 6000];
 import type { ApiError } from '@/types';
 
 /**
@@ -250,19 +253,21 @@ api.interceptors.response.use(
     if (!skipLoading) {
       loadingManager.hide();
     }
-    const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean; _retryRead?: boolean };
+    const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean; _retryRead?: number };
 
-    // Leitura (GET) que falhou por rede ou 502/503/504 (servidor reiniciando, sinal fraco): tenta de novo uma vez.
+    // Leitura (GET) que falhou por rede ou 502/503/504 (servidor reiniciando numa atualização, sinal fraco): tenta de novo
+    // até 4 vezes, esperando mais a cada uma (1, 2, 4 e 6 s: cobre uma reinicialização de ~13 s sem a pessoa ver erro).
     // Só GET: repetir gravação poderia duplicar venda ou entrada.
+    const readAttempts = originalRequest?._retryRead ?? 0;
     if (
       originalRequest &&
       String(originalRequest.method).toLowerCase() === 'get' &&
-      !originalRequest._retryRead &&
+      readAttempts < READ_RETRY_DELAYS_MS.length &&
       error.code !== 'ERR_CANCELED' &&
       (!error.response || [502, 503, 504].includes(error.response.status))
     ) {
-      originalRequest._retryRead = true;
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      originalRequest._retryRead = readAttempts + 1;
+      await new Promise((resolve) => setTimeout(resolve, READ_RETRY_DELAYS_MS[readAttempts]));
       return api(originalRequest);
     }
 

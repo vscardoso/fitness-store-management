@@ -1,0 +1,15 @@
+# Reserva do backend para publicar SEM derrubar o app (usada só por deploy_vps.sh, junto com docker-compose.prod.yml).
+# Mesma imagem, mesmas variáveis e mesmo volume do backend; só muda o nome e a porta (8001). Fica desligada o tempo todo,
+# exceto durante a troca: sobe com o código novo, o nginx passa para ela, o principal é recriado e o nginx volta.
+services:
+  backend_alt:
+    extends:
+      file: docker-compose.prod.yml
+      service: backend
+    container_name: provador-backend-alt
+    image: provador-backend:latest
+    build: !reset null
+    pull_policy: never
+    restart: "no"
+    ports: !override
+      - "127.0.0.1:8001:8000"

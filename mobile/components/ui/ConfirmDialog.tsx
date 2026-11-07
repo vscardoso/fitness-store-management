@@ -6,12 +6,13 @@
  */
 
 import React from 'react';
-import { View, StyleSheet, ScrollView, Animated } from 'react-native';
+import { View, StyleSheet, ScrollView, Animated, Platform } from 'react-native';
 import { Portal, Modal, Text, Button, Surface, IconButton } from 'react-native-paper';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { Colors, theme } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { useDesktopDialogStyle } from '@/hooks/useLayout';
+import WebDialogLayer from '@/components/ui/WebDialogLayer';
 
 export interface ConfirmDialogProps {
   visible: boolean;
@@ -81,13 +82,8 @@ export default function ConfirmDialog({
 
   const config = getTypeConfig();
 
-  return (
-    <Portal>
-      <Modal
-        visible={visible}
-        onDismiss={onDismiss ?? onCancel}
-        contentContainerStyle={[styles.modalContainer, dialogDesktop]}
-      >
+  const dismiss = onDismiss ?? onCancel;
+  const card = (
         <Surface style={styles.dialog} elevation={3}>
           {/* Close button */}
           <IconButton
@@ -165,6 +161,22 @@ export default function ConfirmDialog({
             </Button>
           </View>
         </Surface>
+  );
+
+  // Web: janela própria do navegador, sempre POR CIMA de qualquer folha ou janela aberta atrás (a versão com o Portal do
+  // Paper ficava presa dentro da folha de baixo e saía cortada no notebook).
+  if (Platform.OS === 'web') {
+    return <WebDialogLayer visible={visible} onDismiss={dismiss}>{card}</WebDialogLayer>;
+  }
+
+  return (
+    <Portal>
+      <Modal
+        visible={visible}
+        onDismiss={dismiss}
+        contentContainerStyle={[styles.modalContainer, dialogDesktop]}
+      >
+        {card}
       </Modal>
     </Portal>
   );
