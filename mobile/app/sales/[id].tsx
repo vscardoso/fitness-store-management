@@ -386,7 +386,13 @@ export default function SaleDetailsScreen() {
                     <Text style={styles.itemName} numberOfLines={2}>
                       {item.product?.name || `Produto ${item.product_id}`}
                     </Text>
-                    {!!item.variant_label && <Text style={styles.itemVariant}>{item.variant_label}</Text>}
+                    {(!!item.variant_code || !!item.variant_label) && (
+                      <Text style={styles.itemVariant}>
+                        {item.variant_code ? <Text style={styles.itemCode}>{item.variant_code}</Text> : null}
+                        {item.variant_code && item.variant_label ? ' · ' : ''}
+                        {item.variant_label || ''}
+                      </Text>
+                    )}
                     <Text style={styles.itemQtyPrice}>
                       {item.quantity} × {formatCurrency(item.unit_price)}
                     </Text>
@@ -844,6 +850,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   itemVariant: { fontSize: theme.fontSize.xs, color: Colors.light.textSecondary, marginTop: 1 },
+  itemCode: { fontWeight: '700', color: Colors.light.text },
   returnInfoText: {
     fontSize: theme.fontSize.xs, color: Colors.light.textSecondary, marginTop: theme.spacing.sm, textAlign: 'center',
   },

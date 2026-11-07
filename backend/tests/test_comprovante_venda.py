@@ -116,3 +116,16 @@ async def test_listar_por_numero_devolve_so_a_venda_pedida(test_client, async_se
     assert r.status_code == 200
     assert [x["id"] for x in r.json()] == [a]
     assert (await test_client.get("/api/v1/sales/?sale_number=NAO-EXISTE", headers=h)).json() == []
+
+
+async def test_item_da_venda_traz_codigo_da_etiqueta_mas_comprovante_nao(test_client, async_session, test_user):
+    """O #produto-variação aparece na tela de controle (API da venda) e NUNCA no comprovante da cliente."""
+    from tests.test_troca import _cenario
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    sid = await _venda(test_client, h, p, va, 1, "100.00")
+    item = (await test_client.get(f"/api/v1/sales/{sid}", headers=h)).json()["items"][0]
+    cod = item["variant_code"]
+    assert cod and cod.startswith("#") and "-" in cod, item
+    j = (await test_client.get(f"/api/v1/sales/{sid}/receipt", headers=h)).json()
+    assert cod not in j["text"]
+    assert cod not in _texto_pdf((await test_client.get(f"/api/v1/sales/{sid}/receipt/pdf", headers=h)).content)

@@ -67,6 +67,7 @@ class SaleItemResponse(BaseModel):
     product_id: Optional[int] = None  # Agora opcional (pode usar variant_id)
     variant_id: Optional[int] = None  # Novo campo
     variant_label: Optional[str] = None  # "Preto · M"
+    variant_code: Optional[str] = None  # código da etiqueta, ex.: "#101-1" (controle na tela)
     quantity: int
     unit_price: Decimal
     unit_cost: Optional[Decimal] = None

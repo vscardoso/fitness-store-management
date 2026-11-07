@@ -399,6 +399,8 @@ export interface SaleItemResponse extends Omit<SaleItem, 'discount'> {
   profit?: number;
   /** "Preto · M" (cor e tamanho do item) */
   variant_label?: string | null;
+  /** Código da etiqueta da peça (#101-1), só para controle na tela */
+  variant_code?: string | null;
   margin_percent?: number;
   sale_sources?: SaleSourceInfo[];
   product?: Product;

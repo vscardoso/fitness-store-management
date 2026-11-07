@@ -312,6 +312,20 @@ class SaleItem(BaseModel):
                 return " · ".join(x for x in (v.color, v.size) if x) or None
         return None
     
+    @property
+    def variant_code(self) -> str | None:
+        """Código da etiqueta da peça (#101-1), só para controle na tela (não vai no comprovante). Nunca dispara consulta."""
+        from sqlalchemy import inspect as _inspect
+        if self.variant_id is None or "product" in _inspect(self).unloaded:
+            return None
+        product = self.product
+        if product is None or "variants" in _inspect(product).unloaded:
+            return None
+        for v in product.variants:
+            if v.id == self.variant_id:
+                return v.display_code
+        return None
+
     def __repr__(self) -> str:
         return f"<SaleItem(id={self.id}, product_id={self.product_id}, quantity={self.quantity})>"
     
