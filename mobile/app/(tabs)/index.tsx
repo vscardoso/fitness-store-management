@@ -27,6 +27,7 @@ import Animated, {
 import { useAuth } from '@/hooks/useAuth';
 import { useBrandingColors, useBrandingStore } from '@/store/brandingStore';
 import { useUIStore } from '@/store/uiStore';
+import { saleRefundView } from '@/utils/saleRefund';
 import { getDashboardStats, getInventoryValuation, getPeriodSalesStats, getPeriodPurchases, getDailySales, getTopProducts, getFifoPerformance, getYoYComparison } from '@/services/dashboardService';
 import { getMonthlyResult } from '@/services/expenseService';
 import type { DailySalesData } from '@/services/dashboardService';
@@ -194,6 +195,9 @@ export default function DashboardScreen() {
     queryFn: getFifoPerformance,
     enabled: !!user && canSeeDashboard,
   });
+  // Saúde do estoque: peças paradas de verdade (não o estoque inteiro) e margem real (lucro / valor vendido)
+  const stagnantUnits = fifoPerf?.stagnant?.units ?? 0;
+  const fifoMargin = fifoPerf?.roi.avg_margin ?? fifoPerf?.roi.avg_roi ?? 0;
 
   // Query YoY (ano a ano)
   const { data: yoyData, refetch: refetchYoY } = useQuery({
@@ -770,6 +774,7 @@ export default function DashboardScreen() {
               </TouchableOpacity>
             </View>
 
+            {null}
             {/* Sell-through gauge com visual melhorado */}
             <View style={styles.fifoSellThrough}>
               <View style={styles.fifoSellThroughHeader}>
@@ -800,6 +805,11 @@ export default function DashboardScreen() {
               <Text style={styles.fifoMetricSub}>
                 {formatInt(fifoPerf.sell_through.total_sold)} de {formatInt(fifoPerf.sell_through.total_received)} itens vendidos
               </Text>
+              {(fifoPerf.sell_through.other_out ?? 0) > 0 && (
+                <Text style={styles.fifoMetricSub}>
+                  {formatInt(fifoPerf.sell_through.other_out ?? 0)} saíram por baixa, perda ou ajuste (não contam como venda)
+                </Text>
+              )}
 
               <View style={styles.fifoGaugeContainer}>
                 <View style={styles.fifoGaugeBg}>
@@ -821,18 +831,18 @@ export default function DashboardScreen() {
               <TouchableOpacity
                 style={[
                   styles.fifoMetricCard,
-                  fifoPerf.roi.avg_roi >= 0 ? styles.fifoMetricCardPositive : styles.fifoMetricCardNegative,
+                  fifoMargin >= 0 ? styles.fifoMetricCardPositive : styles.fifoMetricCardNegative,
                 ]}
                 activeOpacity={0.7}
               >
                 <View style={[
                   styles.fifoMetricIconContainer,
-                  { backgroundColor: fifoPerf.roi.avg_roi >= 0 ? '#ECFDF5' : '#FEF2F2' }
+                  { backgroundColor: fifoMargin >= 0 ? '#ECFDF5' : '#FEF2F2' }
                 ]}>
                   <Ionicons
-                    name={fifoPerf.roi.avg_roi >= 0 ? 'trending-up' : 'trending-down'}
+                    name={fifoMargin >= 0 ? 'trending-up' : 'trending-down'}
                     size={24}
-                    color={fifoPerf.roi.avg_roi >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative}
+                    color={fifoMargin >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative}
                   />
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
@@ -843,16 +853,16 @@ export default function DashboardScreen() {
                 </View>
                 <Text style={[
                   styles.fifoMetricValue,
-                  { color: fifoPerf.roi.avg_roi >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
+                  { color: fifoMargin >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
                 ]}>
-                  {formatSignedPercent(fifoPerf.roi.avg_roi)}
+                  {formatSignedPercent(fifoMargin)}
                 </Text>
                 <View style={[
                   styles.fifoMetricBadge,
-                  { backgroundColor: fifoPerf.roi.avg_roi >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
+                  { backgroundColor: fifoMargin >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
                 ]}>
                   <Text style={styles.fifoMetricBadgeText}>
-                    {fifoPerf.roi.avg_roi >= 0 ? 'Lucrativo' : 'Prejuízo'}
+                    {fifoMargin >= 0 ? 'Lucrativo' : 'Prejuízo'}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -901,18 +911,18 @@ export default function DashboardScreen() {
               <TouchableOpacity
                 style={[
                   styles.fifoMetricCard,
-                  fifoPerf.sell_through.total_remaining === 0 ? styles.fifoMetricCardPositive : styles.fifoMetricCardNeutral,
+                  stagnantUnits === 0 ? styles.fifoMetricCardPositive : styles.fifoMetricCardNeutral,
                 ]}
                 activeOpacity={0.7}
               >
                 <View style={[
                   styles.fifoMetricIconContainer,
-                  { backgroundColor: fifoPerf.sell_through.total_remaining === 0 ? '#ECFDF5' : '#FEF3C7' }
+                  { backgroundColor: stagnantUnits === 0 ? '#ECFDF5' : '#FEF3C7' }
                 ]}>
                   <Ionicons
-                    name={fifoPerf.sell_through.total_remaining === 0 ? 'cube' : 'archive'}
+                    name={stagnantUnits === 0 ? 'cube' : 'archive'}
                     size={24}
-                    color={fifoPerf.sell_through.total_remaining === 0 ? VALUE_COLORS.positive : VALUE_COLORS.warning}
+                    color={stagnantUnits === 0 ? VALUE_COLORS.positive : VALUE_COLORS.warning}
                   />
                 </View>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
@@ -923,16 +933,16 @@ export default function DashboardScreen() {
                 </View>
                 <Text style={[
                   styles.fifoMetricValue,
-                  { color: fifoPerf.sell_through.total_remaining === 0 ? VALUE_COLORS.positive : VALUE_COLORS.warning }
+                  { color: stagnantUnits === 0 ? VALUE_COLORS.positive : VALUE_COLORS.warning }
                 ]}>
-                  {formatInt(fifoPerf.sell_through.total_remaining)}
+                  {formatInt(stagnantUnits)}
                 </Text>
                 <View style={[
                   styles.fifoMetricBadge,
-                  { backgroundColor: fifoPerf.sell_through.total_remaining === 0 ? VALUE_COLORS.positive : VALUE_COLORS.warning }
+                  { backgroundColor: stagnantUnits === 0 ? VALUE_COLORS.positive : VALUE_COLORS.warning }
                 ]}>
                   <Text style={styles.fifoMetricBadgeText}>
-                    {fifoPerf.sell_through.total_remaining === 0 ? 'Livre' : 'Estocado'}
+                    {stagnantUnits === 0 ? 'Nenhum' : 'Parados'}
                   </Text>
                 </View>
               </TouchableOpacity>
@@ -1275,7 +1285,7 @@ export default function DashboardScreen() {
                     <Text style={styles.tooltipTitle}>Giro de Estoque</Text>
                   </View>
                   <View style={styles.tooltipDivider} />
-                  <Text style={styles.tooltipText}>{`% do estoque comprado que já foi vendido. Quanto maior, mais rápido seu estoque circula.\n\n70%+ = excelente | 40–69% = moderado | abaixo de 40% = atenção`}</Text>
+                  <Text style={styles.tooltipText}>{`% das peças compradas que já foram VENDIDAS (vendas menos devoluções). Peça que saiu por baixa, perda ou ajuste não conta como venda.\n\n70%+ = excelente | 40–69% = moderado | abaixo de 40% = atenção`}</Text>
                 </>
               )}
               {activeTooltip === 'lucro-medio' && (
@@ -1311,7 +1321,7 @@ export default function DashboardScreen() {
                     <Text style={styles.tooltipTitle}>Itens Parados</Text>
                   </View>
                   <View style={styles.tooltipDivider} />
-                  <Text style={styles.tooltipText}>{`Unidades em estoque de lotes mais antigos que ainda não foram vendidas. Na venda, essas peças saem primeiro.`}</Text>
+                  <Text style={styles.tooltipText}>{`Peças que estão em estoque há mais de 30 dias e não tiveram nenhuma venda nos últimos 30 dias. Loja nova, com estoque recente, mostra zero.`}</Text>
                 </>
               )}
               {activeTooltip === 'compras' && (
@@ -1408,7 +1418,10 @@ export default function DashboardScreen() {
 
         {recentSales && recentSales.length > 0 ? (
           <View style={styles.recentCard}>
-            {recentSales.slice(0, 4).map((sale: Sale, index: number) => (
+            {recentSales.slice(0, 4).map((sale: Sale, index: number) => {
+              const rv = saleRefundView(sale as any, formatCurrency);
+              const refundish = rv.kind !== 'normal';
+              return (
               <View
                 key={sale.id}
                 style={[
@@ -1417,19 +1430,19 @@ export default function DashboardScreen() {
                 ]}
               >
                 <View style={styles.recentItemLeft}>
-                  <View style={[styles.recentItemIcon, ['cancelled','refunded','partially_refunded'].includes(sale.status) && { backgroundColor: Colors.light.errorLight }]}>
+                  <View style={[styles.recentItemIcon, refundish && { backgroundColor: Colors.light.errorLight }]}>
                     <Ionicons
-                      name={['cancelled','refunded','partially_refunded'].includes(sale.status) ? 'arrow-undo' : 'receipt-outline'}
+                      name={refundish ? 'arrow-undo' : 'receipt-outline'}
                       size={16}
-                      color={['cancelled','refunded','partially_refunded'].includes(sale.status) ? VALUE_COLORS.negative : brandingColors.primary}
+                      color={refundish ? VALUE_COLORS.negative : brandingColors.primary}
                     />
                   </View>
                   <View>
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                       <Text style={styles.recentItemTitle}>Venda #{sale.id}</Text>
-                      {['cancelled','refunded','partially_refunded'].includes(sale.status) && (
+                      {!!rv.tag && (
                         <View style={{ backgroundColor: VALUE_COLORS.negative + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
-                          <Text style={{ fontSize: 9, fontWeight: '700', color: VALUE_COLORS.negative, textTransform: 'uppercase' }}>Estorno</Text>
+                          <Text style={{ fontSize: 9, fontWeight: '700', color: VALUE_COLORS.negative, textTransform: 'uppercase' }}>{rv.tag}</Text>
                         </View>
                       )}
                     </View>
@@ -1443,11 +1456,15 @@ export default function DashboardScreen() {
                     </Text>
                   </View>
                 </View>
-                <Text style={[styles.recentItemValue, ['cancelled','refunded','partially_refunded'].includes(sale.status) && { color: VALUE_COLORS.negative }]}>
-                  {['cancelled','refunded','partially_refunded'].includes(sale.status) ? '−' : ''}{formatCurrency(sale.total_amount || (sale as any).total || 0)}
-                </Text>
+                <View style={{ alignItems: 'flex-end' }}>
+                  <Text style={[styles.recentItemValue, rv.negative && { color: VALUE_COLORS.negative }]}>
+                    {rv.negative ? '−' : ''}{formatCurrency(rv.amount || (sale as any).total || 0)}
+                  </Text>
+                  {!!rv.sub && <Text style={[styles.recentItemDate, { color: VALUE_COLORS.negative }]}>{rv.sub}</Text>}
+                </View>
               </View>
-            ))}
+              );
+            })}
           </View>
         ) : (
           <View style={styles.emptyCard}>

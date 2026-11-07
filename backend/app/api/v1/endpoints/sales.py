@@ -956,21 +956,24 @@ async def get_sales_by_period(
             tenant_id=tenant_id
         )
 
-        # Separar vendas por status
-        ESTORNO_STATUSES = {"cancelled", "refunded", "partially_refunded"}
-        completed = [s for s in sales if s.status not in ESTORNO_STATUSES]
-        estornos  = [s for s in sales if s.status in ESTORNO_STATUSES]
+        # Mesma regra do resto do app (money_ledger): venda válida = concluída, parcialmente devolvida ou devolvida; a
+        # devolução é que abate (venda com 1 peça devolvida NÃO vira "estorno" do valor inteiro). Cancelada fica à parte.
+        def _st(x):
+            return str(getattr(x.status, "value", x.status)).lower()
 
-        # Totais apenas das vendas efetivadas
-        total_sales   = sum(float(s.total_amount) for s in completed)
-        total_count   = len(completed)
+        valid = [s for s in sales if _st(s) in ("completed", "partially_refunded", "refunded")]
+        cancelled = [s for s in sales if _st(s) == "cancelled"]
 
-        # Totais de estornos
-        estorno_count  = len(estornos)
-        estorno_amount = sum(float(s.total_amount) for s in estornos)
+        total_sales = sum(float(s.total_amount) for s in valid)            # bruto das vendas válidas
+        total_count = len(valid)
+        estorno_amount = round(sum(s.refunded_amount for s in valid), 2)   # o que de fato foi devolvido
+        estorno_count = sum(1 for s in valid if s.refunded_amount > 0)
+        cancelled_amount = sum(float(s.total_amount) for s in cancelled)
+        net_sales = total_sales - estorno_amount
 
         # Paginação sobre todas as vendas (para exibir lista completa)
-        paginated_sales = sales[skip:skip + limit]
+        # (passa pelo schema para a lista trazer nome da cliente e quanto foi devolvido; o ORM puro só leva as colunas)
+        paginated_sales = [SaleResponse.model_validate(x) for x in sales[skip:skip + limit]]
 
         return {
             "sales": paginated_sales,
@@ -978,10 +981,12 @@ async def get_sales_by_period(
                 "period": f"{month:02d}/{year}",
                 "total_sales": total_sales,
                 "total_count": total_count,
-                "average_ticket": total_sales / total_count if total_count > 0 else 0.0,
+                "average_ticket": net_sales / total_count if total_count > 0 else 0.0,
                 "estorno_count": estorno_count,
                 "estorno_amount": estorno_amount,
-                "net_sales": total_sales - estorno_amount,
+                "cancelled_count": len(cancelled),
+                "cancelled_amount": cancelled_amount,
+                "net_sales": net_sales,
             },
             "pagination": {
                 "skip": skip,

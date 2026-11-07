@@ -135,6 +135,7 @@ class SaleResponse(BaseModel):
     updated_at: Optional[datetime] = None
     customer_name: Optional[str] = None
     seller_name: Optional[str] = None
+    refunded_amount: float = 0.0   # quanto já foi devolvido/estornado desta venda (devolução parcial não é o total da venda)
     # FIFO profit summary
     total_cost: Optional[float] = None
     total_profit: Optional[float] = None

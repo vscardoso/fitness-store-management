@@ -988,6 +988,52 @@ async def get_top_products(
     return _result
 
 
+STAGNANT_DAYS = 30   # peça parada: em estoque há mais de 30 dias e sem nenhuma venda nos últimos 30 dias
+
+
+async def _entry_sales_economics(db: AsyncSession, tenant_id: int) -> Dict[int, Dict[str, float]]:
+    """Por entrada: peças líquidas vendidas, custo e receita REAIS (preço pelo qual vendeu, com o desconto da venda).
+
+    Lê as camadas FIFO guardadas em cada item vendido (`sale_sources`: de qual item de entrada saiu cada peça, quantas
+    voltaram numa devolução e o custo daquela camada). Só vendas válidas (concluída, parcialmente devolvida, devolvida).
+    """
+    rows = (await db.execute(
+        select(SaleItem.quantity, SaleItem.subtotal, SaleItem.sale_sources, Sale.subtotal, Sale.total_amount)
+        .join(Sale, Sale.id == SaleItem.sale_id)
+        .where(SaleItem.tenant_id == tenant_id, SaleItem.is_active == True, Sale.is_active == True,  # noqa: E712
+               Sale.status.in_((SaleStatus.COMPLETED, SaleStatus.PARTIALLY_REFUNDED, SaleStatus.REFUNDED)),
+               SaleItem.sale_sources.isnot(None))
+    )).all()
+    item_ids: set = set()
+    parsed = []
+    for qty, item_subtotal, sources, sale_subtotal, sale_total in rows:
+        src = (sources or {}).get("sources") if isinstance(sources, dict) else None
+        if not src or not qty:
+            continue
+        # parte do total da venda que cabe a este item (desconto geral e arredondamento já dentro)
+        ratio = float(sale_total) / float(sale_subtotal) if sale_subtotal and float(sale_subtotal) > 0 else 1.0
+        share = float(item_subtotal or 0) * ratio
+        parsed.append((int(qty), share, src))
+        item_ids.update(int(x["entry_item_id"]) for x in src if x.get("entry_item_id") is not None)
+    entry_of = {}
+    if item_ids:
+        entry_of = dict((await db.execute(
+            select(EntryItem.id, EntryItem.entry_id).where(EntryItem.id.in_(item_ids))
+        )).all())
+    out: Dict[int, Dict[str, float]] = {}
+    for qty, share, src in parsed:
+        for x in src:
+            net = int(x.get("quantity_taken", 0)) - int(x.get("quantity_returned", 0))
+            entry_id = entry_of.get(int(x["entry_item_id"])) if x.get("entry_item_id") is not None else None
+            if net <= 0 or entry_id is None:
+                continue
+            e = out.setdefault(entry_id, {"qty": 0.0, "cost": 0.0, "revenue": 0.0})
+            e["qty"] += net
+            e["cost"] += float(x.get("unit_cost", 0) or 0) * net
+            e["revenue"] += share * net / qty
+    return out
+
+
 @router.get("/fifo-performance", response_model=Dict[str, Any])
 async def get_fifo_performance(
     tenant_id: int = Depends(get_current_tenant_id),
@@ -995,156 +1041,105 @@ async def get_fifo_performance(
     current_user: User = Depends(get_current_active_user),
 ):
     """
-    Retorna métricas de performance FIFO.
+    Saúde do estoque, calculada só com VENDAS REAIS (antes tratava qualquer saída de peça como venda e valorizava pelo
+    preço de tabela de hoje, o que inventava giro e lucro: baixa, perda e ajuste viravam "vendidos").
 
-    - sell_through_rate: % de estoque vendido (global e por entrada)
-    - negative_roi_count: quantidade de entradas com ROI negativo
-    - negative_roi_entries: lista das entradas com ROI negativo
-    - avg_roi: ROI médio de todas as entradas
+    - sell_through: peças líquidas vendidas (vendas válidas - devolvidas) / peças recebidas; `other_out` = peças que saíram
+      do estoque por baixa, perda, ajuste ou exclusão (não são venda)
+    - roi.avg_margin: margem real = lucro / valor vendido (a mesma conta do resto do app); `avg_roi` repete o valor
+    - roi.negative_*: lotes vendidos com prejuízo (receita real menor que o custo das peças vendidas)
+    - stagnant: peças paradas (em estoque há mais de 30 dias e sem venda nos últimos 30 dias)
     """
     _ck = f"fifo_perf:{tenant_id}"
     if (_cv := _cache_get(_ck)) is not None:
         return _cv
-    from app.models.stock_entry import StockEntry
+    from datetime import datetime, timezone
+    from app.services.money_ledger import period_totals
 
-    # 1. Sell-through global
-    totals_q = (
+    # 1. Estoque comprado e o que sobrou (entradas e itens ativos)
+    row = (await db.execute(
         select(
-            func.coalesce(func.sum(EntryItem.quantity_received), 0).label("total_received"),
-            func.coalesce(func.sum(EntryItem.quantity_remaining), 0).label("total_remaining"),
+            func.coalesce(func.sum(EntryItem.quantity_received), 0),
+            func.coalesce(func.sum(EntryItem.quantity_remaining), 0),
         )
-        .select_from(EntryItem)
-        .join(StockEntry, EntryItem.entry_id == StockEntry.id)
-        .where(
-            EntryItem.tenant_id == tenant_id,
-            EntryItem.is_active == True,
-            StockEntry.is_active == True,
-        )
-    )
-    res = await db.execute(totals_q)
-    row = res.first()
-    total_received = int(row.total_received or 0)
-    total_remaining = int(row.total_remaining or 0)
-    total_sold = total_received - total_remaining
-    sell_through_rate = round((total_sold / total_received * 100) if total_received > 0 else 0.0, 1)
+        .select_from(EntryItem).join(StockEntry, EntryItem.entry_id == StockEntry.id)
+        .where(EntryItem.tenant_id == tenant_id, EntryItem.is_active == True, StockEntry.is_active == True)  # noqa: E712
+    )).first()
+    total_received, total_remaining = int(row[0] or 0), int(row[1] or 0)
 
-    # 2. ROI por entrada
-    # CORREÇÃO: Calcular ROI baseado no custo dos itens VENDIDOS, não no custo total da entrada
-    # Custo dos vendidos = (quantity_sold * unit_cost)
-    # Receita dos vendidos = (quantity_sold * variant.price) - usar preço da variante ou base_price
-    from app.models.product_variant import ProductVariant
-    
-    # Subquery para obter preço da primeira variante ativa de cada produto
-    # Como não podemos usar a property Product.price em SQL, usamos base_price como fallback
-    # ou o preço da variante se disponível via LEFT JOIN
-    from app.models.trip import Trip
+    # 2. Peças líquidas vendidas (mesma conta do início e dos relatórios)
+    ledger = await period_totals(db, tenant_id, None, None)
+    net_sold = max(0, int(ledger.pieces_sold) - int(ledger.pieces_returned))
+    other_out = max(0, total_received - total_remaining - net_sold)
+    sell_through_rate = round((net_sold / total_received * 100) if total_received > 0 else 0.0, 1)
 
-    entries_q = (
-        select(
-            StockEntry.id.label("entry_id"),
-            StockEntry.entry_date,
-            StockEntry.total_cost,
-            StockEntry.trip_id,
-            func.coalesce(Trip.travel_cost_total, 0).label("trip_travel_cost"),
-            # Soma total de todas entradas da mesma viagem (para proporção)
-            func.coalesce(
-                select(func.sum(StockEntry.__table__.c.total_cost))
-                .where(StockEntry.__table__.c.trip_id == StockEntry.trip_id,
-                       StockEntry.__table__.c.is_active == True)
-                .correlate(StockEntry)
-                .scalar_subquery(), StockEntry.total_cost
-            ).label("trip_total_goods_cost"),
-            func.coalesce(
-                func.sum((EntryItem.quantity_received - EntryItem.quantity_remaining) * EntryItem.landed_unit_cost), 0
-            ).label("cost_of_sold"),
-            func.coalesce(
-                func.sum(
-                    (EntryItem.quantity_received - EntryItem.quantity_remaining) *
-                    func.coalesce(ProductVariant.price, Product.base_price, 0)
-                ), 0
-            ).label("revenue_of_sold"),
-            func.coalesce(func.sum(EntryItem.quantity_received), 0).label("total_received"),
-            func.coalesce(func.sum(EntryItem.quantity_remaining), 0).label("total_remaining"),
-        )
-        .select_from(StockEntry)
-        .join(EntryItem, EntryItem.entry_id == StockEntry.id)
-        .join(Product, EntryItem.product_id == Product.id)
-        .outerjoin(ProductVariant, EntryItem.variant_id == ProductVariant.id)
-        .outerjoin(Trip, StockEntry.trip_id == Trip.id)
-        .where(
-            StockEntry.tenant_id == tenant_id,
-            StockEntry.is_active == True,
-            EntryItem.is_active == True,
-            Product.is_active == True,
-        )
-        .group_by(StockEntry.id, StockEntry.entry_date, StockEntry.total_cost,
-                  StockEntry.trip_id, Trip.travel_cost_total)
-        .having(func.sum(EntryItem.quantity_received) > 0)
-    )
-    res = await db.execute(entries_q)
-    entry_rows = res.fetchall()
-
+    # 3. Margem real e lotes com prejuízo, a partir do que foi vendido de cada entrada
+    econ = await _entry_sales_economics(db, tenant_id)
+    entry_meta = {r.id: r for r in (await db.execute(
+        select(StockEntry.id, StockEntry.entry_date, StockEntry.total_cost)
+        .where(StockEntry.tenant_id == tenant_id, StockEntry.id.in_(list(econ.keys()) or [0]))
+    )).all()}
+    qty_by_entry = dict((await db.execute(
+        select(EntryItem.entry_id, func.coalesce(func.sum(EntryItem.quantity_received), 0))
+        .where(EntryItem.tenant_id == tenant_id, EntryItem.is_active == True)  # noqa: E712
+        .group_by(EntryItem.entry_id)
+    )).all())
+    total_revenue = sum(e["revenue"] for e in econ.values())
+    total_cost = sum(e["cost"] for e in econ.values())
     negative_roi_entries = []
-    total_cost_of_sold_sum = 0.0
-    total_profit_sum = 0.0
-    entries_with_sales = 0
-
-    for entry in entry_rows:
-        cost_of_sold = float(entry.cost_of_sold or 0)  # Custo dos itens vendidos
-        revenue = float(entry.revenue_of_sold or 0)  # Receita dos itens vendidos
-        total_entry_cost = float(entry.total_cost or 0)  # Custo total da entrada (para referência)
-        qty_received = int(entry.total_received or 0)
-        qty_remaining = int(entry.total_remaining or 0)
-        qty_sold = qty_received - qty_remaining
-        sell_through = round((qty_sold / qty_received * 100) if qty_received > 0 else 0.0, 1)
-
-        # Só calcular ROI para entradas que tiveram vendas
-        if qty_sold > 0 and cost_of_sold > 0:
-            # Proporção de despesas de viagem para esta entrada
-            # cost_of_sold já está a custo posto (mercadoria + parte da viagem e das despesas do lote):
-            # somar a viagem de novo contaria o frete duas vezes.
-            trip_cost_share = 0.0
-
-            total_investment = cost_of_sold + trip_cost_share
-            profit = revenue - total_investment
-            roi = round((profit / total_investment * 100), 1)
-            
-            # Acumular para ROI ponderado (pelo custo dos vendidos)
-            total_cost_of_sold_sum += cost_of_sold
-            total_profit_sum += profit
-            entries_with_sales += 1
-
-            if roi < 0:
-                negative_roi_entries.append({
-                    "entry_id": entry.entry_id,
-                    "entry_date": str(entry.entry_date),
-                    "total_cost": round(total_entry_cost, 2),
-                    "cost_of_sold": round(cost_of_sold, 2),
-                    "trip_cost_share": round(trip_cost_share, 2),
-                    "estimated_revenue": round(revenue, 2),
-                    "roi": roi,
-                    "sell_through": sell_through,
-                })
-
-    # ROI médio PONDERADO pelo custo dos itens vendidos
-    # Isso garante que entradas com mais vendas tenham peso proporcional
-    avg_roi = round((total_profit_sum / total_cost_of_sold_sum * 100) if total_cost_of_sold_sum > 0 else 0.0, 1)
-
-    # Ordenar por ROI (mais negativo primeiro)
+    for entry_id, e in econ.items():
+        meta = entry_meta.get(entry_id)
+        if meta is None or e["cost"] <= 0:
+            continue
+        profit = e["revenue"] - e["cost"]
+        if profit < 0:
+            received = int(qty_by_entry.get(entry_id, 0)) or 1
+            negative_roi_entries.append({
+                "entry_id": entry_id,
+                "entry_date": str(meta.entry_date),
+                "total_cost": round(float(meta.total_cost or 0), 2),
+                "cost_of_sold": round(e["cost"], 2),
+                "trip_cost_share": 0.0,
+                "estimated_revenue": round(e["revenue"], 2),
+                "roi": round(profit / e["cost"] * 100, 1),
+                "sell_through": round(e["qty"] / received * 100, 1),
+            })
     negative_roi_entries.sort(key=lambda x: x["roi"])
+    avg_margin = round((total_revenue - total_cost) / total_revenue * 100, 1) if total_revenue > 0 else 0.0
+
+    # 4. Peças paradas: em estoque há mais de 30 dias e sem venda nenhuma nos últimos 30 dias
+    corte = date.today() - timedelta(days=STAGNANT_DAYS)
+    vendidas_recentes = set((await db.execute(
+        select(SaleItem.variant_id).join(Sale, Sale.id == SaleItem.sale_id)
+        .where(SaleItem.tenant_id == tenant_id, SaleItem.is_active == True, Sale.is_active == True,  # noqa: E712
+               Sale.status.in_((SaleStatus.COMPLETED, SaleStatus.PARTIALLY_REFUNDED, SaleStatus.REFUNDED)),
+               Sale.created_at >= datetime.now(timezone.utc) - timedelta(days=STAGNANT_DAYS),
+               SaleItem.variant_id.isnot(None))
+    )).scalars().all())
+    antigos = (await db.execute(
+        select(EntryItem.variant_id, func.coalesce(func.sum(EntryItem.quantity_remaining), 0))
+        .join(StockEntry, EntryItem.entry_id == StockEntry.id)
+        .where(EntryItem.tenant_id == tenant_id, EntryItem.is_active == True, StockEntry.is_active == True,  # noqa: E712
+               EntryItem.quantity_remaining > 0, StockEntry.entry_date <= corte)
+        .group_by(EntryItem.variant_id)
+    )).all()
+    parados = [(v, int(q)) for v, q in antigos if v not in vendidas_recentes]
 
     _result = {
         "sell_through": {
             "rate": sell_through_rate,
             "total_received": total_received,
-            "total_sold": total_sold,
+            "total_sold": net_sold,
             "total_remaining": total_remaining,
+            "other_out": other_out,
         },
         "roi": {
-            "avg_roi": avg_roi,
+            "avg_roi": avg_margin,
+            "avg_margin": avg_margin,
             "negative_count": len(negative_roi_entries),
             "negative_entries": negative_roi_entries[:5],
         },
+        "stagnant": {"units": sum(q for _, q in parados), "variants": len(parados), "days": STAGNANT_DAYS},
     }
     _cache_set(_ck, _result)
     return _result

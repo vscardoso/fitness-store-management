@@ -211,6 +211,16 @@ class Sale(BaseModel):
     def seller_name(self) -> str | None:
         return self.seller.full_name if hasattr(self, "seller") and self.seller else None
 
+    @property
+    def refunded_amount(self) -> float:
+        """Quanto já foi devolvido/estornado desta venda (soma das devoluções concluídas). Nunca dispara consulta:
+        só vale quando `returns` veio carregada (as listas e o detalhe carregam)."""
+        from sqlalchemy import inspect as _inspect
+        if "returns" in _inspect(self).unloaded:
+            return 0.0
+        return round(sum(float(r.total_refund or 0) for r in self.returns
+                         if r.is_active and str(getattr(r.status, "value", r.status)).lower() == "completed"), 2)
+
 
 class SaleItem(BaseModel):
     """

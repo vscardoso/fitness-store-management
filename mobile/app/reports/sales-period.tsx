@@ -23,13 +23,12 @@ import { Colors, theme, VALUE_COLORS } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import PageHeader from '@/components/layout/PageHeader';
 import useBackToList from '@/hooks/useBackToList';
+import { saleRefundView } from '@/utils/saleRefund';
 
 import { FitText } from '@/components/ui/PriceDisplay';
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 
 type SaleStatus = 'pending' | 'completed' | 'cancelled' | 'refunded' | 'partially_refunded';
-
-const ESTORNO_STATUSES: SaleStatus[] = ['cancelled', 'refunded', 'partially_refunded'];
 
 interface Sale {
   id: number;
@@ -39,6 +38,7 @@ interface Sale {
   status: SaleStatus;
   customer_name?: string;
   payment_method?: string;
+  refunded_amount?: number;
 }
 
 interface SalesByPeriodResponse {
@@ -50,6 +50,8 @@ interface SalesByPeriodResponse {
     average_ticket: number;
     estorno_count: number;
     estorno_amount: number;
+    cancelled_count?: number;
+    cancelled_amount?: number;
     net_sales: number;
   };
   pagination: { skip: number; limit: number; total: number };
@@ -66,20 +68,6 @@ const getSalesByPeriod = async (year: number, month: number) => {
   });
   return data;
 };
-
-function isEstorno(status: SaleStatus) {
-  return ESTORNO_STATUSES.includes(status);
-}
-
-function statusLabel(status: SaleStatus): string {
-  switch (status) {
-    case 'cancelled':          return 'Cancelada';
-    case 'refunded':           return 'Estornada';
-    case 'partially_refunded': return 'Est. Parcial';
-    case 'pending':            return 'Pendente';
-    default:                   return '';
-  }
-}
 
 // ─── Componente ───────────────────────────────────────────────────────────────
 
@@ -147,7 +135,8 @@ export default function SalesPeriodScreen() {
 
   // ─── Item da lista ───────────────────────────────────────────────────────────
   const renderSaleItem = ({ item }: { item: Sale }) => {
-    const estorno = isEstorno(item.status);
+    const rv = saleRefundView(item as any, formatCurrency);
+    const estorno = rv.kind !== 'normal';
     return (
       <TouchableOpacity
         onPress={() => router.push(`/sales/${item.id}` as any)}
@@ -179,16 +168,17 @@ export default function SalesPeriodScreen() {
             {item.customer_name ? (
               <Text style={styles.saleCustomer} numberOfLines={1}>{item.customer_name}</Text>
             ) : null}
+            {rv.sub ? <Text style={[styles.saleDate, { color: VALUE_COLORS.negative }]}>{rv.sub}</Text> : null}
           </View>
 
           {/* Coluna direita: valor + badge + chevron — sem sobreposição */}
           <View style={styles.salePriceCol}>
-            <Text style={[styles.saleAmount, estorno && styles.saleAmountEstorno]}>
-              {estorno ? '−' : ''}{formatCurrency(item.total_amount)}
+            <Text style={[styles.saleAmount, rv.negative && styles.saleAmountEstorno]}>
+              {rv.negative ? '−' : ''}{formatCurrency(rv.amount)}
             </Text>
-            {estorno ? (
+            {rv.tag ? (
               <View style={styles.estornoBadge}>
-                <Text style={styles.estornoBadgeText}>{statusLabel(item.status)}</Text>
+                <Text style={styles.estornoBadgeText}>{rv.tag}</Text>
               </View>
             ) : (
               <Ionicons name="chevron-forward" size={14} color={Colors.light.textTertiary} />

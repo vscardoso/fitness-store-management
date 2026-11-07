@@ -273,9 +273,15 @@ export interface FifoPerformanceData {
     total_received: number;
     total_sold: number;
     total_remaining: number;
+    /** Peças que saíram por baixa, perda, ajuste ou exclusão (não são venda) */
+    other_out?: number;
   };
+  /** Peças paradas: em estoque há mais de `days` dias e sem venda nesse período */
+  stagnant?: { units: number; variants: number; days: number };
   roi: {
+    /** Margem real (lucro / valor vendido); igual a avg_margin */
     avg_roi: number;
+    avg_margin?: number;
     negative_count: number;
     negative_entries: Array<{
       entry_id: number;

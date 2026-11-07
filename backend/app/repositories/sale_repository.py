@@ -47,6 +47,7 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
             query = query.options(
                 selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
                 selectinload(Sale.payments),
+                selectinload(Sale.returns),
                 selectinload(Sale.customer),
                 selectinload(Sale.seller),
             )
@@ -100,6 +101,7 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
             query = query.options(
                 selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
                 selectinload(Sale.payments),
+                selectinload(Sale.returns),
                 selectinload(Sale.customer),
                 selectinload(Sale.seller),
             )
@@ -130,6 +132,7 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
             .options(
                 selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
                 selectinload(Sale.payments),
+                selectinload(Sale.returns),
                 selectinload(Sale.customer),
                 selectinload(Sale.seller),
             )
@@ -239,6 +242,7 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
             .options(
                 selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
                 selectinload(Sale.payments),
+                selectinload(Sale.returns),
                 selectinload(Sale.customer),
                 selectinload(Sale.seller),
             )
@@ -266,6 +270,7 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
         query = select(Sale).where(and_(*conditions)).options(
             selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
             selectinload(Sale.payments),
+                selectinload(Sale.returns),
             selectinload(Sale.customer),
             selectinload(Sale.seller),
         )
@@ -295,6 +300,7 @@ class SaleRepository(BaseRepository[Sale, Any, Any]):
             query = query.options(
                 selectinload(Sale.items).selectinload(SaleItem.product).selectinload(Product.variants),
                 selectinload(Sale.payments),
+                selectinload(Sale.returns),
                 selectinload(Sale.customer),
                 selectinload(Sale.seller),
             )
