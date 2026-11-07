@@ -459,6 +459,8 @@ export interface Sale {
   updated_at?: string;
   customer_name?: string;
   seller_name?: string;
+  /** A lista de vendas já traz os itens (usados para mostrar os códigos das etiquetas) */
+  items?: SaleItemResponse[];
 }
 
 export interface SaleWithDetails extends Sale {

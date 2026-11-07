@@ -30,6 +30,7 @@ import type { Sale } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import { useIsDesktop } from '@/hooks/useLayout';
 import DesktopSalesTable from '@/components/sale/DesktopSalesTable';
+import { saleCodesText } from '@/utils/saleCodes';
 
 import { Money } from '@/components/ui/PriceDisplay';
 const statusMap: Record<string, { label: string; color: string; icon: string }> = {
@@ -159,6 +160,10 @@ function MobileSalesListScreen() {
 
             {/* Valor em destaque */}
             <Money style={[styles.amount, { color: brandingColors.primary }]} value={Number(item.total_amount)} />
+
+            {!!saleCodesText(item, 3) && (
+              <Text style={styles.metaText} numberOfLines={1}>{saleCodesText(item, 3)}</Text>
+            )}
 
             {/* Linha inferior: cliente + data/hora */}
             <View style={styles.cardBottom}>

@@ -16,6 +16,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { getSales } from '@/services/saleService';
 import { formatCurrency, formatDateTime, parseApiDate } from '@/utils/format';
 import { VALUE_COLORS } from '@/constants/Colors';
+import { saleCodes, saleCodesText } from '@/utils/saleCodes';
 import type { Sale } from '@/types';
 
 const INK = '#160F28';
@@ -98,7 +99,7 @@ export default function DesktopSalesTable() {
       if (status === 'cancelled' && st !== 'cancelled') return false;
       if (status === 'refunded' && st !== 'refunded' && st !== 'partially_refunded') return false;
       if (!words.length) return true;
-      const hay = norm([s.sale_number, s.customer_name, s.seller_name, PAYMENT[s.payment_method as string]].filter(Boolean).join(' '));
+      const hay = norm([s.sale_number, s.customer_name, s.seller_name, PAYMENT[s.payment_method as string], ...saleCodes(s)].filter(Boolean).join(' '));
       return words.every((w) => hay.includes(w));
     });
   }, [sales, status, search]);
@@ -113,6 +114,20 @@ export default function DesktopSalesTable() {
           <Text style={styles.sub} numberOfLines={1}>{s.sale_number}</Text>
         </View>
       ),
+    },
+    {
+      key: 'codes', title: 'Peças', flex: 1.7, minWidth: 150,
+      sortValue: (s) => saleCodes(s)[0] ?? '',
+      render: (s) => {
+        const txt = saleCodesText(s, 3);
+        const pieces = (s.items ?? []).reduce((n, i) => n + Number(i.quantity || 0), 0);
+        return (
+          <View style={{ gap: 1 }}>
+            <Text style={[styles.cellText, !txt && styles.muted]} numberOfLines={1}>{txt || 'Sem etiqueta'}</Text>
+            {pieces > 0 && <Text style={styles.sub}>{pieces} {pieces === 1 ? 'peça' : 'peças'}</Text>}
+          </View>
+        );
+      },
     },
     {
       key: 'date', title: 'Data', flex: 1.3, minWidth: 140,
@@ -215,7 +230,7 @@ export default function DesktopSalesTable() {
             <TextInput
               value={search}
               onChangeText={setSearch}
-              placeholder="Buscar por número, cliente, vendedor ou pagamento"
+              placeholder="Buscar por número, cliente, vendedor, pagamento ou código da peça"
               placeholderTextColor="#8A839E"
               style={styles.searchInput}
               autoCorrect={false}

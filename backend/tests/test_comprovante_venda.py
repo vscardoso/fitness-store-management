@@ -129,3 +129,16 @@ async def test_item_da_venda_traz_codigo_da_etiqueta_mas_comprovante_nao(test_cl
     j = (await test_client.get(f"/api/v1/sales/{sid}/receipt", headers=h)).json()
     assert cod not in j["text"]
     assert cod not in _texto_pdf((await test_client.get(f"/api/v1/sales/{sid}/receipt/pdf", headers=h)).content)
+
+
+async def test_lista_de_vendas_traz_codigo_da_etiqueta_dos_itens(test_client, async_session, test_user):
+    """A lista de vendas (celular e notebook) mostra os códigos #produto-variação das peças, com ou sem período."""
+    from datetime import date
+    from tests.test_troca import _cenario
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    sid = await _venda(test_client, h, p, va, 1, "100.00")
+    hoje = date.today().isoformat()
+    for url in ("/api/v1/sales/?limit=50", f"/api/v1/sales/?start_date={hoje}&end_date={hoje}&limit=50"):
+        lista = (await test_client.get(url, headers=h)).json()
+        venda = next(v for v in lista if v["id"] == sid)
+        assert venda["items"][0]["variant_code"], url
