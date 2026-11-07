@@ -680,3 +680,54 @@ async def customer_access_log(
     except LookupError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
 
+
+
+@router.get("/{customer_id}/loyalty", summary="Saldo e extrato de pontos da cliente")
+async def get_customer_loyalty(
+    customer_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    from sqlalchemy import select
+    from app.models.customer import Customer
+    from app.services.loyalty_service import LoyaltyService
+    customer = (await db.execute(select(Customer).where(
+        Customer.id == customer_id, Customer.tenant_id == tenant_id, Customer.is_active == True))).scalar_one_or_none()  # noqa: E712
+    if customer is None:
+        raise HTTPException(status_code=404, detail="Cliente não encontrada")
+    svc = LoyaltyService(db)
+    data = await svc.summary(customer_id, tenant_id)
+    customer.loyalty_points = data["balance"]          # a ficha antiga lê este campo: acompanha o extrato (inclui o que venceu)
+    await db.commit()
+    return data
+
+
+class LoyaltyAdjust(BaseModel):
+    points: float = Field(..., ge=-100000, le=100000, description="Positivo soma, negativo tira")
+    note: str = Field(..., min_length=3, max_length=200, description="Motivo do ajuste")
+
+
+@router.post("/{customer_id}/loyalty/adjust", summary="Ajuste manual de pontos (só admin)")
+async def adjust_customer_loyalty(
+    customer_id: int,
+    body: LoyaltyAdjust,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    from decimal import Decimal
+    from sqlalchemy import select
+    from app.models.customer import Customer
+    from app.services.audit_service import AuditService
+    from app.services.loyalty_service import LoyaltyService
+    customer = (await db.execute(select(Customer).where(
+        Customer.id == customer_id, Customer.tenant_id == tenant_id, Customer.is_active == True))).scalar_one_or_none()  # noqa: E712
+    if customer is None:
+        raise HTTPException(status_code=404, detail="Cliente não encontrada")
+    svc = LoyaltyService(db)
+    await svc.adjust(customer, Decimal(str(body.points)), tenant_id, body.note.strip())
+    await AuditService.log(db, "LOYALTY_ADJUSTED", tenant_id=tenant_id, user_id=current_user.id, user_email=current_user.email,
+                           entity="customer", entity_id=customer_id, detail={"points": body.points, "note": body.note.strip()})
+    await db.commit()
+    return await svc.summary(customer_id, tenant_id)

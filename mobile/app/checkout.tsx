@@ -43,6 +43,7 @@ import { FEATURES } from '@/constants/features';
 import { useDesktopContentStyle, useDesktopFooterStyle } from '@/hooks/useLayout';
 import DateTimeInput from '@/components/ui/DateTimeInput';
 import { dateToIso } from '@/utils/dateBr';
+import LoyaltyRedeemCard from '@/components/checkout/LoyaltyRedeemCard';
 import { FIADO_INTERVALS, type FiadoInterval, defaultFirstDue, dueDates, splitAmount } from '@/utils/fiadoPlan';
 /**
  * Métodos de pagamento disponíveis
@@ -103,7 +104,9 @@ export default function CheckoutScreen() {
   // Calcular total final com desconto aplicável
   // Se modo misto ou sem pagamentos: usa availableDiscount
   // Se tem pagamento único: busca desconto do método usado
-  const finalTotal = useMemo(() => {
+  // Pontos de fidelidade usados como pagamento (cashback): quanto da compra (R$) a cliente paga com pontos
+  const [pointsUse, setPointsUse] = useState(0);
+  const finalTotalBeforePoints = useMemo(() => {
     if (isMixedMode) {
       return cart.total; // Sem desconto em modo misto
     }
@@ -126,6 +129,9 @@ export default function CheckoutScreen() {
 
     return cart.total;
   }, [cart.total, cart.payments, isMixedMode, availableDiscount, paymentDiscounts]);
+  // o que falta pagar com dinheiro, cartão ou PIX depois de descontar os pontos
+  const finalTotal = Math.max(0, Math.round((finalTotalBeforePoints - pointsUse) * 100) / 100);
+  const pointsCoverAll = pointsUse > 0 && finalTotal <= 0.005;
 
   // Desconto aplicado (para exibição)
   const appliedDiscount = useMemo(() => {
@@ -154,6 +160,9 @@ export default function CheckoutScreen() {
     queryClient.invalidateQueries({ queryKey: ['products'] });
     queryClient.invalidateQueries({ queryKey: ['low-stock'] });
   };
+
+  // sem cliente não há pontos para usar
+  useEffect(() => { if (!cart.customer_id && pointsUse !== 0) setPointsUse(0); }, [cart.customer_id, pointsUse]);
 
   const handleGoBack = () => {
     goBack();
@@ -644,7 +653,9 @@ export default function CheckoutScreen() {
    */
   const handleFinalizeSale = async () => {
     // Validação completa usando validation utils
-    const validation = validateCheckout(cart.items, cart.payments, finalTotal);
+    const validation = pointsCoverAll
+      ? (cart.items.length > 0 ? { isValid: true, errors: [] as string[] } : { isValid: false, errors: ['O carrinho está vazio'] })
+      : validateCheckout(cart.items, cart.payments, finalTotal);
 
     if (!validation.isValid) {
       haptics.error();
@@ -745,13 +756,18 @@ export default function CheckoutScreen() {
         ...(p.method === PaymentMethod.ON_ACCOUNT ? { first_due_date: dateToIso(fiadoFirstDue), interval_days: fiadoInterval } : {}),
       }));
 
+      // parte paga com pontos (cashback): o servidor tira os pontos e não conta essa parte para ganhar pontos novos
+      if (pointsUse > 0) {
+        payments.push({ payment_method: 'loyalty_points' as any, amount: pointsUse, installments: 1 });
+      }
+
       // Determinar método de pagamento principal
       // Se há múltiplos pagamentos, usa o de maior valor
       const mainPaymentMethod = cart.payments.length > 0
         ? cart.payments.reduce((prev, current) =>
             (current.amount > prev.amount) ? current : prev
           ).method
-        : PaymentMethod.CASH;
+        : (pointsUse > 0 ? ('loyalty_points' as any) : PaymentMethod.CASH);
 
       // Preparar dados da venda
       const saleData: any = {
@@ -998,6 +1014,19 @@ export default function CheckoutScreen() {
                   )}
                 </View>
               ) : null}
+            </View>
+          )}
+
+          {/* Pontos de fidelidade como pagamento (cashback): só com cliente e sem integração de maquininha/PIX */}
+          {cart.customer_id && customer && !FEATURES.maquininhas && !FEATURES.pixIntegrado && (
+            <View style={styles.section}>
+              <LoyaltyRedeemCard
+                customerId={cart.customer_id}
+                customerName={customer.full_name}
+                payable={finalTotalBeforePoints}
+                value={pointsUse}
+                onChange={setPointsUse}
+              />
             </View>
           )}
 
@@ -1587,6 +1616,13 @@ export default function CheckoutScreen() {
                   <Text style={styles.summaryLabel}>Subtotal</Text>
                   <Text style={styles.summaryValue}>{formatCurrency(cart.subtotal)}</Text>
                 </View>
+
+                {pointsUse > 0 && (
+                  <View style={styles.summaryRow}>
+                    <Text style={[styles.summaryLabel, styles.discountText]}>Pago com pontos (cashback)</Text>
+                    <Text style={[styles.summaryValue, styles.discountText]}>−{formatCurrency(pointsUse)}</Text>
+                  </View>
+                )}
 
                 {cart.discount > 0 && (
                   <View style={styles.summaryRow}>

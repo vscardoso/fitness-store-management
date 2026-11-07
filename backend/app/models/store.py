@@ -1,8 +1,9 @@
 """
 Modelo de loja/tenant para multi-tenancy.
 """
-from sqlalchemy import Date, String, DateTime, Integer
+from sqlalchemy import Date, String, DateTime, Integer, Numeric
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from decimal import Decimal
 from typing import List, Optional, TYPE_CHECKING
 from datetime import date, datetime
 from .base import BaseModel
@@ -72,6 +73,24 @@ class Store(BaseModel):
         server_default="false",
         nullable=False,
         comment="Admin liga: permite dar baixa no estoque pela Conferência de Estoque"
+    )
+
+    # Programa de fidelidade (cada loja escolhe se tem e como funciona)
+    loyalty_enabled: Mapped[bool] = mapped_column(
+        default=False, server_default="false", nullable=False, comment="Programa de fidelidade ligado"
+    )
+    loyalty_spend_per_point: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), default=10, server_default="10", nullable=False, comment="Quantos reais gastos dão 1 ponto"
+    )
+    loyalty_point_value: Mapped[Decimal] = mapped_column(
+        Numeric(10, 4), default=Decimal("0.10"), server_default="0.10", nullable=False,
+        comment="Quanto 1 ponto vale em reais de desconto (cashback) ao usar"
+    )
+    loyalty_min_redeem: Mapped[Decimal] = mapped_column(
+        Numeric(10, 2), default=0, server_default="0", nullable=False, comment="Mínimo de pontos para poder usar"
+    )
+    loyalty_expiry_days: Mapped[Optional[int]] = mapped_column(
+        Integer, nullable=True, comment="Dias de validade de cada ganho de pontos; nulo = não vence"
     )
 
     allow_money_refund: Mapped[bool] = mapped_column(

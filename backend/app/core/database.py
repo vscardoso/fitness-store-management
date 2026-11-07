@@ -195,7 +195,7 @@ _SQLITE_EXTRA_COLUMNS = {
     "sale_returns": [("receivable_abated", "NUMERIC(10,2) NOT NULL DEFAULT 0")],
     "stores": [
         ("return_window_days", "INTEGER NOT NULL DEFAULT 7"), ("allow_money_refund", "BOOLEAN NOT NULL DEFAULT 1"),
-        ("allow_stock_writeoff", "BOOLEAN NOT NULL DEFAULT 0"), ("catalog_feed_token", "VARCHAR(64)"),
+        ("allow_stock_writeoff", "BOOLEAN NOT NULL DEFAULT 0"), ("loyalty_enabled", "BOOLEAN NOT NULL DEFAULT 0"), ("loyalty_spend_per_point", "NUMERIC(10,2) NOT NULL DEFAULT 10"), ("loyalty_point_value", "NUMERIC(10,4) NOT NULL DEFAULT 0.10"), ("loyalty_min_redeem", "NUMERIC(10,2) NOT NULL DEFAULT 0"), ("loyalty_expiry_days", "INTEGER"), ("catalog_feed_token", "VARCHAR(64)"),
         ("finance_start_date", "DATE"),
     ],
     "sale_returns": [("exchange_sale_id", "INTEGER"), ("net_amount", "NUMERIC(10,2)"), ("settlement_method", "VARCHAR(20)")],

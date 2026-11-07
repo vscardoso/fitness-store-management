@@ -73,7 +73,7 @@ export const VENDER: HelpEntry[] = [
     purpose: 'Escolhe como a cliente pagou e grava a venda.',
     steps: [
       'Confira o “Resumo do Carrinho”; para mudar alguma peça, toque em “Editar”.',
-      'Toque na forma de pagamento: “Débito”, “Crédito”, “Dinheiro” ou “PIX”.',
+      'Se a cliente tem pontos, o cartão “Pontos de” deixa usar como desconto (cashback). Depois toque na forma de pagamento: “Débito”, “Crédito”, “Dinheiro” ou “PIX”.',
       'No crédito, escolha à vista ou o número de parcelas.',
       'No dinheiro, digite quanto a cliente entregou para ver o troco.',
       'Se ela pagou com duas formas, toque em “Usar 2 métodos” e lance o valor de cada uma.',
@@ -81,12 +81,12 @@ export const VENDER: HelpEntry[] = [
     ],
     goodToKnow: [
       'Cartão e PIX são registro: confirme o pagamento na maquininha ou no app do banco antes de gravar.',
-      'Ao gravar, as peças saem do estoque e a cliente ganha pontos de fidelidade.',
+      'Ao gravar, as peças saem do estoque e a cliente ganha pontos de fidelidade, se a loja tiver o programa ligado. A parte paga com pontos não gera ponto novo.',
       'Venda em dinheiro entra sozinha no caixa aberto.',
       'Se uma peça acabou enquanto você vendia, o app avisa e não grava a venda.',
     ],
     related: ['pdv', 'venda-concluida', 'caixa'],
-    sources: ['app/checkout.tsx'],
+    sources: ['app/checkout.tsx', 'components/checkout/LoyaltyRedeemCard.tsx'],
   },
   {
     id: 'venda-concluida',

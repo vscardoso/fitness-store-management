@@ -23,6 +23,7 @@ from app.services.payment_discount_service import PaymentDiscountService
 from app.services.stock_lock import lock_stock
 
 
+from app.services.loyalty_service import LoyaltyService
 from app.services.receivable_service import ReceivableService
 
 class SaleService:
@@ -310,30 +311,25 @@ class SaleService:
             # Nota: Movimentao de estoque agora  feita pelo FIFOService.process_sale()
             # no sendo mais necessrio chamar inventory_repo.remove_stock()
             loyalty_points_earned = Decimal('0')
+            # parte da compra paga com pontos (cashback): vira desconto e NÃO gera ponto novo
+            points_paid = sum(
+                (paid for pd, paid in zip(sale_data.payments, pay_amounts) if pd.payment_method.value == 'loyalty_points' and paid > 0),
+                Decimal('0'),
+            )
+            if points_paid > 0 and not sale_data.customer_id:
+                raise ValueError("Para pagar com pontos, escolha a cliente da venda.")
             if sale_data.customer_id:
-                print(" Atualizando pontos de fidelidade...")
                 customer = await self.customer_repo.get(self.db, sale_data.customer_id, tenant_id=tenant_id)
                 if customer:
-                    # Pontos: 1 ponto a cada R$ 10 gastos
-                    loyalty_points_earned = total_amount / Decimal('10')
-                    
-                    # SaleCreate no tem loyalty_points_used, sempre 0 na criao
-                    new_loyalty_points = (
-                        Decimal(str(customer.loyalty_points)) + 
-                        loyalty_points_earned
-                    )
-                    
-                    new_total_spent = (
-                        Decimal(str(customer.total_spent)) + total_amount
-                    )
-                    
-                    new_total_purchases = customer.total_purchases + 1
-                    
-                    # Atualizar diretamente os atributos do customer
-                    customer.loyalty_points = float(new_loyalty_points)
-                    customer.total_spent = float(new_total_spent)
-                    customer.total_purchases = new_total_purchases
-            
+                    loyalty = LoyaltyService(self.db)
+                    if points_paid > 0:
+                        used = await loyalty.redeem_amount(customer, sale.id, points_paid, tenant_id)
+                        sale.loyalty_points_used = float(used)
+                    loyalty_points_earned = await loyalty.earn(customer, sale.id, total_amount - points_paid, tenant_id)
+
+                    customer.total_spent = float(Decimal(str(customer.total_spent)) + total_amount)
+                    customer.total_purchases = customer.total_purchases + 1
+
             # 10. Finalizar venda
             print(" Finalizando venda...")
             if not keep_pending:
@@ -495,11 +491,12 @@ class SaleService:
                     share = (still / total) if total > 0 else Decimal('0')
                     is_exchange = (await self.db.execute(
                         select(func.count(SaleReturn.id)).where(SaleReturn.exchange_sale_id == sale.id))).scalar() or 0
-                    new_loyalty_points = (
-                        Decimal(str(customer.loyalty_points)) -
-                        Decimal(str(sale.loyalty_points_earned)) * share +
-                        Decimal(str(sale.loyalty_points_used))
-                    )
+                    # tira os pontos que sobraram desta compra e devolve os que a cliente tinha usado para pagar
+                    loyalty = LoyaltyService(self.db)
+                    await loyalty.revoke(customer, sale.id, Decimal(str(sale.loyalty_points_earned or 0)) * share, tenant_id,
+                                         note="Venda cancelada")
+                    await loyalty.restore(customer, sale.id, Decimal(str(sale.loyalty_points_used or 0)) * share, tenant_id,
+                                          note="Venda cancelada: pontos usados voltaram")
 
                     new_total_spent = Decimal(str(customer.total_spent)) - still
 
@@ -507,7 +504,6 @@ class SaleService:
                     new_total_purchases = customer.total_purchases if is_exchange else max(0, customer.total_purchases - 1)
                     
                     # Atualizar customer com atribuio direta
-                    customer.loyalty_points = float(max(0, new_loyalty_points))
                     customer.total_spent = float(max(0, new_total_spent))
                     customer.total_purchases = new_total_purchases
             

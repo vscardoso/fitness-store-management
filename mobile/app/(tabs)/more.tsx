@@ -361,6 +361,16 @@ export default function MoreScreen() {
             )}
             {isAdminRole(user?.role) && (
               <MenuItem
+                icon="star-outline"
+                title="Fidelidade"
+                subtitle="Pontos que viram desconto, validade e quanto vale cada ponto"
+                onPress={() => router.push('/settings/loyalty' as any)}
+                iconColor="#D97706"
+                iconBg="#FEF3C7"
+              />
+            )}
+            {isAdminRole(user?.role) && (
+              <MenuItem
                 icon="swap-horizontal-outline"
                 title="Prazo de troca e devolução"
                 subtitle="Dias que o cliente tem e se a loja devolve dinheiro"

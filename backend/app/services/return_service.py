@@ -22,6 +22,7 @@ from app.schemas.return_schema import (
 )
 from app.services.fifo_service import FIFOService
 from app.services.inventory_service import InventoryService
+from app.services.loyalty_service import LoyaltyService
 from app.services.stock_lock import lock_stock
 
 
@@ -416,23 +417,17 @@ class ReturnService:
                     # Venda antiga sem fontes FIFO: não pode devolver e deixar o estoque perder a peça sem avisar
                     raise ValueError("Esta venda não tem a origem das peças (FIFO) registrada; devolva pelo ajuste de estoque")
 
-            # 5. Estornar pontos de fidelidade (proporcional)
-            if sale.customer_id and sale.loyalty_points_earned > 0:
-                # Calcular pontos proporcionais ao reembolso
-                points_ratio = total_refund / sale.total_amount if sale.total_amount > 0 else 0
-                points_to_revoke = sale.loyalty_points_earned * points_ratio
-                
-                # Buscar cliente
-                customer_query = select(Customer).where(Customer.id == sale.customer_id)
-                customer_result = await self.db.execute(customer_query)
-                customer = customer_result.scalar_one_or_none()
-                
-                if customer:
-                    customer.loyalty_points = max(
-                        0,
-                        float(customer.loyalty_points) - float(points_to_revoke)
-                    )
-            
+            # 5. Pontos de fidelidade (proporcional ao devolvido): tira os ganhos e devolve os que a cliente tinha usado
+            if sale.customer_id:
+                customer = (await self.db.execute(select(Customer).where(Customer.id == sale.customer_id))).scalar_one_or_none()
+                if customer and sale.total_amount and sale.total_amount > 0:
+                    ratio = min(Decimal('1'), Decimal(str(total_refund)) / Decimal(str(sale.total_amount)))
+                    loyalty = LoyaltyService(self.db)
+                    await loyalty.revoke(customer, sale.id, Decimal(str(sale.loyalty_points_earned or 0)) * ratio, tenant_id,
+                                         note="Devolução")
+                    await loyalty.restore(customer, sale.id, Decimal(str(sale.loyalty_points_used or 0)) * ratio, tenant_id,
+                                          note="Devolução de compra paga com pontos")
+
             # 5.1 Total gasto da cliente é líquido: o que voltou sai (a troca soma a peça nova em _create_exchange_sale)
             if sale.customer_id:
                 cust = (await self.db.execute(select(Customer).where(Customer.id == sale.customer_id))).scalar_one_or_none()
@@ -595,9 +590,8 @@ class ReturnService:
         if original.customer_id:
             customer = (await self.db.execute(select(Customer).where(Customer.id == original.customer_id))).scalar_one_or_none()
             if customer:
-                points = total_new / Decimal('10')
+                points = await LoyaltyService(self.db).earn(customer, sale.id, total_new, tenant_id, note="Troca")
                 sale.loyalty_points_earned = float(points)
-                customer.loyalty_points = float(Decimal(str(customer.loyalty_points)) + points)
                 # a peça nova entra no total gasto (não conta como compra nova: é a mesma compra trocada)
                 customer.total_spent = float(Decimal(str(customer.total_spent or 0)) + total_new)
         await self.db.flush()

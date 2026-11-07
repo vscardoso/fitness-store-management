@@ -70,7 +70,8 @@ async def test_engine():
             slug="test",
             domain="test",
             is_default=True,
-            is_active=True
+            is_active=True,
+            loyalty_enabled=True,   # as lojas que já existem ficam com o programa ligado (regra de 1 ponto a cada R$ 10)
         )
         session.add(store)
         await session.flush()  # Garante que store.id está disponível

@@ -23,7 +23,7 @@ async def _loja(db, *, with_trip_cost=None):
 
     n = next(_seq)
     store = Store(name=f"Loja Lote {n}", slug=f"loja-lote-{n}", subdomain=f"lote-{n}", plan="enterprise",
-                  is_default=False, is_active=True)
+                  is_default=False, is_active=True, loyalty_enabled=True)
     db.add(store)
     await db.flush()
     db.add(Subscription(tenant_id=store.id, plan="enterprise", status="active", is_trial=False,

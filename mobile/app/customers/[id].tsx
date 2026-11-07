@@ -24,6 +24,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import type { Sale } from '@/types';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
 import CustomerPrivacyCard from '@/components/customers/CustomerPrivacyCard';
+import CustomerLoyaltyCard from '@/components/customers/CustomerLoyaltyCard';
 import CustomerFiadoCard from '@/components/customers/CustomerFiadoCard';
 import InviteSheet from '@/components/whatsapp/InviteSheet';
 import { openCustomerConversation } from '@/services/whatsappService';
@@ -410,6 +411,11 @@ export default function CustomerDetailsScreen() {
             </View>
         </View>
         </FormGrid>
+
+        {/* Fidelidade: saldo, validade e extrato de pontos */}
+        <View style={{ marginBottom: 12 }}>
+          <CustomerLoyaltyCard customerId={Number(id)} />
+        </View>
 
         {/* Histórico de Compras */}
         <View style={styles.card}>

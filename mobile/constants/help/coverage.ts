@@ -47,5 +47,5 @@ export const HELP_PENDING: Record<string, string> = {
   '/settings/whatsapp-hours': 'whatsapp', '/settings/whatsapp-greeting': 'whatsapp', '/settings/whatsapp-connect': 'whatsapp', '/settings/whatsapp-catalog': 'whatsapp',
   '/settings/whatsapp-quick-replies': 'whatsapp', '/settings/whatsapp-labels': 'whatsapp',
   '/more': 'loja', '/settings/branding': 'loja', '/team': 'loja', '/team/add': 'loja', '/team/[id]': 'loja',
-  '/settings/returns': 'loja', '/notifications': 'loja', '/help': 'loja',
+  '/settings/returns': 'loja', '/settings/loyalty': 'loja', '/notifications': 'loja', '/help': 'loja',
 };

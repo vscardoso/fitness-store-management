@@ -592,12 +592,12 @@ class ConditionalShipmentService:
             )
             db.add(sale_item)
 
-        # Fidelidade igual à venda do PDV (SaleService): 1 ponto a cada R$ 10, total gasto e nº de compras
+        # Fidelidade igual à venda do PDV (SaleService): pontos pela regra da loja, total gasto e nº de compras
         customer = await CustomerRepository(db).get(db, shipment.customer_id, tenant_id=tenant_id)
         if customer:
             total_dec = Decimal(str(total_amount))
-            points = total_dec / Decimal("10")
-            customer.loyalty_points = float(Decimal(str(customer.loyalty_points or 0)) + points)
+            from app.services.loyalty_service import LoyaltyService
+            points = await LoyaltyService(db).earn(customer, sale.id, total_dec, tenant_id, note="Condicional")
             customer.total_spent = float(Decimal(str(customer.total_spent or 0)) + total_dec)
             customer.total_purchases = (customer.total_purchases or 0) + 1
             sale.loyalty_points_earned = float(points)

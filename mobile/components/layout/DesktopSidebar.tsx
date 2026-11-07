@@ -146,6 +146,7 @@ export default function DesktopSidebar() {
           { label: 'Descontos de pagamento', icon: 'cash-outline' as Icon, href: '/settings/payment-discounts', match: ['/settings/payment-discounts'] },
           ...(FEATURES.pixIntegrado ? [{ label: 'Chave PIX', icon: 'qr-code-outline' as Icon, href: '/settings/pix-key', match: ['/settings/pix-key'] }] : []),
           { label: 'Prazo de troca', icon: 'swap-horizontal-outline' as Icon, href: '/settings/returns', match: ['/settings/returns'] },
+          { label: 'Fidelidade', icon: 'star-outline' as Icon, href: '/settings/loyalty', match: ['/settings/loyalty'] },
         ] : []),
         ...(FEATURES.maquininhas ? [{ label: 'Terminais', icon: 'hardware-chip-outline' as Icon, href: '/(tabs)/pdv/terminals', match: ['/pdv/terminals'] }] : []),
         { label: 'Ajuda e tutoriais', icon: 'help-circle-outline', href: '/(tabs)/help', match: ['/help'] },

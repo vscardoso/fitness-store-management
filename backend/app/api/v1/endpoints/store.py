@@ -1,5 +1,7 @@
+from typing import Optional
 """Endpoints de branding e configuração da loja."""
 import io
+from decimal import Decimal
 from pydantic import BaseModel, Field
 import os
 import uuid
@@ -249,6 +251,49 @@ async def update_return_settings(
     store.allow_money_refund = data.allow_money_refund
     await db.commit()
     return ReturnSettings(return_window_days=store.return_window_days, allow_money_refund=store.allow_money_refund)
+
+
+class LoyaltySettings(BaseModel):
+    enabled: bool = Field(False, description="Programa de fidelidade ligado")
+    spend_per_point: float = Field(10, ge=0.01, le=10000, description="Quantos reais gastos dão 1 ponto")
+    point_value: float = Field(0.10, ge=0, le=1000, description="Quanto 1 ponto vale em reais de desconto (cashback) ao usar")
+    min_redeem: float = Field(0, ge=0, le=100000, description="Mínimo de pontos para poder usar")
+    expiry_days: Optional[int] = Field(None, ge=1, le=3650, description="Dias de validade de cada ganho; vazio = não vence")
+
+
+def _loyalty_out(store) -> LoyaltySettings:
+    return LoyaltySettings(
+        enabled=bool(store.loyalty_enabled), spend_per_point=float(store.loyalty_spend_per_point),
+        point_value=float(store.loyalty_point_value), min_redeem=float(store.loyalty_min_redeem),
+        expiry_days=int(store.loyalty_expiry_days) if store.loyalty_expiry_days else None,
+    )
+
+
+@router.get("/loyalty-settings", response_model=LoyaltySettings)
+async def get_loyalty_settings(
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_active_user),
+):
+    """Qualquer papel lê (o PDV precisa saber se há programa e quanto vale o ponto); só o admin muda."""
+    return _loyalty_out(await _get_store(tenant_id, db))
+
+
+@router.put("/loyalty-settings", response_model=LoyaltySettings)
+async def update_loyalty_settings(
+    data: LoyaltySettings,
+    tenant_id: int = Depends(get_current_tenant_id),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role([UserRole.ADMIN])),
+):
+    store = await _get_store(tenant_id, db)
+    store.loyalty_enabled = data.enabled
+    store.loyalty_spend_per_point = Decimal(str(data.spend_per_point))
+    store.loyalty_point_value = Decimal(str(data.point_value))
+    store.loyalty_min_redeem = Decimal(str(data.min_redeem))
+    store.loyalty_expiry_days = data.expiry_days
+    await db.commit()
+    return _loyalty_out(store)
 
 
 class StockWriteoffSettings(BaseModel):

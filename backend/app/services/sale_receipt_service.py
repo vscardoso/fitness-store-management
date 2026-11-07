@@ -189,6 +189,11 @@ async def build_receipt_data(db: AsyncSession, sale: Any, tenant_id: int, change
                   "due": r.due_date.strftime("%d/%m/%Y")} for r in rows]
 
     ret = await _returns_data(db, sale, tenant_id)
+    loyalty = None
+    if getattr(sale, "customer", None) is not None:
+        from app.services.loyalty_service import LoyaltyService
+        info = await LoyaltyService(db).peek(sale.customer.id, tenant_id)
+        loyalty = info if info["enabled"] else None
     customer: Optional[Customer] = getattr(sale, "customer", None)
     created = sale.created_at
     if isinstance(created, datetime):
@@ -212,6 +217,7 @@ async def build_receipt_data(db: AsyncSession, sale: Any, tenant_id: int, change
         "payments": payments,
         "fiado": fiado,
         "change": float(change) if change and change > 0 else 0.0,
+        "loyalty": loyalty,
         "points_earned": ret["points_earned"],
         "points_kept": ret["points_kept"],
         "returns": ret["returns"],
@@ -285,6 +291,13 @@ def build_receipt_text(d: Dict[str, Any]) -> str:
             out.append(f"Pontos de fidelidade desta compra: ganhou {d['points_earned']}, ficou com {d['points_kept']} depois da devolução.")
         else:
             out.append(f"Você ganhou {d['points_earned']} pontos de fidelidade.")
+    lo = d.get("loyalty")
+    if lo:
+        linha = f"Seu saldo de pontos: {lo['balance']:.0f} (vale {brl(lo['value'])} de desconto)."
+        if lo["expiring_soon"] > 0 and lo["next_expiry"]:
+            linha += f" {lo['expiring_soon']:.0f} vencem em {lo['next_expiry']}."
+        out.append("")
+        out.append(linha)
     ex = _exchange_line(d)
     if ex:
         out.append("")
@@ -449,6 +462,12 @@ def build_receipt_pdf(d: Dict[str, Any], size: str = "80") -> bytes:
             p.text(f"Pontos desta compra: ganhou {d['points_earned']}, ficou com {d['points_kept']} depois da devolução.", 7.5, align="center")
         else:
             p.text(f"Você ganhou {d['points_earned']} pontos de fidelidade.", 7.5, align="center")
+    lo = d.get("loyalty")
+    if lo:
+        p.gap(3)
+        p.text(f"Saldo de pontos: {lo['balance']:.0f} (vale {brl(lo['value'])})", 7.5, bold=True, align="center")
+        if lo["expiring_soon"] > 0 and lo["next_expiry"]:
+            p.text(f"{lo['expiring_soon']:.0f} pontos vencem em {lo['next_expiry']}", 7, align="center")
     p.rule()
     ex = _exchange_line(d)
     if ex:

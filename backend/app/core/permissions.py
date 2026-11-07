@@ -34,12 +34,15 @@ ANY = None  # qualquer método
 RULES: list[tuple[Optional[set], str, UserRole]] = [
     # ── admin ────────────────────────────────────────────────────────────────
     ({"GET"}, r"^/team(/\{user_id\})?$", MANAGER),  # gerente consulta a equipe; só admin altera
+    ({"GET"}, r"^/store/loyalty-settings$", CASHIER),   # o PDV precisa saber se há programa e quanto vale o ponto; só o admin muda
     (ANY, r"^/(audit|team|store|mp-connect|error-logs|perf)(/|$)", ADMIN),
     ({"POST"}, r"^/client-logs$", CASHIER),
     ({"GET", "POST"}, r"^/legal/(status|accept)$", CASHIER),  # todo usuário aceita os próprios termos
     # LGPD: anonimizar e ver quem acessou é do admin; exportar a pedido do titular, gerente ou admin
     ({"POST"}, r"^/customers/\{customer_id\}/anonymize$", ADMIN),
     ({"GET"}, r"^/customers/\{customer_id\}/access-log$", ADMIN),
+    ({"POST"}, r"^/customers/\{customer_id\}/loyalty/adjust$", ADMIN),
+    ({"GET"}, r"^/customers/\{customer_id\}/loyalty$", CASHIER),
     ({"GET"}, r"^/customers/\{customer_id\}/export$", MANAGER),
     (ANY, r"^/auth/register$", ADMIN),
     (ANY, r"^/notifications/(send|test)(/|$)|^/notifications/inbox/push-now$", ADMIN),
