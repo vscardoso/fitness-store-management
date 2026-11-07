@@ -533,8 +533,9 @@ async def _post_graph(phone_number_id: str, body: dict) -> dict:
     return data
 
 
-async def _prepare_send(db: AsyncSession, tenant_id: int, conversation_id: int):
-    """Confere token, conversa da loja, janela de 24 h e destino. Devolve (conversa, número, destino)."""
+async def _prepare_send(db: AsyncSession, tenant_id: int, conversation_id: int, *, require_window: bool = True):
+    """Confere token, conversa da loja, janela de 24 h e destino. Devolve (conversa, número, destino).
+    `require_window=False` só para modelo aprovado, que a Meta aceita fora da janela."""
     if not settings.WHATSAPP_CLOUD_ACCESS_TOKEN:
         raise SendError("O WhatsApp da loja ainda não está configurado.", 424)
     conv = (await db.execute(
@@ -544,7 +545,7 @@ async def _prepare_send(db: AsyncSession, tenant_id: int, conversation_id: int):
     )).scalar_one_or_none()
     if conv is None:
         raise SendError("Conversa não encontrada.", 404)
-    if not window_open(conv):
+    if require_window and not window_open(conv):
         raise SendError(
             "Passou de 24 horas desde a última mensagem da cliente. Só dá para responder com um modelo aprovado.", 409,
         )
@@ -586,6 +587,23 @@ async def send_text(db: AsyncSession, tenant_id: int, conversation_id: int, text
         "type": "text", "text": {"preview_url": False, "body": text},
     })
     msg = _record_out(db, tenant_id, conv, data, "text", text, {"to": to})
+    await db.flush()
+    return msg
+
+
+async def send_template(db: AsyncSession, tenant_id: int, conversation_id: int, *, name: str, language: str,
+                        body_params: list) -> WhatsAppMessage:
+    """Manda um modelo APROVADO pela Meta (vale fora da janela de 24 h). Só grava depois que a Meta aceitar."""
+    conv, number, to = await _prepare_send(db, tenant_id, conversation_id, require_window=False)
+    params = [{"type": "text", "text": str(p)[:1024] or "-"} for p in body_params]
+    template = {"name": name, "language": {"code": language}}
+    if params:
+        template["components"] = [{"type": "body", "parameters": params}]
+    data = await _post_graph(number.phone_number_id, {
+        "messaging_product": "whatsapp", "recipient_type": "individual", "to": to, "type": "template", "template": template,
+    })
+    msg = _record_out(db, tenant_id, conv, data, "template", f"[modelo {name}] " + " | ".join(str(p) for p in body_params),
+                      {"to": to, "template": name})
     await db.flush()
     return msg
 

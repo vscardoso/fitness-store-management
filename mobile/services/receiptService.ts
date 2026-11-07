@@ -22,12 +22,28 @@ export interface ReceiptInfo {
   text: string;
   whatsapp_url: string | null;
   receipt: { sale_number: string; customer: string | null; customer_phone: string | null; total: number };
+  /** Número oficial da loja (o fixo) ligado à Cloud API da Meta; só com ele o envio sai pela loja */
+  store_whatsapp: { connected: boolean; number: string | null };
+}
+
+export interface StoreSendResult {
+  mode: 'pdf' | 'template';
+  store_number: string | null;
+  customer: string;
 }
 
 const q = (change?: number) => (change && change > 0 ? `?change=${change}` : '');
 
 export async function getReceipt(saleId: number, change?: number): Promise<ReceiptInfo> {
   const { data } = await api.get<ReceiptInfo>(`/sales/${saleId}/receipt${q(change)}`, { headers: { 'X-Skip-Loading': 'true' } });
+  return data;
+}
+
+/** Manda o comprovante pelo WhatsApp OFICIAL da loja (nunca pelo WhatsApp pessoal). Erros vêm em frase pronta do servidor. */
+export async function sendReceiptViaStoreWhatsapp(saleId: number, change?: number): Promise<StoreSendResult> {
+  const { data } = await api.post<StoreSendResult>(`/sales/${saleId}/receipt/send-whatsapp${q(change)}`, null, {
+    headers: { 'X-Loading-Message': 'Enviando pelo WhatsApp da loja...' },
+  });
   return data;
 }
 

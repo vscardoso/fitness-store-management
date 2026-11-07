@@ -444,7 +444,32 @@ async def get_sale_receipt(
     if not sale:
         raise HTTPException(status_code=404, detail="Venda não encontrada")
     data = await rs.build_receipt_data(db, sale, tenant_id, change)
-    return {"receipt": data, "text": rs.build_receipt_text(data), "whatsapp_url": rs.whatsapp_link(data)}
+    return {"receipt": data, "text": rs.build_receipt_text(data), "whatsapp_url": rs.whatsapp_link(data),
+            "store_whatsapp": await rs.store_whatsapp_info(db, tenant_id)}
+
+
+@router.post(
+    "/{sale_id}/receipt/send-whatsapp",
+    summary="Manda o comprovante pelo WhatsApp OFICIAL da loja (o número fixo)",
+)
+async def send_sale_receipt_whatsapp(
+    sale_id: int,
+    change: Optional[float] = Query(None, ge=0, le=1_000_000),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    from app.services import sale_receipt_service as rs
+    from app.services.whatsapp_cloud_service import SendError
+    sale = await SaleRepository(db).get_with_details(sale_id, tenant_id=tenant_id)
+    if not sale:
+        raise HTTPException(status_code=404, detail="Venda não encontrada")
+    data = await rs.build_receipt_data(db, sale, tenant_id, change)
+    try:
+        return await rs.send_via_store_whatsapp(db, sale, data, tenant_id)
+    except SendError as e:
+        await db.rollback()
+        raise HTTPException(status_code=e.status_code, detail=e.message)
 
 
 @router.get(

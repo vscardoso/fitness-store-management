@@ -335,3 +335,56 @@ def build_receipt_pdf(d: Dict[str, Any], size: str = "80") -> bytes:
         p.gap(2)
     p.text("Obrigada pela preferência!", 9, bold=True, align="center")
     return p.render()
+
+
+# ---------------------------------------------------------------- envio pelo WhatsApp OFICIAL da loja (o número fixo)
+
+async def store_whatsapp_info(db: AsyncSession, tenant_id: int) -> Dict[str, Any]:
+    """A loja tem número oficial ligado? (o botão do app só aparece com ele)"""
+    number = (await db.execute(
+        select(WhatsAppCloudNumber).where(WhatsAppCloudNumber.tenant_id == tenant_id,
+                                          WhatsAppCloudNumber.is_active == True)  # noqa: E712
+        .order_by(WhatsAppCloudNumber.id)
+    )).scalars().first()
+    return {
+        "connected": number is not None,
+        "number": _fmt_phone(number.display_phone_number) if number and number.display_phone_number else None,
+    }
+
+
+def _first_name(full: Optional[str]) -> str:
+    return (full or "").strip().split(" ")[0] or "cliente"
+
+
+async def send_via_store_whatsapp(db: AsyncSession, sale: Any, data: Dict[str, Any], tenant_id: int) -> Dict[str, Any]:
+    """Manda o comprovante pelo número oficial da loja (nunca pelo WhatsApp pessoal de quem está vendendo).
+
+    Dentro de 24 h da última mensagem da cliente: o PDF (A6) com o resumo. Fora da janela a Meta só aceita modelo
+    aprovado: usa `WHATSAPP_RECEIPT_TEMPLATE` (cliente, loja, venda, total); sem modelo configurado, explica o que falta.
+    """
+    from app.core.config import settings
+    from app.services import whatsapp_cloud_service as wa
+
+    customer = getattr(sale, "customer", None)
+    if customer is None or not wa.customer_phone_key(customer.phone):
+        raise wa.SendError("Esta venda não tem cliente com telefone válido. Cadastre o telefone ou use outro envio.", 409)
+    conv = await wa.start_conversation(db, tenant_id, customer.id)
+    info = await store_whatsapp_info(db, tenant_id)
+    if wa.window_open(conv):
+        pdf = build_receipt_pdf(data, "a6")
+        await wa.send_media(db, tenant_id, conv.id, data=pdf, filename=f"comprovante-{sale.sale_number}.pdf",
+                            caption=f"Comprovante da venda {sale.sale_number} - {brl(data['total'])}. Obrigada pela preferência!")
+        mode = "pdf"
+    elif settings.WHATSAPP_RECEIPT_TEMPLATE:
+        await wa.send_template(
+            db, tenant_id, conv.id, name=settings.WHATSAPP_RECEIPT_TEMPLATE, language=settings.WHATSAPP_RECEIPT_TEMPLATE_LANG,
+            body_params=[_first_name(customer.full_name), data["store_name"] or "nossa loja", sale.sale_number, brl(data["total"])],
+        )
+        mode = "template"
+    else:
+        raise wa.SendError(
+            "Esta cliente não escreveu para a loja nas últimas 24 horas, e o WhatsApp só permite mandar para ela um "
+            "modelo aprovado. O modelo do comprovante ainda não foi configurado.", 409,
+        )
+    await db.commit()
+    return {"mode": mode, "store_number": info["number"], "customer": customer.full_name}

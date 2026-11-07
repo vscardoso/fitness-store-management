@@ -142,3 +142,146 @@ async def test_lista_de_vendas_traz_codigo_da_etiqueta_dos_itens(test_client, as
         lista = (await test_client.get(url, headers=h)).json()
         venda = next(v for v in lista if v["id"] == sid)
         assert venda["items"][0]["variant_code"], url
+
+
+# ── envio pelo WhatsApp OFICIAL da loja (número fixo), Meta simulada ──────────────────────────────────────────
+
+import httpx  # noqa: E402
+
+
+class _Meta:
+    """httpx.AsyncClient falso do upload do PDF; as mensagens passam por `_post_graph` falso (ver `_meta`)."""
+    upload = httpx.Response(200, json={"id": "MEDIA-COMP"})
+    subidos = []
+
+    def __init__(self, *a, **k):
+        pass
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *a):
+        return False
+
+    async def post(self, url, **kw):
+        _Meta.subidos.append((url, kw.get("files")))
+        return _Meta.upload
+
+
+def _meta(monkeypatch, erro=None):
+    from app.core.config import settings
+    from app.services import whatsapp_cloud_service as svc
+    chamadas = []
+    monkeypatch.setattr(settings, "WHATSAPP_CLOUD_ACCESS_TOKEN", "token-de-teste")
+
+    async def falso(phone_number_id, body):
+        chamadas.append((phone_number_id, body))
+        if erro:
+            raise erro
+        return {"messages": [{"id": f"wamid.comp{len(chamadas)}"}]}
+
+    monkeypatch.setattr(svc, "_post_graph", falso)
+    monkeypatch.setattr(svc.httpx, "AsyncClient", _Meta)
+    _Meta.upload = httpx.Response(200, json={"id": "MEDIA-COMP"})
+    _Meta.subidos = []
+    return chamadas
+
+
+async def _zap(db, t_id, *, com_numero=True, janela_aberta=True, fone="(34) 99650-0091"):
+    """Cliente com telefone e (opcional) número oficial da loja + conversa com a janela de 24 h aberta ou fechada."""
+    from datetime import datetime, timedelta, timezone
+    from app.models.customer import Customer
+    from app.models.whatsapp_cloud import WhatsAppCloudNumber, WhatsAppConversation
+    from app.services.whatsapp_cloud_service import customer_phone_key
+    c = Customer(full_name="Maria da Silva", phone=fone, tenant_id=t_id)
+    db.add(c)
+    await db.flush()
+    if com_numero:
+        num = WhatsAppCloudNumber(tenant_id=t_id, phone_number_id="pn-comprovante", display_phone_number="553433050261")
+        db.add(num)
+        await db.flush()
+        key = customer_phone_key(fone)
+        ago = timedelta(hours=1 if janela_aberta else 30)
+        now = datetime.now(timezone.utc)
+        db.add(WhatsAppConversation(tenant_id=t_id, number_id=num.id, contact_key=key, phone=key, wa_id=key,
+                                    last_inbound_at=now - ago, last_message_at=now - ago))
+    await db.commit()
+    return c
+
+
+async def test_envio_oficial_dentro_da_janela_manda_o_pdf_pelo_numero_da_loja(test_client, async_session, test_user, monkeypatch):
+    from tests.test_troca import _cenario
+    chamadas = _meta(monkeypatch)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    c = await _zap(async_session, t_id)
+    sid = await _venda(test_client, h, p, va, 2, "100.00", cliente_id=c.id)
+
+    info = (await test_client.get(f"/api/v1/sales/{sid}/receipt", headers=h)).json()
+    assert info["store_whatsapp"] == {"connected": True, "number": "(34) 3305-0261"}
+
+    r = await test_client.post(f"/api/v1/sales/{sid}/receipt/send-whatsapp", headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json() == {"mode": "pdf", "store_number": "(34) 3305-0261", "customer": "Maria da Silva"}
+    assert len(chamadas) == 1 and chamadas[0][0] == "pn-comprovante"          # saiu pelo número da LOJA
+    corpo = chamadas[0][1]
+    assert corpo["type"] == "document" and corpo["to"] == "5534996500091"
+    assert corpo["document"]["filename"].startswith("comprovante-") and "R$ 200,00" in corpo["document"]["caption"]
+    assert _Meta.subidos and _Meta.subidos[0][1]["file"][1].startswith(b"%PDF")  # o arquivo subido é o PDF do comprovante
+
+
+async def test_envio_oficial_fora_da_janela_usa_o_modelo_aprovado(test_client, async_session, test_user, monkeypatch):
+    from app.core.config import settings
+    from tests.test_troca import _cenario
+    chamadas = _meta(monkeypatch)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    c = await _zap(async_session, t_id, janela_aberta=False)
+    sid = await _venda(test_client, h, p, va, 2, "100.00", cliente_id=c.id)
+
+    # sem modelo configurado: explica e NÃO manda nada
+    monkeypatch.setattr(settings, "WHATSAPP_RECEIPT_TEMPLATE", "")
+    r = await test_client.post(f"/api/v1/sales/{sid}/receipt/send-whatsapp", headers=h)
+    assert r.status_code == 409 and "modelo" in r.json()["detail"] and not chamadas
+
+    # com modelo: manda o modelo com cliente, loja, venda e total
+    monkeypatch.setattr(settings, "WHATSAPP_RECEIPT_TEMPLATE", "comprovante_venda")
+    r = await test_client.post(f"/api/v1/sales/{sid}/receipt/send-whatsapp", headers=h)
+    assert r.status_code == 200 and r.json()["mode"] == "template", r.text
+    tpl = chamadas[0][1]["template"]
+    assert chamadas[0][1]["type"] == "template" and tpl["name"] == "comprovante_venda" and tpl["language"]["code"] == "pt_BR"
+    params = [x["text"] for x in tpl["components"][0]["parameters"]]
+    assert params[0] == "Maria" and params[3] == "R$ 200,00" and params[2].startswith("VENDA-")
+
+
+async def test_envio_oficial_recusas(test_client, async_session, test_user, monkeypatch):
+    from tests.test_troca import _cenario
+    chamadas = _meta(monkeypatch)
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    sem_cliente = await _venda(test_client, h, p, va, 1, "100.00")
+    r = await test_client.post(f"/api/v1/sales/{sem_cliente}/receipt/send-whatsapp", headers=h)
+    assert r.status_code == 409 and "cliente" in r.json()["detail"]
+    sem_fone = await _zap(async_session, t_id, com_numero=False, fone="123")
+    sid = await _venda(test_client, h, p, va, 1, "100.00", cliente_id=sem_fone.id)
+    r = await test_client.post(f"/api/v1/sales/{sid}/receipt/send-whatsapp", headers=h)
+    assert r.status_code == 409
+    com_fone = await _zap(async_session, t_id, com_numero=False)               # loja sem número oficial ligado
+    sid2 = await _venda(test_client, h, p, va, 1, "100.00", cliente_id=com_fone.id)
+    assert (await test_client.get(f"/api/v1/sales/{sid2}/receipt", headers=h)).json()["store_whatsapp"]["connected"] is False
+    r = await test_client.post(f"/api/v1/sales/{sid2}/receipt/send-whatsapp", headers=h)
+    assert r.status_code == 409 and "número oficial" in r.json()["detail"]
+    assert not chamadas
+    assert (await test_client.post("/api/v1/sales/99999999/receipt/send-whatsapp", headers=h)).status_code == 404
+
+
+async def test_envio_oficial_meta_recusa_e_nada_fica_gravado(test_client, async_session, test_user, monkeypatch):
+    from sqlalchemy import func, select
+    from app.models.whatsapp_cloud import WhatsAppMessage
+    from app.services.whatsapp_cloud_service import SendError
+    from tests.test_troca import _cenario
+    _meta(monkeypatch, erro=SendError("O WhatsApp recusou o envio. Confira o número da cliente e tente de novo.", 424))
+    t_id, h, p, va, vb = await _cenario(async_session, test_user)
+    c = await _zap(async_session, t_id)
+    sid = await _venda(test_client, h, p, va, 1, "100.00", cliente_id=c.id)
+    antes = (await async_session.execute(select(func.count()).select_from(WhatsAppMessage))).scalar()
+    r = await test_client.post(f"/api/v1/sales/{sid}/receipt/send-whatsapp", headers=h)
+    assert r.status_code == 424 and "recusou" in r.json()["detail"]
+    assert (await async_session.execute(select(func.count()).select_from(WhatsAppMessage))).scalar() == antes

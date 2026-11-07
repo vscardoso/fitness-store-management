@@ -3,7 +3,7 @@
  * O celular continua com a lista de cartões (app/(tabs)/sales/index.tsx).
  */
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, useWindowDimensions } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'expo-router';
@@ -104,9 +104,10 @@ export default function DesktopSalesTable() {
     });
   }, [sales, status, search]);
 
+  const { width: winWidth } = useWindowDimensions();
   const columns: DataColumn<Sale>[] = useMemo(() => [
     {
-      key: 'number', title: 'Venda', flex: 1.6, minWidth: 150,
+      key: 'number', title: 'Venda', flex: 1.4, minWidth: 90,
       sortValue: (s) => s.sale_number,
       render: (s) => (
         <View style={{ gap: 1 }}>
@@ -116,7 +117,7 @@ export default function DesktopSalesTable() {
       ),
     },
     {
-      key: 'codes', title: 'Peças', flex: 1.7, minWidth: 150,
+      key: 'codes', title: 'Peças', flex: 1.7, minWidth: 100,
       sortValue: (s) => saleCodes(s)[0] ?? '',
       render: (s) => {
         const txt = saleCodesText(s, 3);
@@ -130,32 +131,32 @@ export default function DesktopSalesTable() {
       },
     },
     {
-      key: 'date', title: 'Data', flex: 1.3, minWidth: 140,
+      key: 'date', title: 'Data', flex: 1.3, minWidth: 112,
       sortValue: (s) => parseApiDate(s.created_at).getTime(),
       render: (s) => <Text style={styles.cellText}>{formatDateTime(s.created_at)}</Text>,
     },
     {
-      key: 'customer', title: 'Cliente', flex: 2, minWidth: 150,
+      key: 'customer', title: 'Cliente', flex: 2, minWidth: 90,
       sortValue: (s) => s.customer_name ?? '',
       render: (s) => <Text style={[styles.cellText, !s.customer_name && styles.muted]} numberOfLines={1}>{s.customer_name || 'Sem cliente'}</Text>,
     },
     {
-      key: 'seller', title: 'Vendedor', flex: 1.4, minWidth: 110,
+      key: 'seller', title: 'Vendedor', flex: 1.4, minWidth: 90,
       sortValue: (s) => s.seller_name ?? '',
       render: (s) => <Text style={styles.cellText} numberOfLines={1}>{s.seller_name || '-'}</Text>,
     },
     {
-      key: 'payment', title: 'Pagamento', flex: 1.1, minWidth: 100,
+      key: 'payment', title: 'Pagamento', flex: 1.1, minWidth: 80,
       sortValue: (s) => PAYMENT[s.payment_method as string] ?? '',
       render: (s) => <Text style={styles.cellText} numberOfLines={1}>{PAYMENT[s.payment_method as string] ?? '-'}</Text>,
     },
     {
-      key: 'total', title: 'Total', flex: 1.2, minWidth: 110, align: 'right',
+      key: 'total', title: 'Total', flex: 1.2, minWidth: 90, align: 'right',
       sortValue: (s) => Number(s.total_amount),
       render: (s) => <Text style={[styles.total, { color: colors.primary }]}>{formatCurrency(Number(s.total_amount))}</Text>,
     },
     {
-      key: 'status', title: 'Situação', flex: 1.2, minWidth: 120, align: 'center',
+      key: 'status', title: 'Situação', flex: 1.2, minWidth: 96, align: 'center',
       sortValue: (s) => STATUS[s.status]?.label ?? '',
       render: (s) => {
         const st = STATUS[s.status] ?? STATUS.pending;
@@ -167,6 +168,13 @@ export default function DesktopSalesTable() {
       },
     },
   ], [colors.primary]);
+  // janela estreita (a barra lateral já come 240 px): tira colunas de menos importância para a tabela caber sem rolar para o lado
+  // (medido: cada coluna ocupa o mínimo + ~18 px de respiro; 6 colunas cabem em 1024 px, 7 em 1140 px e as 8 em 1260 px)
+  const shownColumns = useMemo(() => {
+    if (winWidth >= 1260) return columns;
+    if (winWidth >= 1140) return columns.filter((c) => c.key !== 'seller');
+    return columns.filter((c) => c.key !== 'seller' && c.key !== 'payment');
+  }, [columns, winWidth]);
 
   const header = (
     <PageHeader
@@ -258,7 +266,7 @@ export default function DesktopSalesTable() {
         </View>
 
         <DataTable
-          columns={columns}
+          columns={shownColumns}
           rows={rows}
           rowKey={(s) => s.id}
           onRowPress={(s) => router.push(`/sales/${s.id}`)}

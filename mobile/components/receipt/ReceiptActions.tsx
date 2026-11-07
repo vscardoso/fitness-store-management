@@ -13,7 +13,7 @@ import { Colors } from '@/constants/Colors';
 import { useBrandingColors } from '@/store/brandingStore';
 import { parseApiError } from '@/utils/apiError';
 import {
-  RECEIPT_SIZES, getReceipt, getSavedReceiptSize, openReceiptPdf, receiptWhatsappUrl, saveReceiptSize,
+  RECEIPT_SIZES, getReceipt, getSavedReceiptSize, openReceiptPdf, receiptWhatsappUrl, saveReceiptSize, sendReceiptViaStoreWhatsapp,
   type ReceiptSize,
 } from '@/services/receiptService';
 
@@ -29,6 +29,8 @@ export default function ReceiptActions({ saleId, saleNumber, change }: Props) {
   const [size, setSize] = useState<ReceiptSize>('80');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [sent, setSent] = useState('');
+  const [sending, setSending] = useState(false);
 
   useEffect(() => { getSavedReceiptSize().then(setSize); }, []);
 
@@ -38,6 +40,26 @@ export default function ReceiptActions({ saleId, saleNumber, change }: Props) {
     queryFn: () => getReceipt(saleId, change),
     staleTime: 60_000,
   });
+
+  const storeReady = !!info?.store_whatsapp.connected && !!info.whatsapp_url; // número oficial ligado e cliente com telefone válido
+
+  const sendFromStore = async () => {
+    setError('');
+    setSent('');
+    setSending(true);
+    try {
+      const r = await sendReceiptViaStoreWhatsapp(saleId, change);
+      setSent(
+        r.mode === 'pdf'
+          ? `Comprovante enviado para ${r.customer} pelo WhatsApp da loja${r.store_number ? ` (${r.store_number})` : ''}.`
+          : `Mensagem com o resumo enviada para ${r.customer} pelo WhatsApp da loja.`,
+      );
+    } catch (e) {
+      setError(parseApiError(e) || 'Não consegui enviar agora. Tente de novo.');
+    } finally {
+      setSending(false);
+    }
+  };
 
   const sendWhatsapp = () => {
     if (!info) return;
@@ -59,7 +81,9 @@ export default function ReceiptActions({ saleId, saleNumber, change }: Props) {
 
   const pick = (s: ReceiptSize) => { setSize(s); saveReceiptSize(s); };
   const who = info?.receipt.customer
-    ? (info.whatsapp_url ? `Vai direto para ${info.receipt.customer}.` : `${info.receipt.customer} está sem telefone válido: você escolhe o contato.`)
+    ? (info.whatsapp_url
+      ? (storeReady ? `Sai pelo WhatsApp da loja para ${info.receipt.customer}.` : `Vai direto para ${info.receipt.customer}.`)
+      : `${info.receipt.customer} está sem telefone válido: você escolhe o contato.`)
     : 'Venda sem cliente: você escolhe o contato no WhatsApp.';
 
   return (
@@ -72,10 +96,25 @@ export default function ReceiptActions({ saleId, saleNumber, change }: Props) {
         {isError ? 'Não consegui carregar o comprovante. Puxe a tela para atualizar.' : who}
       </Text>
 
-      <AppButton
-        variant="primary" size="lg" fullWidth icon="logo-whatsapp" label="Enviar pelo WhatsApp"
-        onPress={sendWhatsapp} disabled={!info}
-      />
+      {storeReady ? (
+        <>
+          <AppButton
+            variant="primary" size="lg" fullWidth icon="logo-whatsapp"
+            label={`Enviar pelo WhatsApp da loja${info?.store_whatsapp.number ? ` (${info.store_whatsapp.number})` : ''}`}
+            onPress={sendFromStore} loading={sending} disabled={sending}
+          />
+          {!!sent && <Text style={styles.ok}>{sent}</Text>}
+          <AppButton
+            variant="secondary" size="md" fullWidth icon="open-outline" label="Abrir no meu WhatsApp"
+            onPress={sendWhatsapp} disabled={!info}
+          />
+        </>
+      ) : (
+        <AppButton
+          variant="primary" size="lg" fullWidth icon="logo-whatsapp" label="Enviar pelo WhatsApp"
+          onPress={sendWhatsapp} disabled={!info}
+        />
+      )}
 
       <Text style={styles.label}>Comprovante em PDF</Text>
       <View style={styles.chips}>
@@ -118,5 +157,6 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 13, fontWeight: '700', color: Colors.light.text },
   hint: { fontSize: 12, color: Colors.light.textSecondary },
+  ok: { fontSize: 13, color: Colors.light.success, fontWeight: '600' },
   error: { fontSize: 13, color: Colors.light.error, fontWeight: '600' },
 });
