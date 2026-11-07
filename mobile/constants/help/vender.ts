@@ -17,7 +17,7 @@ export const VENDER: HelpEntry[] = [
       'Puxe a tela para baixo para atualizar.',
     ],
     parts: [
-      { label: 'Últimas Vendas', text: 'as 4 vendas mais recentes; “Ver todas” abre a lista completa. Venda devolvida aparece com o selo “Estorno”.' },
+      { label: 'Últimas Vendas', text: 'as 4 vendas mais recentes; “Ver todas” abre a lista completa. Venda com devolução mostra o selo “Devolução parcial”, “Devolvida” ou “Cancelada”, o valor que a loja ficou e uma frase explicando, por exemplo: vendeu R$ 59,80 e devolveu R$ 39,89.' },
       { label: 'Resultado do Mês', text: 'quanto você vendeu, menos o custo das peças e os gastos da loja: o que sobrou no mês.' },
       { label: 'Seu Estoque', text: 'quanto você tem investido em peças, quanto entra se vender tudo e o lucro previsto.' },
       { label: 'Saúde do Estoque', text: 'peças que giram, peças paradas e compras que estão dando prejuízo.' },
@@ -29,7 +29,7 @@ export const VENDER: HelpEntry[] = [
     web: ['O botão “Cadastrar” no canto abre o mesmo menu do “+” do celular.'],
     mobile: ['O “+” no canto abre atalhos para nova venda, cliente, produto, entrada e viagem.'],
     related: ['pdv', 'vendas'],
-    sources: ['app/(tabs)/index.tsx', 'components/FAB.tsx'],
+    sources: ['app/(tabs)/index.tsx', 'components/FAB.tsx', 'utils/saleRefund.ts'],
   },
   {
     id: 'pdv',

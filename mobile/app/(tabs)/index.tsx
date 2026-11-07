@@ -456,7 +456,7 @@ export default function DashboardScreen() {
                   Lucro: {formatCurrency(profitToday)}
                 </Text>
                 <View style={styles.todayMarginBadge}>
-                  <Text style={styles.todayMarginText}>{formatPercent(marginToday, 1)}</Text>
+                  <Text style={styles.todayMarginText}>margem {formatPercent(marginToday, 1)}</Text>
                 </View>
               </View>
             )}
@@ -532,7 +532,7 @@ export default function DashboardScreen() {
                     styles.changeText,
                     { color: totalChangePercent >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
                   ]}>
-                    {formatPercent(Math.abs(totalChangePercent))}
+                    {formatPercent(Math.abs(totalChangePercent))} vs período anterior
                   </Text>
                 </View>
               )}
@@ -571,7 +571,7 @@ export default function DashboardScreen() {
                     styles.changeText,
                     { color: profitChangePercent >= 0 ? VALUE_COLORS.positive : VALUE_COLORS.negative }
                   ]}>
-                    {formatPercent(Math.abs(profitChangePercent))}
+                    {formatPercent(Math.abs(profitChangePercent))} vs período anterior
                   </Text>
                 </View>
               )}
@@ -1067,7 +1067,7 @@ export default function DashboardScreen() {
                   styles.changeText,
                   { color: purchasesChangePercent >= 0 ? VALUE_COLORS.warning : VALUE_COLORS.positive }
                 ]}>
-                  {formatPercent(Math.abs(purchasesChangePercent))}
+                  {formatPercent(Math.abs(purchasesChangePercent))} vs período anterior
                 </Text>
               </View>
             )}

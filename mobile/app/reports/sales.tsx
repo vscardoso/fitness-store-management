@@ -197,7 +197,7 @@ export default function SalesReportScreen() {
             </div>
             <div style="font-size: 12px; color: #6b7280;">${
               product.quantity_sold
-            } unidades • Margem: ${formatPercent(product.margin, 1)}</div>
+            } unidades • Margem de lucro: ${formatPercent(product.margin, 1)}</div>
           </td>
           <td style="padding: 12px; border-bottom: 1px solid #e5e7eb; text-align: right;">
             <div style="font-weight: 700; color: #1f2937; margin-bottom: 4px;">${formatCurrency(
@@ -691,7 +691,7 @@ export default function SalesReportScreen() {
                     <Text style={styles.metricLabel}>Lucro</Text>
                   </View>
                   <Money style={[styles.metricValue, { color: VALUE_COLORS.positive }]} value={Number(report.total_profit)} />
-                  <Text style={styles.metricCount}>Margem: {formatPercent(report.profit_margin, 1)}</Text>
+                  <Text style={styles.metricCount}>Margem de lucro: {formatPercent(report.profit_margin, 1)}</Text>
                 </View>
 
                 <View style={styles.metricCard}>
@@ -825,7 +825,7 @@ export default function SalesReportScreen() {
                       </View>
                       <View style={styles.paymentValues}>
                         <Text style={styles.paymentTotal}>{formatCurrency(item.total)}</Text>
-                        <Text style={styles.paymentPercent}>{formatPercent(item.percentage, 1)}</Text>
+                        <Text style={styles.paymentPercent}>{formatPercent(item.percentage, 1)} das vendas</Text>
                       </View>
                     </View>
                   ))
@@ -876,7 +876,7 @@ export default function SalesReportScreen() {
                           </View>
                         )}
                         <Text style={styles.productStats} numberOfLines={1}>
-                          {product.quantity_sold} un • Margem: {formatPercent(product.margin, 1)}
+                          {product.quantity_sold} un • Margem de lucro: {formatPercent(product.margin, 1)}
                         </Text>
                       </View>
                       <View style={styles.productValues}>

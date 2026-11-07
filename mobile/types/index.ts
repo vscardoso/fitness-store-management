@@ -401,6 +401,8 @@ export interface SaleItemResponse extends Omit<SaleItem, 'discount'> {
   variant_label?: string | null;
   /** Código da etiqueta da peça (#101-1), só para controle na tela */
   variant_code?: string | null;
+  /** Peças desta linha que já voltaram ao estoque (devolução ou troca) */
+  quantity_returned?: number;
   margin_percent?: number;
   sale_sources?: SaleSourceInfo[];
   product?: Product;

@@ -55,6 +55,7 @@ class SaleSourceInfo(BaseModel):
     entry_id: int
     entry_item_id: int
     quantity_taken: int
+    quantity_returned: int = 0   # quantas dessas peças já voltaram ao estoque numa devolução
     unit_cost: float
     total_cost: float
     entry_code: Optional[str] = None
@@ -76,6 +77,8 @@ class SaleItemResponse(BaseModel):
     cost_total: Optional[float] = None
     profit: Optional[float] = None
     margin_percent: Optional[float] = None
+    quantity_returned: int = 0           # peças desta linha que voltaram ao estoque (devolução ou troca)
+    cost_returned: Optional[float] = None  # custo dessas peças (sai do custo da venda)
     sale_sources: Optional[List[SaleSourceInfo]] = None
     product: Optional[ProductInSale] = None
 
@@ -98,6 +101,10 @@ class SaleItemResponse(BaseModel):
         if self.unit_cost is not None and self.quantity:
             cost = float(self.unit_cost) * self.quantity
             self.cost_total = round(cost, 2)
+        # peças que voltaram ao estoque: o custo delas deixa de ser custo da venda (peça com defeito não volta e segue como custo)
+        if self.sale_sources:
+            self.quantity_returned = sum(int(x.quantity_returned or 0) for x in self.sale_sources)
+            self.cost_returned = round(sum(float(x.unit_cost) * int(x.quantity_returned or 0) for x in self.sale_sources), 2)
 
 
 class PaymentResponse(BaseModel):
@@ -160,6 +167,8 @@ class SaleResponse(BaseModel):
         gross_subtotal = sum(float(item.subtotal) for item in self.items)
         sale_discount = float(self.discount_amount) if self.discount_amount else 0.0
 
+        # Líquido de devolução (mesma regra do money_ledger): o que foi devolvido sai da receita e, se a peça voltou ao
+        # estoque, o custo dela sai do custo. Sem devolução, nada muda.
         for item in self.items:
             if item.cost_total is None:
                 continue
@@ -170,21 +179,18 @@ class SaleResponse(BaseModel):
             else:
                 item_discount_share = 0.0
             effective_revenue = item_subtotal - item_discount_share
-            item.profit = round(effective_revenue - item.cost_total, 2)
-            if effective_revenue > 0:
-                item.margin_percent = round((item.profit / effective_revenue) * 100, 2)
-            else:
-                item.margin_percent = 0.0
+            kept = max(0, item.quantity - item.quantity_returned) / item.quantity if item.quantity else 1.0
+            net_revenue = effective_revenue * kept
+            net_cost = item.cost_total - float(item.cost_returned or 0)
+            item.profit = round(net_revenue - net_cost, 2)
+            item.margin_percent = round((item.profit / net_revenue) * 100, 2) if net_revenue > 0 else 0.0
 
-        costs = [item.cost_total for item in self.items if item.cost_total is not None]
+        costs = [item.cost_total - float(item.cost_returned or 0) for item in self.items if item.cost_total is not None]
         if costs:
             self.total_cost = round(sum(costs), 2)
-            revenue = float(self.total_amount) if self.total_amount else 0.0
+            revenue = (float(self.total_amount) if self.total_amount else 0.0) - float(self.refunded_amount or 0)
             self.total_profit = round(revenue - self.total_cost, 2)
-            if revenue > 0:
-                self.profit_margin_percent = round((self.total_profit / revenue) * 100, 2)
-            else:
-                self.profit_margin_percent = 0.0
+            self.profit_margin_percent = round((self.total_profit / revenue) * 100, 2) if revenue > 0 else 0.0
 
 
 class SaleWithDetails(SaleResponse):

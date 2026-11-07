@@ -124,7 +124,7 @@ function ProductCard({ product, onPress }: { product: TopProductDetail; onPress:
 
         <View style={styles.detailItem}>
           <Ionicons name="pie-chart-outline" size={14} color={Colors.light.info} />
-          <Text style={styles.detailLabel}>Margem</Text>
+          <Text style={styles.detailLabel}>Margem de lucro</Text>
           <Text style={[styles.detailValue, { color: Colors.light.info }]}>{formatPercent(product.profit_margin, 1)}</Text>
         </View>
 

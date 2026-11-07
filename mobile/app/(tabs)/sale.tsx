@@ -584,7 +584,7 @@ function MobileSaleScreen() {
                           return (
                             <View style={[styles.cartMarginBadge, { backgroundColor: marginPct >= 30 ? VALUE_COLORS.positive + '18' : VALUE_COLORS.warning + '18' }]}>
                               <Text style={[styles.cartMarginText, { color: marginPct >= 30 ? VALUE_COLORS.positive : VALUE_COLORS.warning }]}>
-                                {formatPercent(marginPct, 0)}
+                                lucro {formatPercent(marginPct, 0)}
                               </Text>
                             </View>
                           );
@@ -715,7 +715,7 @@ function MobileSaleScreen() {
                     </Text>
                     <View style={[styles.profitRowBadge, { backgroundColor: cartProfit.margin >= 30 ? VALUE_COLORS.positive + '18' : VALUE_COLORS.warning + '18' }]}>
                       <Text style={[styles.profitRowBadgeText, { color: cartProfit.margin >= 30 ? VALUE_COLORS.positive : VALUE_COLORS.warning }]}>
-                        {formatPercent(cartProfit.margin, 1)}
+                        margem {formatPercent(cartProfit.margin, 1)}
                       </Text>
                     </View>
                   </View>

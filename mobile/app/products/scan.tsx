@@ -371,7 +371,7 @@ export default function ScanProductScreen() {
                 )}
                 {scanResult.markup_percentage && (
                   <View style={styles.priceItem}>
-                    <Text style={styles.priceLabel}>Markup</Text>
+                    <Text style={styles.priceLabel}>Ganho sobre o custo</Text>
                     <Text style={styles.priceValueMarkup}>
                       {formatPercent(Number(scanResult.markup_percentage))}
                     </Text>

@@ -545,7 +545,7 @@ export default function StockEntriesScreen() {
                         styles.roiValue,
                         { color: item.roi >= 0 ? Colors.light.success : Colors.light.error }
                       ]}>
-                        Lucro {item.roi >= 0 ? '+' : ''}{formatPercent(item.roi, 1)}
+                        Lucro sobre o custo {item.roi >= 0 ? '+' : ''}{formatPercent(item.roi, 1)}
                       </Text>
                     )}
                   </View>

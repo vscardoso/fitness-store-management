@@ -398,6 +398,11 @@ export default function SaleDetailsScreen() {
                     <Text style={styles.itemQtyPrice}>
                       {item.quantity} × {formatCurrency(item.unit_price)}
                     </Text>
+                    {(item.quantity_returned ?? 0) > 0 && (
+                      <Text style={[styles.itemQtyPrice, { color: VALUE_COLORS.negative }]}>
+                        devolveu {item.quantity_returned} {item.quantity_returned === 1 ? 'peça' : 'peças'}
+                      </Text>
+                    )}
                   </View>
                   <View style={styles.itemRight}>
                     {discountShare > 0 && (

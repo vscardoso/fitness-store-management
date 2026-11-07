@@ -341,13 +341,13 @@ export default function TripDetailsScreen() {
                   </Text>
                 </View>
                 <View style={styles.analyticsCell}>
-                  <Text style={styles.analyticsCellLabel}>Sell-through</Text>
+                  <Text style={styles.analyticsCellLabel}>Já vendido</Text>
                   <Text style={[styles.analyticsCellValue, { color: brandingColors.primary }]}>
                     {formatPercent((analytics.sell_through_rate ?? 0), 1)}
                   </Text>
                 </View>
                 <View style={styles.analyticsCell}>
-                  <Text style={styles.analyticsCellLabel}>Lucro</Text>
+                  <Text style={styles.analyticsCellLabel}>Lucro sobre o custo</Text>
                   <Text style={[
                     styles.analyticsCellValue,
                     { color: (analytics.roi ?? 0) >= 0 ? Colors.light.success : Colors.light.error },

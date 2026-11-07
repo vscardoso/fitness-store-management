@@ -806,7 +806,7 @@ export default function ProductDetailsScreen() {
                 {product.cost_price != null && product.cost_price > 0 && (
                   <View style={styles.pricingTile}>
                     <Ionicons name="trending-up" size={22} color={brandingColors.primary} style={{ marginBottom: 6 }} />
-                    <Text style={styles.pricingLabel}>Margem</Text>
+                    <Text style={styles.pricingLabel}>Margem de lucro</Text>
                     <Text style={[styles.pricingValue, { color: Colors.light.text }]}>
                       {formatPercent(((product.price - product.cost_price) / product.price) * 100)}
                     </Text>

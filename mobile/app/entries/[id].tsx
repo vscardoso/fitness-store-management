@@ -614,7 +614,7 @@ export default function StockEntryDetailsScreen() {
               : ''}
             {' · '}Venda {formatCurrency(itemNumbers.sell_price)}
             {' · '}Lucro {formatCurrency(itemNumbers.profit_per_unit)} por peça
-            {' · '}Markup {formatPercent(itemNumbers.markup_pct, 0)}
+            {' · '}Ganho sobre o custo {formatPercent(itemNumbers.markup_pct, 0)}
           </Text>
         )}
 
@@ -831,7 +831,7 @@ export default function StockEntryDetailsScreen() {
           />
           {lotAnalytics && (
             <StatCard
-              label="Markup do lote"
+              label="Ganho sobre o custo do lote"
               value={`${formatPercent(lotAnalytics.markup_pct_total, 0)}`}
               icon="pricetag-outline"
               valueColor={lotAnalytics.markup_pct_total >= 0 ? Colors.light.success : Colors.light.error}

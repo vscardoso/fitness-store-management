@@ -95,7 +95,7 @@ function StatCard({ icon, label, value, trend, iconColor, iconBg, onPress }: Sta
                 styles.trendBadgeText,
                 { color: trend >= 0 ? '#10B981' : '#EF4444' }
               ]}>
-                {formatPercent(Math.abs(trend), 0)}
+                {formatPercent(Math.abs(trend), 0)} vs anterior
               </Text>
             </View>
           )}
@@ -626,7 +626,7 @@ export default function InventoryDashboard() {
                       <View style={styles.chartRowHeader}>
                         <Text style={styles.chartMonthImproved}>{monthLabel}</Text>
                         <View style={styles.shareChip}>
-                          <Text style={styles.shareText}>{formatPercent(sharePercentage, 0)}</Text>
+                          <Text style={styles.shareText}>{formatPercent(sharePercentage, 0)} do total</Text>
                         </View>
                       </View>
 
@@ -739,7 +739,7 @@ export default function InventoryDashboard() {
                             Colors.light.error
                         }
                       ]}>
-                        {formatPercent((entry.sell_through_rate || 0), 0)}
+                        {formatPercent((entry.sell_through_rate || 0), 0)} vendido
                       </Text>
                     </View>
                   </View>

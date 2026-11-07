@@ -182,7 +182,7 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
                   <>
                     <View style={styles.priceDivider} />
                     <View style={styles.priceItem}>
-                      <Text style={styles.priceLabel}>Markup</Text>
+                      <Text style={styles.priceLabel}>Ganho sobre o custo</Text>
                       <Text style={styles.markupValue}>+{formatPercent(markup, 0)}</Text>
                     </View>
                   </>
@@ -286,7 +286,7 @@ export function WizardComplete({ wizard, onGoToProducts }: WizardCompleteProps) 
                           {formatCurrency(Number(v.price))}
                         </Text>
                         {varMarkup !== null && varMarkup > 0 && (
-                          <Text style={styles.variantMarkup}>+{formatPercent(varMarkup, 0)}</Text>
+                          <Text style={styles.variantMarkup}>+{formatPercent(varMarkup, 0)} sobre o custo</Text>
                         )}
                       </View>
                     </View>
