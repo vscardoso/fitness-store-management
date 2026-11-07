@@ -1911,6 +1911,26 @@ class StockEntryService:
             await self.db.rollback()
             raise
 
+    async def _resync_entry_total(self, entry: StockEntry) -> None:
+        """Regrava `entry.total_cost` como a soma REAL dos itens ativos, sob trava da linha da entrada.
+
+        Somar o item novo ao total lido (`total + novo`) perdia atualização quando dois pedidos adicionavam item na
+        mesma entrada ao mesmo tempo: os dois liam o mesmo total e o último a gravar apagava a soma do outro (carga de
+        estresse: entradas com 290 e 243 itens ficaram milhares de reais abaixo). Com a trava, o segundo pedido espera o
+        primeiro terminar e a soma já enxerga os itens dele. A trava é FOR NO KEY UPDATE: inserir o item já segura FOR KEY
+        SHARE na linha da entrada, e um FOR UPDATE comum travaria os dois pedidos um contra o outro (deadlock).
+        """
+        from sqlalchemy import func
+        await self.db.execute(
+            select(StockEntry.id).where(StockEntry.id == entry.id).with_for_update(key_share=True)
+        )
+        soma = (await self.db.execute(
+            select(func.coalesce(func.sum(EntryItem.quantity_received * EntryItem.unit_cost), 0)).where(
+                EntryItem.entry_id == entry.id, EntryItem.is_active == True,  # noqa: E712
+            )
+        )).scalar()
+        entry.total_cost = Decimal(str(soma or 0)).quantize(Decimal('0.01'))
+
     async def add_item_to_entry(
         self,
         entry_id: int,
@@ -2027,9 +2047,8 @@ class StockEntryService:
         if selling_price is not None and selling_price > 0:
             product.base_price = selling_price
 
-        # Atualizar total_cost da entrada
-        item_total_cost = Decimal(str(quantity_received)) * Decimal(str(unit_cost))
-        entry.total_cost = (entry.total_cost or Decimal('0')) + item_total_cost
+        # Atualizar total_cost da entrada (soma real dos itens, com trava: ver _resync_entry_total)
+        await self._resync_entry_total(entry)
 
         # Rebuild inventário via FIFO (fonte da verdade = entry_items)
         # Garante que Inventory.quantity == soma de quantity_remaining dos EntryItems ativos
@@ -2486,7 +2505,6 @@ class StockEntryService:
                 supplier_id = chosen.id if chosen else entry.supplier_id
             else:
                 supplier_id = entry.supplier_id
-            added_cost = Decimal('0')
             acc: dict = {}
             for v in variants_data:
                 sku = (v.get('sku') or '').strip().upper() or None
@@ -2522,12 +2540,11 @@ class StockEntryService:
                     is_active=True,
                 ))
                 await self.db.flush()
-                added_cost += Decimal(str(qty)) * unit_cost
                 if supplier_id:
                     q0, t0 = acc.get((supplier_id, product.id), (0, Decimal('0')))
                     acc[(supplier_id, product.id)] = (q0 + qty, t0 + Decimal(str(qty)) * unit_cost)
 
-            entry.total_cost = (entry.total_cost or Decimal('0')) + added_cost
+            await self._resync_entry_total(entry)
             if acc:
                 await self._apply_supplier_links(acc, entry.entry_date, tenant_id)
             try:

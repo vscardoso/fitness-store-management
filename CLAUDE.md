@@ -595,3 +595,9 @@ Pedido do Victor: loja que já tem estoque em andamento quando começa a usar o 
 - **Bug achado só no Postgres**: `GROUP BY coalesce(coluna, 'texto')` com parâmetro dá GroupingError no asyncpg (no SQLite passa). Agrupar pela coluna e trocar nulo no Python.
 - Testes: `tests/test_fechamento_mes.py` (3), `tests/test_fechamento_isolamento.py` (loja B não vê nem mexe na A), `tests/pg/test_fechamento_postgres.py` (2, concorrência), `node scripts/test-closing-money.mts`. Migração testada no Postgres (db_init + stamp, desce e sobe). Navegador (390 e 1440 px, backend local): 24 verificações + vendedora (menu e 403), sem erro de JS.
 
+## Total da entrada perdia item adicionado ao mesmo tempo (2026-11-06)
+
+- Causa: `add_item_to_entry` e `add_new_product_to_entry` faziam `entry.total_cost = total_lido + novo`. Dois pedidos na mesma entrada liam o mesmo total e o último a gravar apagava a soma do outro (carga de estresse da loja 1: entradas EST-0043 e EST-0054, com 290 e 243 itens, ficaram R$ 16 mil e R$ 2,7 mil abaixo).
+- Correção: `StockEntryService._resync_entry_total` trava a linha da entrada com `FOR NO KEY UPDATE` (`with_for_update(key_share=True)`) e regrava o total como a soma real dos itens ativos. NÃO usar `FOR UPDATE` comum: inserir o item já segura `FOR KEY SHARE` na entrada e os dois pedidos travam um no outro (deadlock). NÃO usar `populate_existing` na entrada (solta as relações carregadas e dá MissingGreenlet depois).
+- Testes: `tests/pg/test_concorrencia_entradas_postgres.py` (itens e produtos novos ao mesmo tempo; falham sem a correção).
+
