@@ -41,7 +41,7 @@ from .error_log import ErrorLog
 from .supplier_return import SupplierReturn
 from .stock_count import StockCount, StockCountItem
 from .cash_register import CashSession, CashMovement
-from .finance import FinancialAccount, AccountTransfer, Payable
+from .finance import FinancialAccount, AccountTransfer, Payable, AccountEntry, MonthClosing
 from .receivable import Receivable, ReceivablePayment
 from .entry_supplier_discount import EntrySupplierDiscount
 

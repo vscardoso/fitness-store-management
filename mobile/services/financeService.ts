@@ -16,6 +16,7 @@ export interface FinanceAccount {
   breakdown: {
     opening: number; sales: number; refunds: number; cash_register: number;
     transfers_in: number; transfers_out: number; payables_paid: number; expenses_paid: number;
+    receivables_received: number; other_in: number; other_out: number; closing_adjustments: number;
   };
 }
 
@@ -116,3 +117,88 @@ export function isoDay(d: Date): string {
   const p = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
+
+// ── Retiradas de sócio, empréstimos, fatura do cartão: mexem na conta e NÃO entram no resultado do mês ──────────────
+export type EntryKind =
+  | 'owner_withdrawal' | 'loan_given' | 'loan_paid' | 'card_bill' | 'other_out'
+  | 'owner_contribution' | 'loan_repaid' | 'loan_taken' | 'other_in' | 'closing_adjustment';
+
+export interface AccountEntry {
+  id: number;
+  kind: EntryKind;
+  kind_label: string;
+  direction: 'in' | 'out' | 'adjust';
+  amount: number;
+  occurred_on: string;
+  account_id: number;
+  account_name: string | null;
+  person: string | null;
+  description: string | null;
+  created_by_name: string | null;
+  closing_id: number | null;
+}
+
+export interface LoanPerson {
+  person: string; given: number; repaid: number; to_receive: number; taken: number; paid: number; to_pay: number;
+}
+
+export interface LoansSummary { people: LoanPerson[]; to_receive_total: number; to_pay_total: number }
+
+export const listEntries = async (): Promise<AccountEntry[]> =>
+  (await api.get<AccountEntry[]>('/finance/entries', { headers: { 'X-Skip-Loading': 'true' } })).data;
+
+export const createEntry = async (body: {
+  kind: EntryKind; account_id: number; amount: number; occurred_on?: string; person?: string; description?: string;
+}): Promise<AccountEntry> => (await api.post<AccountEntry>('/finance/entries', body)).data;
+
+export const deleteEntry = async (id: number): Promise<void> => { await api.delete(`/finance/entries/${id}`); };
+
+export const getLoans = async (): Promise<LoansSummary> =>
+  (await api.get<LoansSummary>('/finance/loans', { headers: { 'X-Skip-Loading': 'true' } })).data;
+
+// ── Fechamento do mês ───────────────────────────────────────────────────────────────────────────────────────────
+export interface ClosingMonth { year: number; month: number; label: string; closed: boolean; difference: number | null }
+
+export interface ClosingAccount {
+  id: number; name: string; kind: AccountKind; receives_pix: boolean; start: number; expected: number;
+  counted?: number; difference?: number;
+}
+
+export interface Line { label: string; amount: number; kind?: string; method?: string }
+
+export interface MonthClosing {
+  year: number; month: number; label: string; period_start: string; period_end: string;
+  month_finished: boolean; partial_start: boolean; start_total: number;
+  entered: { sales: Line[]; sales_on_account: number; receivables_received: number; other: Line[]; cash_register_in: number; total: number };
+  left: {
+    expenses: Line[]; purchases_and_debts: number; refunds: number; other: Line[]; cash_register_out: number; total: number;
+    expenses_without_account: { count: number; amount: number };
+  };
+  transfers_between_accounts: number;
+  expected_total: number;
+  check_ok: boolean;
+  accounts: ClosingAccount[];
+  to_receive: { fiado_open: number; fiado_overdue: number; fiado_count: number; loans: number };
+  to_pay: { payables_open: number; loans: number };
+  result: { revenue: number; cost: number; expenses: number; profit: number; sales_count: number; units_sold: number };
+  stock: { pieces: number; sale_value: number; cost_value: number };
+  counted_total?: number;
+  difference?: number;
+  closed: null | {
+    id: number; closed_at: string; closed_by_name: string | null; notes: string | null; counted_total: number;
+    difference: number; changed_since_close: number; is_latest: boolean;
+  };
+}
+
+export const listClosingMonths = async (): Promise<{ started: boolean; months: ClosingMonth[] }> =>
+  (await api.get('/finance/closings', { headers: { 'X-Skip-Loading': 'true' } })).data;
+
+export const getMonthClosing = async (year: number, month: number): Promise<MonthClosing> =>
+  (await api.get<MonthClosing>(`/finance/closings/${year}/${month}`, { headers: { 'X-Skip-Loading': 'true' } })).data;
+
+export const closeMonth = async (year: number, month: number, counted: Record<string, number>, notes?: string): Promise<MonthClosing> =>
+  (await api.post<MonthClosing>(`/finance/closings/${year}/${month}`, { counted, notes },
+    { headers: { 'X-Loading-Message': 'Fechando o mês...' } })).data;
+
+export const reopenMonth = async (year: number, month: number): Promise<MonthClosing> =>
+  (await api.post<MonthClosing>(`/finance/closings/${year}/${month}/reopen`)).data;

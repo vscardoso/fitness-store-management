@@ -88,3 +88,59 @@ class Payable(BaseModel):
     counts_as_expense: Mapped[bool] = mapped_column(nullable=False, default=False, server_default=text("false"),
                                                     comment="ao pagar, entra no resultado do mês como despesa")
     expense_category_id: Mapped[Optional[int]] = mapped_column(ForeignKey("expense_categories.id"), nullable=True)
+
+
+# ── Fase 2: dinheiro que entra ou sai da conta sem ser venda nem despesa ─────────────────────────────────────────────
+# Mexe no saldo da conta e aparece no Fechamento do mês, mas NÃO entra no Resultado do mês (não é gasto da loja).
+ENTRY_OUT_KINDS = {
+    "owner_withdrawal": "Retirada de sócio",
+    "loan_given": "Empréstimo dado",
+    "loan_paid": "Pagamento de empréstimo que a loja pegou",
+    "card_bill": "Fatura do cartão da loja",
+    "other_out": "Outra saída",
+}
+ENTRY_IN_KINDS = {
+    "owner_contribution": "Dinheiro posto pelo sócio",
+    "loan_repaid": "Empréstimo recebido de volta",
+    "loan_taken": "Empréstimo que a loja pegou",
+    "other_in": "Outra entrada",
+}
+# ajuste gravado ao fechar o mês: o saldo contado passa a ser o saldo da conta (quebra de caixa). Sinal no valor.
+ENTRY_CLOSING_ADJUSTMENT = "closing_adjustment"
+ENTRY_KIND_LABELS = {**ENTRY_OUT_KINDS, **ENTRY_IN_KINDS, ENTRY_CLOSING_ADJUSTMENT: "Ajuste do fechamento (quebra)"}
+
+
+class AccountEntry(BaseModel):
+    """Saída ou entrada que não é despesa nem venda: retirada de sócio, empréstimo, fatura do cartão, ajuste do fechamento.
+
+    `amount` é sempre positivo, a direção vem do tipo; só o ajuste do fechamento tem sinal (positivo = sobrou dinheiro).
+    """
+    __tablename__ = "account_entries"
+
+    account_id: Mapped[int] = mapped_column(ForeignKey("financial_accounts.id"), nullable=False, index=True)
+    kind: Mapped[str] = mapped_column(String(24), nullable=False)
+    amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    occurred_on: Mapped[date] = mapped_column(Date, nullable=False)
+    person: Mapped[Optional[str]] = mapped_column(String(120), nullable=True, comment="sócia, quem pegou/emprestou")
+    description: Mapped[Optional[str]] = mapped_column(String(200), nullable=True)
+    created_by_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    closing_id: Mapped[Optional[int]] = mapped_column(ForeignKey("month_closings.id"), nullable=True, index=True)
+
+
+class MonthClosing(BaseModel):
+    """Fotografia do Fechamento do mês: o que deveria ter, o que tinha e a diferença. Não muda depois de fechado."""
+    __tablename__ = "month_closings"
+    __table_args__ = (
+        Index("uq_month_closing", "tenant_id", "year", "month", unique=True,
+              postgresql_where=text("is_active = true"), sqlite_where=text("is_active = 1")),
+    )
+
+    year: Mapped[int] = mapped_column(nullable=False)
+    month: Mapped[int] = mapped_column(nullable=False)
+    expected_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    counted_total: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    difference: Mapped[Decimal] = mapped_column(Numeric(12, 2), nullable=False)
+    snapshot: Mapped[str] = mapped_column(Text, nullable=False, comment="JSON com a tela inteira no momento do fechamento")
+    notes: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    closed_by_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    closed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

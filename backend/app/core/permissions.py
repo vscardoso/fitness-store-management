@@ -51,6 +51,7 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     (ANY, r"^/stock-import(/|$)", MANAGER),  # importar estoque inicial por planilha
     ({"POST"}, r"^/finance/(setup|accounts)$", ADMIN),  # implantar o financeiro e criar conta: só admin
     ({"PUT"}, r"^/finance/accounts/\{account_id\}/pix$", ADMIN),
+    ({"POST"}, r"^/finance/closings/\{year\}/\{month\}/reopen$", ADMIN),  # reabrir mês fechado: só admin
     (ANY, r"^/finance(/|$)", MANAGER),  # saldos, transferências e contas a pagar
     ({"POST"}, r"^/receivables/receive$", CASHIER),  # receber fiado é dinheiro entrando, como no caixa
     ({"GET"}, r"^/receivables(/|$)", CASHIER),  # quem recebe no balcão precisa ver quanto ela deve

@@ -11,6 +11,7 @@ from app.api.deps import get_current_active_user, get_current_tenant_id
 from app.core.database import get_db
 from app.models.user import User
 from app.services.finance_service import FinanceConflict, FinanceError, FinanceNotFound, FinanceService
+from app.services.month_closing_service import MonthClosingService
 
 router = APIRouter(prefix="/finance", tags=["Financeiro"])
 
@@ -118,5 +119,70 @@ async def cancel_payable(payable_id: int, db: AsyncSession = Depends(get_db),
                          tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
     try:
         return await FinanceService(db).cancel_payable(tenant_id, payable_id)
+    except FinanceError as e:
+        raise _http(e)
+
+
+# ── Fase 2: retiradas de sócio, empréstimos, fatura do cartão (não são despesa) ──────────────────────────────────────
+@router.get("/entries", summary="Retiradas, empréstimos e outras entradas e saídas")
+async def entries(limit: int = Query(100, ge=1, le=500), db: AsyncSession = Depends(get_db),
+                  tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    return await FinanceService(db).list_entries(tenant_id, limit)
+
+
+@router.post("/entries", summary="Lançar retirada, empréstimo, fatura do cartão ou outra entrada/saída")
+async def create_entry(data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
+                       tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceService(db).create_entry(tenant_id, current_user, data)
+    except FinanceError as e:
+        raise _http(e)
+
+
+@router.delete("/entries/{entry_id}", summary="Apagar lançamento feito errado")
+async def delete_entry(entry_id: int, db: AsyncSession = Depends(get_db),
+                       tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceService(db).delete_entry(tenant_id, entry_id)
+    except FinanceError as e:
+        raise _http(e)
+
+
+@router.get("/loans", summary="Empréstimos em aberto por pessoa")
+async def loans(db: AsyncSession = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id),
+                current_user: User = Depends(get_current_active_user)):
+    return await FinanceService(db).loans(tenant_id)
+
+
+# ── Fase 3: Fechamento do mês ───────────────────────────────────────────────────────────────────────────────────────
+@router.get("/closings", summary="Meses desde a implantação e quais já foram fechados")
+async def closings(db: AsyncSession = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id),
+                   current_user: User = Depends(get_current_active_user)):
+    return await MonthClosingService(db).list_months(tenant_id)
+
+
+@router.get("/closings/{year}/{month}", summary="Fechamento do mês: deveria ter x tem")
+async def closing(year: int, month: int, db: AsyncSession = Depends(get_db),
+                  tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await MonthClosingService(db).get(tenant_id, year, month)
+    except FinanceError as e:
+        raise _http(e)
+
+
+@router.post("/closings/{year}/{month}", summary="Fechar o mês (grava a fotografia e a quebra)")
+async def close_month(year: int, month: int, data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
+                      tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await MonthClosingService(db).close(tenant_id, current_user, year, month, data)
+    except FinanceError as e:
+        raise _http(e)
+
+
+@router.post("/closings/{year}/{month}/reopen", summary="Reabrir o último mês fechado (só admin)")
+async def reopen_month(year: int, month: int, db: AsyncSession = Depends(get_db),
+                       tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await MonthClosingService(db).reopen(tenant_id, year, month)
     except FinanceError as e:
         raise _http(e)

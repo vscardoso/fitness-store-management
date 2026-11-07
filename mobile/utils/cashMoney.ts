@@ -29,3 +29,29 @@ export function differenceText(diff: number, money: (n: number) => string): { te
   if (d === 0) return { text: 'Bateu certinho', kind: 'ok' };
   return d > 0 ? { text: `Sobrou ${money(d)}`, kind: 'over' } : { text: `Faltou ${money(-d)}`, kind: 'short' };
 }
+
+// ── Fechamento do mês: banco pode estar negativo ("-50,00") ──
+
+/** Máscara com sinal: "-" no começo fica; o resto segue a máscara do app (cada dígito entra pelos centavos). */
+export function signedMoneyInput(raw: string, allowNegative: boolean): string {
+  const neg = allowNegative && (raw ?? '').trim().startsWith('-');
+  const v = moneyInput(raw);
+  if (!v) return neg ? '-' : '';
+  return neg ? `-${v}` : v;
+}
+
+/** Texto -> número com sinal; null se vazio ou inválido. */
+export function parseSignedMoney(raw: string): number | null {
+  const s = (raw ?? '').trim();
+  const neg = s.startsWith('-');
+  const v = parseMoneyBr(neg ? s.slice(1) : s);
+  if (v === null) return null;
+  return neg ? -v : v;
+}
+
+/** Número -> texto do campo (12.5 -> "12,50", -50 -> "-50,00", 0 -> "0,00"). */
+export function toMoneyField(n: number): string {
+  const cents = Math.round(Math.abs(n) * 100);
+  const v = cents === 0 ? '0,00' : moneyInput(String(cents));
+  return n < 0 && cents > 0 ? `-${v}` : v;
+}

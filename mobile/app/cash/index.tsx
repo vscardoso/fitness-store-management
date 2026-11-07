@@ -184,7 +184,7 @@ export default function CashScreen() {
             {manager && finance && !finance.started && (
               <TouchableOpacity onPress={() => router.push('/finance' as any)} accessibilityRole="link" style={styles.financeLink}>
                 <Text style={[styles.note, { color: brand.primary, fontWeight: '700' }]}>
-                  A loja já funcionava? Lance também os bancos, a maquininha e as contas a pagar em Contas e saldos.
+                  A loja já funcionava? Lance também os bancos, a maquininha e as contas a pagar em Caixa e contas.
                 </Text>
               </TouchableOpacity>
             )}

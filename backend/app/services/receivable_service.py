@@ -317,11 +317,16 @@ class ReceivableService:
         return done
 
     # ── dinheiro recebido (Financeiro e caixa) ──────────────────────────────
-    async def received_by_method(self, tenant_id: int, start_day: date) -> Dict[str, Decimal]:
+    async def received_by_method(self, tenant_id: int, start_day: date,
+                                 end_day: Optional[date] = None) -> Dict[str, Decimal]:
+        """Recebido de fiado por forma, de start_day até antes de end_day (None = até hoje)."""
+        conds = [ReceivablePayment.tenant_id == tenant_id, ReceivablePayment.is_active == True,  # noqa: E712
+                 ReceivablePayment.received_on >= start_day]
+        if end_day is not None:
+            conds.append(ReceivablePayment.received_on < end_day)
         rows = (await self.db.execute(
             select(ReceivablePayment.payment_method, func.coalesce(func.sum(ReceivablePayment.amount), 0)).where(
-                ReceivablePayment.tenant_id == tenant_id, ReceivablePayment.is_active == True,  # noqa: E712
-                ReceivablePayment.received_on >= start_day,
+                *conds
             ).group_by(ReceivablePayment.payment_method)
         )).all()
         return {m: _q(a) for m, a in rows}

@@ -21,8 +21,9 @@ from app.core.timezone import make_aware, to_utc, today_brazil
 from app.models.cash_register import KIND_SUPPLY, KIND_WITHDRAWAL, CashMovement
 from app.models.expense import Expense
 from app.models.finance import (
-    ACCOUNT_KINDS, KIND_BANK, KIND_CARD, KIND_CASH, PAYABLE_CANCELED, PAYABLE_OPEN, PAYABLE_PAID,
-    AccountTransfer, FinancialAccount, Payable,
+    ACCOUNT_KINDS, ENTRY_CLOSING_ADJUSTMENT, ENTRY_IN_KINDS, ENTRY_KIND_LABELS, ENTRY_OUT_KINDS, KIND_BANK, KIND_CARD,
+    KIND_CASH, PAYABLE_CANCELED, PAYABLE_OPEN, PAYABLE_PAID, AccountEntry, AccountTransfer, FinancialAccount, MonthClosing,
+    Payable,
 )
 from app.models.sale import Payment, PaymentMethod, Sale
 from app.models.sale_return import SaleReturn
@@ -129,12 +130,15 @@ class FinanceService:
             raise FinanceNotFound("Conta não encontrada.")
         return acc
 
-    async def _sales_by_method(self, tenant_id: int, start: datetime) -> Dict[str, Decimal]:
+    async def _sales_by_method(self, tenant_id: int, start: datetime, end: Optional[datetime] = None) -> Dict[str, Decimal]:
+        conds = [Sale.tenant_id == tenant_id, Sale.status.in_(VALID_STATUS), Payment.created_at >= start,
+                 Payment.status == "confirmed", Payment.is_active == True]  # noqa: E712
+        if end is not None:
+            conds.append(Payment.created_at < end)
         rows = (await self.db.execute(
             select(Payment.payment_method, func.coalesce(func.sum(Payment.amount), 0))
             .join(Sale, Sale.id == Payment.sale_id)
-            .where(Sale.tenant_id == tenant_id, Sale.status.in_(VALID_STATUS), Payment.created_at >= start,
-                   Payment.status == "confirmed", Payment.is_active == True)  # noqa: E712
+            .where(*conds)
             .group_by(Payment.payment_method)
         )).all()
         return {getattr(m, "value", m): _q(a) for m, a in rows}
@@ -152,13 +156,14 @@ class FinanceService:
             return {PaymentMethod.CASH.value: Decimal("1")}   # venda toda no fiado já paga em parte: devolve em dinheiro
         return {m: Decimal(str(a)) / total for m, a in rows}
 
-    async def _refunds_by_method(self, tenant_id: int, start: datetime) -> Dict[str, Decimal]:
+    async def _refunds_by_method(self, tenant_id: int, start: datetime, end: Optional[datetime] = None) -> Dict[str, Decimal]:
         """Dinheiro devolvido ao cliente, por forma (mesma regra do caixa, para todas as formas)."""
+        conds = [SaleReturn.tenant_id == tenant_id, SaleReturn.status == "completed", SaleReturn.is_active == True,  # noqa: E712
+                 SaleReturn.created_at >= start, Sale.status.in_(VALID_STATUS)]
+        if end is not None:
+            conds.append(SaleReturn.created_at < end)
         returns = (await self.db.execute(
-            select(SaleReturn, Sale.id).join(Sale, Sale.id == SaleReturn.sale_id).where(
-                SaleReturn.tenant_id == tenant_id, SaleReturn.status == "completed", SaleReturn.is_active == True,  # noqa: E712
-                SaleReturn.created_at >= start, Sale.status.in_(VALID_STATUS),
-            )
+            select(SaleReturn, Sale.id).join(Sale, Sale.id == SaleReturn.sale_id).where(*conds)
         )).all()
         out: Dict[str, Decimal] = {}
         for r, sale_id in returns:
@@ -178,70 +183,114 @@ class FinanceService:
                 out[method] = out.get(method, D0) + money_back
         return {m: _q(v) for m, v in out.items()}
 
-    async def _cash_register_net(self, tenant_id: int, start: datetime) -> Decimal:
+    async def _cash_register_net(self, tenant_id: int, start: datetime, end: Optional[datetime] = None) -> Decimal:
+        conds = [CashMovement.tenant_id == tenant_id, CashMovement.created_at >= start, CashMovement.is_active == True,  # noqa: E712
+                 CashMovement.transfer_id.is_(None)]   # ligado a uma transferência: o saldo já conta a transferência
+        if end is not None:
+            conds.append(CashMovement.created_at < end)
         rows = (await self.db.execute(
-            select(CashMovement.kind, func.coalesce(func.sum(CashMovement.amount), 0)).where(
-                CashMovement.tenant_id == tenant_id, CashMovement.created_at >= start, CashMovement.is_active == True,  # noqa: E712
-                CashMovement.transfer_id.is_(None),   # ligado a uma transferência: o saldo já conta a transferência
-            ).group_by(CashMovement.kind)
+            select(CashMovement.kind, func.coalesce(func.sum(CashMovement.amount), 0)).where(*conds)
+            .group_by(CashMovement.kind)
         )).all()
         totals = {k: _q(a) for k, a in rows}
         return totals.get(KIND_SUPPLY, D0) - totals.get(KIND_WITHDRAWAL, D0)
 
-    async def balances(self, tenant_id: int) -> Dict[str, Any]:
-        store = await self._store(tenant_id)
+    async def flows(self, tenant_id: int, start_day: date, end_day: Optional[date] = None) -> Dict[str, Any]:
+        """Tudo o que entrou e saiu de cada conta de start_day até ANTES de end_day (None = até agora).
+
+        Devolve {"accounts": [FinancialAccount], "by_account": {id: {chave: Decimal}}, "sales"/"refunds"/"fiado":
+        {forma: Decimal}}. Saldo = saldo de partida + net(by_account[id]).
+        """
         accounts = await self._accounts(tenant_id)
-        if store.finance_start_date is None:
-            return {"started": False, "start_date": None, "accounts": [], "total": 0.0}
-        start = day_start_utc(store.finance_start_date)
-        sales = await self._sales_by_method(tenant_id, start)
-        refunds = await self._refunds_by_method(tenant_id, start)
-        register = await self._cash_register_net(tenant_id, start)
+        start = day_start_utc(start_day)
+        end = day_start_utc(end_day) if end_day is not None else None
+        sales = await self._sales_by_method(tenant_id, start, end)
+        refunds = await self._refunds_by_method(tenant_id, start, end)
+        register = await self._cash_register_net(tenant_id, start, end)
         from app.services.receivable_service import ReceivableService
-        fiado = await ReceivableService(self.db).received_by_method(tenant_id, store.finance_start_date)
+        fiado = await ReceivableService(self.db).received_by_method(tenant_id, start_day, end_day)
         ids = [a.id for a in accounts]
+
+        def day_range(col):
+            return [col >= start_day] + ([col < end_day] if end_day is not None else [])
 
         transfers = (await self.db.execute(
             select(AccountTransfer).where(AccountTransfer.tenant_id == tenant_id, AccountTransfer.is_active == True,  # noqa: E712
-                                          or_(AccountTransfer.from_account_id.in_(ids), AccountTransfer.to_account_id.in_(ids)))
+                                          or_(AccountTransfer.from_account_id.in_(ids), AccountTransfer.to_account_id.in_(ids)),
+                                          *day_range(AccountTransfer.occurred_on))
         )).scalars().all() if ids else []
         paid = dict((await self.db.execute(
             select(Payable.paid_account_id, func.coalesce(func.sum(Payable.amount), 0)).where(
                 Payable.tenant_id == tenant_id, Payable.status == PAYABLE_PAID, Payable.is_active == True,  # noqa: E712
-                Payable.paid_account_id.is_not(None),
+                Payable.paid_account_id.is_not(None), *day_range(Payable.paid_on),
             ).group_by(Payable.paid_account_id)
         )).all())
         expenses = dict((await self.db.execute(
             select(Expense.account_id, func.coalesce(func.sum(Expense.amount), 0)).where(
                 Expense.tenant_id == tenant_id, Expense.is_active == True, Expense.account_id.is_not(None),  # noqa: E712
                 Expense.payable_id.is_(None),   # nascida do pagamento de uma despesa a pagar: o pagamento já tirou da conta
-                Expense.expense_date >= store.finance_start_date,
+                *day_range(Expense.expense_date),
             ).group_by(Expense.account_id)
         )).all())
+        entries = (await self.db.execute(
+            select(AccountEntry.account_id, AccountEntry.kind, func.coalesce(func.sum(AccountEntry.amount), 0)).where(
+                AccountEntry.tenant_id == tenant_id, AccountEntry.is_active == True,  # noqa: E712
+                *day_range(AccountEntry.occurred_on),
+            ).group_by(AccountEntry.account_id, AccountEntry.kind)
+        )).all()
 
-        out = []
+        by_account: Dict[int, Dict[str, Decimal]] = {}
         for a in accounts:
             key = "pix" if a.receives_pix else a.kind
             methods = [m for m, k in METHOD_TO_KIND.items() if k == key]
             if a.kind == KIND_CASH:
                 methods = [m for m, k in METHOD_TO_KIND.items() if k == KIND_CASH]
-            sales_in = _q(sum((sales.get(m, D0) for m in methods), D0))
-            refunds_out = _q(sum((refunds.get(m, D0) for m in methods), D0))
-            fiado_in = _q(sum((fiado.get(m, D0) for m in methods), D0))
-            t_in = _q(sum((_q(t.amount) for t in transfers if t.to_account_id == a.id), D0))
-            t_out = _q(sum((_q(t.amount) for t in transfers if t.from_account_id == a.id), D0))
-            reg = register if a.kind == KIND_CASH else D0
-            pay = _q(paid.get(a.id, 0))
-            exp = _q(expenses.get(a.id, 0))
-            balance = _q(a.opening_balance) + sales_in + fiado_in - refunds_out + reg + t_in - t_out - pay - exp
+            mine = [(k, _q(v)) for acc, k, v in entries if acc == a.id]
+            by_account[a.id] = {
+                "sales": _q(sum((sales.get(m, D0) for m in methods), D0)),
+                "receivables_received": _q(sum((fiado.get(m, D0) for m in methods), D0)),
+                "refunds": _q(sum((refunds.get(m, D0) for m in methods), D0)),
+                "cash_register": register if a.kind == KIND_CASH else D0,
+                "transfers_in": _q(sum((_q(t.amount) for t in transfers if t.to_account_id == a.id), D0)),
+                "transfers_out": _q(sum((_q(t.amount) for t in transfers if t.from_account_id == a.id), D0)),
+                "payables_paid": _q(paid.get(a.id, 0)),
+                "expenses_paid": _q(expenses.get(a.id, 0)),
+                "other_in": _q(sum((v for k, v in mine if k in ENTRY_IN_KINDS), D0)),
+                "other_out": _q(sum((v for k, v in mine if k in ENTRY_OUT_KINDS), D0)),
+                "closing_adjustments": _q(sum((v for k, v in mine if k == ENTRY_CLOSING_ADJUSTMENT), D0)),
+            }
+        return {"accounts": accounts, "by_account": by_account, "sales": sales, "refunds": refunds, "fiado": fiado}
+
+    @staticmethod
+    def net(b: Dict[str, Decimal]) -> Decimal:
+        """Quanto a conta mudou com estes movimentos."""
+        return _q(b["sales"] + b["receivables_received"] - b["refunds"] + b["cash_register"] + b["transfers_in"]
+                  - b["transfers_out"] - b["payables_paid"] - b["expenses_paid"] + b["other_in"] - b["other_out"]
+                  + b["closing_adjustments"])
+
+    async def balances_at(self, tenant_id: int, day: Optional[date]) -> Dict[int, Decimal]:
+        """Saldo de cada conta no COMEÇO do dia `day` (None = agora)."""
+        store = await self._store(tenant_id)
+        if store.finance_start_date is None:
+            return {}
+        if day is not None and day <= store.finance_start_date:
+            return {a.id: _q(a.opening_balance) for a in await self._accounts(tenant_id)}
+        f = await self.flows(tenant_id, store.finance_start_date, day)
+        return {a.id: _q(_q(a.opening_balance) + self.net(f["by_account"][a.id])) for a in f["accounts"]}
+
+    async def balances(self, tenant_id: int) -> Dict[str, Any]:
+        store = await self._store(tenant_id)
+        if store.finance_start_date is None:
+            return {"started": False, "start_date": None, "accounts": [], "total": 0.0}
+        f = await self.flows(tenant_id, store.finance_start_date)
+        out = []
+        for a in f["accounts"]:
+            b = f["by_account"][a.id]
+            balance = _q(_q(a.opening_balance) + self.net(b))
             out.append({
                 "id": a.id, "name": a.name, "kind": a.kind, "kind_label": KIND_LABEL[a.kind],
                 "receives_pix": bool(a.receives_pix), "balance": float(balance),
-                "breakdown": {
-                    "opening": float(_q(a.opening_balance)), "sales": float(sales_in), "refunds": float(refunds_out), "receivables_received": float(fiado_in),
-                    "cash_register": float(reg), "transfers_in": float(t_in), "transfers_out": float(t_out),
-                    "payables_paid": float(pay), "expenses_paid": float(exp),
-                },
+                "breakdown": {"opening": float(_q(a.opening_balance)), **{k: float(v) for k, v in b.items()}},
             })
         return {
             "started": True, "start_date": store.finance_start_date.isoformat(), "accounts": out,
@@ -385,6 +434,7 @@ class FinanceService:
         day = parse_day(data.get("occurred_on") or today_brazil(), "Data")
         if day < store.finance_start_date:
             raise FinanceError("A data não pode ser antes da implantação.")
+        await self.ensure_open_month(tenant_id, day)
         self.db.add(AccountTransfer(
             tenant_id=tenant_id, from_account_id=src.id, to_account_id=dst.id, occurred_on=day,
             amount=money(data.get("amount"), "Valor"), created_by_name=_who(user),
@@ -453,6 +503,7 @@ class FinanceService:
         day = parse_day(data.get("paid_on") or today_brazil(), "Data do pagamento")
         if day < store.finance_start_date:
             raise FinanceError("A data do pagamento não pode ser antes da implantação.")
+        await self.ensure_open_month(tenant_id, day)
         p.status, p.paid_on, p.paid_account_id, p.paid_at = PAYABLE_PAID, day, acc.id, datetime.utcnow()
         self.db.add(p)
         if p.counts_as_expense:
@@ -470,6 +521,8 @@ class FinanceService:
         p = await self._payable(tenant_id, payable_id, lock=True)
         if p.status != PAYABLE_PAID:
             raise FinanceConflict("Só conta paga pode ter o pagamento desfeito.")
+        if p.paid_on:
+            await self.ensure_open_month(tenant_id, p.paid_on)
         p.status, p.paid_on, p.paid_account_id, p.paid_at = PAYABLE_OPEN, None, None, None
         self.db.add(p)
         await self.db.execute(update(Expense).where(
@@ -491,6 +544,7 @@ class FinanceService:
             CashMovement.transfer_id == t.id, CashMovement.is_active == True))).first()  # noqa: E712
         if linked:
             raise FinanceConflict("Esta transferência foi feita pelo caixa (retirada ou reforço) e não pode ser apagada aqui.")
+        await self.ensure_open_month(tenant_id, t.occurred_on)
         t.is_active = False
         self.db.add(t)
         await self.db.commit()
@@ -505,3 +559,130 @@ class FinanceService:
         await self.db.commit()
         await self.db.refresh(p)
         return self._payable_public(p)
+
+    # ── fase 2: retiradas, empréstimos, fatura do cartão (não são despesa) ───────
+    async def ensure_open_month(self, tenant_id: int, day: date) -> None:
+        """Mês já fechado não recebe lançamento novo (o fechamento é uma fotografia): reabra o mês primeiro."""
+        closed = (await self.db.execute(select(MonthClosing.id).where(
+            MonthClosing.tenant_id == tenant_id, MonthClosing.is_active == True,  # noqa: E712
+            MonthClosing.year == day.year, MonthClosing.month == day.month,
+        ))).first()
+        if closed:
+            raise FinanceConflict(f"{day.month:02d}/{day.year} já foi fechado. Para lançar nele, reabra o mês no Fechamento.")
+
+    def _entry_public(self, e: AccountEntry, names: Dict[int, str]) -> Dict[str, Any]:
+        direction = "in" if e.kind in ENTRY_IN_KINDS else "out" if e.kind in ENTRY_OUT_KINDS else "adjust"
+        return {
+            "id": e.id, "kind": e.kind, "kind_label": ENTRY_KIND_LABELS.get(e.kind, e.kind), "direction": direction,
+            "amount": float(_q(e.amount)), "occurred_on": e.occurred_on.isoformat(), "account_id": e.account_id,
+            "account_name": names.get(e.account_id), "person": e.person, "description": e.description,
+            "created_by_name": e.created_by_name, "closing_id": e.closing_id,
+        }
+
+    @staticmethod
+    def _person_key(name: Optional[str]) -> str:
+        import unicodedata
+        s = unicodedata.normalize("NFKD", (name or "").strip().lower())
+        return " ".join("".join(c for c in s if not unicodedata.combining(c)).split())
+
+    async def loans(self, tenant_id: int) -> Dict[str, Any]:
+        """Empréstimos por pessoa: o que a loja emprestou e ainda vai receber, e o que pegou e ainda deve."""
+        rows = (await self.db.execute(select(AccountEntry).where(
+            AccountEntry.tenant_id == tenant_id, AccountEntry.is_active == True,  # noqa: E712
+            AccountEntry.kind.in_(("loan_given", "loan_repaid", "loan_taken", "loan_paid")),
+        ).order_by(AccountEntry.occurred_on, AccountEntry.id))).scalars().all()
+        people: Dict[str, Dict[str, Any]] = {}
+        for e in rows:
+            key = self._person_key(e.person)
+            p = people.setdefault(key, {"person": e.person or "Sem nome", "given": D0, "repaid": D0, "taken": D0, "paid": D0})
+            p[{"loan_given": "given", "loan_repaid": "repaid", "loan_taken": "taken", "loan_paid": "paid"}[e.kind]] += _q(e.amount)
+        out = []
+        for p in people.values():
+            to_receive, to_pay = _q(p["given"] - p["repaid"]), _q(p["taken"] - p["paid"])
+            out.append({"person": p["person"], "given": float(p["given"]), "repaid": float(p["repaid"]),
+                        "to_receive": float(to_receive), "taken": float(p["taken"]), "paid": float(p["paid"]),
+                        "to_pay": float(to_pay)})
+        out.sort(key=lambda x: (-(x["to_receive"] + x["to_pay"]), x["person"].lower()))
+        return {
+            "people": out,
+            "to_receive_total": float(_q(sum((Decimal(str(x["to_receive"])) for x in out), D0))),
+            "to_pay_total": float(_q(sum((Decimal(str(x["to_pay"])) for x in out), D0))),
+        }
+
+    async def _loan_open(self, tenant_id: int, person_key: str, give_kind: str, back_kind: str,
+                         exclude_id: Optional[int] = None) -> Decimal:
+        rows = (await self.db.execute(select(AccountEntry.kind, AccountEntry.person, AccountEntry.amount, AccountEntry.id).where(
+            AccountEntry.tenant_id == tenant_id, AccountEntry.is_active == True,  # noqa: E712
+            AccountEntry.kind.in_((give_kind, back_kind)),
+        ))).all()
+        total = D0
+        for kind, person, amount, eid in rows:
+            if eid == exclude_id or self._person_key(person) != person_key:
+                continue
+            total += _q(amount) if kind == give_kind else -_q(amount)
+        return _q(total)
+
+    async def list_entries(self, tenant_id: int, limit: int = 100) -> List[Dict[str, Any]]:
+        names = {a.id: a.name for a in await self._accounts(tenant_id)}
+        rows = (await self.db.execute(select(AccountEntry).where(
+            AccountEntry.tenant_id == tenant_id, AccountEntry.is_active == True,  # noqa: E712
+        ).order_by(AccountEntry.occurred_on.desc(), AccountEntry.id.desc()).limit(max(1, min(int(limit), 500))))).scalars().all()
+        return [self._entry_public(e, names) for e in rows]
+
+    async def create_entry(self, tenant_id: int, user: User, data: Dict[str, Any]) -> Dict[str, Any]:
+        kind = str(data.get("kind") or "")
+        if kind not in ENTRY_IN_KINDS and kind not in ENTRY_OUT_KINDS:
+            raise FinanceError("Escolha o tipo: retirada de sócio, empréstimo, fatura do cartão, outra entrada ou saída.")
+        store = await self._store(tenant_id, lock=True)   # trava da loja: dois "recebi o empréstimo" juntos não passam do devido
+        if store.finance_start_date is None:
+            raise FinanceConflict("Implante o financeiro da loja primeiro (Mais > Financeiro).")
+        try:
+            account_id = int(data.get("account_id") or 0)
+        except (TypeError, ValueError):
+            raise FinanceError("Escolha a conta.")
+        acc = await self._account(tenant_id, account_id)
+        amount = money(data.get("amount"), "Valor")
+        day = parse_day(data.get("occurred_on") or today_brazil(), "Data")
+        if day < store.finance_start_date:
+            raise FinanceError("A data não pode ser antes da implantação.")
+        await self.ensure_open_month(tenant_id, day)
+        person = (str(data.get("person") or "").strip()[:120]) or None
+        description = (str(data.get("description") or "").strip()[:200]) or None
+        if kind.startswith("loan_") and not person:
+            raise FinanceError("Informe com quem é o empréstimo (nome da pessoa ou do banco).")
+        if kind == "owner_withdrawal" and not person:
+            raise FinanceError("Informe qual sócio retirou.")
+        if kind in ("other_in", "other_out") and not description:
+            raise FinanceError("Escreva o que foi (ex.: venda de um móvel da loja).")
+        if kind in ("loan_repaid", "loan_paid"):
+            give = "loan_given" if kind == "loan_repaid" else "loan_taken"
+            open_amount = await self._loan_open(tenant_id, self._person_key(person), give, kind)
+            if amount > open_amount:
+                what = f"{person} deve R$ {open_amount:.2f}".replace(".", ",") if kind == "loan_repaid" \
+                    else f"a loja deve R$ {open_amount:.2f} a {person}".replace(".", ",")
+                raise FinanceError(f"Valor acima do empréstimo em aberto: {what}.")
+        e = AccountEntry(tenant_id=tenant_id, account_id=acc.id, kind=kind, amount=amount, occurred_on=day,
+                         person=person, description=description, created_by_name=_who(user))
+        self.db.add(e)
+        await self.db.commit()
+        await self.db.refresh(e)
+        return self._entry_public(e, {acc.id: acc.name})
+
+    async def delete_entry(self, tenant_id: int, entry_id: int) -> Dict[str, Any]:
+        await self._store(tenant_id, lock=True)
+        e = (await self.db.execute(select(AccountEntry).where(
+            AccountEntry.id == entry_id, AccountEntry.tenant_id == tenant_id, AccountEntry.is_active == True,  # noqa: E712
+        ).with_for_update())).scalar_one_or_none()
+        if e is None:
+            raise FinanceNotFound("Lançamento não encontrado.")
+        if e.kind == ENTRY_CLOSING_ADJUSTMENT:
+            raise FinanceConflict("Este ajuste foi feito pelo fechamento do mês. Para desfazer, reabra o mês.")
+        await self.ensure_open_month(tenant_id, e.occurred_on)
+        if e.kind in ("loan_given", "loan_taken"):
+            back = "loan_repaid" if e.kind == "loan_given" else "loan_paid"
+            if await self._loan_open(tenant_id, self._person_key(e.person), e.kind, back, exclude_id=e.id) < 0:
+                raise FinanceConflict("Já houve pagamento deste empréstimo. Apague primeiro o pagamento.")
+        e.is_active = False
+        self.db.add(e)
+        await self.db.commit()
+        return {"ok": True}

@@ -117,9 +117,10 @@ export default function DesktopSidebar() {
       g.push(
         {
           key: 'dinheiro', title: 'Dinheiro', items: [
-            { label: 'Caixa da gaveta', icon: 'cash-outline', href: '/cash', match: ['/cash'] },
-            { label: 'Contas e saldos', icon: 'wallet-outline', href: '/finance', match: ['/finance'] },
+            { label: 'Caixa e contas', icon: 'wallet-outline', href: '/finance', match: ['/finance', '/cash'] },
+            { label: 'Fechamento do mês', icon: 'calendar-outline', href: '/finance/closing', match: ['/finance/closing'] },
             { label: 'Fiado', icon: 'book-outline', href: '/finance/receivables', match: ['/finance/receivables'] },
+            { label: 'Retiradas e empréstimos', icon: 'swap-vertical-outline', href: '/finance/entries', match: ['/finance/entries'] },
             { label: 'Resultado do mês', icon: 'stats-chart-outline', href: '/(tabs)/expenses/resultado', match: ['/expenses/resultado'] },
             { label: 'Despesas', icon: 'pricetag-outline', href: '/(tabs)/expenses', match: ['/expenses', '/finance/payables'] },
             { label: 'Prejuízos', icon: 'warning-outline', href: '/(tabs)/stock-losses', match: ['/stock-losses'] },

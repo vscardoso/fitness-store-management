@@ -85,7 +85,7 @@ export default function FinanceScreen() {
   if (!data?.started) {
     return (
       <View style={styles.container}>
-        <PageHeader title="Financeiro" showBackButton backFallback="/(tabs)/more" />
+        <PageHeader title="Caixa e contas" showBackButton backFallback="/(tabs)/more" />
         <ScrollView contentContainerStyle={[styles.content, desktop]}>
           {!!error && <Text style={styles.error}>{parseApiError(error)}</Text>}
           <CashStatusCard />
@@ -117,7 +117,7 @@ export default function FinanceScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader title="Financeiro" subtitle={`Desde ${formatDate(data.start_date!)}`} showBackButton backFallback="/(tabs)/more" />
+      <PageHeader title="Caixa e contas" subtitle={`Desde ${formatDate(data.start_date!)}`} showBackButton backFallback="/(tabs)/more" />
       <ScrollView contentContainerStyle={[styles.content, desktop]} refreshControl={<RefreshControl refreshing={isRefetching} onRefresh={refetch} />}>
         <CashStatusCard />
         <View style={styles.card}>
@@ -154,6 +154,25 @@ export default function FinanceScreen() {
             Nova conta de banco
           </Button>
         )}
+
+        <View style={styles.grid}>
+          <TouchableOpacity style={styles.account} onPress={() => router.push('/finance/closing' as any)} activeOpacity={0.8} accessibilityRole="button">
+            <View style={styles.accountHead}>
+              <Ionicons name="calendar-outline" size={22} color={brand.primary} />
+              <Text style={[styles.title, { flex: 1 }]}>Fechamento do mês</Text>
+              <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
+            </View>
+            <Text style={styles.note}>Deveria ter x quanto tem: o dinheiro bate?</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.account} onPress={() => router.push('/finance/entries' as any)} activeOpacity={0.8} accessibilityRole="button">
+            <View style={styles.accountHead}>
+              <Ionicons name="swap-vertical-outline" size={22} color={brand.primary} />
+              <Text style={[styles.title, { flex: 1 }]}>Retiradas e empréstimos</Text>
+              <Ionicons name="chevron-forward" size={18} color={Colors.light.textTertiary} />
+            </View>
+            <Text style={styles.note}>Retirada de sócio, empréstimo, fatura do cartão</Text>
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity style={styles.card} onPress={() => router.push('/finance/payables' as any)} activeOpacity={0.8} accessibilityRole="button">
           <View style={styles.accountHead}>
@@ -269,6 +288,10 @@ export default function FinanceScreen() {
             <Line label="Transferências enviadas" value={-detail.breakdown.transfers_out} />
             <Line label="Contas pagas" value={-detail.breakdown.payables_paid} />
             <Line label="Despesas pagas" value={-detail.breakdown.expenses_paid} />
+            <Line label="Fiado recebido" value={detail.breakdown.receivables_received} />
+            <Line label="Outras entradas (sócio, empréstimo)" value={detail.breakdown.other_in} />
+            <Line label="Retiradas, empréstimos e fatura" value={-detail.breakdown.other_out} />
+            <Line label="Ajustes do fechamento (quebra)" value={detail.breakdown.closing_adjustments} />
           </View>
         )}
       </BottomSheet>

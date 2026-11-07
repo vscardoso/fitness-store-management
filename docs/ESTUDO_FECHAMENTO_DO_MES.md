@@ -76,8 +76,15 @@ Mesma ordem da planilha:
 
 "Fechar o mês" guarda a fotografia (`month_closings`) e o saldo contado vira o começo do mês seguinte. Mês fechado não muda; lançamento retroativo num mês fechado mostra aviso.
 
-## 7. Ordem
+## 7. Ordem e situação
 
-1. Fiado: servidor (modelos, migração, venda, devolução, cancelamento, Financeiro, caixa), testes; depois checkout, ficha da cliente, tela Fiado, saldo de abertura.
-2. Saídas que não são despesa.
-3. Fechamento do mês + reorganização dos menus.
+1. Fiado: FEITO (06/11/2026).
+2. Saídas que não são despesa: FEITO (06/11/2026), tela "Retiradas e empréstimos".
+3. Fechamento do mês + menus: FEITO (06/11/2026).
+
+## 8. Como ficou (fases 2 e 3)
+
+- Menu (gerente/admin): "Caixa e contas" (antigo Contas e saldos, com o caixa da gaveta dentro), "Fechamento do mês", "Fiado", "Retiradas e empréstimos". Caixa e vendedor: só "Caixa da gaveta" e "Fiado".
+- Fatura do cartão: decisão sem esperar a dona, com o aviso na tela. Se as compras do cartão já foram lançadas como despesa, a fatura entra em "Retiradas e empréstimos" (só tira do banco); se não, lança a fatura como despesa.
+- Fechamento: a gaveta e os bancos começam preenchidos com o "deveria ter"; ela corrige só o que for diferente. Quebra de R$ 50 ou mais exige observação. Ao fechar, a diferença vira ajuste na conta (o contado vira o saldo). Mês fechado recusa lançamento do Financeiro com data dele; venda/despesa lançada depois aparece como aviso. Só o admin reabre, e só o último mês fechado.
+- O amarelo 10.162,25 da planilha continua sem explicação (perguntar à dona).
