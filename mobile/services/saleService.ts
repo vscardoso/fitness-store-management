@@ -60,8 +60,10 @@ export const getSaleBySaleNumber = async (saleNumber: string): Promise<SaleWithD
     const { data } = await api.get<SaleWithDetails[]>(`/sales/`, {
       params: { sale_number: saleNumber },
     });
-    if (data && data.length > 0) {
-      return normalizeSale(data[0]);
+    // confere o número: nunca mostrar (nem mandar comprovante de) outra venda
+    const found = (data || []).find((s) => s.sale_number === saleNumber);
+    if (found) {
+      return normalizeSale(found);
     }
     throw new Error('Venda não encontrada');
   } catch (error) {

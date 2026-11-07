@@ -200,7 +200,11 @@ async def list_sales(
     sale_repo = SaleRepository(db)
     
     try:
-        if start_date and end_date:
+        if sale_number and not (start_date and end_date):
+            # número da venda é único: sem período, busca só ela (antes o filtro era ignorado e vinha a venda mais recente)
+            one = await sale_repo.get_by_sale_number(sale_number, tenant_id=tenant_id)
+            sales = [one] if one else []
+        elif start_date and end_date:
             sales = await sale_repo.get_by_date_range(
                 start_date, end_date,
                 tenant_id=tenant_id,
@@ -423,8 +427,52 @@ async def get_sale(
         )
 
 
+@router.get(
+    "/{sale_id}/receipt",
+    summary="Comprovante da venda (texto e link do WhatsApp)",
+)
+async def get_sale_receipt(
+    sale_id: int,
+    change: Optional[float] = Query(None, ge=0, le=1_000_000, description="Troco dado em dinheiro (não fica gravado)"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    """Dados do comprovante, o texto pronto e o link do WhatsApp da cliente (None se a venda não tem telefone válido)."""
+    from app.services import sale_receipt_service as rs
+    sale = await SaleRepository(db).get_with_details(sale_id, tenant_id=tenant_id)
+    if not sale:
+        raise HTTPException(status_code=404, detail="Venda não encontrada")
+    data = await rs.build_receipt_data(db, sale, tenant_id, change)
+    return {"receipt": data, "text": rs.build_receipt_text(data), "whatsapp_url": rs.whatsapp_link(data)}
+
+
+@router.get(
+    "/{sale_id}/receipt/pdf",
+    summary="Comprovante da venda em PDF (58 mm, 80 mm ou A6)",
+)
+async def get_sale_receipt_pdf(
+    sale_id: int,
+    size: str = Query("80", pattern="^(58|80|a6)$"),
+    change: Optional[float] = Query(None, ge=0, le=1_000_000),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    from fastapi.responses import Response
+    from app.services import sale_receipt_service as rs
+    sale = await SaleRepository(db).get_with_details(sale_id, tenant_id=tenant_id)
+    if not sale:
+        raise HTTPException(status_code=404, detail="Venda não encontrada")
+    data = await rs.build_receipt_data(db, sale, tenant_id, change)
+    pdf = rs.build_receipt_pdf(data, size)
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": f'inline; filename="comprovante-{sale.sale_number}.pdf"'})
+
+
 # ============================================================================
 # ENDPOINTS DE CANCELAMENTO E GESTÃO
+
 # ============================================================================
 
 

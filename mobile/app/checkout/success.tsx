@@ -24,6 +24,7 @@ import { formatCurrency } from '@/utils/format';
 import { haptics } from '@/utils/haptics';
 import { useAuthStore } from '@/store/authStore';
 import SaleReceipt from '@/components/receipt/SaleReceipt';
+import ReceiptActions from '@/components/receipt/ReceiptActions';
 import PageHeader from '@/components/layout/PageHeader';
 import AppButton from '@/components/ui/AppButton';
 import { ActivityIndicator } from '@/components/ui/MagnifierLoader';
@@ -338,6 +339,10 @@ export default function CheckoutSuccessScreen() {
           storeName={user?.store_name}
           change={change > 0 ? change : undefined}
         />
+
+        <View style={{ marginTop: 12 }}>
+          <ReceiptActions saleId={sale.id} saleNumber={sale.sale_number} change={change > 0 ? change : undefined} />
+        </View>
 
         {/* Botões de ação */}
         <Animated.View

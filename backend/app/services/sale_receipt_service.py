@@ -1,0 +1,337 @@
+"""
+Comprovante da venda para a cliente: PDF (térmica 58 mm, 80 mm ou A6) e texto para o WhatsApp.
+
+Só entra o que a cliente pode ver: nada de custo, lucro, margem, fornecedor ou código interno de estoque.
+NÃO é documento fiscal (a loja não emite NFC-e por este app) e o texto diz isso.
+O mesmo dicionário (`build_receipt_data`) alimenta o PDF e o texto, para os dois nunca discordarem.
+"""
+import io
+from datetime import datetime
+from decimal import Decimal
+from typing import Any, Dict, List, Optional
+from urllib.parse import quote
+
+from reportlab.lib.units import mm
+from reportlab.lib.utils import simpleSplit
+from reportlab.pdfbase.pdfmetrics import stringWidth
+from reportlab.pdfgen import canvas
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.timezone import to_brazil_tz
+from app.models.customer import Customer
+from app.models.receivable import Receivable
+from app.models.store import Store
+from app.models.whatsapp_cloud import WhatsAppCloudNumber
+
+BOLD, REGULAR = "Helvetica-Bold", "Helvetica"
+PAYMENT_LABELS = {
+    "cash": "Dinheiro", "credit_card": "Cartão de crédito", "debit_card": "Cartão de débito", "pix": "PIX",
+    "bank_transfer": "Transferência", "installments": "Parcelado", "on_account": "Fiado",
+    "loyalty_points": "Pontos de fidelidade",
+}
+# largura do papel (mm) por formato; a altura é calculada pelo conteúdo
+WIDTHS_MM = {"58": 58.0, "80": 80.0, "a6": 105.0}
+
+
+def _enum(v: Any) -> str:
+    return str(getattr(v, "value", v) or "").lower()
+
+
+def brl(value: Any) -> str:
+    n = float(value or 0)
+    return "R$ " + f"{n:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def _dec(v: Any) -> Decimal:
+    return Decimal(str(v or 0))
+
+
+def _fmt_phone(digits: str) -> str:
+    d = "".join(c for c in (digits or "") if c.isdigit())
+    if d.startswith("55") and len(d) in (12, 13):
+        d = d[2:]
+    if len(d) == 11:
+        return f"({d[:2]}) {d[2:7]}-{d[7:]}"
+    if len(d) == 10:
+        return f"({d[:2]}) {d[2:6]}-{d[6:]}"
+    return digits or ""
+
+
+def wa_phone(digits: Optional[str]) -> Optional[str]:
+    """Telefone da cliente só com números e com o 55 na frente (formato do wa.me). Inválido = None."""
+    d = "".join(c for c in (digits or "") if c.isdigit())
+    if d.startswith("55") and len(d) in (12, 13):
+        return d
+    if len(d) in (10, 11):
+        return "55" + d
+    return None
+
+
+async def build_receipt_data(db: AsyncSession, sale: Any, tenant_id: int, change: Optional[float] = None) -> Dict[str, Any]:
+    """Monta o comprovante a partir da venda JÁ carregada com itens, produtos, variações, pagamentos, cliente e vendedora."""
+    store = (await db.execute(select(Store).where(Store.id == tenant_id))).scalar_one_or_none()
+    number = (await db.execute(
+        select(WhatsAppCloudNumber).where(WhatsAppCloudNumber.tenant_id == tenant_id,
+                                          WhatsAppCloudNumber.is_active == True)  # noqa: E712
+        .order_by(WhatsAppCloudNumber.id)
+    )).scalars().first()
+
+    address = ""
+    if store is not None:
+        line1 = ", ".join(x for x in (store.street, store.number) if x)
+        line2 = " - ".join(x for x in (store.neighborhood, "/".join(x for x in (store.city, store.state) if x)) if x)
+        address = " · ".join(x for x in (line1, line2) if x)
+
+    items: List[Dict[str, Any]] = []
+    for it in sale.items:
+        if getattr(it, "is_active", True) is False:
+            continue
+        name = (it.product.name if getattr(it, "product", None) is not None else None) or "Produto"
+        items.append({
+            "name": name,
+            "variant": it.variant_label,
+            "quantity": int(it.quantity),
+            "unit_price": float(it.unit_price),
+            "discount": float(it.discount_amount or 0),
+            "subtotal": float(it.subtotal),
+        })
+
+    payments = []
+    for p in sale.payments:
+        if _enum(p.status) != "confirmed":
+            continue
+        payments.append({
+            "method": _enum(p.payment_method),
+            "label": PAYMENT_LABELS.get(_enum(p.payment_method), _enum(p.payment_method)),
+            "amount": float(p.amount),
+            "installments": int(p.installments or 1),
+        })
+
+    fiado = []
+    if any(p["method"] == "on_account" for p in payments):
+        rows = (await db.execute(
+            select(Receivable).where(Receivable.sale_id == sale.id, Receivable.tenant_id == tenant_id,
+                                     Receivable.is_active == True)  # noqa: E712
+            .order_by(Receivable.installment_number)
+        )).scalars().all()
+        fiado = [{"number": r.installment_number, "total": r.installments_total, "amount": float(r.amount),
+                  "due": r.due_date.strftime("%d/%m/%Y")} for r in rows]
+
+    customer: Optional[Customer] = getattr(sale, "customer", None)
+    created = sale.created_at
+    if isinstance(created, datetime):
+        created = to_brazil_tz(created)  # sem fuso = UTC
+    status = _enum(sale.status)
+    return {
+        "store_name": (store.name if store else "") or "",
+        "store_tagline": (store.tagline if store else "") or "",
+        "store_address": address,
+        "store_phone": _fmt_phone(number.display_phone_number) if number and number.display_phone_number else "",
+        "sale_number": sale.sale_number,
+        "date": created.strftime("%d/%m/%Y %H:%M") if isinstance(created, datetime) else "",
+        "seller": sale.seller_name,
+        "customer": customer.full_name if customer else None,
+        "customer_phone": customer.phone if customer else None,
+        "items": items,
+        "pieces": sum(i["quantity"] for i in items),
+        "subtotal": float(sale.subtotal),
+        "discount": float(sale.discount_amount or 0),
+        "total": float(sale.total_amount),
+        "payments": payments,
+        "fiado": fiado,
+        "change": float(change) if change and change > 0 else 0.0,
+        "points_earned": int(_dec(sale.loyalty_points_earned)),
+        "cancelled": status == "cancelled",
+        "return_window_days": int(store.return_window_days) if store is not None and store.return_window_days else 0,
+        "exchange_only": bool(store is not None and not store.allow_money_refund),
+    }
+
+
+def _exchange_line(d: Dict[str, Any]) -> Optional[str]:
+    days = d["return_window_days"]
+    if not days:
+        return None
+    how = "troca" if d["exchange_only"] else "troca ou devolução"
+    return f"{how.capitalize()} em até {days} dias com este comprovante e a etiqueta da peça."
+
+
+def build_receipt_text(d: Dict[str, Any]) -> str:
+    """Texto para mandar pelo WhatsApp (negrito com asteriscos)."""
+    out: List[str] = []
+    out.append(f"*{d['store_name'] or 'Comprovante'}*")
+    out.append(f"Comprovante da venda {d['sale_number']}")
+    if d["date"]:
+        out.append(d["date"])
+    if d["cancelled"]:
+        out.append("*VENDA CANCELADA*")
+    if d["customer"]:
+        out.append(f"Cliente: {d['customer']}")
+    out.append("")
+    for it in d["items"]:
+        label = it["name"] + (f" ({it['variant']})" if it["variant"] else "")
+        out.append(f"{it['quantity']}x {label} - {brl(it['subtotal'])}")
+    out.append("")
+    if d["discount"] > 0:
+        out.append(f"Subtotal: {brl(d['subtotal'])}")
+        out.append(f"Desconto: -{brl(d['discount'])}")
+    out.append(f"*Total: {brl(d['total'])}*")
+    for p in d["payments"]:
+        extra = f" em {p['installments']}x" if p["installments"] > 1 and p["method"] == "credit_card" else ""
+        out.append(f"{p['label']}{extra}: {brl(p['amount'])}")
+    if d["change"] > 0:
+        out.append(f"Troco: {brl(d['change'])}")
+    if d["fiado"]:
+        out.append("")
+        out.append("Fiado, vencimentos:")
+        for f in d["fiado"]:
+            out.append(f"{f['number']}/{f['total']}: {brl(f['amount'])} em {f['due']}")
+    if d["points_earned"] > 0:
+        out.append("")
+        out.append(f"Você ganhou {d['points_earned']} pontos de fidelidade.")
+    ex = _exchange_line(d)
+    if ex:
+        out.append("")
+        out.append(ex)
+    out.append("")
+    out.append("Obrigada pela preferência!")
+    out.append("_Comprovante sem valor fiscal._")
+    return "\n".join(out)
+
+
+def whatsapp_link(d: Dict[str, Any]) -> Optional[str]:
+    phone = wa_phone(d.get("customer_phone"))
+    if not phone:
+        return None
+    return f"https://wa.me/{phone}?text={quote(build_receipt_text(d))}"
+
+
+# ---------------------------------------------------------------- PDF
+
+class _Page:
+    """Desenha de cima para baixo em duas passadas: mede a altura, depois desenha no papel do tamanho certo."""
+
+    def __init__(self, width_mm: float):
+        self.w = width_mm * mm
+        self.margin = (3 if width_mm <= 80 else 7) * mm
+        self.inner = self.w - 2 * self.margin
+        self.scale = 0.9 if width_mm <= 58 else (1.0 if width_mm <= 80 else 1.25)
+        self.ops: List[tuple] = []
+        self.y = 0.0
+
+    def fs(self, size: float) -> float:
+        return size * self.scale
+
+    def gap(self, pts: float) -> None:
+        self.y += pts
+
+    def text(self, s: str, size: float = 8, bold: bool = False, align: str = "left", wrap: bool = True) -> None:
+        font = BOLD if bold else REGULAR
+        size = self.fs(size)
+        lines = simpleSplit(s, font, size, self.inner) if wrap else [s]
+        for ln in lines:
+            self.y += size * 1.2
+            self.ops.append(("text", ln, font, size, align, self.y))
+
+    def pair(self, left: str, right: str, size: float = 8, bold: bool = False) -> None:
+        """Esquerda e direita na mesma linha; se não couber, a esquerda quebra e o valor fica na última linha."""
+        font = BOLD if bold else REGULAR
+        size = self.fs(size)
+        rw = stringWidth(right, font, size)
+        lines = simpleSplit(left, font, size, max(self.inner - rw - 4 * mm, self.inner * 0.4))
+        for i, ln in enumerate(lines):
+            self.y += size * 1.2
+            self.ops.append(("text", ln, font, size, "left", self.y))
+            if i == len(lines) - 1:
+                self.ops.append(("text", right, font, size, "right", self.y))
+
+    def rule(self, dashed: bool = True) -> None:
+        self.y += 3
+        self.ops.append(("rule", dashed, self.y))
+        self.y += 3
+
+    def render(self) -> bytes:
+        height = self.y + 2 * self.margin
+        buf = io.BytesIO()
+        c = canvas.Canvas(buf, pagesize=(self.w, height))
+        c.setTitle("Comprovante da venda")
+        for op in self.ops:
+            top = height - self.margin - op[-1]
+            if op[0] == "text":
+                _, s, font, size, align, _y = op
+                c.setFont(font, size)
+                if align == "center":
+                    c.drawCentredString(self.w / 2, top, s)
+                elif align == "right":
+                    c.drawRightString(self.w - self.margin, top, s)
+                else:
+                    c.drawString(self.margin, top, s)
+            else:
+                c.setLineWidth(0.5)
+                c.setDash(*( (2, 2) if op[1] else (1, 0) ))
+                c.line(self.margin, top, self.w - self.margin, top)
+                c.setDash(1, 0)
+        c.showPage()
+        c.save()
+        return buf.getvalue()
+
+
+def build_receipt_pdf(d: Dict[str, Any], size: str = "80") -> bytes:
+    p = _Page(WIDTHS_MM.get(size, WIDTHS_MM["80"]))
+    p.text(d["store_name"] or "Comprovante", 12, bold=True, align="center")
+    if d["store_tagline"]:
+        p.text(d["store_tagline"], 7.5, align="center")
+    if d["store_address"]:
+        p.text(d["store_address"], 7, align="center")
+    if d["store_phone"]:
+        p.text(d["store_phone"], 7, align="center")
+    p.rule()
+    p.text("COMPROVANTE DE VENDA", 8, bold=True, align="center")
+    p.text("Sem valor fiscal", 7, align="center")
+    if d["cancelled"]:
+        p.gap(2)
+        p.text("*** VENDA CANCELADA ***", 10, bold=True, align="center")
+    p.gap(3)
+    p.pair("Venda", d["sale_number"], 8, bold=True)
+    if d["date"]:
+        p.pair("Data", d["date"], 8)
+    if d["seller"]:
+        p.pair("Vendedora", d["seller"], 8)
+    if d["customer"]:
+        p.pair("Cliente", d["customer"], 8)
+    p.rule()
+    for it in d["items"]:
+        label = it["name"] + (f" · {it['variant']}" if it["variant"] else "")
+        p.text(label, 8.5, bold=True)
+        detail = f"{it['quantity']} x {brl(it['unit_price'])}"
+        if it["discount"] > 0:
+            detail += f"  (desc. {brl(it['discount'])})"
+        p.pair(detail, brl(it["subtotal"]), 8)
+        p.gap(2)
+    p.rule()
+    p.pair(f"Peças: {d['pieces']}", "", 8)
+    if d["discount"] > 0:
+        p.pair("Subtotal", brl(d["subtotal"]), 8)
+        p.pair("Desconto", "-" + brl(d["discount"]), 8)
+    p.pair("TOTAL", brl(d["total"]), 11, bold=True)
+    p.gap(3)
+    for pay in d["payments"]:
+        extra = f" em {pay['installments']}x" if pay["installments"] > 1 and pay["method"] == "credit_card" else ""
+        p.pair(pay["label"] + extra, brl(pay["amount"]), 8)
+    if d["change"] > 0:
+        p.pair("Troco", brl(d["change"]), 8)
+    if d["fiado"]:
+        p.gap(3)
+        p.text("Vencimentos do fiado", 8, bold=True)
+        for f in d["fiado"]:
+            p.pair(f"{f['number']}/{f['total']} em {f['due']}", brl(f["amount"]), 8)
+    if d["points_earned"] > 0:
+        p.gap(3)
+        p.text(f"Você ganhou {d['points_earned']} pontos de fidelidade.", 7.5, align="center")
+    p.rule()
+    ex = _exchange_line(d)
+    if ex:
+        p.text(ex, 7, align="center")
+        p.gap(2)
+    p.text("Obrigada pela preferência!", 9, bold=True, align="center")
+    return p.render()

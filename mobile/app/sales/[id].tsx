@@ -30,6 +30,7 @@ import { useBrandingColors } from '@/store/brandingStore';
 import { useAuthStore } from '@/store/authStore';
 import { haptics } from '@/utils/haptics';
 import SaleReceipt from '@/components/receipt/SaleReceipt';
+import ReceiptActions from '@/components/receipt/ReceiptActions';
 import ReturnModal from '@/components/sale/ReturnModal';
 import AppButton from '@/components/ui/AppButton';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
@@ -547,6 +548,12 @@ export default function SaleDetailsScreen() {
                 </Text>
               </View>
             )}
+          </View>
+        )}
+
+        {sale.status !== 'pending' && (
+          <View style={{ marginTop: 16 }}>
+            <ReceiptActions saleId={sale.id} saleNumber={sale.sale_number} />
           </View>
         )}
 

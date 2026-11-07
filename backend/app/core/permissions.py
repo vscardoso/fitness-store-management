@@ -67,6 +67,7 @@ RULES: list[tuple[Optional[set], str, UserRole]] = [
     # ── caixa (PDV) ──────────────────────────────────────────────────────────
     ({"GET", "POST"}, r"^/sales/?$", CASHIER),
     ({"GET"}, r"^/sales/(daily-total|number/\{sale_number\}|\{sale_id\})$", CASHIER),
+    ({"GET"}, r"^/sales/\{sale_id\}/receipt(/pdf)?$", CASHIER),
     ({"POST"}, r"^/pdv/(orders|payment|pix/start|pix/generate-qr|pix/\{sale_id\}|terminal/start)$", CASHIER),
     ({"POST"}, r"^/pdv/orders/\{sale_id\}/confirm$", CASHIER),
     ({"POST"}, r"^/pdv/orders/\{sale_id\}/cancel$", MANAGER),

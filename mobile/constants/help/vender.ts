@@ -96,11 +96,17 @@ export const VENDER: HelpEntry[] = [
     purpose: 'Confirma que a venda foi gravada e mostra o comprovante e o troco.',
     steps: [
       'Confira o troco no alto, quando a venda teve dinheiro.',
-      'Use o ícone de compartilhar no alto para mandar o comprovante para a cliente.',
+      'Em “Comprovante para a cliente”, toque em “Enviar pelo WhatsApp”: o texto já vai pronto e, se a cliente tem telefone cadastrado, abre direto na conversa dela.',
+      'Para imprimir ou mandar em arquivo, escolha o papel (80 mm, 58 mm ou A6) e toque em “Abrir ou compartilhar PDF”.',
       'Toque em “Nova Venda” para atender a próxima cliente, ou em “Ver Detalhes” para abrir a venda.',
     ],
+    goodToKnow: [
+      'O comprovante não mostra custo nem lucro, e não tem valor fiscal.',
+      'Venda sem cliente ou sem telefone válido: o WhatsApp abre para você escolher o contato.',
+      'O papel escolhido fica lembrado neste aparelho.',
+    ],
     related: ['pdv', 'venda-detalhe'],
-    sources: ['app/checkout/success.tsx'],
+    sources: ['app/checkout/success.tsx', 'components/receipt/ReceiptActions.tsx'],
   },
   {
     id: 'vendas',
@@ -130,8 +136,9 @@ export const VENDER: HelpEntry[] = [
     group: 'vender',
     title: 'Detalhe da venda',
     routes: ['/sales/[id]'],
-    purpose: 'Mostra a venda completa e é onde se faz troca ou devolução.',
+    purpose: 'Mostra a venda completa, reenvia o comprovante para a cliente e é onde se faz troca ou devolução.',
     steps: [
+      'Para mandar o comprovante de novo, use “Enviar pelo WhatsApp” ou “Abrir ou compartilhar PDF”.',
       'Para trocar ou devolver, toque em “Realizar Devolução” (aparece só dentro do prazo da loja).',
       'Marque as peças e a quantidade que voltam.',
       'Se a cliente vai levar outra peça, toque em “Trocar por outra peça” e escolha a nova.',
@@ -149,7 +156,7 @@ export const VENDER: HelpEntry[] = [
       'Venda com troca ou devolução não pode ser cancelada.',
     ],
     related: ['vendas'],
-    sources: ['app/sales/[id].tsx', 'components/sale/ReturnModal.tsx', 'components/sale/ReplacementPicker.tsx'],
+    sources: ['app/sales/[id].tsx', 'components/sale/ReturnModal.tsx', 'components/sale/ReplacementPicker.tsx', 'components/receipt/ReceiptActions.tsx'],
   },
   {
     id: 'condicionais',
