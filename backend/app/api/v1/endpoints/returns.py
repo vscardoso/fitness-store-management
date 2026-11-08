@@ -52,6 +52,21 @@ async def _push_return(db, background, sale_return, sale_id: int, tenant_id: int
         logging.getLogger(__name__).exception("Web Push da devolução falhou")
 
 
+def _frase(e: Exception) -> str:
+    """Mensagem de regra de negócio (ValueError) para a pessoa; texto técnico vira a frase genérica."""
+    from app.core.friendly_errors import is_technical, friendly_from_text
+    text = str(e)
+    return friendly_from_text(text) if is_technical(text) else text
+
+
+def _erro_interno(contexto: str, e: Exception) -> HTTPException:
+    """500 sem texto técnico na resposta; o original fica no log do servidor (e no error_logs, pelo handler global)."""
+    import logging
+    from app.core.friendly_errors import friendly_from_text
+    logging.getLogger(__name__).exception("%s: %s", contexto, e)
+    return HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=friendly_from_text(str(e)))
+
+
 def _role_value(user: User) -> str:
     return str(getattr(user.role, "value", user.role) or "").lower()
 
@@ -98,11 +113,10 @@ async def check_return_eligibility(
 
     except HTTPException:
         raise
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_frase(e))
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao verificar elegibilidade: {str(e)}"
-        )
+        raise _erro_interno("Erro ao verificar elegibilidade da devolução", e)
 
 
 @router.post(
@@ -170,15 +184,9 @@ async def process_return(
         return sale_return
         
     except ValueError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
-        )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=_frase(e))
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao processar devolução: {str(e)}"
-        )
+        raise _erro_interno("Erro ao processar devolução", e)
 
 
 @router.post(
@@ -279,7 +287,4 @@ async def get_return_history(
         return history
         
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Erro ao buscar histórico: {str(e)}"
-        )
+        raise _erro_interno("Erro ao buscar histórico de devoluções", e)

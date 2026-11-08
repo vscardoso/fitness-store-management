@@ -31,6 +31,33 @@ from app.services.stock_lock import lock_stock
 MAX_RETURN_DAYS = 7
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+CENT = Decimal('0.01')
+
+
+def line_paid_amount(item: SaleItem, sale: Sale) -> Decimal:
+    """O que a cliente pagou pela LINHA: (qtd x preço - desconto do item) x (1 - desconto da venda proporcional)."""
+    base = Decimal(str(item.quantity)) * Decimal(str(item.unit_price)) - Decimal(str(item.discount_amount or 0))
+    subtotal = Decimal(str(sale.subtotal or 0))
+    discount = Decimal(str(sale.discount_amount or 0))
+    if subtotal > 0 and discount > 0:
+        base = base * (subtotal - discount) / subtotal
+    return max(Decimal('0'), base).quantize(CENT)
+
+
+def line_refund_amount(item: SaleItem, sale: Sale, quantity: int, returned_before: int, refunded_before: Decimal) -> Decimal:
+    """Estorno de `quantity` peças da linha. A última devolução da linha estorna o que falta do pago (D-01):
+    a soma dos estornos de uma linha nunca passa do que foi pago."""
+    paid = line_paid_amount(item, sale)
+    left = max(Decimal('0'), paid - refunded_before)
+    if returned_before + quantity >= item.quantity:
+        return left
+    return min(left, (paid * Decimal(str(quantity)) / Decimal(str(item.quantity))).quantize(CENT))
+
+
 class ReturnService:
     """Serviço para operações de devolução de vendas."""
     
@@ -150,19 +177,16 @@ class ReturnService:
                 items=[],
             )
         
-        # Calcular quantidades já devolvidas por item
+        # Calcular quantidades e valores já devolvidos por item
         returned_quantities: Dict[int, int] = {}
+        refunded_amounts: Dict[int, Decimal] = {}
         for sale_return in sale.returns:
             if sale_return.status == "completed":
                 for return_item in sale_return.items:
-                    if return_item.sale_item_id not in returned_quantities:
-                        returned_quantities[return_item.sale_item_id] = 0
-                    returned_quantities[return_item.sale_item_id] += return_item.quantity_returned
-        
-        # Calcular percentual de desconto da venda para aplicar proporcionalmente
-        sale_discount_percentage = Decimal('0')
-        if sale.subtotal > 0 and sale.discount_amount > 0:
-            sale_discount_percentage = (sale.discount_amount / sale.subtotal) * 100
+                    returned_quantities[return_item.sale_item_id] = (
+                        returned_quantities.get(return_item.sale_item_id, 0) + return_item.quantity_returned)
+                    refunded_amounts[return_item.sale_item_id] = (
+                        refunded_amounts.get(return_item.sale_item_id, Decimal('0')) + Decimal(str(return_item.refund_amount or 0)))
         
         # Construir lista de itens elegíveis (apenas itens ativos)
         # Cor/tamanho de cada item (para a pessoa saber qual peça está devolvendo)
@@ -180,13 +204,9 @@ class ReturnService:
             available_for_return = item.quantity - already_returned
             
             if available_for_return > 0:
-                # Calcular valor máximo de reembolso com desconto proporcional
-                gross_amount = Decimal(str(available_for_return)) * item.unit_price
-                if sale_discount_percentage > 0:
-                    discount_amount = (gross_amount * sale_discount_percentage / 100).quantize(Decimal('0.01'))
-                    max_refund = gross_amount - discount_amount
-                else:
-                    max_refund = gross_amount
+                # Valor máximo = o que a cliente pagou pelo que falta devolver (mesma conta do process_return)
+                max_refund = line_refund_amount(item, sale, available_for_return, already_returned,
+                                                refunded_amounts.get(item.id, Decimal('0')))
                 
                 returnable_items.append(ReturnableItemResponse(
                     sale_item_id=item.id,
@@ -198,7 +218,7 @@ class ReturnService:
                     quantity_already_returned=already_returned,
                     quantity_available_for_return=available_for_return,
                     unit_price=item.unit_price,
-                    max_refund_amount=float(max_refund),
+                    max_refund_amount=max_refund,
                 ))
         
         # Verificar se há itens disponíveis para devolução
@@ -299,13 +319,9 @@ class ReturnService:
             
             # Calcular quantidades já devolvidas
             returned_quantities = await self._get_returned_quantities(sale_id)
+            refunded_amounts = await self._get_refunded_amounts(sale_id)
             
-            # Calcular percentual de desconto da venda para aplicar proporcionalmente na devolução
-            # O desconto pode ser por forma de pagamento (payment_discount) ou manual
-            sale_discount_percentage = Decimal('0')
-            if sale.subtotal > 0 and sale.discount_amount > 0:
-                sale_discount_percentage = (sale.discount_amount / sale.subtotal) * 100
-            
+            returned_before_request = dict(returned_quantities)
             for item_request in return_data.items:
                 # Encontrar item da venda
                 sale_item = next(
@@ -316,26 +332,23 @@ class ReturnService:
                 if not sale_item:
                     raise ValueError(f"Item {item_request.sale_item_id} não encontrado na venda")
                 
-                # Verificar quantidade disponível
+                # Verificar quantidade disponível (conta as linhas anteriores do MESMO item neste corpo)
                 already_returned = returned_quantities.get(sale_item.id, 0)
                 available = sale_item.quantity - already_returned
                 
                 if item_request.quantity > available:
+                    antes = returned_before_request.get(sale_item.id, 0)
+                    pedido = item_request.quantity + (already_returned - antes)
                     raise ValueError(
-                        f"Quantidade solicitada ({item_request.quantity}) excede o disponível ({available}) "
+                        f"Quantidade solicitada ({pedido}) excede o disponível ({sale_item.quantity - antes}) "
                         f"para o item {sale_item.product.name if sale_item.product else sale_item.product_id}"
                     )
                 
-                # Calcular reembolso com desconto proporcional
-                # O cliente pagou menos devido ao desconto, então deve receber menos na devolução
-                item_gross_amount = Decimal(str(item_request.quantity)) * sale_item.unit_price
-                
-                # Aplicar desconto proporcional da venda
-                if sale_discount_percentage > 0:
-                    item_discount = (item_gross_amount * sale_discount_percentage / 100).quantize(Decimal('0.01'))
-                    refund_amount = item_gross_amount - item_discount
-                else:
-                    refund_amount = item_gross_amount
+                # Estorno = o que a cliente pagou por estas peças (desconto do item e da venda; a última da linha fecha o centavo)
+                refund_amount = line_refund_amount(sale_item, sale, item_request.quantity, already_returned,
+                                                   refunded_amounts.get(sale_item.id, Decimal('0')))
+                returned_quantities[sale_item.id] = already_returned + item_request.quantity
+                refunded_amounts[sale_item.id] = refunded_amounts.get(sale_item.id, Decimal('0')) + refund_amount
                 
                 total_refund += refund_amount
 
@@ -366,12 +379,13 @@ class ReturnService:
                     exchange_lines.append({'variant': rv, 'unit_price': unit_price, 'quantity': item_request.quantity})
                 
                 # Preparar dados para devolução ao estoque
-                if item_request.restock:  # peça com defeito não volta ao estoque
-                    items_to_return_to_stock.append({
-                        'sale_item': sale_item,
-                        'quantity': item_request.quantity,
-                        'ret_index': len(return_items_data),  # a linha da devolução abaixo (recebe o custo exato)
-                    })
+                # (restock=False: peça com defeito não volta ao estoque, mas a fonte FIFO recebe `quantity_defective`)
+                items_to_return_to_stock.append({
+                    'sale_item': sale_item,
+                    'quantity': item_request.quantity,
+                    'restock': bool(item_request.restock),
+                    'ret_index': len(return_items_data),  # a linha da devolução abaixo (recebe o custo exato)
+                })
                 
                 return_items_data.append({
                     'sale_item_id': sale_item.id,
@@ -389,6 +403,7 @@ class ReturnService:
             for item_data in items_to_return_to_stock:
                 sale_item = item_data['sale_item']
                 quantity = item_data['quantity']
+                restock = item_data['restock']
                 
                 # Volta para as camadas FIFO de onde a peça saiu, da ÚLTIMA fonte para a primeira: depois da devolução o
                 # estoque fica como se a venda tivesse sido menor (vender 30 e devolver 5 = vender 25). Cada fonte guarda
@@ -400,21 +415,29 @@ class ReturnService:
                     for source in reversed(sources):
                         if remaining_to_return <= 0:
                             break
-                        livre = int(source['quantity_taken']) - int(source.get('quantity_returned', 0))
+                        livre = (int(source['quantity_taken']) - int(source.get('quantity_returned', 0))
+                                 - int(source.get('quantity_defective', 0)))
                         if livre <= 0:
                             continue
                         voltar = min(livre, remaining_to_return)
-                        with stock_reason("devolucao", ref=f"sale:{sale_item.sale_id}"):
-                            await self.fifo_service.item_repo.increase_quantity(self.db, source['entry_item_id'], voltar)
-                        source['quantity_returned'] = int(source.get('quantity_returned', 0)) + voltar
-                        back_cost += Decimal(str(source.get('unit_cost', 0))) * voltar
+                        if restock:
+                            with stock_reason("devolucao", ref=f"sale:{sale_item.sale_id}"):
+                                await self.fifo_service.item_repo.increase_quantity(self.db, source['entry_item_id'], voltar)
+                            source['quantity_returned'] = int(source.get('quantity_returned', 0)) + voltar
+                            back_cost += Decimal(str(source.get('unit_cost', 0))) * voltar
+                        else:
+                            # defeito: a peça NÃO volta (estoque e quantity_returned intactos); só marca a fonte
+                            source['quantity_defective'] = int(source.get('quantity_defective', 0)) + voltar
                         remaining_to_return -= voltar
-                    if remaining_to_return > 0:
+                    if remaining_to_return > 0 and restock:
                         raise ValueError("A venda não tem mais peças para devolver ao estoque (fontes esgotadas)")
                     sale_item.sale_sources = {**sale_item.sale_sources, 'sources': sources}  # reatribui: o JSON só grava se mudar de objeto
                     # custo real das camadas para onde as peças voltaram (não o custo médio da venda): é o que o
                     # relatório abate do custo (app/services/money_ledger.py)
-                    return_items_data[item_data['ret_index']]['unit_cost'] = back_cost / quantity
+                    if restock:
+                        return_items_data[item_data['ret_index']]['unit_cost'] = back_cost / quantity
+                elif not restock:
+                    pass  # venda antiga sem fontes FIFO: defeito segue como antes (nada a marcar)
                 else:
                     # Venda antiga sem fontes FIFO: não pode devolver e deixar o estoque perder a peça sem avisar
                     raise ValueError("Esta venda não tem a origem das peças (FIFO) registrada; devolva pelo ajuste de estoque")
@@ -496,11 +519,8 @@ class ReturnService:
             active_items = [item for item in sale.items if item.is_active]
             total_items = sum(item.quantity for item in active_items)
             total_returned = sum(
-                returned_quantities.get(item.id, 0) +
-                next(
-                    (r['quantity_returned'] for r in return_items_data if r['sale_item_id'] == item.id),
-                    0
-                )
+                returned_before_request.get(item.id, 0) +
+                sum(r['quantity_returned'] for r in return_items_data if r['sale_item_id'] == item.id)
                 for item in active_items
             )
             
@@ -524,7 +544,14 @@ class ReturnService:
                 try:
                     await inv_sync.rebuild_product_from_fifo(product_id, tenant_id=tenant_id)
                 except Exception as sync_err:
-                    print(f"[Inventory Sync] Falha ao sincronizar produto {product_id}: {sync_err}")
+                    logger.exception("[Inventory Sync] Falha ao sincronizar produto %s", product_id)
+                    from app.services.error_log_service import record_error
+                    await record_error(
+                        message=f"Falha ao sincronizar o estoque do produto {product_id} depois da devolução",
+                        level="error", source="api", error_type="inventory_sync",
+                        detail={"product_id": product_id, "sale_id": sale_id, "erro": str(sync_err)},
+                        tenant_id=tenant_id, user_id=processed_by_id,
+                    )
             
             # Recarregar com relacionamentos
             return await self._get_return_with_details(sale_return.id)
@@ -599,6 +626,17 @@ class ReturnService:
                 customer.total_spent = float(Decimal(str(customer.total_spent or 0)) + total_new)
         await self.db.flush()
         return sale, net
+
+    async def _get_refunded_amounts(self, sale_id: int) -> Dict[int, Decimal]:
+        """Quanto já foi estornado por linha da venda (devoluções concluídas)."""
+        rows = (await self.db.execute(
+            select(ReturnItem.sale_item_id, ReturnItem.refund_amount).join(SaleReturn).where(
+                SaleReturn.sale_id == sale_id, SaleReturn.status == "completed")
+        )).all()
+        out: Dict[int, Decimal] = {}
+        for sid, amt in rows:
+            out[sid] = out.get(sid, Decimal('0')) + Decimal(str(amt or 0))
+        return out
 
     async def _get_returned_quantities(self, sale_id: int) -> Dict[int, int]:
         """
