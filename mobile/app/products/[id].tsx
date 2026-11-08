@@ -194,7 +194,7 @@ export default function ProductDetailsScreen() {
       }, 100);
     },
     onError: (error: any) => {
-      const detail = error.response?.data?.detail;
+      const detail = error.detail ?? error.response?.data?.detail;
       // produto com entrada: a exclusão é feita pela entrada (fica registrada), não pela lixeira
       if (detail && typeof detail === 'object' && detail.code === 'product_has_entries' && Array.isArray(detail.entries) && detail.entries.length) {
         const entries = detail.entries as { id: number; code: string }[];

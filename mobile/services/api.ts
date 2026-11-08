@@ -405,11 +405,14 @@ api.interceptors.response.use(
       ? safeMessage(rawDetail)
       : Array.isArray(rawDetail)
       ? validationMessage(rawDetail)
+      : rawDetail && typeof rawDetail === 'object' && typeof rawDetail.message === 'string'
+      ? safeMessage(rawDetail.message)   // detalhe em objeto ({code, message, ...}): usa a frase e guarda o objeto em `detail`
       : httpStatus >= 500
       ? friendlyFromText(null)
       : 'Não foi possível concluir. Confira os dados e tente de novo.';
     const formattedError = new Error(errorMessage);
     (formattedError as any).status = error.response?.status;
+    if (rawDetail && typeof rawDetail === 'object' && !Array.isArray(rawDetail)) (formattedError as any).detail = rawDetail;
     return Promise.reject(formattedError);
   }
 );
