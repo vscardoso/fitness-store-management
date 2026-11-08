@@ -19,6 +19,7 @@ from app.schemas.expense import (
     ExpenseUpdate,
     MonthlyResultResponse,
 )
+from app.services.finance_service import FinanceConflict
 from app.services.expense_service import ExpenseService
 from app.core.timezone import today_brazil
 
@@ -198,6 +199,9 @@ async def create_expense(
     svc = ExpenseService(db)
     try:
         return await svc.create_expense(data, tenant_id)
+    except FinanceConflict as e:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         await db.rollback()
         raise HTTPException(status_code=400, detail=str(e))
@@ -228,6 +232,9 @@ async def update_expense(
     svc = ExpenseService(db)
     try:
         exp = await svc.update_expense(expense_id, data, tenant_id)
+    except FinanceConflict as e:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail=str(e))
     except ValueError as e:
         await db.rollback()
         raise HTTPException(status_code=400, detail=str(e))

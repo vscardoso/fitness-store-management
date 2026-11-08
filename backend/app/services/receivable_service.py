@@ -23,10 +23,11 @@ from app.models.receivable import (
     RECEIVE_METHODS, Receivable, ReceivablePayment,
 )
 from app.models.user import User
-from app.services.finance_service import D0, FinanceConflict, FinanceError, FinanceNotFound, _q, _who, money, parse_day
+from app.services.finance_service import D0, FinanceConflict, FinanceError, FinanceNotFound, _q, _who, as_int, money, parse_day
 
 INTERVALS = (7, 15, 30)   # semanal, quinzenal, mensal
 MAX_INSTALLMENTS = 12
+MIN_INSTALLMENT = Decimal("1.00")
 METHOD_LABEL = {"cash": "Dinheiro", "pix": "PIX", "bank_transfer": "Transferência",
                 "debit_card": "Débito", "credit_card": "Crédito"}
 
@@ -58,6 +59,10 @@ def due_dates(first: date, count: int, interval_days: int) -> List[date]:
 
 def split_amount(total: Decimal, count: int) -> List[Decimal]:
     """Parcelas iguais em centavos; a sobra fica na última (R$ 100 em 3 = 33,33 + 33,33 + 33,34)."""
+    if count > 1 and total / count < MIN_INSTALLMENT:
+        raise ValueError(
+            f"Fiado: o valor é pequeno demais para {count} parcelas: a parcela mínima é R$ 1,00. "
+            "Reduza o número de vezes.")
     part = (total / count).quantize(Decimal("0.01"), rounding=ROUND_DOWN)
     return [part] * (count - 1) + [total - part * (count - 1)]
 
@@ -215,9 +220,9 @@ class ReceivableService:
             Receivable.status.in_((RECEIVABLE_OPEN, RECEIVABLE_PARTIAL)),
         ).order_by(Receivable.due_date, Receivable.id).with_for_update()
         if data.get("receivable_id"):
-            stmt = stmt.where(Receivable.id == int(data["receivable_id"]))
+            stmt = stmt.where(Receivable.id == as_int(data["receivable_id"], "a parcela"))
         elif data.get("customer_id"):
-            stmt = stmt.where(Receivable.customer_id == int(data["customer_id"]))
+            stmt = stmt.where(Receivable.customer_id == as_int(data["customer_id"], "a cliente"))
         else:
             raise FinanceError("Escolha a parcela ou a cliente.")
         try:
@@ -332,12 +337,18 @@ class ReceivableService:
         return {m: _q(a) for m, a in rows}
 
     async def cash_received_between(self, tenant_id: int, start: datetime, end: datetime) -> Decimal:
-        """Dinheiro de fiado recebido durante o turno do caixa (pela hora do lançamento)."""
+        """Dinheiro de fiado recebido no turno do caixa, pela DATA DO RECEBIMENTO (`received_on`), a mesma regra do
+        Financeiro: o dia (Brasil) da abertura até o dia do fim do turno. Assim o esperado do caixa e a gaveta batem."""
+        from app.core.timezone import to_brazil_tz
+        d0 = to_brazil_tz(start).date()
+        d1 = to_brazil_tz(end).date()
         v = (await self.db.execute(
             select(func.coalesce(func.sum(ReceivablePayment.amount), 0)).where(
                 ReceivablePayment.tenant_id == tenant_id, ReceivablePayment.is_active == True,  # noqa: E712
                 ReceivablePayment.payment_method == "cash",
-                ReceivablePayment.created_at >= start, ReceivablePayment.created_at <= end,
+                ReceivablePayment.received_on >= d0, ReceivablePayment.received_on <= d1,
+                # um recebimento entra em UM só turno: o do instante do lançamento
+                ReceivablePayment.created_at >= start, ReceivablePayment.created_at < end,
             )
         )).scalar()
         return _q(v)

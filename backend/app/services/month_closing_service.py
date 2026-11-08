@@ -230,6 +230,9 @@ class MonthClosingService:
             "id": closing.id, "closed_at": closing.closed_at.isoformat(), "closed_by_name": closing.closed_by_name,
             "notes": closing.notes, "counted_total": _f(closing.counted_total), "difference": _f(closing.difference),
             "changed_since_close": _f(changed),
+            # despesa SEM conta lançada/mudada depois do fechamento não mexe no dinheiro das contas: avisa à parte
+            "expenses_without_account_changed": (
+                now["left"]["expenses_without_account"] != snap.get("left", {}).get("expenses_without_account")),
             "is_latest": not await self._later_closed(tenant_id, year, month),
         }
         return snap

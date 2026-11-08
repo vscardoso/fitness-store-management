@@ -215,6 +215,13 @@ class ExpenseService:
         for t in {i for i in trip_ids if i}:
             await lot_cost_service.recompute_trip(self.db, t, tenant_id=tenant_id)
 
+    async def _ensure_open(self, tenant_id: Optional[int], day: Optional[date]) -> None:
+        """Despesa COM conta mexe no saldo: mês fechado não aceita (a fotografia não pode mudar por fora)."""
+        if tenant_id is None or day is None:
+            return
+        from app.services.finance_service import FinanceService
+        await FinanceService(self.db).ensure_open_month(tenant_id, day)
+
     async def create_expense(
         self,
         data: ExpenseCreate,
@@ -226,6 +233,8 @@ class ExpenseService:
         await self._validate_category(data.category_id, tenant_id)
         await self._validate_link(data.stock_entry_id, data.trip_id, tenant_id)
         await self._validate_account(data.account_id, tenant_id)
+        if data.account_id:
+            await self._ensure_open(tenant_id, data.expense_date)
         obj = Expense(**data.model_dump(), tenant_id=tenant_id)
         self.db.add(obj)
         await self.db.flush()
@@ -255,6 +264,12 @@ class ExpenseService:
             await self._validate_category(changes["category_id"], tenant_id)
         if "account_id" in changes:
             await self._validate_account(changes["account_id"], tenant_id)
+        new_account = changes.get("account_id", exp.account_id)
+        new_date = changes.get("expense_date", exp.expense_date)
+        if exp.account_id:
+            await self._ensure_open(tenant_id, exp.expense_date)     # sai de um mês fechado
+        if new_account:
+            await self._ensure_open(tenant_id, new_date)             # entra num mês fechado
         old_entry, old_trip = exp.stock_entry_id, exp.trip_id
         new_entry = changes.get("stock_entry_id", old_entry)
         new_trip = changes.get("trip_id", old_trip)
@@ -284,6 +299,8 @@ class ExpenseService:
             return False
         if exp.payable_id:
             raise ValueError("Esta despesa veio de uma conta paga: desfaça o pagamento em Despesas a pagar.")
+        if exp.account_id:
+            await self._ensure_open(tenant_id, exp.expense_date)
         exp.is_active = False
         await self.db.flush()
         await self._reallocate({exp.stock_entry_id}, {exp.trip_id}, tenant_id)

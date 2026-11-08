@@ -79,10 +79,29 @@ def _q(v: Any) -> Decimal:
     return Decimal(str(v or 0)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def as_int(value: Any, label: str, *, required: bool = True) -> int:
+    """Id vindo do corpo da requisição: texto, lista ou lixo vira 400 com frase, nunca 500."""
+    if value is None or value == "" or value is False:
+        if required:
+            raise FinanceError(f"Escolha {label}.")
+        return 0
+    if isinstance(value, bool) or isinstance(value, (list, dict)):
+        raise FinanceError(f"Escolha {label}.")
+    try:
+        n = int(str(value).strip())
+    except Exception:
+        raise FinanceError(f"Escolha {label}.")
+    if n <= 0 or n > 2_147_483_647:
+        raise FinanceError(f"Escolha {label}.")
+    return n
+
+
 def money(value: Any, label: str, *, allow_zero: bool = False, allow_negative: bool = False) -> Decimal:
     try:
         v = Decimal(str(value).replace(",", ".")).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
     except Exception:
+        raise FinanceError(f"{label}: valor inválido.")
+    if not v.is_finite():
         raise FinanceError(f"{label}: valor inválido.")
     if v < 0 and not allow_negative:
         raise FinanceError(f"{label}: não pode ser negativo.")
@@ -415,7 +434,7 @@ class FinanceService:
         if card is None:
             raise FinanceError("Esta loja não tem a conta da maquininha.")
         dst_id = data.get("to_account_id")
-        dst = await self._account(tenant_id, int(dst_id)) if dst_id else (
+        dst = await self._account(tenant_id, as_int(dst_id, "a conta")) if dst_id else (
             next((a for a in accs if a.receives_pix), None) or next((a for a in accs if a.kind == KIND_BANK), None))
         if dst is None or dst.kind != KIND_BANK:
             raise FinanceError("Escolha o banco onde o dinheiro caiu.")
@@ -461,6 +480,8 @@ class FinanceService:
         banks = []
         names = set()
         for i, b in enumerate(banks_in, start=1):
+            if not isinstance(b, dict):
+                raise FinanceError(f"Banco {i}: informe o nome e o saldo.")
             name = str((b or {}).get("name") or "").strip()[:60]
             if not name:
                 raise FinanceError(f"Banco {i}: informe o nome (ex.: Nubank, Itaú).")
@@ -498,12 +519,16 @@ class FinanceService:
             raise FinanceError("No máximo 500 contas a pagar de uma vez.")
         out = []
         for i, it in enumerate(items, start=1):
+            if it is not None and not isinstance(it, dict):
+                raise FinanceError(f"Conta {i}: informe a descrição, o valor e o vencimento.")
             out.append(await self._build_payable(tenant_id, it or {}, origin=origin, label=f"Conta {i}"))
         return out
 
     async def _build_payable(self, tenant_id: int, it: Dict[str, Any], *, origin: str, label: str) -> Payable:
         desc = str(it.get("description") or "").strip()[:200]
         supplier_id = it.get("supplier_id")
+        if supplier_id is not None:
+            supplier_id = as_int(supplier_id, "o fornecedor")
         supplier_name = str(it.get("supplier_name") or "").strip()[:120] or None
         if supplier_id is not None:
             sup = (await self.db.execute(
@@ -575,21 +600,35 @@ class FinanceService:
 
     async def transfer(self, tenant_id: int, user: User, data: Dict[str, Any]) -> Dict[str, Any]:
         store = await self._require_started(tenant_id)
-        src = await self._account(tenant_id, int(data.get("from_account_id") or 0))
-        dst = await self._account(tenant_id, int(data.get("to_account_id") or 0))
+        src = await self._account(tenant_id, as_int(data.get("from_account_id"), "a conta de origem"))
+        dst = await self._account(tenant_id, as_int(data.get("to_account_id"), "a conta de destino"))
         if src.id == dst.id:
             raise FinanceError("Escolha contas diferentes.")
         day = parse_day(data.get("occurred_on") or today_brazil(), "Data")
         if day < store.finance_start_date:
             raise FinanceError("A data não pode ser antes da implantação.")
         await self.ensure_open_month(tenant_id, day)
+        amount = money(data.get("amount"), "Valor")
+        await self._store(tenant_id, lock=True)     # duas saídas juntas não passam do saldo
+        bal = await self.balances(tenant_id)
+        have = Decimal(str(next(a["balance"] for a in bal["accounts"] if a["id"] == src.id)))
+        warning = None
+        if amount > have:
+            have_txt = f"{have:.2f}".replace(".", ",")
+            if src.kind in (KIND_CASH, KIND_CARD):
+                raise FinanceError(f"A conta {src.name} só tem R$ {have_txt}.")
+            warning = (f"A conta {src.name} ficou negativa (tinha R$ {have_txt}). "
+                       "Confira se falta lançar alguma entrada.")
         self.db.add(AccountTransfer(
             tenant_id=tenant_id, from_account_id=src.id, to_account_id=dst.id, occurred_on=day,
-            amount=money(data.get("amount"), "Valor"), created_by_name=_who(user),
+            amount=amount, created_by_name=_who(user),
             description=(str(data.get("description") or "").strip()[:200] or f"{src.name} para {dst.name}"),
         ))
         await self.db.commit()
-        return await self.balances(tenant_id)
+        result = await self.balances(tenant_id)
+        if warning:
+            result["warning"] = warning
+        return result
 
     async def list_transfers(self, tenant_id: int, limit: int = 50) -> List[Dict[str, Any]]:
         rows = (await self.db.execute(
@@ -647,7 +686,7 @@ class FinanceService:
         p = await self._payable(tenant_id, payable_id, lock=True)
         if p.status != PAYABLE_OPEN:
             raise FinanceConflict("Esta conta não está em aberto.")
-        acc = await self._account(tenant_id, int(data.get("account_id") or 0))
+        acc = await self._account(tenant_id, as_int(data.get("account_id"), "a conta"))
         day = parse_day(data.get("paid_on") or today_brazil(), "Data do pagamento")
         if day < store.finance_start_date:
             raise FinanceError("A data do pagamento não pode ser antes da implantação.")
@@ -788,7 +827,7 @@ class FinanceService:
         if store.finance_start_date is None:
             raise FinanceConflict("Implante o financeiro da loja primeiro (Mais > Financeiro).")
         try:
-            account_id = int(data.get("account_id") or 0)
+            account_id = as_int(data.get("account_id"), "a conta")
         except (TypeError, ValueError):
             raise FinanceError("Escolha a conta.")
         acc = await self._account(tenant_id, account_id)

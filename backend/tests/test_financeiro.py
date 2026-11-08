@@ -166,8 +166,9 @@ async def test_desfazer_pagamento_e_apagar_transferencia_voltam_o_saldo(test_cli
     d = (await _implantar(test_client, h)).json()
     gaveta, maq, nu = _conta(d, "Gaveta")["id"], _conta(d, "Maquininha a receber")["id"], _conta(d, "Nubank")["id"]
     # transferência com valor errado: apagar devolve as duas contas
-    r = await test_client.post(f"{API}/transfers", headers=h, json={"from_account_id": maq, "to_account_id": nu, "amount": "3000"})
-    assert _conta(r.json(), "Nubank")["balance"] == 4000.0
+    r = await test_client.post(f"{API}/transfers", headers=h, json={"from_account_id": nu, "to_account_id": maq, "amount": "3000"})
+    # D-02: maquininha/gaveta nao saem alem do saldo, entao a origem aqui e o banco (que pode ficar negativo, com aviso)
+    assert _conta(r.json(), "Nubank")["balance"] == -2000.0 and "negativa" in r.json()["warning"]
     lista = (await test_client.get(f"{API}/transfers", headers=h)).json()
     assert len(lista) == 1 and lista[0]["amount"] == 3000.0
     r = await test_client.delete(f"{API}/transfers/{lista[0]['id']}", headers=h)
