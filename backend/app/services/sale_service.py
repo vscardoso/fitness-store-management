@@ -236,6 +236,9 @@ class SaleService:
             tax_amount = Decimal(str(sale_data.tax_amount or 0)).quantize(cent, ROUND_HALF_UP)
             total_amount = (subtotal - discount_amount + tax_amount).quantize(cent, ROUND_HALF_UP)
             
+            if total_amount <= 0:
+                raise ValueError("Venda sem valor. Para dar um brinde, o fluxo próprio ainda está em construção.")
+
             # 3. Validar pagamentos
             print(" Validando pagamentos...")
             pay_amounts = [Decimal(str(p.amount)).quantize(cent, ROUND_HALF_UP) for p in sale_data.payments]

@@ -173,7 +173,6 @@ async def test_total_zero_sem_pagamento(test_client, async_session, test_user):
     assert r.status_code < 500, r.text
 
 
-@pytest.mark.xfail(reason="BUG: venda de total R$ 0,00 (desconto = valor do item) e aceita e conta como venda; decidir se brinde e permitido", strict=False)
 async def test_venda_de_total_zero_deveria_ser_recusada_ou_explicita(test_client, async_session, test_user):
     t_id, h, p, va, vb = await _cenario(async_session, test_user)
     r = await _post(test_client, h, [_item(p, va, 1, desc="100.00")], [])
