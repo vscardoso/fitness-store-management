@@ -77,3 +77,25 @@ async def test_criacao_simultanea_de_usuarios_na_ultima_vaga(pg):
     async with pg.mk() as s:
         ativos = (await s.execute(text("select count(*) from users where tenant_id=:t and is_active"), {"t": pg.tenant})).scalar()
     assert ativos == 5
+
+
+async def test_ajustes_de_saldo_simultaneos_para_o_mesmo_alvo_gravam_um_so(pg):
+    """Duplo toque no 'Corrigir saldo': vários pedidos ao mesmo tempo para o MESMO valor-alvo viram um só ajuste (os outros
+    enxergam diferença zero e recusam). Sem a trava da loja, todos passariam e o saldo passaria do alvo."""
+    r = await pg.client.post("/api/v1/finance/setup", headers=pg.h, json={
+        "start_date": "2026-11-01", "cash_balance": "100.00", "card_balance": "0",
+        "banks": [{"name": "Banco PG", "balance": "500.00", "receives_pix": True}], "payables": []})
+    assert r.status_code == 200, r.text
+    gaveta = next(a["id"] for a in r.json()["accounts"] if a["name"] == "Gaveta")
+    rs = await asyncio.gather(*[
+        pg.client.post(f"/api/v1/finance/accounts/{gaveta}/adjust", headers=pg.h,
+                       json={"target_balance": "130.00", "reason": "Contagem do dinheiro"}) for _ in range(8)])
+    ok = [x for x in rs if x.status_code == 200]
+    assert len(ok) == 1, sorted(x.status_code for x in rs)
+    assert all(x.status_code in (200, 400, 409) for x in rs), [x.text[:150] for x in rs if x.status_code >= 500]
+    cs = (await pg.client.get("/api/v1/finance/accounts", headers=pg.h)).json()["accounts"]
+    assert float(next(a for a in cs if a["id"] == gaveta)["balance"]) == 130.0
+    async with pg.mk() as s:
+        n = (await s.execute(text("select count(*) from account_entries where tenant_id=:t and account_id=:a and description like 'Ajuste de saldo%'"),
+                             {"t": pg.tenant, "a": gaveta})).scalar()
+    assert n == 1, f"{n} lançamentos de ajuste para um único alvo"

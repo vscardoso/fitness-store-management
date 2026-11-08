@@ -325,6 +325,7 @@ class FinanceService:
             out.append({
                 "id": a.id, "name": a.name, "kind": a.kind, "kind_label": KIND_LABEL[a.kind],
                 "receives_pix": bool(a.receives_pix), "balance": float(balance),
+                "opening_balance": float(_q(a.opening_balance)),
                 "breakdown": {"opening": float(_q(a.opening_balance)), **{k: float(v) for k, v in b.items()}},
             })
         return {
@@ -876,3 +877,242 @@ class FinanceService:
         self.db.add(e)
         await self.db.commit()
         return {"ok": True}
+
+    # ── corrigir valores já lançados, no lugar (sem apagar e lançar de novo) ────────────────────────────
+    async def _audit(self, tenant_id: int, user: Optional[User], action: str, entity: str, entity_id: int,
+                     detail: Dict[str, Any]) -> None:
+        from app.services.audit_service import AuditService
+        await AuditService.log(self.db, action, tenant_id=tenant_id, user_id=getattr(user, "id", None),
+                               user_email=getattr(user, "email", None), entity=entity, entity_id=entity_id, detail=detail)
+
+    async def _has_closed_month(self, tenant_id: int) -> bool:
+        return (await self.db.execute(select(MonthClosing.id).where(
+            MonthClosing.tenant_id == tenant_id, MonthClosing.is_active == True,  # noqa: E712
+        ).limit(1))).first() is not None
+
+    async def _refuse_negative_cash(self, tenant_id: int, account_ids) -> None:
+        """Gaveta e maquininha não ficam negativas (não existe dinheiro de menos na mão); banco pode."""
+        bal = await self.balances(tenant_id)
+        for a in bal["accounts"]:
+            if a["id"] in set(account_ids) and a["kind"] in (KIND_CASH, KIND_CARD) and Decimal(str(a["balance"])) < 0:
+                txt = f"{Decimal(str(a['balance'])):.2f}".replace(".", ",")
+                raise FinanceError(f"Com este valor a conta {a['name']} ficaria negativa (R$ {txt}). Confira os lançamentos dela.")
+
+    async def update_account(self, tenant_id: int, user: User, account_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Corrige o saldo de partida (o que foi digitado na implantação) e o nome do banco. Só admin."""
+        await self._require_started(tenant_id)
+        await self._store(tenant_id, lock=True)
+        acc = await self._account(tenant_id, account_id)
+        before = {"name": acc.name, "opening_balance": float(_q(acc.opening_balance))}
+        opening_changed = False
+        try:
+            if data.get("name") is not None:
+                name = str(data["name"]).strip()[:60]
+                if name != acc.name:
+                    if acc.kind != KIND_BANK:
+                        raise FinanceError("O nome da gaveta e o da maquininha não mudam.")
+                    if not name:
+                        raise FinanceError("Informe o nome do banco.")
+                    if any(a.id != acc.id and a.name.lower() == name.lower() for a in await self._accounts(tenant_id)):
+                        raise FinanceError(f"Já existe uma conta chamada {name}.")
+                    acc.name = name
+            if data.get("opening_balance") is not None:
+                new = money(data["opening_balance"], "Saldo de partida", allow_zero=True, allow_negative=acc.kind == KIND_BANK)
+                if new != _q(acc.opening_balance):
+                    if await self._has_closed_month(tenant_id):
+                        raise FinanceConflict("Já existe mês fechado. O saldo de partida está dentro dessas contas: "
+                                              "reabra os meses fechados (Fechamento do mês) antes de mudar.")
+                    acc.opening_balance = new
+                    opening_changed = True
+            self.db.add(acc)
+            await self.db.flush()
+            if opening_changed:          # só o saldo de partida muda o dinheiro; trocar o nome não pode ser barrado por isso
+                await self._refuse_negative_cash(tenant_id, {acc.id})
+            await self._audit(tenant_id, user, "FINANCE_ACCOUNT_UPDATED", "financial_account", acc.id,
+                              {"antes": before, "depois": {"name": acc.name, "opening_balance": float(_q(acc.opening_balance))}})
+            await self.db.commit()
+        except FinanceError:
+            await self.db.rollback()
+            raise
+        return await self.balances(tenant_id)
+
+    async def adjust_account(self, tenant_id: int, user: User, account_id: Any, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Ajuste de saldo (só admin): leva o saldo ATUAL da conta ao valor contado, com um lançamento de hoje
+        (entrada ou saída "outra", fora do Resultado do Mês) e registro de auditoria."""
+        aid = as_int(account_id, "a conta")
+        reason = str(data.get("reason") or "").strip()
+        if len(reason) < 5:
+            raise FinanceError("Escreva o motivo do ajuste (pelo menos 5 letras).")
+        target = money(data.get("target_balance"), "Saldo desejado", allow_zero=True, allow_negative=True)
+        store = await self._require_started(tenant_id)
+        await self._store(tenant_id, lock=True)         # dois ajustes juntos não se pisam
+        acc = await self._account(tenant_id, aid)
+        if acc.kind in (KIND_CASH, KIND_CARD) and target < 0:
+            raise FinanceError(f"A conta {acc.name} não pode ficar negativa.")
+        today = today_brazil()
+        if today < store.finance_start_date:
+            raise FinanceError("A data não pode ser antes da implantação.")
+        await self.ensure_open_month(tenant_id, today)
+        bal = await self.balances(tenant_id)
+        current = Decimal(str(next(a["balance"] for a in bal["accounts"] if a["id"] == acc.id)))
+        diff = _q(target - current)
+        if diff == 0:
+            raise FinanceError("O saldo já é esse: nada para ajustar.")
+        kind = "other_in" if diff > 0 else "other_out"
+        e = AccountEntry(tenant_id=tenant_id, account_id=acc.id, kind=kind, amount=abs(diff), occurred_on=today,
+                         description=f"Ajuste de saldo: {reason}"[:200], created_by_name=_who(user))
+        self.db.add(e)
+        await self.db.flush()
+        await self._audit(tenant_id, user, "FINANCE_ACCOUNT_ADJUSTED", "financial_account", acc.id, {
+            "conta": acc.name, "antes": float(current), "depois": float(target), "diferenca": float(diff),
+            "motivo": reason, "lancamento_id": e.id})
+        await self.db.commit()
+        result = await self.balances(tenant_id)
+        if acc.kind == KIND_BANK and target < 0:
+            result["warning"] = f"A conta {acc.name} ficou negativa. Confira se falta lançar alguma entrada."
+        return result
+
+    async def update_transfer(self, tenant_id: int, user: User, transfer_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Corrige valor, data ou descrição de uma transferência (as contas não mudam: para isso, apague e lance de novo)."""
+        store = await self._require_started(tenant_id)
+        await self._store(tenant_id, lock=True)
+        t = (await self.db.execute(
+            select(AccountTransfer).where(AccountTransfer.id == transfer_id, AccountTransfer.tenant_id == tenant_id,
+                                          AccountTransfer.is_active == True).with_for_update()  # noqa: E712
+        )).scalar_one_or_none()
+        if t is None:
+            raise FinanceNotFound("Transferência não encontrada.")
+        if (await self.db.execute(select(CashMovement.id).where(
+                CashMovement.transfer_id == t.id, CashMovement.is_active == True))).first():  # noqa: E712
+            raise FinanceConflict("Esta transferência foi feita pelo caixa (retirada ou reforço) e não pode ser mudada aqui.")
+        if (await self.db.execute(select(Expense.id).where(
+                Expense.tenant_id == tenant_id, Expense.notes == f"repasse:{t.id}", Expense.is_active == True))).first():  # noqa: E712
+            raise FinanceConflict("Este é um repasse da maquininha com taxa. Apague e lance de novo, para a taxa ficar certa.")
+        await self.ensure_open_month(tenant_id, t.occurred_on)
+        before = {"amount": float(_q(t.amount)), "occurred_on": t.occurred_on.isoformat(), "description": t.description}
+        try:
+            if data.get("amount") is not None:
+                t.amount = money(data["amount"], "Valor")
+            if data.get("occurred_on") is not None:
+                day = parse_day(data["occurred_on"], "Data")
+                if day < store.finance_start_date:
+                    raise FinanceError("A data não pode ser antes de quando o app começou a contar.")
+                await self.ensure_open_month(tenant_id, day)
+                t.occurred_on = day
+            if "description" in data:
+                t.description = (str(data.get("description") or "").strip()[:200]) or t.description
+            self.db.add(t)
+            await self.db.flush()
+            await self._refuse_negative_cash(tenant_id, {t.from_account_id, t.to_account_id})
+            await self._audit(tenant_id, user, "FINANCE_TRANSFER_UPDATED", "account_transfer", t.id, {
+                "antes": before, "depois": {"amount": float(_q(t.amount)), "occurred_on": t.occurred_on.isoformat(), "description": t.description}})
+            await self.db.commit()
+        except FinanceError:
+            await self.db.rollback()
+            raise
+        return await self.balances(tenant_id)
+
+    async def update_payable(self, tenant_id: int, user: User, payable_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Corrige o que é, o valor, o vencimento e a observação. Conta paga: o dinheiro e a despesa acompanham o novo valor."""
+        await self._require_started(tenant_id)
+        p = await self._payable(tenant_id, payable_id, lock=True)
+        if p.status == PAYABLE_CANCELED:
+            raise FinanceConflict("Conta cancelada não pode ser mudada.")
+        if p.status == PAYABLE_PAID and p.paid_on:
+            await self.ensure_open_month(tenant_id, p.paid_on)
+        before = {"description": p.description, "amount": float(_q(p.amount)), "due_date": p.due_date.isoformat(), "notes": p.notes}
+        try:
+            if data.get("description") is not None:
+                desc = str(data["description"]).strip()[:200]
+                if not desc:
+                    raise FinanceError("Informe o que é (ex.: boleto do fornecedor, aluguel).")
+                p.description = desc
+            if data.get("amount") is not None:
+                p.amount = money(data["amount"], "Valor")
+            if data.get("due_date") is not None:
+                p.due_date = parse_day(data["due_date"], "Vencimento", allow_future=True)
+            if "notes" in data:
+                p.notes = (str(data.get("notes") or "").strip()) or None
+            self.db.add(p)
+            if p.status == PAYABLE_PAID:
+                await self.db.execute(update(Expense).where(
+                    Expense.payable_id == p.id, Expense.tenant_id == tenant_id, Expense.is_active == True,  # noqa: E712
+                ).values(amount=_q(p.amount), description=p.description[:200], notes=p.notes))
+            await self.db.flush()
+            if p.status == PAYABLE_PAID and p.paid_account_id:
+                await self._refuse_negative_cash(tenant_id, {p.paid_account_id})
+            await self._audit(tenant_id, user, "FINANCE_PAYABLE_UPDATED", "payable", p.id, {
+                "antes": before, "depois": {"description": p.description, "amount": float(_q(p.amount)),
+                                            "due_date": p.due_date.isoformat(), "notes": p.notes}})
+            await self.db.commit()
+        except FinanceError:
+            await self.db.rollback()
+            raise
+        await self.db.refresh(p)
+        return self._payable_public(p)
+
+    async def update_entry(self, tenant_id: int, user: User, entry_id: int, data: Dict[str, Any]) -> Dict[str, Any]:
+        """Corrige valor, data, conta, pessoa e descrição de uma retirada, empréstimo ou outra entrada/saída."""
+        store = await self._store(tenant_id, lock=True)
+        if store.finance_start_date is None:
+            raise FinanceConflict("Implante o financeiro da loja primeiro (Mais > Financeiro).")
+        e = (await self.db.execute(select(AccountEntry).where(
+            AccountEntry.id == entry_id, AccountEntry.tenant_id == tenant_id, AccountEntry.is_active == True,  # noqa: E712
+        ).with_for_update())).scalar_one_or_none()
+        if e is None:
+            raise FinanceNotFound("Lançamento não encontrado.")
+        if e.kind == ENTRY_CLOSING_ADJUSTMENT:
+            raise FinanceConflict("Este ajuste foi feito pelo fechamento do mês. Para mudar, reabra o mês.")
+        await self.ensure_open_month(tenant_id, e.occurred_on)
+        before = {"amount": float(_q(e.amount)), "occurred_on": e.occurred_on.isoformat(), "account_id": e.account_id,
+                  "person": e.person, "description": e.description}
+        old_account = e.account_id
+        is_loan = e.kind.startswith("loan_")
+        try:
+            if data.get("account_id") is not None:
+                e.account_id = (await self._account(tenant_id, as_int(data["account_id"], "a conta"))).id
+            amount = money(data["amount"], "Valor") if data.get("amount") is not None else _q(e.amount)
+            if data.get("occurred_on") is not None:
+                day = parse_day(data["occurred_on"], "Data")
+                if day < store.finance_start_date:
+                    raise FinanceError("A data não pode ser antes da implantação.")
+                await self.ensure_open_month(tenant_id, day)
+                e.occurred_on = day
+            if "person" in data:
+                person = (str(data.get("person") or "").strip()[:120]) or None
+                if is_loan and self._person_key(person) != self._person_key(e.person):
+                    raise FinanceError("Para trocar a pessoa de um empréstimo, apague o lançamento e lance de novo.")
+                e.person = person
+            if "description" in data:
+                e.description = (str(data.get("description") or "").strip()[:200]) or None
+            if e.kind == "owner_withdrawal" and not e.person:
+                raise FinanceError("Informe qual sócio retirou.")
+            if e.kind in ("other_in", "other_out") and not e.description:
+                raise FinanceError("Escreva o que foi (ex.: venda de um móvel da loja).")
+            key = self._person_key(e.person)
+            if e.kind in ("loan_given", "loan_taken"):
+                back = "loan_repaid" if e.kind == "loan_given" else "loan_paid"
+                paid = -(await self._loan_open(tenant_id, key, e.kind, back, exclude_id=e.id))
+                if amount < paid:
+                    txt = f"{paid:.2f}".replace(".", ",")
+                    raise FinanceError(f"Já foram pagos R$ {txt} deste empréstimo: o valor não pode ser menor. Apague primeiro o pagamento.")
+            elif e.kind in ("loan_repaid", "loan_paid"):
+                give = "loan_given" if e.kind == "loan_repaid" else "loan_taken"
+                open_amount = await self._loan_open(tenant_id, key, give, e.kind, exclude_id=e.id)
+                if amount > open_amount:
+                    txt = f"{open_amount:.2f}".replace(".", ",")
+                    raise FinanceError(f"Valor acima do empréstimo em aberto (R$ {txt}).")
+            e.amount = amount
+            self.db.add(e)
+            await self.db.flush()
+            await self._refuse_negative_cash(tenant_id, {old_account, e.account_id})
+            await self._audit(tenant_id, user, "FINANCE_ENTRY_UPDATED", "account_entry", e.id, {
+                "antes": before, "depois": {"amount": float(_q(e.amount)), "occurred_on": e.occurred_on.isoformat(),
+                                            "account_id": e.account_id, "person": e.person, "description": e.description}})
+            await self.db.commit()
+        except FinanceError:
+            await self.db.rollback()
+            raise
+        await self.db.refresh(e)
+        names = {a.id: a.name for a in await self._accounts(tenant_id)}
+        return self._entry_public(e, names)

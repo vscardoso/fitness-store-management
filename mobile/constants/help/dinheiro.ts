@@ -42,6 +42,7 @@ export const DINHEIRO: HelpEntry[] = [
       'Para levar dinheiro de uma conta para outra (gaveta para o banco, por exemplo), toque em “Transferir”.',
       'Quando a maquininha depositar no banco, toque em “Fazer repasse”, confira o valor das vendas e o que caiu no banco.',
       'Errou uma transferência? Toque na lixeira dela em “Últimas transferências”.',
+      'O admin que contou o dinheiro e viu diferença toca em “Corrigir saldo” na conta, informa quanto tem de verdade e o motivo.',
     ],
     parts: [
       { label: 'Caixa da gaveta', text: 'se o caixa do turno está aberto e quanto deve ter na gaveta. Toque para abrir, colocar, retirar ou fechar.' },
@@ -53,7 +54,7 @@ export const DINHEIRO: HelpEntry[] = [
       'Venda em dinheiro entra na gaveta, PIX entra no banco que recebe o PIX e cartão entra na maquininha.',
       'Se a taxa da maquininha é repassada para a cliente, o que cai no banco é igual ao das vendas. Se caiu menos, a diferença vira a despesa “Taxa da maquininha”.',
       'Apagar uma transferência devolve o valor para as duas contas (e apaga a taxa do repasse).',
-      'Trocar o banco do PIX muda também onde caiu o PIX antigo, desde a implantação.',
+      '“Corrigir saldo” lança um ajuste de hoje: não conta como venda nem como despesa e fica registrado com o nome de quem fez.',
     ],
     roles: ['manager'],
     related: ['caixa', 'contas-pagar', 'despesas'],

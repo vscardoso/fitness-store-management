@@ -71,6 +71,25 @@ async def add_bank(data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(
         raise _http(e)
 
 
+@router.post("/accounts/{account_id}/adjust", summary="Ajustar o saldo de uma conta (só admin; grava lançamento e auditoria)")
+async def adjust_account(account_id: str, data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
+                         tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        return await FinanceService(db).adjust_account(tenant_id, current_user, account_id, data)
+    except FinanceError as e:
+        raise _http(e)
+
+
+@router.patch("/accounts/{account_id}", summary="Corrigir o saldo de partida ou o nome do banco (só admin)")
+async def update_account(account_id: str, data: Dict[str, Any] = Body(...), db: AsyncSession = Depends(get_db),
+                         tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):
+    try:
+        from app.services.finance_service import as_int
+        return await FinanceService(db).update_account(tenant_id, current_user, as_int(account_id, "a conta"), data)
+    except FinanceError as e:
+        raise _http(e)
+
+
 @router.put("/accounts/{account_id}/pix", summary="Esta conta passa a receber o PIX das vendas")
 async def set_pix(account_id: int, db: AsyncSession = Depends(get_db),
                   tenant_id: int = Depends(get_current_tenant_id), current_user: User = Depends(get_current_active_user)):

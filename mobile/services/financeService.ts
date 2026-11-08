@@ -13,6 +13,8 @@ export interface FinanceAccount {
   kind_label: string;
   receives_pix: boolean;
   balance: number;
+  /** Saldo de partida (da implantação); só vem do servidor novo. */
+  opening_balance?: number | string;
   breakdown: {
     opening: number; sales: number; refunds: number; cash_register: number;
     transfers_in: number; transfers_out: number; payables_paid: number; expenses_paid: number;
@@ -227,3 +229,14 @@ export const closeMonth = async (year: number, month: number, counted: Record<st
 
 export const reopenMonth = async (year: number, month: number): Promise<MonthClosing> =>
   (await api.post<MonthClosing>(`/finance/closings/${year}/${month}/reopen`)).data;
+
+/** Admin: leva o saldo da conta ao valor de verdade com um AJUSTE de hoje (não é venda nem despesa). */
+export const adjustAccountBalance = async (
+  accountId: number, body: { target_balance: string; reason: string },
+): Promise<FinanceOverview & { warning?: string | null }> =>
+  (await api.post<FinanceOverview & { warning?: string | null }>(`/finance/accounts/${accountId}/adjust`, body)).data;
+
+/** Admin: corrige o saldo de PARTIDA (erro de implantação) ou o nome da conta. 409 se há mês fechado. */
+export const updateAccount = async (
+  accountId: number, body: { opening_balance?: string; name?: string },
+): Promise<FinanceOverview> => (await api.patch<FinanceOverview>(`/finance/accounts/${accountId}`, body)).data;

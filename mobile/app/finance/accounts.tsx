@@ -26,7 +26,7 @@ import { formatCurrency, formatDate } from '@/utils/format';
 import { parseApiError, showApiError } from '@/utils/apiError';
 import { moneyInput, parseMoneyBr } from '@/utils/cashMoney';
 import {
-  addBankAccount, deleteTransfer, getFinanceOverview, listTransfers, setPixAccount, transferBetweenAccounts,
+  addBankAccount, adjustAccountBalance, updateAccount, deleteTransfer, getFinanceOverview, listTransfers, setPixAccount, transferBetweenAccounts,
   type AccountTransfer, type FinanceAccount,
 } from '@/services/financeService';
 
@@ -51,6 +51,8 @@ export default function AccountsScreen() {
   const [sheetError, setSheetError] = useState('');
   const [transferWarning, setTransferWarning] = useState('');
   const [detail, setDetail] = useState<FinanceAccount | null>(null);
+  // Corrigir saldo (admin): 'adjust' leva o saldo de hoje ao valor real; 'opening' corrige o saldo de partida
+  const [fix, setFix] = useState<{ acc: FinanceAccount; mode: 'adjust' | 'opening'; amount: string; reason: string } | null>(null);
 
   const refresh = () => queryClient.invalidateQueries();
   const doTransfer = useMutation({
@@ -60,6 +62,20 @@ export default function AccountsScreen() {
     }),
     onSuccess: async (res) => { setTransfer(null); setTransferWarning(res?.warning || ''); await refresh(); },
     onError: (e) => setSheetError(parseApiError(e) || 'Não foi possível transferir.'),
+  });
+  const doFix = useMutation({
+    mutationFn: () => {
+      const amount = (parseMoneyBr(fix!.amount) ?? 0).toFixed(2);
+      return fix!.mode === 'adjust'
+        ? adjustAccountBalance(fix!.acc.id, { target_balance: amount, reason: fix!.reason.trim() })
+        : updateAccount(fix!.acc.id, { opening_balance: amount });
+    },
+    onSuccess: async (res) => {
+      setFix(null);
+      setTransferWarning((res as { warning?: string | null })?.warning || '');
+      await refresh();
+    },
+    onError: (e) => setSheetError(parseApiError(e) || 'Não foi possível corrigir o saldo.'),
   });
   const doBank = useMutation({
     mutationFn: () => addBankAccount(newBank!.name.trim(), parseMoneyBr(newBank!.amount) ?? 0, false),
@@ -116,6 +132,10 @@ export default function AccountsScreen() {
 
   const accounts = data.accounts;
   const name = (id: number | null) => accounts.find((a) => a.id === id)?.name ?? 'Escolha';
+  const openFix = (acc: FinanceAccount) => {
+    setSheetError(''); setDetail(null);
+    setFix({ acc, mode: 'adjust', amount: moneyInput(Math.round(acc.balance * 100).toString()), reason: '' });
+  };
   const openTransfer = (from: number | null, to: number | null) => { setSheetError(''); setTransfer({ from, to, amount: '', note: '' }); };
 
   return (
@@ -148,6 +168,13 @@ export default function AccountsScreen() {
                 </View>
               </View>
               <Text style={[styles.balance, a.balance < 0 && { color: Colors.light.error }]}>{formatCurrency(a.balance)}</Text>
+              {admin && (
+                <TouchableOpacity onPress={() => openFix(a)} hitSlop={8} style={styles.fixBtn} accessibilityRole="button"
+                  accessibilityLabel={`Corrigir saldo de ${a.name}`}>
+                  <Ionicons name="pencil" size={14} color={brand.primary} />
+                  <Text style={[styles.fixText, { color: brand.primary }]}>Corrigir saldo</Text>
+                </TouchableOpacity>
+              )}
             </TouchableOpacity>
           ))}
         </View>
@@ -219,6 +246,67 @@ export default function AccountsScreen() {
           </View>
         )}
       </BottomSheet>
+
+      {(() => {
+        if (!fix) return null;
+        const target = parseMoneyBr(fix.amount);
+        const diffCents = target == null ? 0 : Math.round(target * 100) - Math.round(fix.acc.balance * 100);
+        const openingNow = Number(fix.acc.opening_balance ?? fix.acc.breakdown.opening ?? 0);
+        const shortReason = fix.mode === 'adjust' && fix.reason.trim().length < 5;
+        const noChange = fix.mode === 'adjust' ? diffCents === 0 : target == null || Math.round(target * 100) === Math.round(openingNow * 100);
+        return (
+          <BottomSheet
+            visible
+            onDismiss={() => setFix(null)}
+            title={`Corrigir saldo de ${fix.acc.name}`}
+            icon="pencil"
+            actions={[{
+              label: fix.mode === 'adjust' ? 'Corrigir saldo' : 'Corrigir saldo de partida', variant: 'primary', loading: doFix.isPending,
+              disabled: target == null || noChange || shortReason,
+              onPress: () => { setSheetError(''); doFix.mutate(); },
+            }]}
+          >
+            <View style={{ gap: 10 }}>
+              {!!sheetError && <Text style={styles.error}>{sheetError}</Text>}
+              {fix.mode === 'adjust' ? (
+                <>
+                  <Text style={styles.note}>Saldo no sistema hoje: {formatCurrency(fix.acc.balance)}</Text>
+                  <TextInput mode="outlined" label="Quanto tem de verdade agora?" value={fix.amount} keyboardType="decimal-pad"
+                    left={<TextInput.Affix text="R$" />} onChangeText={(t) => setFix({ ...fix, amount: moneyInput(t) })}
+                    activeOutlineColor={brand.primary} />
+                  <TextInput mode="outlined" label="Motivo (mínimo 5 letras)" value={fix.reason}
+                    onChangeText={(t) => setFix({ ...fix, reason: t })} activeOutlineColor={brand.primary} />
+                  <View style={styles.chips}>
+                    {['Contagem do dinheiro', 'Conferi no extrato do banco', 'Erro de lançamento'].map((r) => (
+                      <Chip key={r} text={r} on={fix.reason === r} color={brand.primary} onPress={() => setFix({ ...fix, reason: r })} />
+                    ))}
+                  </View>
+                  {diffCents !== 0 && target != null && (
+                    <Text style={styles.note}>
+                      Vai lançar um ajuste de {diffCents > 0 ? '+' : '-'} {formatCurrency(Math.abs(diffCents) / 100)}. Não conta como venda nem como despesa e fica registrado com o seu nome.
+                    </Text>
+                  )}
+                  <TouchableOpacity onPress={() => { setSheetError(''); setFix({ ...fix, mode: 'opening', amount: moneyInput(Math.round(openingNow * 100).toString()) }); }}
+                    accessibilityRole="button">
+                    <Text style={[styles.note, { textDecorationLine: 'underline' }]}>Errei o saldo da implantação (saldo de partida)</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TextInput mode="outlined" label="Saldo de partida" value={fix.amount} keyboardType="decimal-pad"
+                    left={<TextInput.Affix text="R$" />} onChangeText={(t) => setFix({ ...fix, amount: moneyInput(t) })}
+                    activeOutlineColor={brand.primary} />
+                  <Text style={styles.note}>Muda o saldo desde o início da contagem. Só dá se nenhum mês foi fechado.</Text>
+                  <TouchableOpacity onPress={() => { setSheetError(''); setFix({ ...fix, mode: 'adjust', amount: moneyInput(Math.round(fix.acc.balance * 100).toString()) }); }}
+                    accessibilityRole="button">
+                    <Text style={[styles.note, { textDecorationLine: 'underline' }]}>Voltar para corrigir o saldo de hoje</Text>
+                  </TouchableOpacity>
+                </>
+              )}
+            </View>
+          </BottomSheet>
+        );
+      })()}
 
       <BottomSheet
         visible={!!newBank}
@@ -310,6 +398,8 @@ const styles = StyleSheet.create({
   icon: { width: 36, height: 36, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
   accountName: { fontSize: 15, fontWeight: '800', color: Colors.light.text },
   accountKind: { fontSize: 12, color: Colors.light.textSecondary },
+  fixBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 6, alignSelf: 'flex-start' },
+  fixText: { fontSize: 12, fontWeight: '700' },
   balance: { fontSize: 20, fontWeight: '800', color: Colors.light.text },
   transferRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 4 },
   transferText: { fontSize: 14, fontWeight: '700', color: Colors.light.text },
