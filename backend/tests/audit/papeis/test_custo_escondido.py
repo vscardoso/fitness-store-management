@@ -31,7 +31,8 @@ def _suspeitos(corpo):
     for caminho, k, v in _anda(corpo):
         if is_cost_key(str(k)) and v is not None and not isinstance(v, (dict, list)):
             ruins.append((caminho, v, "chave de custo sem máscara"))
-        elif isinstance(v, (int, float)) and not isinstance(v, bool) and float(v) in VAZA:
+        elif (isinstance(v, (int, float)) and not isinstance(v, bool) and float(v) in VAZA
+              and not (str(k) == "id" or str(k).endswith("_id"))):   # id 60 não é custo R$ 60 (coincidência dependia da ordem dos testes)
             ruins.append((caminho, v, "número igual a custo/lucro/margem sob outro nome"))
     return ruins
 

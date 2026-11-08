@@ -94,6 +94,21 @@ async def loja(async_session, test_user, test_client):
 
 async def test_usuario_desativado_perde_o_acesso_na_hora(test_client, async_session, test_user, loja):
     t_id, h = loja
+    # o objetivo é o acesso do usuário desativado, não o limite do plano: sem limite para a loja 1 não depende de quantos usuários
+    # outros testes deixaram nela (no CI, rodando a suíte inteira, o plano pro enchia e a reativação dava 403)
+    from sqlalchemy import select as _select, update as _update
+    from app.models.subscription import Subscription as _Sub
+    plano = (await async_session.execute(_select(_Sub.plan).where(_Sub.tenant_id == t_id))).scalars().first()
+    await async_session.execute(_update(_Sub).where(_Sub.tenant_id == t_id).values(plan="enterprise"))
+    await async_session.commit()
+    try:
+        await _desativado_perde_acesso(test_client, async_session, t_id, h)
+    finally:
+        await async_session.execute(_update(_Sub).where(_Sub.tenant_id == t_id).values(plan=plano))
+        await async_session.commit()
+
+
+async def _desativado_perde_acesso(test_client, async_session, t_id, h):
     u, hu = await novo_usuario(async_session, t_id, "seller")
     assert (await test_client.get(f"{API}/sales/", headers=hu)).status_code == 200
     r = await test_client.delete(f"{API}/team/{u.id}", headers=h["admin"])
