@@ -1437,8 +1437,8 @@ export default function DashboardScreen() {
                       color={refundish ? VALUE_COLORS.negative : brandingColors.primary}
                     />
                   </View>
-                  <View>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6 }}>
                       <Text style={styles.recentItemTitle}>Venda #{sale.id}</Text>
                       {!!rv.tag && (
                         <View style={{ backgroundColor: VALUE_COLORS.negative + '18', borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1 }}>
@@ -1454,13 +1454,14 @@ export default function DashboardScreen() {
                         minute: '2-digit'
                       })}
                     </Text>
+                    {/* "Vendeu R$ X · devolveu R$ Y" fica embaixo da data, com quebra de linha: no lado do valor estourava a tela */}
+                    {!!rv.sub && <Text style={[styles.recentItemDate, { color: VALUE_COLORS.negative }]}>{rv.sub}</Text>}
                   </View>
                 </View>
-                <View style={{ alignItems: 'flex-end' }}>
+                <View style={{ alignItems: 'flex-end', flexShrink: 0 }}>
                   <Text style={[styles.recentItemValue, rv.negative && { color: VALUE_COLORS.negative }]}>
                     {formatCurrency(rv.kind === 'normal' ? (rv.amount || (sale as any).total || 0) : rv.amount)}
                   </Text>
-                  {!!rv.sub && <Text style={[styles.recentItemDate, { color: VALUE_COLORS.negative }]}>{rv.sub}</Text>}
                 </View>
               </View>
               );
@@ -2158,6 +2159,9 @@ const createStyles = (brand: string) => StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+    flex: 1,
+    minWidth: 0,
+    paddingRight: 10,
   },
   recentItemIcon: {
     width: 36,
