@@ -913,7 +913,7 @@ class StockEntryService:
         if product_ids:
             conds.append(SaleItem.product_id.in_(product_ids))
         stmt = (
-            select(SaleItem)
+            select(SaleItem, Sale.subtotal, Sale.total_amount)
             .join(Sale, Sale.id == SaleItem.sale_id)
             .where(
                 Sale.tenant_id == tenant_id,
@@ -922,9 +922,9 @@ class StockEntryService:
                 or_(*conds),
             )
         )
-        sale_items = (await self.db.execute(stmt)).scalars().all()
+        sale_items = (await self.db.execute(stmt)).all()
         by_id = {}
-        for si in sale_items:
+        for si, sale_subtotal, sale_total in sale_items:
             raw = si.sale_sources
             sources = raw.get("sources", []) if isinstance(raw, dict) else (raw or [])
             taken = [t for t in sources if t.get("entry_id") == entry.id]
@@ -932,6 +932,9 @@ class StockEntryService:
                 continue
             qty = sum(int(t["quantity_taken"]) for t in taken)
             net_item = Decimal(str(si.subtotal or 0)) - Decimal(str(si.discount_amount or 0))
+            # desconto dado na VENDA inteira (não no item): rateia pelo peso do item, igual ao money_ledger (receita = parte do total pago)
+            if sale_subtotal and Decimal(str(sale_subtotal)) > 0 and sale_total is not None:
+                net_item = net_item * Decimal(str(sale_total)) / Decimal(str(sale_subtotal))
             out["units"] += qty
             out["revenue"] += net_item * Decimal(qty) / Decimal(si.quantity)
             out["cost"] += sum(Decimal(str(t["quantity_taken"])) * Decimal(str(t["unit_cost"])) for t in taken)

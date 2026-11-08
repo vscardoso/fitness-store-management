@@ -206,7 +206,7 @@ class TripService:
         if entry_ids:
             from sqlalchemy import select as sa_select
             sale_items_result = await self.db.execute(
-                sa_select(SaleItem.subtotal, SaleItem.sale_sources)
+                sa_select(SaleItem.subtotal, SaleItem.sale_sources, Sale.subtotal, Sale.total_amount)
                 .join(Sale, SaleItem.sale_id == Sale.id)
                 .where(
                     Sale.is_active == True,
@@ -215,13 +215,16 @@ class TripService:
                     SaleItem.sale_sources.isnot(None),
                 )
             )
-            for subtotal, sale_sources in sale_items_result.fetchall():
+            for subtotal, sale_sources, sale_subtotal, sale_total in sale_items_result.fetchall():
                 if not sale_sources:
                     continue
                 try:
                     sources = json.loads(sale_sources)
                     if any(src.get("entry_id") in entry_ids for src in sources):
-                        trip_revenue += float(subtotal or 0)
+                        item_net = float(subtotal or 0)
+                        if sale_subtotal and float(sale_subtotal) > 0 and sale_total is not None:
+                            item_net = item_net * float(sale_total) / float(sale_subtotal)   # desconto dado na venda inteira
+                        trip_revenue += item_net
                 except (json.JSONDecodeError, TypeError):
                     continue
 

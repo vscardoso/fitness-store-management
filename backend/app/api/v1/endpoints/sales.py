@@ -1114,7 +1114,8 @@ async def get_top_products(
                 Product.base_price.label('current_price'),
                 Category.name.label('category_name'),
                 func.sum(SaleItem.quantity).label('quantity_sold'),
-                func.sum(SaleItem.subtotal).label('total_revenue'),
+                # receita = parte do valor PAGO da venda (o desconto dado na venda inteira também conta)
+                func.sum(func.coalesce(SaleItem.subtotal * Sale.total_amount / func.nullif(Sale.subtotal, 0), SaleItem.subtotal)).label('total_revenue'),
                 func.sum(SaleItem.quantity * SaleItem.unit_cost).label('total_cost'),
             )
             .select_from(SaleItem)
@@ -1145,7 +1146,7 @@ async def get_top_products(
         total_query = (
             sa_select(
                 func.sum(SaleItem.quantity).label('total_qty'),
-                func.sum(SaleItem.subtotal).label('total_rev'),
+                func.sum(func.coalesce(SaleItem.subtotal * Sale.total_amount / func.nullif(Sale.subtotal, 0), SaleItem.subtotal)).label('total_rev'),
             )
             .select_from(SaleItem)
             .join(Sale, SaleItem.sale_id == Sale.id)
