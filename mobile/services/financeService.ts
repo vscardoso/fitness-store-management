@@ -25,6 +25,19 @@ export interface FinanceOverview {
   start_date: string | null;
   accounts: FinanceAccount[];
   total: number;
+  /** Suposição "e se eu receber o fiado?" (nada é gravado). Só vem depois da implantação. */
+  projection?: FinanceProjection;
+}
+
+export interface FinanceProjection {
+  money_now: number;
+  fiado_open: number;
+  fiado_overdue: number;
+  fiado_customers: number;
+  payables_open: number;
+  if_overdue_received: number;
+  if_all_received: number;
+  after_paying_everything: number;
 }
 
 export interface Payable {

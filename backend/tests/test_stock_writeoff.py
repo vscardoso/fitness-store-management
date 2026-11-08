@@ -3,7 +3,7 @@ import pytest
 from sqlalchemy import select
 
 from app.core.security import create_access_token, get_password_hash
-from tests.test_lot_costs import _loja_api
+from tests.test_lot_costs import _limpa_loja_1, _loja_api  # noqa: F401  (_limpa_loja_1 é fixture autouse)
 from tests.test_stock_check import _n, _produto_com_variacoes
 
 pytestmark = pytest.mark.asyncio

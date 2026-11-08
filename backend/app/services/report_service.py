@@ -64,9 +64,10 @@ class ReportService:
         tenant_id: int,
         period: str = "this_month",
         seller_id: Optional[int] = None,
+        custom_range: Optional[tuple] = None,
     ) -> SalesReportResponse:
         """
-        Gera relatório completo de vendas.
+        Gera relatório completo de vendas. `custom_range` = (primeiro_dia, último_dia) de um período exato (relatório mensal).
 
         Args:
             db: Sessão do banco
@@ -77,7 +78,12 @@ class ReportService:
         Returns:
             SalesReportResponse com métricas completas
         """
-        start_date, end_date = self._get_period_dates(period)
+        if custom_range:
+            from datetime import time as _time
+            start_date = datetime.combine(custom_range[0], _time.min)
+            end_date = datetime.combine(custom_range[1], _time(23, 59, 59, 999999))
+        else:
+            start_date, end_date = self._get_period_dates(period)
         d0, d1 = start_date.date(), end_date.date()
 
         # Receita, custo e lucro pela conta única (app/services/money_ledger.py): receita LÍQUIDA (vendas do período

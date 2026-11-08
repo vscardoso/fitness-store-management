@@ -3,14 +3,41 @@ import type { HelpEntry } from './types';
 
 export const DINHEIRO: HelpEntry[] = [
   {
-    id: 'contas-saldos',
+    id: 'financeiro',
     group: 'dinheiro',
-    title: 'Caixa e contas',
+    title: 'Financeiro',
     routes: ['/finance'],
     open: '/finance',
+    purpose: 'Mostra o dinheiro da loja em três perguntas: quanto eu tenho, o que vai entrar e sair, e como foi o mês.',
+    steps: [
+      'Em “1. Quanto eu tenho?”, veja o caixa do dia e o dinheiro de cada conta. Toque em “Ver contas e transferir” para o detalhe.',
+      'Em “2. O que vai entrar e sair?”, toque no fiado, nas despesas a pagar ou nas retiradas e empréstimos.',
+      'Em “3. Como foi o mês?”, abra o relatório mensal ou o fechamento do mês.',
+      'Na primeira vez, o admin toca em “Começar a controlar o dinheiro” e informa os saldos de hoje.',
+    ],
+    parts: [
+      { label: 'Dinheiro em todas as contas', text: 'gaveta, bancos e maquininha somados, calculados com as vendas e os pagamentos.' },
+      { label: 'E se eu receber o fiado?', text: 'uma suposição: o dinheiro de hoje mais o fiado a receber, menos o que há a pagar. Nada é lançado.' },
+      { label: 'Fiado: quem me deve', text: 'o que as clientes ainda vão pagar; mostra em vermelho o que já venceu.' },
+      { label: 'Despesas a pagar', text: 'contas e boletos que ainda vão vencer, com as vencidas em destaque.' },
+    ],
+    goodToKnow: [
+      'O caixa da gaveta é o turno do dia: abrir, vender e fechar. O saldo da conta Gaveta vem da implantação mais as vendas em dinheiro e as retiradas.',
+      'Antes de começar a controlar o dinheiro, o app não sabe o saldo de cada conta.',
+    ],
+    roles: ['manager'],
+    related: ['contas-saldos', 'contas-pagar', 'fechamento-mes'],
+    sources: ['app/finance/index.tsx'],
+  },
+  {
+    id: 'contas-saldos',
+    group: 'dinheiro',
+    title: 'Contas e saldos',
+    routes: ['/finance/accounts'],
+    open: '/finance/accounts',
     purpose: 'Mostra quanto a loja tem agora na gaveta, em cada banco e a receber da maquininha.',
     steps: [
-      'Na primeira vez, o admin toca em “Implantar a loja” e informa os saldos de hoje.',
+      'Na primeira vez, o admin toca em “Começar a controlar o dinheiro” e informa os saldos de hoje.',
       'Toque numa conta para ver de onde veio o saldo: vendas, devoluções, transferências e contas pagas.',
       'Para levar dinheiro de uma conta para outra (gaveta para o banco, por exemplo), toque em “Transferir”.',
       'Quando a maquininha depositar no banco, use “Repasse da maquininha”.',
@@ -26,13 +53,13 @@ export const DINHEIRO: HelpEntry[] = [
     ],
     goodToKnow: [
       'Venda em dinheiro entra na gaveta, PIX entra no banco que recebe o PIX e cartão entra na maquininha.',
-      'Suprimento e sangria do caixa mexem só na gaveta.',
+      'Dinheiro colocado ou tirado do caixa mexe só na gaveta.',
       'Apagar uma transferência devolve o valor para as duas contas.',
       'Trocar o banco do PIX muda também onde caiu o PIX antigo, desde a implantação.',
     ],
     roles: ['manager'],
     related: ['caixa', 'contas-pagar', 'despesas'],
-    sources: ['app/finance/index.tsx', 'components/cash/CashStatusCard.tsx'],
+    sources: ['app/finance/accounts.tsx', 'components/cash/CashStatusCard.tsx'],
   },
   {
     id: 'fechamento-mes',
@@ -52,7 +79,7 @@ export const DINHEIRO: HelpEntry[] = [
       { label: '1. Começo do mês', text: 'o saldo de cada conta no primeiro dia (ou no dia da implantação).' },
       { label: '2. Entrou e 3. Saiu', text: 'todo dinheiro que mexeu nas contas no mês, separado por tipo.' },
       { label: '4. Deveria ter', text: 'começo + entrou - saiu.' },
-      { label: '6. Diferença', text: 'quanto sobrou ou faltou (a quebra de caixa).' },
+      { label: '6. Diferença', text: 'quanto sobrou ou faltou (a diferença do caixa).' },
       { label: 'Ainda vai entrar e sair', text: 'fiado a receber, empréstimos e despesas a pagar.' },
       { label: 'Resultado do mês e Estoque hoje', text: 'quanto vendeu, quanto sobrou de lucro e quanto vale o estoque.' },
     ],
@@ -97,15 +124,15 @@ export const DINHEIRO: HelpEntry[] = [
   {
     id: 'implantar-loja',
     group: 'dinheiro',
-    title: 'Implantar a loja',
+    title: 'Começar a controlar o dinheiro',
     routes: ['/finance/setup'],
     purpose: 'Registra uma vez quanto a loja já tinha, para o app somar dali em diante.',
     steps: [
-      'Em “1. Data de corte”, escolha o dia a partir do qual o app passa a somar.',
+      'Em “1. Contar a partir de”, escolha o dia a partir do qual o app passa a somar.',
       'Em “2. Dinheiro de hoje”, informe a gaveta, o cartão a receber e cada banco.',
       'Marque “Recebe o PIX das vendas” no banco onde o PIX cai.',
       'Em “3. Contas a pagar que já existem”, lance os boletos que já estavam abertos.',
-      'Confira o “Resumo” e toque em “Implantar a loja”.',
+      'Confira o “Resumo” e toque em “Começar a controlar o dinheiro”.',
     ],
     goodToKnow: [
       'É feito uma vez só: se algum campo estiver errado, nada é gravado.',

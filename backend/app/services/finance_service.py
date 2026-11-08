@@ -297,13 +297,32 @@ class FinanceService:
             "total": float(_q(sum((Decimal(str(x["balance"])) for x in out), D0))),
         }
 
+    async def projection(self, tenant_id: int, balances: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """"E se eu receber todo o fiado?": dinheiro de hoje nas contas + fiado a receber - despesas e contas a pagar em aberto.
+        Só suposição (nada é gravado): o fiado real entra nas contas quando a cliente paga."""
+        from app.services.receivable_service import ReceivableService
+        bal = balances if balances is not None else await self.balances(tenant_id)
+        now = _q(bal.get("total", 0))
+        rec = await ReceivableService(self.db).summary(tenant_id)
+        pays = await self.list_payables(tenant_id)
+        open_fiado, overdue = _q(rec["open_total"]), _q(rec["overdue_total"])
+        to_pay = _q(pays["open_total"])
+        return {
+            "money_now": float(now),
+            "fiado_open": float(open_fiado), "fiado_overdue": float(overdue), "fiado_customers": rec["customers"],
+            "payables_open": float(to_pay),
+            "if_overdue_received": float(_q(now + overdue)),
+            "if_all_received": float(_q(now + open_fiado)),
+            "after_paying_everything": float(_q(now + open_fiado - to_pay)),
+        }
+
     # ── implantação ─────────────────────────────────────────────────────────
     async def setup(self, tenant_id: int, user: User, data: Dict[str, Any]) -> Dict[str, Any]:
         """Grava tudo ou nada: data de corte, gaveta, bancos, maquininha a receber e contas a pagar que já existem."""
         store = await self._store(tenant_id, lock=True)
         if store.finance_start_date is not None:
             raise FinanceConflict("O financeiro desta loja já foi implantado. Ajuste pelas contas e pelas contas a pagar.")
-        start = parse_day(data.get("start_date") or today_brazil(), "Data de corte")
+        start = parse_day(data.get("start_date") or today_brazil(), "Contar a partir de")
 
         cash = money(data.get("cash_balance", 0), "Dinheiro na gaveta", allow_zero=True)
         card = money(data.get("card_balance", 0), "Cartão a receber da maquininha", allow_zero=True)

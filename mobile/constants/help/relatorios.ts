@@ -3,6 +3,37 @@ import type { HelpEntry } from './types';
 
 export const RELATORIOS: HelpEntry[] = [
   {
+    id: 'relatorio-mensal',
+    group: 'relatorios',
+    title: 'Relatório mensal',
+    routes: ['/reports/monthly'],
+    open: '/reports/monthly',
+    purpose: 'Reúne num só lugar o dinheiro e a análise do mês: quanto vendeu, quanto lucrou, o que há a receber e a pagar, e o que merece atenção.',
+    steps: [
+      'Escolha o mês nas setas do topo. O app abre no mês atual.',
+      'Comece por “Saúde da loja: o que olhar”: cada aviso diz se é para agir, olhar ou se está tudo certo.',
+      'Role para ver o resultado do mês, as vendas, o dinheiro das contas, o fiado e o estoque.',
+      'Para guardar ou enviar, toque em “Abrir PDF do mês”.',
+    ],
+    parts: [
+      { label: 'Saúde da loja', text: 'avisos em frase pronta: prejuízo, queda de faturamento, fiado vencido, contas vencidas e estoque parado.' },
+      { label: 'Resultado do mês', text: 'faturamento, custo das peças, lucro das vendas, despesas e lucro do mês, com a mudança sobre o mês anterior.' },
+      { label: 'Vendas do mês', text: 'peças vendidas, descontos, devoluções, formas de pagamento, categorias, vendedores e mais vendidos.' },
+      { label: 'Financeiro: o dinheiro do mês', text: 'quanto tinha no começo, o que entrou, o que saiu e quanto deveria ter em cada conta.' },
+      { label: 'A receber e a pagar', text: 'fiado em aberto e vencido, e despesas e contas a pagar de hoje.' },
+      { label: 'Estoque', text: 'peças, valor a preço de venda e de custo, giro e peças paradas.' },
+    ],
+    goodToKnow: [
+      'Usa as mesmas contas das outras telas: devolução abate no dia em que aconteceu e venda cancelada fica de fora.',
+      'Venda no fiado conta no faturamento do mês em que foi vendida, mas o dinheiro só entra quando a cliente paga.',
+      'O dinheiro das contas só aparece depois de implantar o Financeiro e só vale dos dias da implantação em diante.',
+      'Mês em andamento é comparado com o mês anterior inteiro.',
+    ],
+    roles: ['manager'],
+    related: ['resultado-mes', 'fechamento-mes', 'relatorio-vendas'],
+    sources: ['app/reports/monthly.tsx'],
+  },
+  {
     id: 'relatorio-vendas',
     group: 'relatorios',
     title: 'Relatório de vendas',

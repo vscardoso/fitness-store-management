@@ -7,6 +7,7 @@ import pytest
 from httpx import AsyncClient
 
 from tests.conftest import async_session, auth_token, test_client  # noqa: F401
+from tests.test_lot_costs import _limpa_loja_1  # noqa: F401  (fixture autouse: apaga o que o teste criou na loja 1)
 
 pytestmark = pytest.mark.asyncio
 

@@ -25,7 +25,11 @@ def _http(e: FinanceError) -> HTTPException:
 async def accounts(db: AsyncSession = Depends(get_db), tenant_id: int = Depends(get_current_tenant_id),
                    current_user: User = Depends(get_current_active_user)):
     try:
-        return await FinanceService(db).balances(tenant_id)
+        svc = FinanceService(db)
+        data = await svc.balances(tenant_id)
+        if data.get("started"):
+            data["projection"] = await svc.projection(tenant_id, data)
+        return data
     except FinanceError as e:
         raise _http(e)
 

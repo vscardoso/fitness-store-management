@@ -155,6 +155,20 @@ export default function ClosingScreen() {
               </View>
             )}
 
+            {idx === 0 && (
+              <View style={styles.card}>
+                <Text style={styles.title}>Total geral de hoje</Text>
+                <Row label="Dinheiro nas contas (gaveta, bancos e maquininha)" value={data.expected_total} plain />
+                <Row label="Fiado e empréstimos a receber" value={data.to_receive.fiado_open + data.to_receive.loans} plain />
+                <Row label="Despesas e empréstimos a pagar" value={-(data.to_pay.payables_open + data.to_pay.loans)} plain />
+                <Row label="Sobraria se tudo fosse recebido e pago"
+                  value={data.expected_total + data.to_receive.fiado_open + data.to_receive.loans - data.to_pay.payables_open - data.to_pay.loans} plain bold />
+                <Text style={styles.small}>
+                  O estoque (R$ {data.stock.cost_value.toFixed(2).replace('.', ',')} a preço de custo) não entra: não é dinheiro. Isto é só uma conta de hoje, nada é lançado.
+                </Text>
+              </View>
+            )}
+
             <Section title="1. Começo do mês" total={data.start_total}
               note={data.partial_start ? 'Começa no dia da implantação.' : undefined}>
               {data.accounts.map((a) => <Row key={a.id} label={a.name} value={a.start} />)}
@@ -164,7 +178,7 @@ export default function ClosingScreen() {
               {data.entered.sales.map((s) => <Row key={s.method} label={`Vendas em ${s.label.toLowerCase()}`} value={s.amount} />)}
               <Row label="Fiado recebido" value={data.entered.receivables_received} />
               {data.entered.other.map((o) => <Row key={o.kind} label={o.label} value={o.amount} />)}
-              <Row label="Colocado no caixa (suprimento)" value={data.entered.cash_register_in} />
+              <Row label="Colocado no caixa" value={data.entered.cash_register_in} />
               {!!data.entered.sales_on_account && (
                 <Text style={styles.small}>Vendido no fiado no mês: {formatCurrency(data.entered.sales_on_account)} (entra quando ela pagar).</Text>
               )}
@@ -175,7 +189,7 @@ export default function ClosingScreen() {
               <Row label="Compras e dívidas pagas" value={-data.left.purchases_and_debts} />
               <Row label="Devoluções em dinheiro" value={-data.left.refunds} />
               {data.left.other.map((o) => <Row key={o.kind} label={o.label} value={-o.amount} />)}
-              <Row label="Tirado do caixa (sangria)" value={-data.left.cash_register_out} />
+              <Row label="Tirado do caixa" value={-data.left.cash_register_out} />
               {!!data.left.expenses_without_account.count && (
                 <Text style={styles.small}>
                   {data.left.expenses_without_account.count} despesa(s) sem dizer de onde saiu o dinheiro ({formatCurrency(data.left.expenses_without_account.amount)}):
@@ -280,7 +294,7 @@ export default function ClosingScreen() {
         message={`${dt.text}. O que você contou vira o saldo de cada conta e o mês não recebe mais lançamentos.`}
         loading={doClose.isPending} onConfirm={() => doClose.mutate()} onCancel={() => setConfirm(null)} />
       <ConfirmDialog visible={confirm === 'reopen'} title={`Reabrir ${data?.label ?? ''}?`} type="warning" confirmText="Reabrir" cancelText="Voltar"
-        message="Os ajustes da quebra são desfeitos e o mês volta a aceitar lançamentos. Depois feche de novo."
+        message="Os ajustes da diferença do caixa são desfeitos e o mês volta a aceitar lançamentos. Depois feche de novo."
         loading={doReopen.isPending} onConfirm={() => doReopen.mutate()} onCancel={() => setConfirm(null)} />
     </View>
   );

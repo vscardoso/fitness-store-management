@@ -153,6 +153,57 @@ async def get_sales_report_pdf(
     )
 
 
+async def _monthly_data(db: AsyncSession, tenant_id: int, user: User, year: int | None, month: int | None):
+    from app.core.timezone import today_brazil
+    from app.services.monthly_report_service import MonthlyReportError, MonthlyReportService
+
+    today = today_brazil()
+    try:
+        return await MonthlyReportService(db).build(tenant_id, year or today.year, month or today.month, user)
+    except MonthlyReportError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get(
+    "/monthly",
+    summary="Relatório mensal da loja (financeiro e analítico)",
+    description="Resultado do mês contra o mês anterior, vendas, dinheiro nas contas, fiado, contas a pagar, estoque e pontos de atenção.",
+)
+async def get_monthly_report(
+    year: int | None = Query(None, description="Ano (padrão: o atual)"),
+    month: int | None = Query(None, ge=1, le=12, description="Mês de 1 a 12 (padrão: o atual)"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    return await _monthly_data(db, tenant_id, current_user, year, month)
+
+
+@router.get(
+    "/monthly/pdf",
+    summary="Relatório mensal da loja em PDF",
+)
+async def get_monthly_report_pdf(
+    year: int | None = Query(None),
+    month: int | None = Query(None, ge=1, le=12),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    tenant_id: int = Depends(get_current_tenant_id),
+):
+    from fastapi import Response
+    from app.models.store import Store
+    from app.services.monthly_report_pdf_service import build_monthly_report_pdf
+
+    data = await _monthly_data(db, tenant_id, current_user, year, month)
+    store = await db.get(Store, tenant_id)
+    return Response(
+        content=build_monthly_report_pdf(data, getattr(store, "name", "") or ""),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'inline; filename="relatorio-mensal-{data["year"]}-{data["month"]:02d}.pdf"',
+                 "Cache-Control": "no-store"},
+    )
+
+
 @router.get(
     "/stock-chain/pdf",
     summary="Estoque atual em PDF (entrada, fornecedor e produto)",

@@ -53,7 +53,7 @@ export default function FinanceSetupScreen() {
 
   // confere antes de perguntar: a mensagem diz qual linha corrigir
   const check = (): string => {
-    if (!start) return 'Informe a data de corte.';
+    if (!start) return 'Informe o dia em que o app começa a contar.';
     for (const [k, v] of [['Dinheiro na gaveta', cash], ['Cartão a receber', card]] as const) {
       if (v.trim() && parseMoneyBr(v) === null) return `${k}: valor inválido.`;
     }
@@ -107,14 +107,14 @@ export default function FinanceSetupScreen() {
 
   return (
     <View style={styles.container}>
-      <PageHeader title="Implantar a loja" subtitle="Para quem já vendia antes do Provador" showBackButton backFallback="/finance" />
+      <PageHeader title="Começar a controlar o dinheiro" subtitle="Para quem já vendia antes do Provador" showBackButton backFallback="/finance" />
       <ScrollView contentContainerStyle={[styles.content, desktop]} keyboardShouldPersistTaps="handled">
         {!!error && <Text style={styles.error}>{error}</Text>}
 
         <View style={styles.card}>
-          <Text style={styles.title}>1. Data de corte</Text>
-          <Text style={styles.note}>Os saldos abaixo são deste dia. Daí em diante o app soma as vendas, as despesas e as contas pagas sozinho.</Text>
-          <DateTimeInput label="Data de corte" value={start} onChange={setStart} mode="date" maximumDate={today()} />
+          <Text style={styles.title}>1. Contar a partir de</Text>
+          <Text style={styles.note}>Os saldos abaixo são deste dia; o que aconteceu antes dele não entra. Daí em diante o app soma as vendas, as despesas e as contas pagas sozinho.</Text>
+          <DateTimeInput label="Contar a partir de" value={start} onChange={setStart} mode="date" maximumDate={today()} />
         </View>
 
         <View style={styles.card}>
@@ -189,16 +189,16 @@ export default function FinanceSetupScreen() {
           <View style={styles.sum}><Text style={styles.sumLabel}>Dinheiro (gaveta, bancos e maquininha)</Text><Text style={styles.sumValue}>{formatCurrency(totalMoney)}</Text></View>
           <View style={styles.sum}><Text style={styles.sumLabel}>Contas a pagar ({usedPays.length})</Text><Text style={[styles.sumValue, { color: Colors.light.error }]}>{formatCurrency(totalPay)}</Text></View>
           <Button mode="contained" buttonColor={brand.primary} style={styles.save} onPress={ask} disabled={busy} loading={busy}>
-            Implantar a loja
+            Começar a controlar o dinheiro
           </Button>
         </View>
       </ScrollView>
 
       <ConfirmDialog
         visible={confirm}
-        title="Implantar a loja?"
+        title="Começar a controlar o dinheiro?"
         message={`Dinheiro hoje: ${formatCurrency(totalMoney)}. Contas a pagar: ${formatCurrency(totalPay)}. Isto é feito uma vez; depois os saldos andam sozinhos com as vendas e os pagamentos.`}
-        confirmText="Implantar"
+        confirmText="Começar"
         type="info"
         loading={busy}
         onConfirm={save}
