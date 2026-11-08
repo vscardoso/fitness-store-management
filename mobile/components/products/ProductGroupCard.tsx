@@ -21,10 +21,20 @@ function ProductGroupCardBase({ product, onPress }: ProductGroupCardProps) {
   const compact = useWindowDimensions().width < 360;
 
   const hasVariants = product.variant_count > 1;
-  const stockText = product.total_stock > 0 ? `${product.total_stock} un.` : 'Sem estoque';
+  // zerado que nunca vendeu é só catálogo (regra do Victor): não é "sem estoque"
+  const catalogOnly = product.total_stock === 0 && !product.has_sales;
+  const stockText = product.total_stock > 0 ? `${product.total_stock} un.` : catalogOnly ? 'Só catálogo' : 'Sem estoque';
   const lowStockThreshold = product.min_stock_threshold ?? 3;
 
   const stockStatus = (() => {
+    if (catalogOnly) {
+      return {
+        backgroundColor: Colors.light.textSecondary + '14',
+        borderColor: Colors.light.textSecondary + '2E',
+        color: Colors.light.textSecondary,
+        icon: 'albums-outline' as const,
+      };
+    }
     if (product.total_stock === 0) {
       return {
         backgroundColor: Colors.light.error + '14',

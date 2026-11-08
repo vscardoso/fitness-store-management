@@ -272,6 +272,22 @@ async def get_dashboard_stats(
     result = await db.execute(low_stock_query)
     low_stock_count = result.scalar() or 0
 
+    # 5.1 Sem estoque = esgotou por VENDA (zerado que nunca vendeu é só catálogo e não conta)
+    from app.services.stock_rules import sold_products_subquery
+    out_of_stock_count = int((await db.execute(
+        select(func.count(Product.id)).where(
+            Product.tenant_id == tenant_id, Product.is_active == True,  # noqa: E712
+            Product.id.in_(sold_products_subquery(tenant_id).scalar_subquery()),
+            Product.id.not_in(
+                select(EntryItem.product_id).join(StockEntry, EntryItem.entry_id == StockEntry.id).where(
+                    EntryItem.tenant_id == tenant_id, EntryItem.is_active == True,  # noqa: E712
+                    StockEntry.is_active == True, EntryItem.quantity_remaining > 0,  # noqa: E712
+                    EntryItem.product_id.is_not(None),
+                ).scalar_subquery()
+            ),
+        )
+    )).scalar() or 0)
+
     # 6. Total de clientes
     customers_query = select(func.count(Customer.id)).where(
         Customer.tenant_id == tenant_id,
@@ -321,6 +337,7 @@ async def get_dashboard_stats(
             "total_skus": total_skus,  # SKUs distintos (produto+variação) com estoque
             "products_registered": total_products_registered,  # todos produtos ativos
             "low_stock_count": low_stock_count,
+            "out_of_stock_count": out_of_stock_count,  # esgotou por venda (zerado que nunca vendeu não conta)
         },
         "sales": {
             "total_today": total_sales_today,

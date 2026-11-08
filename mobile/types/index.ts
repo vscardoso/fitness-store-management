@@ -262,6 +262,8 @@ export interface ProductGrouped {
   min_price: number;
   max_price: number;
   min_stock_threshold?: number;
+  /** Já teve venda válida. Produto zerado só conta como "sem estoque" se já vendeu; senão é só catálogo. */
+  has_sales?: boolean;
 }
 
 // ============================================
@@ -478,6 +480,7 @@ export interface FIFOCostInfo {
   average_unit_cost: number;
   total_quantity: number;
   sources_count: number;
+  last_unit_cost?: number | null; // custo posto da compra mais recente (quando não há peça em estoque)
 }
 
 // ============================================

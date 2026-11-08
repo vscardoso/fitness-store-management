@@ -1241,11 +1241,23 @@ async def get_fifo_costs(
     results = {}
     for pid in product_ids:
         cost_info = await fifo_service.get_product_cost_info(pid, tenant_id=tenant_id)
+        # custo da compra mais recente (custo posto: mercadoria + frete): serve quando não há peça em estoque
+        from sqlalchemy import select as _select
+        from app.models.entry_item import EntryItem as _EntryItem
+        from app.models.stock_entry import StockEntry as _StockEntry
+        last = (await db.execute(
+            _select(_EntryItem.unit_cost, _EntryItem.extra_unit_cost)
+            .join(_StockEntry, _StockEntry.id == _EntryItem.entry_id)
+            .where(_EntryItem.product_id == pid, _EntryItem.tenant_id == tenant_id, _EntryItem.is_active == True,  # noqa: E712
+                   _StockEntry.is_active == True)  # noqa: E712
+            .order_by(_StockEntry.entry_date.desc(), _EntryItem.id.desc()).limit(1)
+        )).first()
         results[str(pid)] = {
             "product_id": pid,
             "average_unit_cost": cost_info["average_unit_cost"],
             "total_quantity": cost_info["total_quantity"],
             "sources_count": cost_info["sources_count"],
+            "last_unit_cost": float((last[0] or 0) + (last[1] or 0)) if last else None,
         }
 
     return results

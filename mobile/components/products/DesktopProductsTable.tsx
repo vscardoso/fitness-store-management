@@ -21,7 +21,7 @@ import type { ProductGrouped } from '@/types';
 const INK = '#160F28';
 const MUTED = '#5B5670';
 const LINE = '#E6E3EE';
-type StockFilter = 'all' | 'low' | 'with' | 'none';
+type StockFilter = 'all' | 'low' | 'with' | 'none' | 'catalog';
 
 
 const isLow = (p: ProductGrouped) => p.total_stock > 0 && p.total_stock <= (p.min_stock_threshold ?? 3);
@@ -56,7 +56,10 @@ export default function DesktopProductsTable() {
     total: products.length,
     pieces: products.reduce((a, p) => a + p.total_stock, 0),
     low: products.filter(isLow).length,
-    none: products.filter((p) => p.total_stock <= 0).length,
+    // sem estoque = esgotou por venda; zerado que nunca vendeu é só catálogo e não conta como sem estoque
+    none: products.filter((p) => p.total_stock <= 0 && p.has_sales).length,
+    catalog: products.filter((p) => p.total_stock <= 0 && !p.has_sales).length,
+    inStock: products.filter((p) => p.total_stock > 0).length,
   }), [products]);
 
   const rows = useMemo(() => {
@@ -64,7 +67,8 @@ export default function DesktopProductsTable() {
       if (categoryId != null && p.category_id !== categoryId) return false;
       if (stock === 'low' && !isLow(p)) return false;
       if (stock === 'with' && p.total_stock <= 0) return false;
-      if (stock === 'none' && p.total_stock > 0) return false;
+      if (stock === 'none' && !(p.total_stock <= 0 && p.has_sales)) return false;
+      if (stock === 'catalog' && !(p.total_stock <= 0 && !p.has_sales)) return false;
       return matchesProduct(p, search, [categoryName.get(p.category_id ?? -1)]);
     });
   }, [products, search, stock, categoryId, categoryName]);
@@ -100,12 +104,13 @@ export default function DesktopProductsTable() {
       sortValue: (p) => p.total_stock,
       render: (p) => {
         const none = p.total_stock <= 0;
+        const catalogOnly = none && !p.has_sales;
         const low = isLow(p);
-        const fg = none ? '#B4235C' : low ? '#B45309' : '#047857';
-        const bg = none ? '#FDECF3' : low ? '#FEF3C7' : '#ECFDF5';
+        const fg = catalogOnly ? '#6B7280' : none ? '#B4235C' : low ? '#B45309' : '#047857';
+        const bg = catalogOnly ? '#F3F4F6' : none ? '#FDECF3' : low ? '#FEF3C7' : '#ECFDF5';
         return (
           <View style={[styles.badge, { backgroundColor: bg }]}>
-            <Text style={[styles.badgeText, { color: fg }]}>{none ? 'Sem estoque' : `${p.total_stock} un.`}</Text>
+            <Text style={[styles.badgeText, { color: fg }]}>{catalogOnly ? 'Só catálogo' : none ? 'Sem estoque' : `${p.total_stock} un.`}</Text>
           </View>
         );
       },
@@ -128,7 +133,7 @@ export default function DesktopProductsTable() {
   const header = (
     <PageHeader
       title="Produtos"
-      subtitle={`${summary.total.toLocaleString('pt-BR')} ${summary.total === 1 ? 'produto' : 'produtos'} · ${summary.pieces.toLocaleString('pt-BR')} peças em estoque`}
+      subtitle={`${summary.inStock.toLocaleString('pt-BR')} em estoque (${summary.pieces.toLocaleString('pt-BR')} peças)${summary.none ? ` · ${summary.none} esgotado(s)` : ''}${summary.catalog ? ` · ${summary.catalog} só catálogo` : ''}`}
       rightActions={[
         { icon: 'scan', onPress: () => router.push('/products/wizard?method=scanner') },
       ]}
@@ -156,10 +161,11 @@ export default function DesktopProductsTable() {
   }
 
   const stockChips: { key: StockFilter; label: string }[] = [
-    { key: 'all', label: `Todos (${summary.total.toLocaleString('pt-BR')})` },
+    { key: 'all', label: `Todos os cadastrados (${summary.total.toLocaleString('pt-BR')})` },
     { key: 'with', label: 'Com estoque' },
     { key: 'low', label: `Estoque baixo (${summary.low})` },
     { key: 'none', label: `Sem estoque (${summary.none})` },
+    { key: 'catalog', label: `Só catálogo (${summary.catalog})` },
   ];
 
   return (

@@ -288,6 +288,12 @@ async def list_grouped_products(
                 data["max_price"] = data["base_price"] or 0
             result_list.append(data)
         
+        # produto zerado só conta como "sem estoque" se já foi vendido (app/services/stock_rules.py)
+        from app.services.stock_rules import sold_product_ids
+        sold = await sold_product_ids(db, tenant_id, [d["id"] for d in result_list])
+        for d in result_list:
+            d["has_sales"] = d["id"] in sold
+
         return result_list
         
     except Exception as e:

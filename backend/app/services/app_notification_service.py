@@ -45,12 +45,16 @@ class AppNotificationService:
             # nome de produto muito longo estourava a coluna (title é varchar(255)) e derrubava a consulta inteira
             return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
 
+        from app.services.stock_rules import counts_as_out_of_stock, sold_product_ids
+        sold = await sold_product_ids(db, tenant_id, [r[0] for r in rows if int(r[2]) <= 0])
         state: dict[int, tuple[str, str, str]] = {}
         for pid, name, qty, min_stock in rows:
             qty, min_stock = int(qty), int(min_stock)
             name = clip(name or "", 120)
             if qty <= 0:
-                state[pid] = ("out_of_stock", f"Sem estoque: {name}", f"{name} acabou. Hora de repor.")
+                # zerado que nunca vendeu (variação excluída, baixa, cadastro só de catálogo) não gera alerta
+                if counts_as_out_of_stock(qty, pid in sold):
+                    state[pid] = ("out_of_stock", f"Sem estoque: {name}", f"{name} acabou. Hora de repor.")
             elif min_stock > 0 and qty <= min_stock:
                 state[pid] = (
                     "low_stock",

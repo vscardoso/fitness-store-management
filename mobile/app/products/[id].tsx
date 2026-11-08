@@ -19,14 +19,14 @@ import PageHeader from '@/components/layout/PageHeader';
 import AppButton from '@/components/ui/AppButton';
 import InfoRow from '@/components/ui/InfoRow';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
-import { getProductById, deleteProduct, updateProduct } from '@/services/productService';
+import { getProductById, deleteProduct, updateProduct, getFIFOCosts } from '@/services/productService';
 import { getProductStock } from '@/services/inventoryService';
 import { getProductVariants, getVariantGrid, formatVariantLabel, deleteVariant } from '@/services/productVariantService';
 import { parseApiError } from '@/utils/apiError';
 import AddProductToEntryModal from '@/components/entries/AddProductToEntryModal';
 import { variantCodeText } from '@/utils/shortCode';
 import { useAuth } from '@/hooks/useAuth';
-import { isAdminRole } from '@/utils/roles';
+import { isAdminRole, isManagerRole } from '@/utils/roles';
 import VariantKeepModal from '@/components/products/VariantKeepModal';
 import { VariantStockMatrix } from '@/components/products/VariantStockMatrix';
 import { formatCurrency, formatDate, formatPercent } from '@/utils/format';
@@ -245,6 +245,14 @@ export default function ProductDetailsScreen() {
   const [newVariantOpen, setNewVariantOpen] = useState(false);   // antes do retorno antecipado (regra dos hooks)
   const { user } = useAuth();
   const isAdmin = isAdminRole(user?.role);
+
+  // Custo do produto (só gerente e admin; caixa e vendedor nunca recebem custo do servidor)
+  const canSeeCost = isManagerRole(user?.role);
+  const { data: costInfo } = useQuery({
+    queryKey: ['product-fifo-cost', productId],
+    queryFn: async () => (await getFIFOCosts([productId]))[String(productId)],
+    enabled: isValidId && canSeeCost,
+  });
   const [pricesSheetOpen, setPricesSheetOpen] = useState(false);
   // Excluir UMA variação pela lixeira do cartão; com peças, o estoque dela é zerado (o servidor só deixa o admin)
   const removeOneVariant = useMutation({
@@ -497,6 +505,37 @@ export default function ProductDetailsScreen() {
             </View>
           </View>
         </View>
+
+        {/* ── Custo e lucro por peça (só gerente e admin) ── */}
+        {canSeeCost && (() => {
+          const stockCost = Number(costInfo?.average_unit_cost) || 0;
+          const lastCost = Number(costInfo?.last_unit_cost) || 0;
+          const cost = stockCost > 0 ? stockCost : lastCost;
+          if (cost <= 0) return null;
+          const refPrice = hasVariants ? minVariantPrice : product.price;
+          const profit = refPrice > 0 ? refPrice - cost : null;
+          return (
+            <View style={[styles.quickCard, { marginBottom: 16 }]}>
+              <View style={[styles.quickIconWrap, { backgroundColor: Colors.light.success + '20' }]}>
+                <Ionicons name="wallet-outline" size={22} color={Colors.light.success} />
+              </View>
+              <View style={styles.quickInfo}>
+                <Text style={styles.quickLabel}>Custo por peça</Text>
+                <Text style={styles.quickValue}>{formatCurrency(cost)}</Text>
+                <Text style={styles.quickSub}>
+                  {stockCost > 0
+                    ? `Média das ${costInfo?.total_quantity ?? 0} peça(s) em estoque (mercadoria + frete)`
+                    : 'Da compra mais recente (não há peça em estoque)'}
+                </Text>
+                {profit !== null && (
+                  <Text style={[styles.quickSub, { color: profit >= 0 ? Colors.light.success : Colors.light.error, fontWeight: '700' }]}>
+                    Lucro por peça: {formatCurrency(profit)} · margem de {formatPercent((profit / refPrice) * 100)} sobre o preço{hasPriceRange ? ' mais baixo' : ''}
+                  </Text>
+                )}
+              </View>
+            </View>
+          );
+        })()}
 
         {/* ── PRODUTO SEM ESTOQUE: como reaproveitar ── */}
         {isOutOfStock && (

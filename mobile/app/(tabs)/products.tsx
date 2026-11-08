@@ -304,6 +304,10 @@ function MobileProductsScreen() {
   }
 
   const productCount = products?.length || 0;
+  // composição do catálogo: o total de cadastros continua visível, mas só quem tem estoque conta como "em estoque"
+  const inStockCount = (products ?? []).filter((p: any) => (p.total_stock ?? 0) > 0).length;
+  const soldOutCount = (products ?? []).filter((p: any) => (p.total_stock ?? 0) <= 0 && p.has_sales).length;
+  const catalogOnlyCount = productCount - inStockCount - soldOutCount;
   const hasActiveFilter = showLowStock || showOnlyWithStock || !!searchQuery.trim();
 
   return (
@@ -319,7 +323,7 @@ function MobileProductsScreen() {
         >
         <PageHeader
           title="Produtos"
-          subtitle={showLowStock ? `${productCount} com estoque baixo` : `${productCount} ${productCount === 1 ? 'produto' : 'produtos'}`}
+          subtitle={showLowStock ? `${productCount} com estoque baixo` : `${inStockCount} em estoque${soldOutCount ? ` · ${soldOutCount} esgotado(s)` : ''}${catalogOnlyCount ? ` · ${catalogOnlyCount} só catálogo` : ''}`}
           rightActions={[
             { icon: 'scan', onPress: () => router.push('/products/wizard?method=scanner') },
           ]}

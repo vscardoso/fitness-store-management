@@ -245,9 +245,11 @@ export default function InventoryDashboard() {
     // Usar valoração do endpoint (fonte única da verdade)
     const totalValue = valuation?.cost_value || 0;
 
-    const totalItems = activeProducts.length;
+    // Regra: produto zerado não entra em contagem nenhuma. Só conta o que esgotou por VENDA, e só em "Sem estoque";
+    // zerado que nunca vendeu (variação excluída, baixa, cadastro só de catálogo) fica fora de todos os números.
     const productsWithStock = activeProducts.filter((p) => stockOf(p) > 0).length;
-    const productsOutOfStock = activeProducts.filter((p) => stockOf(p) === 0).length;
+    const totalItems = productsWithStock;
+    const productsOutOfStock = activeProducts.filter((p) => stockOf(p) === 0 && (p as any).has_sales).length;
     const productsLowStock = activeProducts.filter((p) => {
       const stock = stockOf(p);
       return stock > 0 && stock <= (p.min_stock_threshold ?? 3);
@@ -340,7 +342,7 @@ export default function InventoryDashboard() {
         <Animated.View style={headerAnimStyle}>
           <PageHeader
             title="Inventário"
-            subtitle={`${metrics.totalItems} produtos ativos`}
+            subtitle={`${metrics.totalItems} produtos em estoque`}
             rightActions={[
             ]}
           />
@@ -364,7 +366,7 @@ export default function InventoryDashboard() {
             <View style={styles.statCardWrapper}>
               <StatCard
                 icon="cube-outline"
-                label="Produtos Ativos"
+                label="Produtos em estoque"
                 value={metrics.totalItems}
                 iconColor={Colors.light.info}
                 iconBg={Colors.light.infoLight}
@@ -395,26 +397,16 @@ export default function InventoryDashboard() {
             </View>
             <View style={styles.statCardWrapper}>
               <StatCard
-                icon="checkmark-circle-outline"
-                label="Com Estoque"
-                value={metrics.productsWithStock}
-                iconColor={Colors.light.success}
-                iconBg={Colors.light.successLight}
-                onPress={() => router.push('/(tabs)/products')}
-              />
-            </View>
-          </View>
-          <View style={styles.statsRow}>
-            <View style={styles.statCardWrapper}>
-              <StatCard
                 icon="alert-circle-outline"
-                label="Sem Estoque"
+                label="Sem Estoque (esgotado por venda)"
                 value={metrics.productsOutOfStock}
                 iconColor={Colors.light.error}
                 iconBg={Colors.light.errorLight}
                 onPress={() => router.push('/(tabs)/products')}
               />
             </View>
+          </View>
+          <View style={styles.statsRow}>
             <View style={styles.statCardWrapper}>
               <StatCard
                 icon="warning-outline"
@@ -425,6 +417,7 @@ export default function InventoryDashboard() {
                 onPress={() => router.push('/(tabs)/products?filter=low_stock' as any)}
               />
             </View>
+            <View style={styles.statCardWrapper} />
           </View>
         </View>
 
